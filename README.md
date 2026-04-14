@@ -1,96 +1,100 @@
-# campus-agent v2
+# campus-agent
 
-校园助理系统 v2 的入口 monorepo。
+`campus-agent` 是校园助理系统 v2 的入口 monorepo。
 
-## 默认入口
+## Overview
 
-先读这些文件：
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led` 的校园助理系统：公开聊天面、受保护运营面、共享 `app-api`、内部 `supervisor-api`，以及按能力边界拆分的 specialist / retrieval / ingestion packages。
 
-- `AGENTS.md`
-- `CONTRIBUTING.md`
-- `docs/README.md`
-- `docs/architecture/product-positioning.md`
-- `docs/architecture/current-architecture.md`
-- `docs/architecture/target-architecture.md`
-- `.planning/PROJECT.md`
+当前 merged truth 的主路径为：
 
-如果你是在接手当前 worktree 的执行上下文，再补读：
+`browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api -> supervisor-core -> specialist`
 
-- `.planning/STATE.md`
+该仓库当前的核心约束包括：
 
-## 文档分工
-
-- `docs/architecture/`、`docs/decisions/`
-  - 当前接受架构、长期边界与 ADR 真相
-- `docs/contracts/`、`docs/data/`、`docs/reference/`
-  - 稳定 contract、schema、术语、指标与实现参考真相
-- `docs/runbooks/`
-  - 可重复操作步骤、部署与验收手册
-- `docs/plans/`
-  - 仍对前向实施有指导价值的计划文档，不承担当前 merged truth
-- `.planning/`
-  - 项目级 planning truth 与 worktree-local 执行上下文；其中 `.planning/STATE.md` 只代表当前 worktree
-
-## 当前 merged truth
-
-- 当前主链路是 `app-api -> supervisor-api -> supervisor-core -> specialist -> retrieval-core`
-- 当前前向产品拓扑是 `public-chat-web -> app-api -> supervisor-api` 与 `protected-panel-web -> app-api -> request projection / operator read model`
 - 当前 query-enabled surface 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
-- `apps/app-api` 是唯一 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution admission
-- `official_web` control plane 已收口在 shared `apps/app-api`
-- 独立 worktree 中尚未回 `develop` 的进度，不得冒充 merged truth
+- `apps/app-api` 是唯一 product-layer auth / session / principal owner
+- `apps/supervisor-api` 是 internal execution engine，不是产品后端
+- online query path 与 offline data plane 持续分层
 
-## 仓库范围
+## Status
 
-- `apps/authenticated-notice-collector`
-  - authenticated notice source bootstrap / collector runtime
-- `apps/public-chat-web`
-  - public-facing Worker web surface
-- `apps/protected-panel-web`
-  - protected Worker web surface
-- `apps/app-api`
-  - shared Worker-native product/control-plane backend
-- `apps/supervisor-api`
-  - execution engine boundary
-- `apps/ingestion-worker`
-  - ingestion runtime shell
-- `apps/official-web-collector`
-  - official web collector runtime
-- `packages/availability-specialist`
-  - allowlisted external reachability / availability specialist
-- `packages/navigation-specialist`
-  - campus place-finding / navigation specialist
-- `packages/official-web-core`
-  - official web domain helpers shared by collector/runtime paths
-- `packages/supervisor-core`
-  - top-level orchestration、routing、response finalization
-- `packages/rag-specialist`
-  - knowledge specialist entry
-- `packages/retrieval-core`
-  - retrieval abstraction 与 evidence shaping
-- `packages/ingestion-core`
-  - ingestion/data-plane consumption logic
-- `packages/contracts`
-  - supervisor/specialist shared typed seam
-- `packages/evals`
-  - regression、benchmark 与 smoke/eval entry
-- `packages/shared`
-  - 轻量共享常量与工具
+当前项目处于验收收口与上线前硬化阶段。
 
-## 多人协作入口
+项目级当前真相与 pending work 见：
 
-- 协作规则与分支模型：`CONTRIBUTING.md`
-- 文档导航：`docs/README.md`
-- develop/main 发布流程：`docs/runbooks/develop-main-release-runbook.md`
+- [.planning/PROJECT.md](./.planning/PROJECT.md)
+- [.planning/STATE.md](./.planning/STATE.md)
 
-## 验证
+当前接受的产品定位、merged truth 与长期架构分别见：
 
-默认验证入口：
+- [产品定位](./docs/architecture/product-positioning.md)
+- [当前架构](./docs/architecture/current-architecture.md)
+- [目标架构](./docs/architecture/target-architecture.md)
+
+## Repository Layout
+
+仓库按 runtime boundary 与 capability boundary 组织：
+
+- [`apps/`](./apps/)
+  - runtime shell 与 transport boundary，例如 `public-chat-web`、`protected-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
+- [`packages/`](./packages/)
+  - 稳定能力边界，例如 `supervisor-core`、`rag-specialist`、`retrieval-core`、`ingestion-core`、`contracts`
+- [`configs/`](./configs/)
+  - collection/runtime profile、ingestion 配置与 source config
+- [`docs/`](./docs/)
+  - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 active plan 文档
+- [`.planning/`](./.planning/)
+  - 当前项目级 planning truth、worktree continuity、phase 计划和执行总结
+- [`tests/`](./tests/)
+  - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
+
+主链路相关目录：
+
+- [`apps/app-api`](./apps/app-api/)
+- [`apps/supervisor-api`](./apps/supervisor-api/)
+- [`packages/supervisor-core`](./packages/supervisor-core/)
+- [`packages/rag-specialist`](./packages/rag-specialist/)
+- [`packages/retrieval-core`](./packages/retrieval-core/)
+
+## Documentation
+
+默认文档入口：
+
+- [docs/README.md](./docs/README.md)
+- [docs/architecture/README.md](./docs/architecture/README.md)
+- [docs/contracts/README.md](./docs/contracts/README.md)
+- [docs/data/README.md](./docs/data/README.md)
+
+文档与 planning 的分工：
+
+- `docs/`
+  - 长期有效、应被反复引用的共享真相
+- `docs/architecture/current-architecture.md`
+  - 当前 accepted merged truth
+- `.planning/PROJECT.md`
+  - 当前项目级范围、active lane 与 pending work
+- `.planning/STATE.md`
+  - 当前 worktree 的 now / next / blockers / recent verification
+
+仓库协作规则见：
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [AGENTS.md](./AGENTS.md)
+
+## Development
+
+环境准备：
 
 ```bash
 uv sync --all-packages --dev
-uv run --all-packages python -m unittest discover -s tests -t .
 pnpm install
+```
+
+常用验证入口：
+
+```bash
+uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
@@ -98,8 +102,16 @@ pnpm web:test:integration
 pnpm web:build
 ```
 
-更细的 lane、运行术语与 smoke 路径见：
+更细的验证 lane 与 smoke 路径见：
 
-- `docs/reference/testing-and-verification-lanes.md`
-- `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/runbooks/forward-worker-surface-smoke-runbook.md`
+- [testing-and-verification-lanes](./docs/reference/testing-and-verification-lanes.md)
+- [runtime-serving-and-index-terms](./docs/reference/runtime-serving-and-index-terms.md)
+- [forward-worker-surface-smoke-runbook](./docs/runbooks/forward-worker-surface-smoke-runbook.md)
+
+## Collaboration
+
+默认协作流是：
+
+`feature/worktree -> develop -> main`
+
+详细协作与提交流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。

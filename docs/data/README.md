@@ -27,3 +27,4 @@ updated: 2026-04-12
 
 - schema 文档描述逻辑 ownership，不替代 migration 历史
 - panel、runbook、reference 若引用数据真相，应优先回链到这里
+- schema 文档可以说明“当前已冻结的逻辑表/字段子集”，但不承担 `.planning` 中的 active lane / pending work / closeout 状态说明

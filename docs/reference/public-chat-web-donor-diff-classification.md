@@ -2,45 +2,45 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Public Chat Web Donor Diff Classification
 
 ## 文档边界
 
-本文固定 `apps/public-chat-web` 在 donor tech-debt convergence Wave 4 之后的剩余 donor diff 分类结果。
+本文固定 `apps/public-chat-web` 在 donor tech-debt convergence 收口后的 donor diff 分类结果。
 
 本文回答的是：
 
-- 当前 `.tmp/vercel-ai-chatbot` 对比 `apps/public-chat-web/vendor/vercel-ai-chatbot/` 还剩哪些真实 diff
+- `.tmp/vercel-ai-chatbot` 对比 `apps/public-chat-web/vendor/vercel-ai-chatbot/` 还剩哪些真实 diff
 - 这些 diff 分别属于 accepted product diff、accepted runtime compatibility diff，还是 historical debt
-- 当前 exact compat seam 由哪些 repo-owned 文件持有
+- exact compat seam 由哪些 repo-owned 文件持有
 
 本文不负责：
 
 - 改写 donor diff whitelist 的 policy 规则
 - 重新定义 strict donor parity 的 smoke / staging evidence
-- 把 upstream donor 根目录里未 vendored 的 meta 文件误记成当前产品壳 drift
+- 把 upstream donor 根目录里未 vendored 的 meta 文件误记成产品壳 drift
 
-## 当前结论
+## 分类基线
 
-Wave 4 当前已经把 donor diff 分成三层：
+当前 donor diff 固定分成三层：
 
 - `accepted product diff`
 - `accepted runtime compatibility diff`
 - `exact compat seam owner`
 
-当前 remaining historical debt 路径数为 `0`。
+remaining historical debt 路径数固定为 `0`。
 
-当前 machine-check gate 固定要求：
+machine-check gate 固定要求：
 
-- 当前 vendor diff 集必须与本文 inventory 完全一致
-- `app/globals.css` 继续保留在 inventory 内，但当前 worker-lane diff test 只对其余源码路径做 byte-level 集合比对；`globals.css` 仍通过本文 inventory、whitelist 文档与 fresh `build` 共同约束
-- 当前 exact compat seam owner 集必须与 `vite.config.ts` / `tsconfig.json` 完全一致
+- vendor diff 集必须与本文 inventory 完全一致
+- `app/globals.css` 继续保留在 inventory 内，但 worker-lane diff test 只对其余源码路径做 byte-level 集合比对；`globals.css` 仍通过本文 inventory、whitelist 文档与 fresh `build` 共同约束
+- exact compat seam owner 集必须与 `vite.config.ts` / `tsconfig.json` 完全一致
 - 新长出的 vendor diff 如果不在本文 inventory 内，直接视为 regression
 
-upstream donor 根目录存在但当前 vendor landing zone 不承接的 meta-only 路径如下：
+upstream donor 根目录存在但 vendor landing zone 不承接的 meta-only 路径如下：
 
 - `.cursor/rules/ultracite.mdc`
 - `.github/workflows/lint.yml`
@@ -50,9 +50,9 @@ upstream donor 根目录存在但当前 vendor landing zone 不承接的 meta-on
 
 ## Accepted Product Diffs
 
-这些路径仍然对 donor 有 diff，但它们承载的是当前产品边界或 accepted runtime behavior，不是 historical debt。
+这些路径仍然对 donor 有 diff，但它们承载的是产品边界或 accepted runtime behavior，不是 historical debt。
 
-| Path | 当前原因 |
+| Path | 原因 |
 |---|---|
 | `artifacts/actions.ts` | artifact suggestions 已固定为 same-site `/api/suggestions` ownership，并通过 exact compat seam 承接 `@/lib/db/queries` |
 | `components/chat/chat-header.tsx` | launch path 固定 `private-only`，share / visibility affordance 已从主路径脱线 |
@@ -67,11 +67,11 @@ upstream donor 根目录存在但当前 vendor landing zone 不承接的 meta-on
 
 ## Accepted Runtime Compatibility Diffs
 
-这些路径的 diff 不改变 donor-visible 行为，当前只承担 Worker / Vite / TypeScript / app-api payload compatibility。
+这些路径的 diff 不改变 donor-visible 行为，只承担 Worker / Vite / TypeScript / app-api payload compatibility。
 
-| Path | 当前原因 |
+| Path | 原因 |
 |---|---|
-| `app/globals.css` | 当前 Vite/Tailwind runtime 不直接复用 donor root 的 `katex` / `@source streamdown` import 入口 |
+| `app/globals.css` | Vite/Tailwind runtime 不直接复用 donor root 的 `katex` / `@source streamdown` import 入口 |
 | `artifacts/text/client.tsx` | same-site suggestions 返回的时间字段需要在 client artifact path 上显式归一化 |
 | `components/chat/document-preview.tsx` | `RefObject` 类型需要对齐当前 React/TS nullability |
 | `components/chat/sidebar-history.tsx` | pagination key 与 pathname 读取需要对齐当前 TS nullability |
@@ -80,7 +80,7 @@ upstream donor 根目录存在但当前 vendor landing zone 不承接的 meta-on
 
 ## Exact Compat Seam Owners
 
-这些 repo-owned 文件是当前 exact compat seam 的唯一 owner；vendor runtime 继续保留 donor specifier，不允许把 runtime truth 重新写回 vendor tree。
+这些 repo-owned 文件是 exact compat seam 的唯一 owner；vendor runtime 继续保留 donor specifier，不允许把 runtime truth 重新写回 vendor tree。
 
 | Specifier | Owner Path | 当前模式 |
 |---|---|---|
@@ -109,14 +109,14 @@ upstream donor 根目录存在但当前 vendor landing zone 不承接的 meta-on
 
 ## Historical Debt
 
-当前 inventory 中不再保留“以后再收”的 donor diff。
+本文 inventory 中不再保留“以后再收”的 donor diff。
 
-- 当前 historical debt 路径：`none`
+- historical debt 路径：`none`
 - 如果后续新增路径，必须先回到 `accepted product diff` 或 `accepted runtime compatibility diff` 的明确分类；否则视为 blocker
 
 ## Gate
 
-当前分类由以下 gate 固定：
+分类由以下 gate 固定：
 
 - [public-chat-donor-diff-classification.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-classification.test.ts)
 - [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts)

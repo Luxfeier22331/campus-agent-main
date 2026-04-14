@@ -31,3 +31,4 @@ updated: 2026-04-12
 
 - contract 只写稳定 seam，不写执行历史
 - request/response shape 的 current truth 以这里为准，不以 panel UI 或 sink payload 为准
+- contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane / pending work / closeout 状态说明

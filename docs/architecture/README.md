@@ -23,6 +23,8 @@ updated: 2026-04-12
 
 - `product-runtime-architecture.md`
   - public/protected surface、shared `app-api` 与 runtime ownership
+- `runtime-delivery-and-release-hardening-architecture.md`
+  - staging baseline、release identity、deploy gate 与 post-deploy evidence closure
 - `execution-and-specialists-architecture.md`
   - supervisor-led orchestration、specialist boundary 与 prompt assembly seam
 - `prompt-and-instruction-architecture.md`

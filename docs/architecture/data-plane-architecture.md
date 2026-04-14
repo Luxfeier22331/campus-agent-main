@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Data Plane Architecture
@@ -16,6 +16,11 @@ updated: 2026-04-10
 - canonical upstream chain 是什么
 - raw、source truth、projection、document truth、chunk/index 分别属于谁
 - 哪些规则是 repo 级 shared contract，哪些属于 collection-specific strategy
+
+补充约束：
+
+- 当前 merged truth 的开放 surface 与产品执行状态不在本文维护，统一看 `docs/architecture/current-architecture.md` 与 `.planning/`
+- 本文中的 “scope” 指 canonical data-plane support 范围，不等于 query-enabled 或 rollout 已完成
 
 ## Canonical Chain
 
@@ -48,7 +53,7 @@ source truth 的长期硬约束：
 - `authenticated_notice_portal`
   notice-level source truth，详见 `docs/architecture/authenticated-notice-source-truth-contract.md`
 
-这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Current Scope` 为准。
+这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
 
 ## Derived Collection Rebuild
 
@@ -141,9 +146,9 @@ registry / control-plane database 与对象存储长期分层。
 
 为准。
 
-## Current Scope
+## Accepted Data-Plane Scope
 
-当前 data plane 已支撑：
+当前 data plane 已支撑以下 canonical scope：
 
 - `regulations/student_handbook`
 - `curriculum/curriculum_plan`
@@ -151,6 +156,8 @@ registry / control-plane database 与对象存储长期分层。
 - `curriculum/program_family_facts`
 - `curriculum/program_semester_facts`
 - `official_web` source channel 的 control-plane / source-truth path
+
+这表示 repo 已为这些 scope 建立了 canonical data-plane 语义，并不表示它们都已开放 query-serving 或已完成当前 rollout。
 
 ## Authenticated Notice Async Staged Closeout
 
@@ -178,6 +185,7 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 
 ## 相关稳定文档
 
+- `docs/architecture/current-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`

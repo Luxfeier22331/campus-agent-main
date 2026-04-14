@@ -10,22 +10,29 @@ updated: 2026-04-12
 `runbooks/` 保存可重复执行的操作步骤、部署流程和验收手册。
 当前仍建议直接执行的操作文档保持 `active`；legacy 或只保留对照价值的流程改为 `historical`。
 
-## Deploy / smoke / release
+## Core Deploy / Smoke / Release
 
 - `staging-worker-deploy-runbook.md`
-- `dev-backed-supervisor-staging-smoke-runbook.md`
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
 
-## Local infra / recovery
+## Environment-Specific Smoke / Evidence
+
+- `dev-backed-supervisor-staging-smoke-runbook.md`
+- `worker-observability-smoke-runbook.md`
+- `public-chat-staging-smoke-artifact-template.md`
+- `worker-observability-smoke-artifact-template.md`
+
+## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
 - `qdrant-cloud-backup-and-restore-runbook.md`
 - `provider-secret-governance.md`
 
-## Authenticated notice
+## Authenticated Notice / Internal Notice
 
+- `authenticated-notice-file-release-auth-window-runbook.md`
 - `authenticated-notice-bootstrap-smoke-runbook.md`
 - `authenticated-notice-source-truth-replay-runbook.md`
 - `authenticated-notice-async-staged-closeout-runbook.md`
@@ -45,12 +52,6 @@ updated: 2026-04-12
 
 - `student-handbook-hybrid-rebuild-checklist.md`
 - `curriculum-plan-hybrid-rebuild-checklist.md`
-
-## Artifact templates
-
-- `public-chat-staging-smoke-artifact-template.md`
-- `worker-observability-smoke-artifact-template.md`
-- `worker-observability-smoke-runbook.md`
 
 ## Historical / Comparison Runbooks
 

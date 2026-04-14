@@ -2,19 +2,19 @@
 doc_type: reference
 status: active
 created: 2026-04-06
-updated: 2026-04-09
+updated: 2026-04-12
 ---
 
 # Public Chat Web Chatbot Donor Baseline
 
 ## 文档边界
 
-本文冻结当前 `apps/public-chat-web` 的 strict donor comparison baseline。
+本文冻结 `apps/public-chat-web` 的 strict donor comparison baseline。
 
 它回答的是：
 
-- 当前 chat shell 对照的 donor 是谁
-- 当前本地严格对照使用哪个 commit
+- chat shell 对照的 donor 是谁
+- 严格对照使用哪个 commit
 - 哪些内容允许继承，哪些只能通过 repo seam 接入
 - strict parity 下 donor code 应如何落地
 
@@ -28,8 +28,8 @@ updated: 2026-04-09
 
 - upstream repo URL: `https://github.com/vercel/chatbot`
 - GitHub current canonical page: `https://github.com/vercel/ai-chatbot`
-- current local strict-comparison baseline: `.tmp/vercel-ai-chatbot`
-- current local baseline commit: `691c3cb05fddf292e1f52788d383937740c57cb9`
+- strict-comparison baseline checkout: `.tmp/vercel-ai-chatbot`
+- baseline commit: `691c3cb05fddf292e1f52788d383937740c57cb9`
 - baseline recorded at: `2026-04-09`
 - license posture: `Apache-2.0`
 
@@ -37,7 +37,7 @@ updated: 2026-04-09
 
 - GitHub 当前把该项目展示为 `vercel/ai-chatbot`
 - 但本 repo 的 donor 讨论、历史上下文和引用入口继续统一记为 `vercel/chatbot`
-- 当前 strict parity 讨论默认以本地 `.tmp/vercel-ai-chatbot` 的实际检出为准，而不是较早一轮 donor pin 记录
+- strict parity 讨论默认以本地 `.tmp/vercel-ai-chatbot` 的实际检出为准，而不是更早的 donor pin 记录
 
 ## Donor Role
 
@@ -100,13 +100,13 @@ donor code 落地时必须遵守以下规则：
 
 ## Target Landing Zones
 
-当前 worktree 的 donor 落地区域如下：
+donor 落地区域固定如下：
 
 - donor vendor tree: `apps/public-chat-web/vendor/vercel-ai-chatbot/`
 - repo-owned platform seam: `apps/public-chat-web/src/platform/`
 - repo-owned route tree and login surface: `apps/public-chat-web/src/routes/`, `apps/public-chat-web/src/login/`
 
-当前 repo-owned browser shell 仅允许保留在：
+repo-owned browser shell 仅允许保留在：
 
 - `apps/public-chat-web/src/platform/`
 - `apps/public-chat-web/src/routes/`
@@ -122,7 +122,7 @@ donor code 落地时必须遵守以下规则：
 
 补充说明：
 
-- `2026-04-09` 当前 worktree 已把 `RouteStatusCard` 从 runtime path 中移除；route entry fallback 现只保留在 route layer 的不可见 bootstrap，`app-shell` 不再持有 redirect/fallback
+- `RouteStatusCard` 已退出 runtime path；route entry fallback 现只保留在 route layer 的不可见 bootstrap，`app-shell` 不再持有 redirect/fallback
 - `src/chatbot-donor/`、`src/chatbot-shell/` 与 `src/public-chat/` 已从 app source tree 退役，不再保留兼容 overlay 或过渡壳
 
 ## Patch Policy
@@ -149,5 +149,5 @@ donor code 落地时必须遵守以下规则：
 
 - upstream repo: <https://github.com/vercel/chatbot>
 - canonical GitHub page: <https://github.com/vercel/ai-chatbot>
-- current local baseline commit: <https://github.com/vercel/chatbot/commit/691c3cb05fddf292e1f52788d383937740c57cb9>
+- baseline commit: <https://github.com/vercel/chatbot/commit/691c3cb05fddf292e1f52788d383937740c57cb9>
 - license: <https://github.com/vercel/chatbot/blob/main/LICENSE>

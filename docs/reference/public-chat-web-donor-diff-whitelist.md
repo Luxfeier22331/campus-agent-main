@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-11
+updated: 2026-04-12
 ---
 
 # Public Chat Web Donor Diff Whitelist
@@ -20,13 +20,13 @@ updated: 2026-04-11
 
 本文不负责：
 
-- 替代 `.tmp/vercel-ai-chatbot` 与当前 worktree 的原始 diff
+- 替代 `.tmp/vercel-ai-chatbot` 与当前 vendor tree 之间的原始 diff
 - 改写 `public-chat-web -> app-api -> supervisor-api` accepted topology
 - 把 repo-owned `/login` surface 误记成 donor shell 本身
 
 ## 直接结论
 
-当前 `apps/public-chat-web` 只允许保留以下 donor diff 类型：
+`apps/public-chat-web` 只允许保留以下 donor diff 类型：
 
 - exact 路由兼容接缝：`next/link`、`next/navigation`
 - exact vendor lib compat seam：`@/lib/ai/models`、`@/lib/constants`、`@/lib/db/schema`、`@/lib/editor/diff`、`@/lib/types`、`@/lib/utils`
@@ -38,26 +38,26 @@ updated: 2026-04-11
 
 除此之外，`launch path` 上的 donor-visible drift 一律不接受。
 
-当前 path-level inventory 已从 whitelist policy 中拆出，固定看：
+path-level inventory 已从 whitelist policy 中拆出，固定看：
 
 - [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md)
 
 ## Allowlisted Diffs
 
-| Diff 类型 | 当前说明 | 当前文件 |
+| Diff 类型 | 说明 | 当前文件 |
 |---|---|---|
-| accepted product diff | 允许保留当前产品边界导致的 donor diff，例如 private-only launch path、same-site request ownership、campus-domain copy；具体路径 inventory 固定在分类文档，不再在 whitelist policy 内重复列出 | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) |
+| accepted product diff | 允许保留产品边界导致的 donor diff，例如 private-only launch path、same-site request ownership、campus-domain copy；具体路径 inventory 固定在分类文档，不再在 whitelist policy 内重复列出 | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) |
 | exact compat seam | donor specifier 继续保留在 vendor runtime import 上，但 runtime truth 必须由 repo-owned exact seam owner 承担；具体 specifier / owner path inventory 固定在分类文档 | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) |
 | type/runtime compatibility diff | 仅为 Worker/Vite/TypeScript/runtime payload 兼容而保留的非可见 diff 是允许的，但不能拥有 donor-visible behavior；具体路径 inventory 固定在分类文档 | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) |
 
 ## Share / Visibility Rule
 
-当前 `campus` chat mode 固定是 `private-only`，所以分享 / 公开能力不能继续出现在 launch path。
+`campus` chat mode 固定是 `private-only`，所以分享 / 公开能力不能继续出现在 launch path。
 
 这里的 accepted boundary 是：
 
-- `use-active-chat` 当前固定 `visibilityType: "private"`，不再让 launch path 暴露 public/private 切换
-- `app-api` 当前 conversation summary / detail truth 继续固定 `visibility: "private"`
+- `use-active-chat` 固定 `visibilityType: "private"`，不再让 launch path 暴露 public/private 切换
+- `app-api` 的 conversation summary / detail truth 固定 `visibility: "private"`
 - share / visibility 相关源码可以继续留在 vendor tree 或历史文件里，但只要当前产品路径不能以 donor behavior 上线，就必须从 launch affordance 脱线，而不是改造成 repo-owned fallback
 
 对应证据：
@@ -78,7 +78,7 @@ updated: 2026-04-11
 
 ## Gate Contract
 
-Wave 6 结束时，diff 判定口径固定为：
+diff 判定口径固定为：
 
 - whitelist 内 diff：允许保留
 - whitelist 外但 donor-visible：`FAIL`

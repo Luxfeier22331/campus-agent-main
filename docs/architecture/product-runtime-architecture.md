@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-14
 ---
 
 # Product Runtime Architecture
@@ -49,7 +49,8 @@ updated: 2026-04-12
 补充约束：
 
 - 当前 merged truth 以 `docs/architecture/current-architecture.md` 为准
-- 部署命名、Cloudflare Access 配置、staging 细节与 rollout closeout 证据不写在本文，统一看 runbooks 与 `.planning/`
+- release hardening supporting architecture 统一看 `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`
+- staging runbook、Cloudflare Access 执行细节与 rollout closeout 证据统一看 runbooks 与 `.planning/`
 
 ## Surface Responsibilities
 
@@ -147,3 +148,4 @@ protected panel 的长期 access model 固定为：
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`

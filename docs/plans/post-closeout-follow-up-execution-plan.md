@@ -2,7 +2,7 @@
 doc_type: plan
 status: deferred
 created: 2026-04-06
-updated: 2026-04-12
+updated: 2026-04-13
 ---
 
 # Post-Closeout Follow-Up Execution Plan
@@ -13,7 +13,7 @@ updated: 2026-04-12
 
 **Current Scope:** `official-web` / Phase 10 由其他 worktree 处理，不进入本计划。
 
-**Lifecycle:** 截至 2026-04-12，Wave A/B/D/E 的主体 closeout 已完成，当前 repo 默认 active execution lane 已切到 Phase 15 `grounded-generation`。本文转为 `deferred` reference，只保留尚未重开的外部 blocker 与后置 follow-up。
+**Lifecycle:** 截至 2026-04-13，Wave A/B/D/E 的主体 closeout 与 Phase 1000 curriculum 修复已完成。本文转为 `deferred` reference，只保留仍未重开的后置 follow-up 与历史执行背景。同日，Wave E 剩余的 seed 扩面与验收证据工作已正式提升为 `.planning/ROADMAP.md` 中的 Phase 1001 `Campus Navigation Place Catalog Expansion And Acceptance Evidence`，因此本文不再承载该导航后续线的 active planning truth。
 
 ---
 
@@ -39,8 +39,8 @@ updated: 2026-04-12
 当前 repo 已知事实：
 
 - `student_handbook` 当前 pass artifact 为 `20260404T072912Z`
-- `curriculum_plan` 当前 latest completed live artifact 为 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`
-- curriculum live accept 已达到 deterministic `19/19` pass，当前剩余问题只在 supplemental soft-warn
+- `curriculum_plan` 当前 latest completed live artifact 已更新为 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+- 2026-04-13 fresh curriculum live accept 三轮 `19/19` 全通过，`final-summary.json` 为 `deterministic=pass`、`supplemental=pass`、`final=pass`
 - 三个 Worker app 的 staging posture 已收口到项目隔离一级子域：`campus-api-staging.ayafeed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
 - `workers_dev = false` 与 `preview_urls = false` 已进入 repo 配置
 - `place_lookup` / `place_finding` 已冻结为导航相关首个前向 slice，`route_planning` 明确后置
@@ -65,8 +65,10 @@ updated: 2026-04-12
 - 同日已补齐 operator 约束：当前 WSL shell 访问 Qdrant Cloud 时会被宿主机代理值拖慢到超时，`release_registry_scope` 和 collection/alias 检查必须显式清空大小写代理变量，而不能只做 `env -u HTTP_PROXY ...`
 - 2026-04-11 当前 worktree 进一步完成了 Wave D 的 post-release consumption materialization：repo 新增 `campus_ingestion_core.internal_notice_regulation_materialization` 与 `campus_ingestion_worker.materialize_internal_notice_regulation_candidates`，把 `promote_candidate` canonical text 物化到 `regulations/institutional_regulations`；当前 materialization 保留 semantic target identity、duplicate provenance aggregation 与 full target-scope refresh，但仍明确停在 `offline_preparation`
 - 2026-04-11 historical donor local-smoke routing mismatch 已在 donor-import seam 单独收口：当 normalized manifest 标记 `collector.attachment_storage_mode=blob_store_reference` 且选中 batch 含 object-backed attachments 时，`import_authenticated_notice_export` / local smoke 现在会对缺失的 `attachment_blob_root` preflight fast-fail；local smoke inventory 继续是 attachment routing truth，donor byte-aware routing analysis 只保留为诊断性交叉校验
-- 2026-04-11 已补齐 `institutional_regulations` Cohort A 的 local-only target-side batch acceptance 与 structure-aware rerun：`11` 条 Cohort A notice 已完成 rebuilt inventory，当前 promotion routing 仍只把 `187233` 产出为 `promote_candidate`，其余 `10` 条仍落在 `manual_promotion_review`；但 `187233` 的 target chunk prep 已从 `short_body_chunk_count=7` 收口到 `short_body_chunk_count=0`，当前 quality posture 为 `ready_for_target_materialization`。因此下一条 repo-local authenticated-notice 动作已进一步收敛为“promotion admission/routing review”，而不是继续讨论 target chunk tuning 或直接讨论 release posture；同时已明确修正文档立场：校内制度文本不因发布时间老旧或标题含 `暂行/试行` 就自动降格或排除，真正的分流依据应是正文里的年度/项目制边界、wrapper 语义和显式临时/过渡语义
-- 2026-04-11 当前 worktree 进一步冻结了这 `10` 条 manual-review notice 的 forward collection boundary：`annual_cycle_rule` 与 `time_bound_operational_rule` 现在走 repo-owned `regulations/scoped_rules` holding collection 路径，而不是继续停在 `manual_review_required`。同日又补齐了 isolated local-only chunk acceptance：`10` 条 scoped-rule candidates 物化为 `9` 条 target documents，`305` 个 chunks 的 hard gate 全部通过，`short_body_chunk_count=29` 被显式记录为 soft follow-up；query posture 仍保持 `offline_preparation + query_disabled`
+- 2026-04-11 已补齐 `institutional_regulations` Cohort A 的 local-only target-side batch acceptance 与 structure-aware rerun：当时先把 `187233 / 中央民族大学采购工作管理办法` 的 target chunk prep 从 `short_body_chunk_count=7` 收口到 `short_body_chunk_count=0`，并冻结了 `institutional_regulations` target-side 的 structure-aware merge contract 与 hard gate
+- 2026-04-12 在当前 repo-head 上重新执行 Cohort A local-only acceptance harness 后，Cohort A posture 已刷新为：`11` 条 notice 完成 rebuilt inventory，`promotion_candidate_count=10`、`promotion_manual_review_count=0`、`promotion_hold_count=1`、`prepared_candidate_count=10`、`short_body_chunk_count=0`、`quality_posture=ready_for_target_materialization`
+- 同日进一步完成隔离 snapshot root 的 local-only materialization acceptance：这 `10` 条 accepted candidates 已实际物化到 `regulations/institutional_regulations` 的 isolated quick-task output 中；`191176` 已导入 target，`191177` 当前作为 duplicate hold 保留在 `internal_notice`
+- 2026-04-12 随后已完成 formal local current-scope materialization：仅对 vetted Cohort A notice-id 白名单执行 target refresh，结果为 `promotion_candidate_count=10`、`promotion_hold_count=1`、`promotion_manual_review_count=0`、`materialized_document_count=10`，且 `regulations/institutional_regulations` local current target count 由 `9` 刷新为 `10`
 - 2026-04-11 Wave E 已完成当前 worktree 的 foundation closeout：repo 已补齐 `campus_navigation/place_catalog` seed/runtime profile、`packages/navigation-specialist`、`place_lookup` contract/routing、`apps/app-api` `place_card` structured parts，以及 `apps/public-chat-web` 中文地点卡片渲染；定向 Python/Vitest/TypeScript 验证已 fresh 通过
 
 ## Workstreams
@@ -214,17 +216,22 @@ updated: 2026-04-12
   - `tests.specialist.test_rag_specialist`
   - `tests.evals.test_curriculum_live_benchmark`
   - `tests.evals.test_ragas_runtime`
-- 2026-04-10 已执行一轮 fresh curriculum live rerun/accept，目标是替换历史 `20260404T200443Z` warn artifact：
+- 2026-04-10 曾执行一轮 fresh curriculum live rerun/accept，目标是替换历史 `20260404T200443Z` warn artifact：
   - rerun artifact：`.tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c/`
   - 当前 run 未进入 benchmark case 执行，直接在 `run/supplemental-preflight.json` fast-fail
   - `failure_disposition = non_retryable_request`
   - `failure_reasons = [preflight_failed, provider_contract_violation]`
   - 根因已定位为 supplemental LLM provider `https://www.su8.codes/codex/v1` 的 Responses contract regression：text / json-schema probe 都返回 `status='completed'` 但 `output=[]`
   - repo 已把这类返回升级为 `provider_contract_violation` / `non_retryable_request` fast-fail，而不是继续把它伪装成“soft-warn 仍待解释”
-- 因此当前 Wave C 的 remaining step 已变化：
+- 2026-04-12 已把 eval supplemental provider 切换到 `https://codex.gbro.site/v1`
+- 2026-04-13 已完成 fresh accept rerun，并生成新的 pass artifact：
+  - rerun artifact：`.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+  - `run-01` / `run-02` / `run-03`：`19/19 passed`
+  - `final-summary.json`：`deterministic_verdict=pass`、`supplemental_verdict=pass`、`final_overall_verdict=pass`
+- 因此当前 Wave C 已不再有 benchmark rerun blocker：
   - curriculum repo-head truth / answer-shape remediation：已完成
-  - historical warn artifact replacement：等待 supplemental provider 恢复符合 contract 的 `/responses` 输出，或切换到明确满足该 contract 的 eval provider runtime
-  - 在 provider 未恢复前，下一条前向 workstream 直接转入 Wave D
+  - historical warn artifact replacement：已完成，旧 artifact 仅保留为历史记录
+  - 若继续保留本 deferred 文档，后续只需在触碰旧引用时统一改指向新的 `phase1000` pass artifact
 
 ## Workstream 4: Wave D - Authenticated-Notice Post-Closeout Consumption
 
@@ -242,7 +249,8 @@ updated: 2026-04-12
 - verified closeout run 生成的 `preparation_run_id` 不能直接跨过 promote 进入 release gate；当前这条链路已实证要求先把 verified run promote 到 current scope，才能让 preparation manifest hash 与 current registry scope 对齐
 - 当前 collection 的 release evidence 已补齐 preparation manifest、release manifest、validation summary、physical collection 与未发布 alias 事实；后续不再重复把“是否能 release”当成 Wave D blocker
 - 当前 WSL 环境执行 Qdrant Cloud release / inspection 还需要一条固定 operator rule：显式清空大小写代理变量，否则会在 Qdrant API 层超时
-- 当前 Wave D 的 next repo-local authenticated-notice action 已进一步收窄为：`institutional_regulations` target collection 的 chunk preparation / validation acceptance，以及后续 release posture decision；不再是 promotion materialization 本身
+- 当前 Wave D 的 regulation import 收口已完成：Cohort A 不再存在 residual `manual_review_required` notice；`10` 条 accepted candidates 已完成 formal local current-scope target materialization，duplicate family `191177 -> 191176` 也已在 source-side hold boundary 上收口
+- 当前 formal current source scope 仍宽于 Cohort A accepted batch；未过滤 manifest 仍会产出额外 promote/hold/manual-review 混合 posture，因此此时不得对全量 `internal_notice` current scope 直接执行 unfiltered target materialization
 - live portal scheduling 与 authenticated control plane 仍后置
 - 不能把 `offline_preparation` collection 的离线 release 写成 query-serving 开放
 
@@ -286,9 +294,10 @@ updated: 2026-04-12
 
 当前剩余 follow-up：
 
-- 扩充 `place_catalog` seed 覆盖面与 `verification_state`
-- 在真实 staging 上补 place-finding smoke / 人工验收证据
-- 继续把 `route_graph` / `route_planning` 明确留在后续 phase，不回卷进本波
+- 这些 follow-up 已转入 Phase 1001：
+  - 扩充 `place_catalog` seed 覆盖面与 `verification_state`
+  - 在真实 staging 上补 place-finding smoke / 人工验收证据
+  - 继续把 `route_graph` / `route_planning` 明确留在后续 phase，不回卷进本波
 
 ## Blocked Vs Ready
 
@@ -296,7 +305,7 @@ updated: 2026-04-12
 
 - Wave C truth / context / evaluator 诊断
 - Wave D 的 post-closeout docs/state 收口，以及 release 之后的 retrieval-prep consumption / downstream follow-up
-- Wave E 的 code truth 已关闭；后续只剩 seed 扩面与 staging/UAT 验收，而不是 foundation 设计
+- Wave E 的 code truth 已关闭；其后续 seed 扩面与 staging/UAT 验收现由 Phase 1001 单独承接，而不是继续留在本 deferred 文档
 
 外部阻塞：
 

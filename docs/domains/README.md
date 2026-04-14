@@ -15,7 +15,7 @@ updated: 2026-04-12
 - `identity-authz-memory.md`
   - canonical identity、profile/session memory、authorization truth 与 restricted rollout boundary
 - `navigation.md`
-  - navigation specialist、place catalog、route/wayfinding boundary 与当前 merged-truth posture
+  - navigation specialist、place catalog、route/wayfinding boundary 与相关执行入口
 - `official-web.md`
   - `official_web` source channel、control plane、serving split 与 operator surface
 - `authenticated-notice.md`
@@ -28,3 +28,5 @@ updated: 2026-04-12
 - 领域 hub 只做入口聚合，不替代原始 source of truth
 - 长期边界仍以 architecture / decisions 为准
 - 当前执行状态仍以 `.planning/PROJECT.md` 和 `.planning/STATE.md` 为准
+- domain hub 可以提示 active/deferred/completed plan 的阅读顺序，但不重复维护完整 plan 细节
+- domain hub 可以给出简短的“当前执行说明”，但不应重写 `current-architecture` 或 `.planning` 的完整真相

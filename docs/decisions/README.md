@@ -72,6 +72,7 @@ updated: 2026-04-12
 - `adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `adr-0037-unified-scoped-rules-holding-collection.md`
+- `adr-0040-regulation-work-title-and-edition-separation.md`
 
 ## 维护规则
 

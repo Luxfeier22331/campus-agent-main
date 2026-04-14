@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Retrieval Serving Architecture
@@ -17,16 +17,21 @@ updated: 2026-04-10
 - retrieval pipeline 如何分层
 - 当前版本 serving 与未来历史查询如何统一在一套模型下
 
-## 当前 Baseline
+补充约束：
+
+- 当前 merged truth 的 query-enabled surface 以 `docs/architecture/current-architecture.md` 为准
+- 本文负责解释 retrieval / serving 模型、internal surface 类别与长期版本查询边界，不维护 phase 顺序或 rollout closeout
+
+## Accepted Retrieval Model
 
 当前 serving surface 由 runtime profile 显式控制。
 
-当前开放：
+当前默认公开 query-enabled surface 仍限于：
 
 - `regulations/student_handbook`
 - `curriculum/curriculum_plan`
 
-当前非默认公开查询面：
+当前还存在若干 internal retrieval surface，但它们不因此自动成为默认公开 query-serving collection：
 
 - `curriculum/course_facts`
   internal specialist retrieval surface
@@ -93,7 +98,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - 历史版本查询必须显式化
 - 多来源等价内容归并为一个逻辑 document version
 
-## Current Status Vs Target
+## Merged Truth Vs Target Boundary
 
 当前已经具备：
 
@@ -107,7 +112,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - as-of query
 - compare query
 
-这些属于目标架构的一部分，而不是当前默认 surface。
+这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以 `.planning/PROJECT.md`、`.planning/STATE.md` 与相关 plan 为准。
 
 ## Course Facts Internal Surface
 
@@ -143,6 +148,8 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 
 ## 相关稳定文档
 
+- `docs/architecture/current-architecture.md`
+- `docs/architecture/target-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
