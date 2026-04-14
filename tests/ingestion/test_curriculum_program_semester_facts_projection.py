@@ -216,6 +216,135 @@ class CurriculumProgramSemesterFactsProjectionTest(unittest.TestCase):
             ["民族学人类学经典导读"],
         )
 
+    def test_build_scope_refresh_documents_preserves_blank_leading_cells_in_html_table_rows(self) -> None:
+        documents = build_curriculum_program_semester_facts_scope_refresh_documents(
+            raw_asset_record=RawAssetRecord(
+                raw_asset_id="asset:history-strong-base",
+                raw_version_id="sha256:program-semester-facts-003",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="campusrag://source/curriculum/history-strong-base.pdf",
+                content_hash="program-semester-facts-003",
+                source_filename="history-strong-base.pdf",
+                object_key="official_pdf/history-strong-base/provider-response.jsonl",
+                ingestion_timestamp="2026-04-06T00:00:00+00:00",
+                import_source="provider_response_replay",
+            ),
+            source_pdf="history-strong-base.pdf",
+            split_manifest_documents=(
+                SplitManifestDocument(
+                    document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    title="历史学（强基计划）本科人才培养方案",
+                    page_start=90,
+                    page_end=96,
+                ),
+            ),
+            structured_rows=(
+                {
+                    "clean_text": "八、历史学本科专业教学进程计划表",
+                    "html": (
+                        "<table>"
+                        "<tr><td>类别</td><td>课程号</td><td>课程名称</td><td>学分</td><td>学时</td><td>实践学时</td><td>修读学期</td></tr>"
+                        "<tr><td>培养课</td><td>1042010081</td><td>大学英语(三)</td><td>2</td><td>54</td><td>36</td><td>3</td></tr>"
+                        "<tr><td></td><td>1042010082</td><td>大学英语(四)</td><td>2</td><td>54</td><td>36</td><td>4</td></tr>"
+                        "<tr><td></td><td>1037010044</td><td>中华民族共同体概论</td><td>2</td><td>36</td><td>12</td><td>4</td></tr>"
+                        "</table>"
+                    ),
+                    "page_start": 93,
+                    "page_end": 93,
+                },
+            ),
+            provider_response_key="derived/curriculum/provider-response.jsonl",
+            layout_elements_key="derived/curriculum/layout-elements.jsonl",
+        )
+
+        fourth_semester = next(
+            document
+            for document in documents
+            if _document_row(document)["doc_id"]
+            == build_curriculum_program_semester_fact_document_id(
+                "curriculum:历史学（强基计划）本科人才培养方案",
+                "第四学期",
+            )
+        )
+
+        self.assertEqual(
+            _document_row(fourth_semester)["metadata"]["course_titles"],
+            ["大学英语(四)", "中华民族共同体概论"],
+        )
+
+    def test_build_scope_refresh_documents_uses_table_cells_grid_for_sparse_curriculum_tables(self) -> None:
+        documents = build_curriculum_program_semester_facts_scope_refresh_documents(
+            raw_asset_record=RawAssetRecord(
+                raw_asset_id="asset:history-strong-base",
+                raw_version_id="sha256:program-semester-facts-004",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="campusrag://source/curriculum/history-strong-base.pdf",
+                content_hash="program-semester-facts-004",
+                source_filename="history-strong-base.pdf",
+                object_key="official_pdf/history-strong-base/provider-response.jsonl",
+                ingestion_timestamp="2026-04-06T00:00:00+00:00",
+                import_source="provider_response_replay",
+            ),
+            source_pdf="history-strong-base.pdf",
+            split_manifest_documents=(
+                SplitManifestDocument(
+                    document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    title="历史学（强基计划）本科人才培养方案",
+                    page_start=90,
+                    page_end=96,
+                ),
+            ),
+            structured_rows=(
+                {
+                    "clean_text": "八、历史学本科专业教学进程计划表（表格见结构化 cells）",
+                    "html": None,
+                    "table_cells": [
+                        {"row": 1, "col": 1, "text": "类别", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 2, "text": "课程号", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 3, "text": "课程名称", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 4, "text": "学分", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 5, "text": "学时", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 6, "text": "实践学时", "rowspan": 1, "colspan": 1},
+                        {"row": 1, "col": 7, "text": "修读学期", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 1, "text": "培养课", "rowspan": 2, "colspan": 1},
+                        {"row": 2, "col": 2, "text": "1042010081", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 3, "text": "大学英语(三)", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 4, "text": "2", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 5, "text": "54", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 6, "text": "36", "rowspan": 1, "colspan": 1},
+                        {"row": 2, "col": 7, "text": "3", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 2, "text": "1042010082", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 3, "text": "大学英语(四)", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 4, "text": "2", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 5, "text": "54", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 6, "text": "36", "rowspan": 1, "colspan": 1},
+                        {"row": 3, "col": 7, "text": "4", "rowspan": 1, "colspan": 1},
+                    ],
+                    "page_start": 93,
+                    "page_end": 93,
+                },
+            ),
+            provider_response_key="derived/curriculum/provider-response.jsonl",
+            layout_elements_key="derived/curriculum/layout-elements.jsonl",
+        )
+
+        fourth_semester = next(
+            document
+            for document in documents
+            if _document_row(document)["doc_id"]
+            == build_curriculum_program_semester_fact_document_id(
+                "curriculum:历史学（强基计划）本科人才培养方案",
+                "第四学期",
+            )
+        )
+
+        self.assertEqual(
+            _document_row(fourth_semester)["metadata"]["course_titles"],
+            ["大学英语(四)"],
+        )
+
     def test_projection_module_exposes_canonical_scope_materialization_entrypoint(self) -> None:
         materialize = getattr(
             semester_projection,

@@ -118,18 +118,18 @@
       "notes": "中国少数民族语言文学本科方案总学分样本。"
     },
     {
-      "case_id": "economics-course-map-table",
-      "query": "经济学拔尖人才创新班人才培养方案课程地图怎么安排",
+      "case_id": "economics-course-settings-table",
+      "query": "经济学拔尖人才创新班人才培养方案课程设置怎么安排",
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "table retrieval 样本。"
+      "notes": "课程设置 table retrieval 样本。"
     },
     {
-      "case_id": "fiscal-course-map-table",
-      "query": "财政学本科人才培养方案课程地图怎么安排",
+      "case_id": "fiscal-course-settings-table",
+      "query": "财政学本科人才培养方案课程设置怎么安排",
       "expected_sources": [],
       "forbidden_sources": [],
-      "notes": "财政学 table retrieval 样本。"
+      "notes": "财政学课程设置 table retrieval 样本。"
     },
     {
       "case_id": "general-english-total-credits",

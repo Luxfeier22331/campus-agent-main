@@ -69,8 +69,8 @@ def create_app(
         name=runtime_settings.app_name,
         runtime=AgentOSRuntime(
             provider=runtime_settings.runtime_provider,
-            supervisor_model=runtime_settings.agno_supervisor_model,
-            specialist_model=runtime_settings.agno_specialist_model,
+            supervisor_model=runtime_settings.supervisor_prompt_model,
+            specialist_model=runtime_settings.specialist_prompt_model,
             prompt_runtime=prompt_runtime,
         ),
         routes=build_routes(
@@ -91,8 +91,8 @@ def _build_prompt_runtime_assets(
     prompt_runtime = PromptRuntimeSettings(
         provider=provider,
         transport=settings.prompt_runtime_transport,
-        supervisor_prompt_model=settings.agno_supervisor_model,
-        specialist_prompt_model=settings.agno_specialist_model,
+        supervisor_prompt_model=settings.supervisor_prompt_model,
+        specialist_prompt_model=settings.specialist_prompt_model,
         strict_structured_outputs=settings.prompt_strict_structured_outputs,
     )
     if not provider:
@@ -110,7 +110,7 @@ def _build_prompt_runtime_assets(
             None,
             None,
         )
-    if not settings.agno_supervisor_model.strip() or not settings.agno_specialist_model.strip():
+    if not settings.supervisor_prompt_model.strip() or not settings.specialist_prompt_model.strip():
         return (
             replace(prompt_runtime, admission_reason="prompt_models_not_configured"),
             None,
@@ -141,10 +141,10 @@ def _build_prompt_runtime_assets(
         replace(prompt_runtime, admitted=True),
         ProviderBackedSupervisorPromptExecutor(
             provider_config=provider_config,
-            model_name=settings.agno_supervisor_model,
+            model_name=settings.supervisor_prompt_model,
         ),
         ProviderBackedRagPromptExecutor(
             provider_config=provider_config,
-            model_name=settings.agno_specialist_model,
+            model_name=settings.specialist_prompt_model,
         ),
     )

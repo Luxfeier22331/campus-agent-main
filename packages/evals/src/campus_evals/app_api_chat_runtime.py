@@ -447,6 +447,78 @@ def _parse_evidence_source(value: object, *, field: str) -> EvidenceSource:
         snippet=_required_string(record.get("snippet"), f"{field}.snippet"),
         score=float(record.get("score") or 0.0),
         source_title=_optional_string(record.get("source_title")) or "",
+        canonical_source_id=_optional_string(record.get("canonical_source_id")) or "",
+        canonical_source_title=_optional_string(record.get("canonical_source_title")) or "",
+        source_unit_kind=_optional_string(record.get("source_unit_kind")) or "",
+        source_unit_key=_optional_string(record.get("source_unit_key")) or "",
+    )
+
+
+def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
+    record = _optional_record(value)
+    if record is None:
+        raise ValueError(f"{field} must be an object")
+    if "revision_track" in record and "version_id" in record and "canonical_url" in record:
+        return _parse_evidence_source(record, field=field)
+
+    doc_id = _required_string(
+        record.get("doc_id") if "doc_id" in record else record.get("docId"),
+        f"{field}.doc_id",
+    )
+    chunk_id = _optional_string(record.get("chunk_id") if "chunk_id" in record else record.get("chunkId"))
+    collection = _required_string(
+        record.get("collection") if "collection" in record else record.get("collection"),
+        f"{field}.collection",
+    )
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=_optional_string(record.get("version_id") if "version_id" in record else record.get("versionId"))
+        or "observed-trace",
+        chunk_id=chunk_id or f"{doc_id}:observed-trace",
+        anchor=_optional_record(record.get("anchor")) or {},
+        canonical_url=_optional_string(
+            record.get("canonical_url") if "canonical_url" in record else record.get("canonicalUrl")
+        )
+        or "",
+        latest_url=_optional_string(
+            record.get("latest_url") if "latest_url" in record else record.get("latestUrl")
+        )
+        or "",
+        source_channel=_optional_string(
+            record.get("source_channel") if "source_channel" in record else record.get("sourceChannel")
+        )
+        or "pdf_ocr",
+        collection=collection,
+        is_current=bool(record.get("is_current") if "is_current" in record else record.get("isCurrent")),
+        snippet=_optional_string(record.get("snippet")) or "",
+        score=float(record.get("score") or 0.0),
+        source_title=_optional_string(record.get("source_title") if "source_title" in record else record.get("sourceTitle"))
+        or "",
+        canonical_source_id=_optional_string(
+            record.get("canonical_source_id")
+            if "canonical_source_id" in record
+            else record.get("canonicalSourceId")
+        )
+        or "",
+        canonical_source_title=_optional_string(
+            record.get("canonical_source_title")
+            if "canonical_source_title" in record
+            else record.get("canonicalSourceTitle")
+        )
+        or "",
+        source_unit_kind=_optional_string(
+            record.get("source_unit_kind")
+            if "source_unit_kind" in record
+            else record.get("sourceUnitKind")
+        )
+        or "",
+        source_unit_key=_optional_string(
+            record.get("source_unit_key")
+            if "source_unit_key" in record
+            else record.get("sourceUnitKey")
+        )
+        or "",
     )
 
 
@@ -465,6 +537,19 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             record.get("retrievedSourceCount")
             if "retrievedSourceCount" in record
             else record.get("retrieved_source_count")
+        ),
+        retrieved_sources=tuple(
+            _parse_observed_source(
+                item,
+                field=f"supervisor.observability.retrieved_sources[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("retrievedSources")
+                    if "retrievedSources" in record
+                    else record.get("retrieved_sources")
+                )
+            )
         ),
         citation_expected=_optional_bool(
             record.get("citationExpected") if "citationExpected" in record else record.get("citation_expected")
@@ -752,6 +837,19 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         prompt_trace=_parse_prompt_trace(
             record.get("prompt_trace") if "prompt_trace" in record else record.get("promptTrace")
         ),
+        retrieved_sources=tuple(
+            _parse_observed_source(
+                item,
+                field=f"supervisor.result.diagnostics.retrieved_sources[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("retrieved_sources")
+                    if "retrieved_sources" in record
+                    else record.get("retrievedSources")
+                )
+            )
+        ),
     )
 
 
@@ -825,8 +923,10 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
     supporting_sources = ()
     if isinstance(response.result, RagResultPayload):
         supporting_sources = tuple(response.result.evidence.sources)
-        if response.observability is None or response.observability.retrieval_attempted is not False:
-            retrieved_sources = supporting_sources
+        if response.observability is not None and response.observability.retrieved_sources:
+            retrieved_sources = tuple(response.observability.retrieved_sources)
+        elif response.result.diagnostics is not None and response.result.diagnostics.retrieved_sources:
+            retrieved_sources = tuple(response.result.diagnostics.retrieved_sources)
 
     retrieval_called = (
         response.observability.retrieval_attempted
@@ -834,7 +934,7 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
         else None
     )
     if retrieval_called is None and isinstance(response.result, RagResultPayload):
-        retrieval_called = len(response.result.evidence.sources) > 0
+        retrieval_called = bool(retrieved_sources or supporting_sources)
 
     return ObservedTrace(
         selected_scope=KnowledgeScope(

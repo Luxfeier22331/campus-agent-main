@@ -33,6 +33,9 @@ from campus_evals import (
     expected_source_ref,
     run_cases,
 )
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
 CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -54,6 +57,10 @@ def _source(
     chunk_id: str = "chunk-1",
     collection: str = "student_handbook",
     snippet: str = "Library hours are 08:00 to 22:00.",
+    canonical_source_id: str = "",
+    canonical_source_title: str = "",
+    source_unit_kind: str = "",
+    source_unit_key: str = "",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
@@ -68,6 +75,10 @@ def _source(
         is_current=False,
         snippet=snippet,
         score=0.91,
+        canonical_source_id=canonical_source_id,
+        canonical_source_title=canonical_source_title,
+        source_unit_kind=source_unit_kind,
+        source_unit_key=source_unit_key,
     )
 
 
@@ -585,7 +596,7 @@ class RunCasesTest(unittest.TestCase):
                 "curriculum-release-gate-ethnology-title",
                 "curriculum-release-gate-academic-years",
                 "curriculum-release-gate-total-credits",
-                "curriculum-release-gate-course-map-table",
+                "curriculum-release-gate-course-map-unsupported",
                 "curriculum-release-gate-course-family-membership",
                 "curriculum-release-gate-course-family-audience-short-alias",
                 "curriculum-release-gate-course-single-schedule",
@@ -606,7 +617,7 @@ class RunCasesTest(unittest.TestCase):
                 "completed",
                 "completed",
                 "completed",
-                "completed",
+                "no_answer",
                 "completed",
                 "completed",
                 "completed",
@@ -991,6 +1002,14 @@ class RunCasesTest(unittest.TestCase):
 
     def test_curriculum_release_gate_follow_up_cases_keep_resolved_semantic_user_goal(self) -> None:
         cases = {case.case_id: case for case in curriculum_release_gate_cases()}
+        law_follow_up_doc_id = build_curriculum_program_semester_fact_document_id(
+            "curriculum:法学（民族实验班）本科人才培养方案",
+            "第四学期",
+        )
+        history_follow_up_doc_id = build_curriculum_program_semester_fact_document_id(
+            "curriculum:历史学（强基计划）本科人才培养方案",
+            "第四学期",
+        )
 
         law_case = cases["curriculum-release-gate-program-follow-up-session-replay"]
         self.assertEqual(law_case.user_goal, "法学民族班培养方案里大二下有什么课")
@@ -1003,7 +1022,19 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertEqual(
             law_case.expected_sources[0].doc_id,
+            law_follow_up_doc_id,
+        )
+        self.assertEqual(
+            law_case.expected_sources[0].canonical_source_id,
             "curriculum:法学（民族实验班）本科人才培养方案",
+        )
+        self.assertEqual(
+            law_case.expected_sources[0].source_unit_kind,
+            "semester_course_list",
+        )
+        self.assertEqual(
+            law_case.expected_sources[0].source_unit_key,
+            "semester-4",
         )
         self.assertEqual(
             law_case.required_facts,
@@ -1021,7 +1052,19 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertEqual(
             history_case.expected_sources[0].doc_id,
+            history_follow_up_doc_id,
+        )
+        self.assertEqual(
+            history_case.expected_sources[0].canonical_source_id,
             "curriculum:历史学（强基计划）本科人才培养方案",
+        )
+        self.assertEqual(
+            history_case.expected_sources[0].source_unit_kind,
+            "semester_course_list",
+        )
+        self.assertEqual(
+            history_case.expected_sources[0].source_unit_key,
+            "semester-4",
         )
         self.assertEqual(
             history_case.required_facts,
@@ -1153,7 +1196,7 @@ class RunCasesTest(unittest.TestCase):
             (
                 "curriculum-regression-history-strong-base",
                 "curriculum-regression-history-strong-base-deictic-major",
-                "curriculum-regression-course-map-table",
+                "curriculum-regression-course-map-unsupported",
                 "curriculum-regression-general-english-credits",
                 "curriculum-regression-minority-language-strong-base",
                 "curriculum-regression-education-second-degree-years",
@@ -1193,7 +1236,7 @@ class RunCasesTest(unittest.TestCase):
             (
                 "completed",
                 "completed",
-                "completed",
+                "no_answer",
                 "completed",
                 "completed",
                 "completed",
@@ -1908,6 +1951,94 @@ class RunCasesTest(unittest.TestCase):
 
         self.assertFalse(report.results[0].retrieval_result.passed)
 
+    def test_curriculum_internal_source_matching_requires_canonical_parent_and_semester_unit(self) -> None:
+        follow_up_doc_id = build_curriculum_program_semester_fact_document_id(
+            "curriculum:法学（民族实验班）本科人才培养方案",
+            "第四学期",
+        )
+        case = GoldenCase(
+            case_id="curriculum-follow-up-internal-source",
+            split="smoke",
+            source_type="synthetic_expansion",
+            user_goal="法学民族班培养方案里大二下有什么课",
+            actor=ActorContext(),
+            scope=CURRICULUM_SCOPE,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    follow_up_doc_id,
+                    canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    source_unit_kind="semester_course_list",
+                    source_unit_key="semester-4",
+                ),
+            ),
+        )
+
+        matched_report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id=follow_up_doc_id,
+                            collection="program_semester_facts",
+                            snippet="第四学期有中国少数民族文字学、侵权责任法。",
+                            canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                            canonical_source_title="法学（民族实验班）本科人才培养方案",
+                            source_unit_kind="semester_course_list",
+                            source_unit_key="semester-4",
+                        ),
+                    ),
+                )
+            ),
+        )
+        wrong_canonical_report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id=follow_up_doc_id,
+                            collection="program_semester_facts",
+                            snippet="第四学期有中国少数民族文字学、侵权责任法。",
+                            canonical_source_id="curriculum:错误培养方案",
+                            canonical_source_title="错误培养方案",
+                            source_unit_kind="semester_course_list",
+                            source_unit_key="semester-4",
+                        ),
+                    ),
+                )
+            ),
+        )
+        wrong_unit_report = run_cases(
+            (case,),
+            executor=lambda _: ExecutionResult(
+                response=_response(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(
+                        _source(
+                            doc_id=follow_up_doc_id,
+                            collection="program_semester_facts",
+                            snippet="第四学期有中国少数民族文字学、侵权责任法。",
+                            canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                            canonical_source_title="法学（民族实验班）本科人才培养方案",
+                            source_unit_kind="semester_course_list",
+                            source_unit_key="semester-3",
+                        ),
+                    ),
+                )
+            ),
+        )
+
+        self.assertTrue(matched_report.results[0].retrieval_result.passed)
+        self.assertFalse(wrong_canonical_report.results[0].retrieval_result.passed)
+        self.assertFalse(wrong_unit_report.results[0].retrieval_result.passed)
+
     def test_runner_aggregates_deterministic_release_gate_metrics(self) -> None:
         completed_case = GoldenCase(
             case_id="completed-1",
@@ -2178,45 +2309,36 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertNotIn("procedure_directness", result.metric_results)
 
-    def test_curriculum_course_map_case_accepts_table_style_answer_without_procedure_directness(self) -> None:
+    def test_curriculum_course_map_case_requires_fail_closed_no_answer_without_procedure_directness(self) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
-            if item.case_id == "curriculum-release-gate-course-map-table"
+            if item.case_id == "curriculum-release-gate-course-map-unsupported"
         )
 
         report = run_cases(
             (case,),
             executor=lambda _: ExecutionResult(
                 response=_response(
+                    status="no_answer",
                     answer_text=(
-                        "根据培养方案相关内容，《经济学拔尖人才创新班人才培养方案》明确："
-                        "经济学拔尖人才创新班必修的专业核心课程 30 学分。；"
-                        "1034030157 | 博弈论与信息经济学 | 3 | 54 | / | 5；"
-                        "1034040239 | 空间经济学及应用 | 3 | 54 | / | 6"
+                        "当前还不能稳定解析《经济学拔尖人才创新班人才培养方案》里的课程地图/拓扑图，"
+                        "因此不会根据课程地图推断课程先后关系、课程依赖或修读安排。"
                     ),
                     corpus="curriculum",
                     collection="curriculum_plan",
-                    sources=(
-                        _source(
-                            doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
-                            collection="curriculum_plan",
-                            snippet="经济学拔尖人才创新班必修的专业核心课程 30 学分。",
-                        ),
+                    diagnostics=RagResultDiagnostics(
+                        resolved_scope_corpus="curriculum",
+                        resolved_scope_collection="curriculum_plan",
+                        no_answer_reason="curriculum_course_map_unsupported",
+                        semantic_outcome="unsupported_scope",
                     ),
                 ),
                 observed_trace=ObservedTrace(
                     selected_scope=CURRICULUM_SCOPE,
-                    retrieval_called=True,
+                    retrieval_called=False,
                     clarification_emitted=False,
                     error_path=False,
-                    supporting_sources=(
-                        _source(
-                            doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
-                            collection="curriculum_plan",
-                            snippet="经济学拔尖人才创新班必修的专业核心课程 30 学分。",
-                        ),
-                    ),
                 ),
             ),
         )

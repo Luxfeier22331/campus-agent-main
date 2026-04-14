@@ -309,6 +309,7 @@ class ContractModelsTest(unittest.TestCase):
                 "partial_answer": True,
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
+                "retrieved_sources": (),
                 "prompt_trace": None,
             },
         )
@@ -439,6 +440,34 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["result"]["evidence"]["sources"][0]["content_role"], "time_rule")
         self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
         self.assertNotIn("acl_level", payload["result"]["evidence"]["sources"][0])
+
+    def test_evidence_source_serializes_canonical_and_unit_identity_fields(self) -> None:
+        source = EvidenceSource(
+            doc_id="program_semester_facts:law-ethnic-experimental:semester-4",
+            revision_track="source-faithful",
+            version_id="v2026-04-12",
+            chunk_id="program_semester_facts:law-ethnic-experimental:semester-4:row-0001",
+            anchor={"section": "semester_course_list"},
+            canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+            latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+            source_channel="pdf_ocr",
+            collection="program_semester_facts",
+            is_current=False,
+            snippet="第四学期有中国少数民族文字学、侵权责任法。",
+            score=0.98,
+            source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+            canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+            canonical_source_title="法学（民族实验班）本科人才培养方案",
+            source_unit_kind="semester_course_list",
+            source_unit_key="semester-4",
+        )
+
+        payload = asdict(source)
+
+        self.assertEqual(payload["canonical_source_id"], "curriculum:法学（民族实验班）本科人才培养方案")
+        self.assertEqual(payload["canonical_source_title"], "法学（民族实验班）本科人才培养方案")
+        self.assertEqual(payload["source_unit_kind"], "semester_course_list")
+        self.assertEqual(payload["source_unit_key"], "semester-4")
 
     def test_evidence_source_rejects_non_canonical_fields(self) -> None:
         field_names = {field.name for field in fields(EvidenceSource)}
@@ -588,6 +617,44 @@ class ContractModelsTest(unittest.TestCase):
             payload["result"]["candidate_places"][1]["place"]["display_name"],
             "丰台校区图书馆",
         )
+
+    def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="completed",
+            answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
+            confidence="high",
+            result=PlaceLookupResult(
+                query_text="民族博物馆在哪里",
+                matched_alias="民族博物馆",
+                resolved_place=PlaceRef(
+                    place_id="muc.haidian.museum",
+                    entity_type="building",
+                    display_name="民族博物馆",
+                    campus_scope="haidian",
+                    campus_area="海淀校区西侧",
+                ),
+                place_card=PlaceCard(
+                    place=PlaceRef(
+                        place_id="muc.haidian.museum",
+                        entity_type="building",
+                        display_name="民族博物馆",
+                        campus_scope="haidian",
+                        campus_area="海淀校区西侧",
+                    ),
+                    location_description="海淀校区西侧，靠近图书馆。",
+                    source_refs=(
+                        "seed:campus_navigation/place_catalog.v1",
+                        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+                    ),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["result"]["place_card"]["point_geometry"], None)
+        self.assertEqual(payload["result"]["place_card"]["coordinate_reference_system"], "")
 
     def test_place_lookup_payload_requires_non_empty_query(self) -> None:
         with self.assertRaisesRegex(ValueError, "query_text must not be empty"):

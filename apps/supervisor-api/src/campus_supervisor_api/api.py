@@ -142,8 +142,8 @@ def readyz(settings: ApiSettings) -> HttpResponse:
     elif not settings.prompt_strict_structured_outputs:
         admission_reason = "strict_structured_outputs_disabled"
     elif (
-        not settings.agno_supervisor_model.strip()
-        or not settings.agno_specialist_model.strip()
+        not settings.supervisor_prompt_model.strip()
+        or not settings.specialist_prompt_model.strip()
     ):
         admission_reason = "prompt_models_not_configured"
     elif not settings.prompt_runtime_api_key.strip():
@@ -159,16 +159,16 @@ def readyz(settings: ApiSettings) -> HttpResponse:
         json_body={
             "status": "ready",
             "runtime_provider": settings.runtime_provider,
-            "supervisor_model": settings.agno_supervisor_model,
-            "specialist_model": settings.agno_specialist_model,
+            "supervisor_model": settings.supervisor_prompt_model,
+            "specialist_model": settings.specialist_prompt_model,
             "prompt_runtime": {
                 "provider": prompt_runtime_provider,
                 "transport": settings.prompt_runtime_transport,
                 "developer_invariants_id": "repo_global_developer_invariants_v1",
                 "developer_invariants_version": "v1",
                 "strict_structured_outputs": settings.prompt_strict_structured_outputs,
-                "supervisor_model": settings.agno_supervisor_model,
-                "specialist_model": settings.agno_specialist_model,
+                "supervisor_model": settings.supervisor_prompt_model,
+                "specialist_model": settings.specialist_prompt_model,
                 "admitted": not admission_reason,
                 "admission_reason": admission_reason,
             },

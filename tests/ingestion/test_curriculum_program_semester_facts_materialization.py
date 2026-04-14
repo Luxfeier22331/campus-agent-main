@@ -195,6 +195,89 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
             uploaded_keys,
         )
 
+    def test_materialize_program_semester_facts_from_canonical_scope_filters_source_documents(self) -> None:
+        materialize = getattr(
+            semester_projection,
+            "materialize_curriculum_program_semester_facts_from_canonical_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        law_key = (
+            "curriculum/documents/curriculum_plan/"
+            "法学-民族实验班-本科人才培养方案--法学-民族实验班-本科人才培养方案/"
+            "source-faithful/2022/document-units.jsonl"
+        )
+        history_key = (
+            "curriculum/documents/curriculum_plan/"
+            "历史学-强基计划-本科人才培养方案--历史学-强基计划-本科人才培养方案/"
+            "source-faithful/2022/document-units.jsonl"
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", law_key): _curriculum_document_units_bytes(),
+                ("campus-rag-derived", history_key): _curriculum_document_units_bytes().replace(
+                    "法学（民族实验班）本科人才培养方案".encode("utf-8"),
+                    "历史学（强基计划）本科人才培养方案".encode("utf-8"),
+                ),
+            }
+        )
+        registry = InMemoryDocumentRegistry(())
+        raw_asset_registry = InMemoryRawAssetRegistry(())
+
+        report = materialize(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=raw_asset_registry,
+            split_manifest_documents=(
+                SplitManifestDocument(
+                    document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    title="法学（民族实验班）本科人才培养方案",
+                    page_start=1,
+                    page_end=2,
+                ),
+                SplitManifestDocument(
+                    document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    title="历史学（强基计划）本科人才培养方案",
+                    page_start=90,
+                    page_end=96,
+                ),
+            ),
+            raw_asset_record=RawAssetRecord(
+                raw_asset_id="asset:curriculum-plan-2022",
+                raw_version_id="sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                raw_source_uri="campusrag://source/curriculum/asset:curriculum-plan-2022/sha256:test",
+                content_hash="0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+                source_filename="curriculum-plan-2022.pdf",
+                object_key="official_pdf/curriculum-plan-2022/provider-response.jsonl",
+                ingestion_timestamp="2026-04-04T04:40:27+00:00",
+                import_source="provider_response_replay",
+            ),
+            source_document_units_keys={
+                "curriculum:法学（民族实验班）本科人才培养方案": law_key,
+                "curriculum:历史学（强基计划）本科人才培养方案": history_key,
+            },
+            source_document_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
+        )
+
+        self.assertEqual(report.source_document_count, 1)
+        self.assertTrue(
+            all("历史学（强基计划）本科人才培养方案" in document_id for document_id in report.created_document_ids)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

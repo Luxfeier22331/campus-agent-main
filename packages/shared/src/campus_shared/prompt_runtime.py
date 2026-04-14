@@ -229,7 +229,10 @@ class ResponsesStructuredOutputExecutor:
     def _get_http_client(self) -> httpx.Client:
         if self._http_client is not None:
             return self._http_client
-        return httpx.Client(base_url=self._provider_config.base_url.rstrip("/"))
+        return httpx.Client(
+            base_url=self._provider_config.base_url.rstrip("/"),
+            trust_env=False,
+        )
 
 
 def validate_prompt_packet_contract(

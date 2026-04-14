@@ -1092,8 +1092,8 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 app_name="campus-agent-v2",
                 runtime_provider="mock-runtime",
-                agno_supervisor_model="gpt-supervisor",
-                agno_specialist_model="gpt-specialist",
+                supervisor_prompt_model="gpt-supervisor",
+                specialist_prompt_model="gpt-specialist",
             )
         )
 
@@ -1128,8 +1128,8 @@ class SupervisorApiTest(unittest.TestCase):
         app = create_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
-                agno_supervisor_model="gpt-supervisor",
-                agno_specialist_model="gpt-specialist",
+                supervisor_prompt_model="gpt-supervisor",
+                specialist_prompt_model="gpt-specialist",
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
@@ -1150,8 +1150,9 @@ class SupervisorApiTest(unittest.TestCase):
             "API_DEFAULT_ACTOR_ID": "runtime-bearer-user",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
             "API_DEFAULT_ACTOR_ROLES": "student",
-            "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
-            "AGNO_SPECIALIST_MODEL": "gpt-specialist",
+            "PROMPT_RUNTIME_MODEL": "gpt-shared",
+            "SUPERVISOR_PROMPT_MODEL": "gpt-supervisor",
+            "SPECIALIST_PROMPT_MODEL": "gpt-specialist",
             "PROMPT_RUNTIME_PROVIDER": "openai-responses",
             "PROMPT_STRICT_STRUCTURED_OUTPUTS": "false",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
@@ -1167,11 +1168,24 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.default_actor_id, "runtime-bearer-user")
         self.assertEqual(settings.runtime_provider, "agent-os")
         self.assertEqual(settings.default_actor_roles, ("student",))
-        self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
-        self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
+        self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
+        self.assertEqual(settings.supervisor_prompt_model, "gpt-supervisor")
+        self.assertEqual(settings.specialist_prompt_model, "gpt-specialist")
         self.assertEqual(settings.prompt_runtime_provider, "openai-responses")
         self.assertFalse(settings.prompt_strict_structured_outputs)
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
+
+    def test_api_settings_from_env_uses_shared_prompt_runtime_model_when_role_overrides_are_absent(self) -> None:
+        env = {
+            "PROMPT_RUNTIME_MODEL": "gpt-shared",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
+        self.assertEqual(settings.supervisor_prompt_model, "gpt-shared")
+        self.assertEqual(settings.specialist_prompt_model, "gpt-shared")
 
     def test_answer_route_rejects_missing_bearer_actor_identity_configuration(self) -> None:
         app = create_app(

@@ -45,6 +45,59 @@ updated: 2026-04-12
 - https://arxiv.org/abs/2310.11511
 - https://arxiv.org/abs/2401.15884
 
+## Closeout Status (2026-04-12)
+
+Phase 15 的 repo-local code closeout 已完成：
+
+- Wave A: retrieval adequacy contract
+- Wave B: provider-agnostic grounding runtime 与 canonical claim-support schema
+- Wave C: eval gating、app-api/runtime/operator observability、schema/contract projection
+- Wave D: focused local verification 与 blocker-aware planning closeout
+
+当前仍未完成的不是 repo-local code work，而是 live artifact refresh follow-up：
+
+- 2026-04-12 已把 supplemental eval provider 从 `https://www.su8.codes/codex/v1` 切换到 `https://codex.gbro.site/v1`
+- 因此当前 phase 不再受原 `su8` `/responses` regression 阻断
+- 但新的 live artifact replacement 仍待单独 rerun；在 rerun 完成前，不宣称已重建新的 live prompt-family artifact
+
+## Phase 15 Local Gate Set
+
+Phase 15 当前冻结的 repo-local verification contract 为：
+
+```bash
+uv run --all-packages --no-sync python -m unittest \
+  tests.contracts.test_models \
+  tests.specialist.test_rag_specialist \
+  tests.evals.test_golden_cases \
+  tests.evals.test_runtime_observability \
+  tests.evals.test_curriculum_live_benchmark
+
+pnpm --dir apps/app-api exec vitest run \
+  test/request-observability.test.ts \
+  test/operator-query.route.test.ts
+```
+
+补充 closeout verification：
+
+```bash
+pnpm --dir apps/app-api exec vitest run \
+  test/request-diagnostics.test.ts \
+  test/request-observability.test.ts \
+  test/operator-query.route.test.ts \
+  test/operator-query.service.test.ts \
+  test/supervisor-adapter.test.ts
+
+pnpm --dir apps/app-api exec vitest run test/projection.service.test.ts
+pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit
+```
+
+这些 gate 明确覆盖四条面：
+
+- contracts truth
+- specialist grounding / adequacy regressions
+- eval release-gate regressions
+- app-api observability / operator projection truth
+
 ## Target Design
 
 ### 1. Semantic Gate Before RAG
@@ -240,12 +293,12 @@ operator / eval 投影至少保留：
 交付：
 
 - refreshed prompt-family regression artifacts
-- updated live gate artifacts when supplemental provider `/responses` contract recovers
+- updated live gate artifacts after running the follow-up rerun on the gbro supplemental eval provider
 - source-of-truth docs closeout
 
-外部 blocker：
+当前待执行项：
 
-- curriculum supplemental eval provider 当前 `/responses` regression 尚未恢复，因此 live artifact refresh 需与 provider 恢复节奏联动
+- curriculum supplemental eval provider 已切到 `https://codex.gbro.site/v1`，但 live artifact refresh 仍待单独 rerun 执行
 
 对应计划文件：
 

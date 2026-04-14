@@ -246,6 +246,8 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
 
 def _query_mode(query_text: str) -> str:
     normalized = _normalize_snippet(query_text).lower()
+    if _is_curriculum_lookup_query(query_text):
+        return "curriculum_lookup"
     if any(hint in normalized for hint in _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS):
         return "generic"
     if any(hint in normalized for hint in _PROCEDURE_QUERY_HINTS):
@@ -317,6 +319,11 @@ def _score_statement(
 def _is_curriculum_course_list_query(query_text: str) -> bool:
     normalized_query = _normalize_snippet(query_text)
     return any(hint in normalized_query for hint in _CURRICULUM_COURSE_LIST_QUERY_HINTS)
+
+
+def _is_curriculum_lookup_query(query_text: str) -> bool:
+    interpretation = interpret_curriculum_query(query_text)
+    return interpretation.intent_kind == "curriculum_lookup"
 
 
 def _curriculum_semester_labels(query_text: str) -> tuple[str, ...]:
@@ -600,14 +607,15 @@ def _select_answer_support_rows(
 
     mode = _query_mode(query_text)
     course_list_query = _is_curriculum_course_list_query(query_text)
+    curriculum_lookup_query = _is_curriculum_lookup_query(query_text)
     consumable_sources = tuple(
         source for source in sources if not _should_ignore_official_web_source(source)
     )
     ranked_source_input = consumable_sources or sources
-    max_seen_statements = 6 if course_list_query else 3
+    max_seen_statements = 6 if course_list_query or curriculum_lookup_query else 3
     ranked_sources = (
         tuple(ranked_source_input)
-        if course_list_query
+        if course_list_query or curriculum_lookup_query
         else tuple(
             sorted(
                 ranked_source_input,
@@ -642,7 +650,7 @@ def _select_answer_support_rows(
             and not _is_official_web_reference_query(query_text=query_text, source=source)
         ):
             break
-        if course_list_query and len(rows) >= 2 and len(seen_statements) >= 5:
+        if (course_list_query or curriculum_lookup_query) and len(rows) >= 2 and len(seen_statements) >= 5:
             break
         if index == 0 and mode == "time" and any("学制" in statement for statement in novel_statements):
             break

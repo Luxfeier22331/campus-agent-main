@@ -560,6 +560,12 @@ def _matches_source_ref(source_ref, source) -> bool:
         return False
     if source_ref.chunk_id is not None and source.chunk_id != source_ref.chunk_id:
         return False
+    if source_ref.canonical_source_id is not None and source.canonical_source_id != source_ref.canonical_source_id:
+        return False
+    if source_ref.source_unit_kind is not None and source.source_unit_kind != source_ref.source_unit_kind:
+        return False
+    if source_ref.source_unit_key is not None and source.source_unit_key != source_ref.source_unit_key:
+        return False
     return True
 
 

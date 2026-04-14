@@ -98,6 +98,7 @@ _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
     ("几分", "多少分", "加分", "得分", "分值", "第二作者的分", "拿分", "给分"),
 )
 _COURSE_FAMILY_SCHEDULE_TOP_K = 8
+_CURRICULUM_LOOKUP_TOP_K = 4
 _CURRICULUM_SESSION_PROGRAM_FAMILIES = (
     "民族实验班",
     "强基计划",
@@ -356,7 +357,46 @@ def delegate_to_rag_agent(
                 prompt_trace,
             ),
         )
+    if curriculum_plan is not None and curriculum_plan.status == "unsupported":
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
+        (
+            answer_text,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_no_answer_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            no_answer_reason=curriculum_plan.unsupported_reason,
+            fallback_answer=_build_curriculum_unsupported_response(curriculum_plan),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=answer_text,
+            confidence="low",
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    no_answer_reason=curriculum_plan.unsupported_reason,
+                    semantic_outcome="unsupported_scope",
+                    retrieval_adequacy=insufficient_retrieval_adequacy("unsupported_query_type"),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
+                ),
+                prompt_trace,
+            ),
+        )
 
+    evidence = _build_empty_evidence(effective_scope, user_goal)
     try:
         retrieval_goal = user_goal
         target_document_ids: tuple[str, ...] = ()
@@ -443,6 +483,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -475,6 +516,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -571,6 +613,7 @@ def delegate_to_rag_agent(
 
     supporting_evidence = _build_supporting_evidence(
         evidence,
+        curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
     )
     if not supporting_evidence.sources:
@@ -599,6 +642,7 @@ def delegate_to_rag_agent(
             result=_with_prompt_trace(
                 _build_rag_result_payload(
                     evidence=supporting_evidence,
+                    retrieved_evidence=evidence,
                     resolved_scope=effective_scope,
                     handbook_plan=handbook_plan,
                     curriculum_plan=curriculum_plan,
@@ -641,6 +685,7 @@ def delegate_to_rag_agent(
             result=_with_prompt_trace(
                 _build_rag_result_payload(
                     evidence=supporting_evidence,
+                    retrieved_evidence=evidence,
                     resolved_scope=effective_scope,
                     handbook_plan=handbook_plan,
                     curriculum_plan=curriculum_plan,
@@ -670,6 +715,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -762,6 +808,7 @@ def delegate_to_rag_agent(
                         result=_with_prompt_trace(
                             _build_rag_result_payload(
                                 evidence=finalized_evidence,
+                                retrieved_evidence=evidence,
                                 resolved_scope=effective_scope,
                                 handbook_plan=handbook_plan,
                                 curriculum_plan=curriculum_plan,
@@ -788,6 +835,7 @@ def delegate_to_rag_agent(
         result=_with_prompt_trace(
             _build_rag_result_payload(
                 evidence=finalized_evidence,
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -987,6 +1035,7 @@ def _build_empty_evidence(scope: KnowledgeScope, user_goal: str) -> EvidenceBund
 def _build_supporting_evidence(
     evidence: EvidenceBundle,
     *,
+    curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
 ) -> EvidenceBundle:
     max_sources = DEFAULT_MAX_ANSWER_SOURCES
@@ -996,6 +1045,8 @@ def _build_supporting_evidence(
         and curriculum_course_plan.fact_intent == "schedule"
     ):
         max_sources = _COURSE_FAMILY_SCHEDULE_TOP_K
+    elif curriculum_plan is not None and curriculum_plan.intent_kind == "curriculum_lookup":
+        max_sources = max(DEFAULT_MAX_ANSWER_SOURCES, _CURRICULUM_LOOKUP_TOP_K)
     return EvidenceBundle(
         query_text=evidence.query_text,
         corpus=evidence.corpus,
@@ -1101,6 +1152,23 @@ def _build_no_answer_response(
             "请确认是否有更具体的条款表述。"
         )
     return "当前未检索到足够依据支持回答这个学生手册问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。"
+
+
+def _build_curriculum_unsupported_response(plan: CurriculumQueryPlan) -> str:
+    if plan.unsupported_reason == "curriculum_course_map_unsupported":
+        if plan.resolved_document_title:
+            return (
+                f"当前还不能稳定解析《{plan.resolved_document_title}》里的课程地图/拓扑图，"
+                "因此不会根据课程地图推断课程先后关系、课程依赖或修读安排。"
+                "你可以改问课程设置、修读建议、某学期有什么课，或直接查看原培养方案中的课程地图页。"
+            )
+        return (
+            "当前还不能稳定解析培养方案里的课程地图/拓扑图，因此不会根据课程地图推断课程先后关系、"
+            "课程依赖或修读安排。你可以改问课程设置、修读建议、某学期有什么课，或直接查看原培养方案中的课程地图页。"
+        )
+    return _build_no_answer_response(
+        EvidenceBundle(query_text="", corpus="curriculum", collection="curriculum_plan")
+    )
 
 
 def _build_restricted_access_denied_response(
@@ -1462,6 +1530,7 @@ def _build_rag_result_payload(
     freshness_fail_closed: bool = False,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    retrieved_evidence: EvidenceBundle | None = None,
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -1481,6 +1550,7 @@ def _build_rag_result_payload(
         freshness_fail_closed=freshness_fail_closed,
         prompt_runtime_state=prompt_runtime_state,
         prompt_runtime_detail=prompt_runtime_detail,
+        retrieved_evidence=retrieved_evidence,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -1507,22 +1577,32 @@ def _build_rag_result_diagnostics(
     freshness_fail_closed: bool = False,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    retrieved_evidence: EvidenceBundle | None = None,
 ) -> RagResultDiagnostics | None:
+    raw_retrieved_sources = tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
+    preserve_retrieved_sources = bool(raw_retrieved_sources) and (
+        raw_retrieved_sources != tuple(evidence.sources) or evidence.corpus == "curriculum"
+    )
     if (
         resolved_scope is None
         and handbook_plan is None
         and curriculum_plan is None
         and curriculum_course_plan is None
         and curriculum_program_family_plan is None
+        and not preserve_retrieved_sources
     ):
         return None
+    retrieved_sources = raw_retrieved_sources if preserve_retrieved_sources else ()
+
+    def _diagnostics(**kwargs: object) -> RagResultDiagnostics:
+        return RagResultDiagnostics(retrieved_sources=retrieved_sources, **kwargs)
     if (
         handbook_plan is None
         and curriculum_plan is None
         and curriculum_course_plan is None
         and curriculum_program_family_plan is None
     ):
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
@@ -1538,7 +1618,7 @@ def _build_rag_result_diagnostics(
             unsupported_fields=unsupported_fields,
         )
     if curriculum_program_family_plan is not None:
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
@@ -1561,7 +1641,7 @@ def _build_rag_result_diagnostics(
             resolved_program_family_title=curriculum_program_family_plan.canonical_program_family_title,
         )
     if curriculum_course_plan is not None:
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
@@ -1587,7 +1667,7 @@ def _build_rag_result_diagnostics(
             partial_answer=curriculum_course_plan.partial_answer,
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
@@ -1618,9 +1698,10 @@ def _build_rag_result_diagnostics(
             or grounding_verdict
             or grounding_downgraded
             or freshness_fail_closed
+            or preserve_retrieved_sources
         ):
             return None
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
@@ -1640,7 +1721,7 @@ def _build_rag_result_diagnostics(
         curriculum_plan=curriculum_plan,
         allow_session_follow_up=allow_session_follow_up,
     )
-    return RagResultDiagnostics(
+    return _diagnostics(
         resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
         resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
         resolved_policy_document_id=(
@@ -1728,6 +1809,8 @@ def _curriculum_resolution_mode(plan: CurriculumQueryPlan) -> str:
         return "soft_preference"
     if plan.status == "needs_clarification":
         return "needs_clarification"
+    if plan.status == "unsupported":
+        return "unsupported"
     return ""
 
 

@@ -303,8 +303,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope -
     - `ragas.answer_relevancy mean_average_score=0.7982046080163911`
     - `ragas.context_precision mean_average_score=0.7142857142571429`
     - `ragas.context_recall mean_average_score=0.7142857142857143`
-  - 当前最新结论是：
-    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/` 成为 current latest completed repo-local curriculum artifact
+  - 当时的最新结论是：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 在该时间点取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/`，成为 then-current completed repo-local curriculum artifact
     - curriculum live accept 仍然 fail，但已经不再是“双 follow-up gap”；当前只剩 law follow-up answer completeness 单点缺口
     - 这次 rerun 没有出现 `Your worker restarted mid-request`，因此它是有效的产品质量结论，而不是新的 runtime incident
 - 在上述 `184401Z` artifact 基线之上，本 worktree 当前又完成了一轮 repo-head answer-path closeout：
@@ -339,16 +339,26 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope -
   - 这轮已经明确证明 law/history 两个 follow-up replay case 都在 live artifact 中通过：
     - `curriculum-release-gate-program-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
     - `curriculum-release-gate-strong-base-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
-  - 因此当前 deterministic curriculum release gate 已关闭：
-    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 成为 current latest completed repo-local curriculum artifact
+  - 因此当时的 deterministic curriculum release gate 已关闭：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 在该时间点取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/`，成为 then-current completed repo-local curriculum artifact
     - law follow-up answer completeness 不再是 live gap
     - repair stage 仍被跳过，说明当前 rerun 没有 transient deterministic target 需要修补
-  - 当前 remaining issue 已收敛为 supplemental soft warn：
+  - 当时 remaining issue 已收敛为 supplemental soft warn：
     - `ragas.faithfulness mean_average_score=0.7946184029167221`
     - `ragas.answer_relevancy mean_average_score=0.7987128849797461`
     - `ragas.context_precision mean_average_score=0.7142857142571429`
     - `ragas.context_recall mean_average_score=0.7142857142857143`
     - 因此当前 verdict 不是 `fail`，而是 deterministic release gate pass + overall soft warn
+- 2026-04-13 Phase 1000 closeout 之后，curriculum 的 current artifact truth 已进一步更新为：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+  - 该轮在新的 `program_semester_facts` publish release 与 trace split closeout 之后执行
+  - `run-01` / `run-02` / `run-03` 全部 `19/19 passed`
+  - `final-summary.json`:
+    - `deterministic_verdict=pass`
+    - `supplemental_verdict=pass`
+    - `final_overall_verdict=pass`
+    - `repair_run_dir=null`
+  - 因此 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 成为 current latest completed repo-local curriculum artifact
 - handbook live accept 现已完整收口，并形成新的 clean pass baseline：
   - artifact: `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z/`
   - `final-summary.json`:

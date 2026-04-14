@@ -19,8 +19,8 @@
 
 #### Structured curriculum query path
 
-- `课程地图`、`课程设置`、`修读建议` 归入结构化 curriculum lookup，而不是 generic `procedure`。
-- `课程地图怎么安排` 的正确完成态依赖同一培养方案内多个互补 chunk；不能允许首 source 命中后提前截断导致关键信息缺失。
+- `课程设置`、`修读建议` 归入结构化 curriculum lookup，而不是 generic `procedure`。
+- `课程地图` 仍需被识别为 structured curriculum signal，但当前正确完成态是 unsupported/fail-close；不能再让它进入 answer-bearing retrieval / support synthesis。
 - 修复应落在 specialist planning / answer shaping 与 retrieval evidence coverage policy，不应把 alias / intent 语义下沉到 retrieval backend 黑盒字符串替换。
 
 #### Semester facts materialization
@@ -50,13 +50,13 @@ None. `1000-CONTEXT.md` does not define a `Claude's Discretion` section.
 
 ## Summary
 
-这个 phase 需要修 4 个已经在当前 merged truth 内暴露出来、但边界混在一起的问题：`program_semester_facts` 物理命中与 canonical curriculum source identity 的 contract drift、semester facts projection 对 merged/sparse table 的数据丢失、`课程地图/课程设置/修读建议` 这类结构化 curriculum query 被错误落到 generic `procedure` 并在 answer shaping 时丢失互补 chunk、以及 live eval / app-api observability 把 raw retrieval 和 final support 合并成单一 truth。当前 repo 文档已经冻结了两个关键边界：`program_semester_facts` 继续只是 `curriculum_plan` 下的 internal surface，alias / intent owner 继续在 `rag-specialist`，不能回退到 backend 黑盒替换，也不能借机重开 serving surface 讨论。
+这个 phase 需要修 4 个已经在当前 merged truth 内暴露出来、但边界混在一起的问题：`program_semester_facts` 物理命中与 canonical curriculum source identity 的 contract drift、semester facts projection 对 merged/sparse table 的数据丢失、`课程设置/修读建议` 这类结构化 curriculum query 被错误落到 generic `procedure`、`课程地图` topology query 曾误入 answer-bearing path 并退化成伪造表格答案、以及 live eval / app-api observability 把 raw retrieval 和 final support 合并成单一 truth。当前 repo 文档已经冻结了两个关键边界：`program_semester_facts` 继续只是 `curriculum_plan` 下的 internal surface，alias / intent owner 继续在 `rag-specialist`，不能回退到 backend 黑盒替换，也不能借机重开 serving surface 讨论。
 
 官方资料给出的当前实践和 repo 需要的修法高度一致。LlamaIndex 的 response synthesizer 与 citation engine 将 “多 retrieved chunks 的 answer synthesis” 和 “citation chunk granularity” 建模成独立 concern；Ragas 的样本 schema 直接把 `retrieved_contexts`、`reference_contexts`、`response` 分开；OpenInference 和 OpenTelemetry 把 retriever、reranker、evaluator、LLM 调用区分成不同 span kind / operation；Google Document AI 与 Azure 的 table model 都把 table 真相定义为带 row/column/span 语义的 cell/grid，而不是字符串行数组。也就是说，当前 repo 不是缺一个更“聪明”的 reranker，而是缺把这些边界按对的层次落回现有 contract。
 
-本 phase 的最佳路线不是换栈，也不是加公开 surface，而是在现有边界上补齐三层 truth：物理 retrieval unit、canonical curriculum source identity、final answer-supporting citations；同时把 semester facts projection 改成 span-aware、position-preserving materialization；再把 eval 和 operator observability 改成能够独立指出“retriever 没拿到”“support selection 丢了”“answer composer 提前截断”“projection 本身缺课”。这样 planner 可以把实现拆成 contract、specialist shaping、materialization、observability 四块，而不是继续用 golden patch 掩盖真实 drift。
+本 phase 的最佳路线不是换栈，也不是加公开 surface，而是在现有边界上补齐三层 truth：物理 retrieval unit、canonical curriculum source identity、final answer-supporting citations；同时把 semester facts projection 改成 span-aware、position-preserving materialization；再把 eval 和 operator observability 改成能够独立指出“retriever 没拿到”“support selection 丢了”“unsupported query 被错误放行”“projection 本身缺课”。这样 planner 可以把实现拆成 contract、specialist shaping、materialization、observability 四块，而不是继续用 golden patch 掩盖真实 drift。
 
-**Primary recommendation:** 保持 `program_semester_facts` 作为 internal physical retrieval truth，在 evidence / diagnostics / observability 中新增 canonical curriculum source identity 并拆分 raw retrieval candidates 与 final supporting evidence，把 `课程地图/课程设置/修读建议` 升级为 structured curriculum path，同时用 `source_truth_common` 的 span-aware table utilities 重做 semester facts materialization。
+**Primary recommendation:** 保持 `program_semester_facts` 作为 internal physical retrieval truth，在 evidence / diagnostics / observability 中新增 canonical curriculum source identity 并拆分 raw retrieval candidates 与 final supporting evidence；把 `课程设置` / `修读建议` 放到 structured curriculum path，把 `课程地图` 明确标为 unsupported/fail-close；同时用 `source_truth_common` 的 span-aware table utilities 重做 semester facts materialization。
 
 ## Standard Stack
 
@@ -84,7 +84,7 @@ None. `1000-CONTEXT.md` does not define a `Claude's Discretion` section.
 |---|---|---|
 | 单一 `EvidenceBundle.sources` 同时承担 retrieval trace 与 answer support | raw retrieval list + support subset + canonical citation fields | schema 传播面更大，但这是唯一能把 contract drift 与 answer-shaping drift 分开的做法 |
 | `program_semester_facts_projection.py` 内 ad hoc `<td>` / `|` 解析 | `source_truth_common` 的 span-aware cell/grid helpers | 改动更结构化，但能一次性修 merged/sparse/continued-row 问题 |
-| generic `procedure` mode 兜底所有“怎么/如何”问句 | structured curriculum intent with coverage-aware support policy | 需要补路由规则和 answer composer，但能避免多 chunk 课程地图问答退化成单 chunk 摘录 |
+| generic `procedure` mode 兜底所有“怎么/如何”问句 | supported curriculum lookup 走 structured path，unsupported course-map topology query 显式 fail-close | 需要补路由规则和 unsupported query gate，但能避免把不可 grounded 的课程地图问题伪装成表格答案 |
 
 **Installation:**
 
@@ -145,24 +145,26 @@ trace = EvidenceTrace(
 
 Source: Ragas evaluation schema, OpenInference semantic conventions, and LlamaIndex citation engine.
 
-### Pattern 2: Structured Curriculum Query Path Above Generic Procedure
+### Pattern 2: Structured Curriculum Query Classification Above Generic Procedure
 
-**What:** Queries like `课程地图怎么安排` should be resolved as curriculum-structure lookups, not procedural advice. The routing decision belongs in `rag-specialist`, not in the retrieval backend.
+**What:** Queries like `课程设置怎么安排` / `修读建议怎么安排` should be resolved as curriculum-structure lookups, not procedural advice. `课程地图怎么安排` 也应先被识别为 curriculum-structure signal，但当前必须在 specialist planning 阶段直接 fail-close，而不是继续进入 answer-bearing retrieval path。路由决策属于 `rag-specialist`，不是 retrieval backend。
 
-**When to use:** Queries targeting curriculum structure, course-map composition, semester arrangement, and repair cases where multiple complementary chunks from one plan are required.
+**When to use:** Queries targeting curriculum structure、course-settings / study-advice sections、semester arrangement，以及需要把 unsupported course-map topology query 拦在 retrieval 之前的场景。
 
 **Repo-level recommendation:**
 
 - Add structured curriculum cues for `课程地图` / `课程设置` / `修读建议` / `培养方案怎么安排`.
-- Ensure `query_mode` prefers structured curriculum lookup over `procedure` when the query also resolves a curriculum entity.
-- Replace first-source early stop for these intents with a coverage-aware support policy: require multiple complementary rows/chunks until the claim set is satisfied.
+- Ensure `query_mode` prefers structured curriculum lookup over `procedure` when the query also resolves a curriculum entity, but mark `course_map` as `unsupported` instead of answerable.
+- Keep coverage-aware support policy only for supported lookup sections; do not apply it to out-of-scope topology queries.
 - Keep alias and intent interpretation in `curriculum_query_resolution.py` and `rag-specialist`, not in `backend_qdrant.py`.
 
 **Example:**
 
 ```python
-# Recommended repo pattern inspired by LlamaIndex multi-node synthesis.
-if curriculum_intent in {"course_map", "course_structure", "study_advice"}:
+# Recommended repo pattern inspired by LlamaIndex multi-node synthesis and local fail-close scope control.
+if curriculum_intent == "course_map":
+    return build_unsupported_no_answer("curriculum_course_map_unsupported")
+if curriculum_intent in {"course_settings", "study_advice"}:
     retrieved = retrieve_sources(...)
     support = select_curriculum_coverage_support(
         retrieved,
@@ -244,7 +246,7 @@ Source: OpenInference semantic conventions, OpenTelemetry GenAI retrieval spans,
 |---|---|---|---|
 | Raw-vs-support trace split | Another ad hoc mirror field on `ObservedTrace` | Separate retrieved/support/canonical collections aligned with Ragas and OpenInference | Prevents retrieval regressions from being mislabeled as answer regressions |
 | Table materialization over merged cells | Custom regex / `td.get_text()` flattening inside the projection | `extract_html_table_cells()` / `extract_html_table_grid()` plus grid normalization | Existing utilities already model spans and positions; custom flattening loses structure |
-| Multi-chunk structured curriculum answers | Top-doc lock plus first-source early stop | Coverage-aware selection with same-document multi-chunk allowance | `课程地图` answers need complementary claims from multiple chunks |
+| Unsupported topology query control | Top-doc lock plus neighbor-table synthesis | Explicit unsupported/fail-close gate for `课程地图`, coverage-aware selection only for supported lookup sections | 避免把不可 grounded 的课程地图问题伪装成课程设置表格答案 |
 | Observability schema names | Opaque custom counters only | OpenInference / OTel-aligned semantics for retriever, reranker, LLM, evaluator boundaries | Makes traces composable and easier to reason about across runtime and eval tooling |
 
 **Key insight:** The repo already has the right major components. What is missing is contract discipline between them. Hand-rolling more parsers, heuristics, or counters will deepen the drift instead of fixing it.
@@ -261,15 +263,15 @@ Source: OpenInference semantic conventions, OpenTelemetry GenAI retrieval spans,
 
 **Warning signs:** Runtime answer passes and cites the right semester projection, but `expected_sources` still fail.
 
-### Pitfall 2: Early Document Lock Drops Complementary Support
+### Pitfall 2: Unsupported Course-Map Queries Slip Into Answer Synthesis
 
-**What goes wrong:** The answer keeps only one chunk from a curriculum plan even though retrieval found multiple relevant chunks.
+**What goes wrong:** The system answers a `课程地图` question with neighboring `课程设置`/表格内容, giving users the illusion that topology relationships were grounded.
 
-**Why it happens:** `select_supporting_evidence_sources()` can lock onto one top document, and answer shaping then stops after the first source yields enough rows.
+**Why it happens:** The query is treated as answerable structured lookup or generic `procedure`, so retrieval/support selection runs even though OCR does not provide stable topology nodes/edges.
 
-**How to avoid:** For structured curriculum intents, require coverage-aware support selection and permit same-document multi-chunk accumulation until claim groups are satisfied.
+**How to avoid:** Mark `课程地图` as `unsupported` before retrieval. Reserve coverage-aware support selection for supported sections like `课程设置` / `修读建议`.
 
-**Warning signs:** `课程地图` answers mention one numeric rule but omit another complementary credit requirement from the same plan.
+**Warning signs:** A `课程地图` question returns table rows, credit counts, or semester lists instead of an explicit unsupported/no-answer response.
 
 ### Pitfall 3: Filtering Empty Cells Corrupts Table Semantics
 
@@ -355,7 +357,7 @@ Source: https://learn.microsoft.com/en-us/dotnet/api/azure.ai.formrecognizer.doc
 |---|---|---|---|
 | One evidence list does retrieval, support, citation, and eval truth all at once | Separate retrieved contexts, reference contexts, and final response; trace retriever/reranker/evaluator independently | Reflected in current Ragas and OpenInference/OTel docs checked 2026-04-12 | Makes it possible to localize whether a regression is in retrieval, support selection, or answer composition |
 | Flatten HTML/OCR tables into text rows early | Preserve table cells/grids with row/column/span semantics first | Reaffirmed in current Google Document AI and Azure table docs checked 2026-04-12 | Prevents merged/sparse cell layouts from silently losing courses |
-| Generic “how/怎么” routing falls into procedure mode | Domain-specific structured query routing with multi-node synthesis for table-backed answers | Current LlamaIndex synthesis and citation docs emphasize multi-node answer assembly and citation granularity | Avoids `课程地图` answers collapsing into a single chunk excerpt |
+| Generic “how/怎么” routing falls into procedure mode | Domain-specific structured query routing for supported table-backed answers, plus explicit fail-close for unsupported topology asks | Current LlamaIndex synthesis and citation docs emphasize multi-node answer assembly and citation granularity | 避免支持中的表格问答退化为 procedure，也避免课程地图问题被伪装成 grounded answer |
 | Operator observability stores only counts | Operator observability keeps bounded identifier lists plus counts, with semantically distinct trace stages | Current OpenInference and OTel GenAI specs checked 2026-04-12 | Gives operators enough detail to debug without turning app-api into a full artifact store |
 
 **Deprecated/outdated:**
@@ -363,7 +365,7 @@ Source: https://learn.microsoft.com/en-us/dotnet/api/azure.ai.formrecognizer.doc
 - Mirroring `retrieved_sources = supporting_sources` in app-api-backed eval traces.
 - Filtering empty table cells during `program_semester_facts` projection.
 - Letting canonical curriculum truth depend on whichever internal projection doc id happened to answer.
-- Treating `课程地图怎么安排` as generic `procedure` when a resolved curriculum entity is already present.
+- Treating `课程地图怎么安排` as an answerable lookup instead of an unsupported topology query.
 
 ## Open Questions
 
@@ -398,7 +400,7 @@ Source: https://learn.microsoft.com/en-us/dotnet/api/azure.ai.formrecognizer.doc
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |---|---|---|---|---|
 | CURR-01 | Canonical curriculum identity is asserted separately from physical `program_semester_facts` ids in follow-up replay cases | unit | `uv run --all-packages python -m unittest tests.evals.test_curriculum_live_benchmark` | ✅ |
-| CURR-02 | Structured curriculum queries like `课程地图怎么安排` keep complementary support chunks and do not fall back to `procedure` | unit | `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.retrieval.test_curriculum_query_resolution` | ✅ |
+| CURR-02 | Structured curriculum queries keep `课程设置` / `修读建议` on a non-procedure path, while `课程地图怎么安排` fail-closes without retrieval/support synthesis | unit | `uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.retrieval.test_curriculum_query_resolution` | ✅ |
 | CURR-03 | Semester facts materialization preserves merged/sparse/continued rows and no longer drops `大学英语(四)` | unit | `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_program_semester_facts_projection tests.ingestion.test_curriculum_program_semester_facts_materialization` | ✅ |
 | CURR-04 | Live trace and app-api request observability distinguish retrieved candidates from supporting sources and canonical citations | unit + worker | `uv run --all-packages python -m unittest tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark` and `pnpm web:test:worker` | ✅ |
 
@@ -413,7 +415,7 @@ Source: https://learn.microsoft.com/en-us/dotnet/api/azure.ai.formrecognizer.doc
 - [ ] `tests/ingestion/test_curriculum_program_semester_facts_projection.py` — add merged/sparse/continued-row regression using the strong-base semester-4 fixture and assert `大学英语(四)` survives projection.
 - [ ] `tests/ingestion/test_curriculum_program_semester_facts_materialization.py` — assert repaired projection re-materializes the affected `program_semester_facts` document id and semester row shape.
 - [ ] `tests/evals/test_curriculum_live_benchmark.py` — add assertions for physical projection id, canonical curriculum id, and raw-vs-support trace separation in the two follow-up replay cases.
-- [ ] `tests/evals/test_golden_cases.py` — add a dedicated `课程地图怎么安排` coverage regression that requires multiple complementary claims, not just one supporting chunk.
+- [x] `tests/evals/test_golden_cases.py` — pin `课程地图怎么安排` as `no_answer + fail_closed` and require `retrieval_called=False`, so unsupported topology queries cannot silently regress back into fabricated answers.
 - [ ] `apps/app-api/test/request-observability.test.ts` — add persistence assertions for retrieved/supporting/canonical bounded arrays in request observability facts.
 
 ## Sources

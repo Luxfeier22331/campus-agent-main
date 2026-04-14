@@ -27,14 +27,27 @@ class ExpectedSourceRef:
     doc_id: str
     version_id: str | None = None
     chunk_id: str | None = None
+    canonical_source_id: str | None = None
+    source_unit_kind: str | None = None
+    source_unit_key: str | None = None
 
 
 def expected_source_ref(
     doc_id: str,
     version_id: str | None = None,
     chunk_id: str | None = None,
+    canonical_source_id: str | None = None,
+    source_unit_kind: str | None = None,
+    source_unit_key: str | None = None,
 ) -> ExpectedSourceRef:
-    return ExpectedSourceRef(doc_id=doc_id, version_id=version_id, chunk_id=chunk_id)
+    return ExpectedSourceRef(
+        doc_id=doc_id,
+        version_id=version_id,
+        chunk_id=chunk_id,
+        canonical_source_id=canonical_source_id,
+        source_unit_kind=source_unit_kind,
+        source_unit_key=source_unit_key,
+    )
 
 
 @dataclass(frozen=True, slots=True)

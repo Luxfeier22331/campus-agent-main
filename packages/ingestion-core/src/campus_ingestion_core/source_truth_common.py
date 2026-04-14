@@ -5,6 +5,7 @@ from html import unescape
 import json
 import re
 import unicodedata
+from typing import Mapping, Sequence
 
 
 _TABLE_HEADER_HINTS = frozenset(
@@ -301,6 +302,82 @@ def extract_html_table_cells(html: str) -> list[dict[str, object]] | None:
             col_number += colspan
         occupied = current_occupied
     return cells or None
+
+
+def build_position_preserving_table_rows(
+    *,
+    html: str | None = None,
+    table_cells: object = None,
+    fallback_text: str | None = None,
+) -> tuple[tuple[str, ...], ...]:
+    if isinstance(table_cells, list) and table_cells:
+        if all(isinstance(cell, dict) for cell in table_cells):
+            dense_rows = _build_dense_rows_from_cell_records(table_cells)
+            if dense_rows:
+                return dense_rows
+        if all(isinstance(row, list) for row in table_cells):
+            normalized_rows = _normalize_dense_rows(
+                tuple(
+                    tuple(normalize_text(str(cell)) for cell in row)
+                    for row in table_cells
+                )
+            )
+            if normalized_rows:
+                return normalized_rows
+    if html:
+        html_cells = extract_html_table_cells(html)
+        if html_cells:
+            dense_rows = _build_dense_rows_from_cell_records(html_cells)
+            if dense_rows:
+                return dense_rows
+    if fallback_text:
+        return _extract_pipe_delimited_rows(fallback_text)
+    return ()
+
+
+def _build_dense_rows_from_cell_records(
+    table_cells: Sequence[Mapping[str, object]],
+) -> tuple[tuple[str, ...], ...]:
+    row_count = infer_table_row_count(list(table_cells)) or 0
+    column_count = infer_table_column_count(list(table_cells)) or 0
+    if row_count <= 0 or column_count <= 0:
+        return ()
+    grid = [["" for _ in range(column_count)] for _ in range(row_count)]
+    for cell in sorted(
+        table_cells,
+        key=lambda item: (int(item.get("row") or 0), int(item.get("col") or 0)),
+    ):
+        row_index = int(cell.get("row") or 0) - 1
+        column_index = int(cell.get("col") or 0) - 1
+        if row_index < 0 or column_index < 0:
+            continue
+        if row_index >= row_count or column_index >= column_count:
+            continue
+        grid[row_index][column_index] = normalize_text(str(cell.get("text") or ""))
+    return _normalize_dense_rows(tuple(tuple(row) for row in grid))
+
+
+def _extract_pipe_delimited_rows(text: str) -> tuple[tuple[str, ...], ...]:
+    raw_rows = tuple(
+        tuple(normalize_text(cell) for cell in line.split("|"))
+        for line in re.split(r"[\r\n]+", text)
+        if "|" in line
+    )
+    return _normalize_dense_rows(raw_rows)
+
+
+def _normalize_dense_rows(rows: Sequence[Sequence[str]]) -> tuple[tuple[str, ...], ...]:
+    if not rows:
+        return ()
+    width = max((len(row) for row in rows), default=0)
+    if width <= 0:
+        return ()
+    normalized_rows: list[tuple[str, ...]] = []
+    for row in rows:
+        padded = tuple(str(row[index]).strip() if index < len(row) else "" for index in range(width))
+        if any(cell for cell in padded):
+            normalized_rows.append(padded)
+    return tuple(normalized_rows)
 
 
 def _coerce_int(value: object) -> int | None:

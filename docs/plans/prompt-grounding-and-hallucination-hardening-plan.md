@@ -30,7 +30,7 @@ updated: 2026-04-12
 **Residual Gap:** 当前剩余 gap 已收敛为：
 
 - grounding validator 仍是首版覆盖范围，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
-- prompt-family live gate artifact 仍受 supplemental eval provider `/responses` regression 阻塞
+- prompt-family live gate artifact 尚未完成新的 rerun replacement；2026-04-12 已把 supplemental eval provider 切到 `https://codex.gbro.site/v1`
 
 **Execution Vehicle (2026-04-12):** 后续实现现已提升为独立 Phase 15；repo-level 目标设计见 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`，当前 phase context 见 `.planning/phases/15-grounded-generation/15-CONTEXT.md`。
 
@@ -41,6 +41,21 @@ updated: 2026-04-12
 - 本文对应的 prompt stack 与 grounding baseline 已在 Phase 14 及 Phase 15 前两波完成收口，不再作为默认 active execution 入口
 - 当前 repo 的默认 active lane 已切到 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
 - 如需判断当前 pending work，以 `.planning/PROJECT.md`、`.planning/STATE.md` 与 `.planning/phases/15-grounded-generation/` 为准，而不是继续把本文视为未完成计划
+- 截至 2026-04-12，Phase 15 已完成 repo-local closeout；剩余 live artifact replacement 继续视为 deferred follow-up rerun，而不是本文对应的未完成功能实现
+
+## Repo-Local Closeout Note (2026-04-12)
+
+当前已 repo-local 证明的内容：
+
+- retrieval adequacy contract 已冻结并进入 `RagResultDiagnostics`
+- provider-agnostic grounding runtime、canonical `ClaimSupport` 与 expanded claim taxonomy 已落地
+- adequacy / grounding claim truth 已进入 deterministic eval lane
+- app-api / operator observability 已能返回 operator-safe adequacy / claim-support summary
+
+当前仍未完成且不得被误写成“代码未做完”的内容：
+
+- 在新的 gbro supplemental eval rerun 完成前，新的 live prompt-family artifact 仍不能宣称已刷新
+- 因此 live artifact replacement 继续 deferred，并在 `.planning/STATE.md` 作为待执行 rerun 记录
 
 ## Desired End State
 

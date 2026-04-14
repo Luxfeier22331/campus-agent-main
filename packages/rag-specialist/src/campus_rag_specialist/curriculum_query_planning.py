@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -84,11 +84,13 @@ class CurriculumDocument:
 
 @dataclass(frozen=True, slots=True)
 class CurriculumQueryPlan:
-    status: Literal["pass_through", "resolved", "soft_preference", "needs_clarification"]
+    status: Literal["pass_through", "resolved", "soft_preference", "needs_clarification", "unsupported"]
     rewritten_query_text: str
+    intent_kind: Literal["generic", "course_list", "curriculum_lookup"] = "generic"
     target_document_ids: tuple[str, ...] = ()
     preferred_document_ids: tuple[str, ...] = ()
     clarification_reason: str = ""
+    unsupported_reason: str = ""
     clarification_candidates: tuple[str, ...] = ()
     resolved_document_title: str = ""
     used_verified_identity: bool = False
@@ -128,6 +130,13 @@ def plan_curriculum_query(
     interpretation = interpret_curriculum_query(query_text)
     normalized_query = interpretation.normalized_query_text
     matched_documents = _match_explicit_documents(normalized_query)
+    unsupported_lookup_plan = _resolve_unsupported_curriculum_lookup(
+        interpretation=interpretation,
+        normalized_query=normalized_query,
+        matched_documents=matched_documents,
+    )
+    if unsupported_lookup_plan is not None:
+        return unsupported_lookup_plan
     if len(matched_documents) == 1:
         target_document = matched_documents[0]
         return CurriculumQueryPlan(
@@ -136,6 +145,7 @@ def plan_curriculum_query(
                 normalized_query=normalized_query,
                 title=target_document.title,
             ),
+            intent_kind=interpretation.intent_kind,
             target_document_ids=(target_document.document_id,),
             resolved_document_title=target_document.title,
         )
@@ -144,6 +154,7 @@ def plan_curriculum_query(
         return CurriculumQueryPlan(
             status="needs_clarification",
             rewritten_query_text=normalized_query,
+            intent_kind=interpretation.intent_kind,
             clarification_reason="curriculum_program_conflict",
             clarification_candidates=clarification_candidates,
             candidate_title_summary=clarification_candidates,
@@ -154,15 +165,16 @@ def plan_curriculum_query(
         verified_major=verified_major,
     )
     if family_resolution is not None:
-        return family_resolution
+        return replace(family_resolution, intent_kind=interpretation.intent_kind)
 
     forbidden_family_resolution = _resolve_forbidden_generic_family_alias(normalized_query)
     if forbidden_family_resolution is not None:
-        return forbidden_family_resolution
+        return replace(forbidden_family_resolution, intent_kind=interpretation.intent_kind)
 
     return CurriculumQueryPlan(
         status="pass_through",
         rewritten_query_text=normalized_query,
+        intent_kind=interpretation.intent_kind,
     )
 
 
@@ -420,6 +432,40 @@ def _resolve_family_alias(
             candidate_title_summary=clarification_candidates,
         )
     return None
+
+
+def _resolve_unsupported_curriculum_lookup(
+    *,
+    interpretation: object,
+    normalized_query: str,
+    matched_documents: tuple[CurriculumDocument, ...],
+) -> CurriculumQueryPlan | None:
+    lookup_target = getattr(interpretation, "curriculum_lookup_target", "")
+    if lookup_target != "course_map":
+        return None
+    if len(matched_documents) == 1:
+        target_document = matched_documents[0]
+        return CurriculumQueryPlan(
+            status="unsupported",
+            rewritten_query_text=_prepend_title_if_missing(
+                normalized_query=normalized_query,
+                title=target_document.title,
+            ),
+            intent_kind=interpretation.intent_kind,
+            target_document_ids=(target_document.document_id,),
+            resolved_document_title=target_document.title,
+            unsupported_reason="curriculum_course_map_unsupported",
+            candidate_title_summary=(target_document.title,),
+        )
+    candidate_titles = tuple(document.title for document in matched_documents[:3])
+    return CurriculumQueryPlan(
+        status="unsupported",
+        rewritten_query_text=normalized_query,
+        intent_kind=interpretation.intent_kind,
+        unsupported_reason="curriculum_course_map_unsupported",
+        clarification_candidates=candidate_titles,
+        candidate_title_summary=candidate_titles,
+    )
 
 
 def _resolve_forbidden_generic_family_alias(normalized_query: str) -> CurriculumQueryPlan | None:

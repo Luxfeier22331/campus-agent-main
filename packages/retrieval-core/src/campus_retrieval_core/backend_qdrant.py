@@ -367,6 +367,7 @@ class QdrantRetrievalBackend:
                 collection = collection or record.collection
                 if is_current is None:
                     is_current = record.is_current
+            source_title = _resolve_source_title(metadata, document_id=document_id, anchor=anchor)
             sources.append(
                 EvidenceSource(
                     doc_id=document_id,
@@ -381,7 +382,7 @@ class QdrantRetrievalBackend:
                     is_current=is_current,
                     snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                     score=float(point.score),
-                    source_title=_resolve_source_title(metadata, document_id=document_id, anchor=anchor),
+                    source_title=source_title,
                     structural_path=_coerce_structural_path(anchor.get("section_path")),
                     content_kind=_resolve_content_kind(
                         metadata,
@@ -401,6 +402,17 @@ class QdrantRetrievalBackend:
                         collection=collection,
                         snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                         anchor=anchor,
+                    ),
+                    canonical_source_id=_resolve_canonical_source_id(metadata),
+                    canonical_source_title=_resolve_canonical_source_title(metadata),
+                    source_unit_kind=_resolve_source_unit_kind(
+                        metadata,
+                        collection=collection,
+                        anchor=anchor,
+                    ),
+                    source_unit_key=_resolve_source_unit_key(
+                        metadata,
+                        collection=collection,
                     ),
                 )
             )
@@ -1465,6 +1477,49 @@ def _resolve_detail_label(
         if value is not None:
             return value
     return ""
+
+
+def _resolve_canonical_source_id(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("canonical_source_id")) or _optional_text(metadata.get("source_doc_id")) or ""
+
+
+def _resolve_canonical_source_title(metadata: dict[str, object]) -> str:
+    return (
+        _optional_text(metadata.get("canonical_source_title"))
+        or _optional_text(metadata.get("source_doc_title"))
+        or ""
+    )
+
+
+def _resolve_source_unit_kind(
+    metadata: dict[str, object],
+    *,
+    collection: str,
+    anchor: dict[str, object],
+) -> str:
+    explicit_kind = _optional_text(metadata.get("source_unit_kind"))
+    if explicit_kind is not None:
+        return explicit_kind
+    if collection != "program_semester_facts":
+        return ""
+    return _optional_text(metadata.get("content_role")) or _optional_text(anchor.get("fact_type")) or ""
+
+
+def _resolve_source_unit_key(
+    metadata: dict[str, object],
+    *,
+    collection: str,
+) -> str:
+    explicit_key = _optional_text(metadata.get("source_unit_key"))
+    if explicit_key is not None:
+        return explicit_key
+    if collection != "program_semester_facts":
+        return ""
+    semester_index = _optional_text(metadata.get("semester_index"))
+    if semester_index is None:
+        return ""
+    normalized = semester_index.strip()
+    return f"semester-{normalized}" if normalized else ""
 
 
 def _resolve_is_answer_bearing(

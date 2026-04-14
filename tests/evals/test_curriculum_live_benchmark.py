@@ -14,7 +14,13 @@ from campus_contracts import (
     KnowledgeScope,
     RagResultPayload,
 )
-from campus_evals import ExecutionResult, GoldenCase, TraceExpectation, build_default_ragas_metric_names
+from campus_evals import (
+    ExecutionResult,
+    GoldenCase,
+    TraceExpectation,
+    build_default_ragas_metric_names,
+    expected_source_ref,
+)
 from campus_evals.curriculum_live_benchmark import (
     AppApiEvalClientSettings,
     build_app_api_curriculum_live_executor,
@@ -22,9 +28,20 @@ from campus_evals.curriculum_live_benchmark import (
     build_legacy_curriculum_live_executor,
 )
 from campus_evals.operator_observability import OperatorRequestCorrelation
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 
 
 CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+LAW_FOLLOW_UP_DOC_ID = build_curriculum_program_semester_fact_document_id(
+    "curriculum:法学（民族实验班）本科人才培养方案",
+    "第四学期",
+)
+HISTORY_FOLLOW_UP_DOC_ID = build_curriculum_program_semester_fact_document_id(
+    "curriculum:历史学（强基计划）本科人才培养方案",
+    "第四学期",
+)
 
 
 def _source(doc_id: str, *, chunk_id: str = "chunk-1", score: float = 0.9) -> EvidenceSource:
@@ -77,9 +94,12 @@ def _follow_up_case() -> GoldenCase:
         scope=CURRICULUM_SCOPE,
         expected_status="completed",
         expected_sources=(
-            {
-                "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
-            },
+            expected_source_ref(
+                LAW_FOLLOW_UP_DOC_ID,
+                canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                source_unit_kind="semester_course_list",
+                source_unit_key="semester-4",
+            ),
         ),
         required_facts=("中国少数民族文字学", "侵权责任法"),
         reference_context_ids=("curriculum:法学（民族实验班）本科人才培养方案",),
@@ -106,9 +126,12 @@ def _strong_base_follow_up_case() -> GoldenCase:
         scope=CURRICULUM_SCOPE,
         expected_status="completed",
         expected_sources=(
-            {
-                "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
-            },
+            expected_source_ref(
+                HISTORY_FOLLOW_UP_DOC_ID,
+                canonical_source_id="curriculum:历史学（强基计划）本科人才培养方案",
+                source_unit_kind="semester_course_list",
+                source_unit_key="semester-4",
+            ),
         ),
         required_facts=("大学英语(四)", "中国近代边疆民族史料研读"),
         reference_context_ids=("curriculum:历史学（强基计划）本科人才培养方案",),
@@ -193,13 +216,13 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                         },
                         "result": {
                             "kind": "answer",
-                            "text": "民族学本科人才培养方案可通过课程地图查询。",
+                            "text": "民族学本科人才培养方案。",
                             "requestId": "req_curriculum_eval_01HQ",
                             "traceId": "trace_curriculum_eval_01HQ",
                         },
                     },
                     "supervisor": {
-                        "answerText": "民族学本科人才培养方案可通过课程地图查询。",
+                        "answerText": "民族学本科人才培养方案。",
                         "followUpQuestion": "",
                         "selectedTarget": "rag-specialist",
                         "status": "completed",
@@ -221,7 +244,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                         "source_channel": "pdf_ocr",
                                         "collection": "curriculum_plan",
                                         "is_current": True,
-                                        "snippet": "民族学本科人才培养方案可通过课程地图查询。",
+                                        "snippet": "民族学本科人才培养方案。",
                                         "score": 0.95,
                                         "source_title": "民族学本科人才培养方案",
                                     }
@@ -234,6 +257,15 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                             "citationExpected": True,
                             "citationMissing": False,
                             "retrievedSourceCount": 1,
+                            "retrievedSources": [
+                                {
+                                    "doc_id": "curriculum:民族学本科人才培养方案",
+                                    "chunk_id": "chunk-retrieved",
+                                    "collection": "curriculum_plan",
+                                    "score": 0.88,
+                                    "source_title": "民族学本科人才培养方案",
+                                }
+                            ],
                             "retrievalAttempted": True,
                         },
                         "error": None,
@@ -273,7 +305,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             ),
         )
         self.assertEqual(result.response.status, "completed")
-        self.assertEqual(result.response.answer_text, "民族学本科人才培养方案可通过课程地图查询。")
+        self.assertEqual(result.response.answer_text, "民族学本科人才培养方案。")
         self.assertIsInstance(result.response.result, RagResultPayload)
         self.assertEqual(
             result.response.result.evidence.sources,
@@ -289,7 +321,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     source_channel="pdf_ocr",
                     collection="curriculum_plan",
                     is_current=True,
-                    snippet="民族学本科人才培养方案可通过课程地图查询。",
+                    snippet="民族学本科人才培养方案。",
                     score=0.95,
                     source_title="民族学本科人才培养方案",
                 ),
@@ -299,11 +331,141 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertTrue(result.observed_trace.retrieval_called)
         self.assertEqual(
             result.observed_trace.retrieved_sources,
-            result.response.result.evidence.sources,
+            (
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="observed-trace",
+                    chunk_id="chunk-retrieved",
+                    anchor={},
+                    canonical_url="",
+                    latest_url="",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="",
+                    score=0.88,
+                    source_title="民族学本科人才培养方案",
+                ),
+            ),
         )
         self.assertEqual(
             result.observed_trace.supporting_sources,
             result.response.result.evidence.sources,
+        )
+
+    def test_build_app_api_curriculum_live_executor_does_not_mirror_supporting_sources_for_clarification(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                request=request,
+                headers={
+                    "x-request-id": "req_curriculum_eval_clarify_01HQ",
+                    "x-trace-id": "trace_curriculum_eval_clarify_01HQ",
+                },
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conv_curriculum_eval_clarify_01HQ",
+                            "title": "法学培养方案",
+                            "createdAt": "2026-04-03T00:00:00.000Z",
+                            "updatedAt": "2026-04-03T00:00:01.000Z",
+                            "messages": [],
+                        },
+                        "result": {
+                            "kind": "clarification",
+                            "text": "请明确是法学民族实验班还是其他法学培养方案。",
+                            "requestId": "req_curriculum_eval_clarify_01HQ",
+                            "traceId": "trace_curriculum_eval_clarify_01HQ",
+                        },
+                    },
+                    "supervisor": {
+                        "status": "needs_clarification",
+                        "selectedTarget": "rag-specialist",
+                        "answerText": "请明确是法学民族实验班还是其他法学培养方案。",
+                        "followUpQuestion": "请明确是法学民族实验班还是其他法学培养方案。",
+                        "traceId": "trace_curriculum_eval_clarify_01HQ",
+                        "result": {
+                            "evidence": {
+                                "query_text": "法学培养方案",
+                                "corpus": "curriculum",
+                                "collection": "curriculum_plan",
+                                "sources": [
+                                    {
+                                        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                                        "revision_track": "source-faithful",
+                                        "version_id": "v1",
+                                        "chunk_id": "chunk-support",
+                                        "anchor": {"page": 1},
+                                        "canonical_url": "https://example.edu/curriculum:law",
+                                        "latest_url": "https://example.edu/curriculum:law",
+                                        "source_channel": "pdf_ocr",
+                                        "collection": "curriculum_plan",
+                                        "is_current": True,
+                                        "snippet": "请明确是法学民族实验班还是其他法学培养方案。",
+                                        "score": 0.91,
+                                        "source_title": "法学（民族实验班）本科人才培养方案",
+                                    }
+                                ],
+                            },
+                            "diagnostics": {
+                                "resolved_scope_corpus": "curriculum",
+                                "resolved_scope_collection": "curriculum_plan",
+                                "clarification_reason": "ambiguous_program",
+                            },
+                        },
+                        "observability": {
+                            "candidateCount": 0,
+                            "retrievedSourceCount": 0,
+                            "retrievalAttempted": False,
+                            "citationExpected": False,
+                            "citationCount": 0,
+                            "citationMissing": False,
+                        },
+                        "error": None,
+                    },
+                },
+            )
+
+        settings = AppApiEvalClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+            eval_user_email="eval-benchmark@example.edu",
+        )
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            executor = build_app_api_curriculum_live_executor(
+                settings=settings,
+                client=client,
+            )
+            result = executor(
+                GoldenCase(
+                    case_id="curriculum-needs-clarification-no-mirror",
+                    split="release_gate",
+                    source_type="expert_authored",
+                    user_goal="法学培养方案",
+                    actor=ActorContext(),
+                    scope=CURRICULUM_SCOPE,
+                    expected_status="needs_clarification",
+                    trace_expectation=TraceExpectation(
+                        selected_scope=CURRICULUM_SCOPE,
+                        retrieval_called=False,
+                        clarification_expected=True,
+                        error_expected=False,
+                    ),
+                )
+            )
+        finally:
+            client.close()
+
+        self.assertEqual(result.response.status, "needs_clarification")
+        self.assertFalse(result.observed_trace.retrieval_called)
+        self.assertEqual(result.observed_trace.retrieved_sources, ())
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.observed_trace.supporting_sources),
+            ("chunk-support",),
         )
 
     def test_build_app_api_curriculum_live_executor_replays_multi_turn_follow_up_with_same_conversation(self) -> None:
@@ -415,19 +577,23 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                 "collection": "curriculum_plan",
                                 "sources": [
                                     {
-                                        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                                        "doc_id": LAW_FOLLOW_UP_DOC_ID,
                                         "revision_track": "source-faithful",
                                         "version_id": "v1",
-                                        "chunk_id": "chunk-4",
+                                        "chunk_id": f"{LAW_FOLLOW_UP_DOC_ID}:row-0001",
                                         "anchor": {"page": 4},
                                         "canonical_url": "https://example.edu/curriculum:法学（民族实验班）本科人才培养方案",
                                         "latest_url": "https://example.edu/curriculum:法学（民族实验班）本科人才培养方案",
                                         "source_channel": "pdf_ocr",
-                                        "collection": "curriculum_plan",
+                                        "collection": "program_semester_facts",
                                         "is_current": True,
                                         "snippet": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                                         "score": 0.97,
-                                        "source_title": "法学（民族实验班）本科人才培养方案",
+                                        "source_title": "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                                        "canonical_source_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                                        "canonical_source_title": "法学（民族实验班）本科人才培养方案",
+                                        "source_unit_kind": "semester_course_list",
+                                        "source_unit_key": "semester-4",
                                     }
                                 ],
                             }
@@ -485,7 +651,15 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(len(result.response.result.evidence.sources), 1)
         self.assertEqual(
             result.response.result.evidence.sources[0].doc_id,
+            LAW_FOLLOW_UP_DOC_ID,
+        )
+        self.assertEqual(
+            result.response.result.evidence.sources[0].canonical_source_id,
             "curriculum:法学（民族实验班）本科人才培养方案",
+        )
+        self.assertEqual(
+            result.response.result.evidence.sources[0].source_unit_key,
+            "semester-4",
         )
 
     def test_build_app_api_curriculum_live_executor_sends_verified_major_headers_for_follow_up_cases(self) -> None:
@@ -535,19 +709,23 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                 "collection": "curriculum_plan",
                                 "sources": [
                                     {
-                                        "doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+                                        "doc_id": HISTORY_FOLLOW_UP_DOC_ID,
                                         "revision_track": "source-faithful",
                                         "version_id": "v1",
-                                        "chunk_id": "chunk-4",
+                                        "chunk_id": f"{HISTORY_FOLLOW_UP_DOC_ID}:row-0001",
                                         "anchor": {"page": 24},
                                         "canonical_url": "https://example.edu/curriculum:历史学（强基计划）本科人才培养方案",
                                         "latest_url": "https://example.edu/curriculum:历史学（强基计划）本科人才培养方案",
                                         "source_channel": "pdf_ocr",
-                                        "collection": "curriculum_plan",
+                                        "collection": "program_semester_facts",
                                         "is_current": True,
                                         "snippet": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                                         "score": 0.96,
-                                        "source_title": "历史学（强基计划）本科人才培养方案",
+                                        "source_title": "历史学（强基计划）本科人才培养方案 第四学期课程事实",
+                                        "canonical_source_id": "curriculum:历史学（强基计划）本科人才培养方案",
+                                        "canonical_source_title": "历史学（强基计划）本科人才培养方案",
+                                        "source_unit_kind": "semester_course_list",
+                                        "source_unit_key": "semester-4",
                                     }
                                 ],
                             }
@@ -597,7 +775,15 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         )
         self.assertEqual(
             result.response.result.evidence.sources[0].doc_id,
+            HISTORY_FOLLOW_UP_DOC_ID,
+        )
+        self.assertEqual(
+            result.response.result.evidence.sources[0].canonical_source_id,
             "curriculum:历史学（强基计划）本科人才培养方案",
+        )
+        self.assertEqual(
+            result.response.result.evidence.sources[0].source_unit_key,
+            "semester-4",
         )
 
     def test_build_app_api_curriculum_live_executor_preserves_supervisor_diagnostics_and_observability(self) -> None:

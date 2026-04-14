@@ -89,20 +89,20 @@ updated: 2026-04-03
 | sparse fixed phrase | covered | qrels/hybrid: `minority-language-strong-base-fixed-phrase` | canonical baseline 现在已有唯一 grounding 的 sparse fixed-phrase 样本；`民族实验班` 仍按 clarification 治理。 |
 | dense semantic paraphrase | covered | `digital-economy-plan-paraphrase`, `semantic-philosophy-strong-base-paraphrase`, `semantic-minority-language-strong-base-paraphrase` | 已补足更自然的跨表述问法，并扩到中国少数民族语言文学强基路径。 |
 | short fact | covered | ethnology-second-degree-academic-years / ethnology-total-credits / minority-language-total-credits / education-second-degree-academic-years / hanyu-international-students-total-credits | 已进入 qrels，并扩到国际学生版本与教育学第二学士学位。 |
-| table / structured evidence | covered | economics-course-map-table / fiscal-course-map-table | curriculum table retrieval 已不再只依赖单一经济学创新班样本。 |
+| table / structured evidence | covered | economics-course-settings-table / fiscal-course-settings-table | curriculum table retrieval 已不再依赖课程地图 topology case，而是聚焦仍在业务范围内的课程设置表格样本。 |
 | no-hit fail-close | covered | impossible-query / nonexistent-program | 已具备 deterministic 基线。 |
 | forbidden-source disambiguation | covered | `history-strong-base-title`, `minority-language-strong-base-title`, `semantic-minority-language-strong-base-paraphrase`, `hanyu-international-students-title`, `hanyu-international-students-total-credits`, `philosophy-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `semantic-philosophy-strong-base-paraphrase` | curriculum 已形成更完整的 canonical forbidden-source 样本集。 |
-| version-sensitive retrieval | covered | `minority-language-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `hanyu-international-students-total-credits`, `education-second-degree-academic-years`, `fiscal-course-map-table` | 已有 6 条选定高风险 case 锁到 `doc_id + version_id`。 |
+| version-sensitive retrieval | covered | `minority-language-strong-base-title`, `digital-economy-plan-paraphrase`, `general-english-total-credits`, `hanyu-international-students-total-credits`, `education-second-degree-academic-years`, `fiscal-course-settings-table` | 已有 6 条选定高风险 case 锁到 `doc_id + version_id`。 |
 
 ### Workflow / Answer Matrix
 
 | Lane | Status | Current evidence | Notes |
 | --- | --- | --- | --- |
-| completed | covered | `curriculum_release_gate_cases()` 12 条 completed | 已覆盖标题、学制、总学分、课程地图、course-family 与 program-family completed，并包含 course-family alias 变体、单课 schedule、`强基计划` full alias 与显式 `名称里带实验班` name-pattern 问句。 |
+| completed | covered | `curriculum_release_gate_cases()` 11 条 completed | 已覆盖标题、学制、总学分、课程设置/修读建议、course-family 与 program-family completed，并包含 course-family alias 变体、单课 schedule、`强基计划` full alias 与显式 `名称里带实验班` name-pattern 问句。 |
 | needs_clarification | covered | `curriculum-release-gate-needs-clarification`, `curriculum-regression-needs-clarification-ethnic-experimental-class` | 现已同时覆盖跨语料模糊问法与 retrieval-informed title ambiguity。 |
-| no_answer | covered | `curriculum-release-gate-no-answer` | 已绑定 fail-close expectation。 |
+| no_answer | covered | `curriculum-release-gate-no-answer`, `curriculum-release-gate-course-map-unsupported` | 已绑定 fail-close expectation，并显式覆盖课程地图 topology query 不可答边界。 |
 | error | covered | `curriculum_error_gate_cases()` 3 条 | 通过 deterministic 故障注入覆盖。 |
-| required facts | covered | 学制、学分、课程地图等 fixed cases | curriculum answer truth 已比 handbook 更接近结构化事实校验。 |
+| required facts | covered | 学制、学分、课程设置等 fixed cases | curriculum answer truth 已比 handbook 更接近结构化事实校验。 |
 | forbidden claims | covered | release-gate completed cases | 当前已防止误答成 handbook 内容。 |
 | citation completeness | covered | `curriculum-workflow-status-summary.json` 已给出 `citation_completeness = 4/4 pass`，repo-tracked deterministic gate 也已存在 | 当前剩余问题不是有没有 citation gate，而是要不要继续把更多 family-aware completed answer 扩进 denominator。 |
 | explicit smoke workflow set | covered | `curriculum_smoke_cases()` 10 条稳定 fixed cases | 已显式覆盖 `completed`、`no_answer`、`needs_clarification`，并把 program-family membership 扩到 `民族班`、`民族实验班`、`创新班`、`强基` 与 `第二学士学位` full alias。 |

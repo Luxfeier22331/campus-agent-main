@@ -33,7 +33,7 @@ from campus_retrieval_core import (
     RetrievalBackendError,
 )
 from campus_rag_specialist import RagSpecialistAgent
-from campus_rag_specialist.agent import _select_answer_support_rows
+from campus_rag_specialist.agent import _query_mode, _select_answer_support_rows
 from campus_rag_specialist.confidence import derive_confidence
 from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import frame_rag_intent
@@ -219,6 +219,41 @@ def _make_program_semester_source(
     )
 
 
+def _make_curriculum_plan_source(
+    *,
+    doc_id: str,
+    chunk_id: str,
+    snippet: str,
+    score: float,
+    source_title: str,
+    structural_path: tuple[str, ...] = (),
+    content_kind: str = "",
+    content_role: str = "",
+    detail_label: str = "",
+    is_answer_bearing: bool = False,
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{chunk_id.rsplit(':', 1)[-1]}",
+        chunk_id=chunk_id,
+        anchor={"page_start": 1, "page_end": 1},
+        canonical_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
+        latest_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
+        source_channel="pdf_ocr",
+        collection="curriculum_plan",
+        is_current=False,
+        snippet=snippet,
+        score=score,
+        source_title=source_title,
+        structural_path=structural_path,
+        content_kind=content_kind,
+        content_role=content_role,
+        detail_label=detail_label,
+        is_answer_bearing=is_answer_bearing,
+    )
+
+
 def _resolved_scope_diagnostics(
     *,
     corpus: str,
@@ -243,6 +278,21 @@ def _resolved_scope_diagnostics(
     return RagResultDiagnostics(
         resolved_scope_corpus=corpus,
         resolved_scope_collection=collection,
+        **kwargs,
+    )
+
+
+def _resolved_curriculum_diagnostics_from_response(
+    response: SpecialistResponse,
+    **kwargs: object,
+) -> RagResultDiagnostics:
+    result = response.result
+    if not isinstance(result, RagResultPayload):
+        raise AssertionError("expected RagResultPayload for curriculum diagnostics assertion")
+    return _resolved_scope_diagnostics(
+        corpus="curriculum",
+        collection="curriculum_plan",
+        retrieved_sources=result.evidence.sources,
         **kwargs,
     )
 
@@ -2437,9 +2487,8 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("公司法", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolved_policy_document_id="curriculum:法学（民族实验班）本科人才培养方案",
                 resolved_policy_title="法学（民族实验班）本科人才培养方案",
                 rewritten_query="法学民族实验班培养方案里第四学期有什么课",
@@ -3196,6 +3245,55 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.preferred_document_ids, ())
         self.assertIn("历史学（强基计划）本科人才培养方案", plan.rewritten_query_text)
 
+    def test_plan_curriculum_query_marks_course_map_queries_as_unsupported(self) -> None:
+        plan = plan_curriculum_query("经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+
+        self.assertEqual(plan.status, "unsupported")
+        self.assertEqual(plan.unsupported_reason, "curriculum_course_map_unsupported")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:经济学拔尖人才创新班人才培养方案",),
+        )
+        self.assertEqual(plan.resolved_document_title, "经济学拔尖人才创新班人才培养方案")
+
+    def test_delegate_to_rag_agent_fail_closes_course_map_queries_without_retrieval(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence(query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertFalse(retriever_called)
+        self.assertIn("课程地图", response.answer_text)
+        self.assertIn("不能稳定解析", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                no_answer_reason="curriculum_course_map_unsupported",
+                semantic_outcome="unsupported_scope",
+                retrieval_adequacy_verdict="insufficient",
+                retrieval_adequacy_reason="unsupported_query_type",
+                candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
+                resolution_mode="unsupported",
+            ),
+        )
+
     def test_course_single_audience_query_uses_course_facts_collection(self) -> None:
         retriever_call: dict[str, object] = {}
 
@@ -3251,9 +3349,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -3324,9 +3421,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("中华民族共同体概论", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -3388,9 +3484,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -3455,9 +3550,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("第2学期(文科)", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -3518,9 +3612,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -3834,9 +3927,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("根据当前已采集的课程事实，思想政治理论课：", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -4092,9 +4184,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -4161,9 +4252,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("当前已采集", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="program_family",
                 resolved_program_family_id="program_family:muc.ethnic_experimental_class",
@@ -4932,10 +5022,68 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             [source.chunk_id for source in response.result.evidence.sources],
             ["student-card-procedure"],
         )
+        self.assertEqual(
+            [source.chunk_id for source in response.result.diagnostics.retrieved_sources],
+            [
+                "student-card-procedure",
+                "student-card-closing",
+                "medical-background",
+            ],
+        )
         self.assertIn("学生证遗失后", response.answer_text)
         self.assertNotIn("负责解释", response.answer_text)
         self.assertNotIn("公费医疗", response.answer_text)
         self.assertNotIn("1.", response.answer_text)
+
+    def test_completed_response_preserves_raw_retrieved_sources_even_when_support_matches(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族班有哪些",
+            corpus="curriculum",
+            collection="program_family_facts",
+            sources=(
+                EvidenceSource(
+                    doc_id="program_family_facts:ethnic-class-membership",
+                    revision_track="source-faithful",
+                    version_id="v1:program-family-facts",
+                    chunk_id="program-family-facts:ethnic-class-membership",
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
+                    latest_url="https://campus.example/curriculum/program-family/ethnic-class",
+                    source_channel="pdf_ocr",
+                    collection="program_family_facts",
+                    is_current=True,
+                    snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                    score=0.97,
+                    source_title="中央民族大学民族班项目一览",
+                    structural_path=("民族班",),
+                    content_kind="program_family_fact",
+                    content_role="family_membership",
+                    detail_label="成员专业",
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            ("program-family-facts:ethnic-class-membership",),
+        )
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.diagnostics.retrieved_sources),
+            ("program-family-facts:ethnic-class-membership",),
+        )
 
     def test_completed_response_focuses_student_card_reissue_on_actionable_steps(self) -> None:
         evidence = EvidenceBundle(
@@ -5760,6 +5908,73 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
                 "curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
             },
         )
+
+
+class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
+    def test_query_mode_routes_curriculum_structure_queries_away_from_procedure(self) -> None:
+        for query_text in (
+            "经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            "法学民族实验班培养方案课程设置怎么安排",
+            "法学民族实验班培养方案修读建议怎么安排",
+        ):
+            with self.subTest(query_text=query_text):
+                self.assertEqual(_query_mode(query_text), "curriculum_lookup")
+
+    def test_curriculum_course_map_answer_fail_closes_without_supporting_sources(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0023",
+                    snippet="六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                    score=0.99,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "六、课程地图"),
+                    content_kind="section_text",
+                    detail_label="六、课程地图",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0014",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
+                    score=0.98,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0015",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 发展经济学专题。",
+                    score=0.97,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0013",
+                    snippet="五、课程设置和修读建议 1. 专业核心课程 专业核心课程 30 学分。",
+                    score=0.96,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual(draft.supporting_sources, ())
+        self.assertEqual(draft.supporting_contexts, ())
+        self.assertEqual(draft.answer_text, "")
 
     def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(self) -> None:
         response = delegate_to_rag_agent(

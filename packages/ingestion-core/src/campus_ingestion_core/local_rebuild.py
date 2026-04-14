@@ -36,7 +36,9 @@ from campus_ingestion_core.curriculum_program_family_facts_projection import (
     build_curriculum_program_family_facts_scope_refresh_documents,
 )
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    CurriculumProgramSemesterFactsMaterializationReport,
     build_curriculum_program_semester_facts_scope_refresh_documents,
+    materialize_curriculum_program_semester_facts_from_canonical_scope,
 )
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
@@ -156,6 +158,29 @@ class _RebuildTraceRecorder:
                 handle.write("\n")
         if self.stderr_enabled:
             print(line, file=sys.stderr, flush=True)
+
+
+def rematerialize_curriculum_program_semester_facts_from_local_rebuild(
+    *,
+    env: dict[str, str] | None = None,
+    source_document_ids: tuple[str, ...],
+    object_store: ReplayObjectStore | None = None,
+    registry: DocumentRegistry | None = None,
+    raw_asset_registry: RawAssetRegistry | None = None,
+    split_manifest_documents: Sequence[SplitManifestDocument] | None = None,
+    raw_asset_record: RawAssetRecord | None = None,
+    source_document_units_keys: dict[str, str] | None = None,
+) -> CurriculumProgramSemesterFactsMaterializationReport:
+    return materialize_curriculum_program_semester_facts_from_canonical_scope(
+        env=env,
+        object_store=object_store,
+        registry=registry,
+        raw_asset_registry=raw_asset_registry,
+        split_manifest_documents=split_manifest_documents,
+        raw_asset_record=raw_asset_record,
+        source_document_units_keys=source_document_units_keys,
+        source_document_ids=source_document_ids,
+    )
 
 
 class S3ObjectStoreAdmin:

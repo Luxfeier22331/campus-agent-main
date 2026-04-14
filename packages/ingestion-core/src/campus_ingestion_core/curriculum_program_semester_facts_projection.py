@@ -32,6 +32,7 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
+from campus_ingestion_core.source_truth_common import build_position_preserving_table_rows
 
 
 _SEMESTER_LABEL_TO_INDEX = {
@@ -196,6 +197,7 @@ def materialize_curriculum_program_semester_facts_from_canonical_scope(
     split_manifest_documents: Sequence[SplitManifestDocument] | None = None,
     raw_asset_record: RawAssetRecord | None = None,
     source_document_units_keys: Mapping[str, str] | None = None,
+    source_document_ids: Sequence[str] | None = None,
 ) -> CurriculumProgramSemesterFactsMaterializationReport:
     source = dict(env if env is not None else os.environ)
     object_store_settings = ObjectStoreSettings.from_env(source)
@@ -204,6 +206,10 @@ def materialize_curriculum_program_semester_facts_from_canonical_scope(
     runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     runtime_split_manifest_documents, split_manifest_raw_asset_id = _resolve_split_manifest_documents(
         split_manifest_documents=split_manifest_documents,
+    )
+    runtime_split_manifest_documents = _filter_split_manifest_documents(
+        split_manifest_documents=runtime_split_manifest_documents,
+        source_document_ids=source_document_ids,
     )
     runtime_source_document_units_keys = (
         dict(source_document_units_keys)
@@ -244,7 +250,7 @@ def materialize_curriculum_program_semester_facts_from_canonical_scope(
             "program_semester_facts",
         ).cleaning_policy_version,
         default_visibility_scope=None,
-        scope_refresh=("curriculum", "program_semester_facts"),
+        scope_refresh=None if source_document_ids else ("curriculum", "program_semester_facts"),
     )
     return CurriculumProgramSemesterFactsMaterializationReport(
         source_document_count=len(runtime_split_manifest_documents),
@@ -267,11 +273,10 @@ def _build_program_semester_projections(
     for row in structured_rows:
         if not _row_within_document(row=row, source_document=source_document):
             continue
-        text = _row_text(row)
-        if "课程名称" not in text:
-            continue
-        table_rows = _extract_table_rows(text)
+        table_rows = _extract_table_rows(row)
         if not table_rows:
+            continue
+        if not any("课程名称" in cell for cells in table_rows for cell in cells):
             continue
         row_page_start = _row_page_start(row, fallback=source_document.page_start)
         row_page_end = _row_page_end(row, fallback=source_document.page_end)
@@ -340,24 +345,16 @@ def _extract_semester_course_titles(
         if course_titles
     }
 
-
-def _extract_table_rows(text: str) -> tuple[tuple[str, ...], ...]:
-    if "<table" in text.lower():
-        rows = tuple(
-            tuple(
-                _normalize_text(_strip_html(cell))
-                for cell in _HTML_CELL_RE.findall(row_match.group(1))
-                if _normalize_text(_strip_html(cell))
-            )
-            for row_match in _HTML_ROW_RE.finditer(text)
-        )
-        return tuple(row for row in rows if row)
-    rows = tuple(
-        tuple(_normalize_text(cell) for cell in line.split("|"))
-        for line in re.split(r"[\r\n]+", text)
-        if "|" in line
+def _extract_table_rows(row: Mapping[str, object]) -> tuple[tuple[str, ...], ...]:
+    text = _row_text(row)
+    html = str(row.get("html") or "").strip() or None
+    if html is None and "<table" in text.lower():
+        html = text
+    return build_position_preserving_table_rows(
+        html=html,
+        table_cells=row.get("table_cells"),
+        fallback_text=text,
     )
-    return tuple(row for row in rows if row)
 
 
 def _resolve_curriculum_semester_table_layout(
@@ -557,6 +554,29 @@ def _build_materialization_object_store(
     from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 
     return S3ObjectStoreAdmin(settings)
+
+
+def _filter_split_manifest_documents(
+    *,
+    split_manifest_documents: Sequence[SplitManifestDocument],
+    source_document_ids: Sequence[str] | None,
+) -> tuple[SplitManifestDocument, ...]:
+    if not source_document_ids:
+        return tuple(split_manifest_documents)
+    requested_ids = tuple(dict.fromkeys(document_id for document_id in source_document_ids if document_id))
+    selected_documents = tuple(
+        document
+        for document in split_manifest_documents
+        if document.document_id in requested_ids
+    )
+    if len(selected_documents) != len(requested_ids):
+        available_ids = {document.document_id for document in split_manifest_documents}
+        missing_ids = tuple(document_id for document_id in requested_ids if document_id not in available_ids)
+        raise ValueError(
+            "unknown curriculum source_document_ids for program_semester_facts rematerialization: "
+            + ", ".join(missing_ids)
+        )
+    return selected_documents
 
 
 def _resolve_split_manifest_documents(

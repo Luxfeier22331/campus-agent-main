@@ -16,7 +16,7 @@ _MODULE_NAME = "campus_ingestion_worker.materialize_curriculum_program_semester_
 
 
 class MaterializeCurriculumProgramSemesterFactsWorkerCliTest(unittest.TestCase):
-    def test_main_runs_canonical_scope_materialization_and_prints_report(self) -> None:
+    def test_main_runs_canonical_scope_materialization_for_requested_source_documents_and_prints_report(self) -> None:
         module_spec = importlib.util.find_spec(_MODULE_NAME)
         self.assertIsNotNone(module_spec)
         if module_spec is None:
@@ -34,14 +34,26 @@ class MaterializeCurriculumProgramSemesterFactsWorkerCliTest(unittest.TestCase):
         with (
             patch(f"{_MODULE_NAME}.load_worker_env"),
             patch(
-                f"{_MODULE_NAME}.materialize_curriculum_program_semester_facts_from_canonical_scope"
+                f"{_MODULE_NAME}.rematerialize_curriculum_program_semester_facts_from_local_rebuild"
             ) as materialize,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             materialize.return_value = report
-            worker.main([])
+            worker.main(
+                [
+                    "--source-document-id",
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "--source-document-id",
+                    "curriculum:历史学（强基计划）本科人才培养方案",
+                ]
+            )
 
-        materialize.assert_called_once_with()
+        materialize.assert_called_once_with(
+            source_document_ids=(
+                "curriculum:法学（民族实验班）本科人才培养方案",
+                "curriculum:历史学（强基计划）本科人才培养方案",
+            )
+        )
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["materialized_document_count"], 380)
         self.assertEqual(payload["raw_asset_id"], "asset:curriculum-plan-2022")

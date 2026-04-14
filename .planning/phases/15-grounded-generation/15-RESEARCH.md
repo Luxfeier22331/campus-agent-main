@@ -23,6 +23,16 @@
 7. **Memory and personalization should not become support evidence**
    The broader best-practice pattern is still to keep personalization as planning bias or clarification context, not as canonical evidence. This remains critical for the repo because verified major, recent goals, and session memory already exist and must not silently hard-resolve claims.
 
+## Closeout Implication
+
+这些外部资料共同支持当前的 Phase 15 closeout 口径：
+
+- OpenAI 的 eval guidance 说明 reliability 应由可重复 regression gate 驱动，因此 Phase 15 可以在 repo-local gate 完整通过后关闭代码 phase，而不是继续等待 live provider 恢复再把本地实现挂成未完成
+- Azure / Google 明确把 retrieval quality 与 groundedness 分开；因此 closeout 也必须分别证明 adequacy gate 和 grounding gate，而不是用一条泛化“回答质量”证据替代
+- 由此导出的 repo 结论是：
+  - repo-local code closeout 与 deterministic gate closeout 可以先完成
+  - supplemental provider `/responses` regression 只阻断 live artifact refresh，不阻断本 phase 的 repo-local acceptance closeout
+
 ## Repo Implications
 
 ### 1. Retrieval adequacy needs its own contract

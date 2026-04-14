@@ -2,24 +2,29 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Curriculum Plan Eval Metrics
 
 ## 目的
 
-本文负责记录 `curriculum/curriculum_plan` 当前 repo-tracked release-gate 基线、自动化覆盖面与 live gate artifact contract。
+本文记录 `curriculum/curriculum_plan` 的稳定评估基线：
+
+- repo-tracked automated denominator 是什么
+- live gate artifact contract 是什么
+- 哪些 curriculum retrieval / workflow 主题已经被锁进长期回归面
+- 当前应如何理解历史 live acceptance 与后续 rerun
 
 边界：
 
-- live rebuild 与线上 collection 验收步骤以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
-- 本文只记录当前已落盘的 live / acceptance 指标快照，以及 live gate artifact contract
-- 本文不把当前 snapshot 上升为长期稳定 KPI
+- live rebuild 与线上 collection 验收步骤仍以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
+- 本文不承担当前执行状态板
+- 本文不把单次 `.tmp` 目录提升为默认 canonical 入口
 
 ## Gate Topology
 
-当前 `curriculum_plan` gate 分成两层：
+`curriculum_plan` gate 固定分成两层：
 
 - repo-tracked automated baseline
   - retrieval qrels
@@ -28,29 +33,27 @@ updated: 2026-04-10
   - deterministic error gate cases
 - fresh live release gate
   - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate 样本
-  - 输出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
+  - 产出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
 
-当前长期实现约束：
+长期实现约束：
 
-- `campus_evals.curriculum_live_benchmark` 现在通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行，不再复制 handbook runner 逻辑
-- curriculum live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
-- 该 policy 当前只消费 `ragas.faithfulness`、`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
-- curriculum live gate 不再默认回退到 `student_handbook_judge_gate_policy.json`
-
-设计原因：
-
-- `curriculum_plan` 已进入 query-serving，当前 release-gate follow-up 主要是补充指标 `warn` 与 artifact/doc 归一，而不是继续补 fresh rerun
-- live gate 和 deterministic gate 要分离；`error` 终态不依赖偶发基础设施故障取样
+- `campus_evals.curriculum_live_benchmark` 通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行
+- live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
+- 该 policy 只消费：
+  - `ragas.faithfulness`
+  - `ragas.answer_relevancy`
+  - `ragas.context_precision`
+  - `ragas.context_recall`
+- curriculum live gate 不再回退到 handbook judge policy
 
 ## Repo-Tracked Automated Baseline
 
-当前已落盘的 curriculum 基线包括：
+当前已冻结的自动化基线包括：
 
 - retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
   - total cases：`25`
-  - split：
-    - `smoke = 16`
-    - `regression_locked = 9`
+  - `smoke = 16`
+  - `regression_locked = 9`
 - hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
   - total cases：`12`
   - categories：
@@ -61,56 +64,64 @@ updated: 2026-04-10
     - `semantic_dense_win`
     - `needs_clarification`
     - `no_hit`
-  - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
+- workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
   - release gate：`14`
   - smoke：`10`
   - regression_locked：`35`
   - error gate：`3`
 
-当前 automated gate 覆盖的 release-gate 终态：
+自动化 gate 覆盖的 release-gate 终态：
 
 - `completed = 12`
 - `no_answer = 1`
 - `needs_clarification = 1`
 - deterministic `error = 3`
 
-当前已锁定的高风险 curriculum retrieval 主题：
+## 高风险主题清单
+
+当前已锁定的高风险 curriculum retrieval / answer 主题：
 
 - 标题 exact-match
 - 同专业不同方案区分
 - 第二学士学位短事实
-- table / 课程地图 retrieval
+- table / 课程设置 retrieval
 - uniquely grounded sparse fixed-phrase retrieval
-- program-family membership / doc-fragment split（例如 `民族班有哪些` 走 family answer，而 `民族实验班` 短片段仍按 ambiguity workflow 治理）
-- program-family full alias / name-pattern completed answer（例如 `强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`）
-- semester-grounded course retrieval（例如 `大二下 -> 第四学期`）
+- program-family membership / doc-fragment split
+- program-family full alias / name-pattern completed answer
+- semester-grounded course retrieval
 - 国际学生版本与普通版本区分
 - 同专业强基计划与普通培养路径区分
 - selected `doc_id + version_id` regression locks
-- course / course-family schedule answer（单课学期与 family 多课程学期）
+- course / course-family schedule answer
 - no-hit fail-close
 - retrieval-informed ambiguity clarification
 
-已记录但尚未并入更大 automated denominator 的下一轮 high-risk workstream：
+仍作为未来扩样方向，但未并入更大 denominator 的主题：
 
-- 当前高频 inventory 之外的长尾 program-family / course alias 扩表
-- 更多 family-aware completed answer 的 citation/context truth 扩样
-- 更多 uniquely grounded sparse fixed-phrase retrieval case 扩样，而不是继续只依赖单一样本
+- 长尾 program-family / course alias 扩表
+- family-aware completed answer 的 citation/context truth 扩样
+- 更多 uniquely grounded sparse fixed-phrase retrieval case
 
-补充说明：
+## Active Baseline Interpretation
 
-- `packages/evals` 现在已经能同时评估 `SpecialistResponse` 与 `SupervisorResponse`
-- supervisor-only 终态指标 `approval_required_accuracy` / `rejection_accuracy` 已进入 deterministic metric surface，但当前 curriculum repo-tracked case 仍主要覆盖 RAG 主路径
-- `campus_evals.retrieval_benchmark` 现在会在评分前自动按 split manifest 预检 qrels；未裁决的短标题歧义 truth 会 fast-fail
-- 对 resolved curriculum program/semester query，repo-head 还要求 supporting evidence 不得跨 doc、跨 semester；这类污染属于 deterministic regression，不进入“靠 soft metric 解释”的空间
+当前对 curriculum baseline 的 repo-tracked 解释固定为：
 
-Phase 9 planning 已进一步冻结一条 truth posture：
+- automated baseline 已具备，并由测试覆盖
+- live gate artifact contract 已稳定
+- `course_facts` 相关 deterministic truth 修复已经落地：
+  - `reference_context_ids` 改到 internal `course_facts:*` doc ids
+  - resolved `course_facts` query 使用 exact `target_document_ids`
+  - family/member/audience/schedule answer 改为直接事实句
+  - 原始 `curriculum_plan` 短事实问句优先走 direct fact shaping
+- 历史 live acceptance snapshot 仍有参考价值，但不再通过 repo-tracked `.tmp` 链接长期暴露
+- 若后续 fresh rerun 遇到 supplemental provider contract regression，应先标记为运行面阻塞，而不是 curriculum truth gap
 
-- `基地班` 这类 family alias 不能再通过“给它找一个看起来最像的 top1”来维持假 canonical truth
-- `强基有哪些专业` 与 `二学位有哪些专业` 这类 membership query 现在也允许进入 `program_family_facts` completed truth，但仍不得 author 成单 doc canonical qrels
-- `实验班` / `创新班` / `创新实验班` 这类 membership query 现在允许进入 `program_family_facts` completed truth，但仍不得 author 成单 doc canonical qrels
-- `verified identity` 可以进入 curriculum disambiguation eval，但只在 query 自身带 deictic 语义且候选唯一时才允许形成 completed truth
-- `profile memory` 只可进入 ranking/clarification 语义，不进入 canonical qrels collapse 语义
+补充约束：
+
+- `基地班` 一类 family alias 不允许再通过伪 top1 canonical truth 维持通过
+- `强基有哪些专业`、`二学位有哪些专业`、`实验班有哪些` 这类 membership query 可以进入 `program_family_facts` completed truth
+- `verified identity` 只在 query 自身带 deictic 语义且候选唯一时进入 completed truth
+- `profile memory` 只进入 ranking/clarification 语义，不进入 canonical qrels collapse
 
 ## Live Gate Artifact Contract
 
@@ -126,37 +137,25 @@ Phase 9 planning 已进一步冻结一条 truth posture：
 - `run/supplemental-provider-summary.json`
 - 可选 `SUMMARY.md`
 
-如果使用 `accept`：
+如果使用 `accept`，还应产出：
 
-- acceptance 根目录还应保留 `accept-config.json` 与 `final-summary.json`
-- 若显式启用 operator publish，还应保留 `operator-observability-publish-summary.json`
-- 若触发 repair rerun，还应保留 `repair/supplemental-runtime-events.jsonl` 与 `repair/supplemental-provider-summary.json`
-- 当前实现里 `accept --log-jsonl` 的 runtime logs 会由 `accept-config.json` 指向外部 `<base>.run.jsonl` / `<base>.repair.jsonl`，不再要求它们必须以内嵌文件形式存在于 acceptance root
+- `accept-config.json`
+- `final-summary.json`
+- 若显式启用 operator publish：
+  - `operator-observability-publish-summary.json`
+- 若触发 repair rerun：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
 
-建议目录：
+维护规则：
 
-- `.tmp/evals/curriculum-plan-live-gate-<timestamp>/`
-
-配套 repair 入口：
-
-- `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
-- repair 只回补 transient supplemental infra failure；当前依赖 ragas adapter 显式暴露四个 metric key，才能从 `supplemental-preflight.json` 回推 backfill target
-
-最低必须记录的证据字段：
-
-- rerun 日期
-- git commit / branch
-- serving alias 与 physical collection
-- collection schema 摘要
-- points count
-- 通过与失败的 hybrid query case
-- retrieval benchmark aggregate / by_split
-- workflow/status distribution
-- deterministic release gate 与 error gate 汇总
+- 文件名 contract 保留在本文
+- 具体某一轮 artifact 路径不再作为默认 repo-tracked 链接长期保存
+- 新一轮 rerun 需要更新的是结论、分母和字段 contract，而不是把 `.tmp` 路径堆回本文
 
 ## Verification Commands
 
-repo-tracked自动化基线：
+repo-tracked 自动化基线：
 
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
@@ -169,225 +168,13 @@ case-level context diagnostics：
 
 - `uv run --all-packages python -m campus_evals.context_diagnostics --case-results <run-XX-case-results.json> --scenario-set curriculum_live_gate --format json`
 
-## Current Status
+## 维护规则
 
-截至 2026-04-10：
-
-- 当前 latest completed curriculum live accept artifact 仍是 [`.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/final-summary.json)：
-  - `deterministic_verdict = pass`
-  - `supplemental_verdict = warn`
-  - `final_overall_verdict = warn`
-  - deterministic 继续稳定为 `run_pass_counts = [19, 19, 19]`
-- 2026-04-09 Wave C 已完成 repo-head 级诊断与实现修复，结论明确分成两层：
-  - `packages/evals/src/campus_evals/scenarios.py` 中 `course_facts` 相关 release/regression case 的 `reference_context_ids` 之前仍停留在旧 raw `curriculum:*` truth；现已改为 internal `course_facts:*` doc ids
-  - `packages/rag-specialist/src/campus_rag_specialist/service.py` 现对 `course_facts` query 使用 exact `target_document_ids`，不再只靠 family/course filter 宽松命中
-  - `packages/rag-specialist/src/campus_rag_specialist/service.py` 的课程 family/member/audience/schedule answer 现直接输出事实句，不再追加“根据培养方案和课程教学计划”这类 lead
-  - `packages/rag-specialist/src/campus_rag_specialist/agent.py` 的 raw `curriculum_plan` 短事实问句现优先走 direct fact shaping；`学制` / `总学分` 不再默认落回通用前缀和同文档低相关拼接
-- 2026-04-09 用 repo-head 重新回放 `context_diagnostics` 后，可见 historical `20260404T200443Z` artifact 里的 `course_facts` warn 具有双重历史性：
-  - 原来的 raw `reference_context_ids` truth 已被修正
-  - 但该 artifact 自身的 `supporting_sources` 仍保留修复前的宽松 course-facts 取证形状，因此 family membership / audience case 在重放时仍会看到 extra retrieved ids；这是旧 artifact 事实，不再代表当前 repo-head
-- 2026-04-09 fresh repo-head verification：
-  - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_context_diagnostics tests.specialist.test_rag_specialist tests.evals.test_curriculum_live_benchmark tests.evals.test_ragas_runtime`
-    - `235 tests`，`OK`
-- 2026-04-10 已尝试执行 fresh curriculum live accept，以替换历史 `20260404T200443Z` warn artifact：
-  - 命令：
-    - `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events-20260410-wave-c.jsonl --output-dir .tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c`
-  - 当前 rerun 未进入 benchmark case 执行，而是在 `run/supplemental-preflight.json` 直接 fast-fail：
-    - artifact：[`.tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c/run/supplemental-preflight.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c/run/supplemental-preflight.json)
-    - failure：`ragas` 的 `/responses` preflight 命中 `non_retryable_request`
-    - failure reasons：`preflight_failed` + `provider_contract_violation`
-    - 根因：当前 supplemental LLM provider `https://www.su8.codes/codex/v1` 对 text / json-schema probe 都返回 `status='completed'` 但 `output=[]`；这不是 curriculum truth 或 parser coverage 的剩余缺口，而是 provider 对 OpenAI-compatible Responses output contract 的回归
-  - repo-head 现已把这类返回收口为显式 `provider_contract_violation` fast-fail；因此不会再把它误归因为 supplemental 低分或 curriculum case truth 漂移
-- 因此当前结论应区分为：
-  - `repo-head Wave C remediation = landed and verified`
-  - `historical live accept warn artifact replacement = blocked by current supplemental provider contract regression`
-
-截至 2026-04-03（historical context）：
-
-- curriculum 的 repo-tracked qrels / hybrid / golden / error-gate baseline 已存在并由测试覆盖
-- 2026-04-02 已完成 curriculum-only canonical 扩样：
-  - retrieval qrels 新增 `7` 条 case，覆盖：
-    - 中国少数民族语言文学强基计划与普通方案区分
-    - 汉语国际教育国际学生版本标题 / 总学分
-    - 教育学第二学士学位学制
-    - 财政学课程地图 table retrieval
-  - workflow fixed cases 新增 `4` 条：
-    - `curriculum-smoke-hanyu-international-credits`
-    - `curriculum-regression-minority-language-strong-base`
-    - `curriculum-regression-education-second-degree-years`
-    - `curriculum-regression-fiscal-core-credits`
-  - 2026-04-02 truth governance refresh：
-    - retired canonical qrels case：`fixed-phrase-ethnic-experimental-class`
-    - added regression clarification case：`curriculum-regression-needs-clarification-ethnic-experimental-class`
-    - `民族实验班` 不再被视为单目标 retrieval truth；canonical runner 会对这类 unresolved ambiguity preflight fast-fail
-  - repo-tracked 自动化验证：
-    - `tests.evals.test_retrieval_benchmark`
-    - `tests.evals.test_golden_cases`
-    - `tests.evals.test_context_diagnostics`
-    - `tests.evals.test_curriculum_live_benchmark`
-    - `tests.evals.test_ragas_runtime`
-    共 `120` tests，`OK`
-- 2026-04-03 已完成 program-family alias 第二波扩样：
-  - workflow fixed cases 新增 `9` 条，覆盖：
-    - `curriculum-smoke-program-family-ethnic-experimental-membership`
-    - `curriculum-smoke-program-family-second-degree-membership-full-alias`
-    - `curriculum-release-gate-program-family-strong-base-membership-full-alias`
-    - `curriculum-release-gate-program-family-name-pattern-experimental-membership`
-    - `curriculum-regression-program-family-second-degree-membership-full-alias`
-    - `curriculum-regression-program-family-ethnic-experimental-membership`
-    - `curriculum-regression-program-family-strong-base-membership-full-alias`
-    - `curriculum-regression-program-family-name-pattern-experimental-membership`
-    - `curriculum-regression-program-family-name-pattern-innovation-membership`
-  - qrels preflight 回归新增 full alias / 显式 name-pattern membership fast-fail
-- root worktree 已完成一轮 fresh curriculum live verification；当前可引用 artifact 分两类：
-  - contract-shaped live gate evidence：
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json)
-  - acceptance verdict evidence：
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json)
-- 2026-03-30 acceptance 当前最终结论：
-  - `deterministic_verdict = pass`
-  - `supplemental_verdict = warn`
-  - `final_overall_verdict = warn`
-- 当前 `warn` 不再来自“缺 fresh rerun”，而是来自 supplemental soft-gate：
-  - `ragas.context_precision`
-    - `mean_average_score = 0.8263888888392361`
-    - `min_run_average_score = 0.7916666666104166`
-  - `ragas.context_recall`
-    - `mean_average_score = 0.75`
-    - `min_run_average_score = 0.75`
-- 当前 acceptance supplemental runtime 可用：
-  - `status_counts.available = 4`
-- 2026-04-01 已对上述 `warn` 做 case-level 重放诊断：
-  - 新增 `python -m campus_evals.context_diagnostics`，可直接从 `run-XX-case-results.json` 重建 per-case context projection
-  - 对 [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/run-01-case-results.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/run-01-case-results.json) 的重放表明：
-    - `curriculum-release-gate-ethnology-title`
-    - `curriculum-release-gate-total-credits`
-    - `curriculum-release-gate-course-map-table`
-    在当前 repo-head 的 `build_ragas_projection()` 下都走 `id_based` route，且 `retrieved_context_ids` 与 `reference_context_ids` 已对齐
-  - 因此 2026-03-30 artifact 中的 `context_precision/context_recall warn` 应视为历史 artifact 与当前 repo-head 行为不一致，而不是当前 canonical truth 或当前 projection 逻辑仍然失真
-- 2026-04-01 fresh acceptance evidence：
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T210357/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T210357/final-summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T210357/run/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T210357/run/gate-report.json)
-  - 当前 supplemental 结论已经收口为：
-    - `supplemental_verdict = pass`
-    - `ragas.context_precision.mean_average_score = 1.0`
-    - `ragas.context_recall.mean_average_score = 1.0`
-  - 但该轮 overall 仍为 `fail`，原因已从 supplemental 转移到 deterministic lane：
-    - `curriculum-release-gate-course-map-table` 在 3 轮 run 中稳定失败
-    - 失败原因是旧 case truth 将 `课程地图` 当作字面 required fact，同时被 `procedure_directness` 误纳入“步骤类问句”分母
-  - 当前 repo-head 已同步修复这两个 deterministic truth 问题：
-    - `course-map-table` 改为以稳定 table fact `专业核心课程 30 学分` 作为 required fact
-    - `课程地图怎么安排` 不再触发 `procedure_directness`
-  - 第二轮 2026-04-01 acceptance evidence：
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T212906/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T212906/final-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T212906/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T212906/run/summary.json)
-  - 该轮 supplemental 仍为 `pass`，但 final 仍为 `fail`：
-    - `deterministic.run_pass_counts = [8, 9, 9]`
-    - 唯一失败题为 `curriculum-release-gate-total-credits`
-    - 失败原因为 `missing required fact=学分`
-  - 随后对当前 repo-head 继续做 live replay 核查：
-    - 单题 direct replay 连续 5 次都返回包含 `总学分 | — | — | 159` 的回答形态
-    - 新一轮 acceptance 的 `run-01` / `run-02` 也都让 `curriculum-release-gate-total-credits` 通过
-  - 因此 `20260401T212906` 中该题的单轮 fail 应视为历史 artifact，不再代表当前 repo-head 的 canonical deterministic truth 仍然失稳
-- 2026-04-01 最终 fresh acceptance evidence：
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T215501/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T215501/final-summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260401T215501/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260401T215501/run/summary.json)
-  - 最终结论：
-    - `deterministic_verdict = pass`
-    - `supplemental_verdict = pass`
-    - `final_overall_verdict = pass`
-  - deterministic 已恢复稳定：
-    - `run_pass_counts = [9, 9, 9]`
-    - `stable_across_runs = true`
-  - supplemental soft-gate 结果：
-    - `ragas.faithfulness.mean_average_score = 0.9895833333333334`
-    - `ragas.answer_relevancy.mean_average_score = 0.8350430733920359`
-    - `ragas.context_precision.mean_average_score = 1.0`
-    - `ragas.context_recall.mean_average_score = 1.0`
-- 2026-04-02 fresh retrieval qrels rerun evidence：
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-run.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-run.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-case-metrics.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T011640/curriculum-retrieval-case-metrics.json)
-  - expanded qrels aggregate：
-    - `total_cases = 24`
-    - `hit@1 = 0.9583333333333334`
-    - `hit@3 = 0.9583333333333334`
-    - `recall@5 = 0.9583333333333334`
-    - `precision@5 = 0.25833333333333336`
-    - `mrr@5 = 0.9583333333333334`
-    - `forbidden_hit_rate = 0.08333333333333333`
-  - by split：
-    - `regression_locked.hit@1 = 1.0`
-    - `regression_locked.forbidden_hit_rate = 0.125`
-    - `smoke.hit@1 = 0.9375`
-    - `smoke.forbidden_hit_rate = 0.0625`
-  - 当前新增样本本身都已 `hit@1 = 1.0`
-  - 该 artifact 仍包含现已退役的 `fixed-phrase-ethnic-experimental-class`，因此它只能作为历史诊断证据，不能继续当作当前 canonical denominator
-  - 当前 canonical truth 已调整为：
-    - repo-tracked qrels denominator = `25`
-    - `民族实验班` 改走 clarification workflow，不再通过 top1 命中单一 doc 评估
-    - `古文字学方向强基计划` 已进入唯一 grounding 的 sparse fixed-phrase canonical qrels / hybrid lane
-- 2026-04-02 retrieval ranking hardening 后的 fresh qrels rerun evidence：
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-live-collection-baseline.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-run.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-case-metrics.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260402T032546/curriculum-retrieval-case-metrics.json)
-  - aggregate：
-    - `total_cases = 24`
-    - `hit@1 = 1.0`
-    - `hit@3 = 1.0`
-    - `recall@5 = 1.0`
-    - `precision@5 = 0.26666666666666666`
-    - `mrr@5 = 1.0`
-    - `forbidden_hit_rate = 0.0`
-  - by split：
-    - `regression_locked.hit@1 = 1.0`
-    - `regression_locked.forbidden_hit_rate = 0.0`
-    - `smoke.hit@1 = 1.0`
-    - `smoke.forbidden_hit_rate = 0.0`
-  - 本轮 ranking hardening 关闭了上一轮 live qrels 中的全部 residual retrieval gap：
-    - `fixed-phrase-ethnic-experimental-class` 已稳定回到 `curriculum:法学（民族实验班）本科人才培养方案`
-    - `minority-language-strong-base-title` 已由同文档 support expansion 挤出普通版本
-    - `semantic-minority-language-strong-base-paraphrase` 的 top-5 已全部收口到目标强基方案
-  - 当前 expanded curriculum qrels 的 repo-head canonical truth 已恢复为 full green，不再存在 live retrieval 残余 fail case
-- 2026-04-02 fresh acceptance evidence：
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/final-summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/summary.json)
-  - [`.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260402T012008/run/gate-report.json)
-  - 当前 acceptance 结论继续保持：
-    - `deterministic_verdict = pass`
-    - `supplemental_verdict = pass`
-    - `final_overall_verdict = pass`
-  - deterministic 仍稳定：
-    - `run_pass_counts = [9, 9, 9]`
-    - `stable_across_runs = true`
-  - supplemental soft-gate 结果：
-    - `ragas.faithfulness.mean_average_score = 0.9699074074074074`
-    - `ragas.answer_relevancy.mean_average_score = 0.8589371351517249`
-    - `ragas.context_precision.mean_average_score = 1.0`
-    - `ragas.context_recall.mean_average_score = 1.0`
-
-因此当前 closeout 语义是：
-
-- automated baseline：已具备
-- live artifact contract：已具备
-- fresh live evidence：已具备
-- `context_precision/context_recall` 的历史 `warn` 已完成归因，不再是当前 follow-up 主问题
-- `course-map-table` 的 deterministic truth 修复已在 fresh acceptance 中正式闭环
-- 当前 curriculum live gate 的 repo-head canonical 结论在 2026-04-02 rerun 下仍然是：`final_overall_verdict = pass`
-- expanded curriculum qrels 的 fresh rerun evidence 已在 `20260402T032546` 收口为 full green；当前 follow-up 主轴已回到 answer truth / citation completeness 的继续扩样，而不是 retrieval ranking 修补
-
-## Planned Phase 9 Follow-Up
-
-2026-04-02 已把下一轮 curriculum ambiguity hardening 记录为独立 roadmap phase，而不是继续混入 handbook live-accept follow-up。当前已记录的 repo-level 实施方向如下：
-
-- 在 `rag-specialist` 为 curriculum 新增 program-family resolve / bias / clarify lane
-- 把 alias 治理升级为 tiered config，而不是继续扩大全局字符串替换
-- 在 `retrieval-core` 区分 hard `target_document_ids` 与未来 soft preferred-candidate bias
-- 在 `packages/evals` 增补 clarification / verified-identity / memory-overfit fail-close case
-
-这些内容当前属于 planned truth，不代表 repo-head 已完成实现；在 Phase 9 真正执行前，不应把它们表述成当前 automated baseline 已覆盖的事实。
+- 这份文档只保存稳定分母、主题清单、artifact contract 和解释边界
+- 一次性 acceptance/rerun 历史、补救过程和 `.tmp` 目录不再长期挂在本文
+- 只有在以下情况才更新这里：
+  - qrels denominator 改变
+  - hybrid fixture denominator 改变
+  - release-gate / error-gate 分母改变
+  - curriculum baseline 的 accepted interpretation 改变
+  - live gate artifact contract 改变

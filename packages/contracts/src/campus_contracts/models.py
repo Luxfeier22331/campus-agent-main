@@ -231,6 +231,10 @@ class EvidenceSource:
     content_role: str = ""
     detail_label: str = ""
     is_answer_bearing: bool = False
+    canonical_source_id: str = ""
+    canonical_source_title: str = ""
+    source_unit_kind: str = ""
+    source_unit_key: str = ""
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)
@@ -315,6 +319,7 @@ class RagResultDiagnostics:
     partial_answer: bool = False
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
     prompt_trace: PromptTrace | None = None
 
 
@@ -428,6 +433,7 @@ class SupervisorObservability:
     retrieval_attempted: bool | None = None
     candidate_count: int | None = None
     retrieved_source_count: int | None = None
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
     citation_expected: bool | None = None
     citation_count: int | None = None
     citation_missing: bool | None = None

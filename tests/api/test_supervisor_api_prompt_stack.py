@@ -31,8 +31,8 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
         app = create_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
-                agno_supervisor_model="gpt-5.2",
-                agno_specialist_model="gpt-5.2-mini",
+                supervisor_prompt_model="gpt-5.2",
+                specialist_prompt_model="gpt-5.2-mini",
             )
         )
 

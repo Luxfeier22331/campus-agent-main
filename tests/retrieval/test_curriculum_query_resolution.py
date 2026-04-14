@@ -52,6 +52,26 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.semester_labels, ("第四学期",))
         self.assertEqual(interpretation.intent_kind, "course_list")
 
+    def test_interpret_curriculum_query_marks_course_map_as_structured_lookup(self) -> None:
+        interpretation = interpret_curriculum_query("经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+
+        self.assertEqual(
+            interpretation.program_query_fragment,
+            "经济学拔尖人才创新班人才培养方案",
+        )
+        self.assertEqual(interpretation.intent_kind, "curriculum_lookup")
+        self.assertEqual(interpretation.curriculum_lookup_target, "course_map")
+
+    def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(self) -> None:
+        for query_text, expected_target in (
+            ("法学民族实验班培养方案课程设置怎么安排", "course_settings"),
+            ("法学民族实验班培养方案修读建议怎么安排", "study_advice"),
+        ):
+            with self.subTest(query_text=query_text):
+                interpretation = interpret_curriculum_query(query_text)
+                self.assertEqual(interpretation.intent_kind, "curriculum_lookup")
+                self.assertEqual(interpretation.curriculum_lookup_target, expected_target)
+
     def test_interpret_curriculum_query_supports_fifth_year_semester_alias(self) -> None:
         interpretation = interpret_curriculum_query("某培养方案里大五上有什么课")
 
