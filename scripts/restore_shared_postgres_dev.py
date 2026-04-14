@@ -17,8 +17,8 @@ from scripts.restore_local_postgres_dev import (
     APP_API_DEV_VARS_PATH,
     APP_API_ENV_BACKUP_PATH,
     APP_API_ENV_PATH,
-    LOCAL_POSTGRES_DATABASE_URL,
     ROOT_ENV_BACKUP_PATH,
+    is_local_postgres_database_url,
 )
 from scripts.sync_app_api_local_db_env import sync_app_api_local_db_env
 
@@ -333,7 +333,9 @@ def _validate_shared_root_env_source(source_env_path: Path) -> None:
             "shared root env source must define CAMPUS_SHARED_POSTGRES_URL and "
             "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
         )
-    if runtime_url == LOCAL_POSTGRES_DATABASE_URL or management_url == LOCAL_POSTGRES_DATABASE_URL:
+    if is_local_postgres_database_url(runtime_url) or is_local_postgres_database_url(
+        management_url
+    ):
         raise ValueError("shared root env source still points at the local Postgres DSN")
 
 

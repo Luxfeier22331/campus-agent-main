@@ -25,6 +25,30 @@ def _write(path: Path, content: str) -> None:
 
 
 class RestoreSharedPostgresDevTest(unittest.TestCase):
+    def test_prepare_shared_restore_rejects_legacy_bare_local_dsn_source(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            shared_source = repo_root / "shared.env"
+            _write(
+                shared_source,
+                "\n".join(
+                    [
+                        "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                    ]
+                )
+                + "\n",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "shared root env source still points at the local Postgres DSN",
+            ):
+                prepare_shared_postgres_restore(
+                    repo_root=repo_root,
+                    source_env_path=shared_source,
+                )
+
     def test_execute_shared_restore_uses_default_backup_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"

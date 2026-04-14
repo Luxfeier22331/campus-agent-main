@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-30
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Shared Postgres Ownership
@@ -24,6 +24,19 @@ updated: 2026-04-05
 - connection pooler host
 - 对象存储与 Qdrant 细节
 - ingestion collection 级别的 raw/chunk/index policy
+- staging / production 的当前部署状态
+
+## Ownership 与连接姿态说明
+
+这份文档冻结的是 repo 共享 Postgres 的 ownership、env 命名与 connectivity posture。
+
+它不承担：
+
+- 当前环境是否已经部署完成
+- 某个 worktree 的数据库迁移执行现场
+- 某条 feature/wave 的 closeout 状态说明
+
+判断当前环境执行状态时，应以 `.planning/PROJECT.md`、`.planning/STATE.md`、相关 runbook 与实际代码为准。
 
 ## 核心结论
 
@@ -91,7 +104,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 - `app_auth.*` on Supabase session pooler
   shared-product bootstrap 仍通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠，而 `apps/app-api` runtime 现已改为通过 Drizzle adapter + schema-qualified metadata 访问 `app_auth.*`
 - deployed Worker runtimes
-  `staging` / `production` 会重新缓存静态 Worker/app assembly，但不会跨请求复用 repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
+  远端 Worker 环境会重新缓存静态 Worker/app assembly，但不会跨请求复用 repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
 - deployed `app-api` runtime Hyperdrive lanes
   `APP_API_DB` 继续承接 cached/read-mostly queries；`APP_API_DB_FRESH` 承接 auth 与其他 read-after-write-sensitive product paths，并要求在 Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中 stale negative cache
 - `apps/app-api`

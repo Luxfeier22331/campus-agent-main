@@ -15,6 +15,7 @@ from scripts.restore_local_postgres_dev import (
     ROOT_ENV_BACKUP_PATH,
     LOCAL_POSTGRES_DATABASE_URL,
     execute_local_postgres_recovery,
+    is_local_postgres_database_url,
     main,
     prepare_local_postgres_recovery,
 )
@@ -167,6 +168,19 @@ def _seed_repo_with_default_batches(repo_root: Path) -> None:
 
 
 class RestoreLocalPostgresDevTest(unittest.TestCase):
+    def test_is_local_postgres_database_url_accepts_legacy_and_canonical_local_dsns(self) -> None:
+        self.assertTrue(
+            is_local_postgres_database_url(
+                "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"
+            )
+        )
+        self.assertTrue(is_local_postgres_database_url(LOCAL_POSTGRES_DATABASE_URL))
+        self.assertFalse(
+            is_local_postgres_database_url(
+                "postgresql://postgres:postgres@127.0.0.1:5432/another_db"
+            )
+        )
+
     def test_prepare_local_postgres_recovery_captures_pre_local_env_backups_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"

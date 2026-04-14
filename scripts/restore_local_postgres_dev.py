@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 from typing import Any, Callable, Sequence
+from urllib.parse import urlparse
 
 from campus_ingestion_core.authenticated_notice_legacy_export import (
     build_authenticated_notice_legacy_normalized_manifest,
@@ -14,7 +15,10 @@ from campus_ingestion_core.authenticated_notice_legacy_export import (
 from scripts.env_sync import load_target_seed, parse_env_file, replace_or_append_env_values
 from scripts.sync_app_api_local_db_env import sync_app_api_local_db_env
 
-LOCAL_POSTGRES_DATABASE_URL = "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"
+LOCAL_POSTGRES_DATABASE_URL_BASE = "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"
+LOCAL_POSTGRES_DATABASE_URL = (
+    f"{LOCAL_POSTGRES_DATABASE_URL_BASE}?sslmode=disable&gssencmode=disable"
+)
 DEFAULT_EXPORT_SCOPE = "run14-accepted-union-local-postgres"
 DEFAULT_RECOVERY_ROOT = Path(".tmp/local-postgres-recovery")
 DEFAULT_NORMALIZED_BATCH_DIRS = (
@@ -420,7 +424,7 @@ def capture_pre_local_postgres_backups(
         parse_env_file(root_env_path) if root_env_path.exists() else {}
     )
     current_runtime_url = current_root_values.get("CAMPUS_SHARED_POSTGRES_URL", "").strip()
-    if current_runtime_url and current_runtime_url != local_postgres_url:
+    if current_runtime_url and not is_local_postgres_database_url(current_runtime_url):
         _write_backup_snapshot(
             source_path=root_env_path,
             target_path=backup_targets["root_env"],
@@ -448,6 +452,20 @@ def _rewrite_root_env_for_local_postgres(
     )
     target_path.write_text(content, encoding="utf-8")
     return target_path
+
+
+def is_local_postgres_database_url(value: str) -> bool:
+    normalized = value.strip()
+    if not normalized:
+        return False
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"postgresql", "postgres"}:
+        return False
+    if (parsed.hostname or "").strip().lower() not in {"127.0.0.1", "localhost"}:
+        return False
+    if parsed.port not in {None, 5432}:
+        return False
+    return parsed.path.strip("/") == "campus_agent"
 
 
 def _rewrite_app_api_dev_vars_for_local_postgres(*, repo_root: Path) -> Path:

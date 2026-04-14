@@ -2,32 +2,32 @@
 doc_type: runbook
 status: active
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-12
 ---
 
 # Local Postgres Dev Recovery Runbook
 
 ## 文档边界
 
-这份 runbook 记录当前 worktree 的本地 Postgres 开发生命周期：
+这份 runbook 记录 repo 支持的本地 Postgres 开发生命周期：
 
 - 从 shared/cloud Postgres env 切到本地 `Docker Postgres`
 - 对本地 `Postgres + MinIO` 执行完整 smoke
 - 从本地模式回切到 shared/cloud Postgres env
 
-它回答的是：
+本文回答的是：
 
 - 当前 repo 里哪几条命令是 canonical local lifecycle entries
 - 每条入口会改哪些文件、执行哪些命令
 - 它们分别证明什么，不证明什么
 
-它不替代：
+本文不替代：
 
 - shared Postgres ownership：`docs/data/shared-postgres-ownership.md`
 - deployed runtime posture：`docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - donor normalized batch 生成流程：`docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md`
 
-## 当前 canonical 入口
+## Canonical 入口
 
 先看 dry-run 计划：
 
@@ -47,7 +47,7 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev --execute --j
 uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute --json
 ```
 
-如果当前 worktree 已切到本地模式，需要回到 shared/cloud Postgres env：
+如果本地环境已切到本地模式，需要回到 shared/cloud Postgres env：
 
 ```bash
 uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
@@ -57,14 +57,14 @@ uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
 
 - 本地可执行 `docker`、`pnpm`、`uv`
 - 本地对象存储仍按 `ADR-0002` 运行
-- 当前 worktree 已存在以下 normalized donor batch：
+- 执行目录已存在以下 normalized donor batch：
   - `.tmp/historical-intake/run14-policy-regulation-expanded/normalized`
   - `.tmp/historical-intake/run14-attachment-routing-probe/normalized`
   - `.tmp/historical-intake/run14-policy-regulation-core/normalized`
 
 如果 normalized donor batch 还没准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成。
 
-## Restore 入口会做什么
+## `restore_local_postgres_dev` 会做什么
 
 它会先改写本地文件：
 
@@ -85,8 +85,13 @@ uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
 默认本地 DSN 固定为：
 
 ```text
-postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
+postgresql://postgres:postgres@127.0.0.1:5432/campus_agent?sslmode=disable&gssencmode=disable
 ```
+
+固定约束：
+
+- 当前本地 `psycopg` / `psycopg_pool` runtime lane 不能继续使用裸 `postgresql://postgres:postgres@127.0.0.1:5432/campus_agent`
+- `restore_local_postgres_dev` 现在会把 root `.env` 与 `apps/app-api/.env` 一起改写到带 `sslmode=disable&gssencmode=disable` 的 canonical local DSN，避免 worker/import/materialization 这类 operator 路径再次命中本地连接超时
 
 它还会把默认 accepted batches 合并成单次 import 所需的 union artifacts：
 
@@ -135,13 +140,13 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebui
 - `notice_count = 20`
 - `expected_document_count = 21`
 - `expected_attachment_document_count = 1`
-- `expected_ocr_candidate_count = 0`
+- `expected_ocr_candidate_count = 5`
 - `notice_risk_counts.body_only = 16`
 - `notice_risk_counts.body_with_reference_only_attachments = 1`
 - `notice_risk_counts.body_with_spatial_attachments = 2`
 - `notice_risk_counts.body_with_text_attachments = 1`
 
-如果需要不同的 local sample，可显式覆写：
+如需不同的 local sample，可显式覆写：
 
 ```bash
 uv run --all-packages python -m scripts.restore_local_postgres_dev \
@@ -152,7 +157,7 @@ uv run --all-packages python -m scripts.restore_local_postgres_dev \
   --json
 ```
 
-## Full Smoke 入口会做什么
+## `local_postgres_dev_smoke` 会做什么
 
 `local_postgres_dev_smoke` 在 restore 入口基础上，继续执行本地 smoke 所需的对象存储与 replay/preparation 步骤。
 
@@ -176,9 +181,9 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - 默认只证明 bounded replay / preparation 链路，不自动推进 full release / alias publish
 - MinIO bucket 会通过 object-store client ensure `campus-rag-source` 与 `campus-rag-derived`
 
-## 回切 Shared/Cloud 入口会做什么
+## `restore_shared_postgres_dev` 会做什么
 
-`restore_shared_postgres_dev` 不会粗暴整文件覆盖当前 worktree 的 `.env` / `.dev.vars`。
+`restore_shared_postgres_dev` 不会粗暴整文件覆盖本地工作区的 `.env` / `.dev.vars`。
 
 它固定执行：
 
@@ -213,15 +218,15 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 ## 这些入口证明什么
 
 - `restore_local_postgres_dev`
-  证明当前 worktree 已切到本地 `Docker Postgres`，并且 authenticated-notice accepted current scope 已恢复到预期 inventory
+  证明本地环境已切到 `Docker Postgres`，并且 authenticated-notice accepted current scope 已恢复到预期 inventory
 - `local_postgres_dev_smoke`
-  额外证明当前 worktree 的本地 `Postgres + MinIO + bounded replay/preparation` 链路可被真实 operator 命令消费
+  额外证明本地 `Postgres + MinIO + bounded replay/preparation` 链路可被真实 operator 命令消费
 - `restore_shared_postgres_dev`
-  证明当前 worktree 可以从本地模式回切到 shared/cloud Postgres env values，而不是永久停留在本地 DSN
+  证明本地环境可以从本地模式回切到 shared/cloud Postgres env values，而不是永久停留在本地 DSN
 
 ## 这些入口不证明什么
 
 - 不证明 staging / production 数据库 truth 已变化
 - 不证明 deployed runtime posture 已从 session pooler 改成 local Postgres
 - 不证明 full historical closeout、release、embedding、Qdrant、alias publish 已在本地完成
-- 不证明 donor normalized batch 自身仍是最新 truth；它只消费当前 worktree 已有的 normalized artifacts
+- 不证明 donor normalized batch 自身仍是最新 truth；它只消费本地目录已准备好的 normalized artifacts
