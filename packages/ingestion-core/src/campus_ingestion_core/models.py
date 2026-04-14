@@ -46,6 +46,15 @@ class RawAssetRecord:
     object_key: str
     ingestion_timestamp: str
     import_source: str
+    content_type: str | None = None
+    file_extension: str = ""
+    byte_size: int | None = None
+    page_count: int | None = None
+    image_width: int | None = None
+    image_height: int | None = None
+    asset_kind: str = ""
+    asset_subkind: str = ""
+    classification_confidence: float | None = None
 
     def __post_init__(self) -> None:
         assert_known_scope(self.corpus, self.collection)
@@ -65,6 +74,34 @@ class RawAssetRecord:
             raise ValueError("ingestion_timestamp is required")
         if not self.import_source:
             raise ValueError("import_source is required")
+        if self.content_type is not None and not self.content_type.strip():
+            raise ValueError("content_type must be a non-empty string when provided")
+        if self.byte_size is not None and self.byte_size < 0:
+            raise ValueError("byte_size must be greater than or equal to zero")
+        if self.page_count is not None and self.page_count <= 0:
+            raise ValueError("page_count must be greater than zero")
+        if self.image_width is not None and self.image_width <= 0:
+            raise ValueError("image_width must be greater than zero")
+        if self.image_height is not None and self.image_height <= 0:
+            raise ValueError("image_height must be greater than zero")
+        if self.classification_confidence is not None and not 0.0 <= self.classification_confidence <= 1.0:
+            raise ValueError("classification_confidence must be between 0.0 and 1.0")
+
+        normalized_content_type = self.content_type.strip() if self.content_type is not None else None
+        normalized_extension = self.file_extension.strip().lower()
+        if normalized_extension and not normalized_extension.startswith("."):
+            normalized_extension = f".{normalized_extension}"
+        normalized_asset_kind = self.asset_kind.strip()
+        normalized_asset_subkind = self.asset_subkind.strip()
+
+        if normalized_content_type != self.content_type:
+            object.__setattr__(self, "content_type", normalized_content_type)
+        if normalized_extension != self.file_extension:
+            object.__setattr__(self, "file_extension", normalized_extension)
+        if normalized_asset_kind != self.asset_kind:
+            object.__setattr__(self, "asset_kind", normalized_asset_kind)
+        if normalized_asset_subkind != self.asset_subkind:
+            object.__setattr__(self, "asset_subkind", normalized_asset_subkind)
 
 
 @dataclass(frozen=True, slots=True)

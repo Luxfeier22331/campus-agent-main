@@ -231,8 +231,19 @@ Optional env:
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 - `RAW_ASSET_REGISTRY_DATABASE_URL`
 - `OCR_MODEL`
+- `OCR_PROVIDER_MODE`
 - `OCR_POLL_SECONDS`
 - `OCR_TIMEOUT_SECONDS`
+- `OCR_RESULT_READY_GRACE_SECONDS`
+- `OCR_MINERU_BASE_URL`
+- `OCR_MINERU_API_KEY`
+- `OCR_MINERU_PROVIDER_MODE`
+- `OCR_MINERU_MODEL`
+- `OCR_MINERU_LANGUAGE`
+- `OCR_MINERU_ENABLE_FORMULA`
+- `OCR_MINERU_FORCE_OCR`
+- `OCR_MINERU_POLL_SECONDS`
+- `OCR_MINERU_TIMEOUT_SECONDS`
 - `IMPORT_REPORT_DIR`
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `RAW_INGESTION_ARTIFACT_MODE`
@@ -247,14 +258,22 @@ Command override example:
 
 Behavior:
 
-- Reads the source PDF from the source bucket using canonical raw-asset registry metadata.
+- Reads the source file from the source bucket using canonical raw-asset registry metadata.
 - Does not accept local PDF paths or placeholder local job envelopes.
-- Calls the async OCR provider.
+- Primary `OCR_*` settings still define the canonical Paddle lane; `OCR_PROVIDER_MODE=mineru_api` is intentionally rejected as the primary raw-ingestion provider.
+- Optional `OCR_MINERU_*` settings enable a second provider only for `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` conditional routing. Current repo truth is:
+  - typed PDF: `MinerU primary -> Paddle fallback`
+  - `generic_image`: dual-run Paddle + MinerU, refine raw asset type, then choose canonical provider
+  - refined `simple_table_image`: Paddle primary
+  - refined `complex_table_image`: MinerU primary
+  - refined `spatial_image` / `office_document`: deferred fail-close
 - Source-bucket objects live under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and are intentionally not scoped by corpus because one source asset may feed multiple corpora.
 - Default `RAW_INGESTION_ARTIFACT_MODE=normalized` stores source-level `provider-response.jsonl` and `layout-elements.jsonl`, persists canonical source truth, then fans out into declared downstream projections that may write per-document `canonical.md` and `document-units.jsonl`.
 - Normalized and `source_truth_only` modes both keep source artifacts under the same canonical source prefix, split by `capture/`, `provider/`, and `source-truth/` stages in the source bucket.
 - Normalized mode writes derived document artifacts under `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/`.
 - `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` stores asset-level `provider-response.jsonl` and `layout-elements.jsonl`, but skips `canonical.md` / `document-units.jsonl` and document-registry writes.
+- When `source_truth_only` routes a typed PDF through MinerU successfully, the worker persists canonicalized `provider-response.jsonl`, `layout-elements.jsonl`, and an extra raw provenance sidecar `provider-response-raw.zip`.
+- When `source_truth_only` dual-runs a `generic_image`, the worker also persists `ocr-routing-decision.json` under the source-truth stage and writes the refined `asset_subkind` back into raw-asset registry truth.
 - `source_truth_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
 - Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `source_truth_only`.
 - `curriculum/curriculum_plan` may use `source_truth_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
@@ -268,6 +287,7 @@ Behavior:
 - Only normalized mode registers derived document results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
 - Current OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
+- Spatial images, office documents, and other deferred raw-asset classes still fail closed even when `OCR_MINERU_*` is configured; dual-run only exists to decide whether an ambiguous image should stay Paddle, promote MinerU, or be deferred.
 
 ### `rebuild_local_data`
 

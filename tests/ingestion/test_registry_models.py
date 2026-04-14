@@ -649,6 +649,32 @@ class RegistryModelsTest(unittest.TestCase):
                 }
             )
 
+    def test_raw_asset_registry_payload_backfills_missing_typed_metadata_fields(self) -> None:
+        record = _raw_asset_record_from_dict(
+            {
+                "raw_asset_id": "asset:student-handbook-pdf",
+                "raw_version_id": "sha256:raw-001",
+                "corpus": "regulations",
+                "collection": "student_handbook",
+                "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                "content_hash": "raw-001",
+                "source_filename": "student-handbook.pdf",
+                "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
+                "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                "import_source": "raw_online_ocr",
+            }
+        )
+
+        self.assertIsNone(record.content_type)
+        self.assertEqual(record.file_extension, "")
+        self.assertIsNone(record.byte_size)
+        self.assertIsNone(record.page_count)
+        self.assertIsNone(record.image_width)
+        self.assertIsNone(record.image_height)
+        self.assertEqual(record.asset_kind, "")
+        self.assertEqual(record.asset_subkind, "")
+        self.assertIsNone(record.classification_confidence)
+
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry = InMemoryRawAssetRegistry(backing_path=Path(temp_dir) / "raw-assets.json")

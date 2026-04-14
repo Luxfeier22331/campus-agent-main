@@ -149,6 +149,14 @@ from campus_ingestion_core.authenticated_notice_import import (
     import_authenticated_notice_bundle,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
+    AuthenticatedNoticeFileReleaseExport,
+    FileReleaseOwnerRecoveryMatch,
+    FileReleaseOwnerRecoveryReadinessReport,
+    FileReleaseResolvedFile,
+    load_authenticated_notice_file_release_export,
+    resolve_file_release_owner_recovery_readiness,
+)
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeAttachmentProjection,
     AuthenticatedNoticeSourceProjectionReport,

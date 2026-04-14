@@ -988,6 +988,15 @@ def _raw_asset_record_from_dict(raw: dict[str, object]) -> RawAssetRecord:
         content_hash=str(raw["content_hash"]),
         source_filename=str(raw["source_filename"]),
         object_key=str(raw["object_key"]),
+        content_type=_optional_registry_text(raw, "content_type"),
+        file_extension=str(raw.get("file_extension") or ""),
+        byte_size=_optional_registry_int(raw, "byte_size"),
+        page_count=_optional_registry_int(raw, "page_count"),
+        image_width=_optional_registry_int(raw, "image_width"),
+        image_height=_optional_registry_int(raw, "image_height"),
+        asset_kind=str(raw.get("asset_kind") or ""),
+        asset_subkind=str(raw.get("asset_subkind") or ""),
+        classification_confidence=_optional_registry_float(raw, "classification_confidence"),
         ingestion_timestamp=str(raw["ingestion_timestamp"]),
         import_source=str(raw["import_source"]),
     )
@@ -1094,6 +1103,30 @@ def _required_registry_text(raw: dict[str, object], field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"registry payload is missing required {field_name}")
     return value.strip()
+
+
+def _optional_registry_text(raw: dict[str, object], field_name: str) -> str | None:
+    value = raw.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return str(value)
+    normalized = value.strip()
+    return normalized or None
+
+
+def _optional_registry_int(raw: dict[str, object], field_name: str) -> int | None:
+    value = raw.get(field_name)
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def _optional_registry_float(raw: dict[str, object], field_name: str) -> float | None:
+    value = raw.get(field_name)
+    if value is None or value == "":
+        return None
+    return float(value)
 
 
 def _resolved_record_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:

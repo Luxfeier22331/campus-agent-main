@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from botocore.config import Config
+
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
@@ -13,6 +15,25 @@ from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_s
 
 
 class ObjectStoreConfigTest(unittest.TestCase):
+    def test_bucket_scoped_credentials_can_replace_shared_credentials(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.cstcloud.cn",
+                "OBJECT_STORE_SOURCE_ACCESS_KEY": "source-ak",
+                "OBJECT_STORE_SOURCE_SECRET_KEY": "source-sk",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+                "OBJECT_STORE_SECURE": "true",
+            }
+        )
+
+        self.assertEqual(settings.endpoint, "https://s3.cstcloud.cn")
+        self.assertTrue(settings.secure)
+        self.assertEqual(settings.source_access_key, "source-ak")
+        self.assertEqual(settings.source_secret_key, "source-sk")
+        self.assertEqual(settings.derived_access_key, "derived-ak")
+        self.assertEqual(settings.derived_secret_key, "derived-sk")
+
     def test_defaults_match_phase1_bucket_contract(self) -> None:
         settings = ObjectStoreSettings.from_env(
             {
@@ -195,6 +216,33 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self.assertEqual(config["aws_access_key_id"], "minioadmin")
         self.assertEqual(config["aws_secret_access_key"], "minioadmin")
         self.assertFalse(config["use_ssl"])
+        self.assertIsInstance(config["config"], Config)
+        self.assertEqual(config["config"].s3.get("addressing_style"), "path")
+
+    def test_factory_resolves_bucket_specific_credentials(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.cstcloud.cn",
+                "OBJECT_STORE_ACCESS_KEY": "shared-ak",
+                "OBJECT_STORE_SECRET_KEY": "shared-sk",
+                "OBJECT_STORE_SOURCE_ACCESS_KEY": "source-ak",
+                "OBJECT_STORE_SOURCE_SECRET_KEY": "source-sk",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+            }
+        )
+        factory = S3ObjectStoreClientFactory(settings)
+
+        source_config = factory.client_config(bucket=settings.bucket_source)
+        derived_config = factory.client_config(bucket=settings.bucket_derived)
+        fallback_config = factory.client_config(bucket="other-bucket")
+
+        self.assertEqual(source_config["aws_access_key_id"], "source-ak")
+        self.assertEqual(source_config["aws_secret_access_key"], "source-sk")
+        self.assertEqual(derived_config["aws_access_key_id"], "derived-ak")
+        self.assertEqual(derived_config["aws_secret_access_key"], "derived-sk")
+        self.assertEqual(fallback_config["aws_access_key_id"], "shared-ak")
+        self.assertEqual(fallback_config["aws_secret_access_key"], "shared-sk")
 
 
 if __name__ == "__main__":
