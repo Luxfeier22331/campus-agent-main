@@ -35,8 +35,9 @@ class ApiSettings:
     runtime_provider: str = ""
     default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
     audit_log_path: Path = Path("./var/log/audit.log")
-    agno_supervisor_model: str = ""
-    agno_specialist_model: str = ""
+    prompt_runtime_model: str = ""
+    supervisor_prompt_model: str = ""
+    specialist_prompt_model: str = ""
     prompt_runtime_provider: str = ""
     prompt_runtime_transport: str = "responses"
     prompt_runtime_api_key: str = ""
@@ -47,6 +48,7 @@ class ApiSettings:
 
     @classmethod
     def from_env(cls) -> "ApiSettings":
+        prompt_runtime_model = (os.getenv("PROMPT_RUNTIME_MODEL", "")).strip()
         return cls(
             app_name=os.getenv("CAMPUS_AGENT_APP_NAME", APP_NAME),
             auth_mode=os.getenv("API_AUTH_MODE", "bearer"),
@@ -60,8 +62,15 @@ class ApiSettings:
                 if part.strip()
             ),
             audit_log_path=Path(os.getenv("AUDIT_LOG_PATH", "./var/log/audit.log")),
-            agno_supervisor_model=os.getenv("AGNO_SUPERVISOR_MODEL", ""),
-            agno_specialist_model=os.getenv("AGNO_SPECIALIST_MODEL", ""),
+            prompt_runtime_model=prompt_runtime_model,
+            supervisor_prompt_model=(
+                os.getenv("SUPERVISOR_PROMPT_MODEL", "").strip()
+                or prompt_runtime_model
+            ),
+            specialist_prompt_model=(
+                os.getenv("SPECIALIST_PROMPT_MODEL", "").strip()
+                or prompt_runtime_model
+            ),
             prompt_runtime_provider=os.getenv(
                 "PROMPT_RUNTIME_PROVIDER",
                 os.getenv("AGENT_RUNTIME_PROVIDER", ""),

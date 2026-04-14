@@ -109,7 +109,7 @@ export API_DEFAULT_ACTOR_ID=local-dev-bearer-user
 export API_DEFAULT_ACTOR_ROLES=student
 ```
 
-`ApiSettings.from_env()` 本身只读取当前进程环境；`campus-supervisor-api-dev` 这个 repo-shipped 本地入口会先 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`，然后再读取 `AGNO_SUPERVISOR_MODEL`、`AGNO_SPECIALIST_MODEL`、object store access 与 retrieval backend settings。
+`ApiSettings.from_env()` 本身只读取当前进程环境；`campus-supervisor-api-dev` 这个 repo-shipped 本地入口会先 bootstrap 当前 worktree `.env`，必要时回退根 worktree `.env`，然后再读取 `PROMPT_RUNTIME_MODEL`、`SUPERVISOR_PROMPT_MODEL`、`SPECIALIST_PROMPT_MODEL`、object store access 与 retrieval backend settings。
 
 repo root `.env` / `.env.example` 只负责 shared runtime config，不承担 Worker / web app 的 app-local env ownership。相关模板索引见 `docs/environment/README.md`。
 
@@ -118,12 +118,18 @@ repo root `.env` / `.env.example` 只负责 shared runtime config，不承担 Wo
 ```bash
 export PROMPT_RUNTIME_PROVIDER=openai-responses
 export PROMPT_RUNTIME_TRANSPORT=responses
+export PROMPT_RUNTIME_MODEL=gpt-5.4
+export SUPERVISOR_PROMPT_MODEL=
+export SPECIALIST_PROMPT_MODEL=
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
 export PROMPT_RUNTIME_API_KEY=...
 export PROMPT_RUNTIME_BASE_URL=https://api.openai.com/v1
 export PROMPT_RUNTIME_REASONING_EFFORT=low
 export PROMPT_RUNTIME_MAX_OUTPUT_TOKENS=512
 ```
+
+`PROMPT_RUNTIME_MODEL` 是 shared default。
+如果未显式提供 `SUPERVISOR_PROMPT_MODEL` / `SPECIALIST_PROMPT_MODEL`，两条角色链都会继承 `PROMPT_RUNTIME_MODEL`。
 
 如果未显式提供 `PROMPT_RUNTIME_PROVIDER`，当前 readiness / runtime seam 会继承 `AGENT_RUNTIME_PROVIDER` 作为 product-path provider 标识。
 

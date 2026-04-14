@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
+    "compare-online-ocr.env.example",
     "official-web-handoff-consumer.env.example",
     "official-web-handoff-receiver.env.example",
     "process-raw-ingestion-job.env.example",
@@ -45,6 +46,8 @@ class EnvironmentLayoutTest(unittest.TestCase):
             "env/commands/historical/migrate-student-handbook.env.example",
             ingestion_readme,
         )
+        self.assertIn("--file-path", ingestion_readme)
+        self.assertNotIn("--pdf-path", ingestion_readme)
 
 
 if __name__ == "__main__":
