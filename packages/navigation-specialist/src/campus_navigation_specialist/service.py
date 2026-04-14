@@ -51,7 +51,7 @@ def delegate_to_navigation_specialist(request: SpecialistRequest) -> SpecialistR
 
     if len(candidates) > 1:
         candidate_places = build_candidate_list(candidates)
-        options = "；".join(candidate.place.display_name for candidate in candidate_places)
+        options = "；".join(_format_candidate_option(candidate) for candidate in candidate_places)
         return SpecialistResponse(
             target="navigation-specialist",
             status="needs_clarification",
@@ -90,3 +90,11 @@ def _format_place_answer(entry: object) -> str:
     if place_card.access_note:
         segments.append(f"提示：{place_card.access_note}")
     return " ".join(segment.strip() for segment in segments if segment.strip())
+
+
+def _format_candidate_option(candidate: object) -> str:
+    place = getattr(candidate, "place")
+    clarification_hint = getattr(candidate, "clarification_hint", "")
+    if clarification_hint:
+        return f"{place.display_name}（{clarification_hint}）"
+    return str(place.display_name)

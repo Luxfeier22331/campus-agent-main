@@ -472,6 +472,79 @@ describe("chat command service", () => {
     });
   });
 
+  it("persists navigation place cards even when point geometry is absent", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          matched_alias: "民族博物馆",
+          place_card: {
+            campus_area: "海淀校区西侧",
+            location_description: "海淀校区西侧，靠近图书馆。",
+            place: {
+              campus_area: "海淀校区西侧",
+              campus_scope: "haidian",
+              display_name: "民族博物馆",
+              entity_type: "building",
+              place_id: "muc.haidian.museum",
+            },
+            source_refs: [
+              "seed:campus_navigation/place_catalog.v1",
+              "https://www.muc.edu.cn/xxgk1/xydt.htm",
+            ],
+          },
+          query_text: "民族博物馆在哪里",
+          resolved_place: {
+            campus_area: "海淀校区西侧",
+            campus_scope: "haidian",
+            display_name: "民族博物馆",
+            entity_type: "building",
+            place_id: "muc.haidian.museum",
+          },
+        },
+        selectedTarget: "navigation-specialist",
+        status: "completed",
+        traceId: "trace_0003",
+      }),
+    };
+
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-04-11T10:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_02HQ",
+        prompt: "民族博物馆在哪里",
+      },
+      principal: createPrincipal(),
+      surface: "public_chat_web",
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      assistantMessage: {
+        structuredParts: [
+          {
+            placeCard: {
+              displayName: "民族博物馆",
+              placeId: "muc.haidian.museum",
+              pointGeometry: null,
+            },
+            type: "place_card",
+          },
+        ],
+      },
+    });
+  });
+
   it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
     const { store, finalWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();

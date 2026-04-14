@@ -88,19 +88,21 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.capability, "availability")
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
 
-    def test_route_request_selects_navigation_specialist_for_place_lookup_queries(self) -> None:
+    def test_route_request_fail_closes_place_lookup_queries_until_navigation_launch(self) -> None:
         request = SupervisorRequest(
             user_goal="图书馆在哪里",
         )
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "navigation-specialist")
+        self.assertIsNone(decision.target)
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
         self.assertEqual(decision.intent_frame.capability, "place_lookup")
         self.assertEqual(decision.intent_frame.task_kind, "place_lookup")
-        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "navigation_temporarily_unsupported")
 
     def test_route_request_keeps_availability_branch_independent_from_knowledge_scope_rules(self) -> None:
         request = SupervisorRequest(

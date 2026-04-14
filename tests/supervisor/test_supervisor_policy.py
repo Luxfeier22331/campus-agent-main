@@ -180,6 +180,40 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.observability.scope_class, "out_of_scope")
         self.assertEqual(finalized.observability.policy_reason, "product_scope_boundary")
 
+    def test_finalize_out_of_scope_uses_navigation_specific_copy_when_temporarily_unsupported(self) -> None:
+        finalized = finalize_routing_decision(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="图书馆在哪里",
+                    requested_capability="place_lookup",
+                )
+            ),
+            RoutingDecision(
+                target=None,
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="place_lookup",
+                    task_kind="place_lookup",
+                    domain_candidates=("out_of_scope",),
+                    missing_slots=(),
+                    risk_level="low",
+                    needs_clarification=False,
+                    suggested_next_action="out_of_scope",
+                    personalization_mode="generic",
+                    scope_class="out_of_scope",
+                    policy_reason="navigation_temporarily_unsupported",
+                ),
+            ),
+        )
+
+        self.assertEqual(finalized.status, "no_answer")
+        self.assertEqual(
+            finalized.answer_text,
+            "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
+        )
+        self.assertEqual(finalized.observability.policy_reason, "navigation_temporarily_unsupported")
+
     def test_finalize_out_of_scope_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
         class FakePromptExecutor:
             def compose_out_of_scope(self, packet: object):

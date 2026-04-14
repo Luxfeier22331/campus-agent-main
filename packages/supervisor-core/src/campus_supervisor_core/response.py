@@ -46,6 +46,7 @@ def build_supervisor_observability_from_specialist_response(
             retrieval_attempted=False,
             candidate_count=0,
             retrieved_source_count=0,
+            retrieved_sources=(),
             citation_expected=False,
             citation_count=0,
             citation_missing=False,
@@ -55,12 +56,20 @@ def build_supervisor_observability_from_specialist_response(
 
     result = response.result if isinstance(response.result, RagResultPayload) else None
     diagnostics = result.diagnostics if result is not None else None
-    source_count = len(result.evidence.sources) if result is not None else 0
+    supporting_sources = tuple(result.evidence.sources) if result is not None else ()
+    if diagnostics is not None and diagnostics.retrieved_sources:
+        retrieved_sources = tuple(diagnostics.retrieved_sources)
+    else:
+        retrieved_sources = ()
+    source_count = len(retrieved_sources)
     retrieval_attempted: bool | None
     if response.status == "completed":
         retrieval_attempted = True
     elif response.status == "no_answer":
-        retrieval_attempted = True
+        if diagnostics is not None and diagnostics.no_answer_reason == "curriculum_course_map_unsupported":
+            retrieval_attempted = False
+        else:
+            retrieval_attempted = True
     elif response.status == "needs_clarification":
         retrieval_attempted = source_count > 0
     else:
@@ -68,14 +77,16 @@ def build_supervisor_observability_from_specialist_response(
 
     denied = _is_restricted_access_denied(diagnostics)
     citation_expected = response.status == "completed"
+    citation_count = len(supporting_sources) if citation_expected else 0
 
     return SupervisorObservability(
         retrieval_attempted=retrieval_attempted,
         candidate_count=source_count,
         retrieved_source_count=source_count,
+        retrieved_sources=retrieved_sources,
         citation_expected=citation_expected,
-        citation_count=source_count if citation_expected else 0,
-        citation_missing=(source_count == 0) if citation_expected else False,
+        citation_count=citation_count,
+        citation_missing=(citation_count == 0) if citation_expected else False,
         refusal_class=(
             response.status
             if response.status in {"needs_clarification", "no_answer"}

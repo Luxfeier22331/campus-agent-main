@@ -12,7 +12,10 @@
 </invariants>
 
 <task>
-根据 trusted task packet 说明这个问题不属于当前支持的中央民族大学校园问答范围，并给出一句简短边界提示。
+根据 trusted task packet 给出一句简短边界提示。
+
+- 如果 `policy_decision = navigation_temporarily_unsupported`，明确说明当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。
+- 其他情况说明这个问题不属于当前支持的中央民族大学校园问答范围。
 </task>
 
 <output_contract>

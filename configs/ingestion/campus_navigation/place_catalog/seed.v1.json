@@ -123,6 +123,26 @@
       "verification_state": "manual_seed_reviewed"
     },
     {
+      "place_id": "muc.fengtai.north_gate",
+      "entity_type": "gate",
+      "display_name": "丰台校区北门",
+      "aliases": ["北门", "丰台北门"],
+      "campus_scope": "fengtai",
+      "campus_area": "丰台校区北侧出入口",
+      "location_description": "丰台校区北侧出入口，官方校园地图标注在校园北侧中部。",
+      "landmark_hint": "从核心教学区向北步行可到达。",
+      "access_note": "请以当日校门开放安排为准。",
+      "opening_note": "",
+      "service_tags": ["校门", "出入口"],
+      "point_geometry": null,
+      "source_refs": [
+        "seed:campus_navigation/place_catalog.v1",
+        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+        "https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2B_26733.jpg"
+      ],
+      "verification_state": "manual_seed_pending_field_check"
+    },
+    {
       "place_id": "muc.haidian.weigongcun_subway",
       "entity_type": "stop",
       "display_name": "魏公村地铁站",
@@ -141,6 +161,86 @@
       "coordinate_reference_system": "EPSG:4326",
       "source_refs": ["seed:campus_navigation/place_catalog.v1"],
       "verification_state": "manual_seed_reviewed"
+    },
+    {
+      "place_id": "muc.fengtai.library",
+      "entity_type": "building",
+      "display_name": "图书馆",
+      "aliases": ["丰台图书馆", "丰台校区图书馆"],
+      "campus_scope": "fengtai",
+      "campus_area": "丰台校区西南侧",
+      "location_description": "丰台校区西南侧，官方校园地图标注在综合体育馆东侧、学生活动中心西南方向。",
+      "landmark_hint": "从丰台南门进入后沿主路向北，再向西侧区域步行可达。",
+      "access_note": "开放安排以图书馆当日公告为准。",
+      "opening_note": "",
+      "service_tags": ["自习", "借阅"],
+      "point_geometry": null,
+      "source_refs": [
+        "seed:campus_navigation/place_catalog.v1",
+        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+        "https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2B_26733.jpg"
+      ],
+      "verification_state": "manual_seed_pending_field_check"
+    },
+    {
+      "place_id": "muc.haidian.hospital",
+      "entity_type": "service_point",
+      "display_name": "校医院",
+      "aliases": ["海淀校医院"],
+      "campus_scope": "haidian",
+      "campus_area": "海淀校区西北侧",
+      "location_description": "海淀校区西北侧，官方校园地图标注在学生5号公寓与食堂附近。",
+      "landmark_hint": "从海淀图书馆向北步行可到达。",
+      "access_note": "就诊安排请以校医院当日通知为准。",
+      "opening_note": "",
+      "service_tags": ["医疗", "门诊"],
+      "point_geometry": null,
+      "source_refs": [
+        "seed:campus_navigation/place_catalog.v1",
+        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+        "https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png"
+      ],
+      "verification_state": "manual_seed_pending_field_check"
+    },
+    {
+      "place_id": "muc.fengtai.hospital",
+      "entity_type": "service_point",
+      "display_name": "校医院",
+      "aliases": ["丰台校医院"],
+      "campus_scope": "fengtai",
+      "campus_area": "丰台校区西南侧",
+      "location_description": "丰台校区西南侧，官方校园地图标注在学生公寓区南侧、综合体育馆西南方向。",
+      "landmark_hint": "从丰台校区南门进入后沿西侧道路步行可到达。",
+      "access_note": "就诊安排请以校医院当日通知为准。",
+      "opening_note": "",
+      "service_tags": ["医疗", "门诊"],
+      "point_geometry": null,
+      "source_refs": [
+        "seed:campus_navigation/place_catalog.v1",
+        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+        "https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2B_26733.jpg"
+      ],
+      "verification_state": "manual_seed_pending_field_check"
+    },
+    {
+      "place_id": "muc.haidian.museum",
+      "entity_type": "building",
+      "display_name": "民族博物馆",
+      "aliases": ["博物馆", "海淀民族博物馆"],
+      "campus_scope": "haidian",
+      "campus_area": "海淀校区西侧",
+      "location_description": "海淀校区西侧，官方校园地图标注在博物馆南路沿线，靠近图书馆。",
+      "landmark_hint": "从海淀校区西校门向东步行可达。",
+      "access_note": "参观开放安排以馆方通知为准。",
+      "opening_note": "",
+      "service_tags": ["展览", "参观"],
+      "point_geometry": null,
+      "source_refs": [
+        "seed:campus_navigation/place_catalog.v1",
+        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+        "https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png"
+      ],
+      "verification_state": "manual_seed_pending_field_check"
     }
   ]
 }

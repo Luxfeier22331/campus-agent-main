@@ -2,14 +2,14 @@
 doc_type: contract
 status: active
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-14
 ---
 
 # Navigation Place Finding Contract
 
 ## 文档边界
 
-本文冻结当前第一期 `place_lookup` / `place_finding` 的稳定 contract。
+本文冻结 repo 内已定义的 `place_lookup` / `place_finding` contract。
 
 它覆盖：
 
@@ -24,6 +24,12 @@ updated: 2026-04-11
 - `route_graph`
 - full-map route interaction
 - provider adapter、底图 SDK 或 renderer 细节
+
+## 当前 rollout 状态
+
+- 当前产品路径暂不支持校内导航；supervisor 已对 `place_lookup` fail-close
+- 本文保留的是 repo-owned contract truth，不代表当前浏览器产品面已经开放
+- `place_card` / map consumption 已转入地图实际上线后的 backlog
 
 ## Capability And Routing
 
@@ -141,6 +147,12 @@ updated: 2026-04-11
 
 `apps/app-api` 不把上游 `snake_case` `PlaceLookupResult` 原样暴露给 browser。
 
+当前说明：
+
+- 这份 normalization shape 继续保留为 future navigation rollout contract
+- 但在当前产品路径里，supervisor 不会把 `place_lookup` 委派到 `navigation-specialist`
+- 因此 `place_card` 当前不是浏览器已开放能力
+
 当前 assistant structured part 固定为：
 
 ```json
@@ -175,7 +187,7 @@ updated: 2026-04-11
 
 ## Public Chat Consumption
 
-`apps/public-chat-web` 当前把 shell `place_card` structured part 映射为：
+`apps/public-chat-web` 预留的 `place_card` browser shape 为：
 
 ```json
 {
@@ -186,7 +198,7 @@ updated: 2026-04-11
 }
 ```
 
-当前 UI 至少展示：
+当地图实际上线并恢复该能力后，UI 至少展示：
 
 - 地点名称
 - 实体类型
@@ -213,9 +225,8 @@ updated: 2026-04-11
 ## Related Docs
 
 - `docs/architecture/navigation-and-wayfinding-architecture.md`
+- `docs/domains/navigation.md`
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`
-- `docs/plans/campus-place-finding-foundation.md`
-  - 已完成 foundation closeout；当前 pending work 应以 `.planning/PROJECT.md` / `.planning/STATE.md` 为准

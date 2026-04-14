@@ -109,31 +109,17 @@ def frame_intent(
         )
 
     if capability == "place_lookup":
-        scope_decision = evaluate_knowledge_scope(context)
-        if scope_decision.scope_class == "out_of_scope":
-            return IntentFrame(
-                capability="place_lookup",
-                task_kind="place_lookup",
-                domain_candidates=("out_of_scope",),
-                missing_slots=(),
-                risk_level="low",
-                needs_clarification=False,
-                suggested_next_action="out_of_scope",
-                personalization_mode=personalization_mode,
-                scope_class="out_of_scope",
-                policy_reason=scope_decision.reason,
-            )
-
         return IntentFrame(
             capability="place_lookup",
             task_kind="place_lookup",
-            domain_candidates=("navigation",),
+            domain_candidates=("out_of_scope",),
             missing_slots=(),
             risk_level="low",
             needs_clarification=False,
-            suggested_next_action="delegate",
+            suggested_next_action="out_of_scope",
             personalization_mode=personalization_mode,
-            scope_class="in_scope",
+            scope_class="out_of_scope",
+            policy_reason="navigation_temporarily_unsupported",
         )
 
     policy_reason = _evaluate_knowledge_policy_reason(normalized_goal)

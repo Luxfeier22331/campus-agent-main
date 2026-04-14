@@ -23,6 +23,7 @@ from campus_contracts import (
     ProfileMemorySummary,
     PromptTrace,
     RagRequestPayload,
+    RagResultDiagnostics,
     RagResultPayload,
     SessionSlot,
     SessionSummary,
@@ -48,8 +49,9 @@ from campus_supervisor_core.prompt_execution import (
     SupervisorTerminalPromptOutput,
 )
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
-from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core.intent import IntentFrame
+from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
+from campus_supervisor_core.routing import RoutingDecision
 
 
 def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -147,6 +149,135 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
 
 
 class SupervisorCoreTest(unittest.TestCase):
+    def test_build_supervisor_observability_keeps_raw_retrieved_sources_separate_from_supporting_sources(self) -> None:
+        support_source = EvidenceSource(
+            doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+            revision_track="source-faithful",
+            version_id="v1:support",
+            chunk_id="chunk-support",
+            anchor={"page_start": 1, "page_end": 1},
+            canonical_url="https://campus.example/curriculum/law",
+            latest_url="https://campus.example/curriculum/law",
+            source_channel="pdf_ocr",
+            collection="curriculum_plan",
+            is_current=True,
+            snippet="第四学期开设侵权责任法。",
+            score=0.96,
+            source_title="法学（民族实验班）本科人才培养方案",
+        )
+        raw_background = EvidenceSource(
+            doc_id="curriculum:培养方案说明",
+            revision_track="source-faithful",
+            version_id="v1:background",
+            chunk_id="chunk-background",
+            anchor={"page_start": 2, "page_end": 2},
+            canonical_url="https://campus.example/curriculum/background",
+            latest_url="https://campus.example/curriculum/background",
+            source_channel="pdf_ocr",
+            collection="curriculum_plan",
+            is_current=True,
+            snippet="培养方案说明包含通识课程要求。",
+            score=0.72,
+            source_title="培养方案说明",
+        )
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="completed",
+            answer_text="第四学期开设侵权责任法。",
+            confidence="high",
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="法学民族班大二下有什么课",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(support_source,),
+                ),
+                diagnostics=RagResultDiagnostics(
+                    retrieved_sources=(support_source, raw_background),
+                ),
+            ),
+        )
+
+        observability = build_supervisor_observability_from_specialist_response(response)
+
+        self.assertEqual(observability.candidate_count, 2)
+        self.assertEqual(observability.retrieved_source_count, 2)
+        self.assertEqual(observability.citation_count, 1)
+        self.assertEqual(
+            tuple(source.chunk_id for source in observability.retrieved_sources),
+            ("chunk-support", "chunk-background"),
+        )
+
+    def test_build_supervisor_observability_does_not_mirror_supporting_sources_for_clarification(self) -> None:
+        support_source = EvidenceSource(
+            doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+            revision_track="source-faithful",
+            version_id="v1:support",
+            chunk_id="chunk-support",
+            anchor={"page_start": 1, "page_end": 1},
+            canonical_url="https://campus.example/curriculum/law",
+            latest_url="https://campus.example/curriculum/law",
+            source_channel="pdf_ocr",
+            collection="curriculum_plan",
+            is_current=True,
+            snippet="请明确是法学民族实验班还是其他法学培养方案。",
+            score=0.96,
+            source_title="法学（民族实验班）本科人才培养方案",
+        )
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="needs_clarification",
+            answer_text="请明确是法学民族实验班还是其他法学培养方案。",
+            follow_up_question="请明确是法学民族实验班还是其他法学培养方案。",
+            confidence="low",
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="法学培养方案",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(support_source,),
+                ),
+                diagnostics=RagResultDiagnostics(),
+            ),
+        )
+
+        observability = build_supervisor_observability_from_specialist_response(response)
+
+        self.assertFalse(observability.retrieval_attempted)
+        self.assertEqual(observability.candidate_count, 0)
+        self.assertEqual(observability.retrieved_source_count, 0)
+        self.assertEqual(observability.retrieved_sources, ())
+        self.assertEqual(observability.citation_count, 0)
+
+    def test_build_supervisor_observability_marks_course_map_fail_close_as_no_retrieval(self) -> None:
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text="当前还不能稳定解析培养方案里的课程地图/拓扑图。",
+            confidence="low",
+            result=RagResultPayload(
+                evidence=EvidenceBundle(
+                    query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(),
+                ),
+                diagnostics=RagResultDiagnostics(
+                    no_answer_reason="curriculum_course_map_unsupported",
+                    semantic_outcome="unsupported_scope",
+                    retrieval_adequacy_verdict="insufficient",
+                    retrieval_adequacy_reason="unsupported_query_type",
+                ),
+            ),
+        )
+
+        observability = build_supervisor_observability_from_specialist_response(response)
+
+        self.assertFalse(observability.retrieval_attempted)
+        self.assertEqual(observability.candidate_count, 0)
+        self.assertEqual(observability.retrieved_source_count, 0)
+        self.assertEqual(observability.retrieved_sources, ())
+
     def test_request_context_projects_minimum_supervisor_fields(self) -> None:
         request = SupervisorRequest(
             user_goal="library hours",
@@ -418,7 +549,7 @@ class SupervisorCoreTest(unittest.TestCase):
             return_value=expected_response,
         ) as availability_delegate:
             with patch(
-                "campus_supervisor_core.agent.delegate_to_rag_agent",
+                "campus_supervisor_core.agent._delegate_to_rag_specialist",
                 side_effect=AssertionError("rag delegate should not be used"),
             ) as rag_delegate:
                 response = SupervisorAgent().handle(request)
@@ -647,6 +778,37 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
         self.assertEqual(response.observability.scope_class, "out_of_scope")
         self.assertEqual(response.observability.policy_reason, "product_scope_boundary")
+        self.assertEqual(len(audit_records), 1)
+        self.assertEqual(audit_records[0].status, "no_answer")
+        self.assertIsNone(audit_records[0].selected_target)
+
+    def test_handle_request_fail_closes_navigation_queries_before_delegate(self) -> None:
+        delegate_called = False
+        audit_records: list[SupervisorAuditRecord] = []
+
+        def fake_navigation_specialist(_request: SpecialistRequest) -> SpecialistResponse:
+            nonlocal delegate_called
+            delegate_called = True
+            return _make_availability_completed_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="图书馆在哪里",
+                requested_capability="place_lookup",
+            ),
+            specialist_delegates={"navigation-specialist": fake_navigation_specialist},
+            audit_sink=audit_records.append,
+        )
+
+        self.assertFalse(delegate_called)
+        self.assertEqual(response.selected_target, None)
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(
+            response.answer_text,
+            "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
+        )
+        self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
+        self.assertEqual(response.observability.policy_reason, "navigation_temporarily_unsupported")
         self.assertEqual(len(audit_records), 1)
         self.assertEqual(audit_records[0].status, "no_answer")
         self.assertIsNone(audit_records[0].selected_target)

@@ -107,7 +107,7 @@ def finalize_routing_decision(
             ),
         )
     if decision.intent_frame.suggested_next_action == "out_of_scope":
-        answer_text = "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
+        answer_text = _out_of_scope_answer_text(decision.intent_frame.policy_reason)
         prompt_trace = None
         prompt_runtime_state = ""
         prompt_runtime_detail = ""
@@ -183,6 +183,12 @@ def finalize_routing_decision(
             prompt_trace=prompt_trace,
         ),
     )
+
+
+def _out_of_scope_answer_text(policy_reason: str) -> str:
+    if policy_reason == "navigation_temporarily_unsupported":
+        return "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。"
+    return "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
 
 
 def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResponse:

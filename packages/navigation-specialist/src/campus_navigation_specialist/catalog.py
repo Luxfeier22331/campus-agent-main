@@ -35,7 +35,7 @@ class CatalogEntry:
     access_note: str
     opening_note: str
     service_tags: tuple[str, ...]
-    point_geometry: GeoPoint
+    point_geometry: GeoPoint | None
     coordinate_reference_system: str
     source_refs: tuple[str, ...]
     verification_state: str
@@ -107,7 +107,7 @@ def build_candidate_list(entries: tuple[CatalogEntry, ...]) -> tuple[PlaceCandid
     return tuple(
         PlaceCandidate(
             place=entry.place_ref,
-            clarification_hint=f"{entry.campus_scope} 校区 {entry.campus_area}".strip(),
+            clarification_hint=_format_clarification_hint(entry),
         )
         for entry in entries
     )
@@ -118,9 +118,15 @@ def _normalized_aliases_for_entry(entry: CatalogEntry) -> tuple[str, ...]:
 
 
 def _entry_from_payload(item: dict[str, object]) -> CatalogEntry:
-    geometry = item["point_geometry"]
-    if not isinstance(geometry, dict):
-        raise ValueError("point_geometry must be an object")
+    geometry = item.get("point_geometry")
+    point_geometry: GeoPoint | None = None
+    if geometry is not None:
+        if not isinstance(geometry, dict):
+            raise ValueError("point_geometry must be an object or null")
+        point_geometry = GeoPoint(
+            longitude=float(geometry["longitude"]),
+            latitude=float(geometry["latitude"]),
+        )
 
     return CatalogEntry(
         place_id=str(item["place_id"]),
@@ -134,11 +140,28 @@ def _entry_from_payload(item: dict[str, object]) -> CatalogEntry:
         access_note=str(item.get("access_note", "")),
         opening_note=str(item.get("opening_note", "")),
         service_tags=tuple(str(tag) for tag in item.get("service_tags", [])),
-        point_geometry=GeoPoint(
-            longitude=float(geometry["longitude"]),
-            latitude=float(geometry["latitude"]),
+        point_geometry=point_geometry,
+        coordinate_reference_system=str(
+            item.get("coordinate_reference_system", "EPSG:4326" if point_geometry is not None else "")
         ),
-        coordinate_reference_system=str(item.get("coordinate_reference_system", "EPSG:4326")),
         source_refs=tuple(str(source_ref) for source_ref in item.get("source_refs", [])),
         verification_state=str(item.get("verification_state", "")),
     )
+
+
+def _format_clarification_hint(entry: CatalogEntry) -> str:
+    segments = [_campus_scope_label(entry.campus_scope)]
+    if entry.campus_area.strip():
+        segments.append(entry.campus_area.strip())
+    return " · ".join(segment for segment in segments if segment)
+
+
+def _campus_scope_label(campus_scope: str) -> str:
+    normalized = campus_scope.strip().lower()
+    if normalized == "haidian":
+        return "海淀校区"
+    if normalized == "fengtai":
+        return "丰台校区"
+    if normalized == "hainan":
+        return "海南校区"
+    return campus_scope
