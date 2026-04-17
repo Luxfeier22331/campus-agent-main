@@ -12,7 +12,6 @@ export interface Env {
   PANEL_APP_NAME?: string;
   PANEL_APP_API_SHARED_SECRET?: string;
   PANEL_RUNTIME_API_BASE_URL?: string;
-  PANEL_PROTECTED_HOSTNAME?: string;
   PANEL_PROTECTION_ENVELOPE?: string;
   SENTRY_DSN?: string;
   SENTRY_ENVIRONMENT?: string;
@@ -34,6 +33,10 @@ const JSON_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
+const CLOUDFLARE_ACCESS_ENVELOPE = "cloudflare-access";
+const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
+const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
+const REQUIRED_PROTECTION_ENVELOPE = "PANEL_PROTECTION_ENVELOPE=cloudflare-access";
 const JWKS_BY_ISSUER = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const FORWARDED_HEADERS = ["accept", "content-type", "x-trace-id"] as const;
 
@@ -104,6 +107,7 @@ function resolveTraceHeaders(request: Request): {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const protectedHostname = url.hostname;
 
     if (request.method === "GET" && url.pathname === "/healthz") {
       return jsonResponse(200, {
@@ -128,16 +132,30 @@ const worker = {
         });
       }
 
+      const appApiRuntimeError = await probeAppApiRuntime(env);
+      if (appApiRuntimeError) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              appApiRuntime: appApiRuntimeError,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
         dependencies: {
-          access: env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access" ? "configured" : "not_required",
+          accessOriginAdmission: "configured",
           appApiBinding: "configured",
+          appApiRuntime: "ready",
           assets: "configured",
           operatorBridge: "configured",
         },
         runtime_api_base_url: env.PANEL_RUNTIME_API_BASE_URL || "",
-        protected_hostname: env.PANEL_PROTECTED_HOSTNAME || "",
+        protected_hostname: protectedHostname,
         protection_envelope: env.PANEL_PROTECTION_ENVELOPE || "required",
         runtime: "cloudflare-worker",
       });
@@ -148,13 +166,16 @@ const worker = {
       if (admission.error) {
         return admission.error;
       }
+      if (!hasAppApiBridge(env)) {
+        return appApiBridgeNotConfiguredResponse();
+      }
 
       return jsonResponse(200, {
         status: "ok",
         app_name: env.PANEL_APP_NAME || "campus-agent-protected-panel",
         surface: "protected-panel-web",
         runtime: "cloudflare-worker",
-        protected_hostname: env.PANEL_PROTECTED_HOSTNAME || "",
+        protected_hostname: protectedHostname,
         protection_envelope: env.PANEL_PROTECTION_ENVELOPE || "required",
         runtime_api_base_url: env.PANEL_RUNTIME_API_BASE_URL || "",
         panel_domains: {
@@ -345,6 +366,9 @@ const worker = {
       if (admission.error) {
         return admission.error;
       }
+      if (!hasAppApiBridge(env)) {
+        return appApiBridgeNotConfiguredResponse();
+      }
 
       return serveProtectedShell(request, env);
     }
@@ -365,6 +389,19 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   });
 }
 
+function appApiUpstreamUnavailableResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API upstream is unavailable.",
+      retryable: true,
+      traceId: null,
+      requestId: null,
+      details: null,
+    },
+  });
+}
+
 function getMissingRuntimeConfig(env: Env): string[] {
   const missing: string[] = [];
 
@@ -377,40 +414,76 @@ function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.PANEL_RUNTIME_API_BASE_URL?.trim()) {
     missing.push("PANEL_RUNTIME_API_BASE_URL");
   }
-  if (!env.PANEL_PROTECTED_HOSTNAME?.trim()) {
-    missing.push("PANEL_PROTECTED_HOSTNAME");
-  }
   if (!env.PANEL_APP_API_SHARED_SECRET?.trim()) {
     missing.push("PANEL_APP_API_SHARED_SECRET");
   }
-  if (env.PANEL_PROTECTION_ENVELOPE === "cloudflare-access") {
-    if (!env.ACCESS_TEAM_DOMAIN?.trim()) {
-      missing.push("ACCESS_TEAM_DOMAIN");
-    }
-    if (!env.ACCESS_POLICY_AUD?.trim()) {
-      missing.push("ACCESS_POLICY_AUD");
-    }
-  }
+  missing.push(...getMissingAccessConfig(env));
 
   return missing;
+}
+
+function appApiBridgeNotConfiguredResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API binding is not configured.",
+    },
+  });
+}
+
+function hasAppApiBridge(env: Env): boolean {
+  return Boolean(
+    env.APP_API &&
+      env.PANEL_RUNTIME_API_BASE_URL?.trim() &&
+      env.PANEL_APP_API_SHARED_SECRET?.trim(),
+  );
+}
+
+function normalizeConfiguredAccessTeamDomain(teamDomain: string | undefined): string | null {
+  const trimmed = teamDomain?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let normalized: string;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    parsed.pathname = "";
+    parsed.search = "";
+    parsed.hash = "";
+    normalized = parsed.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+
+  return normalized === PLACEHOLDER_ACCESS_TEAM_DOMAIN ? null : normalized;
+}
+
+function normalizeConfiguredAccessPolicyAud(audience: string | undefined): string | null {
+  const trimmed = audience?.trim();
+  if (!trimmed || trimmed === PLACEHOLDER_ACCESS_POLICY_AUD) {
+    return null;
+  }
+
+  return trimmed;
 }
 
 async function validateProtectedApiRequest(
   request: Request,
   env: Env,
 ): Promise<{ error: Response | null; operatorContext: OperatorContext | null }> {
-  if (env.PANEL_PROTECTION_ENVELOPE !== "cloudflare-access") {
-    return { error: null, operatorContext: null };
-  }
-
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_POLICY_AUD) {
+  const missingAccessConfig = getMissingAccessConfig(env);
+  if (missingAccessConfig.length > 0) {
     return {
-      error: textResponse("Missing Access configuration.", 403),
+      error: protectionNotConfiguredResponse(missingAccessConfig),
       operatorContext: null,
     };
   }
 
-  const token = request.headers.get("cf-access-jwt-assertion");
+  const token = resolveAccessAssertion(request);
   if (!token) {
     return {
       error: textResponse("Missing Access JWT.", 401),
@@ -418,12 +491,19 @@ async function validateProtectedApiRequest(
     };
   }
 
-  const issuer = normalizeIssuer(env.ACCESS_TEAM_DOMAIN);
+  const issuer = normalizeConfiguredAccessTeamDomain(env.ACCESS_TEAM_DOMAIN);
+  const audience = normalizeConfiguredAccessPolicyAud(env.ACCESS_POLICY_AUD);
+  if (!issuer || !audience) {
+    return {
+      error: protectionNotConfiguredResponse(getMissingAccessConfig(env)),
+      operatorContext: null,
+    };
+  }
 
   try {
     const { payload } = await jwtVerify(token, getRemoteJwks(issuer), {
       issuer,
-      audience: env.ACCESS_POLICY_AUD,
+      audience,
     });
     return {
       error: null,
@@ -435,6 +515,66 @@ async function validateProtectedApiRequest(
       operatorContext: null,
     };
   }
+}
+
+function resolveAccessAssertion(request: Request): string | null {
+  const headerToken = request.headers.get("cf-access-jwt-assertion")?.trim();
+  if (headerToken) {
+    return headerToken;
+  }
+
+  return readCookieValue(request.headers.get("cookie"), "CF_Authorization");
+}
+
+function readCookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const segment of cookieHeader.split(";")) {
+    const separatorIndex = segment.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const cookieName = segment.slice(0, separatorIndex).trim();
+    if (cookieName !== name) {
+      continue;
+    }
+
+    const cookieValue = segment.slice(separatorIndex + 1).trim();
+    return cookieValue || null;
+  }
+
+  return null;
+}
+
+function getMissingAccessConfig(env: Env): string[] {
+  const missing: string[] = [];
+
+  if (env.PANEL_PROTECTION_ENVELOPE !== CLOUDFLARE_ACCESS_ENVELOPE) {
+    missing.push(REQUIRED_PROTECTION_ENVELOPE);
+  }
+  if (!normalizeConfiguredAccessTeamDomain(env.ACCESS_TEAM_DOMAIN)) {
+    missing.push("ACCESS_TEAM_DOMAIN");
+  }
+  if (!normalizeConfiguredAccessPolicyAud(env.ACCESS_POLICY_AUD)) {
+    missing.push("ACCESS_POLICY_AUD");
+  }
+
+  return missing;
+}
+
+function protectionNotConfiguredResponse(missing: string[]): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      details: {
+        missing,
+      },
+      message: "Protected panel admission is not configured.",
+    },
+  });
 }
 
 function mapOperatorContext(payload: JWTPayload): OperatorContext {
@@ -465,10 +605,6 @@ function textResponse(message: string, status: number): Response {
   });
 }
 
-function normalizeIssuer(teamDomain: string): string {
-  return teamDomain.endsWith("/") ? teamDomain.slice(0, -1) : teamDomain;
-}
-
 function getRemoteJwks(issuer: string) {
   const cached = JWKS_BY_ISSUER.get(issuer);
   if (cached) {
@@ -486,20 +622,15 @@ async function proxyToAppApi(input: {
   request: Request;
   targetPath: string;
 }): Promise<Response> {
-  if (
-    !input.env.APP_API ||
-    !input.env.PANEL_RUNTIME_API_BASE_URL ||
-    !input.env.PANEL_APP_API_SHARED_SECRET
-  ) {
-    return jsonResponse(503, {
-      error: {
-        code: "dependency_not_ready",
-        message: "App API binding is not configured.",
-      },
-    });
+  const appApi = input.env.APP_API;
+  const runtimeApiBaseUrl = input.env.PANEL_RUNTIME_API_BASE_URL?.trim();
+  const panelAppApiSharedSecret = input.env.PANEL_APP_API_SHARED_SECRET?.trim();
+
+  if (!appApi || !runtimeApiBaseUrl || !panelAppApiSharedSecret) {
+    return appApiBridgeNotConfiguredResponse();
   }
 
-  const targetUrl = new URL(input.targetPath, input.env.PANEL_RUNTIME_API_BASE_URL);
+  const targetUrl = new URL(input.targetPath, runtimeApiBaseUrl);
   const headers = new Headers();
 
   for (const headerName of FORWARDED_HEADERS) {
@@ -517,25 +648,27 @@ async function proxyToAppApi(input: {
   }
 
   headers.set("x-app-operator-email", input.operatorContext.email ?? input.operatorContext.operator_id);
-  headers.set("x-app-internal-auth", input.env.PANEL_APP_API_SHARED_SECRET);
+  headers.set("x-app-internal-auth", panelAppApiSharedSecret);
   headers.set("x-app-operator-id", input.operatorContext.operator_id);
 
   if (input.operatorContext.display_name) {
     headers.set("x-app-operator-name", input.operatorContext.display_name);
   }
-  if (input.operatorContext.groups.length > 0) {
-    headers.set("x-app-operator-groups", input.operatorContext.groups.join(","));
+
+  try {
+    const response = await appApi.fetch(
+      new Request(targetUrl.toString(), {
+        body: shouldForwardBody(input.request.method) ? input.request.body : undefined,
+        headers,
+        method: input.request.method,
+        redirect: input.request.redirect,
+      }),
+    );
+
+    return withNoStore(response);
+  } catch {
+    return appApiUpstreamUnavailableResponse();
   }
-
-  const response = await input.env.APP_API.fetch(
-    new Request(targetUrl.toString(), {
-      headers,
-      method: input.request.method,
-      redirect: input.request.redirect,
-    }),
-  );
-
-  return withNoStore(response);
 }
 
 async function serveProtectedShell(request: Request, env: Env): Promise<Response> {
@@ -572,6 +705,36 @@ function withNoStore(response: Response): Response {
     status: response.status,
     statusText: response.statusText,
   });
+}
+
+function shouldForwardBody(method: string): boolean {
+  return method !== "GET" && method !== "HEAD";
+}
+
+async function probeAppApiRuntime(env: Env): Promise<string | null> {
+  if (!hasAppApiBridge(env)) {
+    return "App API binding is not configured.";
+  }
+
+  try {
+    const response = await env.APP_API!.fetch(
+      new Request(new URL("/readyz", env.PANEL_RUNTIME_API_BASE_URL).toString(), {
+        method: "GET",
+      }),
+    );
+    if (response.status !== 200) {
+      return `app-api readyz returned ${response.status}`;
+    }
+
+    const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    if (payload?.status !== "ready") {
+      return "app-api readyz returned an invalid payload";
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "app-api readyz probe failed";
+  }
 }
 
 export default Sentry.withSentry(createSentryOptions, worker);

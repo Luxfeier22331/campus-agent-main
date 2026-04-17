@@ -3,10 +3,18 @@ import { Alert, Box, Card, CardContent, Divider, Stack, Typography } from "@mui/
 import { Show, useRecordContext } from "react-admin";
 
 import type { OfficialWebRunRecord } from "../types";
-import { formatTimestamp } from "./official-web-formatters";
+import {
+  formatOfficialWebChangeReasonLabel,
+  formatOfficialWebPageChangeSummaryLabel,
+  formatOfficialWebPageFamilyLabel,
+  formatOfficialWebRunSummaryLabel,
+  formatTimestamp,
+} from "./official-web-formatters";
 import {
   OfficialWebArtifactList,
   OfficialWebIngestionStatusChip,
+  OfficialWebPageChangeChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
@@ -34,8 +42,7 @@ function OfficialWebRunShowContent() {
     <Box sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Alert severity="info">
-          This run detail is a projection snapshot from app-api. It shows crawl truth, artifact refs,
-          and dispatch state without exposing raw infrastructure internals.
+          此运行详情来自 app-api 的投影快照，展示采集真相、产物引用和分发状态，而不会暴露底层基础设施内部细节。
         </Alert>
 
         <Box
@@ -51,16 +58,17 @@ function OfficialWebRunShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Identity</Typography>
+                <Typography variant="h6">运行标识</Typography>
                 <Divider />
-                <RunFieldRow label="Run ID" value={record.runId} />
-                <RunFieldRow label="Site ID" value={record.siteId} />
+                <RunFieldRow label="运行 ID" value={record.runId} />
+                <RunFieldRow label="站点 ID" value={record.siteId} />
                 <RunFieldRow
-                  label="Status"
-                  value={<OfficialWebRunStatusChip status={record.status} />}
+                  label="运行意图"
+                  value={<OfficialWebRunIntentChip runIntent={record.runIntent} />}
                 />
+                <RunFieldRow label="状态" value={<OfficialWebRunStatusChip status={record.status} />} />
                 <RunFieldRow
-                  label="Dispatch"
+                  label="分发"
                   value={<OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />}
                 />
               </Stack>
@@ -70,13 +78,13 @@ function OfficialWebRunShowContent() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Lifecycle</Typography>
+                <Typography variant="h6">生命周期</Typography>
                 <Divider />
-                <RunFieldRow label="Started" value={formatTimestamp(record.startedAt)} />
-                <RunFieldRow label="Last Heartbeat" value={formatTimestamp(record.lastHeartbeatAt)} />
-                <RunFieldRow label="Finished" value={formatTimestamp(record.finishedAt)} />
-                <RunFieldRow label="Projected" value={formatTimestamp(record.projectedAt)} />
-                <RunFieldRow label="Failures" value={record.failureCount} />
+                <RunFieldRow label="开始时间" value={formatTimestamp(record.startedAt)} />
+                <RunFieldRow label="最近心跳" value={formatTimestamp(record.lastHeartbeatAt)} />
+                <RunFieldRow label="结束时间" value={formatTimestamp(record.finishedAt)} />
+                <RunFieldRow label="投影时间" value={formatTimestamp(record.projectedAt)} />
+                <RunFieldRow label="失败数" value={record.failureCount} />
               </Stack>
             </CardContent>
           </Card>
@@ -84,17 +92,21 @@ function OfficialWebRunShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Summary</Typography>
+                <Typography variant="h6">运行摘要</Typography>
                 <Divider />
                 {record.summary ? (
                   <Stack spacing={0.75}>
                     {Object.entries(record.summary).map(([key, value]) => (
-                      <RunFieldRow key={key} label={key} value={String(value)} />
+                      <RunFieldRow
+                        key={key}
+                        label={formatOfficialWebRunSummaryLabel(key)}
+                        value={String(value)}
+                      />
                     ))}
                   </Stack>
                 ) : (
                   <Typography color="text.secondary" variant="body2">
-                    No summary projected yet.
+                    暂无运行摘要。
                   </Typography>
                 )}
               </Stack>
@@ -104,7 +116,68 @@ function OfficialWebRunShowContent() {
           <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Artifacts</Typography>
+                <Typography variant="h6">页面变化摘要</Typography>
+                <Divider />
+                {record.pageChangeSummary ? (
+                  <Stack spacing={0.75}>
+                    {Object.entries(record.pageChangeSummary).map(([key, value]) => (
+                      <RunFieldRow
+                        key={key}
+                        label={formatOfficialWebPageChangeSummaryLabel(key)}
+                        value={String(value)}
+                      />
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    暂无页面变化摘要。
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">页面变化明细</Typography>
+                <Divider />
+                {record.pageChanges && record.pageChanges.length > 0 ? (
+                  <Stack spacing={1.5}>
+                    {record.pageChanges.map((change) => (
+                      <Stack key={change.id} spacing={0.5}>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                          <OfficialWebPageChangeChip change={change} />
+                          <Typography variant="body2">
+                            {change.pageTitleNormalized || change.normalizedCanonicalUrl}
+                          </Typography>
+                          <Typography color="text.secondary" variant="caption">
+                            {formatOfficialWebPageFamilyLabel(change.pageFamily)}
+                          </Typography>
+                        </Stack>
+                        <Typography sx={{ wordBreak: "break-all" }} variant="body2">
+                          {change.normalizedCanonicalUrl}
+                        </Typography>
+                        <Typography color="text.secondary" variant="caption">
+                          {formatOfficialWebChangeReasonLabel(change.lastChangeReason)} · 观测于{" "}
+                          {formatTimestamp(change.observedAt)}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography color="text.secondary" variant="body2">
+                    当前运行暂无页面变化记录。
+                  </Typography>
+                )}
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+            <CardContent>
+              <Stack spacing={2}>
+                <Typography variant="h6">产物</Typography>
                 <Divider />
                 <OfficialWebArtifactList artifacts={record.artifacts} />
               </Stack>
@@ -118,7 +191,7 @@ function OfficialWebRunShowContent() {
 
 export function OfficialWebRunShowPage() {
   return (
-    <Show title="Official Web Crawl Run">
+    <Show title="官网采集运行详情">
       <OfficialWebRunShowContent />
     </Show>
   );

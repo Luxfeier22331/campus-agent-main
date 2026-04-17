@@ -1,8 +1,13 @@
 import { Chip, Stack, Typography } from "@mui/material";
 
 import type { RequestProjectionRecord } from "../types";
+import { PANEL_COPY } from "../panel-copy";
 import {
+  buildRequestOutcomeBadges,
   formatScope,
+  formatPrincipalTypeLabel,
+  formatRequestOutcomeDetail,
+  formatSelectedTargetLabel,
   formatStatusLabel,
   formatSurfaceLabel,
 } from "./request-formatters";
@@ -43,13 +48,15 @@ export function RequestActorSummary({
 }: {
   record: RequestProjectionRecord;
 }) {
+  const secondaryParts = [formatPrincipalTypeLabel(record.principalType), record.principalId].filter(Boolean);
+
   return (
     <Stack spacing={0.25}>
       <Typography fontWeight={500} variant="body2">
-        {record.principalLabel || "Unnamed principal"}
+        {record.principalLabel || PANEL_COPY.unnamedPrincipal}
       </Typography>
       <Typography color="text.secondary" variant="caption">
-        {record.principalId}
+        {secondaryParts.join(" · ")}
       </Typography>
     </Stack>
   );
@@ -57,14 +64,18 @@ export function RequestActorSummary({
 
 export function RequestPreviewText({
   emptyText,
+  maxLines = 3,
   text,
+  variant = "body2",
 }: {
   emptyText: string;
+  maxLines?: number;
   text: string | null;
+  variant?: "body2" | "caption";
 }) {
   if (!text || !text.trim()) {
     return (
-      <Typography color="text.secondary" variant="body2">
+      <Typography color="text.secondary" variant={variant}>
         {emptyText}
       </Typography>
     );
@@ -74,12 +85,12 @@ export function RequestPreviewText({
     <Typography
       sx={{
         WebkitBoxOrient: "vertical",
-        WebkitLineClamp: 3,
+        WebkitLineClamp: maxLines,
         display: "-webkit-box",
         overflow: "hidden",
         whiteSpace: "normal",
       }}
-      variant="body2"
+      variant={variant}
     >
       {text}
     </Typography>
@@ -92,7 +103,14 @@ export function RequestScopeSummary({
   record: RequestProjectionRecord;
 }) {
   return (
-    <Typography variant="body2">{formatScope(record.requestedScope)}</Typography>
+    <Stack spacing={0.25}>
+      <Typography fontWeight={500} variant="body2">
+        {formatSelectedTargetLabel(record.selectedTarget)}
+      </Typography>
+      <Typography color="text.secondary" variant="caption">
+        {formatScope(record.requestedScope)}
+      </Typography>
+    </Stack>
   );
 }
 
@@ -112,7 +130,7 @@ export function RequestSourceDocumentChips({
   if (sourceDocIds.length === 0) {
     return (
       <Typography color="text.secondary" variant="body2">
-        No source documents captured.
+        {PANEL_COPY.noSourceDocumentsCaptured}
       </Typography>
     );
   }
@@ -122,6 +140,37 @@ export function RequestSourceDocumentChips({
       {sourceDocIds.map((docId) => (
         <Chip key={docId} label={docId} size="small" variant="outlined" />
       ))}
+    </Stack>
+  );
+}
+
+export function RequestOutcomeSummary({
+  record,
+}: {
+  record: RequestProjectionRecord;
+}) {
+  const badges = buildRequestOutcomeBadges(record);
+  const detail = formatRequestOutcomeDetail(record);
+
+  return (
+    <Stack spacing={0.75}>
+      <Stack direction="row" flexWrap="wrap" gap={0.75}>
+        {badges.map((badge) => (
+          <Chip
+            color={badge.color}
+            key={`${badge.color}:${badge.label}`}
+            label={badge.label}
+            size="small"
+            variant={badge.color === "default" ? "outlined" : "filled"}
+          />
+        ))}
+      </Stack>
+      <RequestPreviewText
+        emptyText={PANEL_COPY.requestsList.outcome.noDetail}
+        maxLines={2}
+        text={detail}
+        variant="caption"
+      />
     </Stack>
   );
 }
