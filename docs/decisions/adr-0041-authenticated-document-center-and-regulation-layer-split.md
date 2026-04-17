@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0041
 status: accepted
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # ADR-0041 Authenticated Document Center And Regulation Layer Split
@@ -215,5 +215,6 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
+- `docs/reference/restricted-document-center-artifact-contract.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-contract.md`

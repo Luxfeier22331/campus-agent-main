@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-14
+updated: 2026-04-15
 ---
 
 # Authenticated Notice Source Architecture
@@ -98,6 +98,7 @@ updated: 2026-04-14
 - `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared data-plane 不变量：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- restricted document center artifact contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - authenticated document center / regulation 分层决策：`docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-split.md`
 - restricted document authorization：`docs/architecture/identity-and-authorization-architecture.md`
 

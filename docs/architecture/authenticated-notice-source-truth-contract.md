@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-12
+updated: 2026-04-15
 ---
 
 # Authenticated Notice Source-Truth Contract
@@ -37,6 +37,7 @@ updated: 2026-04-12
 - `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- restricted document center artifact contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - restricted rollout：`docs/architecture/identity-and-authorization-architecture.md`
 
 ## 目标
@@ -355,5 +356,6 @@ Phase 12.2 的 async staged closeout 保持 source-truth 与 document truth 的�
 - source channel 运行边界：`docs/architecture/authenticated-notice-source-architecture.md`
 - shared source-truth principles：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- restricted document center artifact contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - restricted authorization：`docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`

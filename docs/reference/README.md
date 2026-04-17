@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-15
 ---
 
 # Reference
@@ -31,6 +31,7 @@ updated: 2026-04-12
 - `internal-notice-manual-review-collection-strategy.md`
 - `internal-notice-manual-review-future-query-contract.md`
 - `internal-notice-offline-preparation-quality-acceptance.md`
+- `restricted-document-center-artifact-contract.md`
 
 ## Authenticated Notice / Internal Notice Quality Acceptance
 
