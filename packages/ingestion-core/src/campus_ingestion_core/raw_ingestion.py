@@ -1619,7 +1619,6 @@ def _build_split_manifest_document_input(
     structured_rows: list[dict[str, object]],
     provider_response_key: str,
     layout_elements_key: str,
-    default_visibility_scope: str | None,
     corpus: str,
     collection: str,
     default_campus_scope: str | None = None,
