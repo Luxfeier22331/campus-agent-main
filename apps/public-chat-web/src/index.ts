@@ -1,6 +1,12 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
+import {
+  getAllGatewayModels,
+  getCapabilities,
+  isDemo,
+} from "../vendor/vercel-ai-chatbot/lib/ai/models";
+
 export interface Env {
   APP_API?: {
     fetch(request: Request): Promise<Response> | Response;
@@ -16,19 +22,21 @@ export interface Env {
   SENTRY_RELEASE?: string;
 }
 
-const FORWARDED_HEADERS = [
+const BASE_FORWARDED_HEADERS = [
   "accept",
   "content-type",
   "cookie",
   "idempotency-key",
   "x-trace-id",
 ] as const;
+const AUTH_FORWARDED_HEADERS = [...BASE_FORWARDED_HEADERS, "origin", "referer"] as const;
 
 const JSON_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
 
+const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
 function scrubSensitiveRecord(value: unknown): void {
@@ -114,11 +122,25 @@ const worker = {
         });
       }
 
+      const appApiRuntimeError = await probeAppApiRuntime(env);
+      if (appApiRuntimeError) {
+        return jsonResponse(503, {
+          error: {
+            code: "dependency_not_ready",
+            details: {
+              appApiRuntime: appApiRuntimeError,
+            },
+            message: "Runtime configuration is incomplete.",
+          },
+        });
+      }
+
       return jsonResponse(200, {
         status: "ready",
         app_api_base_url: env.APP_API_BASE_URL || "",
         dependencies: {
           appApiBinding: "configured",
+          appApiRuntime: "ready",
           assets: "configured",
         },
         public_hostname: env.PUBLIC_CHAT_HOSTNAME || "",
@@ -126,8 +148,19 @@ const worker = {
       });
     }
 
+    if (request.method === "GET" && url.pathname === "/api/models") {
+      return serveModelsCatalog();
+    }
+
     if (url.pathname.startsWith("/api/")) {
       return proxyToAppApi(request, env);
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      url.pathname.startsWith(LEGACY_CHAT_PREVIEW_PATH_PREFIX)
+    ) {
+      return redirectToCanonicalChatRoute(url);
     }
 
     if ((request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
@@ -150,6 +183,26 @@ function jsonResponse(status: number, payload: Record<string, unknown>): Respons
   });
 }
 
+function appApiUpstreamUnavailableResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API upstream is unavailable.",
+      retryable: true,
+      traceId: null,
+      requestId: null,
+      details: null,
+    },
+  });
+}
+
+function redirectToCanonicalChatRoute(url: URL): Response {
+  const redirectUrl = new URL(url.toString());
+  redirectUrl.pathname = "/chat";
+
+  return Response.redirect(redirectUrl.toString(), 302);
+}
+
 function getMissingRuntimeConfig(env: Env): string[] {
   const missing: string[] = [];
 
@@ -169,21 +222,25 @@ function getMissingRuntimeConfig(env: Env): string[] {
   return missing;
 }
 
+function appApiBridgeNotConfiguredResponse(): Response {
+  return jsonResponse(503, {
+    error: {
+      code: "dependency_not_ready",
+      message: "App API binding is not configured.",
+    },
+  });
+}
+
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
   if (!env.APP_API || !env.APP_API_BASE_URL) {
-    return jsonResponse(503, {
-      error: {
-        code: "dependency_not_ready",
-        message: "App API binding is not configured.",
-      },
-    });
+    return appApiBridgeNotConfiguredResponse();
   }
 
   const inboundUrl = new URL(request.url);
   const appApiUrl = new URL(inboundUrl.pathname + inboundUrl.search, env.APP_API_BASE_URL);
   const headers = new Headers();
 
-  for (const headerName of FORWARDED_HEADERS) {
+  for (const headerName of getForwardedHeaders(inboundUrl.pathname)) {
     const value = request.headers.get(headerName);
     if (value) {
       headers.set(headerName, value);
@@ -197,23 +254,54 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
     headers.set("baggage", traceHeaders.baggage);
   }
 
-  return withNoStore(
-    await env.APP_API.fetch(
-    new Request(appApiUrl.toString(), {
-      body: shouldForwardBody(request.method) ? request.body : undefined,
-      headers,
-      method: request.method,
-      redirect: request.redirect,
-    }),
-    ),
-  );
+  try {
+    return withNoStore(
+      await env.APP_API.fetch(
+        new Request(appApiUrl.toString(), {
+          body: shouldForwardBody(request.method) ? request.body : undefined,
+          headers,
+          method: request.method,
+          redirect: request.redirect,
+        }),
+      ),
+    );
+  } catch {
+    return appApiUpstreamUnavailableResponse();
+  }
+}
+
+function getForwardedHeaders(pathname: string) {
+  return pathname.startsWith("/api/auth/") ? AUTH_FORWARDED_HEADERS : BASE_FORWARDED_HEADERS;
 }
 
 function shouldForwardBody(method: string): boolean {
   return method !== "GET" && method !== "HEAD";
 }
 
+async function serveModelsCatalog(): Promise<Response> {
+  const headers = {
+    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+  };
+
+  const curatedCapabilities = await getCapabilities();
+
+  if (isDemo) {
+    const models = await getAllGatewayModels();
+    const capabilities = Object.fromEntries(
+      models.map((model) => [model.id, curatedCapabilities[model.id] ?? model.capabilities]),
+    );
+
+    return Response.json({ capabilities, models }, { headers });
+  }
+
+  return Response.json(curatedCapabilities, { headers });
+}
+
 async function servePublicShell(request: Request, env: Env): Promise<Response> {
+  if (!env.APP_API || !env.APP_API_BASE_URL) {
+    return appApiBridgeNotConfiguredResponse();
+  }
+
   if (!env.ASSETS) {
     return jsonResponse(503, {
       error: {
@@ -247,6 +335,32 @@ function withNoStore(response: Response): Response {
     status: response.status,
     statusText: response.statusText,
   });
+}
+
+async function probeAppApiRuntime(env: Env): Promise<string | null> {
+  if (!env.APP_API || !env.APP_API_BASE_URL) {
+    return "App API binding is not configured.";
+  }
+
+  try {
+    const response = await env.APP_API.fetch(
+      new Request(new URL("/readyz", env.APP_API_BASE_URL).toString(), {
+        method: "GET",
+      }),
+    );
+    if (response.status !== 200) {
+      return `app-api readyz returned ${response.status}`;
+    }
+
+    const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
+    if (payload?.status !== "ready") {
+      return "app-api readyz returned an invalid payload";
+    }
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "app-api readyz probe failed";
+  }
 }
 
 export default Sentry.withSentry(createSentryOptions, worker);
