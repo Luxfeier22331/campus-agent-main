@@ -82,8 +82,9 @@ def frame_rag_intent(request: SpecialistRequest) -> RagIntentFrame:
 def build_personalization_hint(request: SpecialistRequest) -> PersonalizationHint:
     actor_terms: list[str] = []
     actor = request.context.actor
-    if actor.campus_scope:
-        actor_terms.append(f"{actor.campus_scope} campus")
+    visibility_scope = request.context.authorization.visibility_scope
+    if visibility_scope:
+        actor_terms.append(f"{visibility_scope} campus")
     if actor.cohort:
         actor_terms.append(f"{actor.cohort} cohort")
     if actor.major:
@@ -93,17 +94,22 @@ def build_personalization_hint(request: SpecialistRequest) -> PersonalizationHin
 
     recent_goal = ""
     for item in request.context.profile_memory.items:
+        if item.visibility != "user_visible":
+            continue
         if item.key == "recent_goal":
             recent_goal = item.value
             break
 
     confirmed_slot_terms = tuple(
-        slot.value for slot in request.context.session.confirmed_slots if slot.confirmed
+        slot.value
+        for slot in request.context.session.confirmed_slots
+        if slot.confirmed and slot.value.strip()
     )
     return PersonalizationHint(
         actor_claim_terms=tuple(actor_terms),
         recent_goal=recent_goal,
         confirmed_slot_terms=confirmed_slot_terms,
+        curriculum_follow_up=request.context.session.curriculum_follow_up,
     )
 
 

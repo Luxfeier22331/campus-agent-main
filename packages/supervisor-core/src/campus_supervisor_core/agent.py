@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 from campus_availability_specialist import delegate_to_availability_specialist
+from campus_navigation_specialist import delegate_to_navigation_specialist
 from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
@@ -11,11 +12,12 @@ from campus_contracts import (
     SupervisorRequest,
     SupervisorResponse,
 )
-from campus_rag_specialist import delegate_to_rag_agent
+from campus_rag_specialist.prompt_execution import RagPromptExecutor
 
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import MissingSpecialistDelegateError
 from campus_supervisor_core.framing import frame_specialist_request
+from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.routing import route_request
@@ -24,23 +26,41 @@ from campus_supervisor_core.routing import route_request
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
 
 
-def _default_specialist_delegates() -> dict[SpecialistTarget, SpecialistDelegate]:
-    return {
-        "rag-specialist": delegate_to_rag_agent,
-        "availability-specialist": delegate_to_availability_specialist,
-    }
+def _delegate_to_rag_specialist(
+    request: SpecialistRequest,
+    *,
+    prompt_executor: RagPromptExecutor | None = None,
+) -> SpecialistResponse:
+    from campus_rag_specialist.service import delegate_to_rag_agent
+
+    return delegate_to_rag_agent(request, prompt_executor=prompt_executor)
 
 
 @dataclass(slots=True)
 class SupervisorAgent:
-    specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] = field(
-        default_factory=_default_specialist_delegates
-    )
+    specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None
+    supervisor_prompt_executor: SupervisorPromptExecutor | None = None
+    rag_prompt_executor: RagPromptExecutor | None = None
+
+    def __post_init__(self) -> None:
+        if self.specialist_delegates is None:
+            self.specialist_delegates = {
+                "rag-specialist": self._delegate_to_rag_specialist,
+                "availability-specialist": delegate_to_availability_specialist,
+                "navigation-specialist": delegate_to_navigation_specialist,
+            }
+
+    def _delegate_to_rag_specialist(self, request: SpecialistRequest) -> SpecialistResponse:
+        return _delegate_to_rag_specialist(request, prompt_executor=self.rag_prompt_executor)
 
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         context = SupervisorRequestContext.from_request(request)
         decision = route_request(context)
-        terminal_response = finalize_routing_decision(decision)
+        terminal_response = finalize_routing_decision(
+            context,
+            decision,
+            prompt_executor=self.supervisor_prompt_executor,
+        )
         if terminal_response is not None:
             return assemble_response(terminal_response)
         delegate = self.specialist_delegates.get(decision.target)

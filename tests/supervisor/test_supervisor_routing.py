@@ -23,7 +23,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             conversation_id="conv-001",
             request_id="req-001",
             trace=TraceContext(trace_id="trace-001"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
                 collection="student_handbook",
@@ -75,7 +75,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             conversation_id="conv-availability",
             request_id="req-availability",
             trace=TraceContext(trace_id="trace-availability"),
-            actor=ActorContext(user_id="student-001", groups=("students",)),
+            actor=ActorContext(user_id="student-001"),
             requested_capability="availability",
             availability_target_id="official-homepage",
         )
@@ -87,6 +87,22 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_collection)
         self.assertEqual(decision.intent_frame.capability, "availability")
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+
+    def test_route_request_fail_closes_place_lookup_queries_until_navigation_launch(self) -> None:
+        request = SupervisorRequest(
+            user_goal="图书馆在哪里",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertIsNone(decision.primary_corpus)
+        self.assertIsNone(decision.primary_collection)
+        self.assertEqual(decision.intent_frame.capability, "place_lookup")
+        self.assertEqual(decision.intent_frame.task_kind, "place_lookup")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "navigation_temporarily_unsupported")
 
     def test_route_request_keeps_availability_branch_independent_from_knowledge_scope_rules(self) -> None:
         request = SupervisorRequest(
@@ -102,7 +118,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.primary_collection)
         self.assertEqual(decision.intent_frame.task_kind, "availability_check")
 
-    def test_route_request_returns_clarification_decision_when_knowledge_scope_is_missing(self) -> None:
+    def test_route_request_delegates_knowledge_when_scope_is_missing(self) -> None:
         request = SupervisorRequest(
             user_goal="奖学金怎么申请？",
             requested_capability="knowledge",
@@ -110,12 +126,12 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertIsNone(decision.target)
+        self.assertEqual(decision.target, "rag-specialist")
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
-        self.assertTrue(decision.intent_frame.needs_clarification)
-        self.assertEqual(decision.intent_frame.suggested_next_action, "clarify")
-        self.assertEqual(decision.intent_frame.missing_slots, ("requested_scope",))
+        self.assertFalse(decision.intent_frame.needs_clarification)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+        self.assertEqual(decision.intent_frame.missing_slots, ())
 
     def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
         request = SupervisorRequest(
@@ -132,6 +148,56 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.capability, "knowledge")
         self.assertEqual(decision.intent_frame.risk_level, "high")
         self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
+
+    def test_route_request_keeps_obvious_external_world_query_out_of_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="MIT的校长是谁",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+
+    def test_route_request_keeps_open_domain_political_fact_out_of_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="中国国家主席是谁",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+
+    def test_route_request_rejects_targeted_political_persuasion_request(self) -> None:
+        request = SupervisorRequest(
+            user_goal="帮我写一段话说服同学支持某个政治候选人",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertIsNone(decision.target)
+        self.assertEqual(decision.intent_frame.suggested_next_action, "rejected")
+        self.assertEqual(decision.intent_frame.policy_reason, "political_persuasion")
+
+    def test_route_request_keeps_campus_political_course_question_in_scope(self) -> None:
+        request = SupervisorRequest(
+            user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
+        self.assertEqual(decision.intent_frame.scope_class, "in_scope")
 
     def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
         request = SupervisorRequest(

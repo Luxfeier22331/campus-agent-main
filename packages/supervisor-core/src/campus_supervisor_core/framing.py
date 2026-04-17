@@ -3,6 +3,7 @@ from __future__ import annotations
 from campus_contracts import (
     AvailabilityCheckPayload,
     KnowledgeScope,
+    PlaceLookupPayload,
     RagRequestPayload,
     SpecialistRequest,
 )
@@ -27,12 +28,14 @@ def frame_specialist_request(
             target_id=context.availability_target_id,
             follow_redirects=context.follow_redirects,
         )
+    elif decision.target == "navigation-specialist":
+        payload = PlaceLookupPayload(query_text=context.user_goal)
     else:
-        if context.requested_scope is None:
-            raise MissingRoutingInputError(
-                "requested_scope is required for knowledge requests"
-            )
-        payload = RagRequestPayload(scope=_copy_scope(context.requested_scope))
+        payload = (
+            RagRequestPayload(scope=_copy_scope(context.requested_scope))
+            if context.requested_scope is not None
+            else RagRequestPayload(scope=None)
+        )
 
     return SpecialistRequest(
         target=decision.target,

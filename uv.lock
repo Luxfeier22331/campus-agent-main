@@ -17,15 +17,17 @@ resolution-markers = [
 members = [
     "campus-agent-workspace",
     "campus-app-api",
+    "campus-authenticated-notice-collector",
     "campus-availability-specialist",
     "campus-contracts",
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-navigation-specialist",
+    "campus-official-web-collector",
+    "campus-official-web-core",
     "campus-protected-panel-web",
     "campus-public-chat-web",
-    "campus-public-consumer-chat",
-    "campus-public-entry-worker",
     "campus-rag-specialist",
     "campus-retrieval-core",
     "campus-shared",
@@ -270,6 +272,11 @@ dependencies = [
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
+name = "campus-authenticated-notice-collector"
+version = "0.1.0"
+source = { virtual = "apps/authenticated-notice-collector" }
+
+[[package]]
 name = "campus-availability-specialist"
 version = "0.1.0"
 source = { editable = "packages/availability-specialist" }
@@ -295,6 +302,7 @@ version = "0.1.0"
 source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
+    { name = "campus-shared" },
     { name = "httpx" },
     { name = "ragas" },
 ]
@@ -302,6 +310,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ragas", specifier = ">=0.4.3" },
 ]
@@ -317,7 +326,9 @@ dependencies = [
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-openai" },
     { name = "llama-index-vector-stores-qdrant" },
+    { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
     { name = "qdrant-client" },
     { name = "requests" },
     { name = "transformers" },
@@ -331,7 +342,9 @@ requires-dist = [
     { name = "llama-index-core", specifier = ">=0.14.18" },
     { name = "llama-index-embeddings-openai", specifier = ">=0.6.0" },
     { name = "llama-index-vector-stores-qdrant", specifier = ">=0.10.0" },
+    { name = "pillow", specifier = ">=12.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
+    { name = "psycopg-pool", specifier = ">=3.2.0" },
     { name = "qdrant-client", specifier = ">=1.17.1" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "transformers", specifier = ">=4.51.0" },
@@ -343,10 +356,35 @@ version = "0.1.0"
 source = { editable = "apps/ingestion-worker" }
 dependencies = [
     { name = "campus-ingestion-core" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "campus-ingestion-core", editable = "packages/ingestion-core" }]
+requires-dist = [
+    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-shared", editable = "packages/shared" },
+]
+
+[[package]]
+name = "campus-navigation-specialist"
+version = "0.1.0"
+source = { editable = "packages/navigation-specialist" }
+dependencies = [
+    { name = "campus-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
+
+[[package]]
+name = "campus-official-web-collector"
+version = "0.1.0"
+source = { virtual = "apps/official-web-collector" }
+
+[[package]]
+name = "campus-official-web-core"
+version = "0.1.0"
+source = { virtual = "packages/official-web-core" }
 
 [[package]]
 name = "campus-protected-panel-web"
@@ -365,28 +403,20 @@ version = "0.1.0"
 source = { virtual = "apps/public-chat-web" }
 
 [[package]]
-name = "campus-public-consumer-chat"
-version = "0.1.0"
-source = { virtual = "apps/public-consumer-chat" }
-
-[[package]]
-name = "campus-public-entry-worker"
-version = "0.1.0"
-source = { virtual = "apps/public-entry-worker" }
-
-[[package]]
 name = "campus-rag-specialist"
 version = "0.1.0"
 source = { editable = "packages/rag-specialist" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-retrieval-core" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]
@@ -416,6 +446,18 @@ requires-dist = [
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
+dependencies = [
+    { name = "campus-contracts" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
 
 [[package]]
 name = "campus-supervisor-api"
@@ -425,6 +467,8 @@ dependencies = [
     { name = "campus-contracts" },
     { name = "campus-shared" },
     { name = "campus-supervisor-core" },
+    { name = "httpx" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
@@ -432,6 +476,8 @@ requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "campus-supervisor-core", editable = "packages/supervisor-core" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
 ]
 
 [[package]]
@@ -441,14 +487,18 @@ source = { editable = "packages/supervisor-core" }
 dependencies = [
     { name = "campus-availability-specialist" },
     { name = "campus-contracts" },
+    { name = "campus-navigation-specialist" },
     { name = "campus-rag-specialist" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "campus-availability-specialist", editable = "packages/availability-specialist" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-navigation-specialist", editable = "packages/navigation-specialist" },
     { name = "campus-rag-specialist", editable = "packages/rag-specialist" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]
@@ -2196,6 +2246,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/2c/a4981bf42cf30ebba0424971d7ce70a222ae9b82594c42fc3f2105d7b525/psycopg_binary-3.3.3-cp314-cp314-musllinux_1_2_riscv64.whl", hash = "sha256:47f06fcbe8542b4d96d7392c476a74ada521c5aebdb41c3c0155f6595fc14c8d", size = 3944542, upload-time = "2026-02-18T16:52:04.266Z" },
     { url = "https://files.pythonhosted.org/packages/60/e9/b7c29b56aa0b85a4e0c4d89db691c1ceef08f46a356369144430c155a2f5/psycopg_binary-3.3.3-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:e7800e6c6b5dc4b0ca7cc7370f770f53ac83886b76afda0848065a674231e856", size = 4254339, upload-time = "2026-02-18T16:52:10.444Z" },
     { url = "https://files.pythonhosted.org/packages/98/5a/291d89f44d3820fffb7a04ebc8f3ef5dda4f542f44a5daea0c55a84abf45/psycopg_binary-3.3.3-cp314-cp314-win_amd64.whl", hash = "sha256:165f22ab5a9513a3d7425ffb7fcc7955ed8ccaeef6d37e369d6cc1dff1582383", size = 3652796, upload-time = "2026-02-18T16:52:14.02Z" },
+]
+
+[[package]]
+name = "psycopg-pool"
+version = "3.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/56/9a/9470d013d0d50af0da9c4251614aeb3c1823635cab3edc211e3839db0bcf/psycopg_pool-3.3.0.tar.gz", hash = "sha256:fa115eb2860bd88fce1717d75611f41490dec6135efb619611142b24da3f6db5", size = 31606, upload-time = "2025-12-01T11:34:33.11Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/c3/26b8a0908a9db249de3b4169692e1c7c19048a9bc41a4d3209cee7dbb758/psycopg_pool-3.3.0-py3-none-any.whl", hash = "sha256:2e44329155c410b5e8666372db44276a8b1ebd8c90f1c3026ebba40d4bc81063", size = 39995, upload-time = "2025-12-01T11:34:29.761Z" },
 ]
 
 [[package]]

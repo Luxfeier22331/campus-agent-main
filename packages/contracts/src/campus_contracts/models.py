@@ -6,11 +6,11 @@ from typing import Literal, TypeAlias
 
 AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
-SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated"]
+SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-SpecialistTarget = Literal["rag-specialist", "availability-specialist"]
-RequestedCapability = Literal["knowledge", "availability"]
+SpecialistTarget = Literal["rag-specialist", "availability-specialist", "navigation-specialist"]
+RequestedCapability = Literal["knowledge", "availability", "place_lookup"]
 SupervisorStatus = Literal[
     "completed",
     "needs_clarification",
@@ -21,15 +21,17 @@ SupervisorStatus = Literal[
 ]
 MemorySourceType = Literal["verified_record", "user_declared", "conversation_summary", "system_inferred"]
 MemoryVisibility = Literal["user_visible", "internal_only"]
+PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
+CoordinateReferenceSystem = Literal["EPSG:4326"]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
-ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated")
+ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
 DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_SPECIALIST_TARGETS = ("rag-specialist", "availability-specialist")
-ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "availability")
+ALLOWED_SPECIALIST_TARGETS = ("rag-specialist", "availability-specialist", "navigation-specialist")
+ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "availability", "place_lookup")
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
     "needs_clarification",
@@ -45,7 +47,11 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
     "system_inferred",
 )
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
+ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
+CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family"
+CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program"
+CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,10 +65,9 @@ class TraceContext:
 class ActorContext:
     user_id: str = ""
     principal_id: str = ""
+    principal_type: str = ""
     roles: tuple[str, ...] = field(default_factory=tuple)
     departments: tuple[str, ...] = field(default_factory=tuple)
-    groups: tuple[str, ...] = field(default_factory=tuple)
-    campus_scope: str | None = None
     cohort: str | None = None
     major: str | None = None
     program: str | None = None
@@ -99,6 +104,13 @@ class ProfileMemorySummary:
 
 
 @dataclass(frozen=True, slots=True)
+class CurriculumFollowUpSlots:
+    program_family: str = ""
+    program: str = ""
+    semester: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class SessionSlot:
     name: str
     value: str
@@ -120,32 +132,22 @@ class SessionSummary:
         if self.turn_count < 0:
             raise ValueError("turn_count must not be negative")
 
+    @property
+    def curriculum_follow_up(self) -> CurriculumFollowUpSlots:
+        return resolve_curriculum_follow_up_slots(self.confirmed_slots)
+
 
 @dataclass(frozen=True, slots=True)
 class AuthorizedRetrievalFilter:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_level: str = "public"
-    acl_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
-    campus_scope: str | None = None
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
 
     def __post_init__(self) -> None:
-        entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.acl_groups or self.entitlement_groups
-        visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.campus_scope or self.visibility_scope
         visibility_level = self.visibility_level.strip() or "public"
         policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
 
-        if entitlement_groups != self.entitlement_groups:
-            object.__setattr__(self, "entitlement_groups", entitlement_groups)
-        if acl_groups != self.acl_groups:
-            object.__setattr__(self, "acl_groups", acl_groups)
-        if visibility_scope != self.visibility_scope:
-            object.__setattr__(self, "visibility_scope", visibility_scope)
-        if campus_scope != self.campus_scope:
-            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
         if policy_projection_version != self.policy_projection_version:
@@ -155,6 +157,7 @@ class AuthorizedRetrievalFilter:
 @dataclass(frozen=True, slots=True)
 class AuthorizationProjection:
     principal_id: str = ""
+    projection_source: str = ""
     entitlement_snapshot_id: str = ""
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
@@ -177,6 +180,7 @@ class PersonalizationHint:
     actor_claim_terms: tuple[str, ...] = field(default_factory=tuple)
     recent_goal: str = ""
     confirmed_slot_terms: tuple[str, ...] = field(default_factory=tuple)
+    curriculum_follow_up: CurriculumFollowUpSlots = field(default_factory=CurriculumFollowUpSlots)
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,7 +218,6 @@ class EvidenceSource:
     version_id: str
     chunk_id: str
     anchor: dict[str, object]
-    acl_level: str
     canonical_url: str
     latest_url: str
     source_channel: SourceChannel
@@ -228,6 +231,10 @@ class EvidenceSource:
     content_role: str = ""
     detail_label: str = ""
     is_answer_bearing: bool = False
+    canonical_source_id: str = ""
+    canonical_source_title: str = ""
+    source_unit_kind: str = ""
+    source_unit_key: str = ""
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)
@@ -257,7 +264,74 @@ class ErrorInfo:
 
 @dataclass(frozen=True, slots=True)
 class RagRequestPayload:
-    scope: KnowledgeScope
+    scope: KnowledgeScope | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimSupport:
+    claim_type: str
+    claim_text: str
+    supported: bool
+    support_source_doc_id: str = ""
+    support_snippet: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.claim_type.strip():
+            raise ValueError("claim_type must not be empty")
+        if not self.claim_text.strip():
+            raise ValueError("claim_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class RagResultDiagnostics:
+    resolved_scope_corpus: AllowedCorpus | None = None
+    resolved_scope_collection: str = ""
+    resolved_policy_document_id: str = ""
+    resolved_policy_title: str = ""
+    rewritten_query: str = ""
+    clarification_reason: str = ""
+    no_answer_reason: str = ""
+    semantic_outcome: str = ""
+    retrieval_adequacy_verdict: str = ""
+    retrieval_adequacy_reason: str = ""
+    grounding_verdict: str = ""
+    grounding_downgraded: bool = False
+    freshness_fail_closed: bool = False
+    scope_class: str = ""
+    policy_reason: str = ""
+    retrieved_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    candidate_title_summary: tuple[str, ...] = field(default_factory=tuple)
+    resolution_mode: str = ""
+    used_verified_identity: bool = False
+    used_soft_preference: bool = False
+    resolved_entity_type: str = ""
+    resolved_course_id: str = ""
+    resolved_course_title: str = ""
+    resolved_course_family_id: str = ""
+    resolved_course_family_title: str = ""
+    resolved_program_family_id: str = ""
+    resolved_program_family_title: str = ""
+    session_program_family: str = ""
+    session_program: str = ""
+    session_semester: str = ""
+    claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
+    unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
+    partial_answer: bool = False
+    prompt_runtime_state: str = ""
+    prompt_runtime_detail: str = ""
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    prompt_trace: PromptTrace | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PromptTrace:
+    prompt_id: str = ""
+    prompt_version: str = ""
+    template_sha256: str = ""
+    variables_schema_version: str = ""
+    output_schema_version: str = ""
+    model_provider: str = ""
+    model_name: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,8 +345,116 @@ class AvailabilityCheckPayload:
 
 
 @dataclass(frozen=True, slots=True)
+class GeoPoint:
+    longitude: float
+    latitude: float
+
+    def __post_init__(self) -> None:
+        if not -180.0 <= self.longitude <= 180.0:
+            raise ValueError("longitude must be within [-180, 180]")
+        if not -90.0 <= self.latitude <= 90.0:
+            raise ValueError("latitude must be within [-90, 90]")
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceRef:
+    place_id: str
+    entity_type: PlaceEntityType
+    display_name: str
+    campus_scope: str
+    campus_area: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.place_id.strip():
+            raise ValueError("place_id must not be empty")
+        if self.entity_type not in ALLOWED_PLACE_ENTITY_TYPES:
+            raise ValueError(f"unsupported place entity_type: {self.entity_type}")
+        if not self.display_name.strip():
+            raise ValueError("display_name must not be empty")
+        if not self.campus_scope.strip():
+            raise ValueError("campus_scope must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceCard:
+    place: PlaceRef
+    location_description: str
+    landmark_hint: str = ""
+    access_note: str = ""
+    opening_note: str = ""
+    service_tags: tuple[str, ...] = field(default_factory=tuple)
+    point_geometry: GeoPoint | None = None
+    coordinate_reference_system: CoordinateReferenceSystem | str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.location_description.strip():
+            raise ValueError("location_description must not be empty")
+        if self.point_geometry is not None and not self.coordinate_reference_system.strip():
+            object.__setattr__(self, "coordinate_reference_system", "EPSG:4326")
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceCandidate:
+    place: PlaceRef
+    clarification_hint: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceLookupPayload:
+    query_text: str
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceLookupResult:
+    query_text: str
+    matched_alias: str = ""
+    resolved_place: PlaceRef | None = None
+    place_card: PlaceCard | None = None
+    candidate_places: tuple[PlaceCandidate, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class RagResultPayload:
     evidence: EvidenceBundle
+    diagnostics: RagResultDiagnostics | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SupervisorObservability:
+    retrieval_attempted: bool | None = None
+    candidate_count: int | None = None
+    retrieved_source_count: int | None = None
+    retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    citation_expected: bool | None = None
+    citation_count: int | None = None
+    citation_missing: bool | None = None
+    refusal_class: str = ""
+    semantic_outcome: str = ""
+    scope_class: str = ""
+    policy_reason: str = ""
+    acl_decision: str = ""
+    acl_anomaly_code: str = ""
+    fail_closed: bool | None = None
+    model_provider: str = ""
+    model_name: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    estimated_cost_microusd: int | None = None
+    resolved_scope_corpus: AllowedCorpus | None = None
+    resolved_scope_collection: str = ""
+    prompt_runtime_state: str = ""
+    prompt_runtime_detail: str = ""
+    prompt_trace: PromptTrace | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -321,7 +503,7 @@ class SupervisorRequest:
 class SpecialistRequest:
     target: SpecialistTarget
     user_goal: str
-    payload: RagRequestPayload | AvailabilityCheckPayload
+    payload: RagRequestPayload | AvailabilityCheckPayload | PlaceLookupPayload
     conversation_id: str = ""
     request_id: str = ""
     trace: TraceContext = field(default_factory=TraceContext)
@@ -343,7 +525,7 @@ class SpecialistResponse:
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
-    result: RagResultPayload | AvailabilityObservation | None = None
+    result: RagResultPayload | AvailabilityObservation | PlaceLookupResult | None = None
     error: ErrorInfo | None = None
 
     def __post_init__(self) -> None:
@@ -362,8 +544,9 @@ class SupervisorResponse:
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
-    result: RagResultPayload | AvailabilityObservation | None = None
+    result: RagResultPayload | AvailabilityObservation | PlaceLookupResult | None = None
     error: ErrorInfo | None = None
+    observability: SupervisorObservability | None = None
 
     def __post_init__(self) -> None:
         if self.selected_target is not None and self.selected_target not in ALLOWED_SPECIALIST_TARGETS:
@@ -383,10 +566,7 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
         object.__setattr__(
             request,
             "context",
-            ContextProjection(
-                actor=request.actor,
-                authorization=_build_authorization_projection_from_actor(request.actor),
-            ),
+            ContextProjection(actor=request.actor),
         )
         return
     if request.actor == default_actor:
@@ -394,23 +574,6 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
         return
     if request.actor != request.context.actor:
         raise ValueError("actor and context.actor must match")
-
-
-def _build_authorization_projection_from_actor(actor: ActorContext) -> AuthorizationProjection:
-    if actor == ActorContext():
-        return AuthorizationProjection()
-    principal_id = actor.principal_id or actor.user_id
-    return AuthorizationProjection(
-        principal_id=principal_id,
-        entitlement_groups=actor.groups,
-        visibility_scope=actor.campus_scope,
-        retrieval_filter=AuthorizedRetrievalFilter(
-            entitlement_groups=actor.groups,
-            visibility_scope=actor.campus_scope,
-            acl_groups=actor.groups,
-            campus_scope=actor.campus_scope,
-        ),
-    )
 
 
 def _validate_corpus(corpus: str) -> None:
@@ -428,6 +591,31 @@ def _validate_collection_scope(corpus: str, collection: str) -> None:
         raise ValueError("corpus is required")
     if not collection.strip():
         raise ValueError("collection is required")
+
+
+def resolve_curriculum_follow_up_slots(
+    confirmed_slots: tuple[SessionSlot, ...],
+) -> CurriculumFollowUpSlots:
+    program_family = ""
+    program = ""
+    semester = ""
+    for slot in confirmed_slots:
+        if not slot.confirmed:
+            continue
+        value = slot.value.strip()
+        if not value:
+            continue
+        if slot.name == CURRICULUM_PROGRAM_FAMILY_SLOT_NAME:
+            program_family = value
+        elif slot.name == CURRICULUM_PROGRAM_SLOT_NAME:
+            program = value
+        elif slot.name == CURRICULUM_SEMESTER_SLOT_NAME:
+            semester = value
+    return CurriculumFollowUpSlots(
+        program_family=program_family,
+        program=program,
+        semester=semester,
+    )
 
 
 def _validate_revision_track(revision_track: str) -> None:
