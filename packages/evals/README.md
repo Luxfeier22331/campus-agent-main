@@ -15,10 +15,11 @@ Evaluation helpers for campus-agent v2.
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
 - curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
 - curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
+- curriculum program + semester 课表问句现在额外有一条 internal `program_semester_facts` serving surface：像 `法学民族班培养方案里大二下有什么课` 这类 resolved single-doc + semester course-list 问句应优先切到这个 collection，而不是继续依赖 raw `curriculum_plan` table chunks
 - `民族实验班有哪些`、`强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在也属于固定 program-family completed lanes；full alias 与显式 name-pattern 问句都不能再退回 doc-level qrels truth
 - `习概有哪些专业要上`、`习概第几学期开`、`习概开设学期`、`思政课有哪些专业要上`、`思政课包括哪些课`、`思政课程包括哪些课`、`思政课第几学期开`、`思政第几学期开`、`思政课程第几学期开`、`思修课第几学期开` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
 - `民族班有哪些`、`民族实验班有哪些`、`基地班有哪些`、`强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学位有哪些专业`、`第二学士学位有哪些专业`、`实验班有哪些`、`创新班有哪些`、`创新实验班有哪些`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在都属于固定 program-family completed lanes；其中 full alias 与显式 name-pattern query 也必须持续留在 regression gate
-- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
+- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts/program_semester_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
 - retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` / `思政` / `思政课程` 这类 course-family alias，以及 `民族班有哪些` / `民族实验班有哪些` / `基地班有哪些` / `强基有哪些专业` / `强基计划有哪些专业` / `二学位有哪些专业` / `第二学位有哪些专业` / `第二学士学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` / `名称里带实验班的培养方案有哪些` / `名称里带创新班的培养方案有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
 - `我这个专业的实验班大二下有什么课` 这类 deictic curriculum 问句仍然不应因为 generic family alias 而静默落单 doc；当前正确行为依旧是 clarification-first
 - deictic curriculum truth 现在固定为：只有 `verified major + unique candidate` 才允许像 `我这个专业的基地班大二下有什么课` 这样的问题进入 single-doc completed lane
@@ -78,7 +79,8 @@ ragas runtime：
 - low-level helper 仍保留 `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark ownership
 - ragas model 现在只接受 `EVAL_RAGAS_MODEL`
 - judge model 现在只接受 `EVAL_JUDGE_MODEL`，未单独配置时回退到 `EVAL_RAGAS_MODEL`
-- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；其中 ragas LLM 固定走 text-first `/responses`，rubric judge 才保留 structured `/responses`，实现边界固定在 `campus_evals.supplemental_http`
+- eval LLM transport 现在显式由 `EVAL_LLM_TRANSPORT` 持有，并允许 `EVAL_RAGAS_LLM_TRANSPORT` / `EVAL_JUDGE_LLM_TRANSPORT` 做 surface override；允许值固定为 `responses` 或 `chat_completions`
+- 默认运行面仍走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`；LLM transport 会按当前 env 对 OpenAI-compatible `/responses` 或 `/chat/completions` 发原生 HTTP 请求，embeddings 固定走 `/embeddings`，实现边界固定在 `campus_evals.supplemental_http`
 - `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
 - 若需要针对某类 benchmark profile 单独调整 pacing，应修改 repo-tracked profile config，而不是再向 root `.env` 添加新键
@@ -86,9 +88,9 @@ ragas runtime：
 - preflight 现在承担 run-level availability gate：
   - `transient_retryable` / `hard_unavailable` 会把对应 supplemental adapter 标成 `skip_adapter`
   - `non_retryable_request` 会在写出 `supplemental-preflight.json` 后直接中止 benchmark，避免继续生成误导性 0 分 artifact
-- ragas preflight 只探测 text `/responses` + `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
+- ragas preflight 只探测当前选中 LLM transport 的 text endpoint 加 `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
 - preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker / preflight cache 置入 fast-fail 状态
-- Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
+- judge/ragas LLM payload 都支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现

@@ -42,7 +42,11 @@ from campus_retrieval_core.backend_qdrant import (
     _build_metadata_filters,
     _prefer_curriculum_semester_course_list_sources,
 )
-from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
+from campus_retrieval_core.evidence_ranking import (
+    prioritize_evidence_sources,
+    query_targets_source_title,
+    select_supporting_evidence_sources,
+)
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import (
     RetrievalSettings,
@@ -128,6 +132,7 @@ def _make_runtime_profile(
     rrf_dense_weight: float = 1.0,
     rrf_sparse_weight: float = 1.0,
     document_support_limit: int = 24,
+    document_support_strategy: str = "followup_query",
     embedding_query_instruction: str = (
         "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
     ),
@@ -155,6 +160,7 @@ def _make_runtime_profile(
         rrf_dense_weight=rrf_dense_weight,
         rrf_sparse_weight=rrf_sparse_weight,
         document_support_limit=document_support_limit,
+        document_support_strategy=document_support_strategy,
         embedding_query_instruction=embedding_query_instruction,
         no_hit_min_top_score=0.6,
         no_hit_min_score_gap=0.1,
@@ -2728,6 +2734,57 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "curriculum:economics-innovation:chunk-0023")
 
+    def test_select_supporting_evidence_sources_fail_closes_course_map_lookup(self) -> None:
+        selected = select_supporting_evidence_sources(
+            query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            max_sources=3,
+            sources=(
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0023",
+                    snippet="六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                    score=0.99,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "六、课程地图"),
+                    content_kind="section_text",
+                    detail_label="六、课程地图",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0014",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
+                    score=0.98,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0015",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 发展经济学专题。",
+                    score=0.97,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0013",
+                    snippet="五、课程设置和修读建议 1. 专业核心课程 专业核心课程 30 学分。",
+                    score=0.96,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        self.assertEqual(selected, ())
+
     def test_prioritize_evidence_sources_does_not_force_shortest_title_for_ambiguous_ethnic_experimental_fragment(self) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族实验班",
@@ -3449,6 +3506,69 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(sources[0].detail_label, "第十二条")
         self.assertTrue(sources[0].is_answer_bearing)
 
+    def test_build_evidence_sources_maps_canonical_parent_and_semester_unit_metadata(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=Mock(),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        sources = backend._build_evidence_sources(
+            (
+                qdrant_models.ScoredPoint(
+                    id="point-program-semester-fact",
+                    version=0,
+                    score=0.93,
+                    payload={
+                        "document_id": "program_semester_facts:law-ethnic-experimental:semester-4",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:law-ethnic-experimental:semester-4",
+                        "chunk_id": "program_semester_facts:law-ethnic-experimental:semester-4:row-0001",
+                        "collection": "program_semester_facts",
+                        "visibility_level": "public",
+                        "canonical_url": "https://campus.example/curriculum/law-ethnic-experimental",
+                        "latest_url": "https://campus.example/curriculum/law-ethnic-experimental",
+                        "source_channel": "pdf_ocr",
+                        "is_current": False,
+                        "source_title": "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                        "content_kind": "program_semester_fact",
+                        "content_role": "semester_course_list",
+                        "detail_label": "第四学期课程",
+                        "is_answer_bearing": True,
+                        "source_doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                        "source_doc_title": "法学（民族实验班）本科人才培养方案",
+                        "semester_label": "第四学期",
+                        "semester_index": "4",
+                        "anchor": {
+                            "fact_type": "semester_course_list",
+                            "section_path": ["法学（民族实验班）本科人才培养方案", "第四学期"],
+                            "detail_label": "第四学期课程",
+                        },
+                        "text": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
+                    },
+                ),
+            )
+        )
+
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(
+            sources[0].canonical_source_id,
+            "curriculum:法学（民族实验班）本科人才培养方案",
+        )
+        self.assertEqual(
+            sources[0].canonical_source_title,
+            "法学（民族实验班）本科人才培养方案",
+        )
+        self.assertEqual(sources[0].source_unit_kind, "semester_course_list")
+        self.assertEqual(sources[0].source_unit_key, "semester-4")
+
     def test_build_evidence_sources_infers_curriculum_table_fact_when_runtime_payload_omits_unit_metadata(self) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
@@ -3849,6 +3969,341 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn(
             "curriculum:历史学（强基计划）本科人才培养方案:chunk-0014",
             tuple(source.chunk_id for source in result.sources),
+        )
+
+    def test_backend_targeted_overfetch_strategy_avoids_followup_support_query(self) -> None:
+        embedding_model = Mock()
+        embedding_model.get_query_embedding.return_value = (0.1, 0.2, 0.3)
+        sparse_embedding_model = Mock()
+        sparse_embedding_model.build_query.return_value = "sparse-targeted"
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-law-0010",
+                    version=0,
+                    score=0.61,
+                    payload={
+                        "document_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:law-ethnic-class",
+                        "chunk_id": "curriculum:法学（民族实验班）本科人才培养方案:chunk-0010",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/law-ethnic-class",
+                        "canonical_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "latest_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "法学（民族实验班）本科人才培养方案",
+                                "五、课程设置和修读建议",
+                                "(二)专业教育",
+                                "1. 专业核心课程",
+                            ]
+                        },
+                        "text": (
+                            "法学（民族实验班）本科人才培养方案\n"
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                            "专业核心课 | 1038030011 | 宪法学 | 3 | 54 | / | 4"
+                        ),
+                    },
+                ),
+                qdrant_models.ScoredPoint(
+                    id="point-law-0014",
+                    version=0,
+                    score=0.6,
+                    payload={
+                        "document_id": "curriculum:法学（民族实验班）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:law-ethnic-class",
+                        "chunk_id": "curriculum:法学（民族实验班）本科人才培养方案:chunk-0014",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/law-ethnic-class",
+                        "canonical_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "latest_url": "https://campus.example/curriculum/law-ethnic-class",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "法学（民族实验班）本科人才培养方案",
+                                "五、课程设置和修读建议",
+                                "(二)专业教育",
+                                "2. 专业选修课程",
+                            ]
+                        },
+                        "text": (
+                            "法学（民族实验班）本科人才培养方案\n"
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                            "专业选修课 | 1038030012 | 刑法学 | 3 | 54 | / | 4"
+                        ),
+                    },
+                ),
+            ]
+        )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=_make_runtime_profile(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                retrieval_top_k=5,
+                current_only=False,
+                serving_revision_tracks=("source-faithful",),
+                document_support_limit=24,
+                document_support_strategy="targeted_overfetch",
+            ),
+        ):
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="法学民族班培养方案里大二下有什么课？",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    target_document_ids=("curriculum:法学（民族实验班）本科人才培养方案",),
+                    top_k=5,
+                )
+            )
+
+        self.assertEqual(qdrant_client.query_points.call_count, 1)
+        qdrant_client.scroll.assert_not_called()
+        self.assertEqual(qdrant_client.query_points.call_args.kwargs["limit"], 24)
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.sources),
+            (
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0010",
+                "curriculum:法学（民族实验班）本科人才培养方案:chunk-0014",
+            ),
+        )
+
+    def test_backend_targeted_overfetch_curriculum_title_target_query_recovers_same_doc_support_when_initial_results_are_too_narrow(self) -> None:
+        embedding_model = Mock()
+        embedding_model.get_query_embedding.side_effect = (
+            (0.1, 0.2, 0.3),
+            (0.4, 0.5, 0.6),
+        )
+        sparse_embedding_model = Mock()
+        sparse_embedding_model.build_query.side_effect = ("sparse-initial", "sparse-focused")
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.query_points.side_effect = (
+            qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="point-map-0023",
+                        version=0,
+                        score=0.63,
+                        payload={
+                            "document_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:economics-innovation",
+                            "chunk_id": "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0023",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/economics-innovation",
+                            "canonical_url": "https://campus.example/curriculum/economics-innovation",
+                            "latest_url": "https://campus.example/curriculum/economics-innovation",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {
+                                "section_path": [
+                                    "经济学拔尖人才创新班人才培养方案",
+                                    "六、课程地图",
+                                ]
+                            },
+                            "detail_label": "六、课程地图",
+                            "content_kind": "section_text",
+                            "content_role": "lead_overview",
+                            "is_answer_bearing": True,
+                            "text": "六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                        },
+                    ),
+                ]
+            ),
+            qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="point-map-0023",
+                        version=0,
+                        score=0.63,
+                        payload={
+                            "document_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:economics-innovation",
+                            "chunk_id": "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0023",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/economics-innovation",
+                            "canonical_url": "https://campus.example/curriculum/economics-innovation",
+                            "latest_url": "https://campus.example/curriculum/economics-innovation",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {
+                                "section_path": [
+                                    "经济学拔尖人才创新班人才培养方案",
+                                    "六、课程地图",
+                                ]
+                            },
+                            "detail_label": "六、课程地图",
+                            "content_kind": "section_text",
+                            "content_role": "lead_overview",
+                            "is_answer_bearing": True,
+                            "text": "六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                        },
+                    ),
+                    qdrant_models.ScoredPoint(
+                        id="point-core-0013",
+                        version=0,
+                        score=0.6,
+                        payload={
+                            "document_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:economics-innovation",
+                            "chunk_id": "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0013",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/economics-innovation",
+                            "canonical_url": "https://campus.example/curriculum/economics-innovation",
+                            "latest_url": "https://campus.example/curriculum/economics-innovation",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {
+                                "section_path": [
+                                    "经济学拔尖人才创新班人才培养方案",
+                                    "五、课程设置和修读建议",
+                                    "(二) 专业教育",
+                                    "1. 专业核心课程",
+                                ]
+                            },
+                            "detail_label": "1. 专业核心课程",
+                            "content_kind": "table_unit",
+                            "content_role": "table_fact",
+                            "is_answer_bearing": True,
+                            "text": (
+                                "五、课程设置和修读建议\n"
+                                "(二) 专业教育\n"
+                                "1. 专业核心课程\n"
+                                "专业核心课程 30 学分。\n"
+                                "课程清单如下:\n"
+                                "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                                "1034040237 | 中级宏观经济学 | 3 | 54 | / | 4"
+                            ),
+                        },
+                    ),
+                    qdrant_models.ScoredPoint(
+                        id="point-elective-0014",
+                        version=0,
+                        score=0.59,
+                        payload={
+                            "document_id": "curriculum:经济学拔尖人才创新班人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:economics-innovation",
+                            "chunk_id": "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0014",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/economics-innovation",
+                            "canonical_url": "https://campus.example/curriculum/economics-innovation",
+                            "latest_url": "https://campus.example/curriculum/economics-innovation",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {
+                                "section_path": [
+                                    "经济学拔尖人才创新班人才培养方案",
+                                    "五、课程设置和修读建议",
+                                    "(二) 专业教育",
+                                    "2. 专业选修课程",
+                                ]
+                            },
+                            "detail_label": "2. 专业选修课程",
+                            "content_kind": "table_unit",
+                            "content_role": "table_fact",
+                            "is_answer_bearing": True,
+                            "text": (
+                                "五、课程设置和修读建议\n"
+                                "(二) 专业教育\n"
+                                "2. 专业选修课程\n"
+                                "专业选修课程至少任选 7 门课程,完成 14 学分。"
+                            ),
+                        },
+                    ),
+                ]
+            ),
+        )
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=_make_runtime_profile(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                retrieval_top_k=5,
+                current_only=False,
+                serving_revision_tracks=("source-faithful",),
+                document_support_limit=24,
+                document_support_strategy="targeted_overfetch",
+            ),
+        ):
+            result = backend.retrieve(
+                RetrievalRequest(
+                    query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    target_document_ids=("curriculum:经济学拔尖人才创新班人才培养方案",),
+                    top_k=5,
+                )
+            )
+
+        self.assertEqual(qdrant_client.query_points.call_count, 2)
+        self.assertEqual(qdrant_client.query_points.call_args_list[0].kwargs["limit"], 24)
+        self.assertEqual(qdrant_client.query_points.call_args_list[1].kwargs["limit"], 24)
+        self.assertEqual(embedding_model.get_query_embedding.call_count, 2)
+        self.assertEqual(sparse_embedding_model.build_query.call_count, 2)
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.sources),
+            (
+                "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0023",
+                "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0013",
+                "curriculum:经济学拔尖人才创新班人才培养方案:chunk-0014",
+            ),
         )
 
     def test_backend_prioritizes_same_doc_course_list_chunks_over_other_semester_tables(self) -> None:

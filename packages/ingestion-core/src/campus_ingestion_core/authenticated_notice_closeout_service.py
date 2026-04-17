@@ -47,8 +47,11 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     read_authenticated_notice_source_projections_config_path,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    HIGH_RISK_NOTICE_LABELS,
     AuthenticatedNoticeSourceTruthInventoryStore,
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+    _aggregate_notice_risk_counts,
+    _derive_notice_risk_label,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.registry import (
@@ -139,13 +142,23 @@ class AuthenticatedNoticeCloseoutService:
         source = env if env is not None else dict(os.environ)
         settings = ObjectStoreSettings.from_env(source)
         return cls(
-            closeout_store=build_authenticated_notice_closeout_store_from_env(source),
+            closeout_store=build_authenticated_notice_closeout_store_from_env(
+                source,
+                prefer_management=True,
+            ),
             object_store=CloseoutS3ObjectStore(settings),
             object_store_settings=settings,
-            document_registry=build_document_registry_from_env(source),
-            raw_asset_registry=build_raw_asset_registry_from_env(source),
+            document_registry=build_document_registry_from_env(
+                source,
+                prefer_management=True,
+            ),
+            raw_asset_registry=build_raw_asset_registry_from_env(
+                source,
+                prefer_management=True,
+            ),
             source_truth_inventory_store=build_authenticated_notice_source_truth_inventory_store_from_env(
-                source
+                source,
+                prefer_management=True,
             ),
             planner=planner,
         )
@@ -313,6 +326,9 @@ class AuthenticatedNoticeCloseoutService:
             "run_id": run.run_id,
             "state": run.state.value,
             "input_kind": run.input_kind,
+            "selected_notice_ids": list(run.selected_notice_ids),
+            "notice_risk_counts": dict(run.notice_risk_counts),
+            "high_risk_notice_count": run.high_risk_notice_count,
             "expected_notice_count": run.expected_notice_count,
             "expected_document_count": (
                 run.expected_document_count or run.expected_notice_count
@@ -399,6 +415,7 @@ class AuthenticatedNoticeCloseoutService:
         parents = []
         required_attachment_document_count = 0
         ocr_candidate_count = 0
+        notice_risk_counts: dict[str, int] = {}
         for parent in tuple(payload.get("parents") or ()):
             parent_source_truth = _load_parent_source_truth_from_snapshot(
                 parent_snapshot=dict(parent),
@@ -411,6 +428,9 @@ class AuthenticatedNoticeCloseoutService:
                     parent_document_id=parent_source_truth.record.document_id,
                     attachment_refs=parent_source_truth.attachment_refs,
                     config=config,
+                    object_store=self.object_store,
+                    object_store_settings=self.object_store_settings,
+                    parent_record=parent_source_truth.record,
                 )
             ]
             required_documents = [
@@ -429,6 +449,11 @@ class AuthenticatedNoticeCloseoutService:
                 if str(plan.get("materialization_policy") or "")
                 == "conditional_on_extracted_text"
             )
+            manual_review_required_count = sum(
+                1
+                for plan in attachment_projection_plans
+                if str(plan.get("materialization_policy") or "") == "manual_review"
+            )
             required_attachment_document_count += len(required_documents)
             ocr_candidate_count += parent_ocr_candidate_count
             parent_payload = dict(parent)
@@ -437,14 +462,57 @@ class AuthenticatedNoticeCloseoutService:
             parent_payload["attachment_document_count"] = len(required_documents)
             parent_payload["text_extractable_count"] = text_extractable_count
             parent_payload["ocr_required_count"] = parent_ocr_candidate_count
+            parent_payload["manual_review_required_count"] = manual_review_required_count
             parent_payload["reference_only_count"] = max(
                 len(parent_source_truth.attachment_refs)
                 - text_extractable_count
-                - parent_ocr_candidate_count,
+                - parent_ocr_candidate_count
+                - manual_review_required_count,
                 0,
+            )
+            parent_payload["attachment_ref_count"] = len(parent_source_truth.attachment_refs)
+            parent_payload["has_text_table_attachment"] = (
+                text_extractable_count > 0 or parent_ocr_candidate_count > 0
+            )
+            parent_payload["has_spatial_attachment"] = manual_review_required_count > 0
+            parent_payload["has_reference_only_attachment"] = (
+                parent_payload["reference_only_count"] > 0
+            )
+            attachment_lane_count = sum(
+                1
+                for count in (
+                    text_extractable_count,
+                    parent_ocr_candidate_count,
+                    manual_review_required_count,
+                    int(parent_payload["reference_only_count"]),
+                )
+                if count > 0
+            )
+            parent_payload["attachment_mix_score"] = int(
+                parent_payload["attachment_ref_count"]
+            ) + max(0, attachment_lane_count - 1)
+            notice_risk_label = _derive_notice_risk_label(
+                attachment_ref_count=int(parent_payload["attachment_ref_count"]),
+                has_text_table_attachment=bool(parent_payload["has_text_table_attachment"]),
+                has_spatial_attachment=bool(parent_payload["has_spatial_attachment"]),
+                has_reference_only_attachment=bool(
+                    parent_payload["has_reference_only_attachment"]
+                ),
+            )
+            parent_payload["notice_risk_label"] = notice_risk_label
+            notice_risk_counts[notice_risk_label] = (
+                notice_risk_counts.get(notice_risk_label, 0) + 1
             )
             parents.append(parent_payload)
         notice_count = len(parents)
+        aggregated_notice_risk_counts = _aggregate_notice_risk_counts(
+            label for label, count in notice_risk_counts.items() for _ in range(count)
+        )
+        high_risk_notice_count = sum(
+            count
+            for label, count in aggregated_notice_risk_counts.items()
+            if label in HIGH_RISK_NOTICE_LABELS
+        )
         self.object_store.put_bytes(
             bucket=self.object_store_settings.bucket_derived,
             key=inventory_key,
@@ -452,6 +520,12 @@ class AuthenticatedNoticeCloseoutService:
                 {
                     "run_id": run.run_id,
                     "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                    "selected_notice_ids": list(
+                        payload.get("selected_notice_ids")
+                        or [str(parent["notice_id"]) for parent in parents]
+                    ),
+                    "notice_risk_counts": aggregated_notice_risk_counts,
+                    "high_risk_notice_count": high_risk_notice_count,
                     "site_id": payload["site_id"],
                     "source_home_url": payload["source_home_url"],
                     "embedding_model": payload["embedding_model"],
@@ -470,6 +544,8 @@ class AuthenticatedNoticeCloseoutService:
         )
         refreshed_run = replace(
             run,
+            notice_risk_counts=aggregated_notice_risk_counts,
+            high_risk_notice_count=high_risk_notice_count,
             expected_document_count=notice_count + required_attachment_document_count,
             expected_attachment_document_count=required_attachment_document_count,
             expected_ocr_candidate_count=ocr_candidate_count,
@@ -482,6 +558,8 @@ class AuthenticatedNoticeCloseoutService:
             {
                 "run_id": run.run_id,
                 "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "notice_risk_counts": aggregated_notice_risk_counts,
+                "high_risk_notice_count": high_risk_notice_count,
                 "expected_notice_count": notice_count,
                 "expected_document_count": notice_count + required_attachment_document_count,
                 "expected_attachment_document_count": required_attachment_document_count,

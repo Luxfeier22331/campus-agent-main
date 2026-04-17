@@ -76,9 +76,9 @@
 
 与本 package 当前边界直接相关的验证包括：
 
-- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_core.py -q`
-- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_routing.py -q`
-- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_validation.py -q`
-- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_query_policy.py -q`
-- `uv run --all-packages python -m pytest tests/supervisor/test_supervisor_policy.py -q`
-- `uv run --all-packages python -m pytest tests/api/test_supervisor_api.py -q`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core -q`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_routing -q`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_validation -q`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_query_policy -q`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_policy -q`
+- `uv run --all-packages python -m unittest tests.api.test_supervisor_api -q`

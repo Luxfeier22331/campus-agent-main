@@ -10,10 +10,24 @@ import {
   resolveTracePropagationHeaders,
   type TracePropagationHeaders,
 } from "../telemetry/trace";
+import {
+  summarizeObservedSources,
+  type ObservedSourceTraceEntry,
+} from "../source-trace";
 
 export interface RequestedScope {
   corpus: string;
   collection: string;
+}
+
+export interface SupervisorPromptTrace {
+  modelName: string | null;
+  modelProvider: string | null;
+  outputSchemaVersion: string | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  templateSha256: string | null;
+  variablesSchemaVersion: string | null;
 }
 
 export interface SupervisorProfileMemoryItem {
@@ -76,10 +90,14 @@ export interface SupervisorExecutionObservability {
   modelProvider: string | null;
   outputTokens: number | null;
   policyReason?: string | null;
+  promptRuntimeDetail?: string | null;
+  promptRuntimeState?: string | null;
+  promptTrace?: SupervisorPromptTrace | null;
   resolvedScopeCollection?: string | null;
   resolvedScopeCorpus?: string | null;
   refusalClass: string | null;
   retrievedSourceCount: number | null;
+  retrievedSources?: ObservedSourceTraceEntry[] | null;
   retrievalAttempted: boolean | null;
   scopeClass?: string | null;
   semanticOutcome?: string | null;
@@ -299,6 +317,29 @@ function normalizeNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
+  const record = getRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const parsed: SupervisorPromptTrace = {
+    modelName: normalizeNullableString(record.model_name),
+    modelProvider: normalizeNullableString(record.model_provider),
+    outputSchemaVersion: normalizeNullableString(record.output_schema_version),
+    promptId: normalizeNullableString(record.prompt_id),
+    promptVersion: normalizeNullableString(record.prompt_version),
+    templateSha256: normalizeNullableString(record.template_sha256),
+    variablesSchemaVersion: normalizeNullableString(record.variables_schema_version),
+  };
+
+  if (Object.values(parsed).every((item) => item === null)) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function parseExecutionObservability(
   value: unknown,
 ): SupervisorExecutionObservability | null {
@@ -309,6 +350,15 @@ function parseExecutionObservability(
 
   const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
   const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
+  const rawRetrievedSources =
+    "retrieved_sources" in record ? record.retrieved_sources : record.retrievedSources;
+  const hasRetrievedSourcesTrace = Array.isArray(rawRetrievedSources);
+  const retrievedSources = summarizeObservedSources(rawRetrievedSources);
+  const retrievalAttempted = normalizeNullableBoolean(record.retrieval_attempted);
+  const explicitRetrievedSourceCount = normalizeNullableNumber(record.retrieved_source_count);
+  const retrievedSourceCount =
+    explicitRetrievedSourceCount ??
+    (retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
   const parsed: SupervisorExecutionObservability = {
     aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
     aclDecision: normalizeNullableString(record.acl_decision),
@@ -324,9 +374,13 @@ function parseExecutionObservability(
     modelProvider: normalizeNullableString(record.model_provider),
     outputTokens: normalizeNullableNumber(record.output_tokens),
     policyReason: normalizeNullableString(record.policy_reason),
+    promptRuntimeDetail: normalizeNullableString(record.prompt_runtime_detail),
+    promptRuntimeState: normalizeNullableString(record.prompt_runtime_state),
+    promptTrace: parsePromptTrace(record.prompt_trace),
     refusalClass: normalizeNullableString(record.refusal_class),
-    retrievedSourceCount: normalizeNullableNumber(record.retrieved_source_count),
-    retrievalAttempted: normalizeNullableBoolean(record.retrieval_attempted),
+    retrievedSourceCount,
+    ...(hasRetrievedSourcesTrace ? { retrievedSources } : {}),
+    retrievalAttempted,
     scopeClass: normalizeNullableString(record.scope_class),
     semanticOutcome: normalizeNullableString(record.semantic_outcome),
     ...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),

@@ -1,6 +1,12 @@
 import type { ResolvedAppPrincipal } from "./auth";
 import type { RequestedScope, SupervisorExecutionResponse } from "./integration";
-import type { RequestDiagnosticsSummary } from "./request-diagnostics";
+import type {
+  RequestClaimSupportSummary,
+  RequestDiagnosticsSummary,
+} from "./request-diagnostics";
+import {
+  extractObservedSourcesFromResult,
+} from "./source-trace";
 import type { RequestExecutionStatus, RequestObservabilityFactWrite } from "./runtime-command/store";
 
 function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
@@ -46,7 +52,13 @@ function normalizeFailClosed(input: {
   if (input.status === "approval_required" || input.status === "rejected") {
     return true;
   }
-  if (input.diagnostics?.noAnswerReason === "restricted_access_denied") {
+  const semanticOutcome = normalizeSemanticOutcome(input);
+  if (
+    semanticOutcome === "restricted_access_denied" ||
+    semanticOutcome === "out_of_scope" ||
+    semanticOutcome === "unsupported_by_evidence" ||
+    semanticOutcome === "freshness_fail_close"
+  ) {
     return true;
   }
 
@@ -54,11 +66,18 @@ function normalizeFailClosed(input: {
 }
 
 function normalizeRefusalClass(
+  diagnostics: RequestDiagnosticsSummary | null,
   response: SupervisorExecutionResponse,
   status: RequestExecutionStatus,
 ): string | null {
   if (response.observability?.refusalClass) {
     return response.observability.refusalClass;
+  }
+  if (diagnostics?.semanticOutcome === "out_of_scope" || diagnostics?.scopeClass === "out_of_scope") {
+    return "out_of_scope";
+  }
+  if (diagnostics?.noAnswerReason === "out_of_scope") {
+    return "out_of_scope";
   }
   if (
     status === "needs_clarification" ||
@@ -72,6 +91,28 @@ function normalizeRefusalClass(
   return null;
 }
 
+function deriveSemanticOutcomeFromDiagnostics(
+  diagnostics: RequestDiagnosticsSummary | null,
+): string | null {
+  if (!diagnostics) {
+    return null;
+  }
+  if (diagnostics.semanticOutcome) {
+    return diagnostics.semanticOutcome;
+  }
+  if (diagnostics.scopeClass === "out_of_scope" || diagnostics.noAnswerReason === "out_of_scope") {
+    return "out_of_scope";
+  }
+  if (diagnostics.noAnswerReason === "restricted_access_denied") {
+    return "restricted_access_denied";
+  }
+  if (diagnostics.groundingDowngraded === true) {
+    return "unsupported_by_evidence";
+  }
+
+  return null;
+}
+
 function normalizeSemanticOutcome(input: {
   diagnostics: RequestDiagnosticsSummary | null;
   response: SupervisorExecutionResponse;
@@ -80,8 +121,9 @@ function normalizeSemanticOutcome(input: {
   if (input.response.observability?.semanticOutcome) {
     return input.response.observability.semanticOutcome;
   }
-  if (input.diagnostics?.semanticOutcome) {
-    return input.diagnostics.semanticOutcome;
+  const diagnosticsSemanticOutcome = deriveSemanticOutcomeFromDiagnostics(input.diagnostics);
+  if (diagnosticsSemanticOutcome) {
+    return diagnosticsSemanticOutcome;
   }
   if (input.status === "completed") {
     return "grounded_answer";
@@ -153,6 +195,24 @@ function normalizePolicyReason(input: {
   return null;
 }
 
+function normalizeRetrievalAdequacyVerdict(
+  diagnostics: RequestDiagnosticsSummary | null,
+): string | null {
+  return diagnostics?.retrievalAdequacyVerdict ?? null;
+}
+
+function normalizeRetrievalAdequacyReason(
+  diagnostics: RequestDiagnosticsSummary | null,
+): string | null {
+  return diagnostics?.retrievalAdequacyReason ?? null;
+}
+
+function normalizeClaimSupportSummary(
+  diagnostics: RequestDiagnosticsSummary | null,
+): RequestClaimSupportSummary | null {
+  return diagnostics?.claimSupportSummary ?? null;
+}
+
 export function buildAcceptedRequestObservabilityFact(input: {
   conversationId: string;
   principal: ResolvedAppPrincipal;
@@ -169,6 +229,9 @@ export function buildAcceptedRequestObservabilityFact(input: {
     aclDecision: null,
     cachedInputTokens: null,
     candidateCount: null,
+    claimSupportSummary: null,
+    retrievedSources: [],
+    supportingSources: [],
     citationCount: null,
     citationExpected: null,
     citationMissing: null,
@@ -185,10 +248,16 @@ export function buildAcceptedRequestObservabilityFact(input: {
     measuredAt: input.startedAt,
     modelName: null,
     modelProvider: null,
+    promptId: null,
+    promptRuntimeDetail: null,
+    promptRuntimeState: null,
+    promptVersion: null,
     outputTokens: null,
     policyProjectionVersion:
       input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
     policyReason: null,
+    retrievalAdequacyReason: null,
+    retrievalAdequacyVerdict: null,
     principalType: input.principal.principal.type,
     projectionLagMs: null,
     requestId: input.requestId,
@@ -198,6 +267,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     refusalClass: null,
     scopeClass: null,
     semanticOutcome: null,
+    templateSha256: null,
     retrievedSourceCount: null,
     retrievalAttempted: null,
     selectedTarget: null,
@@ -229,16 +299,21 @@ export function buildFinalizedRequestObservabilityFact(input: {
   conversationId: string;
 }): RequestObservabilityFactWrite {
   const observability = input.response.observability;
-  const retrievedSourceCount = observability?.retrievedSourceCount ?? input.sourceDocIds.length;
-  const citationCount = observability?.citationCount ?? input.sourceDocIds.length;
+  const supportingSources = extractObservedSourcesFromResult(input.response.result);
+  const retrievedSources = observability?.retrievedSources ?? [];
   const retrievalAttempted =
     typeof observability?.retrievalAttempted === "boolean"
       ? observability.retrievalAttempted
       : null;
+  const retrievedSourceCount =
+    observability?.retrievedSourceCount ??
+    (retrievalAttempted === true || retrievedSources.length > 0 ? retrievedSources.length : null);
   const citationExpected =
     typeof observability?.citationExpected === "boolean"
       ? observability.citationExpected
       : null;
+  const citationCount =
+    observability?.citationCount ?? (citationExpected === true ? supportingSources.length : 0);
 
   return {
     aclAnomalyCode: observability?.aclAnomalyCode ?? null,
@@ -249,6 +324,9 @@ export function buildFinalizedRequestObservabilityFact(input: {
     }),
     cachedInputTokens: observability?.cachedInputTokens ?? null,
     candidateCount: observability?.candidateCount ?? null,
+    claimSupportSummary: normalizeClaimSupportSummary(input.diagnostics),
+    retrievedSources,
+    supportingSources,
     citationCount,
     citationExpected,
     citationMissing:
@@ -273,8 +351,12 @@ export function buildFinalizedRequestObservabilityFact(input: {
     }),
     inputTokens: observability?.inputTokens ?? null,
     measuredAt: input.completedAt,
-    modelName: observability?.modelName ?? null,
-    modelProvider: observability?.modelProvider ?? null,
+    modelName: observability?.promptTrace?.modelName ?? observability?.modelName ?? null,
+    modelProvider: observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null,
+    promptId: observability?.promptTrace?.promptId ?? null,
+    promptRuntimeDetail: observability?.promptRuntimeDetail ?? null,
+    promptRuntimeState: observability?.promptRuntimeState ?? null,
+    promptVersion: observability?.promptTrace?.promptVersion ?? null,
     outputTokens: observability?.outputTokens ?? null,
     policyProjectionVersion:
       input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
@@ -283,13 +365,15 @@ export function buildFinalizedRequestObservabilityFact(input: {
       response: input.response,
       status: input.status,
     }),
+    retrievalAdequacyReason: normalizeRetrievalAdequacyReason(input.diagnostics),
+    retrievalAdequacyVerdict: normalizeRetrievalAdequacyVerdict(input.diagnostics),
     principalType: input.principal.principal.type,
     projectionLagMs: null,
     requestId: input.requestId,
     requestedCapability: input.requestedCapability,
     requestedScopeSummary: toScopeSummary(input.requestedScope),
     resolvedScopeSummary: toScopeSummary(input.resolvedScope),
-    refusalClass: normalizeRefusalClass(input.response, input.status),
+    refusalClass: normalizeRefusalClass(input.diagnostics, input.response, input.status),
     scopeClass: normalizeScopeClass({
       diagnostics: input.diagnostics,
       requestedScope: input.requestedScope,
@@ -302,6 +386,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
       response: input.response,
       status: input.status,
     }),
+    templateSha256: observability?.promptTrace?.templateSha256 ?? null,
     retrievedSourceCount,
     retrievalAttempted,
     selectedTarget: input.response.selectedTarget,

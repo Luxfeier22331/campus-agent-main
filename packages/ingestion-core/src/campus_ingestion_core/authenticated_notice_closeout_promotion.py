@@ -13,12 +13,11 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
     CloseoutRun,
     utc_now,
 )
+from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
+    build_registry_record_from_staged_document,
+)
 from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
 from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
-from campus_ingestion_core.campusrag_ingestion_support import (
-    DocumentImportInput,
-    _build_registry_record,
-)
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -322,7 +321,10 @@ class CloseoutPromotionCoordinator:
         documents: tuple[dict[str, Any], ...],
     ) -> tuple[Any, ...]:
         return tuple(
-            _registry_record_from_staged_document(staged_document)
+            build_registry_record_from_staged_document(
+                staged_document,
+                artifact_source="final",
+            )
             for staged_document in documents
         )
 
@@ -410,72 +412,6 @@ def _raw_record_from_payload(payload: dict[str, Any]):
         ingestion_timestamp=str(payload["ingestion_timestamp"]),
         import_source=str(payload["import_source"]),
     )
-
-
-def _registry_record_from_staged_document(staged_document: dict[str, Any]):
-    document_payload = dict(staged_document["document"])
-    final_object_keys = dict(staged_document["final_object_keys"])
-    document_stub = _document_import_from_stage_payload(document_payload)
-    return _build_registry_record(
-        document_id=str(document_payload["document_id"]),
-        version_id=str(document_payload["version_id"]),
-        metadata=dict(document_stub.metadata),
-        content_hash=str(staged_document["content_hash"]),
-        document=document_stub,
-        default_visibility_scope=document_stub.visibility_scope,
-        parser_version=str(document_payload["parser_version"]),
-        embedding_model=str(document_payload["embedding_model"]),
-        cleaning_policy_version=str(document_payload["cleaning_policy_version"]),
-        raw_asset=None,
-        document_units_key=str(final_object_keys["document_units"]),
-        provider_response_key=document_stub.provider_response_object_key,
-        canonical_markdown_key=final_object_keys.get("canonical_markdown"),
-        processed_object_keys=tuple(
-            str(item) for item in document_payload.get("processed_object_keys") or ()
-        ),
-        timestamp=utc_now(),
-    )
-
-
-def _document_import_from_stage_payload(payload: dict[str, Any]) -> DocumentImportInput:
-    return DocumentImportInput(
-        source_label=str(payload["source_label"]),
-        document_units_bytes=b"",
-        provider_response_bytes=None,
-        canonical_markdown_bytes=None,
-        metadata=dict(payload["metadata"]),
-        import_source=str(payload["import_source"]),
-        revision_track=str(payload["revision_track"]),
-        source_channel=str(payload["source_channel"]),
-        is_current=bool(payload.get("is_current", False)),
-        corpus=str(payload["corpus"]),
-        collection=str(payload["collection"]),
-        visibility_scope=(
-            None if payload.get("visibility_scope") is None else str(payload["visibility_scope"])
-        ),
-        status=str(payload.get("status") or "active"),
-        raw_source_uri=(
-            None if payload.get("raw_source_uri") is None else str(payload["raw_source_uri"])
-        ),
-        raw_asset_id=(
-            None if payload.get("raw_asset_id") is None else str(payload["raw_asset_id"])
-        ),
-        raw_version_id=(
-            None if payload.get("raw_version_id") is None else str(payload["raw_version_id"])
-        ),
-        provider_response_object_key=(
-            None
-            if payload.get("provider_response_object_key") is None
-            else str(payload["provider_response_object_key"])
-        ),
-        additional_processed_object_keys=tuple(
-            str(item) for item in payload.get("additional_processed_object_keys") or ()
-        ),
-        title=None if payload.get("title") is None else str(payload["title"]),
-        year=None if payload.get("year") is None else str(payload["year"]),
-    )
-
-
 def _document_ref(staged_document: dict[str, Any]) -> tuple[str, str, str]:
     payload = dict(staged_document["document"])
     return (

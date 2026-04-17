@@ -38,6 +38,17 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "availability")
 
+    def test_resolve_requested_capability_infers_place_lookup_from_goal(self) -> None:
+        capability = resolve_requested_capability(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="图书馆在哪里",
+                )
+            )
+        )
+
+        self.assertEqual(capability, "place_lookup")
+
     def test_resolve_requested_capability_allows_missing_scope_for_knowledge(self) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(
@@ -85,5 +96,23 @@ class SupervisorValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(
             InvalidSupervisorRequestError,
             "requested_scope is not allowed for availability requests",
+        ):
+            resolve_requested_capability(context)
+
+    def test_resolve_requested_capability_rejects_scope_on_place_lookup_request(self) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="图书馆在哪里",
+                requested_capability="place_lookup",
+                requested_scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+            )
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSupervisorRequestError,
+            "requested_scope is not allowed for place_lookup requests",
         ):
             resolve_requested_capability(context)

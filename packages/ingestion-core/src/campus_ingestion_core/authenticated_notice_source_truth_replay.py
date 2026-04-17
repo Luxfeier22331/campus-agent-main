@@ -25,6 +25,8 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     AuthenticatedNoticeSourceTruthInventoryStore,
+    HIGH_RISK_NOTICE_LABELS,
+    _aggregate_notice_risk_counts,
     build_authenticated_notice_source_truth_inventory_entries,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
@@ -48,10 +50,24 @@ class AuthenticatedNoticeSourceTruthReplayRequest:
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     source_projections_path: Path | None = None
     default_visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE
+    notice_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.source_projections_path is not None:
             object.__setattr__(self, "source_projections_path", Path(self.source_projections_path))
+        object.__setattr__(
+            self,
+            "notice_ids",
+            tuple(
+                sorted(
+                    {
+                        str(item).strip()
+                        for item in self.notice_ids
+                        if str(item).strip()
+                    }
+                )
+            ),
+        )
         assert_known_scope(self.corpus, self.collection)
 
 
@@ -60,6 +76,9 @@ class AuthenticatedNoticeSourceTruthReplayInventory:
     site_id: str
     source_home_url: str
     embedding_model: str
+    selected_notice_ids: tuple[str, ...]
+    notice_risk_counts: dict[str, int]
+    high_risk_notice_count: int
     expected_notice_count: int
     expected_document_count: int
     expected_attachment_document_count: int
@@ -85,6 +104,7 @@ def load_authenticated_notice_source_truth_replay_inventory(
         object_store=object_store,
         object_store_settings=object_store_settings,
         source_projections_path=request.source_projections_path,
+        notice_ids=request.notice_ids,
         env=env,
     )
     return _inventory_from_entries(entries, corpus=request.corpus, collection=request.collection)
@@ -98,7 +118,18 @@ def load_authenticated_notice_source_truth_replay_inventory_from_store(
     entries = source_truth_inventory_store.list_by_scope(
         request.corpus,
         request.collection,
+        notice_ids=request.notice_ids,
     )
+    if request.notice_ids:
+        found_notice_ids = {entry.notice_id for entry in entries}
+        missing_notice_ids = tuple(
+            notice_id for notice_id in request.notice_ids if notice_id not in found_notice_ids
+        )
+        if missing_notice_ids:
+            raise ValueError(
+                "authenticated notice source replay notice_ids not found in source-truth inventory: "
+                + ", ".join(missing_notice_ids)
+            )
     return _inventory_from_entries(entries, corpus=request.corpus, collection=request.collection)
 
 
@@ -111,8 +142,9 @@ def build_authenticated_notice_source_truth_replay_documents(
     env: dict[str, str] | None = None,
     ocr_client: OnlineOcrClient | None = None,
 ) -> AuthenticatedNoticeProjectedNotice:
+    source = env if env is not None else dict(os.environ)
     config_path = request.source_projections_path or read_authenticated_notice_source_projections_config_path(
-        env if env is not None else {}
+        source
     )
     config = load_authenticated_notice_source_projections_config(config_path)
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
@@ -121,7 +153,7 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store=object_store,
         object_store_settings=object_store_settings,
     )
-    source = env if env is not None else dict(os.environ)
+    ocr_provider_response_cache: dict[str, bytes] = {}
     projected_notice, _runtime_ocr_client = _project_parent_source_truth(
         parent_source_truth=parent_source_truth,
         config=config,
@@ -129,6 +161,7 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
         ocr_client=ocr_client,
+        ocr_provider_response_cache=ocr_provider_response_cache,
         env=source,
     )
     return projected_notice
@@ -166,6 +199,7 @@ def _document_record_from_snapshot(
         source_observations=(),
         document_units_object_key=payload.get("document_units_object_key"),
         provider_response_object_key=payload.get("provider_response_object_key"),
+        layout_elements_object_key=payload.get("layout_elements_object_key"),
         canonical_markdown_object_key=payload.get("canonical_markdown_object_key"),
         processed_object_keys=processed_object_keys,
         import_source=str(payload.get("import_source") or ""),
@@ -179,9 +213,15 @@ def _load_parent_source_truth_from_snapshot(
     object_store_settings: ObjectStoreSettings,
 ) -> _AuthenticatedNoticeParentSourceTruth:
     source_artifact_keys = tuple(str(item) for item in parent_snapshot.get("source_artifact_keys") or ())
+    record_payload = dict(parent_snapshot["record"])
+    processed_object_keys = tuple(
+        str(item).strip()
+        for item in record_payload.get("processed_object_keys") or ()
+        if str(item).strip()
+    ) or source_artifact_keys
     record = _document_record_from_snapshot(
-        dict(parent_snapshot["record"]),
-        processed_object_keys=source_artifact_keys,
+        record_payload,
+        processed_object_keys=processed_object_keys,
     )
     notice_manifest_key = str(parent_snapshot["notice_manifest_key"])
     content_blocks_key = str(parent_snapshot["content_blocks_key"])
@@ -252,6 +292,15 @@ def _inventory_from_entries(
         site_id=next(iter(site_ids)),
         source_home_url=next(iter(source_home_urls)),
         embedding_model=next(iter(embedding_models)),
+        selected_notice_ids=tuple(
+            sorted(str(item["notice_id"]) for item in ordered_parents)
+        ),
+        notice_risk_counts=_aggregate_notice_risk_counts(
+            entry.notice_risk_label for entry in entries
+        ),
+        high_risk_notice_count=sum(
+            1 for entry in entries if entry.notice_risk_label in HIGH_RISK_NOTICE_LABELS
+        ),
         expected_notice_count=len(ordered_parents),
         expected_document_count=sum(1 + entry.attachment_document_count for entry in entries),
         expected_attachment_document_count=sum(

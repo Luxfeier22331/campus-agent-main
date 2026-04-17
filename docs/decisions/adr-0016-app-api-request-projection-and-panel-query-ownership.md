@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-10
 ---
 
 # ADR-0016 App API Request Projection And Panel Query Ownership
@@ -137,8 +137,6 @@ updated: 2026-03-30
 ## 相关文档
 
 - `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/execution-and-specialists-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/operator-observability-architecture.md`

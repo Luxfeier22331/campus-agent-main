@@ -89,7 +89,7 @@ Accepted on 2026-03-28.
 - approval-required capability 的 deterministic gate
 - 历史版本选择、跨 corpus 放开或未开放 collection 的静默路由
 
-完整 authorization model、retrieval filter projection 与 `visibility` / `applicability` 拆分由 `ADR-0016` 单独定义；本文只冻结“memory 不得授权”这条长期边界。
+完整 authorization model、retrieval filter projection 与 `visibility` / `applicability` 拆分由 `ADR-0034` 单独定义；本文只冻结“memory 不得授权”这条长期边界。
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
@@ -170,7 +170,7 @@ Accepted on 2026-03-28.
   负责 supervisor 如何消费 typed identity / authorization / memory projection
 - `docs/architecture/execution-and-specialists-architecture.md`
   负责 retrieval-specific personalization 与 `RagIntentFrame`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
   负责长期 authorization model 与 retrieval filter projection 决策
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
   负责 identity / memory telemetry 的最小化规则
@@ -198,4 +198,4 @@ Accepted on 2026-03-28.
 - `docs/architecture/execution-and-specialists-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`

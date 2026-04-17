@@ -50,6 +50,32 @@ class SupervisorScopePolicyTest(unittest.TestCase):
         self.assertEqual(decision.scope_class, "in_scope")
         self.assertEqual(decision.reason, "campus_scope_signal")
 
+    def test_evaluate_knowledge_scope_keeps_campus_political_course_question_in_scope(self) -> None:
+        decision = evaluate_knowledge_scope(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
+                    requested_capability="knowledge",
+                )
+            )
+        )
+
+        self.assertEqual(decision.scope_class, "in_scope")
+        self.assertEqual(decision.reason, "campus_scope_signal")
+
+    def test_evaluate_knowledge_scope_marks_open_domain_political_fact_out_of_scope(self) -> None:
+        decision = evaluate_knowledge_scope(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="中国国家主席是谁",
+                    requested_capability="knowledge",
+                )
+            )
+        )
+
+        self.assertEqual(decision.scope_class, "out_of_scope")
+        self.assertEqual(decision.reason, "product_scope_boundary")
+
 
 if __name__ == "__main__":
     unittest.main()

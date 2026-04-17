@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-13
 ---
 
 # App API Operator Observability HTTP Contract
@@ -17,8 +17,8 @@ updated: 2026-04-03
 - request lifecycle 与 request projection：`docs/contracts/app-api-request-lifecycle.md`
 - product/control-plane ownership：`docs/architecture/product-runtime-architecture.md`
 - operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
+- 领域导航：`docs/domains/operator-observability.md`
 - ownership / sink participation 决策：`docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
-- 当前实施 handoff：`docs/plans/operator-observability-control-plane-foundation.md`
 - 当前 merged-truth schema：`docs/data/app-api-schema.md`
 
 这份文档不冻结：
@@ -44,11 +44,11 @@ updated: 2026-04-03
 - `Sentry`、`Axiom`、sampled grading / eval tooling 继续只是 sink 或输入来源，不直接充当 query backend
 - grader / sink 如果要让 panel 消费结果，必须先通过 `app-api` owned internal ingest seam 写入 projection
 
-## 当前状态说明
+## Contract 与实现范围说明
 
 这份文档冻结的是 forward contract，不表示 `develop` 已经完整实现文中所有 endpoint。
 
-判断当前 merged truth 时：
+判断当前已实现子集时：
 
 - 当前已落地能力以 `docs/architecture/current-architecture.md` 和代码为准
 - 当前 accepted direction 与长期边界以本文、supporting architecture 与相关 ADR 为准
@@ -304,18 +304,66 @@ list endpoints 额外支持：
     "aclDecision": "allowed",
     "aclAnomalyCode": null,
     "failClosed": false,
+    "retrievalAdequacyVerdict": "sufficient",
+    "retrievalAdequacyReason": "sufficient",
+    "claimSupportSummary": {
+      "totalClaims": 3,
+      "supportedClaims": 1,
+      "unsupportedClaims": 2,
+      "unsupportedClaimTypes": [
+        "audience_or_major_or_program_or_class_family",
+        "offering_unit_or_owning_school"
+      ],
+      "unsupportedFields": [
+        "audience_claims",
+        "offering_unit_claims"
+      ]
+    },
     "model": {
       "provider": "openai",
       "name": "gpt-5.2-mini"
     },
-    "tokenUsage": {
-      "inputTokens": 812,
-      "outputTokens": 229,
-      "cachedInputTokens": 0
+    "prompt": {
+      "id": "rag_answer_v1",
+      "version": "v1",
+      "templateSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "runtimeState": null,
+      "runtimeDetail": null
     },
+    "inputTokens": 812,
+    "outputTokens": 229,
+    "cachedInputTokens": 0,
     "estimatedCost": {
       "microusd": 3810,
       "currency": "USD"
+    },
+    "sourceTrace": {
+      "retrieved": [
+        {
+          "docId": "curriculum:法学（民族实验班）本科人才培养方案",
+          "chunkId": "chunk-raw-1",
+          "score": 0.94,
+          "collection": "curriculum_plan",
+          "sourceTitle": "法学（民族实验班）本科人才培养方案",
+          "canonicalSourceId": null,
+          "canonicalSourceTitle": null,
+          "sourceUnitKind": null,
+          "sourceUnitKey": null
+        }
+      ],
+      "supporting": [
+        {
+          "docId": "program_semester_facts:law:semester-4",
+          "chunkId": "chunk-support-1",
+          "score": 0.97,
+          "collection": "program_semester_facts",
+          "sourceTitle": "法学（民族实验班）本科人才培养方案 第四学期课程事实",
+          "canonicalSourceId": "curriculum:法学（民族实验班）本科人才培养方案",
+          "canonicalSourceTitle": null,
+          "sourceUnitKind": "semester_course_list",
+          "sourceUnitKey": "semester-4"
+        }
+      ]
     },
     "traceAvailable": true,
     "projectionLagMs": 420,
@@ -340,6 +388,12 @@ list endpoints 额外支持：
 - `requestedScope` 反映 accept 时上游是否显式约束 scope，可为 `null`
 - `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality / collection 归因的真相源
 - `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
+- `sourceTrace.retrieved` 表示 bounded raw retrieval candidate trace；`sourceTrace.supporting` 表示最终 answer-facing support set
+- `sourceTrace.*` 只允许返回 operator-safe compact identity fields，例如 `docId`、`chunkId`、`score`、`collection`、canonical / source-unit identity；不得返回 raw snippet dump
+- `sourceTrace.supporting[*].canonicalSourceId` 与 `sourceTrace.supporting[*].sourceUnitKey` 用于显式区分 canonical curriculum identity 与物理 projection-unit hit
+- `retrievalAdequacyVerdict` / `retrievalAdequacyReason` 用于区分 retrieval base 不足与 post-generation grounding downgrade
+- `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim type、unsupported field；不返回 raw `claim_supports`、support snippet 或 provider-native citation/support blob
+- `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query
 
@@ -406,7 +460,7 @@ list endpoints 额外支持：
 
 - `runtime` 与 `sampledGrades` 必须分块返回，不混成单一 truth
 - sampled grading 缺失时，`sampledGrades` 允许为空块或 `null` 值，不得用 runtime 指标冒充 grader 结果
-- 当前 merged truth 第一版返回 `sampledGrades: null`
+- 当前已冻结的第一版 contract 返回 `sampledGrades: null`
 - forward contract 上，`sampledGrades` 的上游固定为 `operator.quality_grade_projection`
 
 ### `GET /api/operator/quality/timeseries`
@@ -440,8 +494,8 @@ list endpoints 额外支持：
 
 - timeseries bucket 只返回 app-owned aggregate，不内嵌 raw request rows
 - sampled grade 相关曲线允许出现 `null`，表示该 bucket 没有足够样本
-- 当前 merged truth 第一版由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRate`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
-- 当前 merged truth 第一版 `sampledGroundingPassRate` 固定为 `null`
+- 当前已冻结的第一版 contract 由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRate`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
+- 当前已冻结的第一版 contract 中，`sampledGroundingPassRate` 固定为 `null`
 - forward contract 上，`sampledGroundingPassRate` 的上游固定为 `operator.quality_grade_projection` 与 request bucket join
 
 ### `GET /api/operator/quality/badcases`
@@ -492,10 +546,10 @@ list endpoints 额外支持：
 
 - 这是 app-owned badcase queue，不是 grader 原始输出列表
 - `summary` 必须是安全摘要，不暴露 raw prompt / answer
-- 当前 merged truth 第一版只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink backlink 或 grader 结果过滤
-- 当前 merged truth 第一版 `detectedBy` 固定来自 `runtime_monitor`
-- 当前 merged truth 第一版 `causeClass` 仅已落地 `citation_missing`、`empty_recall`
-- 当前 merged truth 第一版 `grade` 与 `links` 允许全部为 `null`
+- 当前已冻结的第一版 contract 只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink backlink 或 grader 结果过滤
+- 当前已冻结的第一版 contract 中，`detectedBy` 固定来自 `runtime_monitor`
+- 当前已冻结的第一版 contract 中，`causeClass` 仅已落地 `citation_missing`、`empty_recall`
+- 当前已冻结的第一版 contract 中，`grade` 与 `links` 允许全部为 `null`
 - forward contract 上，`grade` 的上游固定为 `operator.quality_grade_projection`，`links.*` 的上游固定为 `operator.trace_backlink_projection`
 
 ## Safety/Authz Endpoints
@@ -708,7 +762,7 @@ list endpoints 额外支持：
 
 - 返回 curated audit timeline summary，不是 raw JSONL replay
 - `summary` 必须是 governance-safe 文本，不回显 raw auth material 或 raw answer
-- 当前 merged truth 第一版事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`request.approval_required`、`request.rejected`
+- 当前已冻结的第一版 contract 事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`request.approval_required`、`request.rejected`
 - 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner 模型的前提下追加，但不能回退成 raw log query
 
 ### `GET /api/operator/audit/:auditEventId`

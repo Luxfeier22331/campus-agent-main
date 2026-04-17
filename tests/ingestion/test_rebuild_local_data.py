@@ -17,6 +17,7 @@ from campus_ingestion_core.local_rebuild import (
     _build_qdrant_client,
     _resolve_ingestion_qdrant_timeout_seconds,
     _resolve_rebuild_target_qdrant_aliases,
+    rematerialize_curriculum_program_semester_facts_from_local_rebuild,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
@@ -186,6 +187,43 @@ class _MutableFakeDocumentRegistry(_FakeDocumentRegistry):
 
 
 class RebuildLocalDataTest(unittest.TestCase):
+    def test_rematerialize_curriculum_program_semester_facts_local_rebuild_passes_requested_source_documents(self) -> None:
+        with patch(
+            "campus_ingestion_core.local_rebuild.materialize_curriculum_program_semester_facts_from_canonical_scope"
+        ) as materialize:
+            materialize.return_value = SimpleNamespace(materialized_document_count=2)
+
+            report = rematerialize_curriculum_program_semester_facts_from_local_rebuild(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                },
+                source_document_ids=(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "curriculum:历史学（强基计划）本科人才培养方案",
+                ),
+            )
+
+        materialize.assert_called_once_with(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            },
+            object_store=None,
+            registry=None,
+            raw_asset_registry=None,
+            split_manifest_documents=None,
+            raw_asset_record=None,
+            source_document_units_keys=None,
+            source_document_ids=(
+                "curriculum:法学（民族实验班）本科人才培养方案",
+                "curriculum:历史学（强基计划）本科人才培养方案",
+            ),
+        )
+        self.assertEqual(report.materialized_document_count, 2)
+
     def test_resolve_ingestion_qdrant_timeout_defaults_to_offline_budget(self) -> None:
         self.assertEqual(
             _resolve_ingestion_qdrant_timeout_seconds(source={}, default_timeout_seconds=10.0),
@@ -974,7 +1012,10 @@ class RebuildLocalDataTest(unittest.TestCase):
             import_runner=lambda **kwargs: {"status": "replay"},
         )
 
-        self.assertEqual(qdrant.reset_aliases, ["curriculum_plan", "course_facts", "program_family_facts"])
+        self.assertEqual(
+            qdrant.reset_aliases,
+            ["curriculum_plan", "course_facts", "program_family_facts", "program_semester_facts"],
+        )
 
     def test_rebuild_uses_ingestion_corpus_prefix_for_curriculum_plan(self) -> None:
         object_store = _FakeObjectStoreAdmin()

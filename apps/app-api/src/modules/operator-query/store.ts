@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, lte, or } from "drizzle-orm";
 
 import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
@@ -53,6 +53,10 @@ type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
 }
 
 function toRequestProjectionRecord(
@@ -591,7 +595,14 @@ export function createPgOperatorQueryStore(
         .where(eq(traceBacklinkProjection.requestId, requestId))
         .limit(1);
       const backlink = backlinkRows[0] ?? null;
-      const sourceDocIds = projection.sourceDocIdsJson ?? [];
+      const retrievedSources = fact?.retrievedSourcesJson ?? [];
+      const supportingSources = fact?.supportingSourcesJson ?? [];
+      const retrievalAttempted = fact?.retrievalAttempted ?? null;
+      const retrievedSourceCount =
+        fact?.retrievedSourceCount ??
+        (retrievalAttempted === true || retrievedSources.length > 0
+          ? retrievedSources.length
+          : null);
 
       return {
         auditSummary: {
@@ -605,7 +616,8 @@ export function createPgOperatorQueryStore(
           aclDecision: fact?.aclDecision ?? null,
           cachedInputTokens: fact?.cachedInputTokens ?? null,
           candidateCount: fact?.candidateCount ?? null,
-          citationCount: fact?.citationCount ?? sourceDocIds.length,
+          claimSupportSummary: fact?.claimSupportSummaryJson ?? null,
+          citationCount: fact?.citationCount ?? supportingSources.length,
           citationExpected: fact?.citationExpected ?? null,
           citationMissing: fact?.citationMissing ?? null,
           durationMs: fact?.durationMs ?? projection.durationMs ?? null,
@@ -614,6 +626,10 @@ export function createPgOperatorQueryStore(
             currency: "USD",
             microusd: fact?.estimatedCostMicrousd ?? null,
           },
+          sourceTrace: {
+            retrieved: retrievedSources,
+            supporting: supportingSources,
+          },
           failClosed: fact?.failClosed ?? null,
           inputTokens: fact?.inputTokens ?? null,
           measuredAt: fact ? fact.measuredAt.toISOString() : projection.projectedAt.toISOString(),
@@ -621,11 +637,20 @@ export function createPgOperatorQueryStore(
             name: fact?.modelName ?? null,
             provider: fact?.modelProvider ?? null,
           },
+          prompt: {
+            id: fact?.promptId ?? null,
+            runtimeDetail: fact?.promptRuntimeDetail ?? null,
+            runtimeState: fact?.promptRuntimeState ?? null,
+            templateSha256: fact?.templateSha256 ?? null,
+            version: fact?.promptVersion ?? null,
+          },
           outputTokens: fact?.outputTokens ?? null,
           projectionLagMs: fact?.projectionLagMs ?? null,
           refusalClass: fact?.refusalClass ?? null,
-          retrievedSourceCount: fact?.retrievedSourceCount ?? sourceDocIds.length,
-          retrievalAttempted: fact?.retrievalAttempted ?? null,
+          retrievedSourceCount,
+          retrievalAdequacyReason: fact?.retrievalAdequacyReason ?? null,
+          retrievalAdequacyVerdict: fact?.retrievalAdequacyVerdict ?? null,
+          retrievalAttempted,
           traceAvailable: fact?.traceAvailable ?? Boolean(projection.traceId),
         },
         request: {
@@ -1049,6 +1074,19 @@ export function createPgOperatorQueryStore(
       const db = await getDb();
       const conditions = [];
 
+      if (filters.q) {
+        const pattern = `%${escapeLikePattern(filters.q)}%`;
+        conditions.push(
+          or(
+            ilike(requestProjection.requestId, pattern),
+            ilike(requestProjection.questionPreview, pattern),
+            ilike(requestProjection.principalId, pattern),
+            ilike(requestProjection.principalLabel, pattern),
+            ilike(requestProjection.conversationId, pattern),
+            ilike(requestProjection.errorCode, pattern),
+          )!,
+        );
+      }
       if (filters.status) {
         conditions.push(eq(requestProjection.status, filters.status));
       }

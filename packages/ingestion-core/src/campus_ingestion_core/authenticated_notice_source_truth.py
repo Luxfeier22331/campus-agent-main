@@ -5,14 +5,31 @@ from datetime import datetime, timezone
 import hashlib
 from html import unescape
 import json
+from pathlib import Path
 import re
 from typing import Any
+
+from campus_ingestion_core.authenticated_notice_defaults import (
+    DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+)
+from campus_ingestion_core.object_store import build_raw_asset_key
 
 
 AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal"
 AUTHENTICATED_NOTICE_MANIFEST_SCHEMA = "authenticated_notice_manifest_v1"
 AUTHENTICATED_NOTICE_BLOCK_SCHEMA = "authenticated_notice_block_v1"
 AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA = "authenticated_notice_attachment_ref_v1"
+_ATTACHMENT_REFERENCE_KEYWORDS = ("附件：", "附件:", "见附件", "详见附件", "参见附件")
+_FILE_RELEASE_REFERENCE_KEYWORDS = (
+    "信息门户-文件发布",
+    "文件发布",
+    "自行下载",
+    "下载参照执行",
+    "下载后参照执行",
+)
+_WRAPPER_NOTICE_PREFIXES = ("关于发布", "关于印发", "关于修订", "关于转发", "关于公布")
+_WRAPPER_NOTICE_KEYWORDS = ("通知", "现将", "予以发布", "予以印发", "请遵照执行", "转发")
+_QUOTE_TITLE_RE = re.compile(r"《([^》]{2,200})》")
 
 _HTML_BLOCK_RE = re.compile(r"<(h[1-6]|p|li|table)\b[^>]*>(.*?)</\1>", re.IGNORECASE | re.DOTALL)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
@@ -65,6 +82,53 @@ def build_authenticated_notice_raw_version_id(bundle_record: dict[str, Any]) -> 
     return f"sha256:{digest}"
 
 
+def infer_authenticated_notice_year(*, notice: dict[str, Any]) -> str | None:
+    return _infer_year_label(notice.get("notice_release_time") or notice.get("notice_create_time"))
+
+
+def build_authenticated_notice_attachment_capture_key(
+    *,
+    content_sha256: str,
+    filename: str,
+    year: str | None,
+    corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+) -> str:
+    digest = str(content_sha256).strip().lower()
+    if not digest:
+        raise ValueError("content_sha256 is required")
+    return build_raw_asset_key(
+        corpus=corpus,
+        raw_asset_id=f"asset:authenticated-notice-attachment:attachment-{digest[:12]}",
+        raw_version_id=f"sha256:{digest}",
+        filename=_normalize_attachment_filename(filename=filename),
+        source_channel=AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+        year=year,
+    )
+
+
+def resolve_authenticated_notice_attachment_object_key(
+    *,
+    attachment: dict[str, Any],
+    year: str | None,
+    corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
+) -> str | None:
+    object_key = _optional_text(attachment.get("object_key"))
+    if object_key is None:
+        return None
+    content_sha256 = _optional_text(attachment.get("sha256"))
+    if content_sha256 is None:
+        return object_key
+    return build_authenticated_notice_attachment_capture_key(
+        content_sha256=content_sha256,
+        filename=_normalize_attachment_filename(
+            filename=attachment.get("original_filename"),
+            fallback_key=object_key,
+        ),
+        year=year,
+        corpus=corpus,
+    )
+
+
 def prepare_authenticated_notice_source_material(
     *,
     bundle_record: dict[str, Any],
@@ -85,7 +149,7 @@ def prepare_authenticated_notice_source_material(
     source_home_url = source_home_url.strip()
     if not source_home_url:
         raise ValueError("source_home_url is required")
-    year = _infer_year_label(notice.get("notice_release_time") or notice.get("notice_create_time"))
+    year = infer_authenticated_notice_year(notice=notice)
 
     content_blocks = _build_content_blocks(
         title=title,
@@ -234,7 +298,10 @@ def _build_provider_artifacts(
             "resource_role": relation.get("resource_role"),
             "relation_source": relation.get("relation_source"),
             "anchor_text": relation.get("anchor_text"),
-            "object_key": attachment.get("object_key"),
+            "object_key": resolve_authenticated_notice_attachment_object_key(
+                attachment=attachment,
+                year=infer_authenticated_notice_year(notice=notice),
+            ),
             "content_sha256": attachment.get("sha256"),
             "mime_type": attachment.get("mime_type"),
             "byte_size": attachment.get("byte_size"),
@@ -265,6 +332,11 @@ def _build_source_truth_artifacts(
     attachment_refs: tuple[dict[str, Any], ...],
 ) -> dict[str, bytes]:
     category_pairs = _category_pairs(notice)
+    owner_expectations = _build_owner_expectations(
+        title=title,
+        content_blocks=content_blocks,
+        attachment_refs=attachment_refs,
+    )
     notice_manifest = {
         "schema_version": AUTHENTICATED_NOTICE_MANIFEST_SCHEMA,
         "source_channel": AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
@@ -276,8 +348,8 @@ def _build_source_truth_artifacts(
         "list_observed_at": _optional_text(notice.get("last_seen_at")) or _exported_at(export_manifest),
         "detail_observed_at": _optional_text(notice.get("enrich_attempted_at")) or _exported_at(export_manifest),
         "fetcher_name": "authenticated_notice_bundle_import",
-        "fetcher_version": str((export_manifest or {}).get("schema_version") or "unknown"),
-        "collector_version": str((export_manifest or {}).get("schema_version") or "unknown"),
+        "fetcher_version": _fetcher_version(export_manifest),
+        "collector_version": _collector_version(export_manifest),
         "credentials_mode": "authenticated",
         "notice_title_raw": title,
         "notice_title_normalized": title,
@@ -298,6 +370,8 @@ def _build_source_truth_artifacts(
         "block_count": len(content_blocks),
         "link_count": sum(1 for row in content_blocks if row.get("block_role") == "link"),
         "attachment_ref_count": len(attachment_refs),
+        "owner_expectation_count": len(owner_expectations),
+        "owner_expectations": [dict(item) for item in owner_expectations],
     }
     return {
         "source-truth/notice-manifest.json": _json_bytes(notice_manifest),
@@ -416,17 +490,152 @@ def _build_attachment_refs(
                     relation=relation,
                 ),
                 "anchor_text": _optional_text(relation.get("anchor_text")),
+                "original_filename": _optional_text(attachment.get("original_filename")),
                 "source_url": _optional_text(attachment.get("source_url")),
                 "normalized_source_url": _optional_text(attachment.get("normalized_source_url")),
                 "final_url": _optional_text(attachment.get("final_url")),
                 "origin_scope": _optional_text(attachment.get("origin_scope")),
-                "object_key": _optional_text(attachment.get("object_key")),
+                "object_key": resolve_authenticated_notice_attachment_object_key(
+                    attachment=attachment,
+                    year=infer_authenticated_notice_year(notice=_notice_payload(bundle_record)),
+                ),
                 "content_sha256": _optional_text(attachment.get("sha256")),
                 "mime_type": _optional_text(attachment.get("mime_type")),
                 "byte_size": attachment.get("byte_size"),
+                "storage_provider": _optional_text(attachment.get("storage_provider")),
+                "ingest_status": _optional_text(attachment.get("ingest_status")),
             }
         )
     return tuple(rows)
+
+
+def _build_owner_expectations(
+    *,
+    title: str,
+    content_blocks: tuple[dict[str, Any], ...],
+    attachment_refs: tuple[dict[str, Any], ...],
+) -> tuple[dict[str, Any], ...]:
+    if attachment_refs:
+        return ()
+    title_hint = _extract_quoted_title(title)
+    body_lines = _body_lines_for_owner_expectations(content_blocks)
+    combined_body = "\n".join(body_lines)
+    wrapper_like = _looks_like_wrapper_notice(title=title, body=combined_body)
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+
+    def append_expectation(
+        *,
+        owner_kind: str,
+        relation_type: str,
+        evidence_reason: str,
+        owner_title_hint: str | None,
+        evidence_text: str,
+    ) -> None:
+        normalized_title_hint = _optional_text(owner_title_hint) or ""
+        normalized_evidence_text = _optional_text(evidence_text) or ""
+        dedupe_key = (
+            owner_kind,
+            relation_type,
+            normalized_title_hint,
+            normalized_evidence_text,
+        )
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        rows.append(
+            {
+                "owner_expectation_id": f"owner-expectation-{len(rows) + 1:04d}",
+                "owner_kind": owner_kind,
+                "relation_type": relation_type,
+                "evidence_reason": evidence_reason,
+                "owner_title_hint": _optional_text(owner_title_hint),
+                "evidence_text": normalized_evidence_text,
+            }
+        )
+
+    for line in body_lines:
+        if _looks_like_attachment_owner_signal(line):
+            append_expectation(
+                owner_kind="attachment_document",
+                relation_type="attachment_ref",
+                evidence_reason="attachment_anchor_detected",
+                owner_title_hint=_extract_owner_title_hint(line) or title_hint,
+                evidence_text=line,
+            )
+            continue
+        if _looks_like_file_release_reference(line) and (wrapper_like or title_hint):
+            append_expectation(
+                owner_kind="file_release_document",
+                relation_type="file_release_ref",
+                evidence_reason="file_release_reference_detected",
+                owner_title_hint=_extract_owner_title_hint(line) or title_hint,
+                evidence_text=line,
+            )
+
+    return tuple(rows)
+
+
+def _body_lines_for_owner_expectations(
+    content_blocks: tuple[dict[str, Any], ...],
+) -> tuple[str, ...]:
+    lines: list[str] = []
+    for block in content_blocks:
+        if str(block.get("block_role") or "") == "title":
+            continue
+        text = str(block.get("text_raw") or block.get("text_normalized") or "").strip()
+        if not text:
+            continue
+        for line in text.splitlines():
+            normalized_line = _optional_text(line)
+            if normalized_line is not None:
+                lines.append(normalized_line)
+    return tuple(lines)
+
+
+def _looks_like_attachment_owner_signal(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or "附件" not in stripped:
+        return False
+    return stripped.startswith("附件") or any(
+        keyword in stripped for keyword in _ATTACHMENT_REFERENCE_KEYWORDS
+    )
+
+
+def _looks_like_file_release_reference(line: str) -> bool:
+    stripped = line.strip()
+    return bool(stripped) and any(
+        keyword in stripped for keyword in _FILE_RELEASE_REFERENCE_KEYWORDS
+    )
+
+
+def _looks_like_wrapper_notice(*, title: str, body: str) -> bool:
+    combined = "\n".join(item for item in (title, body) if item)
+    if any(title.startswith(prefix) for prefix in _WRAPPER_NOTICE_PREFIXES):
+        return True
+    return any(keyword in combined for keyword in _WRAPPER_NOTICE_KEYWORDS)
+
+
+def _extract_owner_title_hint(value: str) -> str | None:
+    quoted_title = _extract_quoted_title(value)
+    if quoted_title is not None:
+        return quoted_title
+    stripped = value.strip()
+    if not stripped.startswith("附件"):
+        return None
+    remainder = re.sub(r"^附件\s*\d*\s*[:：]?\s*", "", stripped).strip()
+    remainder = remainder.strip("：:。；;，, ")
+    return _optional_text(remainder)
+
+
+def _extract_quoted_title(value: str | None) -> str | None:
+    text = _optional_text(value)
+    if text is None:
+        return None
+    match = _QUOTE_TITLE_RE.search(text)
+    if match is None:
+        return None
+    return _optional_text(match.group(1))
 
 
 def _build_canonical_markdown(
@@ -650,6 +859,34 @@ def _html_blocks(html_value: str) -> tuple[dict[str, Any], ...]:
     )
 
 
+def _fetcher_version(export_manifest: dict[str, Any] | None) -> str:
+    manifest = dict(export_manifest or {})
+    normalizer = manifest.get("normalizer")
+    if isinstance(normalizer, dict):
+        version = str(
+            normalizer.get("normalizer_version")
+            or normalizer.get("schema_version")
+            or ""
+        ).strip()
+        if version:
+            return version
+    return str(manifest.get("schema_version") or "unknown")
+
+
+def _collector_version(export_manifest: dict[str, Any] | None) -> str:
+    manifest = dict(export_manifest or {})
+    collector = manifest.get("collector")
+    if isinstance(collector, dict):
+        version = str(
+            collector.get("export_contract_version")
+            or collector.get("runtime_shell")
+            or ""
+        ).strip()
+        if version:
+            return version
+    return str(manifest.get("schema_version") or "unknown")
+
+
 def _strip_html(value: str) -> str:
     normalized = value.replace("<br/>", "\n").replace("<br />", "\n").replace("<br>", "\n")
     stripped = _HTML_TAG_RE.sub("", normalized)
@@ -669,6 +906,14 @@ def _optional_text(value: object) -> str | None:
     return normalized or None
 
 
+def _normalize_attachment_filename(*, filename: object, fallback_key: str | None = None) -> str:
+    value = str(filename or "").strip()
+    fallback = str(fallback_key or "").strip()
+    candidate_source = value or fallback
+    candidate = Path(candidate_source.replace("\\", "/")).name.strip().replace("/", "_")
+    return candidate or "attachment"
+
+
 def _unit_type_for_block(block_role: str) -> str:
     if block_role in {"title", "heading"}:
         return "policy_page"
@@ -680,7 +925,10 @@ def _unit_type_for_block(block_role: str) -> str:
 __all__ = [
     "AUTHENTICATED_NOTICE_SOURCE_CHANNEL",
     "AuthenticatedNoticeSourceMaterial",
+    "build_authenticated_notice_attachment_capture_key",
     "build_authenticated_notice_raw_asset_id",
     "build_authenticated_notice_raw_version_id",
+    "infer_authenticated_notice_year",
     "prepare_authenticated_notice_source_material",
+    "resolve_authenticated_notice_attachment_object_key",
 ]

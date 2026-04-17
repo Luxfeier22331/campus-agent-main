@@ -1,4 +1,4 @@
-import { boolean, index, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 const chat = pgSchema("chat");
 
@@ -29,6 +29,7 @@ export const messages = chat.table(
     role: text("role").notNull(),
     kind: text("kind"),
     text: text("text").notNull(),
+    structuredPartsJson: jsonb("structured_parts_json"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     requestId: text("request_id"),
     retryable: boolean("retryable"),

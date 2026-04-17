@@ -674,6 +674,41 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(pieces[0].text.splitlines()[0], "1. 甲乙丙丁。")
         self.assertTrue(pieces[1].text.startswith("5. 甲乙丙丁。"))
 
+    def test_token_guardrail_expands_final_overlap_to_avoid_short_tail(self) -> None:
+        unit = StructuredUnitChunkInput(
+            unit_type="article_body",
+            root_unit_id="article-009",
+            text=(
+                "北京市委、市政府一直高度重视结核病防控工作，不断完善结核病防治服务体系建设，"
+                "大力保障结核病防治工作经费，在全市构建了政府主导、部门协同、专业机构分工负责、"
+                "社会共同参与的综合防治机制。北京市目前有北京结核病控制研究与防治所、北京胸科医院、"
+                "北京老年医院、解放军总医院第八医学中心、北京儿童医院、北京佑安医院、北京地坛医院共7家"
+                "市级结核病定点医疗机构，以及18家区级结核病定点医疗机构，实现对耐药、疑难病例、危急重症、"
+                "TB/HIV双重感染、儿童、孕产妇等人群肺结核患者规范治疗管理全覆盖。结核病纳入本市基本医疗保险，"
+                "患者发生的相关医疗费用，大部分可以按相关政策予以报销。2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。"
+            ),
+        )
+
+        pieces = chunk_structured_unit(
+            unit=unit,
+            chunk_profile=ChunkProfile(
+                chunk_size=260,
+                max_chunk_size=296,
+                chunk_overlap=32,
+                min_chunk_size=48,
+                strategy=None,
+                strategy_name="generic_token_budget",
+            ),
+        )
+
+        self.assertGreaterEqual(len(pieces), 2)
+        self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
+        self.assertGreaterEqual(
+            estimate_token_count(pieces[-1].text),
+            48,
+        )
+        self.assertIn("2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。", pieces[-1].text)
+
     def test_structure_boundary_prefers_target_budget_over_max_budget_when_grouping_clauses(self) -> None:
         lines = [f"({marker}) " + " ".join(f"甲{index}" for index in range(18)) for marker in ("一", "二", "三", "四", "五")]
         pieces = chunk_structured_unit(

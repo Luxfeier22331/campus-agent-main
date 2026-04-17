@@ -35,6 +35,11 @@ from campus_ingestion_core.curriculum_course_facts_projection import (
 from campus_ingestion_core.curriculum_program_family_facts_projection import (
     build_curriculum_program_family_facts_scope_refresh_documents,
 )
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    CurriculumProgramSemesterFactsMaterializationReport,
+    build_curriculum_program_semester_facts_scope_refresh_documents,
+    materialize_curriculum_program_semester_facts_from_canonical_scope,
+)
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.handbook_source_projections import (
@@ -78,6 +83,7 @@ from campus_ingestion_core.raw_ingestion import (
     RawIngestionRequest,
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
+    normalize_online_ocr_provider_label,
     process_raw_ingestion_job,
 )
 from campus_ingestion_core.registry import (
@@ -152,6 +158,29 @@ class _RebuildTraceRecorder:
                 handle.write("\n")
         if self.stderr_enabled:
             print(line, file=sys.stderr, flush=True)
+
+
+def rematerialize_curriculum_program_semester_facts_from_local_rebuild(
+    *,
+    env: dict[str, str] | None = None,
+    source_document_ids: tuple[str, ...],
+    object_store: ReplayObjectStore | None = None,
+    registry: DocumentRegistry | None = None,
+    raw_asset_registry: RawAssetRegistry | None = None,
+    split_manifest_documents: Sequence[SplitManifestDocument] | None = None,
+    raw_asset_record: RawAssetRecord | None = None,
+    source_document_units_keys: dict[str, str] | None = None,
+) -> CurriculumProgramSemesterFactsMaterializationReport:
+    return materialize_curriculum_program_semester_facts_from_canonical_scope(
+        env=env,
+        object_store=object_store,
+        registry=registry,
+        raw_asset_registry=raw_asset_registry,
+        split_manifest_documents=split_manifest_documents,
+        raw_asset_record=raw_asset_record,
+        source_document_units_keys=source_document_units_keys,
+        source_document_ids=source_document_ids,
+    )
 
 
 class S3ObjectStoreAdmin:
@@ -380,6 +409,12 @@ def _resolve_rebuild_target_qdrant_bindings(
             _resolve_target_qdrant_binding(
                 corpus="curriculum",
                 collection="program_family_facts",
+            )
+        )
+        target_bindings.append(
+            _resolve_target_qdrant_binding(
+                corpus="curriculum",
+                collection="program_semester_facts",
             )
         )
     deduped: list[QdrantIndexBinding] = []
@@ -667,6 +702,7 @@ def _resolve_runtime_collection_config(
             if source_projections_override
             else base.source_projections_path
         ),
+        notice_family_config_path=base.notice_family_config_path,
     )
 
 
@@ -1067,11 +1103,14 @@ def _load_replay_source_artifacts(
         key=provider_response_key,
     )
     ocr_model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+    ocr_provider = normalize_online_ocr_provider_label(
+        (source.get("OCR_PROVIDER_MODE") or "").strip() or DEFAULT_ONLINE_OCR_PROVIDER
+    )
     if collection == "student_handbook":
         structured_rows = normalize_handbook_provider_result(
             source_pdf=source_pdf,
             provider_jsonl_bytes=provider_response_bytes,
-            ocr_provider=DEFAULT_ONLINE_OCR_PROVIDER,
+            ocr_provider=ocr_provider,
             ocr_model=ocr_model,
             source_artifact_id=raw_asset_id,
         )
@@ -1080,6 +1119,7 @@ def _load_replay_source_artifacts(
         layout_elements_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=provider_response_bytes,
             source_pdf=source_pdf,
+            ocr_provider=ocr_provider,
             ocr_model=ocr_model,
         )
         structured_rows = _load_layout_elements_rows(layout_elements_bytes)
@@ -1215,6 +1255,16 @@ def _build_replay_documents(
                 raw_asset_record=raw_asset_ref,
                 source_pdf=source_pdf,
                 split_manifest_documents=split_manifest.documents,
+            )
+        )
+        documents.extend(
+            build_curriculum_program_semester_facts_scope_refresh_documents(
+                raw_asset_record=raw_asset_ref,
+                source_pdf=source_pdf,
+                split_manifest_documents=split_manifest.documents,
+                structured_rows=structured_rows,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
             )
         )
     return documents

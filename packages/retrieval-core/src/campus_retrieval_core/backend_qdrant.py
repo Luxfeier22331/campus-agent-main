@@ -251,6 +251,7 @@ class QdrantRetrievalBackend:
                     )
                 self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
+            initial_query_limit = self._resolve_initial_query_limit(request=request, profile=profile)
             response = _retry_qdrant_read(
                 lambda: self.qdrant_client.query_points(
                     collection_name=qdrant_collection_name,
@@ -262,7 +263,7 @@ class QdrantRetrievalBackend:
                         dense_query_embedding=dense_query_embedding,
                     ),
                     query=_build_rrf_query(profile),
-                    limit=request.top_k,
+                    limit=initial_query_limit,
                     with_payload=True,
                     with_vectors=False,
                 )
@@ -288,12 +289,20 @@ class QdrantRetrievalBackend:
             sources=ranked_sources,
             preferred_document_ids=request.preferred_document_ids,
         )
-        expanded_sources = self._expand_named_document_support(
-            request=request,
-            profile=profile,
-            qdrant_collection_name=qdrant_collection_name,
-            dense_query_embedding=dense_query_embedding,
-            sources=ranked_sources,
+        expanded_sources = (
+            tuple(ranked_sources)
+            if not self._should_expand_named_document_support(
+                request=request,
+                profile=profile,
+                sources=ranked_sources,
+            )
+            else self._expand_named_document_support(
+                request=request,
+                profile=profile,
+                qdrant_collection_name=qdrant_collection_name,
+                dense_query_embedding=dense_query_embedding,
+                sources=ranked_sources,
+            )
         )
         ranked_final_sources = prioritize_evidence_sources(
             query_text=query_text,
@@ -358,6 +367,7 @@ class QdrantRetrievalBackend:
                 collection = collection or record.collection
                 if is_current is None:
                     is_current = record.is_current
+            source_title = _resolve_source_title(metadata, document_id=document_id, anchor=anchor)
             sources.append(
                 EvidenceSource(
                     doc_id=document_id,
@@ -372,7 +382,7 @@ class QdrantRetrievalBackend:
                     is_current=is_current,
                     snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                     score=float(point.score),
-                    source_title=_resolve_source_title(metadata, document_id=document_id, anchor=anchor),
+                    source_title=source_title,
                     structural_path=_coerce_structural_path(anchor.get("section_path")),
                     content_kind=_resolve_content_kind(
                         metadata,
@@ -392,6 +402,17 @@ class QdrantRetrievalBackend:
                         collection=collection,
                         snippet=node.get_content(metadata_mode=MetadataMode.NONE),
                         anchor=anchor,
+                    ),
+                    canonical_source_id=_resolve_canonical_source_id(metadata),
+                    canonical_source_title=_resolve_canonical_source_title(metadata),
+                    source_unit_kind=_resolve_source_unit_kind(
+                        metadata,
+                        collection=collection,
+                        anchor=anchor,
+                    ),
+                    source_unit_key=_resolve_source_unit_key(
+                        metadata,
+                        collection=collection,
                     ),
                 )
             )
@@ -466,6 +487,71 @@ class QdrantRetrievalBackend:
         embedding = tuple(float(item) for item in self.embedding_model.get_query_embedding(normalized_query))
         self._dense_query_cache[normalized_query] = (now + self.dense_query_cache_ttl_seconds, embedding)
         return embedding
+
+    def _resolve_initial_query_limit(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> int:
+        if self._should_use_targeted_document_overfetch(request=request, profile=profile):
+            return max(request.top_k, profile.document_support_limit)
+        return request.top_k
+
+    def _should_expand_named_document_support(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+        sources: Sequence[EvidenceSource],
+    ) -> bool:
+        if not self._should_use_targeted_document_overfetch(request=request, profile=profile):
+            return True
+        return self._should_expand_narrow_curriculum_targeted_support(
+            request=request,
+            sources=sources,
+        )
+
+    def _should_use_targeted_document_overfetch(
+        self,
+        *,
+        request: RetrievalRequest,
+        profile: CollectionRuntimeProfile,
+    ) -> bool:
+        if profile.document_support_strategy != "targeted_overfetch":
+            return False
+        return bool(request.target_document_ids) and len(frozenset(request.target_document_ids)) == 1
+
+    def _should_expand_narrow_curriculum_targeted_support(
+        self,
+        *,
+        request: RetrievalRequest,
+        sources: Sequence[EvidenceSource],
+    ) -> bool:
+        if request.corpus != "curriculum" or request.collection != "curriculum_plan":
+            return False
+        target_source = next(
+            (
+                source
+                for source in sources
+                if query_targets_source_title(query_text=request.query_text, source=source)
+            ),
+            None,
+        )
+        if target_source is None:
+            return False
+        support_query_text = _build_document_support_query_text(
+            query_text=request.query_text,
+            source=target_source,
+        )
+        if _normalize_low_signal_query(support_query_text) == _normalize_low_signal_query(request.query_text):
+            return False
+        section_keys = {
+            _curriculum_support_section_key(source)
+            for source in sources
+            if source.doc_id == target_source.doc_id
+        }
+        return len(section_keys) < 2
 
     def _expand_named_document_support(
         self,
@@ -862,6 +948,16 @@ def _order_curriculum_semester_course_list_sources(
 def _curriculum_course_list_section_key(source: EvidenceSource) -> str:
     if source.structural_path:
         return source.structural_path[-1].strip() or source.chunk_id
+    return source.chunk_id
+
+
+def _curriculum_support_section_key(source: EvidenceSource) -> str:
+    if source.structural_path:
+        normalized_path = tuple(part.strip() for part in source.structural_path if part.strip())
+        if normalized_path:
+            return " > ".join(normalized_path)
+    if source.detail_label.strip():
+        return source.detail_label.strip()
     return source.chunk_id
 
 
@@ -1381,6 +1477,49 @@ def _resolve_detail_label(
         if value is not None:
             return value
     return ""
+
+
+def _resolve_canonical_source_id(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("canonical_source_id")) or _optional_text(metadata.get("source_doc_id")) or ""
+
+
+def _resolve_canonical_source_title(metadata: dict[str, object]) -> str:
+    return (
+        _optional_text(metadata.get("canonical_source_title"))
+        or _optional_text(metadata.get("source_doc_title"))
+        or ""
+    )
+
+
+def _resolve_source_unit_kind(
+    metadata: dict[str, object],
+    *,
+    collection: str,
+    anchor: dict[str, object],
+) -> str:
+    explicit_kind = _optional_text(metadata.get("source_unit_kind"))
+    if explicit_kind is not None:
+        return explicit_kind
+    if collection != "program_semester_facts":
+        return ""
+    return _optional_text(metadata.get("content_role")) or _optional_text(anchor.get("fact_type")) or ""
+
+
+def _resolve_source_unit_key(
+    metadata: dict[str, object],
+    *,
+    collection: str,
+) -> str:
+    explicit_key = _optional_text(metadata.get("source_unit_key"))
+    if explicit_key is not None:
+        return explicit_key
+    if collection != "program_semester_facts":
+        return ""
+    semester_index = _optional_text(metadata.get("semester_index"))
+    if semester_index is None:
+        return ""
+    normalized = semester_index.strip()
+    return f"semester-{normalized}" if normalized else ""
 
 
 def _resolve_is_answer_bearing(

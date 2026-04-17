@@ -1,0 +1,38 @@
+{
+  "schema_version": "authenticated_notice_manifest_v1",
+  "source_channel": "authenticated_notice_portal",
+  "site_id": "muc_internal_portal",
+  "notice_id": "351119",
+  "raw_asset_id": "asset:authenticated-notice:muc_internal_portal:351119",
+  "raw_version_id": "sha256:541a486117021e6c2bace9233457982bed4a607c1b1f0e4da55b191d8e814c9c",
+  "captured_at": "2026-04-09T19:30:29.385954+00:00",
+  "list_observed_at": "2026-04-02T23:50:31.382Z",
+  "detail_observed_at": "2026-04-02T23:50:31.382Z",
+  "fetcher_name": "authenticated_notice_bundle_import",
+  "fetcher_version": "authenticated_notice_legacy_bootstrap_normalized_v1",
+  "collector_version": "legacy_authenticated_notice_export_v3",
+  "credentials_mode": "authenticated",
+  "notice_title_raw": "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
+  "notice_title_normalized": "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
+  "organization_name": "财务处",
+  "organization_id": "00018",
+  "notice_release_time": "2025-07-09 10:07",
+  "notice_create_time": "2025-07-09 10:07",
+  "notice_first_time": "2025-07-09 10:07",
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "notice_type_ids": [
+    "5"
+  ],
+  "notice_type_names": [
+    "办公通知"
+  ],
+  "source_notice_link": "campusnotice://muc_internal_portal/notice/351119",
+  "source_home_url": "https://my.muc.edu.cn",
+  "body_html_hash": "775021b7c08c86868a5bac393dba48cbacc74196bd95550837c0e016b3d2c0ed",
+  "block_count": 6,
+  "link_count": 0,
+  "attachment_ref_count": 0
+}

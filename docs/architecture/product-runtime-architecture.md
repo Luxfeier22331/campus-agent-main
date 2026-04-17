@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-03
+updated: 2026-04-14
 ---
 
 # Product Runtime Architecture
@@ -32,6 +32,25 @@ updated: 2026-04-03
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/supervisor-api` 是 internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+
+## Accepted Surface Shape
+
+产品/runtime supporting architecture 当前已经冻结到以下粒度：
+
+- `public-chat-web`
+  - 已是公开产品入口，不再以旧 `public-consumer-chat` 为 forward truth
+- `protected-panel-web`
+  - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted shape
+  - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
+- `apps/app-api`
+  - 已同时承担 product backend 与 selected operator control-plane backend
+  - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
+
+补充约束：
+
+- 当前 merged truth 以 `docs/architecture/current-architecture.md` 为准
+- release hardening supporting architecture 统一看 `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`
+- staging runbook、Cloudflare Access 执行细节与 rollout closeout 证据统一看 runbooks 与 `.planning/`
 
 ## Surface Responsibilities
 
@@ -86,6 +105,8 @@ future operator-facing observability 域也遵循同一 ownership rule：
 - panel 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为 canonical panel read model
 
+更完整的 operator observability supporting architecture 不在本文展开，统一看 `docs/architecture/operator-observability-architecture.md`。
+
 ## Protected Surface And Operator Access
 
 protected panel 的长期 access model 固定为：
@@ -127,3 +148,4 @@ protected panel 的长期 access model 固定为：
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`

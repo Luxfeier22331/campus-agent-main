@@ -9,6 +9,7 @@ from campus_contracts import (
     AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    ClaimSupport,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
@@ -18,7 +19,13 @@ from campus_contracts import (
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
+    GeoPoint,
     KnowledgeScope,
+    PlaceCandidate,
+    PlaceCard,
+    PlaceLookupPayload,
+    PlaceLookupResult,
+    PlaceRef,
     ProfileMemoryItem,
     ProfileMemorySummary,
     RagResultDiagnostics,
@@ -243,6 +250,15 @@ class ContractModelsTest(unittest.TestCase):
             resolved_course_title="习近平新时代中国特色社会主义思想概论",
             resolved_course_family_id="course_family:muc.ideological_political_theory",
             resolved_course_family_title="思想政治理论课",
+            claim_supports=(
+                ClaimSupport(
+                    claim_type="offering_unit_or_owning_school",
+                    claim_text="马克思主义学院",
+                    supported=False,
+                    support_source_doc_id="",
+                    support_snippet="",
+                ),
+            ),
             unsupported_fields=("offering_unit",),
             partial_answer=True,
         )
@@ -258,6 +274,11 @@ class ContractModelsTest(unittest.TestCase):
                 "clarification_reason": "",
                 "no_answer_reason": "",
                 "semantic_outcome": "",
+                "retrieval_adequacy_verdict": "",
+                "retrieval_adequacy_reason": "",
+                "grounding_verdict": "",
+                "grounding_downgraded": False,
+                "freshness_fail_closed": False,
                 "scope_class": "",
                 "policy_reason": "",
                 "retrieved_title_summary": (),
@@ -275,8 +296,20 @@ class ContractModelsTest(unittest.TestCase):
                 "session_program_family": "",
                 "session_program": "",
                 "session_semester": "",
+                "claim_supports": (
+                    {
+                        "claim_type": "offering_unit_or_owning_school",
+                        "claim_text": "马克思主义学院",
+                        "supported": False,
+                        "support_source_doc_id": "",
+                        "support_snippet": "",
+                    },
+                ),
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
+                "prompt_runtime_state": "",
+                "prompt_runtime_detail": "",
+                "retrieved_sources": (),
                 "prompt_trace": None,
             },
         )
@@ -289,9 +322,17 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIn("session_program_family", field_names)
         self.assertIn("session_program", field_names)
         self.assertIn("session_semester", field_names)
+        self.assertIn("claim_supports", field_names)
         self.assertIn("candidate_title_summary", field_names)
         self.assertIn("used_verified_identity", field_names)
         self.assertIn("used_soft_preference", field_names)
+        self.assertIn("retrieval_adequacy_verdict", field_names)
+        self.assertIn("retrieval_adequacy_reason", field_names)
+        self.assertIn("grounding_verdict", field_names)
+        self.assertIn("grounding_downgraded", field_names)
+        self.assertIn("freshness_fail_closed", field_names)
+        self.assertIn("prompt_runtime_state", field_names)
+        self.assertIn("prompt_runtime_detail", field_names)
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",
@@ -400,6 +441,34 @@ class ContractModelsTest(unittest.TestCase):
         self.assertTrue(payload["result"]["evidence"]["sources"][0]["is_answer_bearing"])
         self.assertNotIn("acl_level", payload["result"]["evidence"]["sources"][0])
 
+    def test_evidence_source_serializes_canonical_and_unit_identity_fields(self) -> None:
+        source = EvidenceSource(
+            doc_id="program_semester_facts:law-ethnic-experimental:semester-4",
+            revision_track="source-faithful",
+            version_id="v2026-04-12",
+            chunk_id="program_semester_facts:law-ethnic-experimental:semester-4:row-0001",
+            anchor={"section": "semester_course_list"},
+            canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+            latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+            source_channel="pdf_ocr",
+            collection="program_semester_facts",
+            is_current=False,
+            snippet="第四学期有中国少数民族文字学、侵权责任法。",
+            score=0.98,
+            source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+            canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+            canonical_source_title="法学（民族实验班）本科人才培养方案",
+            source_unit_kind="semester_course_list",
+            source_unit_key="semester-4",
+        )
+
+        payload = asdict(source)
+
+        self.assertEqual(payload["canonical_source_id"], "curriculum:法学（民族实验班）本科人才培养方案")
+        self.assertEqual(payload["canonical_source_title"], "法学（民族实验班）本科人才培养方案")
+        self.assertEqual(payload["source_unit_kind"], "semester_course_list")
+        self.assertEqual(payload["source_unit_key"], "semester-4")
+
     def test_evidence_source_rejects_non_canonical_fields(self) -> None:
         field_names = {field.name for field in fields(EvidenceSource)}
 
@@ -453,6 +522,143 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["target"], "availability-specialist")
         self.assertEqual(payload["result"]["observed_status"], "timeout")
         self.assertEqual(payload["result"]["failure_classification"], "timeout")
+
+    def test_response_serializes_place_lookup_result_shape(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="completed",
+            answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
+            confidence="high",
+            result=PlaceLookupResult(
+                query_text="图书馆在哪里",
+                matched_alias="图书馆",
+                resolved_place=PlaceRef(
+                    place_id="muc.haidian.library",
+                    entity_type="building",
+                    display_name="图书馆",
+                    campus_scope="haidian",
+                    campus_area="主教学区西侧",
+                ),
+                place_card=PlaceCard(
+                    place=PlaceRef(
+                        place_id="muc.haidian.library",
+                        entity_type="building",
+                        display_name="图书馆",
+                        campus_scope="haidian",
+                        campus_area="主教学区西侧",
+                    ),
+                    location_description="海淀校区主教学区西侧，靠近校医院。",
+                    landmark_hint="从知行广场向西步行约 3 分钟可到达。",
+                    access_note="校外访客请先完成入校登记。",
+                    service_tags=("自习", "借阅", "打印"),
+                    coordinate_reference_system="EPSG:4326",
+                    point_geometry=GeoPoint(
+                        longitude=116.31551,
+                        latitude=39.96162,
+                    ),
+                    source_refs=("seed:campus_navigation/place_catalog.v1",),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(payload["result"]["query_text"], "图书馆在哪里")
+        self.assertEqual(payload["result"]["matched_alias"], "图书馆")
+        self.assertEqual(payload["result"]["resolved_place"]["place_id"], "muc.haidian.library")
+        self.assertEqual(payload["result"]["place_card"]["place"]["entity_type"], "building")
+        self.assertEqual(payload["result"]["place_card"]["point_geometry"]["longitude"], 116.31551)
+        self.assertEqual(payload["result"]["place_card"]["coordinate_reference_system"], "EPSG:4326")
+        self.assertEqual(
+            tuple(payload["result"]["place_card"]["service_tags"]),
+            ("自习", "借阅", "打印"),
+        )
+
+    def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="needs_clarification",
+            follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
+            confidence="medium",
+            result=PlaceLookupResult(
+                query_text="图书馆在哪里",
+                matched_alias="图书馆",
+                candidate_places=(
+                    PlaceCandidate(
+                        place=PlaceRef(
+                            place_id="muc.haidian.library",
+                            entity_type="building",
+                            display_name="海淀校区图书馆",
+                            campus_scope="haidian",
+                            campus_area="主教学区西侧",
+                        ),
+                        clarification_hint="海淀校区主教学区西侧",
+                    ),
+                    PlaceCandidate(
+                        place=PlaceRef(
+                            place_id="muc.fengtai.library",
+                            entity_type="building",
+                            display_name="丰台校区图书馆",
+                            campus_scope="fengtai",
+                            campus_area="学生活动区北侧",
+                        ),
+                        clarification_hint="丰台校区学生活动区北侧",
+                    ),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(len(payload["result"]["candidate_places"]), 2)
+        self.assertEqual(
+            payload["result"]["candidate_places"][1]["place"]["display_name"],
+            "丰台校区图书馆",
+        )
+
+    def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
+        response = SpecialistResponse(
+            target="navigation-specialist",
+            status="completed",
+            answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
+            confidence="high",
+            result=PlaceLookupResult(
+                query_text="民族博物馆在哪里",
+                matched_alias="民族博物馆",
+                resolved_place=PlaceRef(
+                    place_id="muc.haidian.museum",
+                    entity_type="building",
+                    display_name="民族博物馆",
+                    campus_scope="haidian",
+                    campus_area="海淀校区西侧",
+                ),
+                place_card=PlaceCard(
+                    place=PlaceRef(
+                        place_id="muc.haidian.museum",
+                        entity_type="building",
+                        display_name="民族博物馆",
+                        campus_scope="haidian",
+                        campus_area="海淀校区西侧",
+                    ),
+                    location_description="海淀校区西侧，靠近图书馆。",
+                    source_refs=(
+                        "seed:campus_navigation/place_catalog.v1",
+                        "https://www.muc.edu.cn/xxgk1/xydt.htm",
+                    ),
+                ),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["result"]["place_card"]["point_geometry"], None)
+        self.assertEqual(payload["result"]["place_card"]["coordinate_reference_system"], "")
+
+    def test_place_lookup_payload_requires_non_empty_query(self) -> None:
+        with self.assertRaisesRegex(ValueError, "query_text must not be empty"):
+            PlaceLookupPayload(query_text=" ")
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
         response = SpecialistResponse(

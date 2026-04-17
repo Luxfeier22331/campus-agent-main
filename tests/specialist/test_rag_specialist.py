@@ -6,6 +6,7 @@ from campus_contracts import (
     ActorContext,
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
+    ClaimSupport,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
@@ -32,20 +33,39 @@ from campus_retrieval_core import (
     RetrievalBackendError,
 )
 from campus_rag_specialist import RagSpecialistAgent
-from campus_rag_specialist.agent import _select_answer_support_rows
+from campus_rag_specialist.agent import _query_mode, _select_answer_support_rows
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import frame_rag_intent
 from campus_rag_specialist.prompt_execution import (
     RagAnswerPromptOutput,
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
 )
+from campus_rag_specialist.prompts.registry import get_rag_prompt_spec
 from campus_rag_specialist.service import delegate_to_rag_agent
 from campus_rag_specialist.query_planning import (
     plan_curriculum_course_query,
     plan_curriculum_program_family_query,
     plan_curriculum_query,
 )
+from campus_shared import PromptRuntimeValidationError
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
+
+
+def _rag_prompt_trace(prompt_id: str) -> PromptTrace:
+    spec = get_rag_prompt_spec(prompt_id)
+    return PromptTrace(
+        prompt_id=prompt_id,
+        prompt_version=prompt_id.rsplit("_", 1)[-1],
+        template_sha256=spec.template_sha256,
+        variables_schema_version=spec.variables_schema_version,
+        output_schema_version=spec.output_schema_version,
+        model_provider="openai-responses",
+        model_name="gpt-5.2-mini",
+    )
 
 
 def _make_evidence(
@@ -165,15 +185,114 @@ def _make_official_web_evidence(
     )
 
 
+def _make_program_semester_source(
+    *,
+    source_document_id: str,
+    semester_label: str,
+    snippet: str,
+    score: float,
+) -> EvidenceSource:
+    source_title = source_document_id.split(":", 1)[-1]
+    fact_document_id = build_curriculum_program_semester_fact_document_id(
+        source_document_id,
+        semester_label,
+    )
+    return EvidenceSource(
+        doc_id=fact_document_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{source_title}:{semester_label}",
+        chunk_id=f"{fact_document_id}:row-0001",
+        anchor={"fact_type": "semester_course_list"},
+        canonical_url=f"https://campus.example/curriculum/{source_title}",
+        latest_url=f"https://campus.example/curriculum/{source_title}",
+        source_channel="pdf_ocr",
+        collection="program_semester_facts",
+        is_current=False,
+        snippet=snippet,
+        score=score,
+        source_title=f"{source_title} {semester_label}课程事实",
+        structural_path=(source_title, semester_label),
+        detail_label=f"{semester_label}课程",
+        content_kind="program_semester_fact",
+        content_role="semester_course_list",
+        is_answer_bearing=True,
+    )
+
+
+def _make_curriculum_plan_source(
+    *,
+    doc_id: str,
+    chunk_id: str,
+    snippet: str,
+    score: float,
+    source_title: str,
+    structural_path: tuple[str, ...] = (),
+    content_kind: str = "",
+    content_role: str = "",
+    detail_label: str = "",
+    is_answer_bearing: bool = False,
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=f"v1:{chunk_id.rsplit(':', 1)[-1]}",
+        chunk_id=chunk_id,
+        anchor={"page_start": 1, "page_end": 1},
+        canonical_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
+        latest_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
+        source_channel="pdf_ocr",
+        collection="curriculum_plan",
+        is_current=False,
+        snippet=snippet,
+        score=score,
+        source_title=source_title,
+        structural_path=structural_path,
+        content_kind=content_kind,
+        content_role=content_role,
+        detail_label=detail_label,
+        is_answer_bearing=is_answer_bearing,
+    )
+
+
 def _resolved_scope_diagnostics(
     *,
     corpus: str,
     collection: str,
     **kwargs: object,
 ) -> RagResultDiagnostics:
+    clarification_reason = kwargs.get("clarification_reason", "")
+    no_answer_reason = kwargs.get("no_answer_reason", "")
+    semantic_outcome = kwargs.get("semantic_outcome", "")
+    if "retrieval_adequacy_verdict" not in kwargs:
+        if isinstance(clarification_reason, str) and clarification_reason:
+            kwargs["retrieval_adequacy_verdict"] = "ambiguous"
+            kwargs["retrieval_adequacy_reason"] = clarification_reason
+        elif semantic_outcome in {"unsupported_by_evidence", "freshness_fail_close"}:
+            kwargs["retrieval_adequacy_verdict"] = "insufficient"
+            if no_answer_reason == "resolved_policy_clause_not_found":
+                kwargs["retrieval_adequacy_reason"] = "resolved_policy_clause_not_found"
+            elif no_answer_reason == "freshness_fail_close":
+                kwargs["retrieval_adequacy_reason"] = "freshness_fail_close"
+            else:
+                kwargs["retrieval_adequacy_reason"] = "no_supporting_sources"
     return RagResultDiagnostics(
         resolved_scope_corpus=corpus,
         resolved_scope_collection=collection,
+        **kwargs,
+    )
+
+
+def _resolved_curriculum_diagnostics_from_response(
+    response: SpecialistResponse,
+    **kwargs: object,
+) -> RagResultDiagnostics:
+    result = response.result
+    if not isinstance(result, RagResultPayload):
+        raise AssertionError("expected RagResultPayload for curriculum diagnostics assertion")
+    return _resolved_scope_diagnostics(
+        corpus="curriculum",
+        collection="curriculum_plan",
+        retrieved_sources=result.evidence.sources,
         **kwargs,
     )
 
@@ -392,7 +511,12 @@ class RagSpecialistTest(unittest.TestCase):
                     query_text="library hours",
                     corpus="regulations",
                     collection="student_handbook",
-                )
+                ),
+                diagnostics=_resolved_scope_diagnostics(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    semantic_outcome="unsupported_by_evidence",
+                ),
             ),
         )
 
@@ -403,13 +527,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagAnswerPromptOutput(
                         answer_text="当前依据还不够，请补充更具体的制度名称。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_unsupported_v1",
-                        prompt_version="v1",
-                        template_sha256="c" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
         response = delegate_to_rag_agent(
@@ -431,6 +549,652 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.answer_text, "当前依据还不够，请补充更具体的制度名称。")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
+
+    def test_invalid_no_answer_prompt_output_falls_back_to_deterministic_copy(self) -> None:
+        class FakePromptExecutor:
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(answer_text="   "),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="library hours",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("未检索到足够依据", response.answer_text)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
+
+    def test_prompt_answer_with_unsupported_claims_downgrades_to_no_answer(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办要求是什么",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-0001",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-0002",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="根据《学生证管理办法》，补办学生证需要携带身份证原件，并要在3个工作日内完成审核。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="当前检索结果不足以支持这些补办条件，请以原文条款为准。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办要求是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "当前检索结果不足以支持这些补办条件，请以原文条款为准。")
+        self.assertEqual(response.confidence, "low")
+        self.assertIsInstance(response.result, RagResultPayload)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "insufficient_grounding")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertTrue(response.result.diagnostics.grounding_downgraded)
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertIn("requirement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("time_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="material_requirement",
+                claim_text="身份证原件",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="time_or_deadline",
+                claim_text="3个工作日",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
+
+    def test_prompt_answer_with_supported_claims_keeps_completed_status(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办要求是什么",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-0101",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-0102",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="根据《学生证管理办法》，学生证遗失后应及时办理挂失，再提交书面申请并到学院审核。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办要求是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.confidence, "high")
+        self.assertIsInstance(response.result, RagResultPayload)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertFalse(response.result.diagnostics.grounding_downgraded)
+        self.assertEqual(response.result.diagnostics.unsupported_fields, ())
+        self.assertTrue(response.result.diagnostics.claim_supports)
+        self.assertTrue(all(claim.supported for claim in response.result.diagnostics.claim_supports))
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
+
+    def test_validate_prompt_answer_grounding_detects_unsupported_offering_unit_and_audience_claims(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="思想政治理论课有哪些要求",
+            corpus="curriculum",
+            collection="course_facts",
+            sources=(
+                EvidenceSource(
+                    doc_id="course_facts:family-audience",
+                    revision_track="source-faithful",
+                    version_id="v1:course-facts",
+                    chunk_id="course-facts:family-audience",
+                    anchor={"fact_type": "audience"},
+                    canonical_url="https://campus.example/curriculum/ideological-political-theory",
+                    latest_url="https://campus.example/curriculum/ideological-political-theory",
+                    source_channel="pdf_ocr",
+                    collection="course_facts",
+                    is_current=False,
+                    snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                    score=0.92,
+                    source_title="中央民族大学通识课程思想政治理论课教学计划",
+                    structural_path=("思想政治理论课",),
+                    detail_label="修读要求",
+                    content_kind="course_fact",
+                    content_role="audience",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上，安排在第四学期，共3学分。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "unsupported")
+        self.assertIn("offering_unit_claims", result.unsupported_fields)
+        self.assertIn("audience_claims", result.unsupported_fields)
+        self.assertIn("semester_or_grade_or_term_placement_claims", result.unsupported_fields)
+        self.assertIn("quantity_or_credit_or_score_requirement_claims", result.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="offering_unit_or_owning_school",
+                claim_text="马克思主义学院",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="audience_or_major_or_program_or_class_family",
+                claim_text="法学专业",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="quantity_or_credit_or_score_requirement",
+                claim_text="3学分",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            result.claim_supports,
+        )
+
+    def test_validate_prompt_answer_grounding_accepts_provider_grounding_supports(self) -> None:
+        result = validate_prompt_answer_grounding(
+            answer_text="培养方案把这门课安排在第四学期。",
+            evidence=EvidenceBundle(
+                query_text="法学民族班培养方案里大二下有什么课",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=(),
+            ),
+            provider_grounding_supports={
+                "supports": [
+                    {
+                        "claimText": "第四学期",
+                        "docId": "curriculum:law-ethnic-experimental",
+                        "snippet": "第四学期开设习近平新时代中国特色社会主义思想概论。",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(result.verdict, "grounded")
+        self.assertEqual(result.unsupported_fields, ())
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=True,
+                support_source_doc_id="curriculum:law-ethnic-experimental",
+                support_snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+            ),
+            result.claim_supports,
+        )
+
+    def test_prompt_answer_with_unsupported_offering_unit_and_audience_downgrades_to_no_answer(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="思想政治理论课有哪些要求",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:ideological-course-plan",
+                    title="中央民族大学通识课程思想政治理论课教学计划",
+                    snippet="思想政治理论课为全校性公共必修课，所有本预科学生应认真完成上述7门课程设置的各教学环节。",
+                    score=0.92,
+                    chunk_id_suffix="ideological-course-plan-0101",
+                    detail_label="修读要求",
+                    content_role="audience",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上，安排在第四学期，共3学分。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。"
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="思想政治理论课有哪些要求",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.answer_text, "当前检索结果不足以支持开课单位和适用专业，请以原文为准。")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertTrue(response.result.diagnostics.grounding_downgraded)
+        self.assertIn("offering_unit_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("audience_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("semester_or_grade_or_term_placement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn("quantity_or_credit_or_score_requirement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn(
+            ClaimSupport(
+                claim_type="semester_or_grade_or_term_placement",
+                claim_text="第四学期",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertIn(
+            ClaimSupport(
+                claim_type="quantity_or_credit_or_score_requirement",
+                claim_text="3学分",
+                supported=False,
+                support_source_doc_id="",
+                support_snippet="",
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+        self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_unsupported_v1")
+
+    def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办要求是什么",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-0201",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-0202",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(answer_text="这是一个不该被接受的 prompt 回答。"),
+                    prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办要求是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        diagnostics = response.result.diagnostics
+        if diagnostics is not None:
+            self.assertEqual(diagnostics.semantic_outcome, "")
+            self.assertEqual(diagnostics.grounding_verdict, "")
+            self.assertIsNone(diagnostics.prompt_trace)
+
+    def test_prompt_runtime_failure_projects_typed_runtime_state_while_falling_back(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办要求是什么",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="补办学生证需要先提交书面申请，再到学院审核。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-runtime-0101",
+                    detail_label="补办流程",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="如学生证遗失，应及时办理挂失。",
+                    score=0.88,
+                    chunk_id_suffix="student-card-runtime-0102",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise PromptRuntimeValidationError(
+                    prompt_id="rag_answer_v1",
+                    reason="provider_incomplete: content_filter",
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办要求是什么",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        diagnostics = response.result.diagnostics
+        if diagnostics is not None:
+            self.assertEqual(diagnostics.prompt_runtime_state, "content_filter")
+            self.assertEqual(diagnostics.prompt_runtime_detail, "content_filter")
+            self.assertIsNone(diagnostics.prompt_trace)
+
+    def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办需要什么材料",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="学生补办学生证，必须提出书面申请，并填写《中央民族大学补办学生证申请表》。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-materials-0001",
+                    detail_label="补办材料",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic handbook materials path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办需要什么材料",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNone(response.result.diagnostics)
+
+    def test_handbook_time_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证补办什么时候办",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="学生证管理办法",
+                    snippet="学生证集中补办时间为每周四下午。",
+                    score=0.93,
+                    chunk_id_suffix="student-card-time-0001",
+                    detail_label="补办时间",
+                    content_role="time_rule",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic handbook time path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证补办什么时候办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNone(response.result.diagnostics)
+
+    def test_curriculum_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:ethnology-years-deterministic",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-9999",
+                    anchor={"page_start": 5, "page_end": 5},
+                    canonical_url="https://campus.example/curriculum/ethnology-second-degree",
+                    latest_url="https://campus.example/curriculum/ethnology-second-degree",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet="五、学制 两年",
+                    score=0.96,
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    content_kind="text",
+                    content_role="time_rule",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic curriculum path should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族学本科第二学士学位人才培养方案学制几年？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_official_web_title_targeted_reference_page_completes_without_handbook_copy(self) -> None:
         evidence = _make_official_web_evidence(
@@ -518,6 +1282,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy(self) -> None:
         response = delegate_to_rag_agent(
@@ -541,6 +1306,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("最新", response.answer_text)
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "freshness_fail_close")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "freshness_fail_close")
+        self.assertTrue(response.result.diagnostics.freshness_fail_closed)
 
     def test_official_web_stable_reference_no_evidence_uses_scope_specific_no_answer_copy(self) -> None:
         response = delegate_to_rag_agent(
@@ -562,6 +1330,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_official_web_stable_reference_reference_page_uses_official_web_answering(self) -> None:
         evidence = _make_official_web_evidence(
@@ -1206,13 +1975,7 @@ class RagSpecialistTest(unittest.TestCase):
                     output=RagClarifyPromptOutput(
                         follow_up_question="你具体想问哪一项制度？"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_clarify_v1",
-                        prompt_version="v1",
-                        template_sha256="d" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_clarify_v1"),
                 )
 
         response = delegate_to_rag_agent(
@@ -1402,27 +2165,21 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
     def test_generic_completed_response_uses_injected_prompt_executor_for_answer(self) -> None:
-        evidence = _make_evidence(scores=(0.82,), query_text="library hours")
+        evidence = _make_evidence(scores=(0.82,), query_text="学生支持政策是什么")
 
         class FakePromptExecutor:
             def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
-                        answer_text="根据学生手册，图书馆开放时间为 08:00 至 22:00。"
+                        answer_text="根据学生手册，学生支持政策以原文规定为准。"
                     ),
-                    prompt_trace=PromptTrace(
-                        prompt_id="rag_answer_v1",
-                        prompt_version="v1",
-                        template_sha256="e" * 64,
-                        variables_schema_version="v1",
-                        output_schema_version="v1",
-                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
                 target="rag-specialist",
-                user_goal="library hours",
+                user_goal="学生支持政策是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
                 ),
@@ -1432,7 +2189,7 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, "根据学生手册，图书馆开放时间为 08:00 至 22:00。")
+        self.assertEqual(response.answer_text, "根据学生手册，学生支持政策以原文规定为准。")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
     def test_ambiguous_multi_policy_evidence_maps_to_needs_clarification(self) -> None:
@@ -1544,7 +2301,18 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("民族实验班", response.follow_up_question)
-        self.assertEqual(response.result, RagResultPayload(evidence=evidence))
+        self.assertEqual(response.result.evidence, evidence)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title")
+        self.assertEqual(
+            response.result.diagnostics.retrieved_title_summary,
+            (
+                "法学（民族实验班）本科人才培养方案",
+                "信息与计算科学（民族实验班）本科人才培养方案",
+                "计算机科学与技术（民族实验班）本科人才培养方案",
+            ),
+        )
 
     def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(self) -> None:
         evidence = EvidenceBundle(
@@ -1654,6 +2422,84 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
         self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
+    def test_curriculum_semester_course_query_uses_program_semester_facts_collection(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_call["query_text"] = query_text
+            retriever_call.update(kwargs)
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="curriculum",
+                collection="program_semester_facts",
+                sources=(
+                    EvidenceSource(
+                        doc_id=build_curriculum_program_semester_fact_document_id(
+                            "curriculum:法学（民族实验班）本科人才培养方案",
+                            "第四学期",
+                        ),
+                        revision_track="source-faithful",
+                        version_id="v1:law-ethnic-semester-4",
+                        chunk_id="program_semester_facts:law-ethnic:semester-4:row-0001",
+                        anchor={"fact_type": "semester_course_list"},
+                        canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                        source_channel="pdf_ocr",
+                        collection="program_semester_facts",
+                        is_current=False,
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、公司法、翻译学导论。",
+                        score=0.95,
+                        source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                        structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                        detail_label="第四学期课程",
+                        content_kind="program_semester_fact",
+                        content_role="semester_course_list",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="法学民族班培养方案里大二下有什么课",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
+        )
+        self.assertIn("根据培养方案相关内容", response.answer_text)
+        self.assertNotIn("根据学生手册相关规定", response.answer_text)
+        self.assertIn("侵权责任法", response.answer_text)
+        self.assertIn("公司法", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_curriculum_diagnostics_from_response(
+                response,
+                resolved_policy_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                resolved_policy_title="法学（民族实验班）本科人才培养方案",
+                rewritten_query="法学民族实验班培养方案里第四学期有什么课",
+                retrieved_title_summary=("法学（民族实验班）本科人才培养方案 第四学期课程事实",),
+                resolution_mode="resolved_single",
+                session_program_family="民族实验班",
+                session_program="法学民族实验班",
+                session_semester="第四学期",
+            ),
+        )
+
     def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(self) -> None:
         evidence = EvidenceBundle(
             query_text="民族实验班培养方案里第四学期有什么课",
@@ -1726,27 +2572,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -1783,9 +2615,15 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["query_text"],
             "法学民族实验班培养方案里第四学期有什么课",
         )
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertIn("侵权责任法", response.answer_text)
 
@@ -1798,27 +2636,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -1855,9 +2679,15 @@ class RagSpecialistTest(unittest.TestCase):
             retriever_call["query_text"],
             "法学民族实验班培养方案里第四学期有什么课",
         )
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertIn("中国少数民族文字学", response.answer_text)
 
@@ -1870,27 +2700,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -1939,9 +2755,15 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertEqual(response.result.diagnostics.session_program_family, "民族实验班")
         self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
@@ -1956,27 +2778,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:法学（民族实验班）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:law-ethnic-experimental",
-                        chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                    canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    latest_url="https://campus.example/curriculum/law-ethnic-experimental",
-                    source_channel="pdf_ocr",
-                    collection="curriculum_plan",
-                    is_current=True,
-                    snippet="第四学期 侵权责任法、翻译学导论、中国少数民族文字学。",
-                    score=0.92,
-                    source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
-                    detail_label="第四学期",
-                    content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
+                    _make_program_semester_source(
+                        source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有侵权责任法、翻译学导论、中国少数民族文字学。",
+                        score=0.92,
                     ),
                 ),
             )
@@ -2025,9 +2833,15 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["query_text"], "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:法学（民族实验班）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
 
     def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(self) -> None:
@@ -2068,27 +2882,13 @@ class RagSpecialistTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="curriculum",
-                collection="curriculum_plan",
+                collection="program_semester_facts",
                 sources=(
-                    EvidenceSource(
-                        doc_id="curriculum:历史学（强基计划）本科人才培养方案",
-                        revision_track="source-faithful",
-                        version_id="v1:history-strong-base",
-                        chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0004",
-                        anchor={"page_start": 24, "page_end": 24},
-                        canonical_url="https://campus.example/curriculum/history-strong-base",
-                        latest_url="https://campus.example/curriculum/history-strong-base",
-                        source_channel="pdf_ocr",
-                        collection="curriculum_plan",
-                        is_current=True,
-                        snippet="第四学期 中国史学史、史学理论专题。",
+                    _make_program_semester_source(
+                        source_document_id="curriculum:历史学（强基计划）本科人才培养方案",
+                        semester_label="第四学期",
+                        snippet="按当前已采集的《历史学（强基计划）本科人才培养方案》，第四学期有中国史学史、史学理论专题。",
                         score=0.92,
-                        source_title="历史学（强基计划）本科人才培养方案",
-                        structural_path=("历史学（强基计划）本科人才培养方案", "第四学期"),
-                        detail_label="第四学期",
-                        content_kind="table_unit",
-                        content_role="table_fact",
-                        is_answer_bearing=True,
                     ),
                 ),
             )
@@ -2112,9 +2912,15 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
+        self.assertEqual(retriever_call["collection"], "program_semester_facts")
         self.assertEqual(
             retriever_call["target_document_ids"],
-            ("curriculum:历史学（强基计划）本科人才培养方案",),
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:历史学（强基计划）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
         )
         self.assertEqual(retriever_call["preferred_document_ids"], ())
         self.assertIn("中国史学史", response.answer_text)
@@ -2143,6 +2949,8 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.result.diagnostics.clarification_reason, "curriculum_program_family_alias")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_family_alias")
         self.assertEqual(response.result.diagnostics.resolution_mode, "needs_clarification")
         self.assertFalse(response.result.diagnostics.used_verified_identity)
         self.assertTrue(response.result.diagnostics.used_soft_preference)
@@ -2192,6 +3000,7 @@ class RagSpecialistTest(unittest.TestCase):
                 resolved_policy_document_id="curriculum:历史学（强基计划）本科人才培养方案",
                 resolved_policy_title="历史学（强基计划）本科人才培养方案",
                 rewritten_query="历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
+                semantic_outcome="unsupported_by_evidence",
                 resolution_mode="resolved_single",
                 used_verified_identity=True,
                 used_soft_preference=False,
@@ -2436,6 +3245,55 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.preferred_document_ids, ())
         self.assertIn("历史学（强基计划）本科人才培养方案", plan.rewritten_query_text)
 
+    def test_plan_curriculum_query_marks_course_map_queries_as_unsupported(self) -> None:
+        plan = plan_curriculum_query("经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+
+        self.assertEqual(plan.status, "unsupported")
+        self.assertEqual(plan.unsupported_reason, "curriculum_course_map_unsupported")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:经济学拔尖人才创新班人才培养方案",),
+        )
+        self.assertEqual(plan.resolved_document_title, "经济学拔尖人才创新班人才培养方案")
+
+    def test_delegate_to_rag_agent_fail_closes_course_map_queries_without_retrieval(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence(query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertFalse(retriever_called)
+        self.assertIn("课程地图", response.answer_text)
+        self.assertIn("不能稳定解析", response.answer_text)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_scope_diagnostics(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                no_answer_reason="curriculum_course_map_unsupported",
+                semantic_outcome="unsupported_scope",
+                retrieval_adequacy_verdict="insufficient",
+                retrieval_adequacy_reason="unsupported_query_type",
+                candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
+                resolution_mode="unsupported",
+            ),
+        )
+
     def test_course_single_audience_query_uses_course_facts_collection(self) -> None:
         retriever_call: dict[str, object] = {}
 
@@ -2484,14 +3342,15 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["corpus"], "curriculum")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-audience",))
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
+        self.assertEqual(response.answer_text, "习近平新时代中国特色社会主义思想概论面向所有本预科学生。")
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -2550,18 +3409,20 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:family-membership",))
         self.assertEqual(retriever_call["canonical_course_ids"], ())
         self.assertEqual(
             retriever_call["canonical_course_family_ids"],
             ("course_family:muc.ideological_political_theory",),
         )
+        self.assertTrue(response.answer_text.startswith("思想政治理论课包括"))
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertIn("习近平新时代中国特色社会主义思想概论", response.answer_text)
         self.assertIn("中华民族共同体概论", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -2617,13 +3478,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:family-audience",))
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -2681,15 +3543,15 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
         self.assertIn("第1学期(理工/艺体)", response.answer_text)
         self.assertIn("第2学期(文科)", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -2745,13 +3607,13 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
         self.assertIn("习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_single",
                 resolved_entity_type="course",
                 resolved_course_id="course:muc.xigai",
@@ -2801,6 +3663,11 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            response.answer_text,
+            "习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+        )
+        self.assertNotIn("根据培养方案和课程教学计划", response.answer_text)
         self.assertNotIn("当前已采集的课程事实", response.answer_text)
         self.assertNotIn("课程事实", response.answer_text)
 
@@ -3033,6 +3900,18 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (
+                "course_facts:muc.marxist_basic_principles-semester",
+                "course_facts:muc.modern_chinese_history_outline-semester",
+                "course_facts:muc.mao_zedong_thought_and_theoretical_system-semester",
+                "course_facts:muc.xigai-semester",
+                "course_facts:muc.ideological_morality_and_rule_of_law-semester",
+                "course_facts:muc.situation_and_policy-semester",
+                "course_facts:muc.community_for_chinese_nation-semester",
+            ),
+        )
         self.assertEqual(retriever_call["canonical_course_ids"], ())
         self.assertEqual(
             retriever_call["canonical_course_family_ids"],
@@ -3048,9 +3927,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("根据当前已采集的课程事实，思想政治理论课：", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -3306,9 +4184,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="course_family",
                 resolved_course_family_id="course_family:muc.ideological_political_theory",
@@ -3375,9 +4252,8 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("当前已采集", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
+            _resolved_curriculum_diagnostics_from_response(
+                response,
                 resolution_mode="resolved_family",
                 resolved_entity_type="program_family",
                 resolved_program_family_id="program_family:muc.ethnic_experimental_class",
@@ -3919,7 +4795,11 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
         self.assertIn("未检索到足够依据", response.answer_text)
-        self.assertEqual(response.result, RagResultPayload(evidence=evidence))
+        self.assertEqual(response.result.evidence, evidence)
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_handbook")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
         captured_kwargs: dict[str, object] = {}
@@ -4142,10 +5022,68 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             [source.chunk_id for source in response.result.evidence.sources],
             ["student-card-procedure"],
         )
+        self.assertEqual(
+            [source.chunk_id for source in response.result.diagnostics.retrieved_sources],
+            [
+                "student-card-procedure",
+                "student-card-closing",
+                "medical-background",
+            ],
+        )
         self.assertIn("学生证遗失后", response.answer_text)
         self.assertNotIn("负责解释", response.answer_text)
         self.assertNotIn("公费医疗", response.answer_text)
         self.assertNotIn("1.", response.answer_text)
+
+    def test_completed_response_preserves_raw_retrieved_sources_even_when_support_matches(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族班有哪些",
+            corpus="curriculum",
+            collection="program_family_facts",
+            sources=(
+                EvidenceSource(
+                    doc_id="program_family_facts:ethnic-class-membership",
+                    revision_track="source-faithful",
+                    version_id="v1:program-family-facts",
+                    chunk_id="program-family-facts:ethnic-class-membership",
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/curriculum/program-family/ethnic-class",
+                    latest_url="https://campus.example/curriculum/program-family/ethnic-class",
+                    source_channel="pdf_ocr",
+                    collection="program_family_facts",
+                    is_current=True,
+                    snippet="民大的民族班有法学、信息与计算科学、计算机科学与技术。",
+                    score=0.97,
+                    source_title="中央民族大学民族班项目一览",
+                    structural_path=("民族班",),
+                    content_kind="program_family_fact",
+                    content_role="family_membership",
+                    detail_label="成员专业",
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="民族班有哪些",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.result.diagnostics)
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            ("program-family-facts:ethnic-class-membership",),
+        )
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.diagnostics.retrieved_sources),
+            ("program-family-facts:ethnic-class-membership",),
+        )
 
     def test_completed_response_focuses_student_card_reissue_on_actionable_steps(self) -> None:
         evidence = EvidenceBundle(
@@ -4404,7 +5342,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
         self.assertNotIn("文号：", draft.supporting_contexts[0])
 
-    def test_curriculum_completed_answer_uses_curriculum_specific_prefix(self) -> None:
+    def test_curriculum_completed_answer_uses_direct_fact_sentence_without_curriculum_prefix(self) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科人才培养方案",
             corpus="curriculum",
@@ -4453,7 +5391,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("根据培养方案相关内容", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
+        self.assertIn("学制", response.answer_text)
+        self.assertIn("两年", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
 
     def test_curriculum_table_semester_query_accepts_numeric_semester_columns(self) -> None:
@@ -4969,6 +5909,73 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
             },
         )
 
+
+class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
+    def test_query_mode_routes_curriculum_structure_queries_away_from_procedure(self) -> None:
+        for query_text in (
+            "经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            "法学民族实验班培养方案课程设置怎么安排",
+            "法学民族实验班培养方案修读建议怎么安排",
+        ):
+            with self.subTest(query_text=query_text):
+                self.assertEqual(_query_mode(query_text), "curriculum_lookup")
+
+    def test_curriculum_course_map_answer_fail_closes_without_supporting_sources(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0023",
+                    snippet="六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                    score=0.99,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "六、课程地图"),
+                    content_kind="section_text",
+                    detail_label="六、课程地图",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0014",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
+                    score=0.98,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0015",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程 发展经济学专题。",
+                    score=0.97,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id="curriculum:economics-innovation:chunk-0013",
+                    snippet="五、课程设置和修读建议 1. 专业核心课程 专业核心课程 30 学分。",
+                    score=0.96,
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual(draft.supporting_sources, ())
+        self.assertEqual(draft.supporting_contexts, ())
+        self.assertEqual(draft.answer_text, "")
+
     def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
@@ -5065,6 +6072,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.confidence, "medium")
         self.assertIn("155学分", response.answer_text)
         self.assertNotIn("法学本科人才培养方案", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
 
     def test_curriculum_named_document_query_with_low_title_score_still_completes(self) -> None:
         evidence = EvidenceBundle(
@@ -5330,7 +6338,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.confidence, "medium")
-        self.assertIn("学分", response.answer_text)
+        self.assertIn("159", response.answer_text)
+        self.assertNotIn("26 学分", response.answer_text)
+        self.assertNotIn("根据培养方案相关内容", response.answer_text)
 
     def test_handbook_missing_policy_object_clarifies_before_retrieval(self) -> None:
         retriever_called = False
@@ -5468,6 +6478,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
                 no_answer_reason="resolved_policy_clause_not_found",
+                semantic_outcome="unsupported_by_evidence",
             ),
         )
 
@@ -5522,6 +6533,9 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertIn(target_title, response.answer_text)
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "insufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "resolved_policy_clause_not_found")
 
     def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(self) -> None:
         target_title = "中央民族大学本科学生国家奖学金评审办法"
@@ -5546,6 +6560,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "restricted_access_denied")
         self.assertEqual(response.result.diagnostics.resolved_policy_title, "")
         self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
@@ -5570,6 +6585,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
         self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "restricted_access_denied")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "restricted_access_denied")
         self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
     def test_confidence_derivation_prefers_stronger_and_more_consistent_support(self) -> None:

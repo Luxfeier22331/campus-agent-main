@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Data Plane Architecture
@@ -16,6 +16,11 @@ updated: 2026-04-05
 - canonical upstream chain 是什么
 - raw、source truth、projection、document truth、chunk/index 分别属于谁
 - 哪些规则是 repo 级 shared contract，哪些属于 collection-specific strategy
+
+补充约束：
+
+- 当前 merged truth 的开放 surface 与产品执行状态不在本文维护，统一看 `docs/architecture/current-architecture.md` 与 `.planning/`
+- 本文中的 “scope” 指 canonical data-plane support 范围，不等于 query-enabled 或 rollout 已完成
 
 ## Canonical Chain
 
@@ -48,7 +53,19 @@ source truth 的长期硬约束：
 - `authenticated_notice_portal`
   notice-level source truth，详见 `docs/architecture/authenticated-notice-source-truth-contract.md`
 
-这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Current Scope` 为准。
+这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
+
+## Derived Collection Rebuild
+
+当某个 collection 的上游已经不是 raw/source-truth，而是另一条 canonical document scope 的 `document-units` 时，固定规则为：
+
+- materialization / rebuild 从 canonical `document-units` 开始，不返回 raw source bucket 或 provider replay
+- 派生 collection 仍要把自己的 canonical document artifacts、registry rows 与 release manifest 独立落盘
+- 派生 collection 的 indexing / alias publish 继续走 release-managed registry scope 流程
+
+当前已接受实例：
+
+- `curriculum/curriculum_plan -> curriculum/program_semester_facts`
 
 ## Layer Ownership
 
@@ -83,6 +100,15 @@ source truth 的长期硬约束：
 - serving alias 指向当前 query-serving physical collection
 - index release 通过 versioned physical collection + release manifest 追溯
 
+对部分 `offline_preparation` collection，index release 之前允许插入一个 preparation gate。
+
+固定规则：
+
+- collection-specific `chunk preparation` 属于 data-plane 内的独立阶段，不等于 index release
+- preparation 只负责 split / cleanup / chunk / validation，不负责 embedding / indexing
+- preparation truth 固定落在 operations prefix，而不是 release prefix
+- 当某个 collection 启用 hard gate 时，release 必须显式引用 verified preparation truth 才能继续
+
 ## Object Storage Semantics
 
 对象存储在架构语义上始终视为：
@@ -116,17 +142,22 @@ registry / control-plane database 与对象存储长期分层。
 - `configs/ingestion/*`
 - `docs/architecture/official-web-source-truth-contract.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`
 
 为准。
 
-## Current Scope
+## Accepted Data-Plane Scope
 
-当前 data plane 已支撑：
+当前 data plane 已支撑以下 canonical scope：
 
 - `regulations/student_handbook`
 - `curriculum/curriculum_plan`
 - `curriculum/course_facts`
+- `curriculum/program_family_facts`
+- `curriculum/program_semester_facts`
 - `official_web` source channel 的 control-plane / source-truth path
+
+这表示 repo 已为这些 scope 建立了 canonical data-plane 语义，并不表示它们都已开放 query-serving 或已完成当前 rollout。
 
 ## Authenticated Notice Async Staged Closeout
 
@@ -141,6 +172,7 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - notice/raw/document staging rows 与 run/shard/batch/worker counters 必须作为 batch 级单事务提交
 - batch 围绕 canonical source-truth 与 declared document artifacts 工作，但 canonical final document scope 只允许 promoter 单写
 - promoter 在 verification 通过后，才把 staged document artifacts 复制到 `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`
+- 若 collection 额外启用了 registry-scope chunk preparation，则 preparation artifacts 固定落在 `campus_notices/operations/registry-scope-chunk-preparation/{run_id}/...`，它们属于 operations truth，不属于 release truth
 
 因此被并行化的是 staging，而不是 canonical document scope mutation。
 
@@ -153,6 +185,7 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 
 ## 相关稳定文档
 
+- `docs/architecture/current-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
@@ -160,3 +193,4 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/reference/internal-notice-offline-preparation-strategy.md`

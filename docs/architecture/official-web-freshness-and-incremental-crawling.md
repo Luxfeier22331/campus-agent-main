@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-03-30
-updated: 2026-04-04
+updated: 2026-04-14
 ---
 
 # Official Web Freshness And Incremental Crawling
@@ -27,15 +27,15 @@ updated: 2026-04-04
 
 对应文档：
 
-- source channel 总边界：`docs/architecture/official-web-source-channel.md`
-- crawl 规则：`docs/architecture/official-web-crawl-policy.md`
+- source channel 总边界：`docs/architecture/official-web-architecture.md`
+- crawl 规则：`docs/policies/official-web-crawl-policy.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
-- control-plane ownership：`docs/architecture/official-web-control-plane-on-app-api.md`
+- control-plane ownership：`docs/architecture/official-web-architecture.md`
 - serving / news retrieval 策略：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - 当前 news handoff truth：`docs/reference/official-web-fresh-news-surface-handoff.md`
 - app-api HTTP seam：`docs/contracts/app-api-official-web-http.md`
 - app-api run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
-- phase-1 数据平面不变量：`docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- 数据平面不变量：`docs/architecture/data-plane-architecture.md`
 
 ## 目标
 
@@ -58,6 +58,7 @@ updated: 2026-04-04
 - 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条 `future_fresh_news_surface` 文档应被视为后续 hot-lane / fresh-news work 的 seed set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
 - `fetch_failed` 是 repair lane 的一等输入，但不是下游 ingestion 的变化触发条件。
 - 动态壳页应走独立 browser-capable provider lane；不得为了少量动态页面污染主 HTML/cheerio crawl 路径。
+- hot lane / metadata coverage readiness 只是 `fresh_news` opening 的必要条件，不是充分条件；真正 opening 仍要同时满足 routing、detail-evidence、duplicate collapse 与独立 eval artifact，统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## 长期运行形态
 

@@ -2,29 +2,29 @@
 doc_type: reference
 status: active
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-14
 ---
 
-# official_web fresh_news Seed Eval Baseline Evidence (2026-04-05)
+# Official Web Fresh News Seed Eval Baseline
 
-## Scope
+## 目的
 
-This note records the first repo-tracked retrieval/live-gate baseline for the
-current `official_web/fresh_news` seed set.
+本文记录 `official_web/fresh_news` seed set 的稳定评估基线：
 
-It is evidence for:
+- repo-tracked seed denominator 是什么
+- retrieval 与 live gate 的 accepted baseline 是什么
+- 这组 baseline 的适用边界是什么
+- 后续 rerun 何时应更新本文
 
-- repo-tracked `fresh_news` split manifest and retrieval qrels truth
-- deterministic `fresh_news` seed live-gate wiring
-- one real local physical collection for the current `8`-document seed set
+边界：
 
-It is not evidence for:
+- 这不是 `fresh_news` 默认 query-serving 已开放的证明
+- 这不是 freshness-sensitive routing / policy 已闭合的证明
+- 本文不长期暴露单次 `.tmp` artifact 或 run-time workaround 路径
 
-- opening `official_web/fresh_news` as a default query-serving surface
-- freshness-sensitive routing / time-window policy closure
-- `news_archive` readiness
+## Baseline Contract
 
-## Repo-Tracked Baseline
+repo-tracked 基线入口固定为：
 
 - split manifest:
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
@@ -36,107 +36,56 @@ It is not evidence for:
 - live benchmark entry:
   `uv run --all-packages python -m campus_evals.official_web_live_benchmark ... --official-web-scope fresh_news`
 
-Baseline content:
+基线分母：
 
 - `8` retrieval qrels cases for the current fresh-news handoff seed set
 - `8` deterministic live-gate cases for exact-title asks only
 
-## Local Import And Release
+## Accepted Baseline Snapshot
 
-Input replay:
+accepted snapshot 固定为 `2026-04-05`：
 
-- `/tmp/official-web-qc-20260401-batch-d-clean-subset`
-- `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-fresh-news-20260405-v1`
+- effective seed documents：`8`
+- cross-host duplicate skips：`3`
+- validated physical collection：`official_web_fresh_news__r20260404_222909`
+- retrieval baseline：
+  - `total_cases = 8`
+  - `hit_at_1 = 1.0`
+  - `hit_at_3 = 1.0`
+  - `recall_at_5 = 1.0`
+  - `doc_hit_at_1 = 1.0`
+  - `doc_recall_at_5 = 1.0`
+  - `forbidden_hit_rate = 0.0`
+- deterministic live gate：
+  - `benchmark_type = official_web_fresh_news_live_gate`
+  - `total_cases = 8`
+  - `completed = 8`
+  - `deterministic mean_pass_rate = 1.0`
+  - `gate verdict = pass`
 
-Observed routing/import truth:
+## 基线解释
 
-- routed `fresh_news` replay output included the `8` expected seed documents
-- three cross-host duplicate pages were skipped during import
-  - `official_web:muc_public:article_detail:bcf72fd4fa16eca1d69a8e5d0704821411f07510`
-  - `official_web:muc_public:article_detail:3596a212f9e51424945bb380ac178e89ab445ba6`
-  - `official_web:muc_public:article_detail:595612debb1755badffb0032a21c7df317afbd11`
-- effective imported seed truth remained `8` documents
+- 这组 baseline 只覆盖 handoff seed set 的 exact-title retrieval / answer path，不覆盖“今天 / 最新 / 最近”这类 freshness-sensitive 问法
+- `fresh_news` 在该基线下仍是 `offline_preparation` 语义，不应被写成默认 query-serving surface
+- cross-host duplicate 跳过说明 routed import 已具备基础去重能力，但不等于 `news_archive` 或持续增量采集策略已经闭合
+- 原始首次执行中关于 shared Postgres 饱和、临时 registry 路径等运行面细节，属于历史排障背景，不再保留在 active baseline
+- 真正 opening 仍需独立 worktree 按
+  `docs/reference/official-web-news-surface-opening-checklist.md`
+  生成 recent/stale/historical/archive-no-backfill artifact
 
-Execution note:
+## 维护规则
 
-- the shared Postgres registry pooler was saturated during CLI import
-- local validation therefore reused the existing injected-registry path:
-  real MinIO + real Qdrant, but in-memory registry instances for this one local
-  validation run
-- this preserves the local chain validation goal without claiming that shared
-  registry current truth was updated
+- 这份文档只保存 seed denominator、关键数值和解释边界
+- 新一轮 rerun 只在以下情况更新这里：
+  - seed set 改变
+  - qrels denominator 改变
+  - deterministic live-gate denominator 改变
+  - accepted baseline verdict 改变
+- 一次性 `.tmp` artifact、首次执行 workaround 和历史排障证据不再长期挂在本文
 
-Release result:
+## 验证命令
 
-- release id: `r20260404_222909`
-- physical collection:
-  `official_web_fresh_news__r20260404_222909`
-- validation status: `passed`
-- document count: `8`
-- point count: `27`
-- published at: `null`
-
-## Retrieval Live Benchmark
-
-Executed:
-
-```bash
-uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
-  --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json \
-  --output /tmp/official-web-fresh-news-live-retrieval-20260405.json \
-  --format json \
-  --force-enable-retrieval \
-  --qdrant-collection-name official_web_fresh_news__r20260404_222909
-```
-
-Observed summary:
-
-- `total_cases=8`
-- `hit_at_1=1.0`
-- `hit_at_3=1.0`
-- `recall_at_5=1.0`
-- `doc_hit_at_1=1.0`
-- `doc_recall_at_5=1.0`
-- `forbidden_hit_rate=0.0`
-
-Artifact:
-
-- `/tmp/official-web-fresh-news-live-retrieval-20260405.json`
-
-## Deterministic Live Gate
-
-Executed:
-
-```bash
-uv run --all-packages python -m campus_evals.official_web_live_benchmark run \
-  --reruns 1 \
-  --official-web-scope fresh_news \
-  --qdrant-collection-name official_web_fresh_news__r20260404_222909 \
-  --output-dir /tmp/official-web-fresh-news-live-gate-20260405
-```
-
-Observed summary:
-
-- `benchmark_type=official_web_fresh_news_live_gate`
-- `total_cases=8`
-- `completed=8`
-- `deterministic mean_pass_rate=1.0`
-- `gate verdict=pass`
-
-Artifacts:
-
-- `/tmp/official-web-fresh-news-live-gate-20260405/summary.json`
-- `/tmp/official-web-fresh-news-live-gate-20260405/gate-report.json`
-- `/tmp/official-web-fresh-news-live-gate-20260405/SUMMARY.md`
-
-## Conclusion
-
-Current truth after this execution:
-
-- `official_web/fresh_news` now has a repo-tracked seed eval baseline
-- the current `8`-document handoff seed set can be imported into one local
-  physical collection without retaining cross-host duplicate documents
-- retrieval and deterministic answer-path validation both passed for the seed
-  set
-- runtime truth remains `offline_preparation`; freshness-sensitive serving and
-  `news_archive` split are still separate follow-up work
+- retrieval benchmark：
+  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json --qdrant-collection-name <collection> --format json --output <results.json>`
+- deterministic live gate：
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --official-web-scope fresh_news --qdrant-collection-name <collection> --output-dir <output_dir>`

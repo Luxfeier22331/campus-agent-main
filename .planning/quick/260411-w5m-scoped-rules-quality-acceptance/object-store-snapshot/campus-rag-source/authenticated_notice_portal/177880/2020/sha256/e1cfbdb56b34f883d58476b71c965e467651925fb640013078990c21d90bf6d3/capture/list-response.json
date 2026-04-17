@@ -1,0 +1,24 @@
+{
+  "notice_id": 177880,
+  "notice_title": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
+  "organization_name": "党委保卫部、保卫处",
+  "organization_id": "00007",
+  "notice_release_time": "2020-01-07 14:42",
+  "notice_create_time": "2020-01-07 10:01",
+  "notice_first_time": "2020-01-07 10:01",
+  "notice_link": null,
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "categories": [
+    {
+      "notice_id": 177880,
+      "notice_type": "32",
+      "notice_type_name": "学工通知",
+      "category_first_seen_at": "2026-04-02T23:57:52.158Z",
+      "category_last_seen_at": "2026-04-02T23:57:52.158Z",
+      "category_last_run_id": 14
+    }
+  ]
+}

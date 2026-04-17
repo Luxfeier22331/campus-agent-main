@@ -59,6 +59,14 @@ _NON_RETRYABLE_REASON_MARKERS = {
         "model not found",
     ),
 }
+_PROVIDER_CONTRACT_REASON_MARKERS = {
+    "provider_contract_violation": (
+        "responses contract violation",
+        "chat completions contract violation",
+        "payload did not contain output text",
+        "payload did not contain assistant message content",
+    ),
+}
 _TIMEOUT_ERROR_MARKERS = (
     "timeout",
     "timed out",
@@ -586,6 +594,358 @@ class OpenAICompatibleResponsesLLM(OpenAICompatibleTextResponsesLLM, InstructorB
         return result
 
 
+class OpenAICompatibleTextChatCompletionsLLM(BaseRagasLLM):
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        http_settings: SupplementalHTTPSettings,
+        reasoning_effort: str | None = None,
+        text_verbosity: str | None = None,
+        max_output_tokens: int | None = None,
+        request_pacer: RequestPacer | None = None,
+        circuit_breaker: ProviderCircuitBreaker | None = None,
+        cache=None,
+        sync_client: httpx.Client | None = None,
+        async_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        super().__init__(cache=cache)
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.http_settings = http_settings
+        self.reasoning_effort = reasoning_effort
+        self.text_verbosity = text_verbosity
+        self.max_output_tokens = max_output_tokens
+        self.request_pacer = request_pacer
+        self.circuit_breaker = circuit_breaker
+        self._sync_client = sync_client
+        self._async_client = async_client
+
+    def generate_text(
+        self,
+        prompt,
+        n: int = 1,
+        temperature: float = 0.01,
+        stop: list[str] | None = None,
+        callbacks=None,
+    ) -> LLMResult:
+        generations = [
+            Generation(
+                text=_extract_chat_completions_message_text(
+                    self._post_json_sync(
+                        "/chat/completions",
+                        _build_chat_completions_payload(
+                            model=self.model,
+                            prompt=prompt,
+                            temperature=temperature,
+                            reasoning_effort=self.reasoning_effort,
+                            text_verbosity=self.text_verbosity,
+                            max_output_tokens=self.max_output_tokens,
+                        ),
+                    )
+                ),
+                generation_info={"finish_reason": "stop"},
+            )
+            for _ in range(n)
+        ]
+        return LLMResult(
+            generations=[generations],
+            llm_output={"provider": "chat_completions_http", "model": self.model},
+        )
+
+    async def agenerate_text(
+        self,
+        prompt,
+        n: int = 1,
+        temperature: float | None = 0.01,
+        stop: list[str] | None = None,
+        callbacks=None,
+    ) -> LLMResult:
+        requests = [
+            self._post_json_async(
+                "/chat/completions",
+                _build_chat_completions_payload(
+                    model=self.model,
+                    prompt=prompt,
+                    temperature=temperature,
+                    reasoning_effort=self.reasoning_effort,
+                    text_verbosity=self.text_verbosity,
+                    max_output_tokens=self.max_output_tokens,
+                ),
+            )
+            for _ in range(n)
+        ]
+        responses = await asyncio.gather(*requests)
+        generations = [
+            Generation(
+                text=_extract_chat_completions_message_text(response_json),
+                generation_info={"finish_reason": "stop"},
+            )
+            for response_json in responses
+        ]
+        return LLMResult(
+            generations=[generations],
+            llm_output={"provider": "chat_completions_http", "model": self.model},
+        )
+
+    def is_finished(self, response: LLMResult) -> bool:
+        return True
+
+    def preflight_sync(self) -> dict[str, object]:
+        payload = _build_chat_completions_payload(
+            model=self.model,
+            prompt="Reply with OK only.",
+            temperature=0.0,
+            reasoning_effort=self.reasoning_effort,
+            text_verbosity=self.text_verbosity,
+            max_output_tokens=min(self.max_output_tokens or 16, 16),
+        )
+        cache_key = _preflight_cache_key(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            endpoint="/chat/completions",
+            payload=payload,
+        )
+        cached = _get_cached_preflight_entry(cache_key)
+        if cached is not None:
+            if cached.status == "passed" and cached.result is not None:
+                return dict(cached.result)
+            raise SupplementalPreflightFailedError(
+                cached.error_message or "preflight_failed",
+                reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
+            )
+        try:
+            output_text = _extract_chat_completions_message_text(
+                _request_json_sync(
+                    lambda: self._get_sync_client().post(
+                        "/chat/completions",
+                        json=payload,
+                        headers=_build_headers(self.api_key),
+                        timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                    ),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=self.http_settings.retry_attempts,
+                    request_pacer=self.request_pacer,
+                    event_metadata=_build_runtime_event_metadata(
+                        base_url=self.base_url,
+                        endpoint="/chat/completions",
+                        model=self.model,
+                        request_kind="llm",
+                        preflight=True,
+                    ),
+                )
+            )
+        except Exception as exc:
+            classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+            reasons = ("preflight_failed", *classification.reasons)
+            error_message = f"preflight_failed: {format_runtime_exception_message(exc)}"
+            _store_preflight_entry(
+                cache_key,
+                _PreflightCacheEntry(
+                    status="failed",
+                    error_message=error_message,
+                    error_reasons=reasons,
+                    failure_disposition=classification.disposition,
+                    expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
+                ),
+            )
+            raise SupplementalPreflightFailedError(
+                error_message,
+                reasons=reasons,
+                disposition=classification.disposition,
+            ) from exc
+        result = {
+            "status": "passed",
+            "endpoint": "/chat/completions",
+            "model": self.model,
+            "output_text": output_text,
+        }
+        _store_preflight_entry(
+            cache_key,
+            _PreflightCacheEntry(
+                status="passed",
+                result=result,
+            ),
+        )
+        return result
+
+    def _post_json_sync(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
+        return _request_json_sync(
+            lambda: self._get_sync_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
+            event_metadata=_build_runtime_event_metadata(
+                base_url=self.base_url,
+                endpoint=path,
+                model=self.model,
+                request_kind="llm",
+                preflight=False,
+            ),
+        )
+
+    async def _post_json_async(self, path: str, payload: dict[str, t.Any]) -> dict[str, t.Any]:
+        return await _request_json_async(
+            lambda: self._get_async_client().post(path, json=payload, headers=_build_headers(self.api_key)),
+            http_settings=self.http_settings,
+            circuit_breaker=self.circuit_breaker,
+            request_pacer=self.request_pacer,
+            event_metadata=_build_runtime_event_metadata(
+                base_url=self.base_url,
+                endpoint=path,
+                model=self.model,
+                request_kind="llm",
+                preflight=False,
+            ),
+        )
+
+    def _get_sync_client(self) -> httpx.Client:
+        if self._sync_client is not None:
+            return self._sync_client
+        return get_shared_sync_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        if self._async_client is not None:
+            return self._async_client
+        return get_shared_async_client(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            settings=self.http_settings,
+        )
+
+
+class OpenAICompatibleChatCompletionsLLM(OpenAICompatibleTextChatCompletionsLLM, InstructorBaseRagasLLM):
+    @property
+    def is_async(self) -> bool:
+        return True
+
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[StructuredOutputModel],
+    ) -> StructuredOutputModel:
+        payload = _build_chat_completions_structured_payload(
+            model=self.model,
+            prompt=prompt,
+            response_model=response_model,
+            reasoning_effort=self.reasoning_effort,
+            text_verbosity=self.text_verbosity,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return _extract_chat_completions_structured_output_model(
+            self._post_json_sync("/chat/completions", payload),
+            response_model=response_model,
+        )
+
+    async def agenerate(
+        self,
+        prompt: str,
+        response_model: type[StructuredOutputModel],
+    ) -> StructuredOutputModel:
+        payload = _build_chat_completions_structured_payload(
+            model=self.model,
+            prompt=prompt,
+            response_model=response_model,
+            reasoning_effort=self.reasoning_effort,
+            text_verbosity=self.text_verbosity,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return _extract_chat_completions_structured_output_model(
+            await self._post_json_async("/chat/completions", payload),
+            response_model=response_model,
+        )
+
+    def preflight_sync(self) -> dict[str, object]:
+        payload = _build_chat_completions_structured_payload(
+            model=self.model,
+            prompt="Return a JSON object with status set to 'ok'.",
+            response_model=_ResponsesStructuredPreflightModel,
+            reasoning_effort=self.reasoning_effort,
+            text_verbosity=self.text_verbosity,
+            max_output_tokens=min(self.max_output_tokens or 32, 32),
+        )
+        cache_key = _preflight_cache_key(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            endpoint="/chat/completions",
+            payload=payload,
+        )
+        cached = _get_cached_preflight_entry(cache_key)
+        if cached is not None:
+            if cached.status == "passed" and cached.result is not None:
+                return dict(cached.result)
+            raise SupplementalPreflightFailedError(
+                cached.error_message or "preflight_failed",
+                reasons=cached.error_reasons,
+                disposition=cached.failure_disposition,
+            )
+        try:
+            result_model = _extract_chat_completions_structured_output_model(
+                _request_json_sync(
+                    lambda: self._get_sync_client().post(
+                        "/chat/completions",
+                        json=payload,
+                        headers=_build_headers(self.api_key),
+                        timeout=_build_httpx_timeout(self.http_settings, preflight=True),
+                    ),
+                    http_settings=self.http_settings,
+                    circuit_breaker=self.circuit_breaker,
+                    retry_attempts=self.http_settings.retry_attempts,
+                    request_pacer=self.request_pacer,
+                    event_metadata=_build_runtime_event_metadata(
+                        base_url=self.base_url,
+                        endpoint="/chat/completions",
+                        model=self.model,
+                        request_kind="llm",
+                        preflight=True,
+                    ),
+                ),
+                response_model=_ResponsesStructuredPreflightModel,
+            )
+        except Exception as exc:
+            classification = _classify_preflight_exception(exc)
+            reasons = ("preflight_failed", *classification.reasons)
+            error_message = f"preflight_failed: {format_runtime_exception_message(exc)}"
+            _store_preflight_entry(
+                cache_key,
+                _PreflightCacheEntry(
+                    status="failed",
+                    error_message=error_message,
+                    error_reasons=reasons,
+                    failure_disposition=classification.disposition,
+                    expires_at=time.monotonic() + self.http_settings.circuit_breaker_cooldown_seconds,
+                ),
+            )
+            raise SupplementalPreflightFailedError(
+                error_message,
+                reasons=reasons,
+                disposition=classification.disposition,
+            ) from exc
+        result = {
+            "status": "passed",
+            "endpoint": "/chat/completions",
+            "model": self.model,
+            "structured_output": result_model.model_dump(mode="json"),
+        }
+        _store_preflight_entry(
+            cache_key,
+            _PreflightCacheEntry(
+                status="passed",
+                result=result,
+            ),
+        )
+        return result
+
+
 class OpenAICompatibleHTTPEmbeddings(BaseRagasEmbeddings):
     def __init__(
         self,
@@ -756,7 +1116,7 @@ def build_http_ragas_llm(
     *,
     sync_client: httpx.Client | None = None,
     async_client: httpx.AsyncClient | None = None,
-) -> OpenAICompatibleTextResponsesLLM:
+) -> OpenAICompatibleTextResponsesLLM | OpenAICompatibleTextChatCompletionsLLM:
     request_pacer = get_request_pacer(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
@@ -767,7 +1127,7 @@ def build_http_ragas_llm(
         api_key=settings.llm_api_key,
         settings=settings.http_settings,
     )
-    return OpenAICompatibleTextResponsesLLM(
+    llm_kwargs = dict(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
         model=settings.llm_model,
@@ -780,6 +1140,9 @@ def build_http_ragas_llm(
         sync_client=sync_client,
         async_client=async_client,
     )
+    if settings.llm_transport == "chat_completions":
+        return OpenAICompatibleTextChatCompletionsLLM(**llm_kwargs)
+    return OpenAICompatibleTextResponsesLLM(**llm_kwargs)
 
 
 def build_http_ragas_embeddings(
@@ -844,6 +1207,30 @@ def _build_responses_payload(
     return payload
 
 
+def _build_chat_completions_payload(
+    *,
+    model: str,
+    prompt,
+    temperature: float | None,
+    reasoning_effort: str | None,
+    text_verbosity: str | None,
+    max_output_tokens: int | None,
+) -> dict[str, t.Any]:
+    payload: dict[str, t.Any] = {
+        "model": model,
+        "messages": _prompt_to_chat_completions_messages(prompt),
+    }
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
+    if text_verbosity is not None:
+        payload["verbosity"] = text_verbosity
+    if max_output_tokens is not None:
+        payload["max_completion_tokens"] = max_output_tokens
+    return payload
+
+
 def _build_responses_structured_payload(
     *,
     model: str,
@@ -876,6 +1263,37 @@ def _build_responses_structured_payload(
         payload["reasoning"] = {"effort": reasoning_effort}
     if max_output_tokens is not None:
         payload["max_output_tokens"] = max_output_tokens
+    return payload
+
+
+def _build_chat_completions_structured_payload(
+    *,
+    model: str,
+    prompt: str,
+    response_model: type[BaseModel],
+    reasoning_effort: str | None,
+    text_verbosity: str | None,
+    max_output_tokens: int | None,
+) -> dict[str, t.Any]:
+    schema = _close_json_schema_objects(response_model.model_json_schema())
+    payload: dict[str, t.Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": response_model.__name__,
+                "schema": schema,
+                "strict": True,
+            },
+        },
+    }
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
+    if text_verbosity is not None:
+        payload["verbosity"] = text_verbosity
+    if max_output_tokens is not None:
+        payload["max_completion_tokens"] = max_output_tokens
     return payload
 
 
@@ -946,6 +1364,19 @@ def _prompt_to_responses_input(prompt) -> list[dict[str, t.Any]]:
             }
         )
     return items
+
+
+def _prompt_to_chat_completions_messages(prompt) -> list[dict[str, t.Any]]:
+    if isinstance(prompt, str):
+        return [{"role": "user", "content": prompt}]
+    messages = prompt.to_messages()
+    return [
+        {
+            "role": _message_role(message),
+            "content": _message_content_to_text(getattr(message, "content", "")),
+        }
+        for message in messages
+    ]
 
 
 def _message_role(message) -> str:
@@ -1233,7 +1664,27 @@ def _extract_output_text(payload: dict[str, t.Any]) -> str:
                 texts.append(text)
     if texts:
         return "\n".join(texts)
-    raise ValueError("responses payload did not contain output text")
+    raise ValueError(_describe_missing_responses_output(payload, expected="output text"))
+
+
+def _extract_chat_completions_message_text(payload: dict[str, t.Any]) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list):
+        raise ValueError(_describe_missing_chat_completions_output(payload, expected="assistant message content"))
+    texts: list[str] = []
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        text = _message_content_to_text(content)
+        if text.strip():
+            texts.append(text)
+    if texts:
+        return "\n".join(texts)
+    raise ValueError(_describe_missing_chat_completions_output(payload, expected="assistant message content"))
 
 
 def _extract_structured_output_model(
@@ -1258,6 +1709,26 @@ def _extract_structured_output_model(
                 continue
             return response_model.model_validate(parsed_value)
     return response_model.model_validate_json(_extract_output_text(payload))
+
+
+def _extract_chat_completions_structured_output_model(
+    payload: dict[str, t.Any],
+    *,
+    response_model: type[StructuredOutputModel],
+) -> StructuredOutputModel:
+    choices = payload.get("choices")
+    if not isinstance(choices, list):
+        raise ValueError(_describe_missing_chat_completions_output(payload, expected="structured assistant message content"))
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            continue
+        parsed_value = message.get("parsed")
+        if parsed_value is not None:
+            return response_model.model_validate(parsed_value)
+    return response_model.model_validate_json(_extract_chat_completions_message_text(payload))
 
 
 def _extract_embeddings(payload: dict[str, t.Any]) -> list[list[float]]:
@@ -1368,6 +1839,10 @@ def classify_runtime_failure(
         if any(marker in combined for marker in markers):
             reasons.append(reason)
             non_retryable = True
+    for reason, markers in _PROVIDER_CONTRACT_REASON_MARKERS.items():
+        if any(marker in combined for marker in markers):
+            reasons.append(reason)
+            non_retryable = True
     if "circuit_open" in combined:
         reasons.append("circuit_open")
         return RuntimeFailureClassification(
@@ -1411,12 +1886,60 @@ def _classify_preflight_exception(exc: Exception) -> RuntimeFailureClassificatio
             disposition="non_retryable_request",
             reasons=("structured_output_invalid",),
         )
-    if isinstance(exc, ValueError) and "responses payload did not contain output text" not in str(exc):
+    if isinstance(exc, ValueError):
+        classification = classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+        if "provider_contract_violation" in classification.reasons:
+            return classification
         return RuntimeFailureClassification(
             disposition="non_retryable_request",
             reasons=("structured_output_invalid",),
         )
     return classify_runtime_failure(str(exc), error_type=type(exc).__name__)
+
+
+def _describe_missing_responses_output(
+    payload: dict[str, t.Any],
+    *,
+    expected: str,
+) -> str:
+    response_status = payload.get("status")
+    response_id = payload.get("id")
+    raw_output = payload.get("output")
+    output_items = len(raw_output) if isinstance(raw_output, list) else "non_list"
+    usage = payload.get("usage")
+    output_tokens: int | None = None
+    if isinstance(usage, dict):
+        raw_output_tokens = usage.get("output_tokens")
+        if isinstance(raw_output_tokens, int):
+            output_tokens = raw_output_tokens
+    return (
+        "responses contract violation: "
+        f"status={response_status!r}, response_id={response_id!r}, "
+        f"output_items={output_items}, output_tokens={output_tokens!r}; "
+        f"payload did not contain {expected}"
+    )
+
+
+def _describe_missing_chat_completions_output(
+    payload: dict[str, t.Any],
+    *,
+    expected: str,
+) -> str:
+    response_id = payload.get("id")
+    raw_choices = payload.get("choices")
+    choice_count = len(raw_choices) if isinstance(raw_choices, list) else "non_list"
+    usage = payload.get("usage")
+    completion_tokens: int | None = None
+    if isinstance(usage, dict):
+        raw_completion_tokens = usage.get("completion_tokens")
+        if isinstance(raw_completion_tokens, int):
+            completion_tokens = raw_completion_tokens
+    return (
+        "chat completions contract violation: "
+        f"response_id={response_id!r}, choice_count={choice_count}, "
+        f"completion_tokens={completion_tokens!r}; "
+        f"payload did not contain {expected}"
+    )
 
 
 def get_request_pacer(

@@ -8,7 +8,8 @@ Env bootstrap rule:
 - Worker CLI does not fall back to another worktree's `.env`; missing local env should be fixed explicitly in the current worktree.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
 - current worktree `.env` owns the runtime config consumed by local worker commands.
-- Per-command override examples live under `env/commands/*.env.example`.
+- Current operator override examples live under `env/commands/*.env.example`.
+- Retained historical recovery examples live under `env/commands/historical/*.env.example`.
 
 ## Commands
 
@@ -138,6 +139,8 @@ Behavior:
 
 Backfills missing historical `official_web` run artifacts from recoverable local collector output into the source bucket.
 
+This is a historical recovery shell, not part of the default operator path.
+
 Required env:
 
 - `OBJECT_STORE_ENDPOINT`
@@ -155,6 +158,10 @@ Optional CLI args:
 - `--limit`
 - `--local-output-glob`
 - `--dry-run`
+
+Command override example:
+
+- `env/commands/historical/official-web-history-backfill.env.example`
 
 Behavior:
 
@@ -224,8 +231,19 @@ Optional env:
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 - `RAW_ASSET_REGISTRY_DATABASE_URL`
 - `OCR_MODEL`
+- `OCR_PROVIDER_MODE`
 - `OCR_POLL_SECONDS`
 - `OCR_TIMEOUT_SECONDS`
+- `OCR_RESULT_READY_GRACE_SECONDS`
+- `OCR_MINERU_BASE_URL`
+- `OCR_MINERU_API_KEY`
+- `OCR_MINERU_PROVIDER_MODE`
+- `OCR_MINERU_MODEL`
+- `OCR_MINERU_LANGUAGE`
+- `OCR_MINERU_ENABLE_FORMULA`
+- `OCR_MINERU_FORCE_OCR`
+- `OCR_MINERU_POLL_SECONDS`
+- `OCR_MINERU_TIMEOUT_SECONDS`
 - `IMPORT_REPORT_DIR`
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `RAW_INGESTION_ARTIFACT_MODE`
@@ -240,14 +258,22 @@ Command override example:
 
 Behavior:
 
-- Reads the source PDF from the source bucket using canonical raw-asset registry metadata.
+- Reads the source file from the source bucket using canonical raw-asset registry metadata.
 - Does not accept local PDF paths or placeholder local job envelopes.
-- Calls the async OCR provider.
+- Primary `OCR_*` settings still define the canonical Paddle lane; `OCR_PROVIDER_MODE=mineru_api` is intentionally rejected as the primary raw-ingestion provider.
+- Optional `OCR_MINERU_*` settings enable a second provider only for `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` conditional routing. Current repo truth is:
+  - typed PDF: `MinerU primary -> Paddle fallback`
+  - `generic_image`: dual-run Paddle + MinerU, refine raw asset type, then choose canonical provider
+  - refined `simple_table_image`: Paddle primary
+  - refined `complex_table_image`: MinerU primary
+  - refined `spatial_image` / `office_document`: deferred fail-close
 - Source-bucket objects live under `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and are intentionally not scoped by corpus because one source asset may feed multiple corpora.
 - Default `RAW_INGESTION_ARTIFACT_MODE=normalized` stores source-level `provider-response.jsonl` and `layout-elements.jsonl`, persists canonical source truth, then fans out into declared downstream projections that may write per-document `canonical.md` and `document-units.jsonl`.
 - Normalized and `source_truth_only` modes both keep source artifacts under the same canonical source prefix, split by `capture/`, `provider/`, and `source-truth/` stages in the source bucket.
 - Normalized mode writes derived document artifacts under `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/`.
 - `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` stores asset-level `provider-response.jsonl` and `layout-elements.jsonl`, but skips `canonical.md` / `document-units.jsonl` and document-registry writes.
+- When `source_truth_only` routes a typed PDF through MinerU successfully, the worker persists canonicalized `provider-response.jsonl`, `layout-elements.jsonl`, and an extra raw provenance sidecar `provider-response-raw.zip`.
+- When `source_truth_only` dual-runs a `generic_image`, the worker also persists `ocr-routing-decision.json` under the source-truth stage and writes the refined `asset_subkind` back into raw-asset registry truth.
 - `source_truth_only` still writes canonical raw-asset provenance and should use the configured canonical raw-asset registry backend.
 - Runtime-profile gating decides whether the selected `corpus + collection` accepts `normalized` or `source_truth_only`.
 - `curriculum/curriculum_plan` may use `source_truth_only` as a pre-split onboarding path to inspect real OCR output before freezing its split manifest.
@@ -261,6 +287,7 @@ Behavior:
 - Only normalized mode registers derived document results in the document registry with `import_source=raw_online_ocr`.
 - Normalized document-registry writes persist the scope cleaning policy version for traceability.
 - Current OCR ingestion defaults to `revision_track=source-faithful`, `source_channel=pdf_ocr`, `is_current=false`.
+- Spatial images, office documents, and other deferred raw-asset classes still fail closed even when `OCR_MINERU_*` is configured; dual-run only exists to decide whether an ambiguous image should stay Paddle, promote MinerU, or be deferred.
 
 ### `rebuild_local_data`
 
@@ -368,6 +395,21 @@ Behavior:
 - Writes release manifests under `{corpus}/releases/{collection}/{release_id}/...`.
 - Only switches the serving alias when `--publish-alias` is enabled.
 - This is the current operator entry for `official_web/muc_public_pages` after handoff replay/import has already populated registry truth.
+
+### `campus-ingestion-materialize-curriculum-program-semester-facts`
+
+Operator-facing shell for rebuilding `curriculum/program_semester_facts` from canonical `curriculum_plan document-units`.
+
+Required CLI args:
+
+- none
+
+Behavior:
+
+- Loads the worker env and reads canonical `curriculum_plan` document-units from the derived bucket
+- Materializes `program_semester_facts` canonical document artifacts plus registry truth
+- Does not publish a Qdrant alias by itself; the follow-up release step remains `campus-ingestion-release-registry-scope`
+- Exists specifically to avoid routing this recovery path back through raw/source bucket replay
 
 ### `project_official_web_source_truth`
 
@@ -521,6 +563,8 @@ Current known downstream families include:
 
 Worker shell for the handbook source-faithful migration.
 
+This is a narrow legacy migration shell retained for handbook canonical-rename recovery, not part of the default operator path.
+
 Required CLI args:
 
 - `--raw-version-id`
@@ -546,7 +590,7 @@ Optional env:
 
 Command override example:
 
-- `env/commands/migrate-student-handbook.env.example`
+- `env/commands/historical/migrate-student-handbook.env.example`
 
 Behavior:
 
@@ -585,6 +629,112 @@ Behavior:
 - Verifies `document-units.jsonl` exists in the derived bucket and can be converted into indexable chunks without running embeddings.
 - Reports manifest/registry drift, stale registry entries, read failures, chunk-build failures, non-table oversize chunks, and structure-first eligibility statistics.
 - Does not write MinIO, registry, or Qdrant state.
+
+### `analyze_authenticated_notice_notice_families`
+
+Read-only family-analysis shell for authenticated notice donor bundles.
+
+Required CLI args:
+
+- `--bundle-path`
+
+Optional CLI args:
+
+- `--config-path`
+- `--sample-limit`
+- `--output-path`
+
+Behavior:
+
+- Loads the repo-tracked `internal_notice` notice-family config by default.
+- Classifies donor bundle records into repo-owned notice families such as `policy_regulation`, `operational_procedure`, `event_activity`, and `lecture_publicity`.
+- Reports family counts, `priority_now_notice_count`, and representative matched samples.
+- Can persist one machine-readable JSON report with `--output-path`.
+- Does not write object store, registry, embedding, or Qdrant state.
+
+### `normalize_authenticated_notice_legacy_export`
+
+Local normalization shell for `rag-data` authenticated notice historical donor exports.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--site-id`
+- `--source-home-url`
+- `--output-dir`
+
+Optional CLI args:
+
+- `--manifest-path`
+- `--notice-types-path`
+- `--selection-path`
+- `--notice-id`
+- `--export-scope`
+
+Behavior:
+
+- Reads a donor legacy bundle and optional donor export manifest.
+- Applies a repo-tracked selected notice set when `--selection-path` or `--notice-id` is provided.
+- Snapshots the legacy collector notice-type policy into a repo-owned normalized manifest.
+- Writes `notices-bundle.normalized.json`, `export-manifest.normalized.json`, and `normalization-summary.json` under the target output dir.
+- Does not write object store, Postgres, embedding, or Qdrant state.
+
+### `smoke_authenticated_notice_bootstrap_local`
+
+Local-only bootstrap smoke shell for one normalized authenticated notice donor batch.
+
+Required CLI args:
+
+- `--bundle-path`
+- `--site-id`
+- `--source-home-url`
+- `--local-output-dir`
+
+Optional CLI args:
+
+- `--manifest-path`
+- `--attachment-blob-root`
+- `--corpus`
+- `--collection`
+- `--entitlement-group`
+- `--visibility-scope`
+- `--expect-notice-count`
+- `--summary-output-path`
+
+Behavior:
+
+- Reuses the authenticated notice importer but injects a local filesystem object store and in-memory registries.
+- When donor attachments are still referenced by legacy blob-store keys, `--attachment-blob-root` materializes canonical attachment capture objects before inventory routing is evaluated.
+- Materializes source-bucket and derived-bucket artifacts under `--local-output-dir` only.
+- Persists local `documents.json`, `raw-assets.json`, `source-truth-inventory.json`, and `uploads.json` for inspection.
+- Produces a smoke summary with notice/document/raw-asset outcome counts.
+- Does not touch the real object store, Postgres, embedding provider, Qdrant, or serving aliases.
+
+### `validate_internal_notice_chunking`
+
+Read-only validation shell for `campus_notices/internal_notice` offline preparation quality.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL`
+
+Optional CLI args:
+
+- `--preparation-run-id`
+- `--mode full|samples`
+- `--sample-dir`
+- `--sample-seed`
+
+Behavior:
+
+- Reads current `campus_notices/internal_notice` `source-faithful` current records, or an explicit frozen preparation manifest when `--preparation-run-id` is provided.
+- Rebuilds chunks from repo-owned `document-units.jsonl` without embeddings.
+- Validates lane metadata, title/context propagation, attachment lineage, notice-body fragmentation, OCR noise suspects, and markup leakage.
+- Can export lane-specific chunk samples for operator or agent review.
+- Does not write registry, embedding, or Qdrant state.
 
 - Imports active `service_portal` documents into `campus_services/service_catalog`.
 - Imports `中央民族大学校内常用电话` into `campus_services/contact_directory`.

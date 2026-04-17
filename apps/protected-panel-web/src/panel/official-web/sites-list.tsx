@@ -2,6 +2,9 @@ import { Alert, Card, CardContent, Stack, Typography } from "@mui/material";
 import { Datagrid, DateField, FunctionField, List, ShowButton, TextField } from "react-admin";
 
 import { PANEL_COPY } from "../panel-copy";
+import { PanelDatagridHeader } from "../panel-datagrid-header";
+import { PanelListErrorState } from "../panel-list-error";
+import { PanelListActions } from "../panel-list-actions";
 import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebSiteRecord } from "../types";
 import {
@@ -25,16 +28,44 @@ function OfficialWebSitesAside() {
   );
 }
 
+function OfficialWebSitesEmpty() {
+  return (
+    <Card>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography variant="h6">{PANEL_COPY.emptyState.officialWebSites}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            该读模型只展示 app-api 已经投影完成的官网站点。如果站点尚未完成投影或 staging 仍未导入样本，这里会保持为空。
+          </Typography>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OfficialWebSitesListPage() {
   return (
     <List
+      actions={<PanelListActions />}
       aside={<OfficialWebSitesAside />}
+      empty={<OfficialWebSitesEmpty />}
       emptyWhileLoading
+      error={
+        <PanelListErrorState
+          description="官网站点页读取的是 app-api 维护的 official_web 站点投影；如果后端查询失败，这里会直接暴露错误，而不是把失败误判为空结果。"
+          title="官网站点读取失败"
+        />
+      }
       pagination={<PanelPagination />}
       perPage={50}
       title="官网站点"
     >
-      <Datagrid bulkActionButtons={false} rowClick="show">
+      <Datagrid
+        bulkActionButtons={false}
+        empty={<OfficialWebSitesEmpty />}
+        header={<PanelDatagridHeader />}
+        rowClick="show"
+      >
         <TextField label="站点 ID" source="siteId" />
         <TextField label="显示名称" source="displayName" />
         <FunctionField

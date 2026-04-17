@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
+import type { ChatMessage } from "../src/modules/chat";
 import {
   AppApiRouteError,
   buildChatCommandService,
@@ -78,16 +79,7 @@ function createConversation() {
       updatedAt: string;
       value: string;
     }>,
-    messages: [] as Array<{
-      id: string;
-      conversationId: string;
-      role: "user" | "assistant";
-      kind: "answer" | "clarification" | "no_answer" | "error" | null;
-      text: string;
-      createdAt: string;
-      requestId: string | null;
-      retryable: boolean | null;
-    }>,
+    messages: [] as ChatMessage[],
   };
 }
 
@@ -107,14 +99,18 @@ function createConversationStore(input?: {
   const conversation = input?.conversation ?? createConversation();
   const store: ChatConversationStore = {
     createConversationDraft: vi.fn(),
+    deleteConversationByOwner: vi.fn(),
+    deleteConversationsByOwner: vi.fn(),
+    deleteTrailingMessagesFromMessageByOwner: vi.fn(),
     getConversationByOwner: vi.fn(async (ownerUserId: string, conversationId: string) => {
       if (ownerUserId !== conversation.ownerUserId || conversationId !== conversation.id) {
-      return null;
+        return null;
       }
 
       return structuredClone(conversation);
     }),
     getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesPageByOwner: vi.fn(),
     listConversationSummariesByOwner: vi.fn(),
   };
 
@@ -145,6 +141,7 @@ function createCommandStore(input?: {
         kind: null,
         requestId: null,
         retryable: null,
+        structuredParts: [],
       });
     }),
     finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
@@ -383,6 +380,169 @@ describe("chat command service", () => {
       }),
     );
     expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+  });
+
+  it("persists navigation place cards into assistant structured parts", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆在海淀校区主教学区西侧，靠近校医院。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          matched_alias: "图书馆",
+          place_card: {
+            access_note: "访客请先完成入校登记。",
+            campus_area: "主教学区西侧",
+            coordinate_reference_system: "EPSG:4326",
+            location_description: "海淀校区主教学区西侧，靠近校医院。",
+            place: {
+              campus_area: "主教学区西侧",
+              campus_scope: "haidian",
+              display_name: "图书馆",
+              entity_type: "building",
+              place_id: "muc.haidian.library",
+            },
+            point_geometry: {
+              latitude: 39.96162,
+              longitude: 116.31551,
+            },
+            source_refs: ["seed:campus_navigation/place_catalog.v1"],
+          },
+          query_text: "图书馆在哪里",
+          resolved_place: {
+            campus_area: "主教学区西侧",
+            campus_scope: "haidian",
+            display_name: "图书馆",
+            entity_type: "building",
+            place_id: "muc.haidian.library",
+          },
+        },
+        selectedTarget: "navigation-specialist",
+        status: "completed",
+        traceId: "trace_0002",
+      }),
+    };
+
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-04-11T09:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "图书馆在哪里",
+      },
+      principal: createPrincipal(),
+      surface: "public_chat_web",
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      assistantMessage: {
+        kind: "answer",
+        structuredParts: [
+          {
+            placeCard: {
+              coordinateReferenceSystem: "EPSG:4326",
+              displayName: "图书馆",
+              entityType: "building",
+              placeId: "muc.haidian.library",
+            },
+            type: "place_card",
+          },
+        ],
+      },
+    });
+    expect(response.answer.conversation.messages.at(-1)).toMatchObject({
+      structuredParts: [
+        {
+          placeCard: {
+            displayName: "图书馆",
+            entityType: "building",
+            placeId: "muc.haidian.library",
+          },
+          type: "place_card",
+        },
+      ],
+    });
+  });
+
+  it("persists navigation place cards even when point geometry is absent", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          matched_alias: "民族博物馆",
+          place_card: {
+            campus_area: "海淀校区西侧",
+            location_description: "海淀校区西侧，靠近图书馆。",
+            place: {
+              campus_area: "海淀校区西侧",
+              campus_scope: "haidian",
+              display_name: "民族博物馆",
+              entity_type: "building",
+              place_id: "muc.haidian.museum",
+            },
+            source_refs: [
+              "seed:campus_navigation/place_catalog.v1",
+              "https://www.muc.edu.cn/xxgk1/xydt.htm",
+            ],
+          },
+          query_text: "民族博物馆在哪里",
+          resolved_place: {
+            campus_area: "海淀校区西侧",
+            campus_scope: "haidian",
+            display_name: "民族博物馆",
+            entity_type: "building",
+            place_id: "muc.haidian.museum",
+          },
+        },
+        selectedTarget: "navigation-specialist",
+        status: "completed",
+        traceId: "trace_0003",
+      }),
+    };
+
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-04-11T10:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor,
+    });
+
+    await service.submit({
+      payload: {
+        conversationId: "conv_02HQ",
+        prompt: "民族博物馆在哪里",
+      },
+      principal: createPrincipal(),
+      surface: "public_chat_web",
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      assistantMessage: {
+        structuredParts: [
+          {
+            placeCard: {
+              displayName: "民族博物馆",
+              placeId: "muc.haidian.museum",
+              pointGeometry: null,
+            },
+            type: "place_card",
+          },
+        ],
+      },
+    });
   });
 
   it("normalizes supervisor traceId in finalized responses when upstream payload omits it", async () => {
@@ -1320,6 +1480,7 @@ describe("chat command service", () => {
         requestId: null,
         retryable: null,
         role: "user",
+        structuredParts: [],
         text: "图书馆开放到几点？",
       },
       {
@@ -1330,6 +1491,7 @@ describe("chat command service", () => {
         requestId: "req_prev",
         retryable: null,
         role: "assistant",
+        structuredParts: [],
         text: "图书馆开放到 22:00。",
       },
     );
@@ -1424,33 +1586,66 @@ describe("chat command service", () => {
     });
   });
 
-  it("fails closed before accept when the conversation does not belong to the caller", async () => {
-    const { store } = createCommandStore();
+  it("creates a first-turn conversation with the caller-provided conversation id", async () => {
+    const { store, acceptedWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();
     conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn().mockResolvedValue({
+        answerText: "图书馆开放到 22:00。",
+        error: null,
+        followUpQuestion: "",
+        result: {
+          evidence: {
+            sources: [],
+          },
+        },
+        selectedTarget: "rag-specialist",
+        status: "completed",
+        traceId: "trace_0001",
+      }),
+    };
     const service = buildChatCommandService({
+      computeFingerprint: (input) =>
+        `fingerprint:${input.conversationDiscriminator}:${input.prompt}`,
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
       conversationStore,
       store,
-      supervisor: {
-        execute: vi.fn(),
-      },
+      supervisor,
     });
 
-    await expect(
-      service.submit({
-        payload: {
-          conversationId: "conv_missing",
-          prompt: "图书馆开放到几点？",
-        },
-        principal: createPrincipal(),
-      }),
-    ).rejects.toMatchObject({
-      code: "conversation_not_found",
-      status: 404,
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_client_0001",
+        prompt: "图书馆开放到几点？",
+      },
+      principal: createPrincipal(),
     });
-    expect(store.acceptRequest).not.toHaveBeenCalled();
+
+    expect(conversationStore.getConversationByOwner).toHaveBeenCalledWith(
+      "user_01HQ",
+      "conv_client_0001",
+    );
+    expect(acceptedWrites[0]).toMatchObject({
+      conversationSeed: {
+        id: "conv_client_0001",
+        ownerUserId: "user_01HQ",
+        title: "图书馆开放到几点？",
+      },
+      requestExecution: {
+        conversationId: "conv_client_0001",
+      },
+    });
+    expect(supervisor.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "conv_client_0001",
+      }),
+    );
+    expect(response.answer.conversation).toMatchObject({
+      id: "conv_client_0001",
+      title: "图书馆开放到几点？",
+    });
   });
 
   it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {

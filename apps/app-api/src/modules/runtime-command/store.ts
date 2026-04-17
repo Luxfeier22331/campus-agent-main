@@ -10,9 +10,18 @@ import {
   requestObservabilityFact,
   sessionSlots,
 } from "../../db/schema";
-import type { ChatConversation, ChatMessage, ChatSessionSlot } from "../chat";
+import {
+  normalizeChatStructuredParts,
+  type ChatConversation,
+  type ChatMessage,
+  type ChatSessionSlot,
+} from "../chat";
 import type { RequestedScope } from "../integration";
-import type { RequestDiagnosticsSummary } from "../request-diagnostics";
+import type {
+  RequestClaimSupportSummary,
+  RequestDiagnosticsSummary,
+} from "../request-diagnostics";
+import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -96,6 +105,8 @@ export interface RequestObservabilityFactWrite {
   retrievalAttempted: boolean | null;
   candidateCount: number | null;
   retrievedSourceCount: number | null;
+  retrievedSources: ObservedSourceTraceEntry[];
+  supportingSources: ObservedSourceTraceEntry[];
   emptyRecall: boolean | null;
   citationExpected: boolean | null;
   citationCount: number | null;
@@ -108,10 +119,18 @@ export interface RequestObservabilityFactWrite {
   failClosed: boolean | null;
   modelProvider: string | null;
   modelName: string | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  templateSha256: string | null;
+  promptRuntimeState: string | null;
+  promptRuntimeDetail: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   cachedInputTokens: number | null;
   estimatedCostMicrousd: number | null;
+  retrievalAdequacyVerdict: string | null;
+  retrievalAdequacyReason: string | null;
+  claimSupportSummary: RequestClaimSupportSummary | null;
   traceAvailable: boolean;
   projectionLagMs: number | null;
   measuredAt: string;
@@ -173,6 +192,7 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
     createdAt: toIsoString(row.createdAt),
     requestId: row.requestId ?? null,
     retryable: row.retryable ?? null,
+    structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
   };
 }
 
@@ -346,6 +366,7 @@ export function createPgChatCommandStore(
             role: input.userMessage.role,
             kind: null,
             text: input.userMessage.text,
+            structuredPartsJson: input.userMessage.structuredParts,
             createdAt: new Date(input.userMessage.createdAt),
             requestId: null,
             retryable: null,
@@ -410,6 +431,9 @@ export function createPgChatCommandStore(
           aclDecision: input.requestObservabilityFact.aclDecision,
           cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
           candidateCount: input.requestObservabilityFact.candidateCount,
+          claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+          retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+          supportingSourcesJson: input.requestObservabilityFact.supportingSources,
           citationCount: input.requestObservabilityFact.citationCount,
           citationExpected: input.requestObservabilityFact.citationExpected,
           citationMissing: input.requestObservabilityFact.citationMissing,
@@ -428,9 +452,16 @@ export function createPgChatCommandStore(
           measuredAt: new Date(input.requestObservabilityFact.measuredAt),
           modelName: input.requestObservabilityFact.modelName,
           modelProvider: input.requestObservabilityFact.modelProvider,
+          promptId: input.requestObservabilityFact.promptId,
+          promptVersion: input.requestObservabilityFact.promptVersion,
+          templateSha256: input.requestObservabilityFact.templateSha256,
+          promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+          promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
           outputTokens: input.requestObservabilityFact.outputTokens,
           policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
           policyReason: input.requestObservabilityFact.policyReason,
+          retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+          retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
           principalType: input.requestObservabilityFact.principalType,
           projectionLagMs: input.requestObservabilityFact.projectionLagMs,
           requestId: input.requestObservabilityFact.requestId,
@@ -477,6 +508,7 @@ export function createPgChatCommandStore(
             role: input.assistantMessage.role,
             kind: input.assistantMessage.kind,
             text: input.assistantMessage.text,
+            structuredPartsJson: input.assistantMessage.structuredParts,
             createdAt: new Date(input.assistantMessage.createdAt),
             requestId: input.assistantMessage.requestId,
             retryable: input.assistantMessage.retryable,
@@ -525,6 +557,9 @@ export function createPgChatCommandStore(
             aclDecision: input.requestObservabilityFact.aclDecision,
             cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
             candidateCount: input.requestObservabilityFact.candidateCount,
+            claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+            retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+            supportingSourcesJson: input.requestObservabilityFact.supportingSources,
             citationCount: input.requestObservabilityFact.citationCount,
             citationExpected: input.requestObservabilityFact.citationExpected,
             citationMissing: input.requestObservabilityFact.citationMissing,
@@ -543,9 +578,16 @@ export function createPgChatCommandStore(
             measuredAt: new Date(input.requestObservabilityFact.measuredAt),
             modelName: input.requestObservabilityFact.modelName,
             modelProvider: input.requestObservabilityFact.modelProvider,
+            promptId: input.requestObservabilityFact.promptId,
+            promptVersion: input.requestObservabilityFact.promptVersion,
+            templateSha256: input.requestObservabilityFact.templateSha256,
+            promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+            promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
             outputTokens: input.requestObservabilityFact.outputTokens,
             policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
             policyReason: input.requestObservabilityFact.policyReason,
+            retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+            retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
             principalType: input.requestObservabilityFact.principalType,
             projectionLagMs: input.requestObservabilityFact.projectionLagMs,
             requestId: input.requestObservabilityFact.requestId,
@@ -571,6 +613,9 @@ export function createPgChatCommandStore(
               aclDecision: input.requestObservabilityFact.aclDecision,
               cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
               candidateCount: input.requestObservabilityFact.candidateCount,
+              claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+              retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+              supportingSourcesJson: input.requestObservabilityFact.supportingSources,
               citationCount: input.requestObservabilityFact.citationCount,
               citationExpected: input.requestObservabilityFact.citationExpected,
               citationMissing: input.requestObservabilityFact.citationMissing,
@@ -589,9 +634,16 @@ export function createPgChatCommandStore(
               measuredAt: new Date(input.requestObservabilityFact.measuredAt),
               modelName: input.requestObservabilityFact.modelName,
               modelProvider: input.requestObservabilityFact.modelProvider,
+              promptId: input.requestObservabilityFact.promptId,
+              promptVersion: input.requestObservabilityFact.promptVersion,
+              templateSha256: input.requestObservabilityFact.templateSha256,
+              promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+              promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
               outputTokens: input.requestObservabilityFact.outputTokens,
               policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
               policyReason: input.requestObservabilityFact.policyReason,
+              retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+              retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
               principalType: input.requestObservabilityFact.principalType,
               projectionLagMs: input.requestObservabilityFact.projectionLagMs,
               requestedCapability: input.requestObservabilityFact.requestedCapability,

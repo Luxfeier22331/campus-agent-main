@@ -22,8 +22,8 @@ updated: 2026-04-02
 
 它不重复：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
-- crawl policy：`docs/architecture/official-web-crawl-policy.md`
+- source channel 边界：`docs/architecture/official-web-architecture.md`
+- crawl policy：`docs/policies/official-web-crawl-policy.md`
 - freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
 - control-plane / app-api 契约：`docs/contracts/app-api-official-web-http.md`
@@ -73,6 +73,11 @@ updated: 2026-04-02
 - 如果当前在 feature worktree，可先运行
   `uv run --all-packages python -m scripts.link_worktree_app_local_env --repo-root <current-worktree-root>`
   复用 root worktree 的 app-local env
+
+说明：
+
+- 如果当前目标只是 `artifact-only smoke`，或 staging 当前并未部署 official-web collector，这组 token 不是必需项
+- `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` / `OFFICIAL_WEB_SERVICE_TOKEN` 只保护 `official-web-collector -> app-api` 这条 live control-plane seam，不参与当前最小 chat/panel/app-api staging 闭环
 
 ## 1. 包级回归
 

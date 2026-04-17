@@ -1,9 +1,15 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import { conversations, messages, sessionSlots } from "../../db/schema";
-import type { ChatConversation, ChatConversationSummary, ChatMessage, ChatSessionSlot } from "./model";
+import {
+  normalizeChatStructuredParts,
+  type ChatConversation,
+  type ChatConversationSummary,
+  type ChatMessage,
+  type ChatSessionSlot,
+} from "./model";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -17,7 +23,20 @@ export interface ChatConversationDraftWrite {
 
 export interface ChatConversationStore {
   listConversationSummariesByOwner(ownerUserId: string): Promise<ChatConversationSummary[]>;
+  listConversationSummariesPageByOwner(input: {
+    ownerUserId: string;
+    limit: number;
+    endingBeforeConversationId: string | null;
+  }): Promise<{ conversations: ChatConversationSummary[]; hasMore: boolean }>;
   createConversationDraft(input: ChatConversationDraftWrite): Promise<ChatConversation>;
+  deleteConversationByOwner(ownerUserId: string, conversationId: string): Promise<boolean>;
+  deleteConversationsByOwner(ownerUserId: string): Promise<number>;
+  deleteTrailingMessagesFromMessageByOwner(input: {
+    ownerUserId: string;
+    conversationId: string;
+    messageId: string;
+    updatedAt: string;
+  }): Promise<boolean>;
   getConversationDetailByOwner(
     ownerUserId: string,
     conversationId: string,
@@ -39,6 +58,7 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
     createdAt: toIsoString(row.createdAt),
     requestId: row.requestId ?? null,
     retryable: row.retryable ?? null,
+    structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
   };
 }
 
@@ -122,6 +142,29 @@ export function createPgChatConversationStore(
       return rows.map(toChatConversationSummary);
     },
 
+    async listConversationSummariesPageByOwner(input) {
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.ownerUserId, input.ownerUserId))
+        .orderBy(desc(conversations.updatedAt));
+
+      const summaries = rows.map(toChatConversationSummary);
+      const startIndex = input.endingBeforeConversationId
+        ? summaries.findIndex((conversation) => conversation.id === input.endingBeforeConversationId) + 1
+        : 0;
+
+      const normalizedStartIndex = startIndex > 0 ? startIndex : 0;
+      const page = summaries.slice(normalizedStartIndex, normalizedStartIndex + input.limit);
+      const hasMore = normalizedStartIndex + input.limit < summaries.length;
+
+      return {
+        conversations: page,
+        hasMore,
+      };
+    },
+
     async createConversationDraft(input) {
       const db = await getDb();
       await db.insert(conversations).values({
@@ -138,6 +181,79 @@ export function createPgChatConversationStore(
       }
 
       return conversation;
+    },
+
+    async deleteConversationByOwner(ownerUserId, conversationId) {
+      const db = await getDb();
+      const deletedRows = await db
+        .delete(conversations)
+        .where(and(eq(conversations.ownerUserId, ownerUserId), eq(conversations.id, conversationId)))
+        .returning({ id: conversations.id });
+
+      return deletedRows.length > 0;
+    },
+
+    async deleteConversationsByOwner(ownerUserId) {
+      const db = await getDb();
+      const deletedRows = await db
+        .delete(conversations)
+        .where(eq(conversations.ownerUserId, ownerUserId))
+        .returning({ id: conversations.id });
+
+      return deletedRows.length;
+    },
+
+    async deleteTrailingMessagesFromMessageByOwner(input) {
+      const db = await getDb();
+      const conversationRows = await db
+        .select({ id: conversations.id })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.ownerUserId, input.ownerUserId),
+            eq(conversations.id, input.conversationId),
+          ),
+        )
+        .limit(1);
+      if (!conversationRows[0]) {
+        return false;
+      }
+
+      const messageRows = await db
+        .select({
+          createdAt: messages.createdAt,
+          id: messages.id,
+        })
+        .from(messages)
+        .where(and(eq(messages.id, input.messageId), eq(messages.conversationId, input.conversationId)))
+        .limit(1);
+      const messageRow = messageRows[0];
+      if (!messageRow) {
+        return false;
+      }
+
+      await db
+        .delete(messages)
+        .where(
+          and(
+            eq(messages.conversationId, input.conversationId),
+            gte(messages.createdAt, messageRow.createdAt),
+          ),
+        );
+
+      await db
+        .update(conversations)
+        .set({
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(
+          and(
+            eq(conversations.ownerUserId, input.ownerUserId),
+            eq(conversations.id, input.conversationId),
+          ),
+        );
+
+      return true;
     },
 
     async getConversationDetailByOwner(ownerUserId, conversationId) {

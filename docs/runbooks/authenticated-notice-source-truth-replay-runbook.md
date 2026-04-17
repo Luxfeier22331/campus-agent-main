@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-05
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Source-Truth Replay Runbook
@@ -24,9 +24,48 @@ updated: 2026-04-06
 它不替代：
 
 - `docs/architecture/authenticated-notice-source-architecture.md` 的长期边界
+- `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md` 的 bounded pilot 操作面
+- `docs/reference/internal-notice-offline-preparation-strategy.md` 的 collection-specific lane strategy
+- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md` 的质量验收规则
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md` 的 bundle import smoke
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md` 的 run lifecycle / show / watch / promote 操作面
 - live collector / control-plane runbook
+
+## Canonical Execution Model
+
+authenticated notice historical replay 的 canonical 执行模型固定为：
+
+- source projection / attachment routing 规则有变化时，先做 bounded pilot 或 targeted routing test
+- routing 规则一旦变化，进入 full replay planning 前必须先重建 source-truth inventory
+- full replay -> staged validation -> chunk preparation -> preparation validation -> promote -> unpublished release 已经有 repo-supported 执行路径
+- 对新的 replay/preparation run，verified chunk preparation 仍是显式决策点；如需继续 release，下一步固定是 `release_registry_scope --no-publish-alias`，而不是直接 publish alias
+- operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`，不依赖 `OCR_BASE_URL` 推断 provider
+- 如果操作环境会把坏代理值重新注入进程，release / collection / alias 检查都必须显式清空大小写代理变量；单纯 `env -u HTTP_PROXY ...` 不足以阻止 repo env bootstrap 把坏代理值重新注回进程
+
+本文下面只描述 repo-supported execution path；是否在当前项目阶段继续 release，由 `.planning/PROJECT.md` 与 `.planning/STATE.md` 决定。
+
+## OCR 失败判定顺序
+
+对 authenticated notice historical replay，OCR 失败的 operator 判定顺序固定为：
+
+- 对规章制度 / 手册类 `pdf`，默认先把它当作 `ocr_required`，不要先切本地 native PDF 路径再决定是否送 OCR
+- 先检查失败 attachment 的真实图片内容
+- 再结合该图片在 notice 正文里的上下文判断，它是否本来就应该进入 `ocr_required`
+- 如果图片上下文明确是操作指引 / 日程导览，而不是正文承载，先把它改判到 `manual_review_required`；当前已知高频关键词包括：
+  - `选课时间安排`
+  - `具体选课方式`
+  - `选课方式参考如下表格`
+  - `学习时间安排`
+  - `学习时间及考试安排`
+  - `选课操作流程`
+- 对二维码、示例证书、宣传海报、正文已完整给出说明的冗余教程截图，先修 projection routing 到 `reference_only` 或 `manual_review_required`
+- 只有在图片区块确实承载线性文本 / 评分表 / 制度正文，而不是操作流程图、时间安排图、空间导览图时，才保留 `ocr_required`
+- 只有当 attachment 已确认属于线性文本 / 表格主导的有效 OCR candidate，且 async jobs 仍然出现 `state=done` 但 `jsonUrl` 持续不可读，才把它认定为 provider contract breach
+
+固定禁止：
+
+- 因单个坏图或低价值图片，直接把整条 historical replay 主路径切换到同步 endpoint
+- 在未做图片与上下文判定前，先把 provider 当成第一嫌疑
 
 ## 适用前提
 
@@ -146,6 +185,13 @@ inventory 至少包含：
 - attachment extraction-class summary
 - attachment kind / extraction lane / projection_name / visibility projections (typed fields required for downstream stage commit)
 
+source projection / attachment routing 规则变更后的固定补充：
+
+- planner 读取的是已经持久化的 inventory，而不是 live source objects 的临时重新扫描
+- 因此只要 projection rules、attachment classifier、manual-review routing 有变更，就必须先重新执行 `rebuild_authenticated_notice_source_truth_inventory`
+- 如果跳过这一步，planner / verifier 会继续使用旧的 `expected_document_count`、`expected_attachment_document_count`、`expected_ocr_candidate_count`
+- 这类 stale inventory 会让 run 在 verifier 阶段失败，即使新的 routing 代码已经修好
+
 repair frozen run 时的固定规则补充：
 
 - repair 允许刷新 `ingestion_projection.json`，但输入仍然只能是该 run 自己冻结下来的 parent snapshots 与 frozen source-truth objects
@@ -192,7 +238,7 @@ planning 必须按 notice scope 生成 batch。
 - attachment refs 留在 source-truth relation 层
 - 已下载附件 materialize 为 repo-owned child documents
 
-当前 repo 已落盘的 bounded replay 入口是：
+repo-supported 的 bounded replay 入口是：
 
 ```bash
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_projections \
@@ -239,6 +285,16 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - child attachment documents 各自独立 chunk
 - 不把 attachment 文本重新拼回 parent notice
 
+`internal_notice` 的 collection-specific strategy 固定以 `docs/reference/internal-notice-offline-preparation-strategy.md` 为准；runbook 这里只收口 operator 视角下的执行边界。
+
+当前 operator 应按以下理解执行：
+
+- parent notice body 是默认高质量 lane，不应因为 attachment 的脏表格或 OCR 噪声被全局缩小 chunk
+- `text_extractable` attachment、`ocr_required` attachment 与 `manual_review_required` outcome 必须显式分流
+- 当前 repo-tracked `220/320/32/32` 只是 generic runtime defaults，不是 `internal_notice` 的最终 lane-specific semantic policy
+- `prepare_registry_scope_chunks` 的结构通过不代表 attachment quality、cleanup quality 和 chunk quality 已验收
+- `internal_notice` 在进入任何 embedding / Qdrant / release 之前，必须先过 `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+
 `internal_notice` 当前 runtime profile 已允许进入 offline preparation 的 document/chunk/index 生命周期，但仍保持：
 
 - `retrieval_enabled=false`
@@ -246,16 +302,33 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 
 这里的 canonical 后续链路已经拆成两段：
 
-- `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
+- verified replay pilot / pre-promote 审查：
+  - `validate_internal_notice_chunking --closeout-run-id <run_id> --sample-dir <output_dir>`
+  - `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --closeout-run-id <run_id> --preparation-run-id <prep_id>`
+  - `validate_internal_notice_chunking --preparation-run-id <prep_id> --sample-dir <output_dir>`
+- current-scope / release-prep 审查：
+  - `prepare_registry_scope_chunks --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id>`
+  - `validate_internal_notice_chunking --preparation-run-id <prep_id> --sample-dir <output_dir>`
 - `release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id <prep_id> --no-publish-alias`
 
 固定规则：
 
-- `prepare_registry_scope_chunks` 只做 registry current truth 的 split / cleanup / chunk / validation，不做 embedding，不写 Qdrant
+- `validate_internal_notice_chunking --closeout-run-id` 是 repo-supported 的只读 staged quality 入口，不触发 promote，不写 embedding / Qdrant
+- `prepare_registry_scope_chunks --closeout-run-id` 读取 verified closeout run 的 staged `document-units.jsonl`，但 manifest 固定冻结 final canonical document identity / final object keys
+- `prepare_registry_scope_chunks` 不做 embedding，不写 Qdrant
 - `release_registry_scope` 只负责 verified chunk preparation 之后的 `embedding -> indexing -> optional alias publish`
 - `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
+- pilot 当前仍以 verified chunk preparation 为停点；没有显式批准前，不继续 release
+- local Postgres dev path 是当前已验证通过的 current-scope replay / preparation operator substrate；这条路径按 `docs/runbooks/local-postgres-dev-recovery-runbook.md` 提供本地 DSN 即可
+- 如果改回 shared Supabase path，再要求 offline operator shell 显式提供 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- 当共享库由 Supabase 承载时，这个 management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；如果仍是 `*.pooler.supabase.com`，当前 helper 会 fast-fail
+- shared-path readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
+- 如果 shared-path `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
+- 如果当前 shell 继承了宿主机代理值，`release_registry_scope`、`curl "$QDRANT_URL/collections"` 与 `QdrantClient.get_aliases()` 都可能对 Qdrant Cloud 超时；此时必须显式把 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 及其小写形式置空，并把 `NO_PROXY` / `no_proxy` 设为 `*`
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。
+
+对“先消费已导入历史数据”的 operator 目标，verified chunk preparation 仍是自然决策点；是否继续执行 release，必须作为单独决策处理，不能由 replay / preparation 自动推导。即使某次 operator 执行已经留下 unpublished release 样本，也不改变 `internal_notice` 仍保持 alias 未发布、query-serving 未开放的事实。
 
 ### 4.1 Typed Stage Columns & Bulk Commit
 
@@ -333,12 +406,23 @@ attachment extraction lane 固定按类型分流：
 - `text_extractable`
   - 走确定性 native text extraction
   - 当前至少覆盖 `docx`
+  - 不把 `pdf` 当作这条 lane 的默认 canonical 输入
+- `manual_review_required`
+  - 当前用于校园导览图、位置图、楼宇分区图等空间关系主导的 inline image
+  - 不进入当前 OCR / chunk pipeline
+  - staged truth 必须显式保留 `review_reason`
 - `ocr_required`
-  - 走在线 OCR provider
-  - 当前至少覆盖 image-heavy historical corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+  - 走 PaddleOCR-VL async jobs endpoint
+  - authenticated notice historical replay 的 operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`
+  - 对 `state=done` 但 `resultUrl.jsonUrl` 持续不可读的情况，只有在 attachment 已确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为 provider contract breach
+  - 当前默认覆盖两类输入：
+    - policy / handbook / procedure 等文档型 `pdf`
+    - text-dominant image corpus：`png`、`jpg`、`jpeg`、`bmp`、`gif`
+  - native PDF extraction 最多只作为 diagnostics / probe，不作为 canonical success path
   - lane outcome 固定分成两类：
     - `materialized_document`：OCR 产出非空标准化文本，生成 child document
     - `no_extractable_text`：OCR 成功返回但没有可提取正文，不生成 child document
+  - 对 `materialized_document`，worker / promoter 必须完整维护 provider payload、`layout-elements.jsonl`、canonical markdown、`document-units.jsonl` 这组 derived artifacts
   - `no_extractable_text` 不是 fallback，也不是静默跳过；它必须作为 attachment-level replay outcome 落进 staged truth，供 verification / operator 审计
 - `unsupported_binary`
   - 直接 fast-fail
@@ -361,10 +445,10 @@ child attachment document 必须携带明确的 derived metadata，包括但不�
 
 planning / verification 口径固定补充：
 
-- frozen inventory / batch input 冻结的是 attachment projection plan，不把所有 OCR candidate 预先当成“必有 child document”
-- verifier 必须确认每个 OCR candidate 都有确定 outcome
+- frozen inventory / batch input 冻结的是 attachment projection plan，不把所有 attachment candidate 预先当成“必有 child document”
+- verifier 必须确认每个 OCR candidate 和 `manual_review_required` candidate 都有确定 outcome
 - final expected document scope = parent documents + `text_extractable` child documents + outcome 为 `materialized_document` 的 OCR children
-- `no_extractable_text` attachment 继续作为 source-truth relation 留存，但不进入 final document scope
+- `no_extractable_text` 与 `manual_review_required` attachment 都继续作为 source-truth relation 留存，但不进入 final document scope
 
 ## Throughput Posture
 
@@ -378,7 +462,7 @@ full historical replay 推荐的起步姿态：
 - per-worker object-store 并发：`32-64`
 - per-worker OCR 并发：`2-4`
 
-这些值是基于当前 repo 结构与真实 historical corpus 形态的 operator 建议，不是 contract 常量。
+这些值是基于 repo 当前结构与真实 historical corpus 形态的 operator 建议，不是 contract 常量。
 
 ### Object Storage
 
@@ -421,15 +505,15 @@ OCR 并发必须与 object-store 并发分离控制。
 - 不让 OCR concurrency 直接等于 object-store concurrency
 - 不让单个 notice 持有无限 attachment OCR 并发
 
-## 当前可执行边界
+## 可执行边界
 
-当前 repo 内已经具备：
+repo 内已经具备：
 
 - bootstrap import
 - source-truth replay 的 bounded projection runner
 - async staged closeout 的 planning / worker / verify / promote 生命周期
 
-因此当前正确的执行分工是：
+因此正确的执行分工是：
 
 - bounded correctness replay：使用 `rebuild_authenticated_notice_source_projections`
 - full historical consumption：沿用 async staged closeout 的 batch-leased execution model

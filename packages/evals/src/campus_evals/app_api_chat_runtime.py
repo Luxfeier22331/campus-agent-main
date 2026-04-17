@@ -8,10 +8,13 @@ from string import Formatter
 import httpx
 
 from campus_contracts import (
+    ClaimSupport,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    PromptTrace,
+    RagResultDiagnostics,
     RagResultPayload,
     SupervisorObservability,
     SupervisorResponse,
@@ -70,10 +73,12 @@ class AppApiEvalClientSettings:
     def from_env(
         cls,
         env: dict[str, str] | None = None,
+        *,
+        default_timeout_seconds: float = 15.0,
     ) -> "AppApiEvalClientSettings":
         source = env if env is not None else os.environ
         timeout_raw = str(source.get("APP_API_EVAL_HTTP_TIMEOUT_SECONDS") or "").strip()
-        timeout_seconds = float(timeout_raw) if timeout_raw else 15.0
+        timeout_seconds = float(timeout_raw) if timeout_raw else default_timeout_seconds
         return cls(
             app_api_base_url=str(source.get("APP_API_BASE_URL") or "").strip(),
             internal_shared_secret=str(source.get("APP_API_INTERNAL_SHARED_SECRET") or "").strip(),
@@ -419,7 +424,8 @@ def _parse_supervisor_result(value: object) -> RagResultPayload | None:
                 _parse_evidence_source(item, field=f"supervisor.result.evidence.sources[{index}]")
                 for index, item in enumerate(_optional_list(evidence_record.get("sources")))
             ),
-        )
+        ),
+        diagnostics=_parse_rag_result_diagnostics(record.get("diagnostics")),
     )
 
 
@@ -441,6 +447,78 @@ def _parse_evidence_source(value: object, *, field: str) -> EvidenceSource:
         snippet=_required_string(record.get("snippet"), f"{field}.snippet"),
         score=float(record.get("score") or 0.0),
         source_title=_optional_string(record.get("source_title")) or "",
+        canonical_source_id=_optional_string(record.get("canonical_source_id")) or "",
+        canonical_source_title=_optional_string(record.get("canonical_source_title")) or "",
+        source_unit_kind=_optional_string(record.get("source_unit_kind")) or "",
+        source_unit_key=_optional_string(record.get("source_unit_key")) or "",
+    )
+
+
+def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
+    record = _optional_record(value)
+    if record is None:
+        raise ValueError(f"{field} must be an object")
+    if "revision_track" in record and "version_id" in record and "canonical_url" in record:
+        return _parse_evidence_source(record, field=field)
+
+    doc_id = _required_string(
+        record.get("doc_id") if "doc_id" in record else record.get("docId"),
+        f"{field}.doc_id",
+    )
+    chunk_id = _optional_string(record.get("chunk_id") if "chunk_id" in record else record.get("chunkId"))
+    collection = _required_string(
+        record.get("collection") if "collection" in record else record.get("collection"),
+        f"{field}.collection",
+    )
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=_optional_string(record.get("version_id") if "version_id" in record else record.get("versionId"))
+        or "observed-trace",
+        chunk_id=chunk_id or f"{doc_id}:observed-trace",
+        anchor=_optional_record(record.get("anchor")) or {},
+        canonical_url=_optional_string(
+            record.get("canonical_url") if "canonical_url" in record else record.get("canonicalUrl")
+        )
+        or "",
+        latest_url=_optional_string(
+            record.get("latest_url") if "latest_url" in record else record.get("latestUrl")
+        )
+        or "",
+        source_channel=_optional_string(
+            record.get("source_channel") if "source_channel" in record else record.get("sourceChannel")
+        )
+        or "pdf_ocr",
+        collection=collection,
+        is_current=bool(record.get("is_current") if "is_current" in record else record.get("isCurrent")),
+        snippet=_optional_string(record.get("snippet")) or "",
+        score=float(record.get("score") or 0.0),
+        source_title=_optional_string(record.get("source_title") if "source_title" in record else record.get("sourceTitle"))
+        or "",
+        canonical_source_id=_optional_string(
+            record.get("canonical_source_id")
+            if "canonical_source_id" in record
+            else record.get("canonicalSourceId")
+        )
+        or "",
+        canonical_source_title=_optional_string(
+            record.get("canonical_source_title")
+            if "canonical_source_title" in record
+            else record.get("canonicalSourceTitle")
+        )
+        or "",
+        source_unit_kind=_optional_string(
+            record.get("source_unit_kind")
+            if "source_unit_kind" in record
+            else record.get("sourceUnitKind")
+        )
+        or "",
+        source_unit_key=_optional_string(
+            record.get("source_unit_key")
+            if "source_unit_key" in record
+            else record.get("sourceUnitKey")
+        )
+        or "",
     )
 
 
@@ -460,6 +538,19 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             if "retrievedSourceCount" in record
             else record.get("retrieved_source_count")
         ),
+        retrieved_sources=tuple(
+            _parse_observed_source(
+                item,
+                field=f"supervisor.observability.retrieved_sources[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("retrievedSources")
+                    if "retrievedSources" in record
+                    else record.get("retrieved_sources")
+                )
+            )
+        ),
         citation_expected=_optional_bool(
             record.get("citationExpected") if "citationExpected" in record else record.get("citation_expected")
         ),
@@ -471,6 +562,18 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
         ),
         refusal_class=_optional_string(
             record.get("refusalClass") if "refusalClass" in record else record.get("refusal_class")
+        )
+        or "",
+        semantic_outcome=_optional_string(
+            record.get("semanticOutcome") if "semanticOutcome" in record else record.get("semantic_outcome")
+        )
+        or "",
+        scope_class=_optional_string(
+            record.get("scopeClass") if "scopeClass" in record else record.get("scope_class")
+        )
+        or "",
+        policy_reason=_optional_string(
+            record.get("policyReason") if "policyReason" in record else record.get("policy_reason")
         )
         or "",
         acl_decision=_optional_string(
@@ -502,6 +605,316 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             if "estimatedCostMicrousd" in record
             else record.get("estimated_cost_microusd")
         ),
+        resolved_scope_corpus=_optional_string(
+            record.get("resolvedScopeCorpus")
+            if "resolvedScopeCorpus" in record
+            else record.get("resolved_scope_corpus")
+        ),
+        resolved_scope_collection=_optional_string(
+            record.get("resolvedScopeCollection")
+            if "resolvedScopeCollection" in record
+            else record.get("resolved_scope_collection")
+        )
+        or "",
+        prompt_runtime_state=_optional_string(
+            record.get("promptRuntimeState")
+            if "promptRuntimeState" in record
+            else record.get("prompt_runtime_state")
+        )
+        or "",
+        prompt_runtime_detail=_optional_string(
+            record.get("promptRuntimeDetail")
+            if "promptRuntimeDetail" in record
+            else record.get("prompt_runtime_detail")
+        )
+        or "",
+        prompt_trace=_parse_prompt_trace(
+            record.get("promptTrace") if "promptTrace" in record else record.get("prompt_trace")
+        ),
+    )
+
+
+def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return RagResultDiagnostics(
+        resolved_scope_corpus=_optional_string(
+            record.get("resolved_scope_corpus")
+            if "resolved_scope_corpus" in record
+            else record.get("resolvedScopeCorpus")
+        ),
+        resolved_scope_collection=_optional_string(
+            record.get("resolved_scope_collection")
+            if "resolved_scope_collection" in record
+            else record.get("resolvedScopeCollection")
+        )
+        or "",
+        resolved_policy_document_id=_optional_string(
+            record.get("resolved_policy_document_id")
+            if "resolved_policy_document_id" in record
+            else record.get("resolvedPolicyDocumentId")
+        )
+        or "",
+        resolved_policy_title=_optional_string(
+            record.get("resolved_policy_title")
+            if "resolved_policy_title" in record
+            else record.get("resolvedPolicyTitle")
+        )
+        or "",
+        rewritten_query=_optional_string(
+            record.get("rewritten_query") if "rewritten_query" in record else record.get("rewrittenQuery")
+        )
+        or "",
+        clarification_reason=_optional_string(
+            record.get("clarification_reason")
+            if "clarification_reason" in record
+            else record.get("clarificationReason")
+        )
+        or "",
+        no_answer_reason=_optional_string(
+            record.get("no_answer_reason") if "no_answer_reason" in record else record.get("noAnswerReason")
+        )
+        or "",
+        semantic_outcome=_optional_string(
+            record.get("semantic_outcome") if "semantic_outcome" in record else record.get("semanticOutcome")
+        )
+        or "",
+        retrieval_adequacy_verdict=_optional_string(
+            record.get("retrieval_adequacy_verdict")
+            if "retrieval_adequacy_verdict" in record
+            else record.get("retrievalAdequacyVerdict")
+        )
+        or "",
+        retrieval_adequacy_reason=_optional_string(
+            record.get("retrieval_adequacy_reason")
+            if "retrieval_adequacy_reason" in record
+            else record.get("retrievalAdequacyReason")
+        )
+        or "",
+        grounding_verdict=_optional_string(
+            record.get("grounding_verdict")
+            if "grounding_verdict" in record
+            else record.get("groundingVerdict")
+        )
+        or "",
+        grounding_downgraded=_optional_bool(
+            record.get("grounding_downgraded")
+            if "grounding_downgraded" in record
+            else record.get("groundingDowngraded")
+        )
+        or False,
+        freshness_fail_closed=_optional_bool(
+            record.get("freshness_fail_closed")
+            if "freshness_fail_closed" in record
+            else record.get("freshnessFailClosed")
+        )
+        or False,
+        scope_class=_optional_string(
+            record.get("scope_class") if "scope_class" in record else record.get("scopeClass")
+        )
+        or "",
+        policy_reason=_optional_string(
+            record.get("policy_reason") if "policy_reason" in record else record.get("policyReason")
+        )
+        or "",
+        retrieved_title_summary=_string_tuple(
+            record.get("retrieved_title_summary")
+            if "retrieved_title_summary" in record
+            else record.get("retrievedTitleSummary")
+        ),
+        candidate_title_summary=_string_tuple(
+            record.get("candidate_title_summary")
+            if "candidate_title_summary" in record
+            else record.get("candidateTitleSummary")
+        ),
+        resolution_mode=_optional_string(
+            record.get("resolution_mode") if "resolution_mode" in record else record.get("resolutionMode")
+        )
+        or "",
+        used_verified_identity=_optional_bool(
+            record.get("used_verified_identity")
+            if "used_verified_identity" in record
+            else record.get("usedVerifiedIdentity")
+        )
+        or False,
+        used_soft_preference=_optional_bool(
+            record.get("used_soft_preference")
+            if "used_soft_preference" in record
+            else record.get("usedSoftPreference")
+        )
+        or False,
+        resolved_entity_type=_optional_string(
+            record.get("resolved_entity_type")
+            if "resolved_entity_type" in record
+            else record.get("resolvedEntityType")
+        )
+        or "",
+        resolved_course_id=_optional_string(
+            record.get("resolved_course_id") if "resolved_course_id" in record else record.get("resolvedCourseId")
+        )
+        or "",
+        resolved_course_title=_optional_string(
+            record.get("resolved_course_title")
+            if "resolved_course_title" in record
+            else record.get("resolvedCourseTitle")
+        )
+        or "",
+        resolved_course_family_id=_optional_string(
+            record.get("resolved_course_family_id")
+            if "resolved_course_family_id" in record
+            else record.get("resolvedCourseFamilyId")
+        )
+        or "",
+        resolved_course_family_title=_optional_string(
+            record.get("resolved_course_family_title")
+            if "resolved_course_family_title" in record
+            else record.get("resolvedCourseFamilyTitle")
+        )
+        or "",
+        resolved_program_family_id=_optional_string(
+            record.get("resolved_program_family_id")
+            if "resolved_program_family_id" in record
+            else record.get("resolvedProgramFamilyId")
+        )
+        or "",
+        resolved_program_family_title=_optional_string(
+            record.get("resolved_program_family_title")
+            if "resolved_program_family_title" in record
+            else record.get("resolvedProgramFamilyTitle")
+        )
+        or "",
+        session_program_family=_optional_string(
+            record.get("session_program_family")
+            if "session_program_family" in record
+            else record.get("sessionProgramFamily")
+        )
+        or "",
+        session_program=_optional_string(
+            record.get("session_program") if "session_program" in record else record.get("sessionProgram")
+        )
+        or "",
+        session_semester=_optional_string(
+            record.get("session_semester")
+            if "session_semester" in record
+            else record.get("sessionSemester")
+        )
+        or "",
+        claim_supports=tuple(
+            _parse_claim_support(
+                item,
+                field=f"supervisor.result.diagnostics.claim_supports[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("claim_supports")
+                    if "claim_supports" in record
+                    else record.get("claimSupports")
+                )
+            )
+        ),
+        unsupported_fields=_string_tuple(
+            record.get("unsupported_fields")
+            if "unsupported_fields" in record
+            else record.get("unsupportedFields")
+        ),
+        partial_answer=_optional_bool(
+            record.get("partial_answer") if "partial_answer" in record else record.get("partialAnswer")
+        )
+        or False,
+        prompt_runtime_state=_optional_string(
+            record.get("prompt_runtime_state")
+            if "prompt_runtime_state" in record
+            else record.get("promptRuntimeState")
+        )
+        or "",
+        prompt_runtime_detail=_optional_string(
+            record.get("prompt_runtime_detail")
+            if "prompt_runtime_detail" in record
+            else record.get("promptRuntimeDetail")
+        )
+        or "",
+        prompt_trace=_parse_prompt_trace(
+            record.get("prompt_trace") if "prompt_trace" in record else record.get("promptTrace")
+        ),
+        retrieved_sources=tuple(
+            _parse_observed_source(
+                item,
+                field=f"supervisor.result.diagnostics.retrieved_sources[{index}]",
+            )
+            for index, item in enumerate(
+                _optional_list(
+                    record.get("retrieved_sources")
+                    if "retrieved_sources" in record
+                    else record.get("retrievedSources")
+                )
+            )
+        ),
+    )
+
+
+def _parse_prompt_trace(value: object) -> PromptTrace | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return PromptTrace(
+        prompt_id=_optional_string(record.get("prompt_id") if "prompt_id" in record else record.get("promptId"))
+        or "",
+        prompt_version=_optional_string(
+            record.get("prompt_version") if "prompt_version" in record else record.get("promptVersion")
+        )
+        or "",
+        template_sha256=_optional_string(
+            record.get("template_sha256") if "template_sha256" in record else record.get("templateSha256")
+        )
+        or "",
+        variables_schema_version=_optional_string(
+            record.get("variables_schema_version")
+            if "variables_schema_version" in record
+            else record.get("variablesSchemaVersion")
+        )
+        or "",
+        output_schema_version=_optional_string(
+            record.get("output_schema_version")
+            if "output_schema_version" in record
+            else record.get("outputSchemaVersion")
+        )
+        or "",
+        model_provider=_optional_string(
+            record.get("model_provider") if "model_provider" in record else record.get("modelProvider")
+        )
+        or "",
+        model_name=_optional_string(record.get("model_name") if "model_name" in record else record.get("modelName"))
+        or "",
+    )
+
+
+def _parse_claim_support(value: object, *, field: str) -> ClaimSupport:
+    record = _optional_record(value)
+    if record is None:
+        raise ValueError(f"{field} must be an object")
+    return ClaimSupport(
+        claim_type=_required_string(
+            record.get("claim_type") if "claim_type" in record else record.get("claimType"),
+            f"{field}.claim_type",
+        ),
+        claim_text=_required_string(
+            record.get("claim_text") if "claim_text" in record else record.get("claimText"),
+            f"{field}.claim_text",
+        ),
+        supported=bool(record.get("supported")),
+        support_source_doc_id=_optional_string(
+            record.get("support_source_doc_id")
+            if "support_source_doc_id" in record
+            else record.get("supportSourceDocId")
+        )
+        or "",
+        support_snippet=_optional_string(
+            record.get("support_snippet")
+            if "support_snippet" in record
+            else record.get("supportSnippet")
+        )
+        or "",
     )
 
 
@@ -510,8 +923,10 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
     supporting_sources = ()
     if isinstance(response.result, RagResultPayload):
         supporting_sources = tuple(response.result.evidence.sources)
-        if response.observability is None or response.observability.retrieval_attempted is not False:
-            retrieved_sources = supporting_sources
+        if response.observability is not None and response.observability.retrieved_sources:
+            retrieved_sources = tuple(response.observability.retrieved_sources)
+        elif response.result.diagnostics is not None and response.result.diagnostics.retrieved_sources:
+            retrieved_sources = tuple(response.result.diagnostics.retrieved_sources)
 
     retrieval_called = (
         response.observability.retrieval_attempted
@@ -519,7 +934,7 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
         else None
     )
     if retrieval_called is None and isinstance(response.result, RagResultPayload):
-        retrieval_called = len(response.result.evidence.sources) > 0
+        retrieval_called = bool(retrieved_sources or supporting_sources)
 
     return ObservedTrace(
         selected_scope=KnowledgeScope(
@@ -542,6 +957,14 @@ def _optional_record(value: object) -> dict[str, object] | None:
 
 def _optional_list(value: object) -> list[object]:
     return list(value) if isinstance(value, list) else []
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    return tuple(
+        item
+        for item in (_optional_string(item) for item in _optional_list(value))
+        if item is not None
+    )
 
 
 def _optional_bool(value: object) -> bool | None:

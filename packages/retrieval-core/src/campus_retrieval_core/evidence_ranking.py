@@ -9,6 +9,7 @@ from campus_contracts import EvidenceSource
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
+    interpret_curriculum_query,
     query_targets_curriculum_source_title,
 )
 
@@ -149,6 +150,10 @@ def select_supporting_evidence_sources(
     if max_sources <= 0:
         return ()
 
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.curriculum_lookup_target == "course_map":
+        return ()
+
     scoped_sources, scope_applied = filter_curriculum_query_sources(
         query_text=query_text,
         sources=sources,
@@ -198,6 +203,14 @@ def select_supporting_evidence_sources(
         if ranked_documents and _query_targets_document(query_key=query_key, feature=ranked_documents[0])
         else ""
     )
+    curriculum_lookup_selected = _select_curriculum_lookup_support_sources(
+        query_text=query_text,
+        ranked_features=ranked_features,
+        locked_doc_id=locked_doc_id,
+        max_sources=max_sources,
+    )
+    if curriculum_lookup_selected:
+        return curriculum_lookup_selected
 
     primary: list[EvidenceSource] = []
     secondary: list[EvidenceSource] = []
@@ -239,6 +252,50 @@ def select_supporting_evidence_sources(
         ranked_features[0].source,
     )
     return (fallback_source,)
+
+
+def _select_curriculum_lookup_support_sources(
+    *,
+    query_text: str,
+    ranked_features: Sequence[_SourceRankingFeatures],
+    locked_doc_id: str,
+    max_sources: int,
+) -> tuple[EvidenceSource, ...]:
+    if max_sources <= 0:
+        return ()
+    interpretation = interpret_curriculum_query(query_text)
+    if (
+        interpretation.intent_kind != "curriculum_lookup"
+        or interpretation.curriculum_lookup_target == "course_map"
+    ):
+        return ()
+    eligible_features = tuple(
+        feature
+        for feature in ranked_features
+        if not locked_doc_id or feature.source.doc_id == locked_doc_id
+    )
+    if not eligible_features:
+        return ()
+
+    distinct_sections: dict[str, _SourceRankingFeatures] = {}
+    for feature in eligible_features:
+        distinct_sections.setdefault(_curriculum_support_section_key(feature.source), feature)
+
+    selected_features = sorted(
+        distinct_sections.values(),
+        key=lambda feature: _curriculum_lookup_section_sort_key(
+            query_text=query_text,
+            feature=feature,
+        ),
+    )
+    selected_chunk_ids = {feature.source.chunk_id for feature in selected_features}
+    remaining_features = tuple(
+        feature
+        for feature in eligible_features
+        if feature.source.chunk_id not in selected_chunk_ids
+    )
+    ordered_features = tuple((*selected_features, *remaining_features))
+    return tuple(feature.source for feature in ordered_features[:max_sources])
 
 
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:
@@ -403,6 +460,63 @@ def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int
         feature.content_kind_priority,
         feature.best_score,
     )
+
+
+def _curriculum_lookup_section_sort_key(
+    *,
+    query_text: str,
+    feature: _SourceRankingFeatures,
+) -> tuple[int, int, float]:
+    focus_priority = 0 if _curriculum_lookup_source_matches_query(query_text=query_text, source=feature.source) else 1
+    return (
+        focus_priority,
+        _source_chunk_ordinal(feature.source),
+        -feature.source.score,
+    )
+
+
+def _curriculum_lookup_source_matches_query(*, query_text: str, source: EvidenceSource) -> bool:
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.curriculum_lookup_target == "course_settings":
+        query_terms = (_normalize_text("课程设置"),)
+    elif interpretation.curriculum_lookup_target == "study_advice":
+        query_terms = (_normalize_text("修读建议"),)
+    else:
+        return False
+    normalized_query = _normalize_text(query_text)
+    normalized_section = _normalize_text(_curriculum_support_section_text(source))
+    return any(
+        term in normalized_query and term in normalized_section
+        for term in query_terms
+    )
+
+
+def _curriculum_support_section_key(source: EvidenceSource) -> str:
+    for part in reversed(source.structural_path):
+        normalized = part.strip()
+        if normalized:
+            return normalized
+    if source.detail_label.strip():
+        return source.detail_label.strip()
+    return source.chunk_id
+
+
+def _curriculum_support_section_text(source: EvidenceSource) -> str:
+    return " ".join(
+        part
+        for part in (
+            *source.structural_path,
+            source.detail_label,
+        )
+        if part.strip()
+    )
+
+
+def _source_chunk_ordinal(source: EvidenceSource) -> int:
+    match = re.search(r"chunk-(\d+)", source.chunk_id)
+    if match is None:
+        return 1_000_000
+    return int(match.group(1))
 
 
 def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:

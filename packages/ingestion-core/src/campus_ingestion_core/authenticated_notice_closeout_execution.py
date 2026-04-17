@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from campus_ingestion_core.artifacts import PROVIDER_RESPONSE_FILENAME
+from campus_ingestion_core.artifacts import LAYOUT_ELEMENTS_FILENAME, PROVIDER_RESPONSE_FILENAME
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,
 )
@@ -447,10 +447,13 @@ class CloseoutExecutionCoordinator:
                 "attachment_object_key": outcome.attachment_object_key,
                 "attachment_content_sha256": outcome.attachment_content_sha256,
             }
+            if outcome.review_reason is not None:
+                payload["review_reason"] = outcome.review_reason
             if (
                 outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT
                 and outcome.provider_response_bytes is not None
             ):
+                attachment_slug = document_stage_slug(outcome.document_id)
                 staged_provider_key = build_operations_artifact_key(
                     corpus=request.corpus,
                     operation=DEFAULT_CLOSEOUT_OPERATION,
@@ -461,7 +464,7 @@ class CloseoutExecutionCoordinator:
                         "batches",
                         batch_key_segment,
                         "attachments",
-                        outcome.attachment_ref_id,
+                        attachment_slug,
                     ),
                 )
                 provider_hash = hashlib.sha256(outcome.provider_response_bytes).hexdigest()
@@ -555,6 +558,7 @@ class CloseoutExecutionCoordinator:
             }
         }
         provider_response_object_key = translated_document.provider_response_object_key
+        layout_elements_object_key = translated_document.layout_elements_object_key
         upload_tasks = [
             asyncio.create_task(
                 self.artifacts.put_bytes_limited(
@@ -613,6 +617,52 @@ class CloseoutExecutionCoordinator:
                     )
                 )
             )
+        if translated_document.layout_elements_bytes is not None:
+            if layout_elements_object_key is not None and is_source_object_key(
+                str(layout_elements_object_key)
+            ):
+                raise ValueError(
+                    f"closeout staging does not accept source-level layout elements writes: {document_id}"
+                )
+            if layout_elements_object_key is None:
+                layout_elements_object_key = build_document_artifact_key(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    document_id=document_id,
+                    revision_track=translated_document.revision_track,
+                    version_id=version_id,
+                    filename=LAYOUT_ELEMENTS_FILENAME,
+                    title=translated_document.title,
+                    year=translated_document.year,
+                )
+            layout_elements_hash = hashlib.sha256(
+                translated_document.layout_elements_bytes
+            ).hexdigest()
+            staged_layout_elements_key = build_operations_artifact_key(
+                corpus=request.corpus,
+                operation=DEFAULT_CLOSEOUT_OPERATION,
+                run_id=run_id,
+                filename=LAYOUT_ELEMENTS_FILENAME,
+                segments=("staging", "batches", batch_key_segment, "documents", document_slug),
+            )
+            staged_object_keys["layout_elements"] = staged_layout_elements_key
+            final_object_keys["layout_elements"] = layout_elements_object_key
+            staged_object_metadata["layout_elements"] = {
+                "sha256": layout_elements_hash,
+                "content_length": len(translated_document.layout_elements_bytes),
+            }
+            upload_tasks.append(
+                asyncio.create_task(
+                    self.artifacts.put_bytes_limited(
+                        semaphore=object_store_semaphore,
+                        bucket=self.object_store_settings.bucket_derived,
+                        key=staged_layout_elements_key,
+                        data=translated_document.layout_elements_bytes,
+                        content_type="application/x-ndjson",
+                        metadata={"sha256": layout_elements_hash},
+                    )
+                )
+            )
         final_markdown_key = None
         if translated_document.canonical_markdown_bytes is not None:
             markdown_hash = hashlib.sha256(
@@ -660,6 +710,7 @@ class CloseoutExecutionCoordinator:
                 key
                 for key in (
                     provider_response_object_key,
+                    layout_elements_object_key,
                     final_markdown_key,
                     final_document_units_key,
                     *translated_document.additional_processed_object_keys,
@@ -685,6 +736,7 @@ class CloseoutExecutionCoordinator:
                 "raw_asset_id": translated_document.raw_asset_id,
                 "raw_version_id": translated_document.raw_version_id,
                 "provider_response_object_key": provider_response_object_key,
+                "layout_elements_object_key": layout_elements_object_key,
                 "additional_processed_object_keys": list(
                     translated_document.additional_processed_object_keys
                 ),

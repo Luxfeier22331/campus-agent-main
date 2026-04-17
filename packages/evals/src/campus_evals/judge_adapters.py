@@ -17,6 +17,7 @@ from campus_evals.ragas_adapter import (
 )
 from campus_evals.runtime_observability import bind_runtime_event_context
 from campus_evals.supplemental_http import (
+    OpenAICompatibleChatCompletionsLLM,
     OpenAICompatibleResponsesLLM,
     format_runtime_exception_message,
     get_provider_circuit_breaker,
@@ -180,7 +181,7 @@ def build_answer_rubric_adapter(
     resolved_judge_fn = judge_fn
     resolved_preflight = preflight
     if resolved_judge_fn is None:
-        _, resolved_judge_fn, resolved_preflight = _build_responses_judge_runtime(
+        _, resolved_judge_fn, resolved_preflight = _build_json_judge_runtime(
             settings,
             sync_client=sync_client,
         )
@@ -205,7 +206,7 @@ def build_refusal_rubric_adapter(
     resolved_judge_fn = judge_fn
     resolved_preflight = preflight
     if resolved_judge_fn is None:
-        _, resolved_judge_fn, resolved_preflight = _build_responses_judge_runtime(
+        _, resolved_judge_fn, resolved_preflight = _build_json_judge_runtime(
             settings,
             sync_client=sync_client,
         )
@@ -226,7 +227,7 @@ def build_default_handbook_supplemental_adapters_from_env(
 ) -> tuple[object, ...]:
     ragas_settings = RagasSettings.from_env(env, http_settings=http_settings)
     judge_settings = JudgeLLMSettings.from_env(env, http_settings=http_settings)
-    _, judge_fn, judge_preflight = _build_responses_judge_runtime(judge_settings)
+    _, judge_fn, judge_preflight = _build_json_judge_runtime(judge_settings)
     return (
         build_handbook_ragas_adapter(ragas_settings, metric_names=metric_names),
         build_answer_rubric_adapter(judge_settings, judge_fn=judge_fn, preflight=judge_preflight),
@@ -234,22 +235,22 @@ def build_default_handbook_supplemental_adapters_from_env(
     )
 
 
-def build_responses_json_judge(
+def build_json_judge(
     settings: JudgeLLMSettings,
     *,
     sync_client: httpx.Client | None = None,
 ) -> JudgeFn:
-    _, judge_fn, _ = _build_responses_judge_runtime(settings, sync_client=sync_client)
+    _, judge_fn, _ = _build_json_judge_runtime(settings, sync_client=sync_client)
     return judge_fn
 
 
-def _build_responses_judge_runtime(
+def _build_json_judge_runtime(
     settings: JudgeLLMSettings,
     *,
     sync_client: httpx.Client | None = None,
-) -> tuple[OpenAICompatibleResponsesLLM, JudgeFn, Callable[[], object]]:
+) -> tuple[OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]]:
     base_url = settings.llm_base_url or "https://api.openai.com/v1"
-    llm = OpenAICompatibleResponsesLLM(
+    llm_kwargs = dict(
         base_url=base_url,
         api_key=settings.llm_api_key,
         model=settings.llm_model,
@@ -269,6 +270,10 @@ def _build_responses_judge_runtime(
         ),
         sync_client=sync_client,
     )
+    if settings.llm_transport == "chat_completions":
+        llm = OpenAICompatibleChatCompletionsLLM(**llm_kwargs)
+    else:
+        llm = OpenAICompatibleResponsesLLM(**llm_kwargs)
 
     def _judge(prompt: str) -> dict[str, object]:
         result = llm.generate_text(StringPromptValue(text=prompt))

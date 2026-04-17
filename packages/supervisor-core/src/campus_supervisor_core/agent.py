@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from campus_availability_specialist import delegate_to_availability_specialist
+from campus_navigation_specialist import delegate_to_navigation_specialist
 from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
@@ -11,7 +12,6 @@ from campus_contracts import (
     SupervisorRequest,
     SupervisorResponse,
 )
-from campus_rag_specialist import delegate_to_rag_agent
 from campus_rag_specialist.prompt_execution import RagPromptExecutor
 
 from campus_supervisor_core.context import SupervisorRequestContext
@@ -26,6 +26,16 @@ from campus_supervisor_core.routing import route_request
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
 
 
+def _delegate_to_rag_specialist(
+    request: SpecialistRequest,
+    *,
+    prompt_executor: RagPromptExecutor | None = None,
+) -> SpecialistResponse:
+    from campus_rag_specialist.service import delegate_to_rag_agent
+
+    return delegate_to_rag_agent(request, prompt_executor=prompt_executor)
+
+
 @dataclass(slots=True)
 class SupervisorAgent:
     specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None
@@ -37,10 +47,11 @@ class SupervisorAgent:
             self.specialist_delegates = {
                 "rag-specialist": self._delegate_to_rag_specialist,
                 "availability-specialist": delegate_to_availability_specialist,
+                "navigation-specialist": delegate_to_navigation_specialist,
             }
 
     def _delegate_to_rag_specialist(self, request: SpecialistRequest) -> SpecialistResponse:
-        return delegate_to_rag_agent(request, prompt_executor=self.rag_prompt_executor)
+        return _delegate_to_rag_specialist(request, prompt_executor=self.rag_prompt_executor)
 
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         context = SupervisorRequestContext.from_request(request)

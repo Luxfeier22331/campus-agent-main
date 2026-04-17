@@ -22,18 +22,26 @@ from campus_ingestion_core.authenticated_notice_closeout_models import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
+    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
     _postgres_connection,
     _qualified_table_sql,
     _table_index_suffix,
 )
-from campus_ingestion_core.postgres_runtime import validate_persistent_postgres_runtime_url
+from campus_ingestion_core.postgres_runtime import (
+    build_management_postgres_connection_url,
+    normalize_postgres_connection_url,
+)
 
 
 DEFAULT_CLOSEOUT_SCHEMA = "ingestion_closeout"
 DEFAULT_CLOSEOUT_STORE_ENV_KEY = "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL"
+DEFAULT_CLOSEOUT_STORE_MANAGEMENT_ENV_KEY = (
+    "AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL"
+)
 DEFAULT_RUN_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_runs"
 DEFAULT_SHARD_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_shards"
 DEFAULT_BATCH_TABLE = f"{DEFAULT_CLOSEOUT_SCHEMA}.closeout_batches"
@@ -148,8 +156,27 @@ class CloseoutStore(Protocol):
 
 def build_authenticated_notice_closeout_store_from_env(
     env: dict[str, str] | None = None,
+    *,
+    prefer_management: bool = False,
 ) -> PostgresAuthenticatedNoticeCloseoutStore:
     source = env if env is not None else dict(os.environ)
+    if prefer_management:
+        management_database_url = (
+            source.get(DEFAULT_CLOSEOUT_STORE_MANAGEMENT_ENV_KEY)
+            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
+            or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
+            or ""
+        ).strip()
+        if not management_database_url:
+            raise ValueError(
+                f"{DEFAULT_CLOSEOUT_STORE_MANAGEMENT_ENV_KEY} or "
+                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} or "
+                f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} is required when "
+                "prefer_management=True"
+            )
+        return PostgresAuthenticatedNoticeCloseoutStore(
+            build_management_postgres_connection_url(management_database_url)
+        )
     database_url = (
         source.get(DEFAULT_CLOSEOUT_STORE_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
@@ -160,9 +187,7 @@ def build_authenticated_notice_closeout_store_from_env(
         raise ValueError(
             f"{DEFAULT_CLOSEOUT_STORE_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
-    return PostgresAuthenticatedNoticeCloseoutStore(
-        validate_persistent_postgres_runtime_url(database_url)
-    )
+    return PostgresAuthenticatedNoticeCloseoutStore(database_url)
 
 
 def _documents_from_stage(stage: dict[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -681,7 +706,7 @@ class PostgresAuthenticatedNoticeCloseoutStore:
         promotion_table: str = DEFAULT_PROMOTION_TABLE,
         promotion_batch_table: str = DEFAULT_PROMOTION_BATCH_TABLE,
     ) -> None:
-        self.database_url = validate_persistent_postgres_runtime_url(database_url)
+        self.database_url = normalize_postgres_connection_url(database_url)
         if not self.database_url:
             raise ValueError("authenticated notice closeout database url is required")
         self.run_table = run_table

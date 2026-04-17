@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-04-01
+updated: 2026-04-11
 ---
 
 # Forward Worker Surface Smoke Runbook
@@ -30,9 +30,9 @@ updated: 2026-04-01
 
 ## 当前 smoke 形态
 
-当前 repo 还没有把 `public-chat-web -> app-api` 与 `protected-panel-web -> app-api` 的本地多 Worker 联调拓扑固化成一个统一 `pnpm smoke` 脚本。
+当前 repo 还没有把 `public-chat-web`、`protected-panel-web` 与 shared `app-api` 收敛成一个统一的 repo-level `pnpm smoke` 脚本。
 
-因此，当前 canonical smoke 入口是基于 Worker runtime 的 targeted vitest 用例，而不是任何已退役的 standalone public chat app live smoke。
+因此，当前 canonical gate 仍然是基于 Worker runtime 的 targeted vitest 用例；但 `public-chat-web` 的本地 browser/live smoke 入口已经固定为单命令 auxiliary Worker 拓扑，而不是分开启动两个 `pnpm dev` 会话。
 
 ## 前置条件
 
@@ -40,6 +40,7 @@ updated: 2026-04-01
 - 本地可执行 `pnpm`
 - 运行 Worker 测试时允许本地监听端口
 - 为避免 `wrangler` 写入默认家目录日志，命令使用 repo-local `XDG_CONFIG_HOME=./.wrangler-home`
+- 做 `public-chat-web` local browser smoke 前，如果本地 Postgres 可能落后于 `apps/app-api/db/shared-product-migrations/*`，先执行 `pnpm --dir apps/app-api db:bootstrap`
 
 ## 标准命令
 
@@ -85,6 +86,23 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails 
 pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails closed when the protected shell bridge is not configured|fails closed when protected overview bridge is not configured"
 ```
 
+## Public Chat Browser Smoke
+
+如果要做 `public-chat-web` 的本地浏览器冒烟，使用下面这条命令：
+
+```bash
+pnpm --dir apps/public-chat-web dev:live-smoke
+```
+
+约束：
+
+- 这条命令固定监听 `http://127.0.0.1:5173`
+- 它通过 Cloudflare Vite plugin 的 `auxiliaryWorkers` 带起 shared `apps/app-api`
+- `app-api` 使用 [wrangler.local-smoke.toml](/home/reptilian/code/campus-agent/apps/app-api/wrangler.local-smoke.toml) 注册为本地 `app-api` Worker，保证 `public-chat-web` 的 same-site `/api/*` service binding 能命中真实 Worker runtime
+- 不要再把 `pnpm --dir apps/public-chat-web dev` 和 `pnpm --dir apps/app-api dev` 作为本地 browser smoke 的前提；分开会话适合单 app 调试，但不是 canonical browser smoke 拓扑
+- 如需真实登录与发问链路，先用 `pnpm --dir apps/app-api smoke-identity:provision` 预置 smoke identity
+- `db:reconcile-shared-drift` 不能替代 `db:bootstrap`：前者只覆盖 drizzle shared-db adoption truth，不覆盖 `chat.*` 的 shared-product bootstrap migration
+
 ## 这组 smoke 证明什么
 
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常
@@ -99,12 +117,13 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "fails 
 
 ## 这组 smoke 不证明什么
 
-- 不证明浏览器 UI 已完成端到端验收
-- 不证明本地多 Worker dev server 拓扑已经固化
+- 不证明 protected panel 的浏览器 UI 已完成端到端验收
+- 不证明 repo-level 一键多 Worker dev server 拓扑已经全部固化
 - 不证明真实数据库、真实 Better Auth session 或真实 supervisor live execution 已接通
 - 不证明 retrieval、grounding 或答案质量达标
 
 ## 与旧 smoke 的关系
 
 - 已退役 standalone public chat app 的 live smoke 不再是 forward product topology 的 canonical smoke 入口
-- 如果未来要增加真正的 browser/live smoke，应围绕 `public-chat-web`、`protected-panel-web` 和 shared `app-api` 重新设计
+- `public-chat-web` 的本地 browser/live smoke 已固定走 `dev:live-smoke` 单命令 auxiliary Worker 拓扑
+- 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `public-chat-web`、`protected-panel-web` 和 shared `app-api` 继续收敛

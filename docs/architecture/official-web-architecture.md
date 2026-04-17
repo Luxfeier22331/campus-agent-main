@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-14
 ---
 
 # Official Web Architecture
@@ -16,6 +16,13 @@ updated: 2026-04-02
 - collector、`app-api`、object storage、`ingestion-worker` 如何分层
 - crawl policy、source-truth contract 与 operator/control-plane surface 各自属于谁
 - `official_web` 如何接入 shared product/runtime architecture
+
+补充约束：
+
+- 当前 merged truth 与 runtime opening posture 以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 与 `.planning/` 为准
+- 本文不维护 `fresh_news` / `news_archive` 的当前开放状态、独立 worktree 执行进度或 closeout 证据
+- `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与 freshness gate 统一看 `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- 独立 worktree 的 opening acceptance / handoff contract 统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## Core Topology
 
@@ -40,6 +47,8 @@ updated: 2026-04-02
 - crawl policy：`docs/policies/official-web-crawl-policy.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
 - repo-level data-plane contract：`docs/architecture/data-plane-architecture.md`
+- serving split / news retrieval strategy：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- freshness / incremental crawling strategy：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 
 ## Control-Plane Ownership
 
@@ -70,6 +79,17 @@ updated: 2026-04-02
 - panel 侧自建 aggregation backend
 - 直接暴露 object storage 或 telemetry sink
 
+## Runtime Opening Guardrail
+
+`official_web` source channel 的存在，不等于 `fresh_news` / `news_archive` 已经进入默认产品回答面。
+
+固定规则：
+
+- `official_web/stable_reference` 才是默认 institutional reference surface
+- `official_web/fresh_news` 只允许作为 intent-scoped、freshness-sensitive surface 单独开放
+- `official_web/news_archive` 只允许服务显式历史查询、operator、评测或分析用途
+- news surface 的 query opening policy 属于 serving/runtime contract，不属于 collector
+
 ## Forbidden Shapes
 
 - 不把 collector 内嵌进 `apps/ingestion-worker`
@@ -79,6 +99,8 @@ updated: 2026-04-02
 
 ## 相关稳定文档
 
+- `docs/architecture/current-architecture.md`
+- `docs/domains/official-web.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
 - `docs/data/app-api-official-web-schema.md`

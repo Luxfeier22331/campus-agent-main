@@ -212,7 +212,27 @@ def _build_projection_diagnostic(
         "extra_retrieved_context_ids": sorted(retrieved_context_id_set - reference_context_id_set),
         "retrieved_source_count": len(observed_trace.retrieved_sources),
         "supporting_source_count": len(observed_trace.supporting_sources),
+        "retrieved_doc_ids": _ordered_unique(source.doc_id for source in observed_trace.retrieved_sources if source.doc_id),
+        "retrieved_canonical_source_ids": _ordered_unique(
+            source.canonical_source_id for source in observed_trace.retrieved_sources if source.canonical_source_id
+        ),
+        "retrieved_source_unit_kinds": _ordered_unique(
+            source.source_unit_kind for source in observed_trace.retrieved_sources if source.source_unit_kind
+        ),
+        "retrieved_source_unit_keys": _ordered_unique(
+            source.source_unit_key for source in observed_trace.retrieved_sources if source.source_unit_key
+        ),
+        "retrieved_source_titles": [source.source_title for source in observed_trace.retrieved_sources if source.source_title],
         "supporting_doc_ids": _ordered_unique(source.doc_id for source in observed_trace.supporting_sources if source.doc_id),
+        "supporting_canonical_source_ids": _ordered_unique(
+            source.canonical_source_id for source in observed_trace.supporting_sources if source.canonical_source_id
+        ),
+        "supporting_source_unit_kinds": _ordered_unique(
+            source.source_unit_kind for source in observed_trace.supporting_sources if source.source_unit_kind
+        ),
+        "supporting_source_unit_keys": _ordered_unique(
+            source.source_unit_key for source in observed_trace.supporting_sources if source.source_unit_key
+        ),
         "supporting_source_titles": [source.source_title for source in observed_trace.supporting_sources if source.source_title],
     }
 
@@ -288,6 +308,10 @@ def _deserialize_evidence_source(payload: dict[str, object]) -> EvidenceSource:
         content_role=str(payload.get("content_role") or ""),
         detail_label=str(payload.get("detail_label") or ""),
         is_answer_bearing=bool(payload.get("is_answer_bearing")),
+        canonical_source_id=str(payload.get("canonical_source_id") or ""),
+        canonical_source_title=str(payload.get("canonical_source_title") or ""),
+        source_unit_kind=str(payload.get("source_unit_kind") or ""),
+        source_unit_key=str(payload.get("source_unit_key") or ""),
     )
 
 

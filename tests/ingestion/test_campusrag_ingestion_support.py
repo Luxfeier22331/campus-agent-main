@@ -203,10 +203,32 @@ class _FakeS3Client:
     def __init__(self, name: str) -> None:
         self.name = name
         self.put_calls: list[dict[str, object]] = []
+        self.get_calls: list[dict[str, object]] = []
         self.closed = False
+        self.objects: dict[tuple[str, str], bytes] = {}
 
     def put_object(self, **kwargs: object) -> None:
         self.put_calls.append(kwargs)
+        bucket = str(kwargs["Bucket"])
+        key = str(kwargs["Key"])
+        body = kwargs["Body"]
+        assert isinstance(body, bytes)
+        self.objects[(bucket, key)] = body
+
+    def get_object(self, **kwargs: object) -> dict[str, object]:
+        self.get_calls.append(kwargs)
+        bucket = str(kwargs["Bucket"])
+        key = str(kwargs["Key"])
+        payload = self.objects[(bucket, key)]
+
+        class _Body:
+            def __init__(self, data: bytes) -> None:
+                self._data = data
+
+            def read(self) -> bytes:
+                return self._data
+
+        return {"Body": _Body(payload)}
 
     def close(self) -> None:
         self.closed = True
@@ -260,6 +282,25 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         )
         self.assertEqual([call["Key"] for call in created_clients[1].put_calls], ["empty.jsonl"])
         self.assertTrue(created_clients[1].closed)
+
+    def test_s3_object_store_writer_supports_get_bytes(self) -> None:
+        class _Factory:
+            def __init__(self, settings: ObjectStoreSettings) -> None:
+                self.settings = settings
+
+            def create(self) -> _FakeS3Client:
+                client = _FakeS3Client(name="reader")
+                client.objects[("campus-rag-source", "source-truth/test.json")] = b'{"ok": 1}'
+                return client
+
+        with patch("campus_ingestion_core.object_store.S3ObjectStoreClientFactory", _Factory):
+            writer = S3ObjectStoreWriter(self.object_store)
+            payload = writer.get_bytes(
+                bucket="campus-rag-source",
+                key="source-truth/test.json",
+            )
+
+        self.assertEqual(payload, b'{"ok": 1}')
 
     def test_collect_import_document_stats_batches_incremental_upserts_after_single_prefetch(self) -> None:
         doc_a = _document_input(
@@ -631,6 +672,52 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(stats.updated_document_ids, ())
         self.assertEqual(stats.skipped_document_ids, ("handbook:doc-a",))
         self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
+        self.assertEqual(len(registry.upsert_many_calls), 1)
+
+    def test_collect_import_document_stats_rewrites_changed_processed_artifacts_for_matching_content(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-b",
+            version_id="v1:doc-b",
+            body='{"type":"paragraph","text":"new"}\n',
+        )
+        document.metadata["semantic_content_hash"] = "semantic-doc-b"
+        existing = _record(
+            document_id="handbook:doc-b",
+            version_id="v1:doc-b",
+            content_hash="semantic-doc-b",
+        )
+        registry = _SpyDocumentRegistry(records=(existing,))
+        expected_key = (
+            "regulations/documents/student_handbook/doc-b--doc-b/"
+            "source-faithful/2026/document-units.jsonl"
+        )
+        writer = _FakeWriter(
+            existing_objects=((self.object_store.bucket_derived, expected_key),)
+        )
+        writer.objects[(self.object_store.bucket_derived, expected_key)] = (
+            '{"type":"paragraph","text":"old"}\n'.encode("utf-8")
+        )
+
+        stats = collect_import_document_stats(
+            documents=[document],
+            registry=registry,
+            raw_asset_registry=_FakeRawAssetRegistry(),
+            writer=writer,
+            object_store=self.object_store,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            cleaning_policy_version="student_handbook_cleaning_v1",
+            default_visibility_scope=None,
+        )
+
+        self.assertEqual(stats.success_count, 0)
+        self.assertEqual(stats.skipped_count, 1)
+        self.assertEqual(stats.skipped_document_ids, ("handbook:doc-b",))
+        self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
+        self.assertEqual(
+            writer.objects[(self.object_store.bucket_derived, expected_key)],
+            document.document_units_bytes,
+        )
         self.assertEqual(len(registry.upsert_many_calls), 1)
 
     def test_persist_import_documents_forwards_scope_refresh_to_collect_stats(self) -> None:

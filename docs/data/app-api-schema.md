@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-14
 ---
 
 # App API Schema
@@ -148,6 +148,7 @@ updated: 2026-04-03
 - `created_at`
 - `request_id` nullable
 - `retryable` nullable
+- `structured_parts_json` nullable
 
 最小索引：
 
@@ -166,6 +167,9 @@ updated: 2026-04-03
 - `role=user` 的消息不写 `kind`
 - `request_id` 只在 assistant-side message 上出现
 - `trace_id` 不强制冗余写进 `chat.messages`
+- `structured_parts_json` 用于持久化 typed assistant structured parts；repo 当前已预留 `place_card` 形态，但由于校内导航在地图实际上线前暂不支持，当前产品路径不会写入该类型
+- `structured_parts_json` 由 `app-api` 负责把 execution-side `snake_case` payload 归一化成 browser-facing `camelCase` shape；它不保存 provider response blob 或 provider-specific IDs
+- 当前 `role=user` message 仍写空 structured parts；首发 structured payload 只来自 assistant finalized turn
 
 ## `chat.session_slots`
 
@@ -325,6 +329,7 @@ updated: 2026-04-03
 - `principal_type`
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
+- `policy_reason` nullable
 - `requested_capability` nullable
 - `requested_scope_summary` nullable
 - `resolved_scope_summary` nullable
@@ -338,20 +343,32 @@ updated: 2026-04-03
 - `retrieval_attempted` nullable
 - `candidate_count` nullable
 - `retrieved_source_count` nullable
+- `retrieved_sources_json` not null default `[]`
+- `supporting_sources_json` not null default `[]`
 - `empty_recall` nullable
 - `citation_expected` nullable
 - `citation_count` nullable
 - `citation_missing` nullable
 - `refusal_class` nullable
+- `semantic_outcome` nullable
+- `scope_class` nullable
 - `acl_decision` nullable
 - `acl_anomaly_code` nullable
 - `fail_closed` nullable
 - `model_provider` nullable
 - `model_name` nullable
+- `prompt_id` nullable
+- `prompt_version` nullable
+- `template_sha256` nullable
+- `prompt_runtime_state` nullable
+- `prompt_runtime_detail` nullable
 - `input_tokens` nullable
 - `output_tokens` nullable
 - `cached_input_tokens` nullable
 - `estimated_cost_microusd` nullable
+- `retrieval_adequacy_verdict` nullable
+- `retrieval_adequacy_reason` nullable
+- `claim_support_summary_json` nullable
 - `trace_available`
 - `projection_lag_ms` nullable
 - `measured_at`
@@ -373,8 +390,14 @@ updated: 2026-04-03
 - `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection 回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
+- `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` 表示 retrieval base 是否足以支撑回答；它们与 `grounding` 结果不是同一维度
+- `retrieved_sources_json` 保存 bounded raw retrieval candidate trace；`supporting_sources_json` 保存最终 answer-facing support trace
+- 两列都只允许保存 operator-safe compact identity fields，不保存 raw snippet、raw provider citation blob 或 vendor payload
+- `supporting_sources_json` 必须允许同时表达 canonical source identity 与 physical projection-unit identity，例如 `canonical_source_id` / `source_unit_key`
+- `claim_support_summary_json` 只保存 operator-safe 聚合摘要，不保存 raw `claim_supports`、support snippet 或 provider-native citation/support blob
 - `projection materialization` 负责更新 `projection_lag_ms`、`measured_at` 与 projection health summary，不回写 `runtime.request_execution`
 - 这是 app-owned summary fact family，不保存 raw prompt、raw answer、raw transcript、raw retrieval payload、raw auth material
+- prompt 相关列只保存 observability-safe identity 与 typed runtime state，不保存 raw prompt 或 provider refusal 文本
 - token / model / cost 字段只能来自 execution-side typed telemetry seam，不从 panel 或 sink query 反推
 - panel 和 aggregate APIs 只能读 app-owned projection/fact family，不得直连 `Sentry` / `Axiom` 原始 sink
 
@@ -474,7 +497,7 @@ updated: 2026-04-03
 
 - operator aggregate / timeseries read-model family
 - 当前第一版支撑 `Overview` / `Quality` / `Safety` / `Cost` 中可由 app-owned rollup 提供的聚合面
-- 当前 merged truth 已先落地 `Quality` timeseries bucket
+- 当前已冻结的第一版 schema 已先落地 `Quality` timeseries bucket
 
 最小列：
 
@@ -505,7 +528,7 @@ updated: 2026-04-03
 - 这是 app-owned aggregate contribution family，不是不可逆 counter table
 - projector 采用“每 request / 每 bucket / 每 granularity 一条可重算贡献行”的物化语义，允许按 `request_id` 全量替换后重放
 - `rollup_id` 必须包含 `request_id` 与 bucket/filter 维度，避免不同 request 落在同一 bucket 时发生主键冲突
-- 当前 merged truth 仅冻结 `domain=quality` 的 rollup shape
+- 当前已冻结的第一版 schema 仅冻结 `domain=quality` 的 rollup shape
 - `metrics_json` 只保存受控聚合贡献，不保存 raw request payload、raw sink blob 或 grader 原始结果
 
 ## `operator.quality_badcase_projection`
@@ -513,7 +536,7 @@ updated: 2026-04-03
 用途：
 
 - operator `Quality` 域的 app-owned badcase queue
-- 当前 merged truth 支撑 `GET /api/operator/quality/badcases`
+- 当前已冻结的第一版 schema 支撑 `GET /api/operator/quality/badcases`
 
 最小列：
 
@@ -540,10 +563,10 @@ updated: 2026-04-03
 规则：
 
 - 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
-- 当前 merged truth 第一版仅由 runtime monitor 生成 badcase，`detected_by` 固定为 `runtime_monitor`
-- 当前 merged truth 第一版仅开放 `citation_missing` 与 `empty_recall` 两类 `cause_class`
+- 当前已冻结的第一版 schema 仅由 runtime monitor 生成 badcase，`detected_by` 固定为 `runtime_monitor`
+- 当前已冻结的第一版 schema 仅开放 `citation_missing` 与 `empty_recall` 两类 `cause_class`
 - `badcase_id` 采用 request-scoped stable id，保证 projector 重放时幂等替换
-- `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前 merged truth 允许为 `null`
+- `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前已冻结的第一版 schema 允许为 `null`
 - `summary` 必须是 panel-safe 安全摘要，不得回放 raw prompt、raw answer、raw retrieval payload
 
 ## `operator.quality_grade_projection`

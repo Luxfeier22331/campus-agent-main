@@ -1,0 +1,24 @@
+{
+  "notice_id": 355282,
+  "notice_title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+  "organization_name": "研究生院（学位办公室）",
+  "organization_id": "00017",
+  "notice_release_time": "2026-03-27 15:15",
+  "notice_create_time": "2026-03-27 14:52",
+  "notice_first_time": "2026-03-27 14:53",
+  "notice_link": null,
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "categories": [
+    {
+      "notice_id": 355282,
+      "notice_type": "6",
+      "notice_type_name": "教学通知",
+      "category_first_seen_at": "2026-04-02T16:15:21.866Z",
+      "category_last_seen_at": "2026-04-02T23:52:49.655Z",
+      "category_last_run_id": 14
+    }
+  ]
+}

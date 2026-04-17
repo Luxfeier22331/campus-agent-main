@@ -10,7 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_WORKSPACES = {
     "apps/app-api",
+    "apps/authenticated-notice-collector",
     "apps/ingestion-worker",
+    "apps/official-web-collector",
     "apps/protected-panel-web",
     "apps/public-chat-web",
     "apps/supervisor-api",
@@ -18,6 +20,8 @@ EXPECTED_WORKSPACES = {
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
+    "packages/navigation-specialist",
+    "packages/official-web-core",
     "packages/rag-specialist",
     "packages/retrieval-core",
     "packages/shared",

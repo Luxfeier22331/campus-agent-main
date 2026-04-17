@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCollectorConfig } from "../src/config";
+import { applyCollectorNoProxyEnv, resolveCollectorConfig } from "../src/config";
 
 describe("authenticated notice collector config", () => {
   it("uses repo-local runtime defaults and authenticated portal semantics", () => {
@@ -30,5 +30,31 @@ describe("authenticated notice collector config", () => {
     expect(config.requestMaxRetries).toBe(5);
     expect(config.authCheckNoticeType).toBe("6");
     expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
+  });
+
+  it("appends muc portal hosts into no_proxy and preserves existing entries", () => {
+    const env = {
+      NO_PROXY: "localhost,127.0.0.1",
+    } as NodeJS.ProcessEnv;
+
+    applyCollectorNoProxyEnv(env);
+
+    expect(env.NO_PROXY).toBe(
+      "localhost,127.0.0.1,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn,ca.muc.edu.cn",
+    );
+    expect(env.no_proxy).toBe(env.NO_PROXY);
+  });
+
+  it("does not duplicate muc portal hosts when no_proxy already contains them", () => {
+    const env = {
+      no_proxy: "localhost,.muc.edu.cn,my.muc.edu.cn",
+    } as NodeJS.ProcessEnv;
+
+    applyCollectorNoProxyEnv(env);
+
+    expect(env.NO_PROXY).toBe(
+      "localhost,.muc.edu.cn,my.muc.edu.cn,muc.edu.cn,ca.muc.edu.cn",
+    );
+    expect(env.no_proxy).toBe(env.NO_PROXY);
   });
 });

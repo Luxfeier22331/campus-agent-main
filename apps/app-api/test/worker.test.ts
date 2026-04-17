@@ -1,12 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 
+import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import packageManifestRaw from "../package.json?raw";
+import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
 import worker, { createWorkerRuntime } from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
   scripts?: Record<string, string | undefined>;
 };
+
+function readTomlBlock(source: string, startMarker: string, endMarker: string): string {
+  const startIndex = source.indexOf(startMarker);
+  if (startIndex < 0) {
+    return "";
+  }
+
+  const fromStart = source.slice(startIndex);
+  const endIndex = fromStart.indexOf(endMarker);
+  if (endIndex < 0) {
+    return fromStart;
+  }
+
+  return fromStart.slice(0, endIndex);
+}
 
 const env = {
   APP_API_NAME: "campus-agent-app-api",
@@ -73,6 +90,7 @@ function createRuntimeReadinessResult() {
 
 describe("app-api worker foundation", () => {
   it("declares the staging custom domain, hyperdrive binding, and deploy gate", () => {
+    const stagingVarsBlock = readTomlBlock(wranglerConfig, "[env.staging.vars]", "[env.staging.secrets]");
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
@@ -84,25 +102,61 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
     expect(wranglerConfig).toContain("[env.staging.vars]");
     expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain(
+    expect(stagingVarsBlock).toContain(
       'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
     );
-    expect(wranglerConfig).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
-    expect(wranglerConfig).not.toContain("SUPERVISOR_API_BASE_URL");
-    expect(wranglerConfig).toContain(
+    expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
+    expect(stagingVarsBlock).not.toContain("SUPERVISOR_API_BASE_URL");
+    expect(stagingVarsBlock).toContain(
       'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
     );
-    expect(wranglerConfig).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-    expect(wranglerConfig).toContain('SUPERVISOR_API_TIMEOUT_MS = "15000"');
-    expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('SENTRY_RELEASE = "app-api@staging-20260405-05c3d45"');
-    expect(wranglerConfig).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-    expect(wranglerConfig).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
+    expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
+    expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "15000"');
+    expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
+    expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
+    expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
+    expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
+    expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
     expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:preflight:staging");
+    expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
+      "run-worker-staging-preflight.mjs",
+    );
+    expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
+      "check_worker_secret_presence.py",
+    );
+    expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+    expect(deployStagingSource).toContain("resolveStagingSentryRelease");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "verify-staging-config.mjs",
+    );
+    expect(packageManifest.scripts?.["db:migrate:staging"]).toContain("run-with-staging-db-env.mjs");
+    expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
+      "run-with-staging-db-env.mjs",
+    );
+    expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
+    expect(runWithStagingDbEnvSource).toContain("APP_API_MANAGEMENT_DATABASE_URL");
+  });
+
+  it("declares non-inheritable required secrets for local and staging worker environments", () => {
+    const stagingSecretsBlock = readTomlBlock(
+      wranglerConfig,
+      "[env.staging.secrets]",
+      "[[env.staging.hyperdrive]]",
+    );
+    expect(wranglerConfig).toContain("[env.local.secrets]");
+    expect(wranglerConfig).toContain('required = ["BETTER_AUTH_SECRET", "SUPERVISOR_API_SHARED_SECRET", "APP_API_INTERNAL_SHARED_SECRET"]');
+    expect(wranglerConfig).toContain("[env.staging.secrets]");
+    expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
+    expect(stagingSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
+    expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+    expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
+    expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
+    expect(stagingSecretsBlock).toContain('"AXIOM_TOKEN"');
   });
 
   it("declares a local Hyperdrive binding for APP_API_DB in wrangler config", () => {

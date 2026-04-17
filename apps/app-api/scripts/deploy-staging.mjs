@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
+import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 function fail(message) {
   console.error(message);
@@ -26,6 +28,8 @@ try {
   fail("STAGING_SUPERVISOR_API_BASE_URL must be a valid absolute URL.");
 }
 
+const sentryRelease = resolveStagingSentryRelease("app-api");
+
 const result = spawnSync(
   "wrangler",
   [
@@ -34,9 +38,11 @@ const result = spawnSync(
     "staging",
     "--var",
     `SUPERVISOR_API_BASE_URL:${normalizedUpstream}`,
+    "--var",
+    `SENTRY_RELEASE:${sentryRelease}`,
   ],
   {
-    env: process.env,
+    env: buildWranglerCommandEnv(process.env),
     stdio: "inherit",
   },
 );

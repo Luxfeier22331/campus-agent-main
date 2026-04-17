@@ -9,7 +9,7 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
 
-IntentTaskKind = Literal["knowledge_lookup", "availability_check", "unknown"]
+IntentTaskKind = Literal["knowledge_lookup", "availability_check", "place_lookup", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
@@ -25,6 +25,50 @@ _HIGH_RISK_PATTERNS = (
     "帮我办理",
     "代我办理",
     "替我办理",
+)
+_POLITICAL_TOPIC_SIGNALS = (
+    "政治",
+    "政策",
+    "候选人",
+    "选举",
+    "投票",
+    "政党",
+    "政府",
+    "国家主席",
+    "总统",
+    "意识形态",
+)
+_POLITICAL_INFLUENCE_ACTION_SIGNALS = (
+    "说服",
+    "劝说",
+    "拉票",
+    "动员",
+    "煽动",
+    "影响",
+    "宣传",
+)
+_POLITICAL_TARGET_AUDIENCE_SIGNALS = (
+    "同学",
+    "学生",
+    "老师",
+    "家长",
+    "公众",
+    "大家",
+    "群里",
+    "选民",
+)
+_POLITICAL_POSITION_SIGNALS = (
+    "支持",
+    "反对",
+    "投票给",
+    "不要投票给",
+)
+_POLITICAL_MESSAGE_WRITING_SIGNALS = (
+    "写一段话",
+    "写文案",
+    "写帖子",
+    "写宣传稿",
+    "写一篇",
 )
 
 
@@ -62,6 +106,35 @@ def frame_intent(
             needs_clarification=bool(missing_slots),
             suggested_next_action="clarify" if missing_slots else "delegate",
             personalization_mode=personalization_mode,
+        )
+
+    if capability == "place_lookup":
+        return IntentFrame(
+            capability="place_lookup",
+            task_kind="place_lookup",
+            domain_candidates=("out_of_scope",),
+            missing_slots=(),
+            risk_level="low",
+            needs_clarification=False,
+            suggested_next_action="out_of_scope",
+            personalization_mode=personalization_mode,
+            scope_class="out_of_scope",
+            policy_reason="navigation_temporarily_unsupported",
+        )
+
+    policy_reason = _evaluate_knowledge_policy_reason(normalized_goal)
+    if policy_reason:
+        return IntentFrame(
+            capability="knowledge",
+            task_kind="knowledge_lookup",
+            domain_candidates=("policy_refusal",),
+            missing_slots=(),
+            risk_level="high",
+            needs_clarification=False,
+            suggested_next_action="rejected",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
+            policy_reason=policy_reason,
         )
 
     if any(pattern in normalized_goal for pattern in _HIGH_RISK_PATTERNS):
@@ -134,3 +207,28 @@ def _clarification_subject(
     if subject in user_goal:
         return ""
     return subject
+
+
+def _evaluate_knowledge_policy_reason(normalized_goal: str) -> str:
+    if _is_targeted_political_persuasion(normalized_goal):
+        return "political_persuasion"
+    return ""
+
+
+def _is_targeted_political_persuasion(normalized_goal: str) -> bool:
+    has_political_topic = any(signal in normalized_goal for signal in _POLITICAL_TOPIC_SIGNALS)
+    if not has_political_topic:
+        return False
+
+    has_influence_action = any(
+        signal in normalized_goal for signal in _POLITICAL_INFLUENCE_ACTION_SIGNALS
+    )
+    has_target_audience = any(signal in normalized_goal for signal in _POLITICAL_TARGET_AUDIENCE_SIGNALS)
+    has_position_signal = any(signal in normalized_goal for signal in _POLITICAL_POSITION_SIGNALS)
+    has_message_writing = any(signal in normalized_goal for signal in _POLITICAL_MESSAGE_WRITING_SIGNALS)
+
+    if has_influence_action and (has_target_audience or has_position_signal):
+        return True
+    if has_message_writing and has_target_audience and has_position_signal:
+        return True
+    return False

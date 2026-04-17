@@ -3,35 +3,60 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: 2026-04-06 Wave B staging closure has advanced from generic deployment pending to real remote evidence: `app-api` and `chat` staging are healthy again, the chat lane and Axiom lane are closed, and the remaining external blockers are now panel Access smoke identity plus Sentry sink-side lookup access
-last_updated: "2026-04-06T03:34:08+08:00"
+stopped_at: 2026-04-14 已按产品决策暂停导航产品路径：校内导航暂不支持，`place_card` / map consumption 延后到地图上线后再恢复
+last_updated: "2026-04-14T09:05:08+08:00"
 progress:
-  total_phases: 25
-  completed_phases: 25
-  total_plans: 62
-  completed_plans: 62
+  total_phases: 32
+  completed_phases: 29
+  total_plans: 80
+  completed_plans: 79
 ---
 
 # Project State
 
+## State File Contract
+
+- `PROJECT.md`
+  - 项目级真相：范围、关键决策、validated/active/out-of-scope 与当前 truth
+- `STATE.md`
+  - 当前 worktree 的 `now / next / blockers / recent verification / continuity`
+- `ROADMAP.md`
+  - phase 顺序、插入记录与执行历史
+
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-06)
+See: `.planning/PROJECT.md` (updated 2026-04-14)
 
-**Core value:** 先把新的 supervisor-led multi-agent 架构站稳，并用 runtime-profile-driven serving surface 证明这条架构能可靠承接高频校园问答
-**Current focus:** 当前 worktree 已进入 repo-level post-closeout follow-up 执行期。`official-web` / Phase 10 继续由其他 worktree 处理，这里不再反复提议；本 worktree 的优先级顺序仍是：Wave A planning/worktree hygiene、Wave B staging deployment closure、Wave C curriculum supplemental soft-warn 诊断、Wave D authenticated-notice post-closeout consumption、Wave E place-finding foundation。其中 Wave A 已于 2026-04-06 完成；Wave B 也已经从“环境/部署未知”推进到“chat 与 Axiom 已闭环、panel 与 Sentry 还剩最后两个 blocker”。与此同时，authenticated-notice historical closeout 已通过 real run `authenticated-notice-replay-20260406-024405` 收口，当前下一条 Wave D 动作已变为 offline registry release，而不再是“6694 backfill 仍待执行”。当前 deterministic truth 没有回退：`student_handbook` pass artifact 仍是 `20260404T072912Z`，`curriculum_plan` latest completed full artifact 仍是 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`，其 live accept 已稳定在 deterministic `19/19` pass；剩余的 curriculum 问题只在 soft-warn。
+**Core value:** 以已冻结的 supervisor-led multi-agent 架构和已落盘 serving/eval truth 为基础，完成验收收口、上线前硬化与真实产品面一致性，而不是继续把仓库当作地基期实验场
+**Now:**
+- Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已在当前 worktree 完成：`1000-01` 到 `1000-04` 全部关闭，fresh accept artifact 位于 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+- `retrieved_sources` 与 `supporting_sources` 现已在 supervisor / eval / app-api / operator trace 上稳定拆分；`课程地图` unsupported 分支继续 fail-close，不再伪造 retrieval trace
+- `program_semester_facts` 已按定向 rematerialization 修复稀疏表格丢行问题，并已发布 fresh release `r20260413_042533`
+- Phase 1001 的 foundation 部分已完成到 `1001-02`：`place_catalog` authoritative source / nullable geometry / first-batch seed truth 继续保留为 repo-owned foundation
+- 校内导航当前已按产品决策改为暂不支持：supervisor 产品路径现对 `place_lookup` fail-close，不再委派 `navigation-specialist`
+- `place_card` / map consumption 已转入 backlog `999.2`，等待校园地图实际上线后再恢复
+- Phase 16 `OCR 资产分类与双渠道择优路由` 继续保持 completed 状态；其 canonical scope 结论不因 Phase 1000 closeout 漂移
+- Phase 15 `幻觉治理与 Grounded Generation 二次硬化` 已完成 repo-local closeout；当前不再有该 phase 的 active code lane
+- Phase 14 `Prompt Stack / System Prompt Runtime` closeout 已在当前 worktree 完成；staging closeout、`public-chat-web` strict donor parity 与导航 foundation 都已退出当前主动实现主线
+- Phase 1002 `Worker 部署与发布硬化收口` 已在当前 worktree 落地：三端 staging release identity 已统一为 deploy-time 注入，canonical per-app `deploy:preflight:staging` 与 release-scoped observability artifact contract 已写回 repo-owned scripts / tests / runbooks
+- Phase 1003 `Official Web 新闻面 opening policy 与 runtime gate 收口` 已在当前 worktree 落地：`fresh_news` / `news_archive` 的 repo-level opening policy、runtime-profile contract、default-off query boundary 与独立 worktree opening checklist 已写回 docs / configs / tests；后续 opening execution / acceptance 已下调到 backlog `999.4`
+- authenticated-notice Wave D 已完成 local Postgres current-scope refresh、preparation、promote 与 unpublished release；当前剩余是 post-release downstream consumption 和后置的 live portal / authenticated control-plane，但这条线当前仍受 source current-scope 持续采集/修整影响，不作为本轮 active execution lane
+- `internal_notice -> regulations/institutional_regulations` 的 regulation import 已完成当前一轮 formal local current-scope materialization：当前固定按 vetted notice-id 白名单执行，结果为 `promotion_candidate_count=11`、`promotion_manual_review_count=0`、`materialized_document_count=11`、`current_target_count=11`；`191177` 当前作为 duplicate hold 保留在 source scope，`355282` 已通过 attachment owner repair + targeted projection rebuild 正式进入 target
+**External blockers / adjacent lanes:**
+- curriculum supplemental provider blocker 与旧 artifact pointer replacement 都已关闭；curriculum 线当前不再有 repo-level follow-up blocker
+- `official_web/fresh_news` / `official_web/news_archive` 的真实 opening execution / acceptance 已下调为 backlog `999.4`，当前不再作为 adjacent lane
 
 ## Current Position
 
-Phase: Post-closeout follow-up execution — IN PROGRESS
-Plan: Wave A completed; Wave B-E ordered in `docs/plans/post-closeout-follow-up-execution-plan.md`
-Next active workstream: finish the remaining Wave B closure items. Wave A has already synchronized `.planning/PROJECT.md` / `.planning/STATE.md` with the new follow-up order. Wave B has now restored `chat-staging -> app-api-staging -> current supervisor upstream` to a real `answer` path, confirmed Axiom `request.finalized` plus `projection.drain`, and updated staging evidence/runbooks. The only remaining Wave B blockers are panel interactive smoke credentials and Sentry sink-side verification access; curriculum deterministic gate remains closed, and `official-web` / Phase 10 remains in a separate worktree. For Wave D, the closeout run itself is no longer pending: `authenticated-notice-replay-20260406-024405` is done, its evidence is fixed in `docs/reference/authenticated-notice-historical-closeout-evidence.md`, and the next executable step is `campus_notices/internal_notice` offline release without alias publish.
+Phase: No active roadmap phase; 当前 worktree 的 active quick lane 为 regulation import closeout
+Plan: 当前 regulation lane 已完成 `internal_notice -> regulations/institutional_regulations` 的受控 formal local materialization 收口：accepted current target 为 `11` 条，`355282` 已正式并入 target，剩余 frontier 仅 `351119` 的 auth-blocked `file_release` owner recovery。
+Next active workstream: 在无认证态下，继续围绕当前 `11` 条 regulation 做离线消费与验收真相维护；不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release。下一个需要认证窗口的前向切片仍是 `351119`。
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 60
+- Total plans completed: 77
 - Average duration: mixed agent-run and inline execution; see per-plan summaries
 - Total execution time: 0.2 hours + 2026-03-24 inline Phase 2/3 execution
 
@@ -67,8 +92,8 @@ Next active workstream: finish the remaining Wave B closure items. Wave A has al
 
 **Recent Trend:**
 
-- Last 5 plans: 10.4-01, 10.4-02, 10.5-01, 10.5-02
-- Trend: `official_web` 当前已把 stable-reference 说明面与 fresh-news seed 面都推进到“有真实 physical collection + repo-tracked eval baseline + 本地实跑证据”的状态。下一步节奏应转向新闻面 runtime policy，而不是继续修补 split/import plumbing。
+- Last completed plans: 1000-01, 1000-02, 1000-03, 1000-04, 1001-01, 1001-02
+- Trend: curriculum 主线保持关闭；导航 foundation 已完成 source inventory freeze 与 first-batch seed expansion，但产品路径已主动 fail-close，后续只保留地图上线后的 backlog 恢复项。
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
@@ -148,116 +173,196 @@ Next active workstream: finish the remaining Wave B closure items. Wave A has al
 - Phase 08 added: Official Web Repo Hardening And Expansion
 - Phase 09 added after Phase 8: Worktree Milestone Evidence Closure (audit-driven)
 - Phase 10 added after Phase 9: Official Web Serving Surface Stratification And Fresh News Readiness
+- Phase 15 added after Phase 14: 幻觉治理与 Grounded Generation 二次硬化
+- Phase 16 added after Phase 15: OCR 资产分类与双渠道择优路由
+- Phase 1000 added after Phase 16: Curriculum 结构化证据契约与 Semester Facts 修复
 - Phase 10.1 inserted after Phase 10: Official Web Current Truth Closeout And Fresh News Surface Handoff (URGENT)
 - Phase 10.2 added after Phase 10.1: Official Web Release Gate Dataset Quality Improvement
 - Phase 10.3 added after Phase 10.2: Official Web Release Gate Chunk Cleanup And Header Normalization
 - Phase 10.4 added after Phase 10.3: Official Web Corpus Split Routing And Stable Reference Bootstrap
 - Phase 10.5 added after Phase 10.4: Official Web Stable Reference Release Evidence And Serving Surface Cleanup
+- Phase 13 added after Phase 12.2: 政治风险判定与幻觉控制硬化
+- Phase 14 added after Phase 13: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口
+- Phase 1001 added after Phase 1000: Campus Navigation Place Catalog Expansion And Acceptance Evidence
 
 ### Decisions
 
-Decisions are logged in `PROJECT.md` Key Decisions table.
-Recent decisions affecting current work:
+Decision history now lives in `PROJECT.md` Key Decisions。
+这里只保留当前执行面需要重复消费的 delta：
 
-- Query-serving is now runtime-profile-driven; current query-enabled scope is `student_handbook` plus `curriculum_plan`, while `campus_services` remains `offline_preparation`.
-- Verification remains a dedicated release-gate phase after the main architecture path is in place.
-- `official-web` / `availability` specialist landed as an explicit non-RAG specialist boundary instead of a supervisor-inline tool bundle.
-- `/api/v1/answer` now constructs a supervisor-facing request contract instead of hardcoding a rag-specialist handoff.
-- Phase 03.2 froze the data-plane direction as `raw -> source truth -> declared projections -> document/chunk/index`; later handbook-derived outputs must replay from persisted source truth instead of returning to raw.
-- Phase 04 froze `rag-specialist` answer semantics on top of the accepted hybrid retrieval baseline with grounded citations plus `needs_clarification` / `no_answer` / `error` fail-close behavior.
-- Phase 04.6 closed the Worker-to-origin seam: `apps/public-entry-worker -> apps/supervisor-api` with trusted-worker origin auth.
-- Phase 04.7 is now completed on `main`; `apps/public-consumer-chat` implementation is a historical reference rather than the forward backend topology truth.
-- Phase 05 removed bearer actor spoofing, projected caller claims from forwarded Access JWT payload, and moved durable audit persistence to the API shell boundary.
-- The accepted forward design is now `public-chat-web` + `protected-panel-web` + shared `app-api`; auth/session/conversation, chat ingress, and operator query move into `app-api`, while `apps/supervisor-api` remains the execution engine.
-- `apps/app-api` runtime is now frozen to Worker rather than remaining runtime-agnostic.
-- `apps/app-api` is now the only product-layer auth/session/principal owner; `apps/supervisor-api` should be read as internal execution admission plus execution transport, not user-auth ownership.
-- Protected panel request visibility is now fixed on shared `apps/app-api`: panel `Requests` must consume the shipped runtime-owned query surface and must not route around it through `apps/supervisor-api`, audit logs, telemetry sinks, or consumer chat tables.
-- canonical request projection is now explicitly same-database outbox-first: `runtime.request_execution` plus `runtime.projection_outbox` are the first durable truth, while queues are optional later acceleration only.
-- Better Auth is now fixed inside `apps/app-api`, and `auth/chat/runtime/operator` are expected to share one Drizzle schema codebase plus one migration pipeline; Worker runtime DB access remains Hyperdrive-based while migrations use a direct management connection.
-- Protected panel operator access is now explicitly documented as a small-team operator surface without a self-serve end-user account system; `Jobs` and `Operations` remain delayed pending re-discussion.
-- shared `apps/app-api` Worker foundation, request projection APIs, and current web-surface wiring are now implemented in merged truth; remaining work is follow-up hardening rather than topology bootstrap.
-- `official_web` control plane is now implemented on `apps/app-api` with dedicated schema, collector command/query endpoints, outbox-driven operator projections, and scheduled ingestion handoff dispatch; `apps/protected-panel-web` now consumes the owned site/run/detail APIs instead of treating `Official Web` as a blocked next domain.
-- Phase 05.1 froze curriculum source-truth quality gates, split-manifest review fail-close behavior, and explicit chunking runtime truth.
-- Phase 06 added `provider_response_replay` rebuild support for `curriculum_plan`, and the current refactor promotes its serving policy into the profile-driven query surface.
-- Phase 07 closed handbook release-gate verification with repo tests, live qrels benchmark, workflow/status samples, and handbook collection schema evidence under `.tmp/phase7/`.
-- The detailed `app-api` implementation baseline now lives in `docs/plans/app-api-worker-foundation.md`, including framework selection, API surface, data domains, and execution waves.
-- `app-api` 第一版产品层 HTTP contract、`app-api -> supervisor-api` execution contract、request lifecycle、error model 与 logical schema 现已冻结在 `docs/contracts/` 与 `docs/data/`。
-- The accepted long-term split now separates verified identity, profile memory, session memory, and institutional knowledge into distinct truth layers.
-- Personalization may influence intent framing, retrieval planning, clarification, and answer wording, but memory does not grant permissions or widen retrieval ACL.
-- The current merged truth now treats `ContextProjection` + `SupervisorResponse` as the shared seam; follow-up work must preserve that seam instead of reintroducing `snapshot`.
-- Curriculum gate closeout now has canonical docs/runbook coverage in `docs/reference/curriculum-plan-eval-metrics.md` and `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`; fresh live evidence belongs to the root worktree rather than this branch-local follow-up.
-- shared `app-api -> supervisor-api` seam is now aligned to `ContextProjection` / `SupervisorResponse`: request payloads no longer depend on actor `snapshot`, `supervisor-api` accepts body `actor/context` after admission, and request projections keep `approval_required` / `rejected` as first-class runtime statuses.
-- 2026-03-31 `210128` `student_handbook` acceptance rerun 已确认 live artifact truth：`deterministic_verdict=pass`、`supplemental_verdict=pass`、`final_overall_verdict=pass`，`repair` 跳过且无 applied targets，expanded `8`-case release gate 在真实 provider 上稳定通过。
-- handbook post-phase quality line 现已正式关闭：`procedure` action-first answer contract、`procedure_directness`、`student-card / materials / time` 三个自然问句 signal、ID-based context metrics 与 prompt adaptation 都已经形成新的 live baseline，而不是仅停留在 repo-head 测试真相。
-- 2026-04-02 `official_web` Phase 08-01 已确认 current worktree truth：`law.muc.edu.cn/szdw1.htm` 与相关 dense roster 页在 source-truth 层应归为 `directory_page`，当前 fresh repo evidence 以 `qc-20260402-batch-a-law-history-r5` 为准，而 `history.muc.edu.cn/` 继续保持 validated `listing_page`。
-- 2026-04-02 `official_web` Phase 08-02 已冻结 repo workflow：stable regression gate、low-budget expansion batch、projection replay/import checklist 与 scheduler / hot-lane decision 现已显式分离，后续扩面不得再混淆 allowlisted、validated batch 和 scheduler promotion。
-- 2026-04-02 `official_web` history listing projection follow-up 已在 `qc-20260402-history-r6` 关闭：首页 badge / duplicate rows 已去除，`rcpy.htm` 这类 listing 的压缩日期前缀已归一化，projection validator 继续保持 `valid=true`。
-- 2026-04-02 `official_web/muc_public_pages` 当前 imported dataset 已完成 registry-backed Qdrant release 预演 `r20260402_152018` 与正式 alias publish `r20260402_152206`；当前 alias 指向 `muc_public_pages__r20260402_152206`，但 published release 仅包含 1 条 `official_web:muc_public:generic_content_page:*` 记录，chunk sampling 仍显示明显 listing-heavy newsroom noise，见 `docs/reference/official-web-muc-public-pages-release-20260402.md`。
-- 2026-04-04 Phase 10 已完成：`official_web/muc_public_pages` runtime-profile 现在显式记录 `mixed` serving surface、`supports_freshness_sensitive_queries=false`、no live-search fallback；source truth / projection outputs 已携带 canonical publication/fetch metadata；freshness-sensitive official-web asks 已被 retrieval / specialist / eval truth 一起 fail-close。
-- 2026-04-04 Phase 10.1 已完成：`official_web/muc_public_pages` 当前 truth 现已显式拆成 `11` 条 `release_gate_required`、`2` 条 `retain_inventory_only`、`8` 条 `future_fresh_news_surface`；repo 同时新增 machine-checkable partition/helper truth 与 `docs/reference/official-web-fresh-news-surface-handoff.md`，后续 fresh-news 工作不再需要重判这批 `inventory_only` 页面。
-- 2026-04-04 Phase 10.2 已完成：`article_detail` source-truth projection 现在会在 fixed-scope `release_gate_required` 子集内按 section narrative paragraph 分批 flush，本地 replay `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v7` 已验证 `学校概况 / 学校简介 = 3 units`、`本科培养 / 研究生培养 / 博士后 = 2 units`，且 chunk audit `0 issues`。
-- 2026-04-04 Phase 10.3 已完成：support-only official-web line 现在会保留为显式 source-truth unit role，但不再进入 canonical markdown、chunk/index、retrieval ranking 或 answer row selection；final replay `/tmp/official-web-qc-20260401-batch-d-clean-subset-projection-v9` 已验证 `29/28/1` replay、`28 documents / 0 warnings` validator 与 `118 units / 138 chunks / 0 issues` chunk audit，同时 title-collapsed page header 与 grouped `notice_fact` 已不再出现 audit false positive。
-- 2026-04-05 Phase 10.4 已完成：`official_web` corpus split 的第一条执行链路现在已是 repo 可执行 truth；stable-reference bootstrap 子集可从 replay 直接路由到 `official_web/stable_reference`，mixed replay output 也支持按请求 scope 单独导入。
-- 2026-04-05 Phase 10.5 已完成：`official_web/stable_reference` 已完成首条真实 replay/import/release，physical collection 为 `official_web_stable_reference__r20260404_204033`；同时 retrieval / specialist / eval 辅助逻辑已支持 `stable_reference` 与 mixed bridge 共用 stable-reference-like 语义。
-- 2026-04-05 stable-reference split-scope eval baseline 已完成：repo 现在补齐 `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`、`packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json` 与 `official_web_stable_reference_release_gate_cases()`；修复 official-web 标题候选判断后，真实本地验证已确认 retrieval `9/9 hit@1`、`forbidden_hit_rate=0.0`，以及 deterministic live gate `11/11 pass`。
-- 2026-04-05 `official_web_stable_reference` serving alias 已发布到 `official_web_stable_reference__r20260404_204033`，且 alias-path retrieval/live gate 继续通过；同时旧 `muc_public_pages` alias 已主动撤下，mixed bridge 不再冒充 serving surface。
-- 2026-04-05 `official_web/fresh_news` 已完成首条 seed local release validation：repo 现在补齐 `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`、`packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json` 与 `official_web_fresh_news_release_gate_cases()`；本地 physical collection `official_web_fresh_news__r20260404_222909` 已验证 retrieval `8/8 hit@1`、live gate `8/8 pass`。这轮 import/release 使用真实对象存储 + 真实 Qdrant，但因共享 Postgres pooler 饱和而改走 injected in-memory registry path，仅作为本地验证证据。
+- Phase 15 `幻觉治理与 Grounded Generation 二次硬化` 已完成 repo-local closeout；当前 repo 不再把它视为 active execution lane
+- Phase 16 已冻结为新的 planning lane：先做 raw asset typing / routing contract，再决定 MinerU 的条件式 canonical scope
+- Phase 16 已完成 closeout：raw asset registration 已支持 typed metadata，compare lane 现已输出 `asset_typing` / `routing_recommendation`，`source_truth_only` canonical lane 现已同时支持 typed PDF 的 `MinerU primary -> Paddle fallback` 与 `generic_image` 的 Paddle+MinerU 双跑判型；canonical scope 已冻结为 `pdf -> MinerU primary`、`simple_table_image -> Paddle primary`、`complex_table_image -> MinerU primary`、`spatial/office -> deferred`
+- Cohort A `institutional_regulations` formal import 当前只允许消费 vetted notice-id 白名单；更宽的 `internal_notice` formal current scope 仍存在未验收 promote/hold/manual-review 混合 posture，不能直接做 unfiltered target materialization
+- ADR-0040 的下一条 implementation slice 已在当前 worktree 落地：`document_id` 现由 `regulation_work_title + issuing_org + semantic_scope` 派生，projected/materialized `title` 现默认使用 `regulation_display_title`；`regulation_title_normalized` 与 `source_title_literal` 继续保留为 source-facing title metadata
+- 2026-04-14 已完成 regulation lane 的受控 replay/rematerialization，并随后完成 `355282` 的 bounded formalization：Cohort A formal local current-scope refresh 已先把现有本地 target rows 补齐到当前 title/version metadata truth；之后 `355282` 又通过 source-truth repair + targeted source projection rebuild + filtered materialization 正式进入当前 target
+- 2026-04-14 已进一步冻结 regulation display-title 语义：`regulation_display_title` 固定保留完整 `regulation_edition_label`，例如 `2026版`、`2026年修订`；当前不接受把 display-title 压成裸年份 `2026`
+- 2026-04-14 已完成 `351119 / 中央民族大学差旅费管理办法（民大校发〔2025〕104号）` 的 GSD blocker 澄清：当前阻塞不只是 `file_release_backed_regulation_body_missing`，还包括 repo 内无对应 `file_release` export/source bytes，且 regulation lane 尚无 `file_release -> owner body recovery` downstream consumer；下次认证窗口必须先做 bounded `file_release` capture，再补 bounded consumer
+- 2026-04-14 已为 regulation lane 补齐 bounded `file_release` downstream readiness contract：repo 现可读取 `file_release` bundle / manifest，并对 `owner_title_hint` 返回 `ready / missing_capture / missing_source_bytes / ambiguous_match`；当前这仍不是 owner body recovery，也不会自动改写 promotion/materialization
+- 2026-04-14 已冻结当前已采集 regulation corpus 的 offline inventory：当前 `16` 条 notice family 中，`11` 条已进入 formal local current target，`355282` 已从 isolated sample 提升为 attachment-backed `accepted_current_target`，`191177` 继续 duplicate hold，`351119` 继续 auth-blocked，`351699 / 351704 / 177880` 保持非当前 regulation target follow-up
+- Phase 1000 `1000-01` 与 `1000-02` 的当前有效结论已更新：canonical/source-unit evidence contract 已冻结，`课程设置` / `修读建议` 继续走 `curriculum_lookup` 非 procedure 路径；`课程地图` 已因真实 OCR 抽样证据不足被收回当前业务范围，runtime 现已对这类 query fail-close，不再进入 retrieval/support selection
+- Phase 1000 `1000-03` 已完成：`program_semester_facts` 现已改为 position-preserving table normalization，`大学英语(四)` 类 sparse-row data loss 已有 deterministic coverage，worker/local-rebuild 也已支持按 canonical `source_document_id` 做 targeted rematerialization
+- Phase 1000 `1000-04` 已完成：raw retrieved candidates 与 final supporting evidence 现已在 supervisor / eval / app-api / operator 全链路拆分；targeted rematerialization 已配合 fresh `program_semester_facts` publish release `r20260413_042533` 完成，curriculum live accept artifact 已刷新为 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+- `docs/plans/post-closeout-follow-up-execution-plan.md` 已转为 deferred reference：Wave A/B/D/E 主体完成，Wave C 只剩 switched-provider historical artifact replacement rerun
+- Phase 1001 `1001-01` 已完成：官方 map / campus-tour authoritative source inventory、first-batch candidate inventory、`seed_ready` vs `park_pending_geometry` admission posture，以及 clarification-first ambiguity family 现已 repo-tracked
+- Phase 1001 `1001-02` 已完成：`place_catalog` 现已接受 nullable geometry posture，first-batch seed 已从 `7` 条扩到 `12` 条；generic `图书馆` 现会 clarification-first，campus-qualified alias 保持 direct completion，official-label-backed row 即使无 point geometry 也能稳定产出 place truth
+- 2026-04-14 已新增 backlog `999.2`：地图实际上线前，不把 `place_card` / map consumption 或 staging/manual acceptance 继续写成当前执行项；当前 supervisor 产品路径已对 `place_lookup` fail-close
+- Phase 14 `Prompt Stack / System Prompt Runtime` closeout 已在当前 worktree 落地；在合入 `develop` 前，它仍是 worktree-local progress
+- staging baseline 已固定为 `campus-api-staging.ayafeed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com` 三个项目隔离一级子域；Wave B chat/panel/Sentry 证据保留为回归基线，而不是当前 open lane
+- `official_web/fresh_news` / `official_web/news_archive` opening policy 继续留在独立 official-web worktree，不在当前执行面混入
+- 2026-04-14 已关闭 Phase 1002 `Worker 部署与发布硬化收口` 的 repo-level implementation：shared `staging-release.mjs`、`run-worker-staging-preflight.mjs`、三端 deploy/test 更新，以及 staging deploy / observability runbook 已全部对齐
+- 2026-04-14 已关闭 Phase 1003 `Official Web 新闻面 opening policy 与 runtime gate 收口` 的 repo-level implementation：news opening policy docs、runtime-profile contract、query-boundary tests 与 independent-worktree opening checklist 已全部对齐
+- 2026-04-14 已新增 backlog `999.4`：`official_web/fresh_news` / `official_web/news_archive` 的 opening execution / acceptance 明确降级为 deferred lane，恢复前不再视为当前主执行线
 
 ### Pending Todos
 
-- Freeze `official_web/fresh_news` / `official_web/news_archive` runtime opening policy now that the current seed baseline is locally validated; explicit decisions still need to cover freshness window, archive cutoff, fail-close, and live-search fallback.
-- Keep handbook chunk-truth validation and handbook eval artifacts as reusable regression gates for later retrieval changes.
-- Treat the 2026-04-04 `072912Z` handbook acceptance artifact as the current regression baseline for future handbook answer-path or eval-surface changes.
-- Treat `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z` as the current latest completed repo-local curriculum artifact truth: deterministic reruns stabilize at `run_pass_counts=[19,19,19]` / `run_failed_counts=[0,0,0]`, repair stays skipped, and the remaining overall `warn` comes only from soft-gated supplemental quality drift.
-- Keep `official_web` command/query/handoff tests and operator projections as reusable regression gates for later collector or ingestion integration changes.
-- Continue validating one already allowlisted `official_web` host at a time via low-budget expansion batch, and keep scheduler / hot-lane decisions separate from batch pass results.
-- Keep `Jobs` and `Operations` out of the default panel rollout until product scope explicitly re-opens them.
-- Treat historical authenticated-notice exports as the current Phase 12 execution substrate; bounded replay evidence (`2` / `10` / `50` / `240`) is now superseded by the completed full closeout run `authenticated-notice-replay-20260406-024405`. The next follow-up is offline release / retrieval-prep consumption for `campus_notices/internal_notice`, while renewed live portal access and authenticated control-plane work remain deferred.
-- The first real deployed Worker environment is now confirmed on first-level project-scoped `staging@ayafeed.com` hostnames: `campus-api-staging.ayafeed.com`, `campus-chat-staging.ayafeed.com`, and `campus-panel-staging.ayafeed.com`. This replaces both the earlier nested `*.rag.ayafeed.com` staging truth and the later generic first-level proposal because the current Cloudflare tier is no longer treated as having reliable SSL coverage on nested staging subdomains, and `ayafeed.com` is a shared zone where generic first-level labels such as `api-staging.ayafeed.com` are already owned by other repos.
-- Wave B chat closure is no longer pending: `campus-api-staging` `/healthz` + `/readyz` and `campus-chat-staging` `/healthz` + `/readyz` now return `200`, while `campus-chat-staging` request `req_3f493161ae6c4c669304c4ca439dfe4a` finalized as `answer` with `trace_id=trace_f3d3792b021f4118ac90a06041f9b03f`; closure evidence now lives under `.tmp/staging-smoke/20260406T032941-wave-b-closure/` and `.tmp/observability-smoke/20260406T032941-staging-wave-b/`.
-- Pending todo: [`.planning/todos/pending/2026-04-04-provision-real-access-for-panel-staging.md`] now represents the remaining panel smoke-identity closure. Real Cloudflare Access is already in front of `campus-panel-staging`; the blocker is no longer provisioning, but the lack of a usable GitHub/email Access identity for smoke.
-- Pending todo: [`.planning/todos/pending/2026-04-04-run-full-staging-live-smoke-and-observability.md`] now only tracks the remaining full-lane closure work after chat and Axiom are closed: panel interactive smoke, controlled-error / Sentry sink-side confirmation, and final summary refresh.
+- 当首个 staging 发布窗口可用时，按新的 `deploy:preflight:staging` / release-scoped evidence contract 执行真实 deploy closeout
+- 等待地图实际上线后，再从 backlog `999.2` promote 导航产品路径、`place_card` / map consumption 与 staging/manual acceptance
 
 ### Blockers/Concerns
 
-- The current worktree no longer has a phase-evidence blocker: `.planning/v1.0-MILESTONE-AUDIT.md` is now closed as `tech_debt`, and the remaining archive-scaffold absence is a process issue rather than a runtime or planning-truth blocker.
-- No current phase-1 mainline blocker remains inside this follow-up branch.
-- Cloudflare 04.x boundary/topology/contract/shell docs are complete; follow-up work must consume them as frozen handoffs rather than reopening architecture churn.
-- `public-consumer-chat` is merged on `main`; downstream work should treat it as a historical implementation reference rather than a live backend direction.
-- panel `Requests` is no longer blocked, but panel work must still avoid reading audit logs, telemetry sinks, consumer chat tables, or `apps/supervisor-api` directly.
-- `Official Web` control-plane APIs and panel domain are now landed on `apps/app-api` + `apps/protected-panel-web`; follow-up work must extend this surface rather than reintroducing panel-side synthesis or direct infrastructure reads.
-- `Jobs` / `Operations` / `Audit` remain delayed; landed `Official Web` views do not authorize a generic ops console.
-- Observability runtime code is landed, local worktree env is ready, and the targeted Worker smokes are green. The latest local evidence still lives at `.tmp/observability-smoke/20260402T233916-local-readiness/`, and the latest real staging evidence now lives at `.tmp/observability-smoke/20260406T032941-staging-wave-b/`. There is no current local-engineering blocker here; the remaining blockers are remote access ones. Axiom runtime verification is now closed via a dedicated query/read token, while Sentry still lacks repo-side sink lookup access even though deploy-side DSNs are present.
-- `campus-panel-staging` 现在已经是 Cloudflare Access 登录页，而不是 worker 直接报 `Missing Access JWT.`。因此后续如果 panel smoke 继续 blocked，正确标签应是 `blocked by smoke identity/credential`，不是 `blocked by missing Access provisioning`。
-- `apps/app-api` Wave B closeout now includes two staging-specific hardening moves: `[env.staging.vars] SUPERVISOR_API_TIMEOUT_MS=\"15000\"` to absorb the current supervisor latency budget, and Sentry telemetry fail-open so `configureChatRequestScope` / `getTraceData` failures can no longer become request-path `500`.
-- `student_handbook` 当前最新 release-truth artifact 已更新为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z`；较早的 `20260402T182346`、`181247` 与 `210128` 仍可作为历史健康 baseline 对照，但不再是最新 closeout 证据。
-- `student_handbook` 的 repo-local 2026-04-04 rerun 现在已经有新的 clean pass baseline：`.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z` 的 `deterministic_verdict=pass`、`supplemental_verdict=pass`、`final_overall_verdict=pass`，三轮 deterministic run 稳定复现 `run_pass_counts=[11,11,11]` / `run_failed_counts=[0,0,0]`。
-- Phase 8 的本地 automated gates 与 fresh handbook live accept 现已全部通过，Phase 09.1 也已补齐 env/bootstrap/provider contract；因此 handbook Phase 8 closeout 现可视为 completed truth。
-- 2026-04-03 的 repo-local curriculum / handbook fail artifacts 仍然只应作为历史故障排查参考，不再代表当前状态：本地 `trusted-worker + 8081`、preview rebuild、publish alias、current-row canonicalization，以及 handbook rerun `internal_error` 都已经被后续恢复工作覆盖。
-- `curriculum_plan` 的 repo-local 最新 completed accept artifact 现已更新为 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z`：`deterministic_verdict=pass`、`supplemental_verdict=warn`、`final_overall_verdict=warn`，repair skipped，三轮 deterministic run 全部 `19/19` 通过。当前不再有 deterministic curriculum release gate failure；remaining issue is soft-gated supplemental quality only. Earlier rerun attempt `.tmp/evals/curriculum-plan-live-gate-accept-20260404T130027Z` 仍只应被视为 mid-request restart incident，而不是新的产品质量结论。
-- `apps/authenticated-notice-collector` 现在已经补齐 `pyproject.toml`，因此 authenticated-notice 相关 focused verification 可以正常使用 `uv run --package ...`；后续 Phase 12 不应再按“collector 缺 package metadata”这个旧 blocker 规划。
-- `official_web` 当前已无 phase blocker；`history` listing projection 的重复 / 日期噪声已在 `qc-20260402-history-r6` 关闭。剩余 concern 只在节奏层：任何 scheduler / hot-lane promotion 仍需单独证据，而不是沿用现有 batch 结果直接外推。
-- `official_web/muc_public_pages` 的 release plumbing、candidate import 与 serving-surface correctness policy 现已闭环：replay v9 已生成 unpublished candidate `r20260404_184508`，并通过 qrels/live gate。当前 remaining concern 已不再是 mixed alias 漂移，因为旧 alias 已撤下；剩余问题转到 news-serving policy 本身。
-- 当前 fixed-scope clean/chunking blocker 已关闭：replay v9 的 `source_only` / `terminal_boilerplate` / header drift 与 notice-fact audit false positive 都已 machine-checkably 收口。剩余 concern 只在是否把这轮本地 truth 滚入新的 import/release candidate，而不是继续怀疑当前 clean/chunking contract。
-- Phase 10.1 已把 current-vs-future boundary 写成 helper + docs 双重 truth；后续如果再讨论 `future_fresh_news_surface`，应直接以 handoff note 和 helper 为起点，而不是回到 inventory triage 重新争论。
-- 共享 Postgres pooler 在本轮 fresh-news CLI import 时触发 `MaxClientsInSessionMode`；这不是语料或 runtime 设计 blocker，但说明后续若要把 fresh-news 正式写入 shared registry truth，仍需先恢复可用的 registry 连接额度或切换到合适的 shared DB 通道。
-- staging `app-api` auth/runtime instability is now closed in this worktree: request-scoped auth and command-side runtime can read through dedicated `APP_API_DB_FRESH` no-cache Hyperdrive while read-mostly query surfaces stay on `APP_API_DB`; live evidence ` .tmp/staging-smoke/20260404t141510z-app-api-auth-fresh-hyperdrive-live ` confirms `readyz 10/10`, `chat-readyz 10/10`, and `sign-up -> immediate sign-in -> get-session` all `5/5 200`.
-- Phase 12.1 freezes two closeout-specific execution rules: authenticated-notice staged checkpoints may only use cumulative full-bundle prefixes because import uses `scope_refresh=(corpus, collection)`, and raw asset registry reconciliation only requires expected ID coverage because raw scope history is retained outside document-scope refresh.
-- Phase 9 与 handbook live accept 是两条独立工作流：它复用已落地的 handbook ambiguous-object posture，但本身不依赖新的 handbook acceptance artifact 才能开始规划或执行；当前 09-03 closeout 已把 deictic verified-identity truth、soft-bias-only qrels fast-fail 与 diagnostics 收口为 completed truth。
-- curriculum canonical eval truth 现已明确禁止把未裁决短标题歧义锁成单目标 qrels；`民族实验班` 已退出 canonical retrieval qrels，改由 `needs_clarification` workflow case 承担，`campus_evals.retrieval_benchmark` 会在评分前按 split manifest fast-fail 这类坏 truth。
-- Phase 9 现在额外固定了两条关键后置约束：`verified major + unique candidate` 才允许 deictic curriculum single-doc resolve，而 `recent_goal` / `confirmed_slot_terms` / profile memory 只能作为 soft bias 或 clarification input；external default query scope 仍旧只开放 `curriculum_plan`。
-- Phase 11 is now fully closed: the principal/projection seam, data-plane canonicalization, retrieval fail-close / deny-path leakage prevention, safe personalization wiring, and compatibility / eval / telemetry closure are all landed.
+- 当前 follow-up 分支已无 repo-internal mainline blocker
+- 校内导航当前不是 blocker，而是显式关闭的产品能力；重新开启以地图上线为前提，不再按“尚未补证据”处理
+- `official_web` 新闻面 opening execution 当前不是 blocker，而是 backlog `999.4` 中的 deferred lane；恢复前不再默认占用主链路优先级
+- MinerU 仍不是全局 canonical OCR provider；当前冻结结论只允许它在 typed PDF 与 refined complex-table image 上担任 canonical primary
+- curriculum historical artifact replacement 当前只剩归档 / pointer 整理，不再有 provider contract blocker
+- deferred blocker 仍是 authenticated-notice 的 live portal scheduling 与 authenticated control-plane，需要后续执行窗口和外部数据面配合
+- panel 后续工作必须继续经由 `apps/app-api` owned surfaces，不能回退到 panel-side synthesis、audit log 直读或基础设施直读
+- `Jobs` / `Operations` / `Audit` 继续不进入默认 rollout，除非产品范围重新开启
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260414-bsz | 修复 `355282` 的 source projection 缺口并将其正式并入 local regulation target | 2026-04-14 | worktree | [260414-bsz-regulation-355282-formal-local-target](./quick/260414-bsz-regulation-355282-formal-local-target/) |
+| 260414-ang | 冻结已采集 regulation corpus 的离线 inventory 与 blocked frontier，作为无认证态下的后续工作入口 | 2026-04-14 | worktree | [260414-ang-regulation-corpus-inventory-blocked-fron](./quick/260414-ang-regulation-corpus-inventory-blocked-fron/) |
+| 260414-9vu | 为 regulation lane 补 file_release owner-recovery readiness contract，并以定向测试冻结 matching/readiness 状态 | 2026-04-14 | worktree | [260414-9vu-regulation-lane-file-release-owner-recov](./quick/260414-9vu-regulation-lane-file-release-owner-recov/) |
+| 260414-96b | 澄清 `351119` regulation 导入的 file-release blocker，并冻结下一条 bounded owner-recovery implementation slice | 2026-04-14 | worktree | [260414-96b-regulation-file-release-owner-recovery](./quick/260414-96b-regulation-file-release-owner-recovery/) |
+| 260414-c2p | 冻结 regulation display-title 的完整版次标签格式，并补回归测试锁住 `版次/修订/暂行/届别/文号` 边界 | 2026-04-14 | worktree | [260414-c2p-regulation-display-title-format](./quick/260414-c2p-regulation-display-title-format/) |
+| 260414-8rt | 完成 regulation lane 的定向 replay/rematerialization，并把 ADR-0040 的 title/version identity 真正落到本地 regulation target | 2026-04-14 | worktree | [260414-8rt-regulation-replay-rematerialization](./quick/260414-8rt-regulation-replay-rematerialization/) |
+| 260414-8sd | 切换 regulation target 到 work-title identity，并把 projected/materialized title 收口到 display_title | 2026-04-14 | worktree | [260414-8sd-regulation-work-title-identity-cutover](./quick/260414-8sd-regulation-work-title-identity-cutover/) |
+| 260414-81f | 为 regulation 标题/年份版本分离落地 non-breaking split metadata，并补 planning/docs 验收真相 | 2026-04-14 | worktree | [260414-81f-regulation-title-version-split-fields](./quick/260414-81f-regulation-title-version-split-fields/) |
+| 260414-7jt | 冻结 regulation 文档标题/年份版本 双层 identity contract，并补 current truth 与 approved target 的文档分层 | 2026-04-14 | worktree | [260414-7jt-regulation-identity-contract](./quick/260414-7jt-regulation-identity-contract/) |
+| 260412-k7s | 完成 internal_notice -> institutional_regulations 的 isolated local-only materialization 验收，并更新 docs/state 真相 | 2026-04-12 | worktree | [260412-k7s-internal-notice-institutional-regulation](./quick/260412-k7s-internal-notice-institutional-regulation/) |
+| 260412-jre | 刷新 institutional_regulations Cohort A 的 local-only target chunk acceptance，并收口剩余 manual-review 范围 | 2026-04-12 | worktree | [260412-jre-institutional-regulations-target-collect](./quick/260412-jre-institutional-regulations-target-collect/) |
+| 260412-j1s | 冻结 authenticated_notice file_release 导出契约与认证窗口执行 runbook | 2026-04-12 | worktree | [260412-j1s-authenticated-notice-file-release-runboo](./quick/260412-j1s-authenticated-notice-file-release-runboo/) |
+| 260412-1qs | 为 authenticated_notice source-truth/import 补 owner expectation recovery contract | 2026-04-12 | worktree | [260412-1qs-full-research-authenticated-notice-sourc](./quick/260412-1qs-full-research-authenticated-notice-sourc/) |
+| 260412-1c5 | 为 internal_notice regulation promotion 补充 semantic owner metadata 与 owner-missing contract | 2026-04-12 | worktree | [260412-1c5-full-research-internal-notice-regulation](./quick/260412-1c5-full-research-internal-notice-regulation/) |
+| 260411-ouc | 完成 internal_notice regulation candidate 的 local-only target-side chunk prep 与质量验收 | 2026-04-11 | worktree | [260411-ouc-internal-notice-regulation-candidate-loc](./quick/260411-ouc-internal-notice-regulation-candidate-loc/) |
+| 260411-ocm | 实现 internal_notice promotion candidate artifact contract 并完成 local-only 导出验收 | 2026-04-11 | worktree | [260411-ocm-internal-notice-promotion-candidate-arti](./quick/260411-ocm-internal-notice-promotion-candidate-arti/) |
+| 260411-ptg | 完成 institutional_regulations Cohort A target-side batch acceptance 并冻结 manual-review 分布 | 2026-04-11 | worktree | [260411-ptg-institutional-regulations-cohort-a-targe](./quick/260411-ptg-institutional-regulations-cohort-a-targe/) |
+| 260411-pzz | 完成 institutional_regulations structure-aware short-fragment merge tuning 并收口 Cohort A rerun | 2026-04-11 | worktree | [260411-pzz-institutional-regulations-structure-awar](./quick/260411-pzz-institutional-regulations-structure-awar/) |
+| 260411-rho | 校正 institutional_regulations promotion adjudication taxonomy 并重评 Cohort A manual-review 理由 | 2026-04-11 | worktree | [260411-rho-institutional-regulations-promotion-adju](./quick/260411-rho-institutional-regulations-promotion-adju/) |
+| 260411-s54 | 冻结 notice-derived annual-cycle 与 temporary-operation 文档的 collection boundary | 2026-04-11 | worktree | [260411-s54-notice-derived-annual-cycle-and-temporar](./quick/260411-s54-notice-derived-annual-cycle-and-temporar/) |
+| 260411-qfc | 冻结 internal notice manual-review buckets 的 future query contract 与 reopen 前置条件 | 2026-04-11 | worktree | [260411-qfc-internal-notice-manual-review-future](./quick/260411-qfc-internal-notice-manual-review-future/) |
+| 260411-sru | 冻结 unified scoped_rules holding collection，并把 import-first 作为 scoped-rule 当前策略 | 2026-04-11 | worktree | [260411-sru-unified-scoped-rules-holding-collectio](./quick/260411-sru-unified-scoped-rules-holding-collectio/) |
+| 260411-u0t | 补齐 scoped_rules materialization 与定向验证，打通 manual bucket 到 holding collection 的 repo-local 路径 | 2026-04-11 | worktree | [260411-u0t-scoped-rules-materialization](./quick/260411-u0t-scoped-rules-materialization/) |
+| 260411-w5m | 完成 scoped_rules local-only chunk acceptance，并冻结 isolated snapshot root operator rule | 2026-04-11 | worktree | [260411-w5m-scoped-rules-quality-acceptance](./quick/260411-w5m-scoped-rules-quality-acceptance/) |
+| 260411-pbp | 收口 historical donor local-smoke routing mismatch 并把 blob-root 依赖改成 import fast-fail | 2026-04-11 | worktree | [260411-pbp-historical-donor-local-smoke-routing-mis](./quick/260411-pbp-historical-donor-local-smoke-routing-mis/) |
+| 260411-r4m | 收口 internal_notice Wave D guarded release 文档与 no-proxy operator 规则 | 2026-04-11 | worktree | [260411-r4m-internal-notice-wave-d-guarded-release](./quick/260411-r4m-internal-notice-wave-d-guarded-release/) |
+| 260411-n9q | 修复 internal_notice promotion 的 source_notice_release_time 透传并完成本地验收 | 2026-04-11 | worktree | [260411-n9q-internal-notice-promotion-source-notice-](./quick/260411-n9q-internal-notice-promotion-source-notice-/) |
+| 260411-mpt | 完成 public-chat-web donor tech-debt convergence Wave 5 本地 closeout | 2026-04-11 | worktree | [260411-mpt-public-chat-web-donor-tech-debt-converge](./quick/260411-mpt-public-chat-web-donor-tech-debt-converge/) |
+| 260411-mlz | 为《中央民族大学采购工作管理办法》完成 promotion-side wrapper stripping 与 cleanup pilot | 2026-04-11 | worktree | [260411-mlz-internal-notice-promotion-side-wrapper-s](./quick/260411-mlz-internal-notice-promotion-side-wrapper-s/) |
+| 260411-mbr | 完成 internal notice《中央民族大学采购工作管理办法》单文档 local-only chunk-prep pilot | 2026-04-11 | worktree | [260411-mbr-internal-notice-local-only-chunk-prep-pi](./quick/260411-mbr-internal-notice-local-only-chunk-prep-pi/) |
+| 260411-lxl | 收口 authenticated-notice promotion 下一执行切片与 manual-review taxonomy | 2026-04-11 | worktree | [260411-lxl-authenticated-notice-promotion-chunk-pre](./quick/260411-lxl-authenticated-notice-promotion-chunk-pre/) |
+| 260410-5yl | 冻结 internal notice policy/regulation Cohort A/B/C 并完成本地质量 pilot | 2026-04-10 | b1b5150 | [260410-5yl-internal-notice-policy-regulation-cohort](./quick/260410-5yl-internal-notice-policy-regulation-cohort/) |
+| 260410-4zq | 将本地开发数据库迁移到 local Postgres 并完成 Wave D 本地闭环 | 2026-04-10 | b253bb8 | [260410-4zq-postgres-shared-supabase-wave-d](./quick/260410-4zq-postgres-shared-supabase-wave-d/) |
 
 ## Recent Verification
 
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_notice_id_filter_keeps_unselected_scope_rows tests.ingestion.test_rebuild_authenticated_notice_source_projections_worker`
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_replaces_scope_and_materializes_attachment_children tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_reuses_ocr_result_for_shared_pdf_payloads`
+- `uv run --all-packages python .planning/quick/260414-bsz-regulation-355282-formal-local-target/formalize_355282_local.py`
+- `jq '{before_target_count, after_target_count, source_rows_after_projection, writes_embeddings, writes_qdrant, writes_release_manifests, writes_aliases}' .planning/quick/260414-bsz-regulation-355282-formal-local-target/run-output/formalization-summary.json`
+- `uv run --all-packages python - <<'PY' ...` to read local `regulations/institutional_regulations` current scope and confirm `current_target_count=11`, `document_id=institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:089bcf7907da`, `title=中央民族大学关于学生使用人工智能的指导意见 / 2026版`, `semantic_owner_kind=attachment_document`
+- `uv run --all-packages python -m unittest tests.specialist.test_rag_specialist tests.evals.test_curriculum_live_benchmark`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_internal_notice_regulation_projection tests.ingestion.test_internal_notice_regulation_materialization tests.ingestion.test_materialize_internal_notice_regulation_worker`
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core.SupervisorCoreTest.test_build_supervisor_observability_keeps_raw_retrieved_sources_separate_from_supporting_sources tests.supervisor.test_supervisor_core.SupervisorCoreTest.test_build_supervisor_observability_does_not_mirror_supporting_sources_for_clarification tests.supervisor.test_supervisor_core.SupervisorCoreTest.test_build_supervisor_observability_marks_course_map_fail_close_as_no_retrieval tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark`
+- `pnpm --dir apps/app-api exec vitest run test/request-observability.test.ts test/operator-query.route.test.ts test/operator-query.service.test.ts`
+- `uv run --all-packages python -m unittest tests.contracts.test_models tests.ingestion.test_curriculum_program_semester_facts_projection tests.ingestion.test_curriculum_program_semester_facts_materialization tests.ingestion.test_materialize_curriculum_program_semester_facts_worker tests.ingestion.test_rebuild_local_data tests.retrieval.test_curriculum_query_resolution tests.retrieval.test_backend_qdrant tests.specialist.test_rag_specialist tests.evals.test_golden_cases tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_curriculum_program_semester_facts --source-document-id "curriculum:法学（民族实验班）本科人才培养方案" --source-document-id "curriculum:历史学（强基计划）本科人才培养方案"`
+- `set -a && source .env >/dev/null 2>&1 && set +a && env HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= http_proxy= https_proxy= all_proxy= NO_PROXY='*' no_proxy='*' uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope --corpus curriculum --collection program_semester_facts --publish-alias`
+- `set -a && source .env >/dev/null 2>&1 && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events-phase1000.jsonl --output-dir .tmp/evals/curriculum-plan-live-gate-accept-phase1000`
+- `uv run --all-packages python .planning/quick/260412-k7s-internal-notice-institutional-regulation/materialize_institutional_regulations_local_only.py`
+- `uv run --all-packages python -m py_compile packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_materialization tests.ingestion.test_materialize_internal_notice_regulation_worker`
+- `uv run --all-packages python -m unittest tests.ingestion.test_online_ocr_compare tests.ingestion.test_compare_online_ocr_worker`
+- `uv run --all-packages campus-ingestion-compare-online-ocr --file-path .tmp/auth-cookie4-runtime/pdf-policy-samples-20260409/351896-attachment-01.pdf --output-dir .tmp/ocr-compare-batch/20260412-phase16-validation/pdf-351896-paddle-candidate`
+- `set -a; source .env.mineru.compare; set +a; uv run --all-packages campus-ingestion-compare-online-ocr --file-path .tmp/notice-351886-images/attachment-0002.png --baseline-provider-response-path .tmp/ocr-compare-batch/20260412-round3/img-notice-contact-0002-retry/paddle/provider-response.jsonl --output-dir .tmp/ocr-compare-batch/20260412-phase16-validation/img-notice-contact-0002-mineru-candidate`
+- `uv run --all-packages python -m unittest tests.ingestion.test_register_raw_asset tests.ingestion.test_registry_models tests.ingestion.test_process_raw_ingestion_job tests.test_environment_layout`
+- `pnpm --dir apps/app-api exec vitest run test/request-diagnostics.test.ts test/request-observability.test.ts test/operator-query.route.test.ts test/operator-query.service.test.ts test/supervisor-adapter.test.ts`
+- `pnpm --dir apps/app-api exec vitest run test/projection.service.test.ts`
+- `pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit`
+- `uv run --all-packages --no-sync python -m unittest tests.evals.test_golden_cases tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark`
+- `pnpm --dir apps/app-api exec vitest run test/request-observability.test.ts test/supervisor-adapter.test.ts test/operator-query.route.test.ts test/chat-command.service.test.ts test/chat-requests.route.test.ts test/operator-query.service.test.ts test/shared-database-adoption.test.ts`
+- `pnpm --dir apps/app-api exec tsc --noEmit`
+- `uv run --all-packages --no-sync python -m unittest tests.contracts.test_models tests.evals.test_runtime_observability tests.evals.test_curriculum_live_benchmark tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist tests.api.test_supervisor_api tests.api.test_supervisor_api_prompt_stack`
+- `pnpm --dir apps/app-api db:bootstrap`
+- `curl -sf http://127.0.0.1:8081/readyz`
+- `curl -sf http://127.0.0.1:5173/readyz`
+- `pnpm --dir apps/public-chat-web typecheck`
+- `pnpm --dir apps/public-chat-web exec vitest run test/public-chat-router-cutover.test.ts test/chatbot-vendor-runtime-parity.test.ts test/public-chat-donor-diff-whitelist.test.ts test/public-chat-donor-diff-classification.test.ts`
+- `pnpm --dir apps/public-chat-web test:worker`
+- `pnpm --dir apps/public-chat-web build`
+- `Playwright MCP local smoke: /login -> /chat -> first send -> reload` with evidence at `.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_build_internal_notice_regulation_promotion_manifest_worker tests.ingestion.test_collection_config tests.ingestion.test_corpus_runtime_profile`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_authenticated_notice_import tests.ingestion.test_authenticated_notice_source_truth_inventory`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_export_internal_notice_regulation_candidate_artifacts_worker`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_export_internal_notice_regulation_candidate_artifacts_worker tests.ingestion.test_internal_notice_regulation_materialization tests.ingestion.test_internal_notice_regulation_candidate_chunk_prep tests.ingestion.test_prepare_internal_notice_regulation_candidate_chunks_worker tests.ingestion.test_internal_notice_regulation_projection tests.ingestion.test_processing_pipeline tests.test_workspace_layout`
+- `uv run --all-packages python .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort_a_target_chunk_acceptance.py --output-dir .planning/quick/260412-jre-institutional-regulations-target-collect/rerun-output`
+- `uv run --all-packages python .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort_a_target_chunk_acceptance.py --output-dir .planning/quick/260411-rho-institutional-regulations-promotion-adju`
+- `python - <<'PY' ...` to assert ADR-0036, manual-review collection strategy, and quick-task closeout artifacts exist
+- `rg -n "document age is not a standalone exclusion|dedicated semantic-owner surface" docs configs .planning -S`
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_import tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_export_internal_notice_regulation_candidate_artifacts_worker`
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_import`
+- `uv run --all-packages python .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort_a_target_chunk_acceptance.py`
+- `uv run --all-packages python - <<'PY' ...` to inspect Cohort A promotion routing distribution from rebuilt inventory and confirm `candidate_count=1`, `manual_review_count=10`, `notice_id=187233` is the only current `promote_candidate`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_regulation_promotion tests.ingestion.test_export_internal_notice_regulation_candidate_artifacts_worker tests.ingestion.test_internal_notice_regulation_materialization tests.ingestion.test_internal_notice_regulation_candidate_chunk_prep tests.ingestion.test_prepare_internal_notice_regulation_candidate_chunks_worker`
+- `uv run --all-packages python .planning/quick/260411-mlz-internal-notice-promotion-side-wrapper-s/pilot_187233_wrapper_cleanup.py`
+- `uv run --all-packages python - <<'PY' ...` to rebuild `187233` source-truth inventory entry from local-smoke source artifacts and confirm promotion report now resolves `source_notice_release_time=2021-02-28 16:09` with `missing_required_metadata=[]`
+- `uv run --all-packages python - <<'PY' ...` to rebuild `187233` source-truth inventory from local-smoke source artifacts and export local-only candidate artifacts under `.planning/quick/260411-ocm-internal-notice-promotion-candidate-arti/`, confirming `exported_candidate_count=1` and candidate markdown carries `source_notice_release_time=2021-02-28 16:09`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.export_internal_notice_regulation_candidate_artifacts --documents-json .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/registry/documents.json --source-truth-inventory-json .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/rebuilt-source-truth-inventory.json --object-store-root .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store --output-dir .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/candidate-export-rebuilt --notice-id 187233`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.prepare_internal_notice_regulation_candidate_chunks --candidate-documents-jsonl .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/candidate-export-rebuilt/candidate-documents.jsonl --output-dir .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/chunk-prep-rebuilt`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.prepare_internal_notice_regulation_candidate_chunks --candidate-documents-jsonl .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/candidate-export/candidate-documents.jsonl --output-dir .planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/chunk-prep-stale-inventory`
+- `uv run --all-packages python .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort_a_target_chunk_acceptance.py --output-dir .planning/quick/260411-pzz-institutional-regulations-structure-awar`
+- `uv run --all-packages python -m unittest tests.ingestion.test_internal_notice_scoped_rule_materialization tests.ingestion.test_internal_notice_scoped_rule_chunk_prep tests.ingestion.test_materialize_internal_notice_scoped_rules_worker tests.ingestion.test_prepare_scoped_rule_chunks_worker`
+- `uv run --all-packages python .planning/quick/260411-w5m-scoped-rules-quality-acceptance/scoped_rules_local_chunk_acceptance.py`
+- `uv run --all-packages python -m unittest tests.ingestion.test_campusrag_ingestion_support tests.ingestion.test_internal_notice_scoped_rule_materialization tests.ingestion.test_internal_notice_scoped_rule_chunk_prep tests.ingestion.test_prepare_scoped_rule_chunks_worker tests.ingestion.test_materialize_internal_notice_scoped_rules_worker tests.ingestion.test_collection_config tests.ingestion.test_corpus_runtime_profile`
+- `uv run --all-packages python .planning/quick/260411-uej-scoped-rules-local-only-chunk-prep/scoped_rules_local_chunk_acceptance.py --adjudication-path .planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-review-adjudication.json --local-smoke-root .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke --output-dir .planning/quick/260411-uej-scoped-rules-local-only-chunk-prep`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest --documents-json .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/registry/documents.json --source-truth-inventory-json .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/registry/source-truth-inventory.json --object-store-root .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke/object-store --notice-id 187233`
+- `uv run --all-packages python .planning/quick/260411-mbr-internal-notice-local-only-chunk-prep-pi/pilot_187233_local_chunk_prep.py`
+- `uv run --all-packages python - <<'PY' ...` to assert quick-task artifact set, manual-review taxonomy coverage, and required official links for `260411-lxl`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.show_authenticated_notice_closeout --run-id local-postgres-wave-d-full-20260410-141615`
+- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promote_authenticated_notice_closeout --run-id local-postgres-wave-d-full-20260410-141615`
+- `HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' http_proxy='' https_proxy='' all_proxy='' no_proxy='*' uv run --package campus-ingestion-worker python -m campus_ingestion_worker.release_registry_scope --corpus campus_notices --collection internal_notice --preparation-run-id prep-local-postgres-wave-d-full-20260410-141615 --no-publish-alias`
+- `HTTP_PROXY='' HTTPS_PROXY='' ALL_PROXY='' NO_PROXY='*' http_proxy='' https_proxy='' all_proxy='' no_proxy='*' uv run --all-packages python - <<'PY' ...` to verify `internal_notice__r20260411_090101` exists in Qdrant, `internal_notice` alias remains unpublished, and release artifacts exist in derived object storage
+- `curl --max-time 10 -sS -o /tmp/qdrant-proxy-check.json -w '%{http_code}\n' -H "api-key: $QDRANT_API_KEY" "$QDRANT_URL/collections"` (`timeout`, `000`) under inherited proxy env
+- `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy curl --max-time 10 -sS -o /tmp/qdrant-direct-check.json -w '%{http_code}\n' -H "api-key: $QDRANT_API_KEY" "$QDRANT_URL/collections"` (`200`) for direct no-proxy verification
+- `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python - <<'PY' ...` to read `campus_notices/releases/internal_notice/r20260411_090101/index-release.json` and `validation-summary.json`
+- `uv run --all-packages python .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort_a_local_quality_pilot.py --cohort-manifest .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/run14-policy-regulation-cohorts.json --local-smoke-root .tmp/historical-intake/run14-policy-regulation-expanded/local-smoke --output-dir .planning/quick/260410-5yl-internal-notice-policy-regulation-cohort`
+- `uv run --all-packages python - <<'PY' ...` for `.planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort-a-validation-summary.json` and `.planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/cohort-a-samples/samples.json`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_golden_cases tests.evals.test_context_diagnostics tests.specialist.test_rag_specialist tests.evals.test_curriculum_live_benchmark tests.evals.test_ragas_runtime`
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events-20260410-wave-c.jsonl --output-dir .tmp/evals/curriculum-plan-live-gate-accept-20260410-wave-c` (`non-retryable supplemental preflight failure`, `provider_contract_violation`)
 - `pnpm --dir apps/app-api test:node -- test/auth-and-db.test.ts test/chat-requests.route.test.ts test/telemetry.axiom.test.ts`
 - `pnpm --dir apps/app-api test:worker -- --reporter=verbose test/worker.test.ts test/worker-runtime-cache.test.ts`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.retrieval.test_backend_qdrant tests.retrieval.test_service tests.specialist.test_rag_specialist`
 - `UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_policy tests.specialist.test_rag_specialist`
 - `uv run --package campus-ingestion-worker python -m unittest tests.ingestion.test_authenticated_notice_import tests.ingestion.test_import_authenticated_notice_export_worker tests.ingestion.test_smoke_authenticated_notice_bootstrap_worker tests.ingestion.test_closeout_authenticated_notice_historical_backfill_worker tests.ingestion.test_authenticated_notice_closeout_async tests.ingestion.test_authenticated_notice_closeout_worker`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.ingestion.test_chunking_policy.ChunkingPolicyTest.test_token_guardrail_expands_final_overlap_to_avoid_short_tail tests.ingestion.test_internal_notice_scope_chunk_pipeline tests.ingestion.test_authenticated_notice_closeout_async.AuthenticatedNoticeCloseoutServiceTest.test_source_truth_replay_workers_stage_parent_and_child_documents tests.ingestion.test_authenticated_notice_closeout_async.AuthenticatedNoticeCloseoutServiceTest.test_source_truth_replay_workers_record_no_text_ocr_outcome_without_child_document`
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory --corpus campus_notices --collection internal_notice --notice-id 241275`
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_authenticated_notice_source_truth_replay --run-id internal-notice-wave-d-241275-20260410-03 --corpus campus_notices --collection internal_notice --notice-id 241275 --shard-size 8 --batch-size 4 --max-concurrency 1 --notice-concurrency 2 --object-store-concurrency 8 --lease-seconds 300`
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker --run-id internal-notice-wave-d-241275-20260410-03 --worker-id pilot-worker-01`
+- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking --closeout-run-id internal-notice-wave-d-241275-20260410-03 --sample-dir .tmp/internal_notice_chunk_samples_wave_d_241275_probe_20260410`
+- `pnpm --dir apps/public-chat-web test:worker`
+- `pnpm --dir apps/public-chat-web typecheck`
+- `pnpm --dir apps/public-chat-web build`
+- `EVIDENCE_DIR=/home/reptilian/code/campus-agent/.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2 node .tmp/public-chat-wave6/playwright-staging-smoke.mjs`
 
 ## Session Continuity
 
-Last session: 2026-04-05T06:55:00+08:00
-Stopped at: `official_web_stable_reference` alias publish, `muc_public_pages` alias unpublish, and `official_web/fresh_news` seed local release validation are complete; next step is news-serving runtime policy
+Last activity: 2026-04-13 - Completed Phase 1000 closeout: trace split landed across eval/app-api/operator surfaces, targeted `program_semester_facts` rematerialization was published, and fresh curriculum accept artifact passed all 3 runs
+
+Last session: 2026-04-13T13:16:15+08:00
+Stopped at: Phase 1000 is complete; next step is to either replace the historical curriculum artifact pointer or return to the remaining independent roadmap lanes
 Resume file: None

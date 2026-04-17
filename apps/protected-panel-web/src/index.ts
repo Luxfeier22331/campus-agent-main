@@ -483,7 +483,7 @@ async function validateProtectedApiRequest(
     };
   }
 
-  const token = request.headers.get("cf-access-jwt-assertion");
+  const token = resolveAccessAssertion(request);
   if (!token) {
     return {
       error: textResponse("Missing Access JWT.", 401),
@@ -515,6 +515,38 @@ async function validateProtectedApiRequest(
       operatorContext: null,
     };
   }
+}
+
+function resolveAccessAssertion(request: Request): string | null {
+  const headerToken = request.headers.get("cf-access-jwt-assertion")?.trim();
+  if (headerToken) {
+    return headerToken;
+  }
+
+  return readCookieValue(request.headers.get("cookie"), "CF_Authorization");
+}
+
+function readCookieValue(cookieHeader: string | null, name: string): string | null {
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const segment of cookieHeader.split(";")) {
+    const separatorIndex = segment.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const cookieName = segment.slice(0, separatorIndex).trim();
+    if (cookieName !== name) {
+      continue;
+    }
+
+    const cookieValue = segment.slice(separatorIndex + 1).trim();
+    return cookieValue || null;
+  }
+
+  return null;
 }
 
 function getMissingAccessConfig(env: Env): string[] {

@@ -37,9 +37,74 @@ repair_worker = importlib.import_module(
     "campus_ingestion_worker.repair_authenticated_notice_closeout"
 )
 watch_worker = importlib.import_module("campus_ingestion_worker.watch_authenticated_notice_closeout")
+source_truth_plan_worker = importlib.import_module(
+    "campus_ingestion_worker.plan_authenticated_notice_source_truth_replay"
+)
 
 
 class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
+    def test_source_truth_plan_worker_builds_scoped_request_from_cli_args(self) -> None:
+        service = Mock()
+        service.plan_source_truth_replay_run.return_value = {
+            "run_id": "source-truth-pilot-1",
+            "state": "planned",
+            "selected_notice_ids": ["353301", "354605"],
+            "expected_notice_count": 2,
+            "batch_count": 1,
+        }
+
+        with (
+            patch(
+                "campus_ingestion_worker.plan_authenticated_notice_source_truth_replay.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.plan_authenticated_notice_source_truth_replay.AuthenticatedNoticeCloseoutService.from_env",
+                return_value=service,
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            source_truth_plan_worker.main(
+                [
+                    "--run-id",
+                    "source-truth-pilot-1",
+                    "--corpus",
+                    "campus_notices",
+                    "--collection",
+                    "internal_notice",
+                    "--source-projections-path",
+                    "/tmp/internal-notice-source-projections.v1.json",
+                    "--visibility-scope",
+                    "campus",
+                    "--notice-id",
+                    "354605",
+                    "--notice-id",
+                    "353301",
+                    "--notice-id",
+                    "354605",
+                    "--max-concurrency",
+                    "1",
+                    "--notice-concurrency",
+                    "2",
+                    "--object-store-concurrency",
+                    "8",
+                    "--lease-seconds",
+                    "300",
+                ]
+            )
+
+        request = service.plan_source_truth_replay_run.call_args.kwargs["request"]
+        self.assertEqual(request.corpus, "campus_notices")
+        self.assertEqual(request.collection, "internal_notice")
+        self.assertEqual(
+            str(request.source_projections_path),
+            "/tmp/internal-notice-source-projections.v1.json",
+        )
+        self.assertEqual(request.default_visibility_scope, "campus")
+        self.assertEqual(request.notice_ids, ("353301", "354605"))
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["selected_notice_ids"], ["353301", "354605"])
+        self.assertEqual(payload["state"], "planned")
+
     def test_plan_worker_show_and_promote_cli_round_trip(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

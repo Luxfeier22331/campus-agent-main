@@ -214,8 +214,15 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         self.assertIn("official-web-release-gate-freshness-sensitive-no-answer", cases)
         freshness_case = cases["official-web-release-gate-freshness-sensitive-no-answer"]
         self.assertEqual(freshness_case.expected_status, "no_answer")
+        self.assertEqual(freshness_case.expected_semantic_outcome, "freshness_fail_close")
+        self.assertEqual(freshness_case.expected_scope_class, "in_scope")
         self.assertTrue(freshness_case.trace_expectation.fail_closed_expected)
         self.assertIn("freshness_fail_close", freshness_case.tags)
+
+        unsupported_case = cases["official-web-release-gate-unanchored-life-service-no-answer"]
+        self.assertEqual(unsupported_case.expected_status, "no_answer")
+        self.assertEqual(unsupported_case.expected_semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(unsupported_case.expected_scope_class, "in_scope")
 
     def test_official_web_release_gate_cases_lock_answer_quality_constraints(self) -> None:
         cases = {case.case_id: case for case in official_web_release_gate_cases()}
@@ -511,6 +518,13 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         )
         self.assertTrue(all(case.scope == OFFICIAL_WEB_FRESH_NEWS_SCOPE for case in cases))
         self.assertEqual(expected_doc_ids, official_web_future_fresh_news_doc_ids())
+        self.assertTrue(
+            all(
+                source.doc_id.split(":")[2] == "article_detail"
+                for case in cases
+                for source in case.expected_sources
+            )
+        )
 
     def test_build_official_web_live_profile_supports_fresh_news_scope(self) -> None:
         profile = build_official_web_live_profile(

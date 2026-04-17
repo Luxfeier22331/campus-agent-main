@@ -72,6 +72,7 @@ updated: 2026-04-03
 - `GET /api/chat/conversations`
 - `POST /api/chat/conversations`
 - `GET /api/chat/conversations/:conversationId`
+- `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
 
 ### Operator
@@ -319,6 +320,22 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 }
 ```
 
+### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
+
+删除指定 message 起始的 trailing message 段，用于 donor-style message edit。
+
+响应：
+
+- `204 No Content`
+
+规则：
+
+- `conversationId` 必须属于当前登录用户
+- `messageId` 必须属于该 conversation
+- 服务端删除范围是 `createdAt >= 目标 message.createdAt`
+- 这个接口只负责截断现有对话尾部，不负责写入编辑后的新 user message
+- 编辑后的新 user message 仍由后续 `POST /api/chat/requests` 在 canonical command path 中生成新 answer
+
 ### `POST /api/chat/requests`
 
 这是 public chat 的同步命令入口。
@@ -343,8 +360,9 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 
 字段规则：
 
-- `conversationId` 可选；如果提供，必须属于当前 user
-- 如果未提供 `conversationId`，`app-api` 必须在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
+- `conversationId` 可选；如果提供且已属于当前 user，则继续向该 conversation 追加消息
+- `conversationId` 可选；如果提供但当前 user 还没有这个 conversation，`app-api` 会在同一条 command path 内用这个 id 建立首轮 conversation
+- 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
 - `requestedCapability` 可选；当前 public chat 只接受 `knowledge`
 - `requestedScope` 可选；未提供时 `app-api` 不得伪造默认 serving surface，最终 scope 由 downstream specialist 解析，并在 finalized projection / observability 中回填 `resolvedScope`

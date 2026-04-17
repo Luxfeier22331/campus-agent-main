@@ -95,7 +95,10 @@ class CloseoutRun:
     manifest_path: str | None
     expected_notice_count: int
     operations_prefix: str
+    selected_notice_ids: tuple[str, ...] = ()
     input_kind: str = DEFAULT_CLOSEOUT_INPUT_KIND
+    notice_risk_counts: dict[str, int] = field(default_factory=dict)
+    high_risk_notice_count: int = 0
     expected_document_count: int = 0
     expected_attachment_document_count: int = 0
     expected_ocr_candidate_count: int = 0
@@ -267,9 +270,13 @@ class CloseoutRun:
         raw["state"] = CloseoutRunState(
             str(raw.get("state") or CloseoutRunState.PLANNING.value)
         )
+        raw["selected_notice_ids"] = tuple(
+            str(item) for item in raw.get("selected_notice_ids") or ()
+        )
         raw["default_entitlement_groups"] = tuple(
             str(item) for item in raw.get("default_entitlement_groups") or ()
         )
+        raw["notice_risk_counts"] = dict(raw.get("notice_risk_counts") or {})
         raw["verification"] = dict(raw.get("verification") or {})
         raw["promotion"] = dict(raw.get("promotion") or {})
         return cls(**raw)

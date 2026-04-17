@@ -1,11 +1,21 @@
 ---
 doc_type: plan
-status: active
+status: historical
 created: 2026-04-03
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Local Live Eval Canonical Registry Recovery
+
+## 当前状态
+
+本文状态固定为 `historical`。
+
+原因：
+
+- 它记录的是一次 repo-local canonical registry recovery / closeout 过程
+- 当前 live eval 的可消费真相应优先看 runbooks、reference 与 `.planning/` 中的最新状态
+- 本文保留 incident diagnosis、修复路径与 closeout 证据，不再作为默认前向执行入口
 
 ## 文档边界
 
@@ -22,12 +32,51 @@ updated: 2026-04-05
 
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
 - `docs/runbooks/index-release-runbook.md`
 - `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 - `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
+
+## 2026-04-10 补充收口
+
+本轮新增收口结论：
+
+- 新的 curriculum follow-up replay 失效根因已经确认不是 session slot 或 recent-goal 逻辑，而是 cloud Qdrant 当前 alias 下缺失 `curriculum/program_semester_facts`
+- `program_semester_facts` 的正确恢复入口不是回到 raw/source bucket 重做 `provider_response_replay`，而是从 canonical `curriculum_plan document-units` 重新物化 derived scope
+- repo 现已具备正式 operator 入口：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.materialize_curriculum_program_semester_facts
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus curriculum --collection program_semester_facts --no-publish-alias
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus curriculum --collection program_semester_facts --publish-alias
+```
+
+这轮真实证据：
+
+- canonical scope materialization：
+  - `source_document_count=69`
+  - `materialized_document_count=380`
+  - `raw_asset_id=asset:curriculum-plan-2022`
+  - `raw_version_id=sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67`
+  - `source_pdf=curriculum-plan-2022.pdf`
+- preview release：
+  - `release_id=r20260410_130216`
+  - `physical_collection_name=program_semester_facts__r20260410_130216`
+  - `point_count=392`
+  - `validation_status=passed`
+- publish release：
+  - `release_id=r20260410_131101`
+  - `physical_collection_name=program_semester_facts__r20260410_131101`
+  - `point_count=392`
+  - `validation_status=passed`
+  - `published_at=2026-04-10T13:12:30.926053+00:00`
+- current alias：
+  - `program_semester_facts -> program_semester_facts__r20260410_131101`
+- live specialist replay：
+  - `法学 / 历史学` 两组 program-fragment 与 semester-fragment follow-up 都已直接命中 `program_semester_facts`
+  - direct retrieval 与 `delegate_to_rag_agent(...)` 两层验证均返回 `semester-4` 目标 doc，law/history answer 已恢复
 
 ## 触发背景
 
@@ -254,8 +303,8 @@ updated: 2026-04-05
     - `ragas.answer_relevancy mean_average_score=0.7982046080163911`
     - `ragas.context_precision mean_average_score=0.7142857142571429`
     - `ragas.context_recall mean_average_score=0.7142857142857143`
-  - 当前最新结论是：
-    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/` 成为 current latest completed repo-local curriculum artifact
+  - 当时的最新结论是：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 在该时间点取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T0950Z/`，成为 then-current completed repo-local curriculum artifact
     - curriculum live accept 仍然 fail，但已经不再是“双 follow-up gap”；当前只剩 law follow-up answer completeness 单点缺口
     - 这次 rerun 没有出现 `Your worker restarted mid-request`，因此它是有效的产品质量结论，而不是新的 runtime incident
 - 在上述 `184401Z` artifact 基线之上，本 worktree 当前又完成了一轮 repo-head answer-path closeout：
@@ -290,16 +339,26 @@ updated: 2026-04-05
   - 这轮已经明确证明 law/history 两个 follow-up replay case 都在 live artifact 中通过：
     - `curriculum-release-gate-program-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
     - `curriculum-release-gate-strong-base-follow-up-session-replay` 在 `run-01`、`run-02`、`run-03` 全部 `passed=true`
-  - 因此当前 deterministic curriculum release gate 已关闭：
-    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/` 成为 current latest completed repo-local curriculum artifact
+  - 因此当时的 deterministic curriculum release gate 已关闭：
+    - `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 在该时间点取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T184401Z/`，成为 then-current completed repo-local curriculum artifact
     - law follow-up answer completeness 不再是 live gap
     - repair stage 仍被跳过，说明当前 rerun 没有 transient deterministic target 需要修补
-  - 当前 remaining issue 已收敛为 supplemental soft warn：
+  - 当时 remaining issue 已收敛为 supplemental soft warn：
     - `ragas.faithfulness mean_average_score=0.7946184029167221`
     - `ragas.answer_relevancy mean_average_score=0.7987128849797461`
     - `ragas.context_precision mean_average_score=0.7142857142571429`
     - `ragas.context_recall mean_average_score=0.7142857142857143`
     - 因此当前 verdict 不是 `fail`，而是 deterministic release gate pass + overall soft warn
+- 2026-04-13 Phase 1000 closeout 之后，curriculum 的 current artifact truth 已进一步更新为：
+  - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
+  - 该轮在新的 `program_semester_facts` publish release 与 trace split closeout 之后执行
+  - `run-01` / `run-02` / `run-03` 全部 `19/19 passed`
+  - `final-summary.json`:
+    - `deterministic_verdict=pass`
+    - `supplemental_verdict=pass`
+    - `final_overall_verdict=pass`
+    - `repair_run_dir=null`
+  - 因此 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/` 现已取代 `.tmp/evals/curriculum-plan-live-gate-accept-20260404T200443Z/` 成为 current latest completed repo-local curriculum artifact
 - handbook live accept 现已完整收口，并形成新的 clean pass baseline：
   - artifact: `.tmp/evals/student-handbook-formal-benchmark-accept-20260404T072912Z/`
   - `final-summary.json`:

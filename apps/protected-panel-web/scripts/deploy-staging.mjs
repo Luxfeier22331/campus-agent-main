@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
+import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
 const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
-
 function fail(message) {
   console.error(message);
   process.exit(1);
@@ -53,6 +54,7 @@ function normalizeAccessPolicyAud(value) {
 
 const accessTeamDomain = normalizeAccessTeamDomain(process.env.STAGING_ACCESS_TEAM_DOMAIN);
 const accessPolicyAud = normalizeAccessPolicyAud(process.env.STAGING_ACCESS_POLICY_AUD);
+const sentryRelease = resolveStagingSentryRelease("protected-panel-web");
 
 const result = spawnSync(
   "wrangler",
@@ -64,9 +66,11 @@ const result = spawnSync(
     `ACCESS_TEAM_DOMAIN:${accessTeamDomain}`,
     "--var",
     `ACCESS_POLICY_AUD:${accessPolicyAud}`,
+    "--var",
+    `SENTRY_RELEASE:${sentryRelease}`,
   ],
   {
-    env: process.env,
+    env: buildWranglerCommandEnv(process.env),
     stdio: "inherit",
   },
 );

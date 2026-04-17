@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildChatConversationService,
   DRAFT_CONVERSATION_TITLE,
+  type ChatConversationService,
   type ChatConversationStore,
 } from "../src/modules/chat";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -53,10 +54,14 @@ function createPrincipal(
 function createStore(): ChatConversationStore {
   return {
     createConversationDraft: vi.fn(),
+    deleteConversationByOwner: vi.fn(),
+    deleteConversationsByOwner: vi.fn(),
+    deleteTrailingMessagesFromMessageByOwner: vi.fn(),
     getConversationByOwner: vi.fn(),
     getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesPageByOwner: vi.fn(),
     listConversationSummariesByOwner: vi.fn(),
-  };
+  } as ChatConversationStore;
 }
 
 describe("chat conversation service", () => {
@@ -177,6 +182,48 @@ describe("chat conversation service", () => {
       }),
     ).rejects.toMatchObject({
       code: "conversation_not_found",
+      status: 404,
+    });
+  });
+
+  it("deletes trailing messages from the selected owned message and hides missing message targets behind 404", async () => {
+    const store = createStore() as ChatConversationStore & {
+      deleteTrailingMessagesFromMessageByOwner: ReturnType<typeof vi.fn>;
+    };
+    store.deleteTrailingMessagesFromMessageByOwner = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const service = buildChatConversationService({ store }) as ChatConversationService & {
+      deleteTrailingMessages: (input: {
+        conversationId: string;
+        messageId: string;
+        principal: ResolvedAppPrincipal;
+      }) => Promise<{ deleted: true }>;
+    };
+
+    await expect(
+      service.deleteTrailingMessages({
+        conversationId: "conv_01HQ",
+        messageId: "msg_01HQ",
+        principal: createPrincipal(),
+      }),
+    ).resolves.toEqual({ deleted: true });
+    expect(store.deleteTrailingMessagesFromMessageByOwner).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      messageId: "msg_01HQ",
+      ownerUserId: "user_01HQ",
+      updatedAt: expect.any(String),
+    });
+
+    await expect(
+      service.deleteTrailingMessages({
+        conversationId: "conv_01HQ",
+        messageId: "msg_missing",
+        principal: createPrincipal(),
+      }),
+    ).rejects.toMatchObject({
+      code: "message_not_found",
       status: 404,
     });
   });

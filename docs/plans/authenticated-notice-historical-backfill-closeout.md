@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: historical
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Historical Backfill Closeout
@@ -22,6 +22,20 @@ updated: 2026-04-04
 
 - Phase 12.2 之后，canonical 前向 closeout 方案已经切到 async staged pipeline
 - 本文保留给 legacy cumulative-prefix closeout 证据与对照，不再作为默认执行路径
+- 当前 repo 已经记录真实 historical closeout `authenticated-notice-replay-20260406-024405`，并且后续 local-Postgres current-scope 链路也已闭合到 unpublished release `r20260411_090101`
+- 因此本文不再代表一个待执行的 active replay 任务；它只保留 legacy runner 的历史语义、证据口径和对照价值
+
+## 当前状态
+
+本文状态固定为 `historical`。
+
+当前前向执行以：
+
+- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/` 中对应的 active phase artefacts
+
+为准。
 
 ## 目标
 

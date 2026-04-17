@@ -1,6 +1,12 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
+import {
+  getAllGatewayModels,
+  getCapabilities,
+  isDemo,
+} from "../vendor/vercel-ai-chatbot/lib/ai/models";
+
 export interface Env {
   APP_API?: {
     fetch(request: Request): Promise<Response> | Response;
@@ -30,6 +36,7 @@ const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 
+const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
 function scrubSensitiveRecord(value: unknown): void {
@@ -141,8 +148,19 @@ const worker = {
       });
     }
 
+    if (request.method === "GET" && url.pathname === "/api/models") {
+      return serveModelsCatalog();
+    }
+
     if (url.pathname.startsWith("/api/")) {
       return proxyToAppApi(request, env);
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      url.pathname.startsWith(LEGACY_CHAT_PREVIEW_PATH_PREFIX)
+    ) {
+      return redirectToCanonicalChatRoute(url);
     }
 
     if ((request.method === "GET" || request.method === "HEAD") && !url.pathname.startsWith("/api/")) {
@@ -176,6 +194,13 @@ function appApiUpstreamUnavailableResponse(): Response {
       details: null,
     },
   });
+}
+
+function redirectToCanonicalChatRoute(url: URL): Response {
+  const redirectUrl = new URL(url.toString());
+  redirectUrl.pathname = "/chat";
+
+  return Response.redirect(redirectUrl.toString(), 302);
 }
 
 function getMissingRuntimeConfig(env: Env): string[] {
@@ -251,6 +276,25 @@ function getForwardedHeaders(pathname: string) {
 
 function shouldForwardBody(method: string): boolean {
   return method !== "GET" && method !== "HEAD";
+}
+
+async function serveModelsCatalog(): Promise<Response> {
+  const headers = {
+    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+  };
+
+  const curatedCapabilities = await getCapabilities();
+
+  if (isDemo) {
+    const models = await getAllGatewayModels();
+    const capabilities = Object.fromEntries(
+      models.map((model) => [model.id, curatedCapabilities[model.id] ?? model.capabilities]),
+    );
+
+    return Response.json({ capabilities, models }, { headers });
+  }
+
+  return Response.json(curatedCapabilities, { headers });
 }
 
 async function servePublicShell(request: Request, env: Env): Promise<Response> {

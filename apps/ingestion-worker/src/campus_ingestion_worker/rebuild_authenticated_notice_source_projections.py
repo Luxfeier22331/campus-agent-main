@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--source-projections-path")
     parser.add_argument("--default-visibility-scope")
+    parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     return parser
 
 
@@ -31,6 +32,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         collection=args.collection,
         source_projections_path=(Path(args.source_projections_path) if args.source_projections_path else None),
         default_visibility_scope=args.default_visibility_scope,
+        notice_ids=tuple(args.notice_ids),
     )
     result = rebuild_authenticated_notice_source_projections(request=request)
     payload = asdict(result) if is_dataclass(result) else _normalize_payload(result)

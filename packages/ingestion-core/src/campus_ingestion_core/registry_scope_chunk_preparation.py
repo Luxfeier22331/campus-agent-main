@@ -5,8 +5,15 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from typing import Any, Protocol, Sequence
+from typing import Any, Literal, Protocol, Sequence
 
+from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
+    load_verified_closeout_run_document_record_pairs,
+)
+from campus_ingestion_core.authenticated_notice_closeout_store import (
+    CloseoutStore,
+    build_authenticated_notice_closeout_store_from_env,
+)
 from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -56,6 +63,8 @@ class RegistryScopeChunkPreparationManifest:
     preparation_run_id: str
     corpus: str
     collection: str
+    selection_mode: Literal["current_scope", "verified_closeout_run"]
+    closeout_run_id: str | None
     cleaning_policy_version: str
     chunk_policy_version: str
     prepared_at: str
@@ -82,6 +91,8 @@ class RegistryScopeChunkPreparationReport:
     corpus: str
     collection: str
     preparation_run_id: str
+    selection_mode: str
+    closeout_run_id: str | None
     manifest_object_key: str
     validation_summary_object_key: str | None
     document_report_object_key: str | None
@@ -101,9 +112,11 @@ def prepare_registry_scope_chunks(
     corpus: str,
     collection: str,
     preparation_run_id: str | None = None,
+    closeout_run_id: str | None = None,
     env: dict[str, str] | None = None,
     registry: DocumentRegistry | None = None,
     object_store: RegistryScopePreparationObjectStore | None = None,
+    closeout_store: CloseoutStore | None = None,
 ) -> RegistryScopeChunkPreparationReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -114,10 +127,14 @@ def prepare_registry_scope_chunks(
         runtime_object_store: RegistryScopePreparationObjectStore = S3ObjectStoreAdmin(object_store_settings)
     else:
         runtime_object_store = object_store
-    runtime_registry = registry or build_document_registry_from_env(source)
-    records = select_releasable_registry_records(
-        records=runtime_registry.list_by_scope(corpus, collection),
+    records, manifest_records, selection_mode, resolved_closeout_run_id = _select_preparation_records(
+        source=source,
+        corpus=corpus,
+        collection=collection,
         runtime_profile=runtime_profile,
+        runtime_registry=registry,
+        closeout_run_id=closeout_run_id,
+        closeout_store=closeout_store,
     )
     if not records:
         raise ValueError(f"no releasable registry records found for {corpus}/{collection}")
@@ -154,7 +171,9 @@ def prepare_registry_scope_chunks(
         preparation_run_id=preparation_run_id or default_preparation_run_id(),
         corpus=corpus,
         collection=collection,
-        records=records,
+        selection_mode=selection_mode,
+        closeout_run_id=resolved_closeout_run_id,
+        records=manifest_records,
         chunks=tuple(chunks),
         validation=validation,
         prepared_at=prepared_at,
@@ -179,6 +198,8 @@ def build_chunk_preparation_manifest(
     preparation_run_id: str,
     corpus: str,
     collection: str,
+    selection_mode: Literal["current_scope", "verified_closeout_run"],
+    closeout_run_id: str | None,
     records: Sequence[DocumentRegistryRecord],
     chunks: Sequence[IndexableChunk],
     validation: IndexReleaseValidationResult,
@@ -199,6 +220,8 @@ def build_chunk_preparation_manifest(
         preparation_run_id=preparation_run_id,
         corpus=corpus,
         collection=collection,
+        selection_mode=selection_mode,
+        closeout_run_id=closeout_run_id,
         cleaning_policy_version=str(chunks[0].metadata.get("cleaning_policy_version") or ""),
         chunk_policy_version=str(chunks[0].metadata.get("chunk_policy_version") or ""),
         prepared_at=prepared_at,
@@ -259,6 +282,8 @@ def write_chunk_preparation_artifacts(
         preparation_run_id=manifest.preparation_run_id,
         corpus=manifest.corpus,
         collection=manifest.collection,
+        selection_mode=manifest.selection_mode,
+        closeout_run_id=manifest.closeout_run_id,
         cleaning_policy_version=manifest.cleaning_policy_version,
         chunk_policy_version=manifest.chunk_policy_version,
         prepared_at=manifest.prepared_at,
@@ -314,6 +339,12 @@ def load_chunk_preparation_manifest(
         preparation_run_id=str(payload.get("preparation_run_id") or ""),
         corpus=str(payload.get("corpus") or ""),
         collection=str(payload.get("collection") or ""),
+        selection_mode=str(payload.get("selection_mode") or "current_scope"),
+        closeout_run_id=(
+            str(payload.get("closeout_run_id"))
+            if payload.get("closeout_run_id") is not None
+            else None
+        ),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
         chunk_policy_version=str(payload.get("chunk_policy_version") or ""),
         prepared_at=str(payload.get("prepared_at") or ""),
@@ -346,6 +377,54 @@ def load_chunk_preparation_manifest(
             for item in list(payload.get("documents") or [])
         ),
     )
+
+
+def _select_preparation_records(
+    *,
+    source: dict[str, str],
+    corpus: str,
+    collection: str,
+    runtime_profile,
+    runtime_registry: DocumentRegistry | None,
+    closeout_run_id: str | None,
+    closeout_store: CloseoutStore | None,
+) -> tuple[
+    tuple[DocumentRegistryRecord, ...],
+    tuple[DocumentRegistryRecord, ...],
+    Literal["current_scope", "verified_closeout_run"],
+    str | None,
+]:
+    if closeout_run_id:
+        runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
+            source,
+            prefer_management=True,
+        )
+        pairs = load_verified_closeout_run_document_record_pairs(
+            run_id=closeout_run_id,
+            closeout_store=runtime_closeout_store,
+            expected_corpus=corpus,
+            expected_collection=collection,
+        )
+        selected_processing_records = select_releasable_registry_records(
+            records=tuple(pair.staged_record for pair in pairs),
+            runtime_profile=runtime_profile,
+        )
+        pair_by_key = {_record_key(pair.staged_record): pair for pair in pairs}
+        selected_pairs = tuple(pair_by_key[_record_key(record)] for record in selected_processing_records)
+        return (
+            tuple(pair.staged_record for pair in selected_pairs),
+            tuple(pair.final_record for pair in selected_pairs),
+            "verified_closeout_run",
+            closeout_run_id,
+        )
+    records = select_releasable_registry_records(
+        records=(
+            runtime_registry
+            or build_document_registry_from_env(source, prefer_management=True)
+        ).list_by_scope(corpus, collection),
+        runtime_profile=runtime_profile,
+    )
+    return records, records, "current_scope", None
 
 
 def require_verified_chunk_preparation(
@@ -487,6 +566,8 @@ def _build_chunk_preparation_report(
         corpus=manifest.corpus,
         collection=manifest.collection,
         preparation_run_id=manifest.preparation_run_id,
+        selection_mode=manifest.selection_mode,
+        closeout_run_id=manifest.closeout_run_id,
         manifest_object_key=artifacts.manifest_object_key,
         validation_summary_object_key=artifacts.validation_summary_object_key,
         document_report_object_key=artifacts.document_report_object_key,
@@ -511,6 +592,10 @@ def _build_preparation_artifact_key(
         filename=filename,
         segments=(collection,),
     )
+
+
+def _record_key(record: DocumentRegistryRecord) -> tuple[str, str, str]:
+    return (record.document_id, record.revision_track, record.version_id)
 
 
 def _hash_values(values: Sequence[str] | Any) -> str:

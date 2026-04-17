@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-05
+updated: 2026-04-10
 ---
 
 # Runtime Serving And Index Terms
@@ -40,6 +40,22 @@ updated: 2026-04-05
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
 - `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`
 - 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的 `regulations/*`、`curriculum/*`
+
+### Source-Triage Collection / Semantic-Owner Collection
+
+定义：
+
+- `source-triage collection`
+  - 主要承接某个 source channel 的 replay、wrapper document、attachment outcome、manual-review truth 与 provenance
+- `semantic-owner collection`
+  - 只承接某个知识域下可独立消费的 canonical 文档正文
+
+说明：
+
+- 这两个角色可以都存在于同一个 data plane，但它们不是同一层
+- `campus_notices/internal_notice` 属于 source-triage collection
+- `regulations/*`、`curriculum/*` 属于 semantic-owner collection
+- 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为 regulation member
 
 ### Query-Enabled Scope
 
@@ -123,16 +139,46 @@ updated: 2026-04-05
 - retention 采用 role-based policy，而不是 time-only deletion
 - 删除门禁以 ADR-0019 和 operator runbook 为准
 
+### Chunk Preparation
+
+定义：
+
+- 某个 collection 在 document truth 之后、index release 之前执行的一次 `split -> cleanup -> chunk -> validation` 离线准备动作
+
+说明：
+
+- `chunk preparation` 不产生 embedding，不写 Qdrant，不发布 serving alias
+- `chunk preparation` 产生的是 preparation truth，不是 release truth
+- 某些 `offline_preparation` collection 可以把 verified chunk preparation 作为 release gate
+
+### Chunk Preparation Manifest
+
+定义：
+
+- 一次 chunk preparation 的小型追溯产物
+
+对象存储位置：
+
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/chunk-preparation.json`
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/validation-summary.json`
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/document-reports.jsonl`
+
+说明：
+
+- manifest 用于把 preparation 结果和 current registry scope 对齐
+- manifest 是 release gate 的输入，不是最终在线索引的替代物
+
 ### Index Release
 
 定义：
 
-- 一次完整的 `chunking -> embedding -> indexing -> alias publish` 发布动作
+- 一次完整的 `embedding -> indexing -> alias publish` 发布动作；对 preparation-gated scope，它发生在 verified chunk preparation 之后
 
 说明：
 
 - 一个 index release 对应一个 `release_id`
 - 一个 release 会生成新的 physical collection，并在校验通过后发布 serving alias
+- `index release` 可以依赖既有 chunk truth，但不应隐式承担 collection-specific chunk preparation 的 operator 语义
 
 ### Release Manifest
 
@@ -194,15 +240,19 @@ updated: 2026-04-05
 
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
 - source channel、corpus、collection、serving surface 是不同层；命名相近不表示必须一一对应
+- source-triage collection 与 semantic-owner collection 也是不同层；不得把 wrapper notice collection 冒充成 regulation corpus
 - physical collection 由 index release 生成，不由 env 或手写固定 collection 名直接指定
 - 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是 `offline_preparation`，都应使用稳定 alias + versioned physical collection
+- preparation-gated scope 必须先拿到 verified chunk preparation，再进入 index release
 - 旧 physical collection 默认先进入 `current / previous / migration_baseline / archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除
 - 对象存储保留 source/document artifact、release manifest，以及 `Free` tier 过渡期的 snapshot backup bundle
+- chunk preparation artifacts 落在 operations prefix，不落在 release prefix
 - Qdrant 承载 chunk 文本、向量与检索 payload
 
 ## 易错点
 
 - 不要把 serving alias 和 physical collection 混为一谈
+- 不要把 chunk preparation manifest 误读成 index release manifest
 - 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant Cloud”
 - 不要把 release manifest 当成 chunk store
 - 不要把 snapshot backup bundle 误读成新的在线 query store

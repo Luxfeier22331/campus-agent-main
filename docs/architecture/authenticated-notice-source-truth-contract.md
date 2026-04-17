@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-04
+updated: 2026-04-15
 ---
 
 # Authenticated Notice Source-Truth Contract
@@ -10,6 +10,12 @@ updated: 2026-04-04
 ## 文档边界
 
 本文冻结 `authenticated_notice_portal` source channel 的 canonical source-truth contract。
+
+当前作用域只覆盖 `notice` surface，不覆盖同一 portal 下的 `file_release` surface。`file_release` 当前仍停留在 collector-owned typed export / source capture 阶段，不能反向改写本文的 notice source-truth contract。
+
+`file_release` 当前 export contract 另见：
+
+- `docs/reference/authenticated-notice-file-release-export-contract.md`
 
 它回答的是：
 
@@ -28,7 +34,10 @@ updated: 2026-04-04
 对应文档：
 
 - source-channel 运行边界：`docs/architecture/authenticated-notice-source-architecture.md`
+- `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
+- `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- restricted document center artifact contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - restricted rollout：`docs/architecture/identity-and-authorization-architecture.md`
 
 ## 目标
@@ -269,6 +278,27 @@ notice source asset 的 identity 固定为“稳定 notice 资源”，而不是
 - 不能引入 document/chunk 或 serving 语义
 - 必须在 collection-specific README 或 strategy doc 中显式记录
 
+当前 `internal_notice -> regulations/institutional_regulations` promotion 边界固定补充以下 source-level extension fields，用于在 attachment relation 缺失时保留“semantic owner 应存在”的上游证据：
+
+- `owner_expectation_count`
+- `owner_expectations`
+
+`owner_expectations[*]` 第一版字段固定为：
+
+- `owner_expectation_id`
+- `owner_kind`
+- `relation_type`
+- `evidence_reason`
+- `owner_title_hint`
+- `evidence_text`
+
+约束：
+
+- 它们只表达“notice 正文明确声明存在 attachment/file-release owner，但当前 source-truth relation 尚未恢复出来”
+- 它们不替代真实的 `attachment-refs.jsonl`
+- 不得伪造 `object_key`、`content_sha256`、`byte_size` 等 attachment identity 字段
+- 下游只能把它们用于 fail-close、manual review 和 owner recovery，不得把它们当作真实 attachment document 已存在
+
 ## 明确禁止的字段
 
 以下字段不属于 notice source-truth contract：
@@ -315,6 +345,8 @@ notice source-truth 不等于逻辑 document 真相。
 - 不在本文定义 restricted entitlement policy
 - 不在本文定义 collection-specific chunking 或 index release 策略
 
+如需定义 `campus_notices/internal_notice` 的 parent notice / attachment lane split、cleanup、chunk-preparation 与 release gate，固定查看 `docs/reference/internal-notice-offline-preparation-strategy.md`。
+
 ## Async Staged Closeout Integration
 
 Phase 12.2 的 async staged closeout 保持 source-truth 与 document truth 的清晰隔离：所有历史 notice artifacts 依然从 `source-truth/*` 重建，per-run 状态则落在 `campus_notices/operations/authenticated-notice-closeout/{run_id}/` 和 `ingestion_closeout.closeout_*` staging 表。后续 batch-leased throughput executor 进一步把 progress truth 明确拆到 `closeout_batches` / `closeout_workers`，但 source-truth 与 final document truth 的 ownership 不变。只有单个 promoter 读取 `closeout_document_stage`、`closeout_notice_stage` 等表、验证 staged digests、才会把 artifact 引用复制到 `campus_notices/documents/internal_notice/...` 并执行 `replace_scope`。这样在保证 source-truth 不含 document/chunk/serving 字段的前提下，仍能按阶段化 pipeline 对历史导出做 deterministic promotion，详见 `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md` 与 `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
@@ -323,5 +355,7 @@ Phase 12.2 的 async staged closeout 保持 source-truth 与 document truth 的�
 
 - source channel 运行边界：`docs/architecture/authenticated-notice-source-architecture.md`
 - shared source-truth principles：`docs/architecture/data-plane-architecture.md`
+- `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
+- restricted document center artifact contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - restricted authorization：`docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`

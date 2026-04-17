@@ -1,0 +1,24 @@
+{
+  "notice_id": 191705,
+  "notice_title": "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+  "organization_name": "校医院（疾病防控办公室）",
+  "organization_id": "00059",
+  "notice_release_time": "2021-09-10 16:32",
+  "notice_create_time": "2021-09-10 15:32",
+  "notice_first_time": "2021-09-10 15:32",
+  "notice_link": null,
+  "notice_source": 0,
+  "notice_link_state": 0,
+  "notice_state": 1,
+  "notice_stick": 0,
+  "categories": [
+    {
+      "notice_id": 191705,
+      "notice_type": "5",
+      "notice_type_name": "办公通知",
+      "category_first_seen_at": "2026-04-02T23:52:02.321Z",
+      "category_last_seen_at": "2026-04-02T23:52:02.321Z",
+      "category_last_run_id": 14
+    }
+  ]
+}

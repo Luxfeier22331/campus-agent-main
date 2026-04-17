@@ -12,6 +12,7 @@ from campus_evals.runtime_observability import (
     bind_runtime_event_sink,
     emit_runtime_event,
     load_runtime_events,
+    summarize_phase15_request_truth,
     summarize_provider_events,
 )
 
@@ -64,6 +65,19 @@ class RuntimeObservabilityTest(unittest.TestCase):
                     preflight=False,
                     failure_reasons=["http_5xx", "timeout"],
                     failure_disposition="transient_retryable",
+                    prompt_runtime_state="provider_incomplete",
+                    prompt_runtime_detail="max_output_tokens",
+                )
+                emit_runtime_event(
+                    "supplemental_request_failed",
+                    provider_origin="https://provider.example",
+                    endpoint="/responses",
+                    model="gpt-5.4",
+                    preflight=False,
+                    failure_reasons=["content_filter"],
+                    failure_disposition="non_retryable_request",
+                    prompt_runtime_state="content_filter",
+                    prompt_runtime_detail="content_filter",
                 )
                 emit_runtime_event(
                     "supplemental_breaker_fast_failed",
@@ -76,15 +90,24 @@ class RuntimeObservabilityTest(unittest.TestCase):
 
         self.assertEqual(summary["provider_count"], 1)
         provider = summary["providers"][0]
-        self.assertEqual(provider["request_count"], 2)
+        self.assertEqual(provider["request_count"], 3)
         self.assertEqual(provider["success_count"], 1)
-        self.assertEqual(provider["failure_count"], 1)
+        self.assertEqual(provider["failure_count"], 2)
         self.assertEqual(provider["preflight_request_count"], 1)
         self.assertEqual(provider["preflight_success_count"], 1)
         self.assertEqual(provider["http_5xx_count"], 1)
         self.assertEqual(provider["timeout_count"], 1)
+        self.assertEqual(provider["content_filter_count"], 1)
+        self.assertEqual(provider["prompt_runtime_state_counts"], {"content_filter": 1, "provider_incomplete": 1})
+        self.assertEqual(
+            provider["prompt_runtime_detail_counts"],
+            {"content_filter": 1, "max_output_tokens": 1},
+        )
         self.assertEqual(provider["circuit_open_count"], 1)
-        self.assertEqual(provider["failure_disposition_counts"], {"transient_retryable": 1})
+        self.assertEqual(
+            provider["failure_disposition_counts"],
+            {"non_retryable_request": 1, "transient_retryable": 1},
+        )
 
     def test_runtime_event_writer_verbose_mode_prints_retry_and_recovery_messages(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -147,6 +170,64 @@ class RuntimeObservabilityTest(unittest.TestCase):
         self.assertIn("checkpoint", output)
         self.assertIn("stage=nli_verdicts", output)
         self.assertIn("batch=2", output)
+
+    def test_summarize_phase15_request_truth_aggregates_adequacy_and_claim_support_summary(self) -> None:
+        summary = summarize_phase15_request_truth(
+            (
+                {
+                    "retrieval_adequacy_verdict": "ambiguous",
+                    "retrieval_adequacy_reason": "policy_object_missing",
+                    "grounding_verdict": "",
+                    "claim_support_summary": None,
+                },
+                {
+                    "retrieval_adequacy_verdict": "sufficient",
+                    "retrieval_adequacy_reason": "sufficient",
+                    "grounding_verdict": "unsupported",
+                    "claim_support_summary": {
+                        "total_claims": 3,
+                        "supported_claims": 1,
+                        "unsupported_claims": 2,
+                        "unsupported_claim_types": [
+                            "audience_or_major_or_program_or_class_family",
+                            "offering_unit_or_owning_school",
+                        ],
+                        "unsupported_fields": [
+                            "audience_claims",
+                            "offering_unit_claims",
+                        ],
+                    },
+                },
+                {
+                    "retrieval_adequacy_verdict": "sufficient",
+                    "retrieval_adequacy_reason": "sufficient",
+                    "grounding_verdict": "grounded",
+                    "claim_support_summary": {
+                        "total_claims": 2,
+                        "supported_claims": 2,
+                        "unsupported_claims": 0,
+                        "unsupported_claim_types": [],
+                        "unsupported_fields": [],
+                    },
+                },
+            )
+        )
+
+        self.assertEqual(summary["request_count"], 3)
+        self.assertEqual(summary["retrieval_adequacy_verdict_counts"], {"ambiguous": 1, "sufficient": 2})
+        self.assertEqual(summary["retrieval_adequacy_reason_counts"], {"policy_object_missing": 1, "sufficient": 2})
+        self.assertEqual(summary["grounding_verdict_counts"], {"grounded": 1, "unsupported": 1})
+        self.assertEqual(
+            summary["unsupported_claim_type_counts"],
+            {
+                "audience_or_major_or_program_or_class_family": 1,
+                "offering_unit_or_owning_school": 1,
+            },
+        )
+        self.assertEqual(
+            summary["unsupported_field_counts"],
+            {"audience_claims": 1, "offering_unit_claims": 1},
+        )
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import re
 from typing import Callable
 
 from campus_contracts import (
+    ClaimSupport,
     CurriculumFollowUpSlots,
     ErrorInfo,
     EvidenceBundle,
@@ -18,8 +19,12 @@ from campus_contracts import (
 )
 from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 from campus_retrieval_core import CorpusQueryDisabledError, RetrievalBackendError, retrieve_sources
 from campus_retrieval_core import RestrictedDocumentAccessDeniedError
+from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
 from campus_retrieval_core.curriculum_query_resolution import (
     interpret_curriculum_query,
     matching_curriculum_doc_ids,
@@ -28,18 +33,26 @@ from campus_retrieval_core.evidence_ranking import query_targets_source_title, s
 
 from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
+from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
-from campus_rag_specialist.prompt_execution import RagPromptExecutor
+from campus_rag_specialist.prompt_execution import RagPromptExecutor, wrap_rag_prompt_executor
 from campus_rag_specialist.prompt_packets import (
     build_rag_answer_prompt_packet,
     build_rag_clarify_prompt_packet,
     build_rag_no_answer_prompt_packet,
+)
+from campus_rag_specialist.retrieval_adequacy import (
+    RetrievalAdequacyAssessment,
+    ambiguous_retrieval_adequacy,
+    insufficient_retrieval_adequacy,
+    sufficient_retrieval_adequacy,
 )
 from campus_rag_specialist.query_planning import (
     CurriculumCourseQueryPlan,
     CurriculumProgramFamilyQueryPlan,
     CurriculumQueryPlan,
     HandbookQueryPlan,
+    course_family_member_ids,
     course_family_member_titles,
     plan_curriculum_course_query,
     plan_curriculum_program_family_query,
@@ -67,6 +80,17 @@ _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS = (
     "这周",
     "本月",
 )
+_HANDBOOK_TIME_QUERY_TERMS = (
+    "时间",
+    "几点",
+    "多久",
+    "哪天",
+    "什么时候",
+    "hours",
+    "照明",
+    "熄灯",
+    "亮灯",
+)
 _WHITESPACE_RE = re.compile(r"\s+")
 _QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
 _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
@@ -74,7 +98,7 @@ _UNSUPPORTED_HANDBOOK_CLAUSE_CUE_GROUPS = (
     ("几分", "多少分", "加分", "得分", "分值", "第二作者的分", "拿分", "给分"),
 )
 _COURSE_FAMILY_SCHEDULE_TOP_K = 8
-_COURSE_USER_FACING_LEAD = "根据培养方案和课程教学计划"
+_CURRICULUM_LOOKUP_TOP_K = 4
 _CURRICULUM_SESSION_PROGRAM_FAMILIES = (
     "民族实验班",
     "强基计划",
@@ -130,6 +154,7 @@ def delegate_to_rag_agent(
         raise ValueError("delegate_to_rag_agent only accepts target='rag-specialist'")
     if not isinstance(request.payload, RagRequestPayload):
         raise TypeError("rag-specialist requires RagRequestPayload")
+    prompt_executor = wrap_rag_prompt_executor(prompt_executor)
 
     user_goal = request.user_goal.strip()
     intent_frame = frame_rag_intent(request)
@@ -161,7 +186,12 @@ def delegate_to_rag_agent(
         curriculum_program_family_plan=curriculum_program_family_plan,
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        follow_up_question, prompt_trace = _compose_clarification_response(
+        (
+            follow_up_question,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_clarification_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=empty_evidence,
@@ -187,13 +217,20 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
         )
     if handbook_plan is not None and handbook_plan.status == "needs_clarification":
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        follow_up_question, prompt_trace = _compose_clarification_response(
+        (
+            follow_up_question,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_clarification_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=empty_evidence,
@@ -220,6 +257,9 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
+                    retrieval_adequacy=ambiguous_retrieval_adequacy(handbook_plan.clarification_reason),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
@@ -229,7 +269,12 @@ def delegate_to_rag_agent(
         and curriculum_program_family_plan.resolution_mode == "needs_clarification"
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        follow_up_question, prompt_trace = _compose_clarification_response(
+        (
+            follow_up_question,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_clarification_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=empty_evidence,
@@ -257,6 +302,11 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
+                    retrieval_adequacy=ambiguous_retrieval_adequacy(
+                        curriculum_program_family_plan.clarification_reason
+                    ),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
@@ -267,7 +317,12 @@ def delegate_to_rag_agent(
         and curriculum_plan.status == "needs_clarification"
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        follow_up_question, prompt_trace = _compose_clarification_response(
+        (
+            follow_up_question,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_clarification_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=empty_evidence,
@@ -295,11 +350,53 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
+                    retrieval_adequacy=ambiguous_retrieval_adequacy(curriculum_plan.clarification_reason),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
+                ),
+                prompt_trace,
+            ),
+        )
+    if curriculum_plan is not None and curriculum_plan.status == "unsupported":
+        empty_evidence = _build_empty_evidence(effective_scope, user_goal)
+        (
+            answer_text,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_no_answer_response(
+            request=request,
+            resolved_scope=effective_scope,
+            evidence=empty_evidence,
+            no_answer_reason=curriculum_plan.unsupported_reason,
+            fallback_answer=_build_curriculum_unsupported_response(curriculum_plan),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return SpecialistResponse(
+            target="rag-specialist",
+            status="no_answer",
+            answer_text=answer_text,
+            confidence="low",
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=empty_evidence,
+                    resolved_scope=effective_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    no_answer_reason=curriculum_plan.unsupported_reason,
+                    semantic_outcome="unsupported_scope",
+                    retrieval_adequacy=insufficient_retrieval_adequacy("unsupported_query_type"),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
         )
 
+    evidence = _build_empty_evidence(effective_scope, user_goal)
     try:
         retrieval_goal = user_goal
         target_document_ids: tuple[str, ...] = ()
@@ -320,6 +417,9 @@ def delegate_to_rag_agent(
                 )
             elif curriculum_course_plan is not None:
                 retrieval_collection = curriculum_course_plan.internal_collection
+                target_document_ids = _resolve_curriculum_course_fact_target_document_ids(
+                    curriculum_course_plan
+                )
                 canonical_course_ids = (
                     (curriculum_course_plan.canonical_course_id,)
                     if curriculum_course_plan.canonical_course_id
@@ -338,6 +438,16 @@ def delegate_to_rag_agent(
                     and curriculum_course_plan.fact_intent == "schedule"
                 ):
                     retrieval_top_k = _COURSE_FAMILY_SCHEDULE_TOP_K
+            elif _should_use_curriculum_program_semester_facts(
+                curriculum_plan=curriculum_plan,
+                user_goal=effective_user_goal,
+            ):
+                retrieval_collection = "program_semester_facts"
+                retrieval_goal = curriculum_plan.rewritten_query_text
+                target_document_ids = _resolve_curriculum_program_semester_fact_target_document_ids(
+                    curriculum_plan=curriculum_plan,
+                    user_goal=effective_user_goal,
+                )
             elif curriculum_plan is not None and curriculum_plan.status in {"resolved", "soft_preference"}:
                 retrieval_goal = curriculum_plan.rewritten_query_text
                 target_document_ids = curriculum_plan.target_document_ids
@@ -373,6 +483,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -392,6 +503,7 @@ def delegate_to_rag_agent(
                 evidence=empty_evidence,
                 diagnostics=RagResultDiagnostics(
                     no_answer_reason="restricted_access_denied",
+                    semantic_outcome="restricted_access_denied",
                     resolved_scope_corpus=effective_scope.corpus,
                     resolved_scope_collection=effective_scope.collection,
                 ),
@@ -404,6 +516,7 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
@@ -412,11 +525,20 @@ def delegate_to_rag_agent(
             error=ErrorInfo(code="retrieval_failed", message=str(exc), retryable=False),
         )
     if not evidence.sources:
-        answer_text, prompt_trace = _compose_no_answer_response(
+        no_answer_reason, semantic_outcome, freshness_fail_closed = _resolve_no_answer_semantics(
+            evidence=evidence,
+            handbook_plan=handbook_plan,
+        )
+        (
+            answer_text,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_no_answer_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=evidence,
-            no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+            no_answer_reason=no_answer_reason,
             fallback_answer=_build_no_answer_response(
                 evidence,
                 resolved_policy_title=_resolved_policy_title(handbook_plan),
@@ -437,13 +559,23 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
-                    no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    no_answer_reason=no_answer_reason,
+                    semantic_outcome=semantic_outcome,
+                    retrieval_adequacy=_empty_evidence_retrieval_adequacy(no_answer_reason),
+                    freshness_fail_closed=freshness_fail_closed,
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
         )
     if _should_clarify_with_evidence(effective_user_goal, evidence):
-        follow_up_question, prompt_trace = _compose_clarification_response(
+        (
+            follow_up_question,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_clarification_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=evidence,
@@ -469,6 +601,11 @@ def delegate_to_rag_agent(
                     handbook_plan=handbook_plan,
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
+                    retrieval_adequacy=ambiguous_retrieval_adequacy(
+                        _retrieval_ambiguity_reason(effective_user_goal, evidence)
+                    ),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
@@ -476,10 +613,16 @@ def delegate_to_rag_agent(
 
     supporting_evidence = _build_supporting_evidence(
         evidence,
+        curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
     )
     if not supporting_evidence.sources:
-        answer_text, prompt_trace = _compose_no_answer_response(
+        (
+            answer_text,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_no_answer_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=supporting_evidence,
@@ -499,12 +642,17 @@ def delegate_to_rag_agent(
             result=_with_prompt_trace(
                 _build_rag_result_payload(
                     evidence=supporting_evidence,
+                    retrieved_evidence=evidence,
                     resolved_scope=effective_scope,
                     handbook_plan=handbook_plan,
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
                     no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    semantic_outcome="unsupported_by_evidence",
+                    retrieval_adequacy=insufficient_retrieval_adequacy("no_supporting_sources"),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
@@ -512,7 +660,12 @@ def delegate_to_rag_agent(
 
     confidence = derive_confidence(supporting_evidence)
     if confidence == "low":
-        answer_text, prompt_trace = _compose_no_answer_response(
+        (
+            answer_text,
+            prompt_trace,
+            prompt_runtime_state,
+            prompt_runtime_detail,
+        ) = _compose_no_answer_response(
             request=request,
             resolved_scope=effective_scope,
             evidence=supporting_evidence,
@@ -532,12 +685,17 @@ def delegate_to_rag_agent(
             result=_with_prompt_trace(
                 _build_rag_result_payload(
                     evidence=supporting_evidence,
+                    retrieved_evidence=evidence,
                     resolved_scope=effective_scope,
                     handbook_plan=handbook_plan,
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
                     no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                    semantic_outcome="unsupported_by_evidence",
+                    retrieval_adequacy=insufficient_retrieval_adequacy("weak_supporting_evidence"),
+                    prompt_runtime_state=prompt_runtime_state,
+                    prompt_runtime_detail=prompt_runtime_detail,
                 ),
                 prompt_trace,
             ),
@@ -557,15 +715,22 @@ def delegate_to_rag_agent(
             confidence="low",
             result=_build_rag_result_payload(
                 evidence=_build_empty_evidence(effective_scope, user_goal),
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 no_answer_reason=_resolved_policy_no_answer_reason(handbook_plan),
+                semantic_outcome="unsupported_by_evidence",
+                retrieval_adequacy=insufficient_retrieval_adequacy("resolved_policy_clause_not_found"),
             ),
         )
 
+    should_use_prompt_answer = False
+    prompt_trace = None
+    prompt_runtime_state = ""
+    prompt_runtime_detail = ""
     if curriculum_program_family_plan is not None:
         answer_text = _build_curriculum_program_family_answer(
             evidence=supporting_evidence,
@@ -588,18 +753,80 @@ def delegate_to_rag_agent(
             sources=answer_draft.supporting_sources,
         )
         answer_text = answer_draft.answer_text
-        prompt_trace = None
-        if prompt_executor is not None:
-            execution = prompt_executor.compose_answer(
-                build_rag_answer_prompt_packet(
-                    request,
-                    resolved_scope=effective_scope,
-                    evidence=finalized_evidence,
-                    intent_frame=intent_frame,
-                )
+        should_attempt_prompt_answer = (
+            prompt_executor is not None
+            and not _should_keep_deterministic_completed_answer(
+                resolved_scope=effective_scope,
+                intent_frame=intent_frame,
+                user_goal=user_goal,
             )
-            answer_text = execution.output.answer_text
-            prompt_trace = execution.prompt_trace
+        )
+        if should_attempt_prompt_answer:
+            try:
+                execution = prompt_executor.compose_answer(
+                    build_rag_answer_prompt_packet(
+                        request,
+                        resolved_scope=effective_scope,
+                        evidence=finalized_evidence,
+                        intent_frame=intent_frame,
+                    )
+                )
+            except PromptRuntimeValidationError as exc:
+                prompt_runtime_state, prompt_runtime_detail = classify_prompt_runtime_failure(exc)
+                execution = None
+            if execution is not None:
+                should_use_prompt_answer = True
+                answer_text = execution.output.answer_text
+                prompt_trace = execution.prompt_trace
+                grounding = validate_prompt_answer_grounding(
+                    answer_text=answer_text,
+                    evidence=finalized_evidence,
+                )
+                if grounding.verdict != "grounded":
+                    (
+                        downgraded_answer_text,
+                        downgraded_prompt_trace,
+                        downgraded_prompt_runtime_state,
+                        downgraded_prompt_runtime_detail,
+                    ) = _compose_no_answer_response(
+                        request=request,
+                        resolved_scope=effective_scope,
+                        evidence=finalized_evidence,
+                        no_answer_reason="insufficient_grounding",
+                        fallback_answer=_build_no_answer_response(
+                            finalized_evidence,
+                            resolved_policy_title=_resolved_policy_title(handbook_plan),
+                        ),
+                        prompt_executor=prompt_executor,
+                        intent_frame=intent_frame,
+                    )
+                    return SpecialistResponse(
+                        target="rag-specialist",
+                        status="no_answer",
+                        answer_text=downgraded_answer_text,
+                        confidence="low",
+                        result=_with_prompt_trace(
+                            _build_rag_result_payload(
+                                evidence=finalized_evidence,
+                                retrieved_evidence=evidence,
+                                resolved_scope=effective_scope,
+                                handbook_plan=handbook_plan,
+                                curriculum_plan=curriculum_plan,
+                                curriculum_course_plan=curriculum_course_plan,
+                                curriculum_program_family_plan=curriculum_program_family_plan,
+                                no_answer_reason="insufficient_grounding",
+                                semantic_outcome="unsupported_by_evidence",
+                                retrieval_adequacy=sufficient_retrieval_adequacy(),
+                                claim_supports=grounding.claim_supports,
+                                unsupported_fields=grounding.unsupported_fields,
+                                grounding_verdict=grounding.verdict,
+                                grounding_downgraded=True,
+                                prompt_runtime_state=downgraded_prompt_runtime_state,
+                                prompt_runtime_detail=downgraded_prompt_runtime_detail,
+                            ),
+                            downgraded_prompt_trace,
+                        ),
+                    )
     return SpecialistResponse(
         target="rag-specialist",
         status="completed",
@@ -608,14 +835,29 @@ def delegate_to_rag_agent(
         result=_with_prompt_trace(
             _build_rag_result_payload(
                 evidence=finalized_evidence,
+                retrieved_evidence=evidence,
                 resolved_scope=effective_scope,
                 handbook_plan=handbook_plan,
                 curriculum_plan=curriculum_plan,
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 allow_session_follow_up=True,
+                semantic_outcome="grounded_answer" if should_use_prompt_answer else "",
+                retrieval_adequacy=(
+                    sufficient_retrieval_adequacy() if should_use_prompt_answer else None
+                ),
+                claim_supports=grounding.claim_supports if should_use_prompt_answer else (),
+                grounding_verdict="grounded" if should_use_prompt_answer else "",
+                prompt_runtime_state=prompt_runtime_state,
+                prompt_runtime_detail=prompt_runtime_detail,
             ),
-            prompt_trace if curriculum_program_family_plan is None and curriculum_course_plan is None else None,
+            (
+                prompt_trace
+                if should_use_prompt_answer
+                and curriculum_program_family_plan is None
+                and curriculum_course_plan is None
+                else None
+            ),
         ),
     )
 
@@ -793,6 +1035,7 @@ def _build_empty_evidence(scope: KnowledgeScope, user_goal: str) -> EvidenceBund
 def _build_supporting_evidence(
     evidence: EvidenceBundle,
     *,
+    curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
 ) -> EvidenceBundle:
     max_sources = DEFAULT_MAX_ANSWER_SOURCES
@@ -802,6 +1045,8 @@ def _build_supporting_evidence(
         and curriculum_course_plan.fact_intent == "schedule"
     ):
         max_sources = _COURSE_FAMILY_SCHEDULE_TOP_K
+    elif curriculum_plan is not None and curriculum_plan.intent_kind == "curriculum_lookup":
+        max_sources = max(DEFAULT_MAX_ANSWER_SOURCES, _CURRICULUM_LOOKUP_TOP_K)
     return EvidenceBundle(
         query_text=evidence.query_text,
         corpus=evidence.corpus,
@@ -822,17 +1067,21 @@ def _compose_clarification_response(
     fallback_question: str,
     prompt_executor: RagPromptExecutor | None,
     intent_frame: RagIntentFrame,
-) -> tuple[str, object | None]:
+) -> tuple[str, object | None, str, str]:
     if prompt_executor is None:
-        return fallback_question, None
-    execution = prompt_executor.compose_clarify(
-        build_rag_clarify_prompt_packet(
-            request,
-            intent_frame=intent_frame,
-            resolved_scope=resolved_scope,
+        return fallback_question, None, "", ""
+    try:
+        execution = prompt_executor.compose_clarify(
+            build_rag_clarify_prompt_packet(
+                request,
+                intent_frame=intent_frame,
+                resolved_scope=resolved_scope,
+            )
         )
-    )
-    return execution.output.follow_up_question, execution.prompt_trace
+    except PromptRuntimeValidationError as exc:
+        prompt_runtime_state, prompt_runtime_detail = classify_prompt_runtime_failure(exc)
+        return fallback_question, None, prompt_runtime_state, prompt_runtime_detail
+    return execution.output.follow_up_question, execution.prompt_trace, "", ""
 
 
 def _compose_no_answer_response(
@@ -844,19 +1093,23 @@ def _compose_no_answer_response(
     fallback_answer: str,
     prompt_executor: RagPromptExecutor | None,
     intent_frame: RagIntentFrame,
-) -> tuple[str, object | None]:
+) -> tuple[str, object | None, str, str]:
     if prompt_executor is None:
-        return fallback_answer, None
-    execution = prompt_executor.compose_no_answer(
-        build_rag_no_answer_prompt_packet(
-            request,
-            resolved_scope=resolved_scope,
-            evidence=evidence,
-            no_answer_reason=no_answer_reason,
-            intent_frame=intent_frame,
+        return fallback_answer, None, "", ""
+    try:
+        execution = prompt_executor.compose_no_answer(
+            build_rag_no_answer_prompt_packet(
+                request,
+                resolved_scope=resolved_scope,
+                evidence=evidence,
+                no_answer_reason=no_answer_reason,
+                intent_frame=intent_frame,
+            )
         )
-    )
-    return execution.output.answer_text, execution.prompt_trace
+    except PromptRuntimeValidationError as exc:
+        prompt_runtime_state, prompt_runtime_detail = classify_prompt_runtime_failure(exc)
+        return fallback_answer, None, prompt_runtime_state, prompt_runtime_detail
+    return execution.output.answer_text, execution.prompt_trace, "", ""
 
 
 def _with_prompt_trace(
@@ -890,10 +1143,7 @@ def _build_no_answer_response(
     if evidence.corpus == "official_web":
         profile = load_runtime_profile(evidence.corpus, evidence.collection)
         if is_official_web_stable_reference_like_profile(profile):
-            if (
-                not profile.supports_freshness_sensitive_queries
-                and _is_official_web_freshness_sensitive_query(evidence.query_text)
-            ):
+            if _is_official_web_freshness_fail_close(evidence):
                 return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
             return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
     if resolved_policy_title:
@@ -902,6 +1152,23 @@ def _build_no_answer_response(
             "请确认是否有更具体的条款表述。"
         )
     return "当前未检索到足够依据支持回答这个学生手册问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。"
+
+
+def _build_curriculum_unsupported_response(plan: CurriculumQueryPlan) -> str:
+    if plan.unsupported_reason == "curriculum_course_map_unsupported":
+        if plan.resolved_document_title:
+            return (
+                f"当前还不能稳定解析《{plan.resolved_document_title}》里的课程地图/拓扑图，"
+                "因此不会根据课程地图推断课程先后关系、课程依赖或修读安排。"
+                "你可以改问课程设置、修读建议、某学期有什么课，或直接查看原培养方案中的课程地图页。"
+            )
+        return (
+            "当前还不能稳定解析培养方案里的课程地图/拓扑图，因此不会根据课程地图推断课程先后关系、"
+            "课程依赖或修读安排。你可以改问课程设置、修读建议、某学期有什么课，或直接查看原培养方案中的课程地图页。"
+        )
+    return _build_no_answer_response(
+        EvidenceBundle(query_text="", corpus="curriculum", collection="curriculum_plan")
+    )
 
 
 def _build_restricted_access_denied_response(
@@ -930,14 +1197,45 @@ def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundl
     )
 
 
+def _should_keep_deterministic_completed_answer(
+    *,
+    resolved_scope: KnowledgeScope,
+    intent_frame: RagIntentFrame,
+    user_goal: str,
+) -> bool:
+    if resolved_scope.corpus == "curriculum":
+        return True
+    if resolved_scope.corpus != "regulations" or resolved_scope.collection != "student_handbook":
+        return False
+    if intent_frame.question_kind in {"procedure", "materials", "deadline"}:
+        return True
+    normalized_goal = _normalize_text(user_goal).lower()
+    return any(term in normalized_goal for term in _HANDBOOK_TIME_QUERY_TERMS)
+
+
 def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:
     normalized_goal = _normalize_text(query_text).lower()
     return any(term in normalized_goal for term in _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS)
 
 
-def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
-    if len(evidence.sources) < 2:
+def _is_official_web_freshness_fail_close(evidence: EvidenceBundle) -> bool:
+    if evidence.corpus != "official_web":
         return False
+    profile = load_runtime_profile(evidence.corpus, evidence.collection)
+    return (
+        is_official_web_stable_reference_like_profile(profile)
+        and not profile.supports_freshness_sensitive_queries
+        and _is_official_web_freshness_sensitive_query(evidence.query_text)
+    )
+
+
+def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> bool:
+    return bool(_retrieval_ambiguity_reason(user_goal, evidence))
+
+
+def _retrieval_ambiguity_reason(user_goal: str, evidence: EvidenceBundle) -> str:
+    if len(evidence.sources) < 2:
+        return ""
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         interpretation = interpret_curriculum_query(user_goal)
         if interpretation.program_compact_key:
@@ -946,16 +1244,16 @@ def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> b
                 sources=evidence.sources,
             )
             if len(matching_doc_ids) > 1:
-                return True
+                return "multi_candidate_title"
             if len(matching_doc_ids) == 1:
-                return False
+                return ""
     title_targeting_sources = tuple(
         source for source in evidence.sources if query_targets_source_title(query_text=user_goal, source=source)
     )
     if _is_ambiguous_title_fragment_goal(user_goal, title_targeting_sources):
-        return True
+        return "multi_candidate_title"
     if title_targeting_sources:
-        return False
+        return ""
 
     first_source = evidence.sources[0]
     second_source = next(
@@ -963,18 +1261,20 @@ def _should_clarify_with_evidence(user_goal: str, evidence: EvidenceBundle) -> b
         None,
     )
     if second_source is None:
-        return False
+        return ""
 
     normalized_goal = _normalize_text(user_goal).lower()
     if not any(topic in normalized_goal for topic in _GENERIC_AMBIGUOUS_TOPICS):
-        return False
+        return ""
 
     first_label = _source_label(first_source).lower()
     second_label = _source_label(second_source).lower()
     if (first_label and first_label in normalized_goal) or (second_label and second_label in normalized_goal):
-        return False
+        return ""
 
-    return abs(first_source.score - second_source.score) <= 0.12
+    if abs(first_source.score - second_source.score) <= 0.12:
+        return "multi_candidate_title"
+    return ""
 
 
 def _is_ambiguous_title_fragment_goal(user_goal: str, sources: tuple[EvidenceSource, ...]) -> bool:
@@ -1124,6 +1424,35 @@ def _has_resolved_query_plan(
     return curriculum_plan is not None and curriculum_plan.status == "resolved"
 
 
+def _should_use_curriculum_program_semester_facts(
+    *,
+    curriculum_plan: CurriculumQueryPlan | None,
+    user_goal: str,
+) -> bool:
+    if curriculum_plan is None or curriculum_plan.status != "resolved":
+        return False
+    if len(curriculum_plan.target_document_ids) != 1:
+        return False
+    interpretation = interpret_curriculum_query(curriculum_plan.rewritten_query_text or user_goal)
+    return interpretation.intent_kind == "course_list" and len(interpretation.semester_labels) == 1
+
+
+def _resolve_curriculum_program_semester_fact_target_document_ids(
+    *,
+    curriculum_plan: CurriculumQueryPlan,
+    user_goal: str,
+) -> tuple[str, ...]:
+    interpretation = interpret_curriculum_query(curriculum_plan.rewritten_query_text or user_goal)
+    if len(curriculum_plan.target_document_ids) != 1 or len(interpretation.semester_labels) != 1:
+        return ()
+    return (
+        build_curriculum_program_semester_fact_document_id(
+            curriculum_plan.target_document_ids[0],
+            interpretation.semester_labels[0],
+        ),
+    )
+
+
 def _resolved_policy_title(handbook_plan: HandbookQueryPlan | None) -> str:
     if handbook_plan is None or handbook_plan.status != "resolved":
         return ""
@@ -1134,6 +1463,16 @@ def _resolved_policy_no_answer_reason(handbook_plan: HandbookQueryPlan | None) -
     if handbook_plan is None or handbook_plan.status != "resolved":
         return ""
     return "resolved_policy_clause_not_found"
+
+
+def _resolve_no_answer_semantics(
+    *,
+    evidence: EvidenceBundle,
+    handbook_plan: HandbookQueryPlan | None,
+) -> tuple[str, str, bool]:
+    if _is_official_web_freshness_fail_close(evidence):
+        return "freshness_fail_close", "freshness_fail_close", True
+    return _resolved_policy_no_answer_reason(handbook_plan), "unsupported_by_evidence", False
 
 
 def _should_fail_closed_resolved_policy_clause(
@@ -1182,6 +1521,16 @@ def _build_rag_result_payload(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
+    semantic_outcome: str = "",
+    retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
+    claim_supports: tuple[ClaimSupport, ...] = (),
+    unsupported_fields: tuple[str, ...] = (),
+    grounding_verdict: str = "",
+    grounding_downgraded: bool = False,
+    freshness_fail_closed: bool = False,
+    prompt_runtime_state: str = "",
+    prompt_runtime_detail: str = "",
+    retrieved_evidence: EvidenceBundle | None = None,
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -1192,6 +1541,16 @@ def _build_rag_result_payload(
         curriculum_program_family_plan=curriculum_program_family_plan,
         no_answer_reason=no_answer_reason,
         allow_session_follow_up=allow_session_follow_up,
+        semantic_outcome=semantic_outcome,
+        retrieval_adequacy=retrieval_adequacy,
+        claim_supports=claim_supports,
+        unsupported_fields=unsupported_fields,
+        grounding_verdict=grounding_verdict,
+        grounding_downgraded=grounding_downgraded,
+        freshness_fail_closed=freshness_fail_closed,
+        prompt_runtime_state=prompt_runtime_state,
+        prompt_runtime_detail=prompt_runtime_detail,
+        retrieved_evidence=retrieved_evidence,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -1209,30 +1568,70 @@ def _build_rag_result_diagnostics(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
+    semantic_outcome: str = "",
+    retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
+    claim_supports: tuple[ClaimSupport, ...] = (),
+    unsupported_fields: tuple[str, ...] = (),
+    grounding_verdict: str = "",
+    grounding_downgraded: bool = False,
+    freshness_fail_closed: bool = False,
+    prompt_runtime_state: str = "",
+    prompt_runtime_detail: str = "",
+    retrieved_evidence: EvidenceBundle | None = None,
 ) -> RagResultDiagnostics | None:
+    raw_retrieved_sources = tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
+    preserve_retrieved_sources = bool(raw_retrieved_sources) and (
+        raw_retrieved_sources != tuple(evidence.sources) or evidence.corpus == "curriculum"
+    )
     if (
         resolved_scope is None
         and handbook_plan is None
         and curriculum_plan is None
         and curriculum_course_plan is None
         and curriculum_program_family_plan is None
+        and not preserve_retrieved_sources
     ):
         return None
+    retrieved_sources = raw_retrieved_sources if preserve_retrieved_sources else ()
+
+    def _diagnostics(**kwargs: object) -> RagResultDiagnostics:
+        return RagResultDiagnostics(retrieved_sources=retrieved_sources, **kwargs)
     if (
         handbook_plan is None
         and curriculum_plan is None
         and curriculum_course_plan is None
         and curriculum_program_family_plan is None
     ):
-        return RagResultDiagnostics(
-            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
-        )
-    if curriculum_program_family_plan is not None:
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+            retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+            claim_supports=claim_supports,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+            unsupported_fields=unsupported_fields,
+        )
+    if curriculum_program_family_plan is not None:
+        return _diagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+            retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+            claim_supports=claim_supports,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+            unsupported_fields=unsupported_fields,
             clarification_reason=curriculum_program_family_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             candidate_title_summary=curriculum_program_family_plan.clarification_candidates,
@@ -1242,10 +1641,19 @@ def _build_rag_result_diagnostics(
             resolved_program_family_title=curriculum_program_family_plan.canonical_program_family_title,
         )
     if curriculum_course_plan is not None:
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+            retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+            claim_supports=claim_supports,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+            freshness_fail_closed=freshness_fail_closed,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
             resolution_mode=curriculum_course_plan.resolution_mode,
             resolved_entity_type=curriculum_course_plan.entity_type,
@@ -1253,11 +1661,13 @@ def _build_rag_result_diagnostics(
             resolved_course_title=curriculum_course_plan.canonical_course_title,
             resolved_course_family_id=curriculum_course_plan.canonical_course_family_id,
             resolved_course_family_title=curriculum_course_plan.canonical_course_family_title,
-            unsupported_fields=curriculum_course_plan.unsupported_fields,
+            unsupported_fields=(
+                curriculum_course_plan.unsupported_fields or unsupported_fields
+            ),
             partial_answer=curriculum_course_plan.partial_answer,
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
-        return RagResultDiagnostics(
+        return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
             resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
@@ -1267,15 +1677,51 @@ def _build_rag_result_diagnostics(
             ),
             clarification_reason=handbook_plan.clarification_reason,
             no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+            retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+            claim_supports=claim_supports,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+            unsupported_fields=unsupported_fields,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
     if curriculum_plan is None or curriculum_plan.status == "pass_through":
-        return None
+        if not (
+            no_answer_reason
+            or semantic_outcome
+            or retrieval_adequacy is not None
+            or unsupported_fields
+            or grounding_verdict
+            or grounding_downgraded
+            or freshness_fail_closed
+            or preserve_retrieved_sources
+        ):
+            return None
+        return _diagnostics(
+            resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
+            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            no_answer_reason=no_answer_reason,
+            semantic_outcome=semantic_outcome,
+            retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+            retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+            claim_supports=claim_supports,
+            grounding_verdict=grounding_verdict,
+            grounding_downgraded=grounding_downgraded,
+            freshness_fail_closed=freshness_fail_closed,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+            unsupported_fields=unsupported_fields,
+            retrieved_title_summary=_summarize_retrieved_titles(evidence),
+        )
     session_follow_up = _resolve_curriculum_diagnostics_follow_up(
         curriculum_plan=curriculum_plan,
         allow_session_follow_up=allow_session_follow_up,
     )
-    return RagResultDiagnostics(
+    return _diagnostics(
         resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
         resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
         resolved_policy_document_id=(
@@ -1291,6 +1737,16 @@ def _build_rag_result_diagnostics(
         ),
         clarification_reason=curriculum_plan.clarification_reason,
         no_answer_reason=no_answer_reason,
+        semantic_outcome=semantic_outcome,
+        retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
+        retrieval_adequacy_reason=_retrieval_adequacy_reason(retrieval_adequacy),
+        claim_supports=claim_supports,
+        grounding_verdict=grounding_verdict,
+        grounding_downgraded=grounding_downgraded,
+        freshness_fail_closed=freshness_fail_closed,
+        prompt_runtime_state=prompt_runtime_state,
+        prompt_runtime_detail=prompt_runtime_detail,
+        unsupported_fields=unsupported_fields,
         retrieved_title_summary=_summarize_retrieved_titles(evidence),
         candidate_title_summary=curriculum_plan.candidate_title_summary,
         resolution_mode=_curriculum_resolution_mode(curriculum_plan),
@@ -1302,6 +1758,50 @@ def _build_rag_result_diagnostics(
     )
 
 
+def _retrieval_adequacy_verdict(
+    retrieval_adequacy: RetrievalAdequacyAssessment | None,
+) -> str:
+    if retrieval_adequacy is None:
+        return ""
+    return retrieval_adequacy.verdict
+
+
+def _retrieval_adequacy_reason(
+    retrieval_adequacy: RetrievalAdequacyAssessment | None,
+) -> str:
+    if retrieval_adequacy is None:
+        return ""
+    return retrieval_adequacy.reason
+
+
+def _planned_retrieval_adequacy(
+    *,
+    handbook_plan: HandbookQueryPlan | None,
+    curriculum_plan: CurriculumQueryPlan | None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
+) -> RetrievalAdequacyAssessment:
+    for reason in (
+        handbook_plan.clarification_reason if handbook_plan is not None else "",
+        (
+            curriculum_program_family_plan.clarification_reason
+            if curriculum_program_family_plan is not None
+            else ""
+        ),
+        curriculum_plan.clarification_reason if curriculum_plan is not None else "",
+    ):
+        if reason:
+            return ambiguous_retrieval_adequacy(reason)
+    return ambiguous_retrieval_adequacy("multi_candidate_title")
+
+
+def _empty_evidence_retrieval_adequacy(no_answer_reason: str) -> RetrievalAdequacyAssessment:
+    if no_answer_reason == "resolved_policy_clause_not_found":
+        return insufficient_retrieval_adequacy("resolved_policy_clause_not_found")
+    if no_answer_reason == "freshness_fail_close":
+        return insufficient_retrieval_adequacy("freshness_fail_close")
+    return insufficient_retrieval_adequacy("no_supporting_sources")
+
+
 def _curriculum_resolution_mode(plan: CurriculumQueryPlan) -> str:
     if plan.status == "resolved":
         return "resolved_single"
@@ -1309,6 +1809,8 @@ def _curriculum_resolution_mode(plan: CurriculumQueryPlan) -> str:
         return "soft_preference"
     if plan.status == "needs_clarification":
         return "needs_clarification"
+    if plan.status == "unsupported":
+        return "unsupported"
     return ""
 
 
@@ -1381,27 +1883,23 @@ def _build_curriculum_course_answer(
 ) -> str:
     if plan.fact_intent == "schedule":
         return _build_curriculum_course_schedule_answer(evidence=evidence, plan=plan)
-    snippets = [
-        source.snippet.strip().rstrip("。")
-        for source in evidence.sources
-        if source.snippet.strip()
-    ]
-    unique_snippets: list[str] = []
-    for snippet in snippets:
-        if snippet not in unique_snippets:
-            unique_snippets.append(snippet)
-    body = "；".join(unique_snippets[:3])
-    if plan.entity_type == "course":
-        lead = f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_title}{'：' if body else '。'}"
-    else:
-        lead = f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}{'：' if body else '。'}"
-    answer = f"{lead}{body}" if body else lead
+    unique_snippets = _unique_curriculum_course_snippets(evidence)
+    answer = _build_curriculum_course_direct_answer(
+        evidence=evidence,
+        plan=plan,
+        unique_snippets=unique_snippets,
+    )
+    if not answer:
+        if plan.entity_type == "course":
+            answer = f"当前还不能稳定确认{plan.canonical_course_title}的相关事实。"
+        else:
+            answer = f"当前还不能稳定确认{plan.canonical_course_family_title}的相关事实。"
     if plan.partial_answer and "offering_unit" in plan.unsupported_fields:
         return _append_course_partial_answer_suffix(
             answer=answer,
             unsupported_fields=plan.unsupported_fields,
         )
-    return answer if answer.endswith("。") else f"{answer}。"
+    return _ensure_terminal_period(answer)
 
 
 def _build_curriculum_course_schedule_answer(
@@ -1409,19 +1907,11 @@ def _build_curriculum_course_schedule_answer(
     evidence: EvidenceBundle,
     plan: CurriculumCourseQueryPlan,
 ) -> str:
-    snippets = [
-        source.snippet.strip().rstrip("。")
-        for source in evidence.sources
-        if source.snippet.strip()
-    ]
-    unique_snippets: list[str] = []
-    for snippet in snippets:
-        if snippet not in unique_snippets:
-            unique_snippets.append(snippet)
+    unique_snippets = _unique_curriculum_course_snippets(evidence)
 
     if plan.entity_type == "course":
         if unique_snippets:
-            answer = f"{_COURSE_USER_FACING_LEAD}，{unique_snippets[0]}。"
+            answer = _ensure_terminal_period(unique_snippets[0])
             if plan.partial_answer:
                 return _append_course_partial_answer_suffix(
                     answer=answer,
@@ -1454,15 +1944,9 @@ def _build_curriculum_course_schedule_answer(
         canonical_titles = course_family_member_titles(plan.canonical_course_family_id)
         is_complete_family_schedule = bool(canonical_titles) and len(schedule_lines) >= len(canonical_titles)
         if is_complete_family_schedule:
-            answer = (
-                f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}各课程开设学期如下："
-                f"{'；'.join(schedule_lines)}。"
-            )
+            answer = f"{plan.canonical_course_family_title}各课程开设学期如下：{'；'.join(schedule_lines)}。"
         else:
-            answer = (
-                f"{_COURSE_USER_FACING_LEAD}，{plan.canonical_course_family_title}目前能确认的有："
-                f"{'；'.join(schedule_lines)}。"
-            )
+            answer = f"{plan.canonical_course_family_title}目前能确认的有：{'；'.join(schedule_lines)}。"
         if plan.partial_answer:
             return _append_course_partial_answer_suffix(
                 answer=answer,
@@ -1492,6 +1976,117 @@ def _order_course_family_schedule_lines(
     for title, semester_text in schedule_by_course.items():
         ordered_lines.append(f"{title}：{semester_text}")
     return ordered_lines
+
+
+def _resolve_curriculum_course_fact_target_document_ids(
+    plan: CurriculumCourseQueryPlan,
+) -> tuple[str, ...]:
+    if plan.entity_type == "course":
+        if plan.fact_intent == "schedule" and plan.canonical_course_id:
+            document_id = _build_curriculum_course_fact_document_id(
+                plan.canonical_course_id,
+                fact_type="semester",
+            )
+            return (document_id,) if document_id else ()
+        if plan.fact_intent == "audience" and plan.canonical_course_id:
+            document_id = _build_curriculum_course_fact_document_id(
+                plan.canonical_course_id,
+                fact_type="audience",
+            )
+            return (document_id,) if document_id else ()
+        return ()
+    if plan.entity_type != "course_family":
+        return ()
+    if plan.fact_intent == "family_membership":
+        return ("course_facts:family-membership",)
+    if plan.fact_intent == "audience":
+        return ("course_facts:family-audience",)
+    if plan.fact_intent != "schedule":
+        return ()
+    return tuple(
+        document_id
+        for document_id in (
+            _build_curriculum_course_fact_document_id(course_id, fact_type="semester")
+            for course_id in course_family_member_ids(plan.canonical_course_family_id)
+        )
+        if document_id
+    )
+
+
+def _build_curriculum_course_fact_document_id(
+    canonical_course_id: str,
+    *,
+    fact_type: str,
+) -> str:
+    suffix = canonical_course_id.split(":", 1)[-1].strip()
+    if not suffix:
+        return ""
+    return f"course_facts:{suffix}-{fact_type}"
+
+
+def _unique_curriculum_course_snippets(evidence: EvidenceBundle) -> list[str]:
+    unique_snippets: list[str] = []
+    for source in evidence.sources:
+        snippet = source.snippet.strip().rstrip("。")
+        if snippet and snippet not in unique_snippets:
+            unique_snippets.append(snippet)
+    return unique_snippets
+
+
+def _build_curriculum_course_direct_answer(
+    *,
+    evidence: EvidenceBundle,
+    plan: CurriculumCourseQueryPlan,
+    unique_snippets: list[str],
+) -> str:
+    if not unique_snippets:
+        return ""
+    if plan.fact_intent == "audience":
+        audience_answer = _build_curriculum_course_audience_answer(
+            evidence=evidence,
+            plan=plan,
+            unique_snippets=unique_snippets,
+        )
+        if audience_answer:
+            return audience_answer
+    return unique_snippets[0]
+
+
+def _build_curriculum_course_audience_answer(
+    *,
+    evidence: EvidenceBundle,
+    plan: CurriculumCourseQueryPlan,
+    unique_snippets: list[str],
+) -> str:
+    audience = _extract_curriculum_course_audience(evidence.sources)
+    if not audience:
+        return unique_snippets[0]
+    subject = (
+        plan.canonical_course_title
+        if plan.entity_type == "course"
+        else plan.canonical_course_family_title
+    )
+    if not subject:
+        return unique_snippets[0]
+    return f"{subject}面向{audience}"
+
+
+def _extract_curriculum_course_audience(
+    sources: tuple[EvidenceSource, ...],
+) -> str:
+    for source in sources:
+        snippet = source.snippet.strip()
+        match = re.search(r"(所有本预科学生|所有本科学生|全体本科学生|全校学生)", snippet)
+        if match:
+            return match.group(1)
+    return ""
+
+
+def _ensure_terminal_period(text: str) -> str:
+    normalized = text.strip()
+    if not normalized:
+        return normalized
+    return normalized if normalized.endswith("。") else f"{normalized}。"
 
 
 def _append_course_partial_answer_suffix(*, answer: str, unsupported_fields: tuple[str, ...]) -> str:

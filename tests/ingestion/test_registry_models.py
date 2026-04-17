@@ -13,6 +13,10 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    PostgresAuthenticatedNoticeSourceTruthInventoryStore,
+    build_authenticated_notice_source_truth_inventory_store_from_env,
+)
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
@@ -645,6 +649,32 @@ class RegistryModelsTest(unittest.TestCase):
                 }
             )
 
+    def test_raw_asset_registry_payload_backfills_missing_typed_metadata_fields(self) -> None:
+        record = _raw_asset_record_from_dict(
+            {
+                "raw_asset_id": "asset:student-handbook-pdf",
+                "raw_version_id": "sha256:raw-001",
+                "corpus": "regulations",
+                "collection": "student_handbook",
+                "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                "content_hash": "raw-001",
+                "source_filename": "student-handbook.pdf",
+                "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
+                "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
+                "import_source": "raw_online_ocr",
+            }
+        )
+
+        self.assertIsNone(record.content_type)
+        self.assertEqual(record.file_extension, "")
+        self.assertIsNone(record.byte_size)
+        self.assertIsNone(record.page_count)
+        self.assertIsNone(record.image_width)
+        self.assertIsNone(record.image_height)
+        self.assertEqual(record.asset_kind, "")
+        self.assertEqual(record.asset_subkind, "")
+        self.assertIsNone(record.classification_confidence)
+
     def test_file_raw_asset_registry_upsert_and_get_are_stable(self) -> None:
         with TemporaryDirectory() as temp_dir:
             registry = InMemoryRawAssetRegistry(backing_path=Path(temp_dir) / "raw-assets.json")
@@ -737,6 +767,37 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
+    def test_build_document_registry_from_env_prefers_management_database_url_when_requested(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_document_registry_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                    "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                },
+                prefer_management=True,
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with(
+                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+            )
+
+    def test_build_document_registry_from_env_requires_management_database_url_when_requested(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+        ):
+            build_document_registry_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_management=True,
+            )
+
     def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
         with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
             with self.assertRaisesRegex(ValueError, "session pooler"):
@@ -785,6 +846,37 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
+    def test_build_raw_asset_registry_from_env_prefers_management_database_url_when_requested(self) -> None:
+        with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
+            instance = registry_cls.return_value
+
+            registry = build_raw_asset_registry_from_env(
+                {
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                    "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                },
+                prefer_management=True,
+            )
+
+            self.assertIs(registry, instance)
+            registry_cls.assert_called_once_with(
+                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+            )
+
+    def test_build_raw_asset_registry_from_env_requires_management_database_url_when_requested(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+        ):
+            build_raw_asset_registry_from_env(
+                {
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_management=True,
+            )
+
     def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
         with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
             with self.assertRaisesRegex(ValueError, "session pooler"):
@@ -823,6 +915,77 @@ class RegistryModelsTest(unittest.TestCase):
                         )
                     }
                 )
+
+    def test_build_closeout_store_from_env_prefers_management_database_url_when_requested(self) -> None:
+        with patch(
+            "campus_ingestion_core.authenticated_notice_closeout_store.PostgresAuthenticatedNoticeCloseoutStore"
+        ) as store_cls:
+            instance = store_cls.return_value
+
+            store = build_authenticated_notice_closeout_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": "postgresql://runtime.example/postgres",
+                    "AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                },
+                prefer_management=True,
+            )
+
+            self.assertIs(store, instance)
+            store_cls.assert_called_once_with(
+                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+            )
+
+    def test_build_closeout_store_from_env_requires_management_database_url_when_requested(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+        ):
+            build_authenticated_notice_closeout_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_management=True,
+            )
+
+    def test_build_source_truth_inventory_store_from_env_prefers_management_database_url_when_requested(
+        self,
+    ) -> None:
+        with patch(
+            "campus_ingestion_core.authenticated_notice_source_truth_inventory.PostgresAuthenticatedNoticeSourceTruthInventoryStore"
+        ) as store_cls:
+            instance = store_cls.return_value
+
+            store = build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                },
+                prefer_management=True,
+            )
+
+            self.assertIs(store, instance)
+            store_cls.assert_called_once_with(
+                database_url=(
+                    "postgresql://management.example/postgres"
+                    "?__campus_connection_mode=management_direct"
+                )
+            )
+
+    def test_build_source_truth_inventory_store_from_env_requires_management_database_url_when_requested(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+        ):
+            build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_management=True,
+            )
 
     def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:
         with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
@@ -891,6 +1054,71 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(records[0].visibility_scope, "south")
         self.assertEqual(records[0].visibility_level, "restricted")
         self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_document_registry_list_by_scope_paginates_large_scope_reads(self) -> None:
+        first = _handbook_document_record(
+            version_id="v1:test-001",
+            content_hash="sha256:test-001",
+            ingestion_timestamp="2026-03-22T10:00:00+00:00",
+        )
+        second = replace(
+            _handbook_document_record(
+                version_id="v1:test-002",
+                content_hash="sha256:test-002",
+                ingestion_timestamp="2026-03-23T10:00:00+00:00",
+            ),
+            document_id="handbook:test-002",
+            version_id="v1:test-002",
+            source_uri="campusrag://canonical/regulations/student_handbook/docs/test-002.md",
+            content_hash="sha256:test-002",
+            document_units_object_key=HANDBOOK_DOC_UNITS_KEY.replace("test-001", "test-002"),
+            provider_response_object_key=HANDBOOK_PROVIDER_KEY.replace("raw-001", "raw-002"),
+            canonical_markdown_object_key=HANDBOOK_CANONICAL_KEY.replace("test-001", "test-002"),
+            processed_object_keys=(
+                HANDBOOK_PROVIDER_KEY.replace("raw-001", "raw-002"),
+                HANDBOOK_CANONICAL_KEY.replace("test-001", "test-002"),
+                HANDBOOK_DOC_UNITS_KEY.replace("test-001", "test-002"),
+            ),
+        )
+        page_rows = (
+            ((json.dumps(asdict(first), ensure_ascii=False),),),
+            ((json.dumps(asdict(second), ensure_ascii=False),),),
+            (),
+        )
+        fetchall_calls: list[tuple[str, tuple[object, ...]]] = []
+
+        def _fetchall(query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
+            fetchall_calls.append((query, params))
+            return page_rows[len(fetchall_calls) - 1]
+
+        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
+
+        with (
+            patch("campus_ingestion_core.registry.DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE", 1),
+            patch.object(registry, "_fetchall", side_effect=_fetchall),
+        ):
+            records = registry.list_by_scope("regulations", "student_handbook")
+
+        self.assertEqual(records, (first, second))
+        self.assertEqual(len(fetchall_calls), 3)
+        self.assertIn("limit %s", fetchall_calls[0][0].lower())
+        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_handbook", 1))
+        self.assertIn(
+            "(document_id, revision_track, version_id) > (%s, %s, %s)",
+            fetchall_calls[1][0],
+        )
+        self.assertEqual(
+            fetchall_calls[1][1],
+            (
+                "regulations",
+                "student_handbook",
+                first.document_id,
+                first.revision_track,
+                first.version_id,
+                1,
+            ),
+        )
 
     def test_postgres_document_registry_get_canonicalizes_legacy_authz_projection_keys(self) -> None:
         legacy_payload = {
@@ -993,6 +1221,58 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(record.visibility_scope, "main")
         self.assertEqual(record.visibility_level, "restricted")
         self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
+
+    def test_postgres_raw_asset_registry_list_by_scope_paginates_large_scope_reads(self) -> None:
+        first = replace(
+            _handbook_raw_asset_record(),
+            raw_asset_id="asset:001",
+            raw_version_id="sha256:001",
+        )
+        second = replace(
+            _handbook_raw_asset_record(),
+            raw_asset_id="asset:002",
+            raw_version_id="sha256:002",
+            content_hash="raw-002",
+            object_key="official_pdf/student-handbook/undated/sha256/raw-002/capture/student-handbook.pdf",
+        )
+        page_rows = (
+            ((json.dumps(asdict(first), ensure_ascii=False),),),
+            ((json.dumps(asdict(second), ensure_ascii=False),),),
+            (),
+        )
+        fetchall_calls: list[tuple[str, tuple[object, ...]]] = []
+
+        def _fetchall(query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
+            fetchall_calls.append((query, params))
+            return page_rows[len(fetchall_calls) - 1]
+
+        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
+            registry = PostgresRawAssetRegistry("postgresql://registry.example/postgres")
+
+        with (
+            patch("campus_ingestion_core.registry.DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE", 1),
+            patch.object(registry, "_fetchall", side_effect=_fetchall),
+        ):
+            records = registry.list_by_scope("regulations", "student_handbook")
+
+        self.assertEqual(records, (first, second))
+        self.assertEqual(len(fetchall_calls), 3)
+        self.assertIn("limit %s", fetchall_calls[0][0].lower())
+        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_handbook", 1))
+        self.assertIn(
+            "(raw_asset_id, raw_version_id) > (%s, %s)",
+            fetchall_calls[1][0],
+        )
+        self.assertEqual(
+            fetchall_calls[1][1],
+            (
+                "regulations",
+                "student_handbook",
+                first.raw_asset_id,
+                first.raw_version_id,
+                1,
+            ),
+        )
 
     def test_postgres_document_registry_replace_scope_uses_bulk_recordset_insert(self) -> None:
         class _RecordingCursor:

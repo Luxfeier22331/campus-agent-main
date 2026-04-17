@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { materializeBundleAttachments } from "./attachment-materialization";
+import { createAuthenticatedNoticeArtifactStoreFromEnv, type AuthenticatedNoticeArtifactStore } from "./artifact-store";
 import { fetchNoticeDetail, fetchNoticePage } from "./api";
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
 import { buildNoticeTypePolicySnapshot, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
@@ -16,6 +18,7 @@ import type {
   CollectorExportMetadata,
   DisposableApiContextLike,
   NoticeCategoryRecord,
+  NoticeAnnexInfo,
   NoticeDetailInfo,
   NoticeDetailResponse,
   NoticeItem,
@@ -25,13 +28,6 @@ import type {
 
 const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 const EXPORT_SCHEMA_VERSION = "authenticated_notice_collector_export_v2";
-const COLLECTOR_EXPORT_METADATA: CollectorExportMetadata = {
-  runtime_shell: "repo_local_node",
-  export_contract_version: EXPORT_SCHEMA_VERSION,
-  link_collection_mode: "html_reference_only",
-  attachment_collection_mode: "html_reference_only",
-  attachment_storage_mode: "reference_only",
-};
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;
 const HTML_TAG_RE = /<[^>]+>/g;
 const WHITESPACE_RE = /\s+/g;
@@ -55,6 +51,7 @@ const ATTACHMENT_FILE_EXTENSIONS = new Set([
 ]);
 
 export interface CollectBootstrapBundleInput {
+  attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
   createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
   exportedAt: string;
   fetchNoticeDetail?: (input: {
@@ -80,6 +77,7 @@ export interface CollectBootstrapBundleResult {
   bundleRecords: BundleNoticeRecord[];
   exportManifest: BootstrapExportManifest;
   stats: {
+    attachmentObjectsUploaded: number;
     detailFetched: number;
     noticesCollected: number;
     pagesFetched: number;
@@ -105,11 +103,13 @@ export function buildBundleRecord(input: {
 }): BundleNoticeRecord {
   const noticeId = normalizeRequiredNoticeId(input.notice.notice_id ?? input.detailInfo?.notice_id);
   const noticeTitle = normalizeRequiredText(input.notice.notice_title ?? input.detailInfo?.notice_title, "notice_title");
+  const sourceHomeUrl = normalizeNullableText(input.detailInfo?.home_url) ?? input.sourceHomeUrl;
   const artifacts = buildReferenceArtifacts({
     htmlValue: normalizeNullableText(input.detailInfo?.notice_content ?? input.notice.notice_content) ?? "",
+    noticeAnnexes: input.detailInfo?.notice_annext,
     noticeId,
     observedAt: input.observedAt,
-    sourceHomeUrl: input.sourceHomeUrl,
+    sourceHomeUrl,
   });
   return {
     notice_id: noticeId,
@@ -169,6 +169,11 @@ export async function collectBootstrapBundle(
   let detailFetched = 0;
   let itemsSeen = 0;
   let pagesFetched = 0;
+  let materialized = {
+    bundleRecords: [] as BundleNoticeRecord[],
+    downloadedAttachmentCount: 0,
+    uploadedAttachmentCount: 0,
+  };
 
   try {
     for (const noticeType of input.noticeTypes) {
@@ -228,17 +233,34 @@ export async function collectBootstrapBundle(
         break;
       }
     }
+    const bundleRecords = [...bundleMap.values()];
+    materialized =
+      input.attachmentArtifactStore === undefined
+        ? {
+            bundleRecords,
+            downloadedAttachmentCount: 0,
+            uploadedAttachmentCount: 0,
+          }
+        : await materializeBundleAttachments({
+            apiContext,
+            artifactStore: input.attachmentArtifactStore,
+            bundleRecords,
+            observedAt: input.exportedAt,
+            requestBackoffBaseMs: input.requestBackoffBaseMs,
+            requestMaxRetries: input.requestMaxRetries,
+          });
   } finally {
     await apiContext.dispose();
   }
 
-  const bundleRecords = [...bundleMap.values()];
   return {
-    bundleRecords,
+    bundleRecords: materialized.bundleRecords,
     exportManifest: buildExportManifest({
+      attachmentStorageMode:
+        input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
       detailFetched,
       exportedAt: input.exportedAt,
-      itemsInserted: bundleRecords.length,
+      itemsInserted: materialized.bundleRecords.length,
       itemsSeen,
       maxNotices: input.maxNotices ?? null,
       noticeTypes: input.noticeTypes,
@@ -247,8 +269,9 @@ export async function collectBootstrapBundle(
       sourceHomeUrl: input.sourceHomeUrl,
     }),
     stats: {
+      attachmentObjectsUploaded: materialized.uploadedAttachmentCount,
       detailFetched,
-      noticesCollected: bundleRecords.length,
+      noticesCollected: materialized.bundleRecords.length,
       pagesFetched,
     },
   };
@@ -270,6 +293,7 @@ export function writeBootstrapArtifacts(input: WriteBootstrapArtifactsInput): Wr
 }
 
 function buildExportManifest(input: {
+  attachmentStorageMode: CollectorExportMetadata["attachment_storage_mode"];
   detailFetched: number;
   exportedAt: string;
   itemsInserted: number;
@@ -289,7 +313,16 @@ function buildExportManifest(input: {
     source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
     site_id: input.siteId,
     source_home_url: input.sourceHomeUrl,
-    collector: COLLECTOR_EXPORT_METADATA,
+    collector: {
+      runtime_shell: "repo_local_node",
+      export_contract_version: EXPORT_SCHEMA_VERSION,
+      link_collection_mode: "html_reference_only",
+      attachment_collection_mode:
+        input.attachmentStorageMode === "reference_only"
+          ? "detail_api_and_html_reference_only"
+          : "detail_api_and_html_materialized",
+      attachment_storage_mode: input.attachmentStorageMode,
+    },
     filters: {
       max_notices: input.maxNotices,
       notice_types: input.noticeTypes.map((item) => item.type),
@@ -341,6 +374,7 @@ function mergeBundleRecord(
 
 function buildReferenceArtifacts(input: {
   htmlValue: string;
+  noticeAnnexes?: NoticeAnnexInfo[] | null;
   noticeId: number;
   observedAt: string;
   sourceHomeUrl?: string;
@@ -353,8 +387,54 @@ function buildReferenceArtifacts(input: {
   const noticeAttachments: BundleNoticeAttachmentRelation[] = [];
   const attachments: BundleAttachmentObservation[] = [];
   const attachmentIds = new Map<string, number>();
+  const htmlAttachmentIds = new Set<number>();
+  const annexAttachmentIds = new Set<number>();
   let nextLinkId = 1;
   let nextAttachmentId = 1;
+
+  function ensureAttachmentObservation(params: {
+    filenameHint: string | null;
+    finalUrl: string;
+    linkHost: string | null;
+    linkScope: "internal" | "external" | "unsupported";
+    urlScheme: string | null;
+  }): number {
+    let attachmentId = attachmentIds.get(params.finalUrl);
+    if (attachmentId !== undefined) {
+      return attachmentId;
+    }
+
+    attachmentId = nextAttachmentId;
+    nextAttachmentId += 1;
+    attachmentIds.set(params.finalUrl, attachmentId);
+    attachments.push({
+      attachment_id: attachmentId,
+      source_url: params.finalUrl,
+      normalized_source_url: params.finalUrl,
+      final_url: params.finalUrl,
+      original_filename: deriveOriginalFilename(params.finalUrl, params.filenameHint),
+      mime_type: null,
+      byte_size: null,
+      sha256: null,
+      storage_provider: "reference_only",
+      bucket: null,
+      object_key: null,
+      etag: null,
+      version_id: null,
+      origin_url_scheme: params.urlScheme,
+      origin_host: params.linkHost,
+      origin_scope: params.linkScope,
+      provenance_status: "reference_only",
+      ingest_status: "reference_only",
+      local_path: null,
+      downloaded_at: null,
+      uploaded_at: null,
+      last_error: null,
+      created_at: input.observedAt,
+      updated_at: input.observedAt,
+    });
+    return attachmentId;
+  }
 
   for (const match of input.htmlValue.matchAll(HTML_ANCHOR_RE)) {
     const rawHref = decodeHtmlAttribute(String(match[2] || ""));
@@ -406,38 +486,14 @@ function buildReferenceArtifacts(input: {
     ) {
       continue;
     }
-    let attachmentId = attachmentIds.get(resolvedLink.finalUrl);
-    if (attachmentId === undefined) {
-      attachmentId = nextAttachmentId;
-      nextAttachmentId += 1;
-      attachmentIds.set(resolvedLink.finalUrl, attachmentId);
-      attachments.push({
-        attachment_id: attachmentId,
-        source_url: resolvedLink.finalUrl,
-        normalized_source_url: resolvedLink.finalUrl,
-        final_url: resolvedLink.finalUrl,
-        original_filename: deriveOriginalFilename(resolvedLink.finalUrl, linkText),
-        mime_type: null,
-        byte_size: null,
-        sha256: null,
-        storage_provider: "reference_only",
-        bucket: null,
-        object_key: null,
-        etag: null,
-        version_id: null,
-        origin_url_scheme: resolvedLink.urlScheme,
-        origin_host: resolvedLink.linkHost,
-        origin_scope: resolvedLink.linkScope,
-        provenance_status: "reference_only",
-        ingest_status: "reference_only",
-        local_path: null,
-        downloaded_at: null,
-        uploaded_at: null,
-        last_error: null,
-        created_at: input.observedAt,
-        updated_at: input.observedAt,
-      });
-    }
+    const attachmentId = ensureAttachmentObservation({
+      filenameHint: linkText,
+      finalUrl: resolvedLink.finalUrl,
+      linkHost: resolvedLink.linkHost,
+      linkScope: resolvedLink.linkScope,
+      urlScheme: resolvedLink.urlScheme,
+    });
+    htmlAttachmentIds.add(attachmentId);
     noticeAttachments.push({
       notice_id: input.noticeId,
       attachment_id: attachmentId,
@@ -445,6 +501,49 @@ function buildReferenceArtifacts(input: {
       relation_source: "content",
       resource_role: "attachment",
       anchor_text: linkText,
+      discovered_at: input.observedAt,
+    });
+  }
+
+  for (const annex of input.noticeAnnexes ?? []) {
+    const annexId = normalizeNullableText(annex.notice_annex_id);
+    if (!annexId) {
+      continue;
+    }
+    const finalUrl = buildDetailAttachmentUrl({
+      noticeId: input.noticeId,
+      annexId,
+      sourceHomeUrl: input.sourceHomeUrl,
+    });
+    if (!finalUrl) {
+      continue;
+    }
+    const resolvedLink = resolveLinkTarget({
+      rawHref: finalUrl,
+      sourceHomeUrl: input.sourceHomeUrl,
+    });
+    if (resolvedLink.collectPolicy !== "reference_only" || resolvedLink.finalUrl === null) {
+      continue;
+    }
+    const anchorText = normalizeNullableText(annex.notice_annex_name) ?? annexId;
+    const attachmentId = ensureAttachmentObservation({
+      filenameHint: anchorText,
+      finalUrl: resolvedLink.finalUrl,
+      linkHost: resolvedLink.linkHost,
+      linkScope: resolvedLink.linkScope,
+      urlScheme: resolvedLink.urlScheme,
+    });
+    if (htmlAttachmentIds.has(attachmentId) || annexAttachmentIds.has(attachmentId)) {
+      continue;
+    }
+    annexAttachmentIds.add(attachmentId);
+    noticeAttachments.push({
+      notice_id: input.noticeId,
+      attachment_id: attachmentId,
+      link_id: null,
+      relation_source: "detail_api",
+      resource_role: "attachment",
+      anchor_text: anchorText,
       discovered_at: input.observedAt,
     });
   }
@@ -487,6 +586,24 @@ function dedupeCategories(
     }
   }
   return [...merged.values()];
+}
+
+function buildDetailAttachmentUrl(input: {
+  noticeId: number;
+  annexId: string;
+  sourceHomeUrl?: string;
+}): string | null {
+  if (!input.sourceHomeUrl) {
+    return null;
+  }
+  try {
+    const url = new URL("/comsys-portal-notice-web/download", input.sourceHomeUrl);
+    url.searchParams.set("id", input.annexId);
+    url.searchParams.set("notice_id", String(input.noticeId));
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function normalizeOptionalNoticeId(value: number | string | null | undefined): number | null {
@@ -584,6 +701,9 @@ function isAttachmentLike(input: {
     if (ATTACHMENT_FILE_EXTENSIONS.has(extension)) {
       return true;
     }
+    if (parsed.pathname.toLowerCase().endsWith("/download") && parsed.searchParams.has("id")) {
+      return true;
+    }
   } catch {
     return false;
   }
@@ -594,6 +714,13 @@ function deriveOriginalFilename(finalUrl: string, linkText: string | null): stri
   try {
     const parsed = new URL(finalUrl);
     const filename = safeDecodeURIComponent(path.posix.basename(parsed.pathname));
+    const extension = path.posix.extname(filename).toLowerCase();
+    if (filename && ATTACHMENT_FILE_EXTENSIONS.has(extension)) {
+      return filename;
+    }
+    if (linkText) {
+      return linkText;
+    }
     if (filename) {
       return filename;
     }
@@ -662,7 +789,9 @@ export async function main(): Promise<void> {
   ensureRuntimeDirs(config);
   const noticeTypes = getEnabledNoticeTypes(loadNoticeTypes(config.noticeTypesPath));
   const exportedAt = new Date().toISOString();
+  const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
   const result = await collectBootstrapBundle({
+    attachmentArtifactStore,
     exportedAt,
     noticeTypes,
     requestBackoffBaseMs: config.requestBackoffBaseMs,

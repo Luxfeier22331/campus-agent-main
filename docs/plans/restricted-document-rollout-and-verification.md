@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: deferred
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-12
 ---
 
 # Restricted Document Rollout And Verification
@@ -16,6 +16,16 @@ updated: 2026-04-02
 - 重新定义 principal taxonomy
 - 替代 `ADR-0022` 的长期授权决策
 - 定义完整校园 IdP / directory 接入细节
+
+## 当前状态
+
+本文状态固定为 `deferred`。
+
+原因：
+
+- restricted document rollout 仍是 accepted product direction，但当前没有独立 active execution wave
+- 当前 repo 中的 restricted collections 仍以 `offline_preparation` 为主，默认主线也不在 restricted query-surface opening
+- 因此本文保留为后续 rollout / reopen 的执行合同，不再占用默认 active plan 入口
 
 ## 目标
 

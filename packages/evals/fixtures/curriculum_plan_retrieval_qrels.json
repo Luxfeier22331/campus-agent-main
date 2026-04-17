@@ -259,31 +259,31 @@
       "notes": "相邻强基版本存在时的普通本科总学分样本。"
     },
     {
-      "case_id": "economics-course-map-table",
+      "case_id": "economics-course-settings-table",
       "split": "regression_locked",
-      "query": "经济学拔尖人才创新班人才培养方案课程地图怎么安排",
+      "query": "经济学拔尖人才创新班人才培养方案课程设置怎么安排",
       "expected_sources": [
         {
           "doc_id": "curriculum:经济学拔尖人才创新班人才培养方案",
           "grade": 2,
-          "rationale": "课程地图表格检索应回到创新班方案。"
+          "rationale": "课程设置表格检索应回到创新班方案。"
         }
       ],
-      "notes": "table retrieval 高风险回归样本。"
+      "notes": "课程设置 table retrieval 高风险回归样本。"
     },
     {
-      "case_id": "fiscal-course-map-table",
+      "case_id": "fiscal-course-settings-table",
       "split": "regression_locked",
-      "query": "财政学本科人才培养方案课程地图怎么安排",
+      "query": "财政学本科人才培养方案课程设置怎么安排",
       "expected_sources": [
         {
           "doc_id": "curriculum:财政学本科人才培养方案",
           "version_id": "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67:split:财政学本科人才培养方案:9664575c4f38",
           "grade": 2,
-          "rationale": "课程地图表格检索应回到财政学本科方案。"
+          "rationale": "课程设置表格检索应回到财政学本科方案。"
         }
       ],
-      "notes": "table retrieval 高风险回归扩样到财政学方案。"
+      "notes": "课程设置 table retrieval 高风险回归扩样到财政学方案。"
     },
     {
       "case_id": "general-english-total-credits",

@@ -12,6 +12,9 @@ from campus_ingestion_core.authenticated_notice_import import (
     import_authenticated_notice_bundle,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_truth import (
+    build_authenticated_notice_attachment_capture_key,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
@@ -150,6 +153,98 @@ def _sample_export_manifest() -> dict[str, object]:
     }
 
 
+def _sample_normalized_blob_store_manifest() -> dict[str, object]:
+    manifest = _sample_export_manifest()
+    manifest["schema_version"] = "authenticated_notice_legacy_bootstrap_normalized_v1"
+    manifest["collector"] = {
+        "runtime_shell": "legacy_external_collector",
+        "export_contract_version": "legacy_authenticated_notice_export_v3",
+        "link_collection_mode": "legacy_bundle_preserved",
+        "attachment_collection_mode": "legacy_bundle_preserved",
+        "attachment_storage_mode": "blob_store_reference",
+    }
+    return manifest
+
+
+def _sample_inline_image_notice_bundle(*, attachment_bytes: bytes) -> list[dict[str, object]]:
+    attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
+    legacy_object_key = f"{attachment_sha256[:2]}/{attachment_sha256}/schedule.png"
+    return [
+        {
+            "notice_id": 351118,
+            "notice": {
+                "notice_id": 351118,
+                "notice_title": "关于2025-2026学年第一学期本科生网上选课的通知",
+                "organization_name": "教务处",
+                "organization_id": "00001",
+                "notice_release_time": "2026-04-02 18:49",
+                "notice_create_time": "2026-04-02 18:40",
+                "notice_first_time": "2026-04-02 18:40",
+                "notice_content": (
+                    "<p>（三）选课时间安排</p>"
+                    '<p><img src="http://portal.example.edu/files/schedule.png" '
+                    'title="选课时间安排.png" alt="选课时间安排.png"/></p>'
+                ),
+                "notice_link": "https://portal.example.edu/notice/351118",
+                "notice_source": 1,
+                "notice_link_state": 0,
+                "notice_state": 1,
+                "notice_stick": 0,
+                "categories": [
+                    {
+                        "notice_id": 351118,
+                        "notice_type": "6",
+                        "notice_type_name": "教学通知",
+                        "category_first_seen_at": "2026-04-02T18:49:00.000Z",
+                        "category_last_seen_at": "2026-04-02T18:49:00.000Z",
+                        "category_last_run_id": 14,
+                    }
+                ],
+            },
+            "links": [],
+            "notice_attachments": [
+                {
+                    "notice_id": 351118,
+                    "attachment_id": 1,
+                    "link_id": None,
+                    "relation_source": "content",
+                    "resource_role": "inline_image",
+                    "anchor_text": "选课时间安排.png",
+                    "discovered_at": "2026-04-02T23:58:26.053Z",
+                }
+            ],
+            "attachments": [
+                {
+                    "attachment_id": 1,
+                    "source_url": "http://portal.example.edu/files/schedule.png",
+                    "normalized_source_url": "https://portal.example.edu/files/schedule.png",
+                    "final_url": "https://portal.example.edu/files/schedule.png",
+                    "original_filename": "schedule.png",
+                    "mime_type": "image/png",
+                    "byte_size": len(attachment_bytes),
+                    "sha256": attachment_sha256,
+                    "storage_provider": "local",
+                    "bucket": None,
+                    "object_key": legacy_object_key,
+                    "etag": None,
+                    "version_id": None,
+                    "origin_url_scheme": "https",
+                    "origin_host": "portal.example.edu",
+                    "origin_scope": "internal",
+                    "provenance_status": "collected_internal",
+                    "ingest_status": "downloaded",
+                    "local_path": None,
+                    "downloaded_at": "2026-04-02T23:58:26.053Z",
+                    "uploaded_at": None,
+                    "last_error": None,
+                    "created_at": "2026-04-02T23:58:26.053Z",
+                    "updated_at": "2026-04-02T23:58:26.053Z",
+                }
+            ],
+        }
+    ]
+
+
 class _FakeObjectStore:
     def __init__(self) -> None:
         self.uploads: list[dict[str, object]] = []
@@ -281,9 +376,20 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         ]
         self.assertEqual(len(attachment_refs), 1)
         self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
+        self.assertEqual(attachment_refs[0]["original_filename"], "application.docx")
         self.assertEqual(
             attachment_refs[0]["object_key"],
-            "5e/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/application.docx",
+            "authenticated_notice_portal/attachment-5e7a0c7675fc/2026/sha256/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/capture/application.docx",
+        )
+        attachment_observations = [
+            json.loads(line)
+            for line in imported.provider_artifacts["provider/attachment-observations.jsonl"].decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_observations), 1)
+        self.assertEqual(
+            attachment_observations[0]["object_key"],
+            "authenticated_notice_portal/attachment-5e7a0c7675fc/2026/sha256/5e7a0c7675fc8dfe814e74ed3206dd461b7cac88f324a6436dfd490b2f6dd152/capture/application.docx",
         )
 
         document = imported.document_import
@@ -419,6 +525,287 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertTrue(entry.notice_manifest_key.endswith("/source-truth/notice-manifest.json"))
         self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
         self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
+        self.assertEqual(entry.parent_snapshot["notice_release_time"], "2026-04-02 18:49")
+
+    def test_import_authenticated_notice_export_with_attachment_blob_root_materializes_attachment_objects_for_inventory_routing(self) -> None:
+        attachment_bytes = b"fake-inline-image-bytes-for-routing"
+        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
+        attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
+        expected_attachment_key = build_authenticated_notice_attachment_capture_key(
+            content_sha256=attachment_sha256,
+            filename="schedule.png",
+            year="2026",
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            blob_root = root / "blob-store"
+            blob_path = blob_root / f"{attachment_sha256[:2]}/{attachment_sha256}/schedule.png"
+            blob_path.parent.mkdir(parents=True, exist_ok=True)
+            blob_path.write_bytes(attachment_bytes)
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    attachment_blob_root=blob_root,
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        self.assertIn("attachment_object_backfill", report)
+        self.assertEqual(report["attachment_object_backfill"]["uploaded_count"], 1)
+        self.assertIn(expected_attachment_key, report["attachment_object_backfill"]["uploaded_object_keys"])
+        uploaded_keys = {entry["key"] for entry in object_store.uploads}
+        self.assertIn(expected_attachment_key, uploaded_keys)
+
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry.notice_risk_label, "body_with_spatial_attachments")
+        self.assertEqual(entry.manual_review_required_count, 1)
+        self.assertEqual(entry.ocr_required_count, 0)
+        self.assertTrue(entry.has_spatial_attachment)
+
+    def test_import_authenticated_notice_export_requires_attachment_blob_root_for_blob_store_reference_batches(self) -> None:
+        attachment_bytes = b"fake-inline-image-bytes-for-routing"
+        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "attachment_blob_root",
+            ):
+                import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    source_truth_inventory_store=inventory_store,
+                )
+
+    def test_import_authenticated_notice_export_allows_blob_store_reference_manifest_for_body_only_batches(self) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["links"] = []
+        bundle[0]["notice_attachments"] = []
+        bundle[0]["attachments"] = []
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        self.assertNotIn("attachment_object_backfill", report)
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].attachment_document_count, 0)
+
+    def test_import_authenticated_notice_bundle_records_attachment_owner_expectation_when_relations_are_missing(self) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_title"] = "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+        bundle[0]["notice"]["notice_content"] = (
+            "<h1>关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知</h1>"
+            "<p>各教学单位、各位同学：</p>"
+            "<p>现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。</p>"
+            "<p>附件：中央民族大学关于学生使用人工智能的指导意见（2026版）</p>"
+        )
+        bundle[0]["links"] = []
+        bundle[0]["notice_attachments"] = []
+        bundle[0]["attachments"] = []
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        notice_manifest = json.loads(
+            imported.source_truth_artifacts["source-truth/notice-manifest.json"].decode("utf-8")
+        )
+        self.assertEqual(notice_manifest["attachment_ref_count"], 0)
+        self.assertEqual(notice_manifest["owner_expectation_count"], 1)
+        self.assertEqual(imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"], b"")
+        owner_expectation = notice_manifest["owner_expectations"][0]
+        self.assertEqual(owner_expectation["owner_kind"], "attachment_document")
+        self.assertEqual(owner_expectation["relation_type"], "attachment_ref")
+        self.assertEqual(
+            owner_expectation["owner_title_hint"],
+            "中央民族大学关于学生使用人工智能的指导意见（2026版）",
+        )
+        self.assertIn("附件：中央民族大学关于学生使用人工智能的指导意见（2026版）", owner_expectation["evidence_text"])
+
+    def test_import_authenticated_notice_export_preserves_file_release_owner_expectation_in_inventory_snapshot(self) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_title"] = "关于《中央民族大学差旅费管理办法》发布实施的通知"
+        bundle[0]["notice"]["notice_content"] = (
+            "<p>各单位、各部门：</p>"
+            "<p>为加强学校国内差旅费管理，学校对《中央民族大学差旅费管理办法》进行了修订，现已经审议通过，自2025年7月1日起实施。</p>"
+            "<p>修订后的文件见信息门户-文件发布，请各单位自行下载参照执行。</p>"
+        )
+        bundle[0]["links"] = []
+        bundle[0]["notice_attachments"] = []
+        bundle[0]["attachments"] = []
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].attachment_document_count, 0)
+        self.assertEqual(entries[0].parent_snapshot["owner_expectation_count"], 1)
+        owner_expectation = entries[0].parent_snapshot["owner_expectations"][0]
+        self.assertEqual(owner_expectation["owner_kind"], "file_release_document")
+        self.assertEqual(owner_expectation["relation_type"], "file_release_ref")
+        self.assertEqual(owner_expectation["owner_title_hint"], "中央民族大学差旅费管理办法")
+        self.assertIn("信息门户-文件发布", owner_expectation["evidence_text"])
+
+    def test_import_authenticated_notice_bundle_prefers_collector_export_contract_version(self) -> None:
+        manifest = _sample_export_manifest()
+        manifest["schema_version"] = "authenticated_notice_legacy_bootstrap_normalized_v1"
+        manifest["collector"] = {
+            "runtime_shell": "legacy_external_collector",
+            "export_contract_version": "legacy_authenticated_notice_export_v3",
+        }
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, manifest)
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                )
+            )
+
+        imported = result.notice_imports[0]
+        notice_manifest = json.loads(
+            imported.source_truth_artifacts["source-truth/notice-manifest.json"].decode(
+                "utf-8"
+            )
+        )
+        self.assertEqual(
+            notice_manifest["fetcher_version"],
+            "authenticated_notice_legacy_bootstrap_normalized_v1",
+        )
+        self.assertEqual(
+            notice_manifest["collector_version"],
+            "legacy_authenticated_notice_export_v3",
+        )
 
     def test_import_authenticated_notice_bundle_supports_reference_only_attachment_refs(self) -> None:
         bundle = _sample_notice_bundle()

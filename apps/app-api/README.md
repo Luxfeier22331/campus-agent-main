@@ -145,14 +145,17 @@ Local development:
 - the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from `wrangler.toml` `env.local`
 - put local Wrangler / Drizzle process env in `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
   - `APP_API_MANAGEMENT_DATABASE_URL=...`
 - if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
-  to generate `apps/app-api/.env`
+  to generate `apps/app-api/.env`; the sync script will mirror the runtime DSN into both
+  `APP_API_DB` and `APP_API_DB_FRESH` local bindings unless you later override them manually
 - put Worker string env in `apps/app-api/.dev.vars`
 - for `official_web` live control-plane smoke,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
   `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
+- if current staging only targets `app-api + public-chat-web + protected-panel-web`, and does not yet enable official-web live control-plane, `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
 
 Deployment minimum gate:
 
@@ -173,6 +176,7 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- --email help_bot@outlook.com --name "Help Bot"
 pnpm official-web:drain-projection -- --limit 50
 pnpm projection:drain
 pnpm test
@@ -183,8 +187,19 @@ pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:migrate:staging
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:reconcile-shared-drift:staging
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 pnpm dev
 ```
+
+Deploy note:
+
+- `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
+- 在任何 staging `official_web` / operator surface smoke 之前，先执行
+  `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
+  和需要时的 `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:migrate:staging`
+- 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与 `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 
 Testing lanes:
 

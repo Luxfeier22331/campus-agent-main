@@ -444,6 +444,28 @@ class HandbookLiveProfileTest(unittest.TestCase):
             180.0,
         )
 
+    def test_build_handbook_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
+        profile = build_handbook_live_profile(
+            env={
+                "APP_API_BASE_URL": "https://app-api.internal",
+                "APP_API_INTERNAL_SHARED_SECRET": "trusted-secret",
+                "APP_API_EVAL_USER_EMAIL": "eval-benchmark@example.edu",
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        with patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor") as build_executor:
+            executor = profile.executor_factory()
+
+        self.assertEqual(executor, "executor")
+        self.assertEqual(
+            build_executor.call_args.kwargs["default_timeout_seconds"],
+            profile.http_settings.read_timeout_seconds,
+        )
+
 
 class HandbookLiveBenchmarkCliTest(unittest.TestCase):
     def test_build_default_output_dir_uses_timestamped_eval_directory(self) -> None:

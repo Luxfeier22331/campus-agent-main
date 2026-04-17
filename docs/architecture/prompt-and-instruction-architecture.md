@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Prompt And Instruction Architecture
@@ -25,9 +25,9 @@ updated: 2026-04-06
 - 某次迭代的具体 prompt 文案
 - retrieval / authz / serving truth 的产品级决策
 
-## 当前问题
+## 当前接受的实现基线
 
-当前 repo 已经有明确的 orchestration / policy / answer-shaping 行为，但这些真相主要散落在代码里：
+当前 repo 已经把 prompt / instruction runtime 收口为显式 supporting architecture + code-owned runtime seam。当前接受的实现基线是：
 
 - `packages/supervisor-core`
   拥有 intent framing、routing、policy、response finalization
@@ -36,11 +36,36 @@ updated: 2026-04-06
 - `packages/retrieval-core`
   拥有 evidence retrieval kernel
 
-这意味着：
+补充约束：
 
-- 我们已经有行为设计
-- 但还没有 repo 级显式 prompt architecture
-- prompt 版本、变量契约、release gate 与 observability 口径仍未形成稳定真相源
+- repo-global developer invariants 由 shared prompt runtime helper 持有
+- package-owned role prompt 继续由 `packages/supervisor-core` / `packages/rag-specialist` prompt registry 持有
+- `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py` 负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence packet 组装成 runtime stack
+- `apps/supervisor-api/src/campus_supervisor_api/prompt_executor.py` 负责 provider-backed strict structured outputs，并在产品主链路生成 validated `PromptTrace`
+- provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作 schema-valid success 放行
+- `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_version`、`template_sha256`、`prompt_runtime_state`、`prompt_runtime_detail`
+- curriculum / handbook 的 deterministic-first protected paths 继续保持 deterministic-first，不因 prompt rollout 回退成 prompt-first
+- 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以 `.planning/PROJECT.md` 与 `.planning/STATE.md` 为准
+
+## 外部最佳实践对齐（2026-04-12）
+
+本仓库当前 prompt runtime 形态与 OpenAI 官方文档的主线建议一致：
+
+- 新的 text generation app 默认走 Responses API，而不是继续围绕旧 Chat Completions 组织产品主链路
+- 应用拥有的高优先级规则放在 `instructions` / `developer` 层，用户输入与 evidence 继续留在低优先级输入区
+- untrusted content 不进入 developer instruction zone；节点间数据交换尽量走 strict structured outputs，而不是自由文本通道
+- prompt / model 变更应绑定持续 eval，而不是只靠人工感受或一次性 smoke
+
+对应官方资料：
+
+- OpenAI Prompting
+  - `https://platform.openai.com/docs/guides/prompting`
+- OpenAI Responses vs Chat Completions
+  - `https://platform.openai.com/docs/guides/responses-vs-chat-completions`
+- OpenAI Structured Outputs
+  - `https://platform.openai.com/docs/guides/structured-outputs`
+- OpenAI Evaluation Best Practices
+  - `https://platform.openai.com/docs/guides/evaluation-best-practices`
 
 ## 核心立场
 
@@ -258,6 +283,36 @@ repo 级 instruction hierarchy 固定拆成五层：
 - 明确标为 untrusted content
 
 5. `post-LLM contract`
+
+## Product-Path Runtime Assembly
+
+当前 product-path runtime assembly 固定遵循以下顺序：
+
+1. `repo-global developer invariants`
+2. `package-owned role prompt`
+3. `trusted task packet`
+4. `untrusted user input`
+5. `untrusted evidence packet`
+6. `strict structured output contract`
+7. `code-side finalization`
+
+当前实现边界：
+
+- `apps/supervisor-api`
+  - owns runtime assembly / provider binding seam
+- `packages/supervisor-core`
+  - owns supervisor role prompt assets 与 typed task packet
+- `packages/rag-specialist`
+  - owns rag role prompt assets、typed task packet 与 typed evidence packet
+- `apps/app-api`
+  - 只消费 observability-safe prompt metadata，不参与 prompt assembly
+
+禁止事项：
+
+- 不把 user text 拼进 developer message
+- 不把 retrieval snippets 拼进 developer message
+- 不让 app-local route handler 直接拼自己的 prompt 文本绕过 package-owned registry
+- 不让 provider 自由文本输出绕过 schema / post-LLM contract 校验
 - schema validation、policy finalization、citation checks、deny-path shaping
 - 永远回到 code 层执行
 
@@ -280,6 +335,16 @@ repo 级只应保留一段极薄、极稳定的 global invariants；其余内容
 - 如果请求是 `unsupported`、`ambiguous`、`unauthorized` 或 `not grounded by evidence`，必须 abstain 或要求澄清
 - 输出必须满足 typed schema，并接受 code-side finalization
 
+可直接复用的参考 block 应保持在这个量级：
+
+```text
+You are an institution-scoped campus assistant.
+Never override policy, authorization, serving-surface, or scope truth supplied by code and typed packets.
+Never use open-world knowledge to fill institution-specific gaps.
+If the request is ambiguous, unauthorized, unsupported, or not grounded by evidence, abstain or ask for clarification.
+Return only schema-compliant output. Code-side finalization is authoritative.
+```
+
 这段 block 的职责只有：
 
 - 固定 repo 级产品姿态
@@ -297,6 +362,35 @@ repo 级只应保留一段极薄、极稳定的 global invariants；其余内容
 
 这些仍然必须留在 code side。
 
+## Final Runtime Shape
+
+当产品方说“system prompt”时，repo 内允许把它当作一个便于沟通的简称。
+
+但长期实现真相固定为：
+
+`repo-global developer invariants -> package-owned role developer prompt -> typed trusted task packet -> typed untrusted evidence/user packet -> strict structured output + code-side finalization`
+
+补充约束：
+
+- 对 OpenAI-compatible runtime，repo-global 那一层应优先实现为 `developer message`，而不是继续膨胀成 monolithic mega system prompt
+- `system prompt` 这个词只保留为产品沟通 shorthand，不得反向诱导实现把 role、task、evidence、schema 全堆回单块字符串
+- user text、retrieved snippets、external observations、free-text memory 一律视为 `untrusted content`，不得进入 developer / trusted instruction zone
+- package-owned role prompt 可以继续使用 markdown template 资产，但进入 provider runtime 时必须按 trusted / untrusted zone 显式拼装
+- product-path 最终必须能稳定落下 `prompt_id`、`prompt_version`、`template_sha256`、`model_provider`、`model_name`
+
+因此，repo 最终不追求：
+
+- 一份更长的总 system prompt
+- 把 routing / authz / serving truth 写成 prompt 文案
+- 把 prompt 当作 agent graph 的唯一真相源
+
+repo 最终追求的是：
+
+- 一个极薄、稳定、可版本化的 repo-global invariants block
+- 按 supervisor / specialist / mode 拆分的 package-owned prompt family
+- 明确的 trusted task packet 与 untrusted evidence packet 分区
+- strict structured outputs、grounding validator 与 code-owned finalization
+
 ## Package-Owned Prompt Shape
 
 repo 当前推荐的 system / role 设计固定为：
@@ -310,7 +404,7 @@ repo 当前推荐的 system / role 设计固定为：
 直接含义：
 
 - `packages/supervisor-core` 的 prompt family 只负责 `clarify / approval_required / out_of_scope / reject` 的用户措辞
-- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer` 的 grounded wording
+- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer / unsupported` 的 grounded wording
 - `packages/retrieval-core` 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission / product projection
 
@@ -352,13 +446,13 @@ repo 当前推荐的 system / role 设计固定为：
 
 - owns supervisor role instructions
 - owns supervisor task packet assembly
-- owns clarification / approval-required / reject wording prompt families
+- owns clarification / approval-required / out-of-scope / reject wording prompt families
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
 ### `packages/rag-specialist`
 
 - owns rag-specialist role instructions
-- owns answer / clarify / no-answer prompt families
+- owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 authz truth、serving truth、product identity truth
 
@@ -383,6 +477,7 @@ repo 当前推荐的 system / role 设计固定为：
 - `supervisor_clarify_v1`
 - `supervisor_reject_v1`
 - `supervisor_approval_required_v1`
+- `supervisor_out_of_scope_v1`
 
 说明：
 
@@ -395,6 +490,7 @@ repo 当前推荐的 system / role 设计固定为：
 - `rag_answer_v1`
 - `rag_clarify_v1`
 - `rag_no_answer_v1`
+- `rag_unsupported_v1`
 
 可选后续 family：
 
@@ -633,19 +729,18 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ## Current Gap To Best Practice
 
-当前 repo 方向已经基本正确，但与长期最佳实践相比仍有三个明确缺口：
+当前 repo 方向已经基本正确，但与长期最佳实践相比仍有一个明确缺口：
 
-1. provider-level strict structured outputs 还没有成为默认产品运行时能力
-- 目前有 prompt packet / typed output seam
-- 但产品主路径默认仍以 deterministic fallback 为主，尚未形成 repo-default strict output runtime
+1. claim-level grounding validator 已落地，但仍是最小可用强度
+- 当前已对 prompt-generated completed answer 执行 answer-to-evidence 校验，并对 title / time / requirement claim 做最小提取
+- 但还没有覆盖更广的 claim 类型，也还不是完整的 cross-provider grounded generation runtime
 
-2. claim-level grounding validator 还不够强
-- 当前已有 `citation_expected`、`citation_missing`、`semantic_outcome`
-- 但还没有一层更硬的 answer-to-evidence validator 来自动识别“回答包含 evidence packet 不支持的关键 claim”
+补充说明：
 
-3. hallucination eval 还需要按 failure class 显式拆开
-- 当前 eval 已覆盖不少 failure posture
-- 但还应把 `out_of_scope`、`policy_refusal`、`restricted_access_denied`、`unsupported_by_evidence`、`freshness fail-close` 作为独立 regression lane
+- hallucination failure-class eval lane 已经显式拆开，不再是当前主要 gap
+- repo-default prompt metadata sink 已补齐到 `apps/app-api` / operator / eval runtime surface
+- `refusal` / `incomplete` / `content-filter` 现在会以 observability-safe typed product state 留痕，而不是只作为 fallback reason
+- 当前剩余 gap 主要集中在 grounding validator 深化
 
 ## First-Rollout Strategy
 
@@ -682,59 +777,51 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 对当前 repo 的直接结论是：
 
-- 我们需要显式 prompt architecture
+- 我们需要显式 prompt architecture，而且当前产品主链路已经落地第一版 runtime seam
 - 但不需要把系统改写成 prompt-first RAG
 - supervisor prompt 应保持薄
 - rag-specialist prompt 应按 mode 拆分
 - 结构化、高精度场景继续优先 deterministic composer
 - 幻觉治理的主力仍然是 `scope/evidence/finalization/eval`，而不是继续把 system prompt 写得更长
 
-## Current Rollout Status
+## 当前接受的运行时基线
 
-截至 `2026-04-05`，当前 repo 的 prompt rollout 已经落到以下状态：
+当前 repo 的稳定运行时基线是：
 
-- 已完成 package-owned prompt registry / prompt packet substrate
-- 已完成 `supervisor_clarify_v1`、`supervisor_approval_required_v1`、`supervisor_reject_v1`
-- 已完成 `rag_clarify_v1`、`rag_no_answer_v1`、`rag_answer_v1`
-- 已完成 package-local prompt executor protocol / typed output seam
-- 已完成 supervisor terminal branch 与 rag clarify / no-answer / generic answer branch 的 injected runtime seam
+- package-owned prompt registry、prompt packet 与 strict validation seam 已成为产品主链路的一部分
+- `apps/supervisor-api` 已承担 runtime assembly / provider binding seam，并将 prompt trace 接入现有 diagnostics / observability
+- provider-backed strict structured outputs、fail-close refusal handling 与 typed prompt metadata 已成为 repo-default posture
+- supervisor 的 `policy gate + scope gate` 与 rag-specialist 的 grounding validator 共同承担 prompt-side hallucination control，而不是把控制责任退回“更长的 system prompt”
+- `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与 restricted deny final semantics 继续保持 deterministic-first protected path
 
-当前仍未默认开启的部分是：
+仍属当前 follow-up 但不在本文维护执行顺序的工作：
 
-- provider-backed prompt executor
-- prompt metadata 的 repo-default runtime sink
-- `curriculum` 高结构答案、`handbook procedure/materials/time` 高精度 path、restricted deny final semantics 的 promptified default path
+- 更强的 provider-agnostic grounded-generation runtime
+- 更广的 claim taxonomy 与 specialist-side unsupported diagnostics
+- prompt-family live gate artifact 的持续更新
 
-原因固定为：
-
-- 当前 repo 只有 `packages/evals` 已落地的 OpenAI-compatible `Responses` HTTP runtime；产品运行时侧还没有接受一个共享、稳定的 prompt/model execution package
-- 如果在边界未冻结前直接把 eval-side runtime 倒灌进 `supervisor-core` / `rag-specialist`，会把评测实现偶然性提升成产品主路径
-- 上述高精度场景当前已有 deterministic truth，直接改成 prompt-first 会放大 regression 面并破坏现有 release gate
-
-因此当前 accepted 状态是：
-
-- 代码已经允许按 package 边界注入 prompt executor，并把 prompt trace 挂到现有 diagnostics / observability
-- 在产品运行时侧 shared `Responses` executor boundary 被接受之前，默认实现继续保持 deterministic fallback，不把 provider 调用写死进当前主路径
-
-剩余工作何时可以继续：
-
-- 当 repo 接受以下任一条件时，即可进入下一轮执行：
-  - 从 `packages/evals` 抽出 product-owned shared `Responses` runtime，并冻结为非 eval 专用能力边界
-  - 或者新增独立的 product-side prompt execution package，并完成 provider config、schema validation、metadata sink 的 repo 级接线
-- 满足上述条件后，下一轮可以完整执行：
-  - 默认启用 provider-backed supervisor prompt executor
-  - 默认启用 rag clarify / no-answer / generic answer prompt executor
-  - 在不触碰 deterministic protected paths 的前提下补齐 live gate / quality gate evidence
+这些工作属于当前项目级 active lane，执行顺序与完成状态以 `.planning/PROJECT.md`、`.planning/STATE.md` 与对应 active plan 为准。
 
 ## 外部参考
 
 以下外部资料用于 informing best practice，不替代 repo 内 source of truth：
 
-- OpenAI Prompting Guide
+- OpenAI Prompting
+  - `https://platform.openai.com/docs/guides/prompting`
+- OpenAI Responses vs Chat Completions
+  - `https://platform.openai.com/docs/guides/responses-vs-chat-completions`
+- OpenAI Structured Outputs
+  - `https://platform.openai.com/docs/guides/structured-outputs`
+- OpenAI Evaluation Best Practices
+  - `https://platform.openai.com/docs/guides/evaluation-best-practices`
 - OpenAI Safety Best Practices
+  - `https://platform.openai.com/docs/guides/safety-best-practices`
 - OpenAI Moderation Guide
+  - `https://platform.openai.com/docs/guides/moderation`
 - OpenAI Safety In Building Agents
+  - `https://developers.openai.com/tracks/building-agents/`
 - OpenAI Model Spec
+  - `https://model-spec.openai.com/`
 - Azure Advanced Retrieval-Augmented Generation
 - Azure Groundedness Detection
 - Azure RAG Evaluators

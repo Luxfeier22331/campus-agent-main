@@ -29,6 +29,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.rrf_dense_weight, 1.0)
         self.assertEqual(profile.rrf_sparse_weight, 1.0)
         self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
         self.assertEqual(
             profile.embedding_query_instruction,
             "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
@@ -59,6 +60,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.rrf_dense_weight, 1.0)
         self.assertEqual(profile.rrf_sparse_weight, 1.0)
         self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
         self.assertEqual(
             profile.embedding_query_instruction,
             "Given a campus policy or handbook question, retrieve relevant passages that answer the query.",
@@ -115,6 +117,26 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "curriculum_program_family_facts_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "program_family_facts")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_family_facts")
+
+    def test_load_curriculum_program_semester_facts_runtime_profile(self) -> None:
+        profile = load_runtime_profile("curriculum", "program_semester_facts")
+
+        self.assertEqual(profile.corpus, "curriculum")
+        self.assertEqual(profile.collection, "program_semester_facts")
+        self.assertEqual(profile.serving_stage, "query_serving")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertTrue(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
+        self.assertEqual(profile.retrieval_top_k, 5)
+        self.assertEqual(profile.document_support_limit, 24)
+        self.assertEqual(profile.document_support_strategy, "targeted_overfetch")
+        self.assertEqual(profile.cleaning_policy_version, "curriculum_program_semester_facts_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "curriculum_program_semester_facts_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "program_semester_facts")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_semester_facts")
 
     def test_load_service_catalog_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "service_catalog")
@@ -185,6 +207,12 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(profile.required_metadata_fields, ())
+        self.assertEqual(profile.primary_evidence_page_families, ())
+        self.assertIsNone(profile.listing_page_role)
+        self.assertFalse(profile.requires_freshness_gate)
+        self.assertFalse(profile.requires_explicit_history_intent)
+        self.assertFalse(profile.duplicate_collapse_required)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
@@ -199,13 +227,30 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.collection, "fresh_news")
         self.assertEqual(profile.serving_stage, "offline_preparation")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.split_manifest_required)
+        self.assertTrue(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
         self.assertEqual(profile.serving_surface, "fresh_news")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(
+            profile.required_metadata_fields,
+            (
+                "published_at",
+                "crawled_at",
+                "last_seen_at",
+                "host",
+                "page_family",
+                "section",
+                "news_kind",
+            ),
+        )
+        self.assertEqual(profile.primary_evidence_page_families, ("article_detail",))
+        self.assertEqual(profile.listing_page_role, "discovery_only")
+        self.assertTrue(profile.requires_freshness_gate)
+        self.assertFalse(profile.requires_explicit_history_intent)
+        self.assertTrue(profile.duplicate_collapse_required)
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_fresh_news")
@@ -225,6 +270,23 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
         self.assertFalse(profile.live_search_fallback_allowed)
+        self.assertEqual(
+            profile.required_metadata_fields,
+            (
+                "published_at",
+                "crawled_at",
+                "last_seen_at",
+                "host",
+                "page_family",
+                "section",
+                "news_kind",
+            ),
+        )
+        self.assertEqual(profile.primary_evidence_page_families, ("article_detail",))
+        self.assertEqual(profile.listing_page_role, "discovery_only")
+        self.assertFalse(profile.requires_freshness_gate)
+        self.assertTrue(profile.requires_explicit_history_intent)
+        self.assertTrue(profile.duplicate_collapse_required)
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
         self.assertEqual(profile.chunk_profile_version, "official_web_semantic_v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "official_web_news_archive")
@@ -262,6 +324,42 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "authenticated_notice_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "internal_notice")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "internal_notice")
+
+    def test_load_institutional_regulations_runtime_profile(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_regulations")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "institutional_regulations")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "institutional_regulations_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "institutional_regulations_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_regulations")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_regulations")
+
+    def test_load_scoped_rules_runtime_profile(self) -> None:
+        profile = load_runtime_profile("regulations", "scoped_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "scoped_rules")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ("current-effective", "source-faithful"))
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "scoped_rules_cleaning_v1")
+        self.assertEqual(profile.chunk_profile_version, "scoped_rules_semantic_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "scoped_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "scoped_rules")
 
     def test_default_query_scopes_include_all_query_enabled_profiles(self) -> None:
         self.assertEqual(

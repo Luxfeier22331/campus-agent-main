@@ -13,7 +13,9 @@ service = "app-api"
 APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
 PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"
 SENTRY_ENVIRONMENT = "staging"
-SENTRY_RELEASE = "public-chat-web@staging-20260405-05c3d45"
+
+[env.staging.secrets]
+required = ["SENTRY_DSN"]
 
 [[env.staging.routes]]
 pattern = "campus-chat-staging.ayafeed.com"

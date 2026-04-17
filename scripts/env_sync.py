@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
+SHARED_POSTGRES_MANAGEMENT_ENV_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 
 
 def resolve_source_env_path(repo_root: Path) -> Path:

@@ -55,6 +55,8 @@ _TIME_STATEMENT_HINTS = (
     ":",
 )
 _ACADEMIC_YEARS_FACT_RE = re.compile(r"学制[:： ]*(?:\d+|[一二三四五六七八九十两]+)年")
+_CURRICULUM_TOTAL_CREDITS_FACT_RE = re.compile(r"总学分[^0-9]{0,12}([0-9]{2,3})(?:\s*学分)?")
+_CURRICULUM_STUDY_YEARS_FACT_RE = re.compile(r"学制[^0-9一二三四五六七八九十两]{0,12}((?:\d+|[一二三四五六七八九十两]+)年)")
 _CURRICULUM_SEMESTER_NUMERIC_LABELS = {
     "第一学期": "1",
     "第二学期": "2",
@@ -244,6 +246,8 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
 
 def _query_mode(query_text: str) -> str:
     normalized = _normalize_snippet(query_text).lower()
+    if _is_curriculum_lookup_query(query_text):
+        return "curriculum_lookup"
     if any(hint in normalized for hint in _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS):
         return "generic"
     if any(hint in normalized for hint in _PROCEDURE_QUERY_HINTS):
@@ -315,6 +319,11 @@ def _score_statement(
 def _is_curriculum_course_list_query(query_text: str) -> bool:
     normalized_query = _normalize_snippet(query_text)
     return any(hint in normalized_query for hint in _CURRICULUM_COURSE_LIST_QUERY_HINTS)
+
+
+def _is_curriculum_lookup_query(query_text: str) -> bool:
+    interpretation = interpret_curriculum_query(query_text)
+    return interpretation.intent_kind == "curriculum_lookup"
 
 
 def _curriculum_semester_labels(query_text: str) -> tuple[str, ...]:
@@ -598,14 +607,15 @@ def _select_answer_support_rows(
 
     mode = _query_mode(query_text)
     course_list_query = _is_curriculum_course_list_query(query_text)
+    curriculum_lookup_query = _is_curriculum_lookup_query(query_text)
     consumable_sources = tuple(
         source for source in sources if not _should_ignore_official_web_source(source)
     )
     ranked_source_input = consumable_sources or sources
-    max_seen_statements = 6 if course_list_query else 3
+    max_seen_statements = 6 if course_list_query or curriculum_lookup_query else 3
     ranked_sources = (
         tuple(ranked_source_input)
-        if course_list_query
+        if course_list_query or curriculum_lookup_query
         else tuple(
             sorted(
                 ranked_source_input,
@@ -640,7 +650,7 @@ def _select_answer_support_rows(
             and not _is_official_web_reference_query(query_text=query_text, source=source)
         ):
             break
-        if course_list_query and len(rows) >= 2 and len(seen_statements) >= 5:
+        if (course_list_query or curriculum_lookup_query) and len(rows) >= 2 and len(seen_statements) >= 5:
             break
         if index == 0 and mode == "time" and any("学制" in statement for statement in novel_statements):
             break
@@ -1028,6 +1038,13 @@ def _compose_direct_answer(
         )
         if semester_course_list_answer:
             return semester_course_list_answer
+    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        curriculum_lookup_answer = _compose_curriculum_lookup_answer(
+            evidence=evidence,
+            selected_rows=selected_rows,
+        )
+        if curriculum_lookup_answer:
+            return curriculum_lookup_answer
     return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
 
@@ -1067,6 +1084,72 @@ def _query_topic_label(query_text: str) -> str:
     if not _CJK_SEGMENT_RE.search(normalized):
         return ""
     return normalized
+
+
+def _compose_curriculum_lookup_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    statements = _flatten_curriculum_statements(selected_rows)
+    if not statements:
+        return ""
+    lead_title = _lead_source_title(tuple(source for source, _ in selected_rows))
+    normalized_query = _normalize_snippet(evidence.query_text)
+    if any(token in normalized_query for token in ("学制", "几年")):
+        years = _extract_curriculum_study_years(statements)
+        if years:
+            return _curriculum_fact_sentence(lead_title, f"学制为{years}")
+    if "总学分" in normalized_query:
+        credits = _extract_curriculum_total_credits(statements)
+        if credits:
+            return _curriculum_fact_sentence(lead_title, f"总学分为{credits}")
+    return ""
+
+
+def _flatten_curriculum_statements(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    statements: list[str] = []
+    for source, row_statements in selected_rows:
+        if row_statements:
+            statements.extend(statement for statement in row_statements if statement)
+            continue
+        fallback = _render_source_support(source)
+        if fallback:
+            statements.append(fallback)
+    return tuple(statements)
+
+
+def _extract_curriculum_study_years(statements: tuple[str, ...]) -> str:
+    for statement in statements:
+        normalized = _normalize_snippet(statement)
+        match = _CURRICULUM_STUDY_YEARS_FACT_RE.search(normalized)
+        if match:
+            return match.group(1)
+        if "学制" in normalized:
+            tail = normalized.split("学制", 1)[-1]
+            fallback = re.search(r"((?:\d+|[一二三四五六七八九十两]+)年)", tail)
+            if fallback:
+                return fallback.group(1)
+    return ""
+
+
+def _extract_curriculum_total_credits(statements: tuple[str, ...]) -> str:
+    for statement in statements:
+        normalized = _normalize_snippet(statement)
+        if "总学分" not in normalized:
+            continue
+        match = _CURRICULUM_TOTAL_CREDITS_FACT_RE.search(normalized)
+        if match:
+            return f"{match.group(1)}学分"
+    return ""
+
+
+def _curriculum_fact_sentence(lead_title: str, body: str) -> str:
+    if lead_title:
+        return f"《{lead_title}》{body}。"
+    return f"{body}。"
 
 
 def _is_official_web_source(source: EvidenceSource) -> bool:
@@ -1819,11 +1902,11 @@ def _arabic_number_to_chinese(value: str) -> str:
 
 
 def _answer_prefix(evidence: EvidenceBundle) -> str:
-    if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
-        return "根据培养方案相关内容"
     if (
         evidence.corpus == "official_web"
         and is_official_web_stable_reference_like_collection(evidence.collection)
     ):
         return "根据官网页面内容"
+    if evidence.corpus == "curriculum":
+        return "根据培养方案相关内容"
     return "根据学生手册相关规定"

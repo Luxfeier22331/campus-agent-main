@@ -115,6 +115,59 @@ class OperatorObservabilityBatchBuilderTest(unittest.TestCase):
         self.assertEqual(batch.backlinks, ())
         self.assertEqual(batch.skipped, ())
 
+    def test_build_case_results_publish_batch_publishes_new_hallucination_policy_metrics(self) -> None:
+        payload = {
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "metric_results": {
+                        "restricted_access_denied_accuracy": {
+                            "passed": True,
+                            "reason": "ok",
+                        },
+                        "freshness_fail_close_accuracy": {
+                            "passed": False,
+                            "reason": "semantic_outcome=unsupported_by_evidence",
+                        },
+                    },
+                }
+            ]
+        }
+        correlations = {
+            "case-1": OperatorRequestCorrelation(
+                case_id="case-1",
+                request_id="req_01",
+                trace_id="trace_01",
+                sampled_at="2026-04-03T00:10:00.000Z",
+            )
+        }
+
+        batch = build_case_results_publish_batch(
+            case_results_payload=payload,
+            correlations=correlations,
+            grade_source="deterministic_eval",
+            grader_version="deterministic@2026-04-06",
+        )
+
+        self.assertEqual(
+            batch.grades,
+            (
+                OperatorQualityGrade(
+                    request_id="req_01",
+                    trace_id="trace_01",
+                    grade_source="deterministic_eval",
+                    grade_domain="policy",
+                    verdict="fail",
+                    score=None,
+                    grader_version="deterministic@2026-04-06",
+                    sampled_at="2026-04-03T00:10:00.000Z",
+                    rationale_summary="semantic_outcome=unsupported_by_evidence",
+                ),
+            ),
+        )
+        self.assertEqual(batch.backlinks, ())
+        self.assertEqual(batch.skipped, ())
+
     def test_build_case_results_publish_batch_skips_unsupported_deterministic_metrics(self) -> None:
         payload = {
             "results": [

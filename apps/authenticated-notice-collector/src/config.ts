@@ -4,9 +4,17 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(packageRoot, "../..");
+const REQUIRED_NO_PROXY_HOSTS = [
+  "muc.edu.cn",
+  ".muc.edu.cn",
+  "my.muc.edu.cn",
+  "ca.muc.edu.cn",
+];
 
 export interface CollectorConfig {
   packageRoot: string;
+  repoRoot: string;
   runtimeDir: string;
   authStorageStatePath: string;
   exportsDir: string;
@@ -22,7 +30,15 @@ export interface CollectorConfig {
 }
 
 export function loadCollectorEnv(): void {
-  dotenv.config({ path: path.join(packageRoot, ".env") });
+  dotenv.config({ path: path.join(repoRoot, ".env") });
+  dotenv.config({ path: path.join(packageRoot, ".env"), override: true });
+  applyCollectorNoProxyEnv(process.env);
+}
+
+export function applyCollectorNoProxyEnv(target: NodeJS.ProcessEnv): void {
+  const merged = mergeNoProxyValue(target.NO_PROXY ?? target.no_proxy);
+  target.NO_PROXY = merged;
+  target.no_proxy = merged;
 }
 
 export function resolveCollectorConfig(source: NodeJS.ProcessEnv | Record<string, string | undefined>): CollectorConfig {
@@ -32,6 +48,7 @@ export function resolveCollectorConfig(source: NodeJS.ProcessEnv | Record<string
   const portalBaseUrl = String(source.AUTHENTICATED_NOTICE_BASE_URL || "https://my.muc.edu.cn").trim();
   return {
     packageRoot,
+    repoRoot,
     runtimeDir,
     authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
     exportsDir: path.join(runtimeDir, "exports"),
@@ -61,4 +78,21 @@ function parsePositiveInteger(raw: string | undefined, fallback: number): number
     return fallback;
   }
   return Math.floor(parsed);
+}
+
+function mergeNoProxyValue(raw: string | undefined): string {
+  const tokens = (raw || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const seen = new Set(tokens.map((token) => token.toLowerCase()));
+  for (const host of REQUIRED_NO_PROXY_HOSTS) {
+    const normalized = host.toLowerCase();
+    if (seen.has(normalized)) {
+      continue;
+    }
+    tokens.push(host);
+    seen.add(normalized);
+  }
+  return tokens.join(",");
 }

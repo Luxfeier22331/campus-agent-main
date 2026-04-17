@@ -29,6 +29,7 @@ from campus_evals.judge_adapters import (
     build_answer_rubric_adapter,
     build_default_handbook_supplemental_adapters_from_env,
     build_handbook_ragas_adapter,
+    build_json_judge,
     build_refusal_rubric_adapter,
     load_handbook_judge_rubrics,
 )
@@ -53,8 +54,10 @@ from campus_evals.models import (
     expected_source_ref,
 )
 from campus_evals.supplemental_http import (
+    OpenAICompatibleChatCompletionsLLM,
     OpenAICompatibleHTTPEmbeddings,
     OpenAICompatibleResponsesLLM,
+    OpenAICompatibleTextChatCompletionsLLM,
     OpenAICompatibleTextResponsesLLM,
     build_http_ragas_embeddings,
     build_http_ragas_llm,
@@ -124,6 +127,7 @@ from campus_evals.scenarios import (
     official_web_release_gate_cases,
     official_web_stable_reference_release_gate_cases,
     official_web_stable_reference_scope,
+    policy_risk_and_grounding_release_gate_cases,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 
@@ -205,7 +209,9 @@ __all__ = [
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "OperatorObservabilityPublishConfig",
     "OpenAICompatibleHTTPEmbeddings",
+    "OpenAICompatibleChatCompletionsLLM",
     "OpenAICompatibleResponsesLLM",
+    "OpenAICompatibleTextChatCompletionsLLM",
     "OpenAICompatibleTextResponsesLLM",
     "OperatorObservabilityClient",
     "OperatorObservabilityClientError",
@@ -251,6 +257,7 @@ __all__ = [
     "build_http_ragas_llm",
     "build_answer_rubric_adapter",
     "build_handbook_ragas_adapter",
+    "build_json_judge",
     "build_metric_key",
     "build_refusal_rubric_adapter",
     "build_ragas_dataset",
@@ -300,6 +307,7 @@ __all__ = [
     "official_web_release_gate_cases",
     "official_web_stable_reference_release_gate_cases",
     "official_web_stable_reference_scope",
+    "policy_risk_and_grounding_release_gate_cases",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_release_gate_doc_ids",
     "summarize_retrieval_metrics",

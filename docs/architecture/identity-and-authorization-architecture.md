@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-12
 ---
 
 # Identity And Authorization Architecture
@@ -31,6 +31,28 @@ updated: 2026-04-02
 
 - 前四层由 `apps/app-api` 拥有 canonical truth
 - `institutional knowledge` 由 document / retrieval / evidence stack 拥有 canonical truth
+
+## Accepted Ownership Posture
+
+identity / authz / memory supporting architecture 当前已经明确：
+
+- `apps/app-api` 是唯一 product-layer auth / session / principal owner
+- execution path 只消费 typed actor/context projection
+- retrieval path 只消费 authz projection carrier，不拥有最终 entitlement resolution
+
+当前仍存在、但 owner 已明确的后续工作包括：
+
+- restricted document rollout
+- memory / personalization productization
+- legacy ACL carrier sunset
+
+这些是后续 productization / rollout gap，不应倒推为“authz truth 尚未归属”，也不应把旧 foundation plan 直接当成当前 merged truth。
+
+补充说明：
+
+- identity / restricted foundation 本身已在 Phase 11 收口
+- 当前若继续推进这条域，默认应把 rollout / sunset 看作 deferred follow-up，而不是重新打开 foundation ownership 讨论
+- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-memory.md`、`.planning/PROJECT.md` 与 `.planning/STATE.md`
 
 ## Ownership Model
 
@@ -84,12 +106,14 @@ execution path 的长期规则：
 
 ## Restricted Documents And Retrieval
 
-当前 restricted document rollout 尚在 active plan 中，但长期形态已明确：
+当前 restricted document rollout 已转为 deferred follow-up，但长期形态已明确：
 
 - canonical authz truth 在 `app-api`
 - retrieval 只消费显式 authz projection
 - memory 不能授予 restricted visibility
 - restricted resource family 不能靠 prompt-only 软约束实现
+
+当前如果 restricted rollout 尚未完成，也只能表现为“能力未上线”或 fail-close；不能反向把 authz 解释权交给 retrieval、prompt 或 panel。
 
 ## Operator Access
 
@@ -110,5 +134,6 @@ operator access 也属于 authz truth 的一部分，但 protected surface 的 r
 
 ## 相关稳定文档
 
+- `docs/domains/identity-authz-memory.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`

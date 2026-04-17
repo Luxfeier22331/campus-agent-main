@@ -2,14 +2,14 @@
 doc_type: runbook
 status: active
 created: 2026-03-31
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Official Web Source-Truth Projection Replay
 
 ## 文档边界
 
-这份 runbook 负责 `official_web` 在 source-truth QC 通过之后的第一波 projection replay。
+这份 runbook 负责 `official_web` 在 source-truth QC 通过之后的 projection replay。
 
 它回答的是：
 
@@ -30,17 +30,17 @@ updated: 2026-04-05
 - answer path：`campus_evals.official_web_live_benchmark`
 - current truth / future news handoff：`docs/reference/official-web-fresh-news-surface-handoff.md`
 
-## 适用阶段
+## 适用边界
 
-当前 `official_web` 还处于：
+`official_web` 在这一步仍处于：
 
 `source-truth -> declared projections -> canonical document artifacts`
 
 因此这一步只验证 document-level replay truth，不验证 retrieval 或 answer quality。
 
-## 当前执行分层
+## 批次类型
 
-projection replay 当前固定服务两类输入批次：
+projection replay 固定服务两类输入批次：
 
 - stable regression gate
   固定 5-host 回归批次；用于证明 extractor、QC 和 replay 仍然稳定
@@ -59,10 +59,10 @@ projection replay 当前固定服务两类输入批次：
 - host 已通过一次 expansion batch
 - host 已成为 scheduler / hot lane 候选
 
-## 当前稳定回归 Gate
+## 稳定回归批次
 
-`muc_public` 的 `site.json` / `hosts.json` / `seeds.json` 当前已经覆盖多于 5 个公开 host。
-这里保留的 5-host 只是稳定 replay / regression gate，不代表当前唯一允许进入
+`muc_public` 的 `site.json` / `hosts.json` / `seeds.json` 已经覆盖多于 5 个公开 host。
+这里保留的 5-host 只是稳定 replay / regression gate，不代表唯一允许进入
 source-truth 的 host 范围：
 
 - `www.muc.edu.cn`
@@ -74,20 +74,20 @@ source-truth 的 host 范围：
 如需对已启用的新增 host 做扩面验证，只要该 batch 的 source-truth QC 通过，且 batch 中出现的
 `pageFamily` 全部落在当前 declaration 范围内，就可以沿用同一套 replay/validator。
 
-2026-04-02 的 Batch A 实测已经验证：
+`2026-04-02` 的 Batch A 提供了一次扩面验证示例：
 
 - `law.muc.edu.cn`
 - `history.muc.edu.cn`
 
 参考记录：
 
-- [official-web-muc-public-batch-a-law-history-audit-20260402.md](/home/reptilian/code/campus-agent/.worktrees/official-web-crawler/docs/reference/official-web-muc-public-batch-a-law-history-audit-20260402.md)
+- [official-web-muc-public-batch-a-law-history-audit-20260402.md](/home/reptilian/code/campus-agent/docs/reference/official-web-muc-public-batch-a-law-history-audit-20260402.md)
 
 repo-tracked declaration 入口：
 
-- [projection-declarations.json](/home/reptilian/code/campus-agent/.worktrees/official-web-crawler/configs/sources/official_web/muc_public/projection-declarations.json)
+- [projection-declarations.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/projection-declarations.json)
 
-当前第一波 declaration：
+当前已接受的第一波 declaration：
 
 - `article_detail` -> emitted document
 - `listing_page` -> emitted document
@@ -95,26 +95,26 @@ repo-tracked declaration 入口：
 - `generic_content_page` -> emitted document
 - `dynamic_shell_page` / `structural_shell_page` -> `manual_review`
 
-当前第一波 routed downstream scope truth：
+当前已接受的 routed downstream scope：
 
 - `official_web/stable_reference`
-  - 当前只接受 stable-reference-like 说明型页面
+  - 只接受 stable-reference-like 说明型页面
   - 已验证可从 mixed replay output 中按 scope 单独 import / release
-  - 当前仍保持 `offline_preparation`，不得表述成已开放 query-serving
+  - 仍保持 `offline_preparation`，不得表述成已开放 query-serving
 
-bridge scope 当前仍只作为 projection declaration / mixed replay truth：
+bridge scope 仍只作为 projection declaration / mixed replay truth：
 
 - `official_web/muc_public_pages`
 
 补充约束：
 
-- replay 输出的 `listing_page` / 部分 `generic_content_page` 仍可用于本地 canonical / chunk audit
+- replay 输出的 `listing_page` / 部分 `generic_content_page` 可用于本地 canonical / chunk audit
 - homepage / portal-style `directory_page` 也只允许留在 staged audit truth，不得进入 promoted current truth
 - 但 handoff consumer 默认只把这批产物标记为 `staged`
 - 只有显式 promote，且 coverage/chunk-audit/release gate 全部通过，才允许它们进入 registry current truth
-- `muc_public_pages` 的 promoted/released truth 当前只接受高信号正文页；listing / generic 噪音由 promote/release gate fail-close
-- 当前 cleaning / chunking 的 page-family 规则以 `docs/policies/official-web-cleaning-and-chunking-policy.md` 为准
-- 如果当前 inventory triage 已把某页标记为 `future_fresh_news_surface`，它只能继续作为 current-truth regression/local-validation seed，而不能被当成当前 stable-reference gate 的待升格页面
+- `muc_public_pages` 的 promoted/released truth 只接受高信号正文页；listing / generic 噪音由 promote/release gate fail-close
+- cleaning / chunking 的 page-family 规则以 `docs/policies/official-web-cleaning-and-chunking-policy.md` 为准
+- 如果 inventory triage 已把某页标记为 `future_fresh_news_surface`，它只能继续作为 current-truth regression/local-validation seed，而不能被当成 stable-reference gate 的待升格页面
 
 ## 执行顺序
 
@@ -122,7 +122,7 @@ bridge scope 当前仍只作为 projection declaration / mixed replay truth：
 
 - validator 依赖 replay 产出的 `projection-report.json` 与文档目录
 - chunk audit 依赖 validator 已确认当前 batch 的 emitted document 形状有效
-- 当前 runbook 不接受“先并行跑完再人工比对”的 closeout 方式
+- 本 runbook 不接受“先并行跑完再人工比对”的批次收口方式
 
 1. 先确认 source-truth QC gate 已通过。
 
@@ -170,7 +170,7 @@ uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
 - 清洗后 `row_ids` 仍保留已删掉的 short-label / teaser 行
   例如 `clean_text` 只剩 1-2 条有效标题，但 `row_ids` 还挂着 4-5 个来源行
 
-除此之外，当前 batch closeout 还要显式区分：
+除此之外，批次收口还要显式区分：
 
 - `audit_only`
   - 允许进入 replay 输出与 chunk audit
@@ -180,17 +180,17 @@ uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
   - 允许参与 handoff promote 与 release candidate
   - 必须主要来自 `article_detail`、`directory_page`、稳定说明型 `generic_content_page`
 
-当前 `muc_public_pages` closeout 还要进一步区分：
+`muc_public_pages` 批次收口还要进一步区分：
 
 - `release_gate_required`
-  - 当前 stable-reference-like answer-quality gate
+  - stable-reference-like answer-quality gate
 - `retain_inventory_only`
   - 保留在 current truth，但不进入当前 gate，也不进入 future fresh-news seed set
 - `future_fresh_news_surface`
   - 保留在 current truth，只服务 regression / local validation / future fresh-news handoff
   - 具体 seed set 以 `docs/reference/official-web-fresh-news-surface-handoff.md` 为准
 
-5. 按批次类型完成 closeout。
+5. 按批次类型完成收口。
 
 - stable regression gate
   - 记录这轮 replay / validator 已通过
@@ -202,7 +202,7 @@ uv run --all-packages campus-ingestion-audit-official-web-projection-chunking \
     [official-web-collector-smoke-and-audit.md](./official-web-collector-smoke-and-audit.md)
     第 2 节继续执行 `drain-projection` 与本地 handoff consumer；否则默认到 projection validator 为止
 
-6. 如果当前 batch 要继续做 `muc_public_pages` 本地质量闭环，再执行：
+6. 如果该批次要继续做 `muc_public_pages` 本地质量闭环，再执行：
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.official_web_projection_import \

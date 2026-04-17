@@ -65,15 +65,15 @@
       "notes": "验证学制/学分段落的短事实检索。"
     },
     {
-      "case_id": "course-map-table-hit",
+      "case_id": "course-settings-table-hit",
       "category": "table_retrieval",
-      "query": "经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
+      "query": "经济学拔尖人才创新班人才培养方案课程设置怎么安排？",
       "expected_keywords": [
         "经济学拔尖人才创新班人才培养方案",
-        "课程地图"
+        "课程设置"
       ],
       "forbidden_doc_ids": [],
-      "notes": "验证表格/课程地图相关检索。"
+      "notes": "验证课程设置表格检索。"
     },
     {
       "case_id": "minority-language-strong-base-fixed-phrase",

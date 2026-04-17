@@ -2,14 +2,14 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Bootstrap Smoke Runbook
 
 ## 文档边界
 
-这份 runbook 只记录 `authenticated_notice_portal` 当前 bootstrap import seam 的最小 smoke 闭环：
+这份 runbook 只记录 `authenticated_notice_portal` bootstrap import seam 的最小 smoke 闭环：
 
 - 一份 collector export bundle 如何导入 repo
 - smoke 至少检查哪些结果
@@ -21,11 +21,11 @@ updated: 2026-04-04
 - 长期边界：`docs/architecture/authenticated-notice-source-architecture.md`
 - source-truth contract：`docs/architecture/authenticated-notice-source-truth-contract.md`
 - release-managed rebuild / alias publish：`docs/runbooks/index-release-runbook.md`
-- 当前实施 handoff：`docs/plans/authenticated-notice-source-foundation.md`
+- 当前项目执行真相：`.planning/PROJECT.md`
 
-## 当前 smoke 形态
+## Canonical Smoke 入口
 
-当前 canonical smoke 入口是：
+canonical smoke 入口是：
 
 ```bash
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke_authenticated_notice_bootstrap \
@@ -43,6 +43,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 - 因此默认只应对 repo-local dev 或受控 smoke 环境执行
 - 若同一 bundle 重跑，允许出现 `updated` 或 `skipped`，不要求每次都新建 document
 - authenticated notice 的 `attachment-observations.jsonl` / `attachment-refs.jsonl` 允许为空；当前 worker 已把 zero-byte object 写入隔离到一次性 S3 client，避免本地 MinIO 在空对象写入后把后续复用连接拖成长时间 stall
+- zero-byte / object-store 排障不得把 scratch object 长期留在 `campus-rag-source/debug/**`；source bucket 根前缀只允许正式 `source_channel`，临时排障证据应落本地 `.tmp/`，若必须写入 bucket 则排障完成后立即清理
 
 ## 前置条件
 
@@ -96,7 +97,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 
 ## 推荐 staged replay 顺序
 
-当前 live portal 不可用时，推荐把真实 historical export 回放固定为以下顺序：
+当 live portal 不可用、需要回放 historical export 时，推荐把样本按以下顺序逐步放大：
 
 1. `1`
 2. `50`
@@ -109,14 +110,11 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 - 中间批次通过后，再跑完整 `240` 条
 - 只有在 `240` 的 object store / registry / summary 结果稳定时，才考虑 `6694`
 
-当前 worktree 已验证的真实 slice：
+说明：
 
-- `2` 条：`.tmp/authenticated-notice-smoke/20260404T131900-2-timed/summary.json`
-- `10` 条：`.tmp/authenticated-notice-smoke/20260404T131350-10/summary.json`
-- `50` 条：`.tmp/authenticated-notice-smoke/20260404T131544-50/summary.json`
-- `240` 条：`.tmp/authenticated-notice-smoke/20260404T152745-240/summary.json`
-
-这些证据已经足够说明 bounded replay lane 可用；`6694` 及更大 backfill 仍应作为单独执行决策，而不是被误读为本 phase 已经完成。
+- active runbook 只保留样本放大顺序与判定规则
+- 某一轮 `2/10/50/240` sample 的 summary 路径属于历史 smoke evidence，不再作为默认入口长期维护
+- `6694` 及更大 backfill 仍应作为单独执行决策，而不是被误读为 bootstrap smoke 的默认目标
 
 以 `run-2` 为例，可以先切片：
 
@@ -183,6 +181,7 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
 5. 长时间卡在 object store 写入
    - authenticated notice 的空 `attachment-observations.jsonl` / `attachment-refs.jsonl` 是合法产物
    - 若某个分支重新出现“空对象写完后下一次 `put_object` 长时间无响应”，优先检查 `packages/ingestion-core/src/campus_ingestion_core/campusrag_ingestion_support.py` 的 `S3ObjectStoreWriter` 是否仍保留 zero-byte one-shot client 保护
+   - 若为了复现实验临时写过 bucket-level scratch object，收尾前必须确认 `campus-rag-source` 的 top-level prefix 仍只剩正式 source channel，而不是遗留 `debug/**`
 
 ## 建议证据
 
@@ -200,7 +199,12 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
 
 - `.tmp/authenticated-notice-smoke/<timestamp>/`
 
+说明：
+
+- 每轮只保留本轮 smoke 的 summary 和必要摘录
+- 历史 smoke sample 的具体 `.tmp` 路径不回写到 active runbook；如需长期保留，应单独收成 historical evidence
+
 ## 后续动作
 
 - smoke 通过后，如果目标是继续做 preview rebuild / chunk / index，下一步转到 `docs/runbooks/index-release-runbook.md`
-- 如果目标是 collector 迁入 repo，下一步转到 `docs/plans/authenticated-notice-source-foundation.md` 的 Wave 4
+- 如果目标是重开 collector repo migration 或 authenticated control plane，先在 `.planning/PROJECT.md` / `.planning/STATE.md` 里显式创建新的执行面，再以 `docs/architecture/authenticated-notice-source-architecture.md` 作为边界约束

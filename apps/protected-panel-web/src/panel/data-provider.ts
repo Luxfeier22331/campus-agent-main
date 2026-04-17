@@ -99,11 +99,15 @@ function pruneCursorHistory(history: Map<number, string | null>, currentPage: nu
 }
 
 function appendRequestFilters(query: URLSearchParams, filter: GetListParams["filter"]) {
+  const q = normalizeFilterValue(filter?.q);
   const requestId = normalizeFilterValue(filter?.requestId);
   const conversationId = normalizeFilterValue(filter?.conversationId);
   const status = normalizeFilterValue(filter?.status);
   const surface = normalizeFilterValue(filter?.surface);
 
+  if (q) {
+    query.set("q", q);
+  }
   if (requestId) {
     query.set("requestId", requestId);
   }

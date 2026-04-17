@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp as createAppApi } from "../../app-api/src/app";
+import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import packageManifestRaw from "../package.json?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -28,11 +29,21 @@ describe("public chat web worker shell", () => {
       'APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
     );
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).toContain('SENTRY_RELEASE = "public-chat-web@staging-20260405-05c3d45"');
+    expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
-    expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm build:staging");
-    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:verify-config:staging");
+    expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:preflight:staging");
+    expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
+    expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
+      "run-worker-staging-preflight.mjs",
+    );
+    expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
+      "check_worker_secret_presence.py",
+    );
+    expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+    expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+    expect(deployStagingSource).toContain("SENTRY_RELEASE:");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
@@ -43,8 +54,19 @@ describe("public chat web worker shell", () => {
       "dist/public_chat_web/wrangler.json",
     );
     expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "APP_API=app-api-staging",
+      "SERVICE:APP_API=app-api-staging",
     );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "VAR_ABSENT:SENTRY_RELEASE",
+    );
+    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+      "ROUTE:campus-chat-staging.ayafeed.com",
+    );
+  });
+
+  it("declares required secrets for local and staging worker environments", () => {
+    expect(wranglerConfig).toContain("[env.staging.secrets]");
+    expect(wranglerConfig).toContain('required = ["SENTRY_DSN"]');
   });
 
   it("serves healthz and readyz from the worker shell", async () => {
@@ -203,6 +225,25 @@ describe("public chat web worker shell", () => {
         message: "Runtime configuration is incomplete.",
       },
     });
+  });
+
+  it("redirects the removed preview path back to canonical /chat", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/chat/replatform-preview?from=legacy"),
+      {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () => new Response("should not hit assets", { status: 500 }),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://chat.example.com/chat?from=legacy");
   });
 
   it("serves the public chat app shell when frontend assets and app-api bridge are configured", async () => {
@@ -441,6 +482,62 @@ describe("public chat web worker shell", () => {
         traceId: null,
       },
     });
+  });
+
+  it("serves the donor model catalog from the worker without proxying /api/models to app-api", async () => {
+    const appApiFetch = vi.fn(async () => new Response("should not proxy", { status: 418 }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            architecture: {
+              input_modalities: ["text"],
+            },
+            endpoints: [
+              {
+                supported_parameters: ["tools", "reasoning"],
+              },
+            ],
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+          },
+          status: 200,
+        },
+      );
+    });
+
+    try {
+      const response = await worker.fetch(
+        new Request("https://chat.example.com/api/models"),
+        {
+          APP_API: {
+            fetch: appApiFetch,
+          },
+          APP_API_BASE_URL: "https://app-api.internal",
+          ASSETS: {
+            fetch: async () => new Response("ok", { status: 200 }),
+          },
+          PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("public, max-age=86400, s-maxage=86400");
+      await expect(response.json()).resolves.toMatchObject({
+        "moonshotai/kimi-k2-0905": {
+          reasoning: true,
+          tools: true,
+          vision: false,
+        },
+      });
+      expect(appApiFetch).not.toHaveBeenCalled();
+      expect(fetchSpy).toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it("forwards origin and referer for same-site auth requests", async () => {

@@ -10,6 +10,29 @@
     "chunk_overlap": 32,
     "min_chunk_size": 32
   },
+  "lane_defaults": {
+    "notice_body": {
+      "strategy_name": "internal_notice_notice_body_v2",
+      "chunk_size": 260,
+      "max_chunk_size": 320,
+      "chunk_overlap": 32,
+      "min_chunk_size": 48
+    },
+    "attachment_text_extractable": {
+      "strategy_name": "internal_notice_attachment_text_v2",
+      "chunk_size": 220,
+      "max_chunk_size": 320,
+      "chunk_overlap": 32,
+      "min_chunk_size": 32
+    },
+    "attachment_ocr_required": {
+      "strategy_name": "internal_notice_attachment_ocr_v2",
+      "chunk_size": 180,
+      "max_chunk_size": 240,
+      "chunk_overlap": 24,
+      "min_chunk_size": 24
+    }
+  },
   "cleaning_policy_version": "authenticated_notice_projection_v1",
   "notes": [
     "Bootstrap importer emits notice-body structured units for parent notices.",

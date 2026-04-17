@@ -11,6 +11,10 @@ from typing import Any, Protocol, TextIO
 from campus_ingestion_core.authenticated_notice_import import (
     load_authenticated_notice_bundle_payload,
 )
+from campus_ingestion_core.authenticated_notice_source_truth import (
+    infer_authenticated_notice_year,
+    resolve_authenticated_notice_attachment_object_key,
+)
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -84,22 +88,24 @@ class AuthenticatedNoticeAttachmentObjectBackfillRequest:
 
 @dataclass(slots=True)
 class _CandidateDraft:
-    object_key: str
+    target_object_key: str
     expected_sha256: str
     mime_type: str | None
     expected_byte_size: int | None
-    local_blob_path: Path
+    source_object_keys: set[str] = field(default_factory=set)
+    local_blob_paths: set[Path] = field(default_factory=set)
     notice_ids: set[str] = field(default_factory=set)
     attachment_ids: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
 class _AttachmentObjectCandidate:
-    object_key: str
+    target_object_key: str
     expected_sha256: str
     mime_type: str | None
     expected_byte_size: int | None
-    local_blob_path: Path
+    source_object_keys: tuple[str, ...]
+    local_blob_paths: tuple[Path, ...]
     notice_ids: tuple[str, ...]
     attachment_ids: tuple[str, ...]
 
@@ -146,7 +152,7 @@ def backfill_authenticated_notice_attachment_objects(
                 candidate=candidate,
                 bucket=settings.bucket_source,
                 object_store=runtime_object_store,
-            ): candidate.object_key
+            ): candidate.target_object_key
             for candidate in candidates
         }
         for future in as_completed(futures):
@@ -193,6 +199,8 @@ def _load_candidates(
         if filter_notice_ids and notice_id not in filter_notice_ids:
             continue
         selected_notice_ids.add(notice_id)
+        notice = record.get("notice")
+        year = infer_authenticated_notice_year(notice=notice) if isinstance(notice, dict) else None
         attachments_by_id = {
             item.get("attachment_id"): item
             for item in _attachments_payload(record)
@@ -202,42 +210,49 @@ def _load_candidates(
             attachment = attachments_by_id.get(relation.get("attachment_id"))
             if attachment is None:
                 continue
-            object_key = _normalize_optional_text(attachment.get("object_key"))
-            if object_key is None:
+            source_object_key = _normalize_optional_text(attachment.get("object_key"))
+            if source_object_key is None:
                 continue
             expected_sha256 = _required_text(
                 attachment.get("sha256"),
                 label=f"{notice_id}#{relation.get('attachment_id')} sha256",
             )
+            target_object_key = resolve_authenticated_notice_attachment_object_key(
+                attachment=attachment,
+                year=year,
+            )
+            if target_object_key is None:
+                continue
             mime_type = _normalize_optional_text(attachment.get("mime_type"))
             expected_byte_size = _normalize_optional_int(attachment.get("byte_size"))
             local_blob_path = _resolve_local_blob_path(
                 blob_root=request.blob_root,
-                object_key=object_key,
+                object_key=source_object_key,
             )
-            draft = drafts_by_object_key.get(object_key)
+            draft = drafts_by_object_key.get(target_object_key)
             if draft is None:
                 draft = _CandidateDraft(
-                    object_key=object_key,
+                    target_object_key=target_object_key,
                     expected_sha256=expected_sha256,
                     mime_type=mime_type,
                     expected_byte_size=expected_byte_size,
-                    local_blob_path=local_blob_path,
                 )
-                drafts_by_object_key[object_key] = draft
+                drafts_by_object_key[target_object_key] = draft
             else:
                 if draft.expected_sha256 != expected_sha256:
                     raise ValueError(
-                        f"{object_key} sha256 conflict: {draft.expected_sha256} != {expected_sha256}"
+                        f"{target_object_key} sha256 conflict: {draft.expected_sha256} != {expected_sha256}"
                     )
                 if draft.expected_byte_size != expected_byte_size:
                     raise ValueError(
-                        f"{object_key} byte_size conflict: {draft.expected_byte_size} != {expected_byte_size}"
+                        f"{target_object_key} byte_size conflict: {draft.expected_byte_size} != {expected_byte_size}"
                     )
                 if draft.mime_type != mime_type:
                     raise ValueError(
-                        f"{object_key} mime_type conflict: {draft.mime_type!r} != {mime_type!r}"
+                        f"{target_object_key} mime_type conflict: {draft.mime_type!r} != {mime_type!r}"
                     )
+            draft.source_object_keys.add(source_object_key)
+            draft.local_blob_paths.add(local_blob_path)
             draft.notice_ids.add(notice_id)
             attachment_id = relation.get("attachment_id")
             if attachment_id is not None:
@@ -246,17 +261,18 @@ def _load_candidates(
         sorted(
             (
                 _AttachmentObjectCandidate(
-                    object_key=draft.object_key,
+                    target_object_key=draft.target_object_key,
                     expected_sha256=draft.expected_sha256,
                     mime_type=draft.mime_type,
                     expected_byte_size=draft.expected_byte_size,
-                    local_blob_path=draft.local_blob_path,
+                    source_object_keys=tuple(sorted(draft.source_object_keys)),
+                    local_blob_paths=tuple(sorted(draft.local_blob_paths, key=str)),
                     notice_ids=tuple(sorted(draft.notice_ids)),
                     attachment_ids=tuple(sorted(draft.attachment_ids)),
                 )
                 for draft in drafts_by_object_key.values()
             ),
-            key=lambda item: item.object_key,
+            key=lambda item: item.target_object_key,
         )
     )
     return candidates, tuple(sorted(selected_notice_ids))
@@ -269,17 +285,19 @@ def _process_candidate(
     object_store: AuthenticatedNoticeAttachmentObjectStore,
 ) -> dict[str, str]:
     try:
-        existing_bytes = object_store.get_bytes(bucket=bucket, key=candidate.object_key)
+        existing_bytes = object_store.get_bytes(bucket=bucket, key=candidate.target_object_key)
     except Exception as exc:
         if not _is_missing_object_error(exc):
             raise
         if candidate.mime_type is None:
-            raise ValueError(f"{candidate.object_key} mime_type is required for upload") from exc
-        if not candidate.local_blob_path.is_file():
+            raise ValueError(f"{candidate.target_object_key} mime_type is required for upload") from exc
+        local_blob_path = _select_local_blob_path(candidate)
+        if local_blob_path is None:
             raise FileNotFoundError(
-                f"{candidate.object_key} local blob not found: {candidate.local_blob_path}"
+                f"{candidate.target_object_key} local blob not found under sources: "
+                + ", ".join(candidate.source_object_keys)
             ) from exc
-        local_bytes = candidate.local_blob_path.read_bytes()
+        local_bytes = local_blob_path.read_bytes()
         _validate_candidate_bytes(
             candidate,
             payload=local_bytes,
@@ -287,23 +305,23 @@ def _process_candidate(
         )
         object_store.put_bytes(
             bucket=bucket,
-            key=candidate.object_key,
+            key=candidate.target_object_key,
             data=local_bytes,
             content_type=candidate.mime_type,
         )
-        uploaded_bytes = object_store.get_bytes(bucket=bucket, key=candidate.object_key)
+        uploaded_bytes = object_store.get_bytes(bucket=bucket, key=candidate.target_object_key)
         _validate_candidate_bytes(
             candidate,
             payload=uploaded_bytes,
             source_label="uploaded object",
         )
-        return {"status": "uploaded", "object_key": candidate.object_key}
+        return {"status": "uploaded", "object_key": candidate.target_object_key}
     _validate_candidate_bytes(
         candidate,
         payload=existing_bytes,
         source_label="existing object",
     )
-    return {"status": "existing_verified", "object_key": candidate.object_key}
+    return {"status": "existing_verified", "object_key": candidate.target_object_key}
 
 
 def _validate_candidate_bytes(
@@ -315,19 +333,21 @@ def _validate_candidate_bytes(
     actual_sha256 = hashlib.sha256(payload).hexdigest()
     if actual_sha256 != candidate.expected_sha256:
         raise ValueError(
-            f"{source_label} {candidate.object_key} content_sha256 mismatch: "
+            f"{source_label} {candidate.target_object_key} content_sha256 mismatch: "
             f"expected {candidate.expected_sha256}, got {actual_sha256}"
         )
     if candidate.expected_byte_size is not None and len(payload) != candidate.expected_byte_size:
         raise ValueError(
-            f"{source_label} {candidate.object_key} byte_size mismatch: "
+            f"{source_label} {candidate.target_object_key} byte_size mismatch: "
             f"expected {candidate.expected_byte_size}, got {len(payload)}"
         )
-    expected_prefix = f"{candidate.expected_sha256[:2]}/{candidate.expected_sha256}/"
-    if not candidate.object_key.startswith(expected_prefix):
-        raise ValueError(
-            f"{candidate.object_key} does not match expected sha256-derived prefix {expected_prefix}"
-        )
+
+
+def _select_local_blob_path(candidate: _AttachmentObjectCandidate) -> Path | None:
+    for path in candidate.local_blob_paths:
+        if path.is_file():
+            return path
+    return None
 
 
 def _resolve_notice_id(record: dict[str, Any]) -> str:
@@ -388,7 +408,7 @@ def _normalize_scalar_text(value: object) -> str | None:
 
 
 def _is_missing_object_error(exc: Exception) -> bool:
-    if isinstance(exc, KeyError):
+    if isinstance(exc, (FileNotFoundError, KeyError)):
         return True
     response = getattr(exc, "response", None)
     if not isinstance(response, dict):

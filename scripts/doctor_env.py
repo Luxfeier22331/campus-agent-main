@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from campus_shared import get_repo_env_bootstrap_state, load_repo_env, reset_repo_env_bootstrap_state
 from campus_shared.provider_config import (
@@ -14,24 +14,170 @@ from campus_shared.provider_config import (
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
+from scripts.env_sync import parse_env_file
 
 
 _SURFACE_SPECS = {
     "evals": {
-        "llm_surface_name": "eval.ragas",
-        "embedding_surface_name": "eval.ragas",
+        "providers": {
+            "llm": {
+                "checked_keys": LLM_API_KEY_PRECEDENCE,
+                "resolver": resolve_llm_provider_config,
+                "surface_name": "eval.ragas",
+            },
+            "embedding": {
+                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
+                "resolver": resolve_embedding_provider_config,
+                "surface_name": "eval.ragas",
+            },
+        },
         "required_settings": {
+            "embedding_model": ("EVAL_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
             "ragas_model": ("EVAL_RAGAS_MODEL",),
         },
         "optional_settings": {
             "judge_model": ("EVAL_JUDGE_MODEL", "EVAL_RAGAS_MODEL"),
         },
+        "files": {},
+    },
+    "ingestion": {
+        "providers": {
+            "embedding": {
+                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
+                "resolver": resolve_embedding_provider_config,
+                "surface_name": "ingestion.worker",
+            },
+        },
+        "required_settings": {
+            "embedding_model": ("INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
+            "object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
+            "object_store_credentials": (),
+            "ocr_base_url": ("OCR_BASE_URL",),
+            "ocr_api_key": ("OCR_API_KEY",),
+            "ocr_provider_mode": ("OCR_PROVIDER_MODE",),
+            "qdrant_url": ("QDRANT_URL",),
+            "registry_database_url": (
+                "RAW_ASSET_REGISTRY_DATABASE_URL",
+                "DOCUMENT_REGISTRY_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+        },
+        "optional_settings": {
+            "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
+            "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
+            "ocr_model": ("OCR_MODEL",),
+        },
+        "files": {},
+    },
+    "query": {
+        "providers": {
+            "llm": {
+                "checked_keys": LLM_API_KEY_PRECEDENCE,
+                "resolver": resolve_llm_provider_config,
+                "surface_name": "query.runtime",
+            },
+            "embedding": {
+                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
+                "resolver": resolve_embedding_provider_config,
+                "surface_name": "query.runtime",
+            },
+        },
+        "required_settings": {
+            "embedding_model": ("EMBEDDING_MODEL",),
+            "qdrant_url": ("QDRANT_URL",),
+            "shared_postgres_url": ("CAMPUS_SHARED_POSTGRES_URL",),
+            "specialist_model": ("AGNO_SPECIALIST_MODEL",),
+            "supervisor_model": ("AGNO_SUPERVISOR_MODEL",),
+        },
+        "optional_settings": {
+            "document_registry_database_url": ("DOCUMENT_REGISTRY_DATABASE_URL", "CAMPUS_SHARED_POSTGRES_URL"),
+        },
+        "files": {
+            "apps/app-api/.env": {
+                "required_keys": (
+                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
+                    "APP_API_MANAGEMENT_DATABASE_URL",
+                ),
+                "optional_keys": ("CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",),
+            },
+            "apps/app-api/.dev.vars": {
+                "required_keys": (
+                    "BETTER_AUTH_SECRET",
+                    "PUBLIC_CHAT_WEB_ORIGIN",
+                    "SUPERVISOR_API_BASE_URL",
+                    "SUPERVISOR_API_SHARED_SECRET",
+                    "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
+                    "APP_API_OPERATOR_EMAIL_ALLOWLIST",
+                    "APP_API_INTERNAL_SHARED_SECRET",
+                ),
+                "optional_keys": (
+                    "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
+                    "SENTRY_DSN",
+                    "AXIOM_TOKEN",
+                ),
+            },
+            "apps/public-chat-web/.dev.vars": {
+                "required_keys": ("APP_API_BASE_URL", "PUBLIC_CHAT_HOSTNAME"),
+                "optional_keys": ("SENTRY_DSN",),
+            },
+        },
     },
     "supervisor-api": {
-        "llm_surface_name": "supervisor.api",
-        "embedding_surface_name": None,
+        "providers": {
+            "llm": {
+                "checked_keys": LLM_API_KEY_PRECEDENCE,
+                "resolver": resolve_llm_provider_config,
+                "surface_name": "supervisor.api",
+            },
+        },
         "required_settings": {},
         "optional_settings": {},
+        "files": {},
+    },
+    "worker-staging": {
+        "providers": {},
+        "required_settings": {
+            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
+            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
+            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
+        },
+        "optional_settings": {
+            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
+            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
+        },
+        "files": {},
+    },
+    "worker-staging-app-api": {
+        "providers": {},
+        "required_settings": {
+            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
+        },
+        "optional_settings": {
+            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
+            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
+        },
+        "files": {},
+    },
+    "worker-staging-public-chat-web": {
+        "providers": {},
+        "required_settings": {},
+        "optional_settings": {
+            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
+        },
+        "files": {},
+    },
+    "worker-staging-protected-panel-web": {
+        "providers": {},
+        "required_settings": {
+            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
+            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
+        },
+        "optional_settings": {
+            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
+        },
+        "files": {},
     },
 }
 
@@ -52,34 +198,40 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
         spec = _SURFACE_SPECS[normalized_surface]
 
         providers = {
-            "llm": _collect_provider_status(
+            provider_name: _collect_provider_status(
                 env=current_env,
-                surface_name=spec["llm_surface_name"],
-                checked_keys=LLM_API_KEY_PRECEDENCE,
-                resolver=resolve_llm_provider_config,
+                checked_keys=provider_spec["checked_keys"],
+                resolver=provider_spec["resolver"],
+                surface_name=provider_spec["surface_name"],
             )
+            for provider_name, provider_spec in spec["providers"].items()
         }
-        embedding_surface_name = spec["embedding_surface_name"]
-        if embedding_surface_name is not None:
-            providers["embedding"] = _collect_provider_status(
-                env=current_env,
-                surface_name=embedding_surface_name,
-                checked_keys=EMBEDDING_API_KEY_PRECEDENCE,
-                resolver=resolve_embedding_provider_config,
-            )
 
         required_settings = {
-            name: _collect_setting_status(current_env, checked_keys=checked_keys, required=True)
+            name: (
+                _collect_object_store_credentials_status(current_env)
+                if name == "object_store_credentials"
+                else _collect_setting_status(current_env, checked_keys=checked_keys, required=True)
+            )
             for name, checked_keys in spec["required_settings"].items()
         }
         optional_settings = {
             name: _collect_setting_status(current_env, checked_keys=checked_keys, required=False)
             for name, checked_keys in spec["optional_settings"].items()
         }
+        files = {
+            relative_path: _collect_env_file_status(
+                repo_root=repo_root,
+                relative_path=relative_path,
+                required_keys=file_spec.get("required_keys", ()),
+                optional_keys=file_spec.get("optional_keys", ()),
+            )
+            for relative_path, file_spec in spec["files"].items()
+        }
 
         overall_ready = all(status["present"] for status in providers.values()) and all(
             status["present"] for status in required_settings.values()
-        )
+        ) and all(status["ready"] for status in files.values())
         return {
             "surface": normalized_surface,
             "overall_ready": overall_ready,
@@ -106,6 +258,7 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
                 "required": required_settings,
                 "optional": optional_settings,
             },
+            "files": files,
         }
     finally:
         os.environ.clear()
@@ -140,6 +293,32 @@ def _collect_provider_status(
     }
 
 
+def _collect_env_file_status(
+    *,
+    repo_root: Path,
+    relative_path: str,
+    required_keys: Sequence[str],
+    optional_keys: Sequence[str],
+) -> dict[str, object]:
+    path = repo_root / relative_path
+    values = parse_env_file(path) if path.exists() else {}
+
+    missing_keys = [key for key in required_keys if not values.get(key, "").strip()]
+    present_required_keys = [key for key in required_keys if values.get(key, "").strip()]
+    present_optional_keys = [key for key in optional_keys if values.get(key, "").strip()]
+
+    return {
+        "path": relative_path,
+        "file_found": path.exists(),
+        "required_keys": list(required_keys),
+        "optional_keys": list(optional_keys),
+        "present_required_keys": present_required_keys,
+        "present_optional_keys": present_optional_keys,
+        "missing_keys": missing_keys,
+        "ready": len(missing_keys) == 0,
+    }
+
+
 def _collect_setting_status(
     env: dict[str, str],
     *,
@@ -163,6 +342,47 @@ def _collect_setting_status(
         "checked_keys": checked_key_list,
         "resolved_key": None,
         "error": f"missing setting; checked {' > '.join(checked_key_list)}",
+    }
+
+
+def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, object]:
+    shared_keys = ("OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_SECRET_KEY")
+    source_keys = ("OBJECT_STORE_SOURCE_ACCESS_KEY", "OBJECT_STORE_SOURCE_SECRET_KEY")
+    derived_keys = ("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY")
+
+    if all(env.get(key, "").strip() for key in shared_keys):
+        return {
+            "required": True,
+            "present": True,
+            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+            "resolved_key": "OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
+            "error": None,
+        }
+
+    if all(env.get(key, "").strip() for key in source_keys) and all(
+        env.get(key, "").strip() for key in derived_keys
+    ):
+        return {
+            "required": True,
+            "present": True,
+            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+            "resolved_key": (
+                "OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
+                "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
+            ),
+            "error": None,
+        }
+
+    return {
+        "required": True,
+        "present": False,
+        "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+        "resolved_key": None,
+        "error": (
+            "missing object-store credentials; configure shared "
+            "OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or both bucket-scoped "
+            "OBJECT_STORE_SOURCE_* and OBJECT_STORE_DERIVED_* credential pairs"
+        ),
     }
 
 
@@ -219,6 +439,20 @@ def _print_text_report(status: dict[str, object]) -> None:
             )
             if setting_status["error"] and setting_status["required"]:
                 print(f"setting.{setting_name}.error={setting_status['error']}")
+    for relative_path, file_status in status["files"].items():
+        print(f"file.{relative_path}.ready={file_status['ready']}")
+        print(f"file.{relative_path}.file_found={file_status['file_found']}")
+        print(
+            "file."
+            f"{relative_path}.required_keys="
+            + ",".join(file_status["required_keys"])
+        )
+        if file_status["missing_keys"]:
+            print(
+                "file."
+                f"{relative_path}.missing_keys="
+                + ",".join(file_status["missing_keys"])
+            )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

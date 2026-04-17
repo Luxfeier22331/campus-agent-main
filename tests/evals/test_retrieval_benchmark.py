@@ -369,7 +369,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                 "general-english-total-credits",
                 "hanyu-international-students-total-credits",
                 "education-second-degree-academic-years",
-                "fiscal-course-map-table",
+                "fiscal-course-settings-table",
             }.issubset(version_locked_case_ids)
         )
         self.assertTrue(
@@ -383,7 +383,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                     "general-english-total-credits",
                     "hanyu-international-students-total-credits",
                     "education-second-degree-academic-years",
-                    "fiscal-course-map-table",
+                    "fiscal-course-settings-table",
                 }
                 for source in case.expected_sources
             )
@@ -398,7 +398,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
                 "minority-language-total-credits",
                 "hanyu-international-students-total-credits",
                 "education-second-degree-academic-years",
-                "fiscal-course-map-table",
+                "fiscal-course-settings-table",
                 "law-ethnic-class-fourth-semester-courses",
             }.issubset(case_ids)
         )
@@ -1667,7 +1667,7 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
             {
                 "ethnology-plan-title",
                 "academic-years-short-fact",
-                "course-map-table-hit",
+                "course-settings-table-hit",
                 "minority-language-strong-base-fixed-phrase",
                 "law-ethnic-class-fourth-semester-courses",
                 "cross-major-disambiguation",

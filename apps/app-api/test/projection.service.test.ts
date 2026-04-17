@@ -405,9 +405,15 @@ describe("request projection projector", () => {
       getRequestExecution: vi.fn().mockResolvedValue(
         createExecutionSource({
           diagnostics: {
+            claimSupportSummary: null,
             clarificationReason: "policy_object_conflict",
+            freshnessFailClosed: null,
+            groundingDowngraded: null,
+            groundingVerdict: null,
             noAnswerReason: null,
             policyReason: null,
+            retrievalAdequacyReason: null,
+            retrievalAdequacyVerdict: null,
             resolvedPolicyDocumentId:
               "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
             resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
@@ -422,6 +428,7 @@ describe("request projection projector", () => {
             sessionProgramFamily: null,
             sessionProgram: null,
             sessionSemester: null,
+            unsupportedFields: [],
             rewrittenQuery:
               "中央民族大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
           },
@@ -445,10 +452,16 @@ describe("request projection projector", () => {
 
     expect(store.upsertProjection).toHaveBeenCalledWith(
       expect.objectContaining({
-        diagnostics: {
+        diagnostics: expect.objectContaining({
+          claimSupportSummary: null,
           clarificationReason: "policy_object_conflict",
+          freshnessFailClosed: null,
+          groundingDowngraded: null,
+          groundingVerdict: null,
           noAnswerReason: null,
           policyReason: null,
+          retrievalAdequacyReason: null,
+          retrievalAdequacyVerdict: null,
           resolvedPolicyDocumentId:
             "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
           resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
@@ -463,9 +476,10 @@ describe("request projection projector", () => {
           sessionProgram: null,
           sessionProgramFamily: null,
           sessionSemester: null,
+          unsupportedFields: [],
           rewrittenQuery:
             "中央民族大学本科学生国家奖学金评审办法 国奖第九条里对论文和著作怎么要求的？",
-        },
+        }),
       }),
     );
   });

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import re
 import unicodedata
-from typing import Sequence
+from typing import Literal, Sequence
 
 from campus_contracts import EvidenceSource
 
@@ -37,6 +37,9 @@ _SEMESTER_NUMERIC_LABELS = {
     "第九学期": "9",
     "第十学期": "10",
 }
+_COURSE_MAP_LOOKUP_CUES = ("课程地图", "拓扑图", "课程结构图", "结果拓扑图")
+_COURSE_SETTINGS_LOOKUP_CUES = ("课程设置",)
+_STUDY_ADVICE_LOOKUP_CUES = ("修读建议",)
 _COURSE_LIST_CUES = ("什么课", "哪些课", "有哪些课", "有什么课", "课程", "课表", "修什么")
 _GENERIC_QUERY_NOISE = (
     "请问",
@@ -70,19 +73,22 @@ class CurriculumQueryInterpretation:
     program_compact_key: str
     semester_labels: tuple[str, ...]
     intent_kind: str
+    curriculum_lookup_target: Literal["", "course_map", "course_settings", "study_advice"] = ""
 
 
 def interpret_curriculum_query(query_text: str) -> CurriculumQueryInterpretation:
     normalized_query_text = _normalize_curriculum_query_text(query_text)
     semester_labels = _extract_semester_labels(normalized_query_text)
     program_query_fragment = _extract_program_query_fragment(normalized_query_text)
-    intent_kind = "course_list" if any(cue in normalized_query_text for cue in _COURSE_LIST_CUES) else "generic"
+    curriculum_lookup_target = _resolve_curriculum_lookup_target(normalized_query_text)
+    intent_kind = _resolve_intent_kind(normalized_query_text)
     return CurriculumQueryInterpretation(
         normalized_query_text=normalized_query_text,
         program_query_fragment=program_query_fragment,
         program_compact_key=_compact_curriculum_title_key(program_query_fragment),
         semester_labels=semester_labels,
         intent_kind=intent_kind,
+        curriculum_lookup_target=curriculum_lookup_target,
     )
 
 
@@ -214,6 +220,26 @@ def _extract_program_query_fragment(query_text: str) -> str:
     for noise in _GENERIC_QUERY_NOISE:
         fragment = fragment.replace(noise, "")
     return fragment.strip()
+
+
+def _resolve_intent_kind(normalized_query_text: str) -> str:
+    if _resolve_curriculum_lookup_target(normalized_query_text):
+        return "curriculum_lookup"
+    if any(cue in normalized_query_text for cue in _COURSE_LIST_CUES):
+        return "course_list"
+    return "generic"
+
+
+def _resolve_curriculum_lookup_target(
+    normalized_query_text: str,
+) -> Literal["", "course_map", "course_settings", "study_advice"]:
+    if any(cue in normalized_query_text for cue in _COURSE_MAP_LOOKUP_CUES):
+        return "course_map"
+    if any(cue in normalized_query_text for cue in _COURSE_SETTINGS_LOOKUP_CUES):
+        return "course_settings"
+    if any(cue in normalized_query_text for cue in _STUDY_ADVICE_LOOKUP_CUES):
+        return "study_advice"
+    return ""
 
 
 def _source_matches_program(

@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-12
 ---
 
 # Campus Place Finding Foundation
@@ -43,19 +43,41 @@ updated: 2026-04-05
 
 ## 当前状态
 
-当前已冻结但尚未落地的前提包括：
+当前已冻结的前提包括：
 
 - 导航是独立 `navigation-specialist` family，不应塞回 `rag-specialist`
 - `campus_navigation/place_catalog` 是长期 canonical spatial truth 的一部分
 - 第一阶段只做 `place_lookup` / `place_finding`，`route_planning` 后置
 - `campus_services/*` 当前仍是 `offline_preparation`，不应为了地点寻找重新打开默认 query-serving
 
-当前尚未具备：
+启动前缺口包括：
 
 - repo-owned `place_catalog` source truth
 - alias-first 的地点解析执行面
 - 面向聊天回答的结构化地点结果 contract
 - 受控的点位卡片 / 点位预览 UI
+
+截至 2026-04-11，当前 worktree 已补齐这些缺口：
+
+- `configs/ingestion/campus_navigation/place_catalog` 已提供 repo-owned seed 与 runtime profile
+- `packages/navigation-specialist` 已实现 alias-first 的 place resolve / clarification / answer shaping
+- `packages/contracts` / `packages/supervisor-core` 已接通 `place_lookup` 与 `navigation-specialist`
+- `apps/app-api` 已把 `place_card` 落成 assistant `structuredParts` 并持久化到 `chat.messages.structured_parts_json`
+- `apps/public-chat-web` 已提供中文地点卡片渲染
+
+当前仍明确 deferred：
+
+- `route_graph`
+- `route_planning`
+- entrance selection
+- accessibility routing
+- “离我最近”这类强依赖当前位置或距离排序的问句
+
+因此本文当前状态固定为 `completed`：
+
+- 首发 foundation 所要求的 code truth 已完成
+- 后续工作不再是这份 foundation plan 的继续执行
+- 下一步应转向 seed 扩面、真实 staging smoke / 人工验收，以及明确后置的路线规划 phase
 
 ## 已冻结默认值
 
@@ -258,6 +280,18 @@ updated: 2026-04-05
 
 - exact building match
 - alias building match
+
+## 当前工作树验证结果
+
+截至 2026-04-11，Wave E foundation 的 current worktree verification 已通过：
+
+- `uv run --all-packages python -m unittest tests.contracts.test_models tests.supervisor.test_supervisor_validation tests.supervisor.test_supervisor_routing tests.specialist.test_navigation_specialist tests.test_workspace_layout`
+- `pnpm --dir apps/app-api exec vitest run test/chat-command.service.test.ts test/chat-structured-parts.test.ts test/shared-product-bootstrap.contract.test.ts`
+- `pnpm --dir apps/public-chat-web exec vitest run test/platform-chat-mappers.test.ts test/platform-chat-message-parts.test.ts test/vendor-chat-message.test.ts`
+- `pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit`
+- `pnpm --dir apps/public-chat-web exec tsc -p tsconfig.json --noEmit`
+
+这意味着当前 worktree 已经完成首发 foundation 所要求的 code truth；后续工作转为 seed 扩面、真实 staging smoke / 人工验收，以及明确后置的路线规划 phase。
 - service point match
 - gate match
 - ambiguous alias -> `needs_clarification`
@@ -317,4 +351,3 @@ updated: 2026-04-05
 - current-location-aware nearest ranking
 - full-map browse / route interaction
 - 复杂多校园 / 多租户 place federation
-

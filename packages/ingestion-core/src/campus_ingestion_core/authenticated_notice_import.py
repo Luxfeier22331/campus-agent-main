@@ -64,6 +64,7 @@ class AuthenticatedNoticeImportRequest:
     export_manifest_path: Path | None
     site_id: str
     source_home_url: str
+    attachment_blob_root: Path | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
     collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
     default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
@@ -76,6 +77,8 @@ class AuthenticatedNoticeImportRequest:
         object.__setattr__(self, "bundle_path", Path(self.bundle_path))
         if self.export_manifest_path is not None:
             object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
+        if self.attachment_blob_root is not None:
+            object.__setattr__(self, "attachment_blob_root", Path(self.attachment_blob_root))
         object.__setattr__(self, "default_entitlement_groups", tuple(group.strip() for group in self.default_entitlement_groups if group.strip()))
         assert_known_scope(self.corpus, self.collection)
         if not self.site_id.strip():
@@ -178,7 +181,18 @@ def import_authenticated_notice_export(
         )
     ):
         inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(source)
-    prepared = import_authenticated_notice_bundle(request)
+    export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
+    bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
+    _assert_attachment_blob_root_precondition(
+        request=request,
+        export_manifest=export_manifest,
+        bundle_records=bundle_payload,
+    )
+    prepared = prepare_authenticated_notice_bundle_records(
+        request=request,
+        bundle_records=bundle_payload,
+        export_manifest=export_manifest,
+    )
 
     raw_uploaded_count = 0
     raw_reused_count = 0
@@ -204,6 +218,13 @@ def import_authenticated_notice_export(
                 data=payload,
                 content_type=_content_type_for_artifact(artifact_path),
             )
+
+    attachment_object_backfill_summary = _maybe_backfill_attachment_objects_for_import(
+        request=request,
+        source=source,
+        object_store=writer,
+        notice_ids=tuple(notice_import.notice_id for notice_import in prepared.notice_imports),
+    )
 
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
     stats = collect_import_document_stats(
@@ -258,6 +279,8 @@ def import_authenticated_notice_export(
                     notice_import.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
                 ),
                 config=config,
+                object_store=writer,
+                object_store_settings=object_store_settings,
             )
             inventory_entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
         inventory_store.replace_scope(
@@ -265,7 +288,7 @@ def import_authenticated_notice_export(
             request.collection,
             tuple(inventory_entries),
         )
-    return {
+    result = {
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
         "updated_document_ids": list(stats.updated_document_ids),
@@ -274,6 +297,89 @@ def import_authenticated_notice_export(
         "raw_reused_count": raw_reused_count,
         "errors": list(stats.errors),
     }
+    if attachment_object_backfill_summary is not None:
+        result["attachment_object_backfill"] = attachment_object_backfill_summary
+    return result
+
+
+def _assert_attachment_blob_root_precondition(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    export_manifest: dict[str, Any] | None,
+    bundle_records: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> None:
+    if request.attachment_blob_root is not None:
+        return
+    if not _manifest_uses_blob_store_reference(export_manifest):
+        return
+    if not _bundle_contains_object_backed_attachments(bundle_records):
+        return
+    raise ValueError(
+        "authenticated notice import requires attachment_blob_root when "
+        "collector.attachment_storage_mode=blob_store_reference and the selected bundle "
+        "contains object-backed attachments"
+    )
+
+
+def _maybe_backfill_attachment_objects_for_import(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+    source: dict[str, str],
+    object_store: S3ObjectStoreWriter | object,
+    notice_ids: tuple[str, ...],
+) -> dict[str, Any] | None:
+    attachment_blob_root = request.attachment_blob_root
+    if attachment_blob_root is None:
+        return None
+    from campus_ingestion_core.authenticated_notice_attachment_object_backfill import (
+        AuthenticatedNoticeAttachmentObjectBackfillRequest,
+        backfill_authenticated_notice_attachment_objects,
+    )
+
+    return backfill_authenticated_notice_attachment_objects(
+        request=AuthenticatedNoticeAttachmentObjectBackfillRequest(
+            bundle_path=request.bundle_path,
+            blob_root=attachment_blob_root,
+            notice_ids=notice_ids,
+        ),
+        env=source,
+        object_store=object_store,
+    )
+
+
+def _manifest_uses_blob_store_reference(
+    export_manifest: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(export_manifest, dict):
+        return False
+    collector = export_manifest.get("collector")
+    if not isinstance(collector, dict):
+        return False
+    storage_mode = str(collector.get("attachment_storage_mode") or "").strip().lower()
+    return storage_mode == "blob_store_reference"
+
+
+def _bundle_contains_object_backed_attachments(
+    bundle_records: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+) -> bool:
+    for record in bundle_records:
+        if not isinstance(record, dict):
+            continue
+        attachments = {
+            item.get("attachment_id"): item
+            for item in list(record.get("attachments") or ())
+            if isinstance(item, dict) and item.get("attachment_id") is not None
+        }
+        for relation in list(record.get("notice_attachments") or ()):
+            if not isinstance(relation, dict):
+                continue
+            attachment = attachments.get(relation.get("attachment_id"))
+            if not isinstance(attachment, dict):
+                continue
+            object_key = str(attachment.get("object_key") or "").strip()
+            if object_key:
+                return True
+    return False
 
 
 def _prepare_notice_import(

@@ -8,6 +8,8 @@ dependencies = [
   "campus-contracts",
   "campus-shared",
   "campus-supervisor-core",
+  "httpx>=0.28.1",
+  "pydantic>=2.0",
 ]
 
 [tool.uv]

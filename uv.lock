@@ -23,6 +23,7 @@ members = [
     "campus-evals",
     "campus-ingestion-core",
     "campus-ingestion-worker",
+    "campus-navigation-specialist",
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-protected-panel-web",
@@ -325,6 +326,7 @@ dependencies = [
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-openai" },
     { name = "llama-index-vector-stores-qdrant" },
+    { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
     { name = "qdrant-client" },
@@ -340,6 +342,7 @@ requires-dist = [
     { name = "llama-index-core", specifier = ">=0.14.18" },
     { name = "llama-index-embeddings-openai", specifier = ">=0.6.0" },
     { name = "llama-index-vector-stores-qdrant", specifier = ">=0.10.0" },
+    { name = "pillow", specifier = ">=12.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
     { name = "psycopg-pool", specifier = ">=3.2.0" },
     { name = "qdrant-client", specifier = ">=1.17.1" },
@@ -361,6 +364,17 @@ requires-dist = [
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]
+
+[[package]]
+name = "campus-navigation-specialist"
+version = "0.1.0"
+source = { editable = "packages/navigation-specialist" }
+dependencies = [
+    { name = "campus-contracts" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
 name = "campus-official-web-collector"
@@ -395,12 +409,14 @@ source = { editable = "packages/rag-specialist" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-retrieval-core" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]
@@ -430,6 +446,18 @@ requires-dist = [
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
+dependencies = [
+    { name = "campus-contracts" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
+]
 
 [[package]]
 name = "campus-supervisor-api"
@@ -439,6 +467,8 @@ dependencies = [
     { name = "campus-contracts" },
     { name = "campus-shared" },
     { name = "campus-supervisor-core" },
+    { name = "httpx" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
@@ -446,6 +476,8 @@ requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "campus-supervisor-core", editable = "packages/supervisor-core" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pydantic", specifier = ">=2.0" },
 ]
 
 [[package]]
@@ -455,14 +487,18 @@ source = { editable = "packages/supervisor-core" }
 dependencies = [
     { name = "campus-availability-specialist" },
     { name = "campus-contracts" },
+    { name = "campus-navigation-specialist" },
     { name = "campus-rag-specialist" },
+    { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "campus-availability-specialist", editable = "packages/availability-specialist" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-navigation-specialist", editable = "packages/navigation-specialist" },
     { name = "campus-rag-specialist", editable = "packages/rag-specialist" },
+    { name = "campus-shared", editable = "packages/shared" },
 ]
 
 [[package]]

@@ -20,6 +20,7 @@ DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS = 100
 DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS = 20
 DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS = 0.0
 DEFAULT_FAITHFULNESS_STATEMENT_GENERATION_READ_TIMEOUT_SECONDS = 180.0
+ALLOWED_EVAL_LLM_TRANSPORTS = frozenset({"responses", "chat_completions"})
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
 
@@ -188,6 +189,7 @@ class RagasSettings:
     llm_model: str
     embedding_api_key: str
     embedding_model: str
+    llm_transport: str = "responses"
     llm_base_url: str | None = None
     embedding_base_url: str | None = None
     embedding_dimensions: int | None = None
@@ -203,6 +205,8 @@ class RagasSettings:
             raise ValueError("LLM_API_KEY is required")
         if not self.llm_model.strip():
             raise ValueError("EVAL_RAGAS_MODEL is required")
+        if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
+            raise ValueError("EVAL_LLM_TRANSPORT must be one of responses, chat_completions")
         if not self.embedding_api_key.strip():
             raise ValueError("EMBEDDING_API_KEY is required")
         if not self.embedding_model.strip():
@@ -241,6 +245,7 @@ class RagasSettings:
         return cls(
             llm_api_key=llm_provider.api_key,
             llm_model=_resolve_ragas_model(source),
+            llm_transport=_resolve_eval_llm_transport(source, "EVAL_RAGAS_LLM_TRANSPORT"),
             embedding_api_key=embedding_provider.api_key,
             embedding_model=embedding_model,
             llm_base_url=llm_provider.base_url,
@@ -290,6 +295,7 @@ class RagasSettings:
 class JudgeLLMSettings:
     llm_api_key: str
     llm_model: str
+    llm_transport: str = "responses"
     llm_base_url: str | None = None
     http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
     reasoning_effort: str | None = None
@@ -301,6 +307,8 @@ class JudgeLLMSettings:
             raise ValueError("LLM_API_KEY is required")
         if not self.llm_model.strip():
             raise ValueError("EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required")
+        if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
+            raise ValueError("EVAL_LLM_TRANSPORT must be one of responses, chat_completions")
         if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
             raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
         if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
@@ -320,6 +328,7 @@ class JudgeLLMSettings:
         return cls(
             llm_api_key=llm_provider.api_key,
             llm_model=_resolve_judge_model(source),
+            llm_transport=_resolve_eval_llm_transport(source, "EVAL_JUDGE_LLM_TRANSPORT"),
             llm_base_url=llm_provider.base_url,
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
@@ -331,6 +340,7 @@ class JudgeLLMSettings:
         return {
             "llm_api_key": self.llm_api_key,
             "llm_model": self.llm_model,
+            "llm_transport": self.llm_transport,
             "llm_base_url": self.llm_base_url,
             "http_settings": self.http_settings,
             "reasoning_effort": self.reasoning_effort,
@@ -408,3 +418,10 @@ def _resolve_judge_model(source: dict[str, str]) -> str:
     eval_judge_model = _read_first_non_empty(source, "EVAL_JUDGE_MODEL")
     eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
     return eval_judge_model or eval_ragas_model or ""
+
+
+def _resolve_eval_llm_transport(source: dict[str, str], surface_key: str) -> str:
+    raw_transport = _read_first_non_empty(source, surface_key, "EVAL_LLM_TRANSPORT")
+    if raw_transport is None:
+        return "responses"
+    return raw_transport.strip().lower()

@@ -2,26 +2,26 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Dev-Backed Supervisor Staging Smoke Runbook
 
 ## 文档边界
 
-这份 runbook 只覆盖当前阶段的 staging smoke：
+这份 runbook 只覆盖一种环境特定的 staging smoke：
 
 - `public-chat-web`
 - `app-api`
-- `supervisor-api` 仍由本地 `dev` / Docker 进程临时承接
+- `supervisor-api` 由本地 `dev` / Docker 进程临时承接
 
 它回答的是：
 
 - 当 `supervisor-api` 还没有稳定部署时，如何把 staging chat execution 跑通
 - 每轮 smoke 最少要验证哪些链路
-- 哪些结果可以算“当前开发态 staging 可用”
+- 哪些结果可以算这条 dev-backed staging 链路可用
 
-它不把当前 `supervisor-api` upstream 写成稳定部署 truth。
+它不把 dev-backed upstream 写成稳定部署 truth。
 
 ## Hostname Constraint
 
@@ -30,7 +30,7 @@ updated: 2026-04-06
 - `ayafeed.com` 是共享 zone，generic 一级子域不再视为本 repo 的可依赖部署真相；staging surface 必须带 `campus-` 前缀隔离命名
 - 因此本 runbook 中涉及 staging surface 的外部 URL 一律使用 `ayafeed.com` 下一级子域；repo 中残留的 nested hostnames 仅视为待迁移实现残留
 
-## 当前适用场景
+## 适用场景
 
 适用于以下模式：
 
@@ -41,7 +41,7 @@ updated: 2026-04-06
 
 ## 判定标准
 
-当前阶段的 smoke 通过，表示：
+这条 smoke 通过，表示：
 
 - `chat-staging -> app-api-staging -> current supervisor upstream` 真实可用
 - browser 真实请求不再卡在 transport failure
@@ -129,7 +129,7 @@ pnpm --dir apps/app-api deploy:staging
 
 `deploy:staging` 现在直接使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`。
 
-当前 Wave B staging baseline 还额外固定了两条运行时事实：
+这条 staging smoke 还要额外确认两条运行时事实：
 
 - `app-api-staging` 的 `[env.staging.vars] SUPERVISOR_API_TIMEOUT_MS` 已提升到 `15000`
 - telemetry / Sentry 调用必须 fail-open，不能再把 request-path 变成 `500`
@@ -164,9 +164,19 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 在真实 `campus-chat-staging` 页面执行：
 
 1. 打开 `/login`
-2. 使用临时测试账号注册或登录
-3. 进入 `/chat`
-4. 发起一条首轮问题
+2. 使用固定 smoke identity 登录；如果密码漂移或历史数据需要重置，先在 shell 执行：
+
+```bash
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
+```
+
+3. 不要在浏览器现场创建临时 end-user 账号；repo-tracked staging identity 仍以 `help_bot@outlook.com` 为准
+4. 进入 `/chat`（当前默认 donor-derived shell）
+5. 发起一条首轮问题
+6. 确认首轮成功后 sidebar/history 无需手动 reload 就能看到新会话
+7. 直访旧 `/chat/replatform-preview*` 前缀，确认它会 canonicalize 回 `/chat`，而不是被当成 `conversationId`
 
 推荐问题：
 
@@ -176,9 +186,10 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 通过标准：
 
 - 页面请求 `POST /api/chat/requests` 返回 `200`
-- 页面得到 typed outcome
+- 页面得到 typed outcome，并以显式结果态渲染 `answer` / `clarification` / `no_answer` / `error`
 - outcome 可以是 `answer` / `clarification` / `no_answer`
 - 不能是 transport error、Worker proxy error、upstream unreachable
+- 首轮成功后不允许依赖手动刷新才能在左侧 history 看到新会话
 
 ## Step 6. 记录链路证据
 
@@ -188,11 +199,15 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 - 本地 `supervisor-api` 启动方式：`dev` 或 `docker`
 - 一条真实 `POST /api/chat/requests`
 - 当次 `conversationId`
+- 当次 `requestId`
+- 当次 `traceId`
 - 页面显示的最终 typed outcome
+- 空态、提交后、结果态、刷新后 history 四张截图
 
 建议落盘：
 
 - `.tmp/staging-smoke/<timestamp>/SUMMARY.md`
+- `docs/runbooks/public-chat-staging-smoke-artifact-template.md`
 
 建议摘要字段：
 
@@ -201,7 +216,14 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 - `app_api_version`
 - `chat_request_status`
 - `typed_outcome`
+- `request_id`
+- `trace_id`
 - `notes`
+
+脱敏约束：
+
+- 不要把 raw `cookie`、`authorization`、密码、session token 写进 `SUMMARY.md`
+- 不要把原始 request/response body 粘进产物；只记录状态码、`conversationId`、`requestId`、`traceId`、页面截图和简短说明
 
 ## Step 7. panel / observability smoke
 

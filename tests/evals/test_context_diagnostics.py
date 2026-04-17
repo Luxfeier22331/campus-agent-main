@@ -11,6 +11,9 @@ from unittest.mock import patch
 
 from campus_contracts import EvidenceSource
 from campus_evals.context_diagnostics import build_context_diagnostics, main as context_diagnostics_main
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 
 
 def _source(
@@ -19,6 +22,11 @@ def _source(
     chunk_id: str,
     source_title: str,
     snippet: str,
+    collection: str = "curriculum_plan",
+    canonical_source_id: str = "",
+    canonical_source_title: str = "",
+    source_unit_kind: str = "",
+    source_unit_key: str = "",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
@@ -29,11 +37,15 @@ def _source(
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
-        collection="curriculum_plan",
+        collection=collection,
         is_current=True,
         snippet=snippet,
         score=0.91,
         source_title=source_title,
+        canonical_source_id=canonical_source_id,
+        canonical_source_title=canonical_source_title,
+        source_unit_kind=source_unit_kind,
+        source_unit_key=source_unit_key,
     )
 
 
@@ -162,6 +174,186 @@ class ContextDiagnosticsTest(unittest.TestCase):
         no_answer_case = next(item for item in diagnostics["cases"] if item["case_id"] == "curriculum-release-gate-no-answer")
         self.assertEqual(no_answer_case["context_metric_applicability"]["context_precision"], False)
         self.assertIsNone(no_answer_case["projection"])
+
+    def test_build_context_diagnostics_uses_internal_course_fact_reference_ids(self) -> None:
+        completed_sources = (
+            _source(
+                "course_facts:muc.xigai-semester",
+                chunk_id="course-facts:xigai-semester",
+                source_title="中央民族大学通识课程思想政治理论课教学计划",
+                snippet="习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)。",
+                collection="course_facts",
+            ),
+        )
+        case_results_payload = {
+            "schema_version": 1,
+            "benchmark_type": "curriculum_live_gate",
+            "run_number": 1,
+            "results": [
+                {
+                    "case_id": "curriculum-release-gate-course-single-schedule",
+                    "passed": True,
+                    "status_result": {"passed": True, "reason": "ok"},
+                    "retrieval_result": {"passed": True, "reason": "ok"},
+                    "answer_result": {"passed": True, "reason": "ok"},
+                    "trace_result": {"passed": True, "reason": "ok"},
+                    "metric_results": {},
+                    "observed_trace": {
+                        "selected_scope": {"corpus": "curriculum", "collection": "curriculum_plan"},
+                        "retrieval_called": True,
+                        "clarification_emitted": False,
+                        "error_path": False,
+                        "retrieved_sources": [asdict(source) for source in completed_sources],
+                        "supporting_sources": [asdict(source) for source in completed_sources],
+                    },
+                    "supplemental_results": [
+                        {
+                            "adapter_id": "ragas",
+                            "metric_name": "context_precision",
+                            "score": 1.0,
+                            "verdict": None,
+                            "rationale": "internal course_facts sample",
+                            "gating": False,
+                            "metadata": {
+                                "case_id": "curriculum-release-gate-course-single-schedule",
+                                "expected_status": "completed",
+                                "response_status": "completed",
+                            },
+                        },
+                        {
+                            "adapter_id": "ragas",
+                            "metric_name": "context_recall",
+                            "score": 1.0,
+                            "verdict": None,
+                            "rationale": "internal course_facts sample",
+                            "gating": False,
+                            "metadata": {
+                                "case_id": "curriculum-release-gate-course-single-schedule",
+                                "expected_status": "completed",
+                                "response_status": "completed",
+                            },
+                        },
+                    ],
+                },
+            ],
+        }
+
+        diagnostics = build_context_diagnostics(
+            case_results_payload=case_results_payload,
+            scenario_set="curriculum_live_gate",
+        )
+
+        completed_case = diagnostics["cases"][0]
+        self.assertEqual(completed_case["projection"]["metric_route"], "id_based")
+        self.assertEqual(
+            completed_case["projection"]["retrieved_context_ids"],
+            ["course_facts:muc.xigai-semester"],
+        )
+        self.assertEqual(
+            completed_case["projection"]["reference_context_ids"],
+            ["course_facts:muc.xigai-semester"],
+        )
+        self.assertEqual(completed_case["projection"]["missing_reference_context_ids"], [])
+        self.assertEqual(completed_case["projection"]["extra_retrieved_context_ids"], [])
+
+    def test_build_context_diagnostics_separates_physical_and_canonical_ids_for_semester_facts(self) -> None:
+        semester_fact_doc_id = build_curriculum_program_semester_fact_document_id(
+            "curriculum:法学（民族实验班）本科人才培养方案",
+            "第四学期",
+        )
+        retrieved_sources = (
+            _source(
+                "curriculum:法学（民族实验班）本科人才培养方案",
+                chunk_id="raw-curriculum-chunk",
+                source_title="法学（民族实验班）本科人才培养方案",
+                snippet="第四学期课程安排见培养方案正文。",
+                canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                canonical_source_title="法学（民族实验班）本科人才培养方案",
+            ),
+        )
+        completed_sources = (
+            _source(
+                semester_fact_doc_id,
+                chunk_id=f"{semester_fact_doc_id}:row-0001",
+                source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                snippet="第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
+                collection="program_semester_facts",
+                canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                canonical_source_title="法学（民族实验班）本科人才培养方案",
+                source_unit_kind="semester_course_list",
+                source_unit_key="semester-4",
+            ),
+        )
+        case_results_payload = {
+            "schema_version": 1,
+            "benchmark_type": "curriculum_live_gate",
+            "run_number": 1,
+            "results": [
+                {
+                    "case_id": "curriculum-release-gate-program-follow-up-session-replay",
+                    "passed": True,
+                    "status_result": {"passed": True, "reason": "ok"},
+                    "retrieval_result": {"passed": True, "reason": "ok"},
+                    "answer_result": {"passed": True, "reason": "ok"},
+                    "trace_result": {"passed": True, "reason": "ok"},
+                    "metric_results": {},
+                    "observed_trace": {
+                        "selected_scope": {"corpus": "curriculum", "collection": "curriculum_plan"},
+                        "retrieval_called": True,
+                        "clarification_emitted": False,
+                        "error_path": False,
+                        "retrieved_sources": [asdict(source) for source in retrieved_sources],
+                        "supporting_sources": [asdict(source) for source in completed_sources],
+                    },
+                    "supplemental_results": [
+                        {
+                            "adapter_id": "ragas",
+                            "metric_name": "context_precision",
+                            "score": 1.0,
+                            "verdict": None,
+                            "rationale": "semester fact sample",
+                            "gating": False,
+                            "metadata": {
+                                "case_id": "curriculum-release-gate-program-follow-up-session-replay",
+                                "expected_status": "completed",
+                                "response_status": "completed",
+                            },
+                        }
+                    ],
+                },
+            ],
+        }
+
+        diagnostics = build_context_diagnostics(
+            case_results_payload=case_results_payload,
+            scenario_set="curriculum_live_gate",
+        )
+
+        completed_case = diagnostics["cases"][0]
+        self.assertEqual(completed_case["projection"]["metric_route"], "id_based")
+        self.assertEqual(
+            completed_case["projection"]["retrieved_context_ids"],
+            ["curriculum:法学（民族实验班）本科人才培养方案"],
+        )
+        self.assertEqual(
+            completed_case["projection"]["reference_context_ids"],
+            ["curriculum:法学（民族实验班）本科人才培养方案"],
+        )
+        self.assertEqual(
+            completed_case["projection"]["retrieved_doc_ids"],
+            ["curriculum:法学（民族实验班）本科人才培养方案"],
+        )
+        self.assertEqual(
+            completed_case["projection"]["retrieved_canonical_source_ids"],
+            ["curriculum:法学（民族实验班）本科人才培养方案"],
+        )
+        self.assertEqual(completed_case["projection"]["retrieved_source_unit_keys"], [])
+        self.assertEqual(completed_case["projection"]["supporting_doc_ids"], [semester_fact_doc_id])
+        self.assertEqual(
+            completed_case["projection"]["supporting_canonical_source_ids"],
+            ["curriculum:法学（民族实验班）本科人才培养方案"],
+        )
+        self.assertEqual(completed_case["projection"]["supporting_source_unit_keys"], ["semester-4"])
 
     def test_context_diagnostics_main_supports_json_output(self) -> None:
         payload = {

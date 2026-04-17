@@ -57,6 +57,7 @@ describe("protected panel data provider", () => {
 
     const response = await protectedPanelDataProvider.getList("requests", {
       filter: {
+        q: "图书馆",
         status: "completed",
         surface: "public_chat_web",
       },
@@ -82,7 +83,7 @@ describe("protected panel data provider", () => {
       hasPreviousPage: false,
     });
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/requests?limit=20&status=completed&surface=public_chat_web",
+      "/api/requests?limit=20&q=%E5%9B%BE%E4%B9%A6%E9%A6%86&status=completed&surface=public_chat_web",
       expect.objectContaining({
         headers: {
           accept: "application/json",

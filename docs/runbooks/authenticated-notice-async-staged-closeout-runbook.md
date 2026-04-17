@@ -2,14 +2,14 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-06
+updated: 2026-04-12
 ---
 
 # Authenticated Notice Async Staged Closeout Runbook
 
 ## 文档边界
 
-这份 runbook 只描述 Phase 12.2 之后的 authenticated notice async staged closeout workflow。
+这份 runbook 描述 authenticated notice 的 canonical async staged closeout workflow。
 
 它不替代：
 
@@ -17,24 +17,13 @@ updated: 2026-04-06
 - `docs/runbooks/authenticated-notice-historical-backfill-closeout-runbook.md` 的 legacy cumulative-prefix closeout 说明
 - live collector / control-plane runbook
 
-## Latest Completed Historical Run
+## Historical Evidence Pointer
 
-当前 repo-tracked 完整 historical closeout 实跑证据为：
-
-- `run_id=authenticated-notice-replay-20260406-024405`
-- `state=done`
-- `promotion_id=promotion-0001`
-- `expected_notice_count=6694`
-- `verification.ok=true`
-- `expected_document_id_count=6962`
-- `raw_asset_synced_count=6694`
-- `replaced_scope_record_count=6962`
-
-详细指标固定记录在：
+完整 historical closeout 的实跑指标固定记录在：
 
 - `docs/reference/authenticated-notice-historical-closeout-evidence.md`
 
-这组证据只说明 async staged closeout 已成功收口，不表示 `internal_notice` 已开放 serving。
+这份 runbook 只维护可重复执行的流程，不维护某一轮 run 的实时 checkpoint。
 
 ## Canonical CLI
 
@@ -106,10 +95,10 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
-- `AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL` 已配置；如未单独配置，则当前实现回退到 `CAMPUS_SHARED_POSTGRES_URL`，再回退到 `DOCUMENT_REGISTRY_DATABASE_URL`
-- 当这些 URL 指向 Supabase 时，当前 accepted posture 固定为 IPv4 runtime + `session pooler`；不得把 `db.<project-ref>.supabase.co` 或 transaction pooler 用作长驻 worker 主链路
-- 当前目标 collection 仍是 `campus_notices/internal_notice`
-- posture 仍是 `restricted + offline_preparation`
+- offline operator shell 必须显式提供 management direct DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` 或 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- 当共享库由 Supabase 承载时，management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；helper 不再在 `prefer_management=True` 时回退到 `CAMPUS_SHARED_POSTGRES_URL`
+- 目标 collection 是 `campus_notices/internal_notice`
+- collection posture 是 `restricted + offline_preparation`
 
 ## 对象存储布局
 

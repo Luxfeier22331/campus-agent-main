@@ -14,6 +14,7 @@ The phase names below are retained as execution-history labels. They must not be
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (03.1, 04.1, 04.2, 04.3, 04.4, 04.5, 04.6, 04.7, 05.1, 09.1): Urgent insertions (marked with INSERTED)
+- `999.x` phases: backlog parking-lot items that are tracked but not yet promoted into the active execution sequence
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -38,6 +39,18 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 9: Curriculum Ambiguous Program Query Hardening** - Harden ambiguous `curriculum_plan` program-family queries with alias-tier governance, family-aware membership truth, and fail-closed deictic/doc resolution. (completed 2026-04-02)
 - [x] **Phase 09.1: Env Bootstrap And Provider Configuration Governance** - Freeze and implement explicit local/deploy env bootstrap, provider precedence, and fail-fast diagnostics so provider credentials no longer depend on implicit shell state. (INSERTED) (completed 2026-04-02)
 - [ ] **Phase 10: Official Web Repo Hardening And Expansion** - Expand and harden the `official_web` repo-level source channel, control plane, and operator workflow after the current curriculum hardening wave.
+- [x] **Phase 11: Campus Identity, Authorization, Memory, And Restricted Document Foundation** - Freeze and implement the canonical principal/projection seam, restricted-document retrieval fail-close, and non-authorizing memory/personalization truth. (completed 2026-04-05)
+- [x] **Phase 12: Authenticated Notice Source Foundation** - Formalize the repo-native authenticated notice source channel and historical export replay foundation without opening query-serving. (completed 2026-04-06)
+- [x] **Phase 12.1: Authenticated Notice Historical Backfill Closeout** - Close the historical backfill execution truth and final evidence package for `campus_notices/internal_notice`. (completed 2026-04-11; legacy cumulative-prefix path superseded by Phase 12.2 + recorded closeout evidence)
+- [x] **Phase 12.2: Authenticated Notice Async Staged Closeout** - Rebuild historical closeout into an async staged pipeline with single-promoter deterministic promotion. (completed 2026-04-08)
+- [x] **Phase 13: 政治风险判定与幻觉控制硬化** - Harden product-path policy risk, out-of-scope classification, and evidence-grounded abstention semantics. (completed 2026-04-11)
+- [x] **Phase 14: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口** - Freeze the repo-default prompt stack, provider-backed strict output runtime, prompt metadata sink, and deterministic protected-path regression truth. (completed 2026-04-12)
+- [x] **Phase 15: 幻觉治理与 Grounded Generation 二次硬化** - Upgrade the current fail-closed baseline into a repo-default grounded-generation system with retrieval adequacy gating, provider-agnostic grounding runtime, expanded claim taxonomy, and release-gated artifact retention. (completed 2026-04-12; repo-local closeout complete, live artifact refresh deferred to follow-up rerun after supplemental eval provider cutover)
+- [x] **Phase 16: OCR 资产分类与双渠道择优路由** - Freeze OCR asset typing, selective dual-provider compare/routing, and conditional MinerU canonical admission without polluting source-truth or retrieval contracts. (completed 2026-04-12)
+- [x] **Phase 1000: Curriculum 结构化证据契约与 Semester Facts 修复** - Repair curriculum structured-query source contract, semester-facts materialization, answer-shaping coverage, and release-gate observability so supported curriculum follow-up queries stay grounded while course-map topology queries fail-close by design instead of drifting into fabricated answers. (completed 2026-04-13)
+- [ ] **Phase 1001: Campus Navigation Place Catalog Expansion And Acceptance Evidence** - Reopen the deferred place-finding follow-up to expand the repo-owned `place_catalog`, harden same-name campus ambiguity, and define real staging/manual acceptance evidence without reopening route-planning scope. (paused 2026-04-14; `1001-03` deferred to backlog `999.2` until map launch)
+- [x] **Phase 1002: Worker 部署与发布硬化收口** - Close the remaining Worker staging release-hardening debt by unifying deploy-time release identity, canonical preflight gates, and release-scoped post-deploy evidence across `app-api`, `public-chat-web`, and `protected-panel-web`. (completed 2026-04-14)
+- [x] **Phase 1003: Official Web 新闻面 opening policy 与 runtime gate 收口** - Freeze the long-term opening policy, runtime gate, and acceptance contract for `official_web/fresh_news` and `official_web/news_archive` without reopening them as query-enabled surfaces in the current branch. (completed 2026-04-14; repo-level policy/runtime-gate closeout only, future opening execution / acceptance demoted to backlog `999.4`)
 
 ## Phase Details
 
@@ -344,8 +357,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 03.1 → 03.2 → 4 → 04.1 
 | 10.5. Official Web Stable Reference Release Evidence And Serving Surface Cleanup | 2/2 | Complete | 2026-04-05 |
 | 11. Campus Identity, Authorization, Memory, And Restricted Document Foundation | 5/5 | Complete |  |
 | 12. Authenticated Notice Source Foundation | 4/4 | Complete |  |
-| 12.1. Authenticated Notice Historical Backfill Closeout | 1/2 | In progress |  |
+| 12.1. Authenticated Notice Historical Backfill Closeout | 2/2 | Complete | 2026-04-11 |
 | 12.2. Authenticated Notice Async Staged Closeout | 2/2 | Complete |  |
+| 13. 政治风险判定与幻觉控制硬化 | 3/3 | Complete | 2026-04-11 |
+| 14. 产品主链路 Prompt Stack 与 System Prompt Runtime 收口 | 3/3 | Complete | 2026-04-12 |
+| 15. 幻觉治理与 Grounded Generation 二次硬化 | 1/4 | In Progress | 2026-04-12 |
 
 ### Phase 8: Student Handbook Ambiguous Policy Query Hardening
 
@@ -614,11 +630,13 @@ Plans:
   1. The closeout runner freezes the exact bundle/manifest/count/checkpoints and staged replay uses cumulative prefix slices only.
   2. Historical closeout produces persisted `frozen-input`, checkpoint summaries, optional final rerun summary, and a closeout reconciliation artifact for `campus_notices/internal_notice`.
   3. Expected document identity closes exactly at scope level, expected raw asset identity closes at coverage level, and `internal_notice` remains `restricted + offline_preparation`.
-**Plans:** 1/2 plans complete
+**Plans:** 2/2 plans complete
+
+**Completion Note:** The original full legacy cumulative-prefix replay is no longer an active execution gap. Phase `12.2` established the canonical async staged closeout path, and the repo now already carries both the real historical closeout run `authenticated-notice-replay-20260406-024405` and the later local-Postgres current-scope chain through unpublished release `r20260411_090101`. `12.1` therefore closes as historical planning truth rather than as a request to re-run the superseded runner again.
 
 Plans:
 - [x] 12.1-01-PLAN.md — Land the repo-owned closeout runner, runbook, planning docs, and focused verification.
-- [ ] 12.1-02-PLAN.md — Execute the frozen full historical closeout and freeze the final evidence package.
+- [x] 12.1-02-PLAN.md — Close the legacy full-closeout plan as superseded by Phase `12.2` plus the already recorded real closeout evidence package.
 
 ### Phase 12.2: Authenticated Notice Async Staged Closeout
 
@@ -634,3 +652,193 @@ Plans:
 Plans:
 - [x] 12.2-01-PLAN.md — Research async staged closeout data-plane model, operations prefix, staging schema, single promoter, verification requirements, and codify the new architecture/ADR/runbook language.
 - [x] 12.2-02-PLAN.md — Execute the async staged pipeline: design ops directories + staging tables, implement planner/executor/promoter, add CLI status/promote commands, and lock in verification/summary artifacts.
+
+### Phase 13: 政治风险判定与幻觉控制硬化
+
+**Goal:** Freeze and implement the product-path policy-risk, scope, and grounding architecture so politically risky requests, open-domain asks, and evidence-unsupported campus asks are explicitly separated in runtime behavior, evals, and observability.
+**Requirements**: []
+**Depends on:** Phase 12.2
+**Success Criteria** (what must be TRUE):
+  1. `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_access_denied` no longer collapse into topic-keyword heuristics; final classification is explicit and code-owned.
+  2. Campus factual political questions that are in-scope and grounded can be answered, while targeted political persuasion / campaigning / lobbying requests fail closed as `policy_refusal`.
+  3. Prompt-generated answers on promptified branches pass stricter grounding / citation / deny-path validation and downgrade to `unsupported_by_evidence` when unsupported.
+  4. The repo gains dedicated eval and observability coverage for policy-risk detection and hallucination-control outcomes instead of relying on generic `no_answer` metrics.
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 13-01-PLAN.md — Harden supervisor-owned policy/scope verdicts for political factual, political persuasion, and open-domain asks.
+- [x] 13-02-PLAN.md — Expand rag grounding validation and fail-closed unsupported downgrade on promptified answer paths.
+- [x] 13-03-PLAN.md — Add dedicated eval, observability, and release-gate coverage for Phase 13 semantic outcomes.
+
+### Phase 14: 产品主链路 Prompt Stack 与 System Prompt Runtime 收口
+
+**Goal:** Freeze and implement the repo-default product-path prompt stack so runtime prompt assembly follows `repo-global developer invariants -> package-owned role prompt -> typed trusted/untrusted packets -> strict structured outputs -> code-side finalization`, instead of drifting into ad hoc mega prompts or app-owned prompt seams.
+**Requirements**: []
+**Depends on:** Phase 13
+**Success Criteria** (what must be TRUE):
+  1. `apps/supervisor-api` and the product runtime own prompt assembly only; they no longer leave “system prompt” as an implicit or app-local concept.
+  2. supervisor and `rag-specialist` prompt families execute through a shared provider-backed strict-output seam that preserves trusted vs untrusted zoning and emits validated `PromptTrace` metadata.
+  3. `prompt_id`、`prompt_version`、`template_sha256`、`model_provider`、`model_name` become product-path truth in observability-safe projections and regression tests.
+  4. deterministic protected paths remain deterministic-first and are not silently replaced by prompt-first generation.
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 14-01-PLAN.md — Freeze repo-default prompt stack assembly, runtime ownership, and trusted-vs-untrusted zoning.
+- [x] 14-02-PLAN.md — Implement provider-backed supervisor/rag prompt executors with strict structured outputs and metadata capture.
+- [x] 14-03-PLAN.md — Add prompt stack regression, observability, and deterministic-path protection verification.
+
+### Phase 15: 幻觉治理与 Grounded Generation 二次硬化
+
+**Goal:** Upgrade the current fail-closed baseline into a repo-default grounded-generation system so campus answers are admitted only when retrieval adequacy, claim support, source-trust tier, and post-generation grounding verdict all align; otherwise the runtime must deterministically clarify, abstain, or refuse.
+**Requirements**: []
+**Depends on:** Phase 14
+**Success Criteria** (what must be TRUE):
+  1. Retrieval adequacy becomes an explicit gate before grounded generation, so in-scope questions with weak, conflicting, or alias-ambiguous evidence do not silently proceed into answer synthesis.
+  2. Prompt answer grounding no longer depends on a single provider shape; the runtime owns a provider-agnostic claim-support contract and can normalize provider-native citations/support into repo truth.
+  3. Claim taxonomy expands beyond `title / time / requirement` to cover campus high-frequency assertions such as quantity/credit, semester placement, audience/major/program applicability, offering unit, procedure/material/deadline/eligibility, freshness, and authorization-sensitive claims.
+  4. Eval, observability, and release-gate evidence can distinguish retrieval inadequacy, unsupported claims, clarification-required ambiguity, false refusal, and false allow regressions without relying on manual answer review.
+**Plans:** 4/4 plans complete; repo-level context is captured in `.planning/phases/15-grounded-generation/15-CONTEXT.md` and `.planning/phases/15-grounded-generation/15-RESEARCH.md`
+
+Plans:
+- [x] 15-01: Freeze retrieval adequacy contract, typed adequacy diagnostics, and clarification-instead-of-guess baseline.
+- [x] 15-02: Implement provider-agnostic grounding runtime, canonical claim-support schema, and expanded claim taxonomy.
+- [x] 15-03: Extend eval, artifact retention, and app-api/operator observability for adequacy and claim-support summaries.
+- [x] 15-04: Run focused verification, update planning truth, and close the phase with explicit blocker-aware acceptance notes.
+
+### Phase 16: OCR 资产分类与双渠道择优路由
+
+**Goal:** Freeze a repo-native OCR asset typing and selective dual-provider routing model so the data plane can admit MinerU conditionally for the right asset classes, keep Paddle where it is still safer, and preserve provider-agnostic source truth.
+**Requirements**: []
+**Depends on:** Phase 15
+**Success Criteria** (what must be TRUE):
+  1. The raw-asset layer can persist enough typed metadata to distinguish at least text-dominant PDFs, simple table images, complex/wide table images, spatially dominant images, and future Office-document candidates without leaking provider/runtime specifics into shared contracts.
+  2. The repo has an explicit routing policy that can choose Paddle, MinerU, or selective dual-run compare based on asset class and ambiguity, while keeping `raw asset -> provider output -> source truth -> projections -> canonical docs -> chunks -> index` provider-agnostic.
+  3. Conditional MinerU canonical admission is explicit and evidence-backed: text-dominant PDFs and whitelisted complex table assets can be promoted first, while simple table images, spatial images, and untyped assets remain Paddle/fallback/deferred until validation closes their risk.
+  4. Local compare evidence, provider reliability findings, and promotion thresholds are captured as repo-tracked planning truth so future implementation does not regress into ad hoc sample-based routing.
+**Plans:** 4 plans; repo-level context is captured in `.planning/phases/16-ocr-asset-typing-and-dual-provider-routing/16-CONTEXT.md` and `.planning/phases/16-ocr-asset-typing-and-dual-provider-routing/16-RESEARCH.md`
+
+Plans:
+- [x] 16-01: Freeze raw asset typing metadata, classification lifecycle, and provider-neutral routing contract.
+- [x] 16-02: Expand the existing sidecar compare lane into structured dual-provider adjudication and selective routing evidence.
+- [x] 16-03: Implement conditional canonical routing and fallback boundaries for MinerU vs Paddle without widening serving scope.
+- [x] 16-04: Run tranche-based validation, record promotion thresholds, and close the phase with an explicit canonical-scope decision.
+
+### Phase 1000: Curriculum 结构化证据契约与 Semester Facts 修复
+
+**Goal:** Repair the curriculum release-gate path so structured curriculum questions preserve stable source identity, semester fact projections do not lose table rows, out-of-scope course-map queries fail-close instead of fabricating table answers, and eval traces distinguish raw retrieval from post-retrieval answer shaping.
+**Requirements:** [CURR-1000-01, CURR-1000-02, CURR-1000-03, CURR-1000-04]
+**Depends on:** Phase 16
+**Success Criteria** (what must be TRUE):
+  1. Semester follow-up runtime can retrieve via `program_semester_facts` while still emitting a stable canonical curriculum source identity for citations, evals, and operator diagnostics.
+  2. `program_semester_facts` materialization preserves row/column position for merged or sparse curriculum tables, and no longer drops semester courses such as `大学英语(四)` because empty cells were stripped during projection.
+  3. Structured curriculum queries such as `课程设置怎么安排` / `修读建议怎么安排` use a dedicated non-procedure answer path, while `课程地图怎么安排` now fail-closes because topology OCR is not stable enough for grounded answers.
+  4. Live eval and app-api observability expose both raw retrieved candidates and final supporting evidence so retrieval regressions and answer-shaping regressions can be diagnosed independently.
+**Plans:** 4/4 plans complete; repo-level context is captured in `.planning/phases/1000-curriculum-semester-facts/1000-CONTEXT.md` and `.planning/phases/1000-curriculum-semester-facts/1000-RESEARCH.md`
+
+Plans:
+- [x] 1000-01-PLAN.md — Freeze canonical source identity / source-unit metadata and the semester follow-up evidence contract.
+- [x] 1000-02-PLAN.md — Implement structured curriculum intent for supported lookup sections and fail-close course-map topology queries.
+- [x] 1000-03-PLAN.md — Fix semester-facts projection and add selective `program_semester_facts` rematerialization for affected curriculum documents.
+- [x] 1000-04-PLAN.md — Split eval/app-api trace observability, rerun deterministic gates, and produce a fresh curriculum accept artifact.
+
+## Backlog
+
+### Phase 999.1: 集中维护待补 smoke evidence 的 deferred backlog (BACKLOG)
+
+**Goal:** 集中维护已经完成 code closeout、但仍需等待浏览器或 staging smoke 条件可用后再统一补证据的事项，避免把 evidence-only 项继续混写成 active implementation blocker。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when the relevant smoke lane is available)
+
+### Phase 999.2: 校园地图上线后恢复导航产品路径与 place_card/map consumption (BACKLOG)
+
+**Goal:** 待校园地图实际上线后，再把 `place_lookup` 从 repo-internal foundation 恢复为真实产品能力，并补齐 `place_card` / map consumption、staging/manual acceptance 与相关 smoke evidence。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` after map launch)
+
+### Phase 999.3: 认证窗口内补齐 351119 file_release capture 与 regulation owner recovery 输入物 (BACKLOG)
+
+**Goal:** 待下次可用认证窗口到来时，对 `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知` 执行 bounded `file_release` capture，补齐 regulation owner recovery 所需的 bundle / manifest / source bytes 输入物。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when the next authenticated file_release export window is available)
+
+### Phase 999.4: Official Web 新闻面 opening execution / acceptance deferred backlog (BACKLOG)
+
+**Goal:** 将 `official_web/fresh_news` / `official_web/news_archive` 的真实 opening execution、routing/eval acceptance 与 runtime rollout 明确降为 deferred work，待产品优先级恢复后再从 backlog promote，而不是继续作为当前分支的隐性 next lane。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when official-web news surface priority is raised again)
+
+### Phase 999.5: 扩展 authenticated notice 的 notice family 采集范围与附件分层消费边界 (BACKLOG)
+
+**Goal:** 在不打乱当前 regulation import lane 的前提下，单独规划 `科研通知` 等更大范围登录态内容的采集与消费策略，明确 `notice -> attachment -> target collection` 三层边界，避免把科研公告附件、活动材料、制度正文和 wrapper notice 混成一条处理链。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when authenticated notice scope expansion is prioritized)
+
+### Phase 1001: Campus Navigation Place Catalog Expansion And Acceptance Evidence (PAUSED)
+
+**Status Note:** 自 2026-04-14 起，当前产品路径明确暂不支持校内导航。`1001-03` 的 staging/manual acceptance 与 `place_card` / map consumption 已转入 backlog `999.2`，等待地图实际产品上线后再恢复。
+
+**Goal:** Keep the repo-owned `campus_navigation/place_catalog` foundation, authoritative source posture, and ambiguity behavior explicit while deferring navigation product-path enablement until map launch.
+**Requirements**: []
+**Depends on:** Phase 1000
+**Success Criteria** (what must be TRUE):
+  1. A first batch of official-map-backed high-frequency places is explicitly inventoried for both 海淀校区 and 丰台校区, with source provenance and verification posture documented.
+  2. The repo-owned `place_catalog` expansion strategy preserves clarification-first behavior for same-name cross-campus places instead of relying on implicit top-1 resolution.
+  3. Navigation specialist tests, data docs, and planning truth all align on the expanded seed posture and on the fact that `place_catalog` remains specialist-private truth rather than a public retrieval surface.
+  4. Any future product enablement, `place_card` browser consumption, and staging/manual acceptance are only promoted after map launch with explicit backlog promotion instead of being treated as current rollout truth.
+**Plans:** 3/3 plans closed; two foundation plans complete and `1001-03` is intentionally deferred with explicit backlog handoff to `999.2`
+
+Plans:
+- [x] 1001-01-PLAN.md — Freeze the authoritative source inventory, verification posture, and ambiguity families for the expanded place catalog.
+- [x] 1001-02-PLAN.md — Admit the first official-map-backed place batch into `place_catalog` and refresh navigation specialist regression coverage.
+- [x] Deferred closeout: `1001-03-PLAN.md` — staging/manual acceptance evidence contract for place-finding is now explicitly parked behind backlog `999.2` until map launch
+
+### Phase 1002: Worker 部署与发布硬化收口
+
+**Goal:** Close the remaining Worker staging release-hardening debt by unifying deploy-time release identity, canonical preflight gates, and release-scoped post-deploy evidence across `app-api`, `public-chat-web`, and `protected-panel-web`.
+**Requirements**: []
+**Depends on:** Phase 1001
+**Success Criteria** (what must be TRUE):
+  1. `app-api`、`public-chat-web`、`protected-panel-web` staging deploys all derive release identity at deploy time, and no static `SENTRY_RELEASE` debt remains in repo-owned staging config.
+  2. The canonical staging deploy path fail-closes before publish on missing shell env, missing secrets, wrong built config, unresolved shared DB drift, or invalid Access/admission prerequisites.
+  3. The `APP_API_DB` / `APP_API_DB_FRESH` split remains explicit and verified for auth-sensitive or read-after-write-sensitive paths.
+  4. A staging release is only considered closed out when release-scoped post-deploy evidence exists for chat trace, panel trace, and app-api runtime event sinks.
+**Plans:** 3/3 plans complete; repo-level closeout is captured in summaries plus `.planning/phases/1002-worker/1002-CONTEXT.md` and `.planning/phases/1002-worker/1002-RESEARCH.md`
+
+Plans:
+- [x] 1002-01-PLAN.md — 统一三端 deploy-time release identity
+- [x] 1002-02-PLAN.md — 收口 staging preflight 与 DB/Access gate
+- [x] 1002-03-PLAN.md — 固定 release-scoped post-deploy evidence
+
+### Phase 1003: Official Web 新闻面 opening policy 与 runtime gate 收口
+
+**Status Note:** 自 2026-04-14 起，Phase 1003 只代表 repo-level policy/runtime-gate closeout。后续 `fresh_news` / `news_archive` opening execution 与 acceptance 已转入 backlog `999.4`，不再作为当前分支的邻近执行线。
+
+**Goal:** Freeze the long-term opening policy, runtime gate, and acceptance contract for `official_web/fresh_news` and `official_web/news_archive` without reopening them as query-enabled surfaces in the current branch.
+**Requirements**: []
+**Depends on:** Phase 1002
+**Success Criteria** (what must be TRUE):
+  1. `stable_reference` remains the default institutional official-web surface, and `fresh_news` / `news_archive` are explicitly excluded from default mixed retrieval.
+  2. `fresh_news` has machine-checkable opening criteria covering detail-first evidence, time metadata coverage, duplicate collapse, routing, and freshness gate behavior.
+  3. `news_archive` is frozen as explicit-history/operator/eval-only truth and can no longer silently backfill recent-news retrieval.
+  4. The independent official-web worktree has a clear acceptance / handoff contract for future promotion, without treating seed baselines or local imports as runtime-opening proof.
+**Plans:** 3/3 plans complete; repo-level closeout is captured in summaries plus `.planning/phases/1003-official-web-opening-policy-runtime-gate/1003-CONTEXT.md` and `.planning/phases/1003-official-web-opening-policy-runtime-gate/1003-RESEARCH.md`; future opening execution / acceptance now lives in backlog `999.4`
+
+Plans:
+- [x] 1003-01-PLAN.md — 冻结新闻面 opening policy 与 runtime-profile criteria
+- [x] 1003-02-PLAN.md — 收口 routing、evidence 与 eval gate
+- [x] 1003-03-PLAN.md — 定义独立 worktree acceptance 与 handoff contract

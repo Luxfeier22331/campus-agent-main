@@ -4,6 +4,8 @@ import { AppApiRouteError } from "../../http";
 import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../auth";
 import {
   DRAFT_CONVERSATION_TITLE,
+  type ChatMessageStructuredPart,
+  type ChatPlaceCard,
   toConversationResponse,
   type ChatConversation,
   type ChatConversationStore,
@@ -141,6 +143,105 @@ function normalizeRequestedCapability(value: unknown): string | null {
   return capability || null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => normalizeOptionalString(item))
+    .filter((item): item is string => item !== null);
+}
+
+function normalizePointGeometry(value: unknown): ChatPlaceCard["pointGeometry"] {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const longitude = typeof value.longitude === "number" ? value.longitude : null;
+  const latitude = typeof value.latitude === "number" ? value.latitude : null;
+  if (longitude === null || latitude === null) {
+    return null;
+  }
+
+  return { latitude, longitude };
+}
+
+function normalizePlaceRef(value: unknown): Pick<
+  ChatPlaceCard,
+  "campusArea" | "campusScope" | "displayName" | "entityType" | "placeId"
+> | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const placeId = normalizeOptionalString(value.place_id);
+  const entityType = normalizeOptionalString(value.entity_type);
+  const displayName = normalizeOptionalString(value.display_name);
+  if (!placeId || !entityType || !displayName) {
+    return null;
+  }
+
+  return {
+    placeId,
+    entityType,
+    displayName,
+    campusScope: normalizeOptionalString(value.campus_scope),
+    campusArea: normalizeOptionalString(value.campus_area),
+  };
+}
+
+function normalizePlaceCardPart(input: {
+  selectedTarget: string | null;
+  status: SupervisorExecutionResponse["status"];
+  result: unknown;
+}): ChatMessageStructuredPart[] {
+  if (input.selectedTarget !== "navigation-specialist" || input.status !== "completed") {
+    return [];
+  }
+
+  if (!isRecord(input.result)) {
+    return [];
+  }
+
+  const placeCard = isRecord(input.result.place_card) ? input.result.place_card : null;
+  if (!placeCard) {
+    return [];
+  }
+
+  const place = normalizePlaceRef(placeCard.place);
+  if (!place) {
+    return [];
+  }
+
+  return [
+    {
+      type: "place_card",
+      placeCard: {
+        ...place,
+        locationDescription: normalizeOptionalString(placeCard.location_description),
+        landmarkHint: normalizeOptionalString(placeCard.landmark_hint),
+        accessNote: normalizeOptionalString(placeCard.access_note),
+        openingNote: normalizeOptionalString(placeCard.opening_note),
+        serviceTags: normalizeStringArray(placeCard.service_tags),
+        pointGeometry: normalizePointGeometry(placeCard.point_geometry),
+        coordinateReferenceSystem: normalizeOptionalString(
+          placeCard.coordinate_reference_system,
+        ),
+        sourceRefs: normalizeStringArray(placeCard.source_refs),
+      },
+    },
+  ];
+}
+
 function buildConversationTitle(currentTitle: string, prompt: string): string {
   if (currentTitle !== DRAFT_CONVERSATION_TITLE && currentTitle.trim()) {
     return currentTitle;
@@ -269,6 +370,7 @@ function buildAcceptedWrite(input: {
     createdAt: input.now,
     requestId: null,
     retryable: null,
+    structuredParts: [],
   };
 
   return {
@@ -417,6 +519,11 @@ function buildFinalizedWrite(input: {
   } satisfies SupervisorExecutionResponse;
   const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
   const sourceDocIds = extractSourceDocIds(input.response.result);
+  const structuredParts = normalizePlaceCardPart({
+    result: input.response.result,
+    selectedTarget: input.response.selectedTarget,
+    status: input.response.status,
+  });
   const resolvedScope = resolveFinalizedScope({
     requestedScope: input.requestedScope,
     response: normalizedSupervisorResponse,
@@ -508,6 +615,7 @@ function buildFinalizedWrite(input: {
     createdAt: input.completedAt,
     requestId: input.requestId,
     retryable,
+    structuredParts,
   };
 
   const write: FinalizeRequestWrite = {
@@ -649,18 +757,14 @@ export function buildChatCommandService(
       let conversationDiscriminator = NEW_CONVERSATION_FINGERPRINT_SCOPE;
 
       if (validatedPayload.conversationId) {
+        conversationDiscriminator = validatedPayload.conversationId;
         conversation = await dependencies.conversationStore.getConversationByOwner(
           ownerUserId,
           validatedPayload.conversationId,
         );
-        if (!conversation) {
-          throw createPreAcceptError({
-            code: "conversation_not_found",
-            message: "Conversation not found.",
-            status: 404,
-          });
+        if (conversation) {
+          conversationDiscriminator = conversation.id;
         }
-        conversationDiscriminator = conversation.id;
       }
 
       const idempotencyKey = input.idempotencyKey?.trim() || null;
@@ -716,7 +820,7 @@ export function buildChatCommandService(
         | undefined;
 
       if (!conversation) {
-        const conversationId = generateId("conv");
+        const conversationId = validatedPayload.conversationId ?? generateId("conv");
         const title = buildConversationTitle(DRAFT_CONVERSATION_TITLE, validatedPayload.prompt);
         conversationSeed = {
           id: conversationId,
