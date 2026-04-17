@@ -31,3 +31,15 @@ node_modules/
 .planning/quick/**/prep-samples*/
 .planning/quick/**/env*.before-local-postgres
 .planning/quick/**/devvars*.before-local-postgres
+
+# Quick-task reruns and local scratch outputs
+.planning/quick/**/run-output/
+.planning/quick/**/run-output-*/
+.planning/quick/**/rerun-output/
+.planning/quick/**/materialization-output/
+
+# Local map/screenshot scratch files
+tmp-*.png
+tmp-*.jpg
+tmp-*.jpeg
+tmp-*.webp
