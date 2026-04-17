@@ -1,13 +1,14 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 
+import "../vendor/vercel-ai-chatbot/app/globals.css";
 import "./styles.css";
 
 const PublicChatApp = lazy(async () => {
-  const module = await import("./public-chat/app");
+  const module = await import("./routes/app-router");
 
   return {
-    default: module.PublicChatApp,
+    default: module.AppRouter,
   };
 });
 

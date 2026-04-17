@@ -65,9 +65,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="api-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -105,9 +103,32 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].request_id, "req-001")
         self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-001"))
         self.assertEqual(captured_requests[0].actor.user_id, "api-bearer-user")
-        self.assertEqual(captured_requests[0].actor.groups, ("students",))
         self.assertEqual(captured_requests[0].actor.roles, ("student",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_requests[0].actor,
+            ActorContext(
+                user_id="api-bearer-user",
+                roles=("student",),
+            ),
+        )
+        self.assertEqual(
+            captured_requests[0].context.authorization,
+            AuthorizationProjection(
+                principal_id="api-bearer-user",
+                entitlement_snapshot_id="",
+                entitlement_groups=(),
+                visibility_scope=None,
+                applicability_scope=None,
+                ownership_scopes=(),
+                approval_state="",
+                retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=(),
+                    visibility_level="public",
+                    visibility_scope=None,
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            ),
+        )
         self.assertEqual(
             captured_requests[0].requested_scope,
             KnowledgeScope(
@@ -226,7 +247,6 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="api-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
             ),
             supervisor_handler=fake_supervisor,
@@ -274,9 +294,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -302,9 +320,13 @@ class SupervisorApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured_requests[0].actor.user_id, "runtime-bearer-user")
-        self.assertEqual(captured_requests[0].actor.groups, ("students",))
-        self.assertEqual(captured_requests[0].actor.roles, ("student",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(
+            captured_requests[0].actor,
+            ActorContext(
+                user_id="runtime-bearer-user",
+                roles=("student",),
+            ),
+        )
 
     def test_answer_route_rejects_invalid_bearer_token(self) -> None:
         app = create_app(settings=ApiSettings(bearer_token="secret-token"))
@@ -327,9 +349,8 @@ class SupervisorApiTest(unittest.TestCase):
                     auth_mode="bearer",
                     bearer_token="secret-token",
                     default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
-                audit_log_path=audit_path,
-            ),
+                    audit_log_path=audit_path,
+                ),
                 supervisor_handler=lambda request: SupervisorResponse(
                     selected_target="rag-specialist",
                     status="completed",
@@ -370,6 +391,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["request_id"], "req-audit-001")
             self.assertEqual(payload["trace_id"], "trace-audit-001")
             self.assertEqual(payload["user_id"], "runtime-bearer-user")
+            self.assertEqual(payload["principal_type"], "")
+            self.assertEqual(payload["authorization_projection_source"], "")
+            self.assertEqual(payload["entitlement_snapshot_id"], "")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "generic")
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "completed")
             self.assertIsNone(payload["error_code"])
@@ -383,6 +409,11 @@ class SupervisorApiTest(unittest.TestCase):
                     "request_id",
                     "trace_id",
                     "user_id",
+                    "principal_type",
+                    "authorization_projection_source",
+                    "entitlement_snapshot_id",
+                    "policy_projection_version",
+                    "personalization_mode",
                     "selected_target",
                     "requested_capability",
                     "requested_scope_corpus",
@@ -406,6 +437,111 @@ class SupervisorApiTest(unittest.TestCase):
                 "raw_transcript",
             ):
                 self.assertNotIn(forbidden_key, payload)
+
+    def test_answer_route_writes_projected_authz_summary_without_sensitive_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            audit_path = Path(tempdir) / "audit.log"
+            app = create_app(
+                settings=ApiSettings(
+                    auth_mode="trusted-worker",
+                    worker_shared_secret="worker-secret",
+                    audit_log_path=audit_path,
+                ),
+                supervisor_handler=lambda request: SupervisorResponse(
+                    selected_target="rag-specialist",
+                    status="completed",
+                    answer_text="按当前投影处理完成。",
+                    confidence="high",
+                    result=RagResultPayload(
+                        evidence=EvidenceBundle(
+                            query_text=request.user_goal,
+                            corpus="regulations",
+                            collection="student_handbook",
+                        )
+                    ),
+                ),
+            )
+
+            response = app.handle(
+                "POST",
+                "/api/v1/answer",
+                headers={
+                    "x-worker-origin-auth": "worker-secret",
+                    "x-trace-id": "trace-projected-audit-001",
+                },
+                json_body={
+                    "user_goal": "保研政策怎么准备？",
+                    "request_id": "req-projected-audit-001",
+                    "requested_scope": {
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                    },
+                    "context": {
+                        "actor": {
+                            "user_id": "student@example.edu",
+                            "principal_id": "principal-001",
+                            "principal_type": "student",
+                            "roles": ["student"],
+                            "cohort": "2023",
+                            "major": "philosophy",
+                        },
+                        "authorization": {
+                            "principal_id": "principal-001",
+                            "projection_source": "campus_identity",
+                            "entitlement_snapshot_id": "entitlements-2026-03-29",
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_scope": "north",
+                            "applicability_scope": "undergraduate",
+                            "ownership_scopes": ["conversation:student@example.edu"],
+                            "approval_state": "not_required",
+                            "retrieval_filter": {
+                                "entitlement_groups": ["students", "library"],
+                                "visibility_level": "restricted",
+                                "visibility_scope": "north",
+                                "policy_projection_version": "phase1-authorization-projection-v1",
+                            },
+                        },
+                        "profile_memory": {
+                            "items": [
+                                {
+                                    "item_id": "memory-001",
+                                    "key": "recent_goal",
+                                    "value": "咨询保研",
+                                    "source_type": "user_declared",
+                                    "confidence": "high",
+                                    "visibility": "user_visible",
+                                    "last_verified_at": "2026-03-28",
+                                }
+                            ]
+                        },
+                        "session": {
+                            "confirmed_slots": [
+                                {"name": "policy_topic", "value": "推免资格", "confirmed": True}
+                            ],
+                            "turn_count": 2,
+                        },
+                    },
+                },
+            )
+
+            self.assertEqual(response.status_code, 200)
+            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 1)
+            payload = json.loads(lines[0])
+            self.assertEqual(payload["request_id"], "req-projected-audit-001")
+            self.assertEqual(payload["trace_id"], "trace-projected-audit-001")
+            self.assertEqual(payload["user_id"], "student@example.edu")
+            self.assertEqual(payload["principal_type"], "student")
+            self.assertEqual(payload["authorization_projection_source"], "campus_identity")
+            self.assertEqual(payload["entitlement_snapshot_id"], "entitlements-2026-03-29")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "user_grounded")
+            self.assertEqual(payload["selected_target"], "rag-specialist")
+            self.assertNotIn("entitlement_groups", payload)
+            self.assertNotIn("visibility_scope", payload)
+            self.assertNotIn("approval_state", payload)
+            self.assertNotIn("profile_memory", payload)
+            self.assertNotIn("session", payload)
 
     def test_answer_route_writes_error_audit_log_for_supervisor_error(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
@@ -443,6 +579,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             payload = json.loads(lines[0])
             self.assertEqual(payload["request_id"], "req-audit-err")
+            self.assertEqual(payload["principal_type"], "")
+            self.assertEqual(payload["authorization_projection_source"], "")
+            self.assertEqual(payload["entitlement_snapshot_id"], "")
+            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(payload["personalization_mode"], "generic")
             self.assertEqual(payload["selected_target"], "rag-specialist")
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
@@ -452,7 +593,7 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertNotIn("context", payload)
             self.assertNotIn("profile_memory", payload)
 
-    def test_actor_groups_reach_specialist_handoff_for_acl_filtering(self) -> None:
+    def test_bearer_mode_does_not_promote_legacy_actor_headers_into_specialist_handoff(self) -> None:
         captured_specialist_requests: list[SpecialistRequest] = []
 
         def fake_rag_specialist(request):
@@ -469,9 +610,7 @@ class SupervisorApiTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
-                default_campus_scope="north",
             ),
             supervisor_handler=partial(
                 handle_request,
@@ -499,9 +638,14 @@ class SupervisorApiTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured_specialist_requests[0].actor.user_id, "runtime-bearer-user")
-        self.assertEqual(captured_specialist_requests[0].actor.groups, ("students",))
-        self.assertEqual(captured_specialist_requests[0].actor.campus_scope, "north")
-    def test_answer_route_accepts_trusted_worker_origin_auth(self) -> None:
+        self.assertEqual(
+            captured_specialist_requests[0].actor,
+            ActorContext(
+                user_id="runtime-bearer-user",
+                roles=("student",),
+            ),
+        )
+    def test_answer_route_rejects_trusted_worker_requests_without_projected_context(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
@@ -517,12 +661,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
-                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
-                default_campus_scope="north",
-                trusted_jwt_groups_claims=("groups",),
-                trusted_jwt_roles_claims=("roles",),
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -532,18 +671,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "x-actor-id": "spoofed-user",
-                "x-actor-groups": "spoofed-group",
-                "x-actor-roles": "spoofed-role",
-                "x-campus-scope": "spoofed-scope",
-                "cf-access-jwt-assertion": _make_jwt(
-                    {
-                        "email": "student@example.edu",
-                        "sub": "student-sub-001",
-                        "groups": ["students", "library"],
-                        "roles": ["member"],
-                    }
-                ),
             },
             json_body={
                 "user_goal": "library hours",
@@ -554,13 +681,12 @@ class SupervisorApiTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured_requests[0].actor.user_id, "student@example.edu")
-        self.assertEqual(captured_requests[0].actor.groups, ("students", "library"))
-        self.assertEqual(captured_requests[0].actor.roles, ("member",))
-        self.assertEqual(captured_requests[0].actor.campus_scope, "north")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("context", response.json_body["error"]["message"])
+        self.assertEqual(captured_requests, [])
 
-    def test_answer_route_accepts_projected_context_in_trusted_worker_mode(self) -> None:
+    def test_answer_route_accepts_projected_context_in_trusted_worker_mode_without_legacy_retrieval_carrier(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
@@ -576,10 +702,7 @@ class SupervisorApiTest(unittest.TestCase):
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
-                default_actor_groups=("trusted-runtime",),
                 default_actor_roles=("runtime",),
-                default_campus_scope="north",
             ),
             supervisor_handler=fake_supervisor,
         )
@@ -591,7 +714,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "x-worker-origin-auth": "worker-secret",
                 "cf-access-jwt-assertion": _make_jwt(
                     {
-                        "email": "student@example.edu",
+                        "email": "other-student@example.edu",
                     }
                 ),
             },
@@ -605,15 +728,15 @@ class SupervisorApiTest(unittest.TestCase):
                     "actor": {
                         "user_id": "student@example.edu",
                         "principal_id": "principal-001",
+                        "principal_type": "student",
                         "roles": ["student"],
-                        "groups": ["students", "library"],
-                        "campus_scope": "north",
                         "cohort": "2023",
                         "major": "philosophy",
                         "program": "undergraduate",
                     },
                     "authorization": {
                         "principal_id": "principal-001",
+                        "projection_source": "campus_identity",
                         "entitlement_snapshot_id": "entitlements-2026-03-29",
                         "entitlement_groups": ["students", "library"],
                         "visibility_scope": "north",
@@ -623,9 +746,7 @@ class SupervisorApiTest(unittest.TestCase):
                         "retrieval_filter": {
                             "entitlement_groups": ["students", "library"],
                             "visibility_level": "public",
-                            "acl_groups": ["students", "library"],
                             "visibility_scope": "north",
-                            "campus_scope": "north",
                             "policy_projection_version": "phase1-authorization-projection-v1",
                         },
                     },
@@ -659,16 +780,16 @@ class SupervisorApiTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student@example.edu",
                     principal_id="principal-001",
+                    principal_type="student",
                     roles=("student",),
                     departments=(),
-                    groups=("students", "library"),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                     program="undergraduate",
                 ),
                 authorization=AuthorizationProjection(
                     principal_id="principal-001",
+                    projection_source="campus_identity",
                     entitlement_snapshot_id="entitlements-2026-03-29",
                     entitlement_groups=("students", "library"),
                     visibility_scope="north",
@@ -678,9 +799,7 @@ class SupervisorApiTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=("students", "library"),
                         visibility_level="public",
-                        acl_groups=("students", "library"),
                         visibility_scope="north",
-                        campus_scope="north",
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
@@ -707,13 +826,13 @@ class SupervisorApiTest(unittest.TestCase):
         )
         self.assertEqual(captured_requests[0].actor, captured_requests[0].context.actor)
 
-    def test_answer_route_rejects_projected_context_with_mismatched_trusted_worker_identity(self) -> None:
+    def test_answer_route_rejects_unsupported_actor_context_fields_in_trusted_worker_context(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
                 worker_shared_secret="worker-secret",
-                worker_actor_id="trusted-worker",
-            ),
+                default_actor_roles=("runtime",),
+            )
         )
 
         response = app.handle(
@@ -721,11 +840,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "cf-access-jwt-assertion": _make_jwt(
-                    {
-                        "email": "student@example.edu",
-                    }
-                ),
             },
             json_body={
                 "user_goal": "保研政策怎么准备？",
@@ -735,15 +849,125 @@ class SupervisorApiTest(unittest.TestCase):
                 },
                 "context": {
                     "actor": {
-                        "user_id": "other-student@example.edu",
-                    }
+                        "user_id": "student@example.edu",
+                        "principal_id": "principal-001",
+                        "principal_type": "student",
+                        "roles": ["student"],
+                        "groups": ["students", "library"],
+                        "campus_scope": "north",
+                    },
+                    "authorization": {
+                        "principal_id": "principal-001",
+                        "entitlement_groups": ["students", "library"],
+                        "visibility_scope": "north",
+                        "retrieval_filter": {
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_level": "public",
+                            "visibility_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        },
+                    },
                 },
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("context.actor.user_id", response.json_body["error"]["message"])
+        self.assertIn("unsupported actor context fields", response.json_body["error"]["message"])
+
+    def test_answer_route_rejects_unsupported_retrieval_filter_fields_in_trusted_worker_context(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+                default_actor_roles=("runtime",),
+            )
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+            },
+            json_body={
+                "user_goal": "保研政策怎么准备？",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "context": {
+                    "actor": {
+                        "user_id": "student@example.edu",
+                        "principal_id": "principal-001",
+                        "principal_type": "student",
+                        "roles": ["student"],
+                    },
+                    "authorization": {
+                        "principal_id": "principal-001",
+                        "entitlement_groups": ["students", "library"],
+                        "visibility_scope": "north",
+                        "retrieval_filter": {
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_level": "public",
+                            "acl_groups": ["students", "library"],
+                            "visibility_scope": "north",
+                            "campus_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        },
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("unsupported retrieval filter fields", response.json_body["error"]["message"])
+
+    def test_answer_route_rejects_trusted_worker_actor_projection_that_conflicts_with_context_actor(
+        self,
+    ) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="trusted-worker",
+                worker_shared_secret="worker-secret",
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={
+                "x-worker-origin-auth": "worker-secret",
+            },
+            json_body={
+                "user_goal": "保研政策怎么准备？",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "context": {
+                    "actor": {
+                        "user_id": "student@example.edu",
+                    },
+                    "authorization": {
+                        "retrieval_filter": {
+                            "entitlement_groups": [],
+                            "visibility_level": "public",
+                            "visibility_scope": "north",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                        }
+                    },
+                },
+                "actor": {
+                    "user_id": "other-student@example.edu",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("actor and context.actor must match", response.json_body["error"]["message"])
     def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
         app = create_app(
             settings=ApiSettings(
@@ -840,7 +1064,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json_body["error"]["code"], "disallowed_knowledge_scope")
 
-    def test_answer_route_returns_400_for_missing_routing_input(self) -> None:
+    def test_answer_route_clarifies_generic_knowledge_request_without_explicit_scope(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="bearer",
@@ -856,14 +1080,20 @@ class SupervisorApiTest(unittest.TestCase):
             json_body={"user_goal": "test"},
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json_body["error"]["code"], "missing_routing_input")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body["status"], "needs_clarification")
+        self.assertEqual(
+            response.json_body["follow_up_question"],
+            "请先说明你想查询的校内知识范围或资料集合。",
+        )
 
     def test_health_and_ready_routes_exist(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 app_name="campus-agent-v2",
                 runtime_provider="mock-runtime",
+                supervisor_prompt_model="gpt-supervisor",
+                specialist_prompt_model="gpt-specialist",
             )
         )
 
@@ -875,6 +1105,41 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(app.runtime.provider, "mock-runtime")
         self.assertEqual(ready.json_body["runtime_provider"], "mock-runtime")
+        self.assertEqual(ready.json_body["prompt_runtime"]["provider"], "mock-runtime")
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["developer_invariants_id"],
+            "repo_global_developer_invariants_v1",
+        )
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["developer_invariants_version"],
+            "v1",
+        )
+        self.assertTrue(ready.json_body["prompt_runtime"]["strict_structured_outputs"])
+        self.assertEqual(ready.json_body["prompt_runtime"]["transport"], "responses")
+        self.assertEqual(ready.json_body["prompt_runtime"]["supervisor_model"], "gpt-supervisor")
+        self.assertEqual(ready.json_body["prompt_runtime"]["specialist_model"], "gpt-specialist")
+        self.assertFalse(ready.json_body["prompt_runtime"]["admitted"])
+        self.assertEqual(
+            ready.json_body["prompt_runtime"]["admission_reason"],
+            "api_key_not_configured",
+        )
+
+    def test_ready_route_reports_prompt_runtime_admission_when_provider_binding_is_complete(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                specialist_prompt_model="gpt-specialist",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+            )
+        )
+
+        ready = app.handle("GET", "/readyz")
+
+        self.assertTrue(ready.json_body["prompt_runtime"]["admitted"])
+        self.assertEqual(ready.json_body["prompt_runtime"]["admission_reason"], "")
 
     def test_api_settings_from_env_reads_api_boundary_defaults(self) -> None:
         env = {
@@ -882,17 +1147,14 @@ class SupervisorApiTest(unittest.TestCase):
             "API_AUTH_MODE": "trusted-worker",
             "API_BEARER_TOKEN": "secret-token",
             "API_WORKER_SHARED_SECRET": "worker-secret",
-            "API_WORKER_ACTOR_ID": "trusted-worker",
             "API_DEFAULT_ACTOR_ID": "runtime-bearer-user",
             "AGENT_RUNTIME_PROVIDER": "agent-os",
-            "API_DEFAULT_ACTOR_GROUPS": "students,library",
             "API_DEFAULT_ACTOR_ROLES": "student",
-            "API_DEFAULT_CAMPUS_SCOPE": "north",
-            "API_TRUSTED_JWT_USER_ID_CLAIMS": "email,sub",
-            "API_TRUSTED_JWT_GROUPS_CLAIMS": "groups,custom_groups",
-            "API_TRUSTED_JWT_ROLES_CLAIMS": "roles",
-            "AGNO_SUPERVISOR_MODEL": "gpt-supervisor",
-            "AGNO_SPECIALIST_MODEL": "gpt-specialist",
+            "PROMPT_RUNTIME_MODEL": "gpt-shared",
+            "SUPERVISOR_PROMPT_MODEL": "gpt-supervisor",
+            "SPECIALIST_PROMPT_MODEL": "gpt-specialist",
+            "PROMPT_RUNTIME_PROVIDER": "openai-responses",
+            "PROMPT_STRICT_STRUCTURED_OUTPUTS": "false",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
         }
 
@@ -903,18 +1165,27 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(settings.auth_mode, "trusted-worker")
         self.assertEqual(settings.bearer_token, "secret-token")
         self.assertEqual(settings.worker_shared_secret, "worker-secret")
-        self.assertEqual(settings.worker_actor_id, "trusted-worker")
         self.assertEqual(settings.default_actor_id, "runtime-bearer-user")
         self.assertEqual(settings.runtime_provider, "agent-os")
-        self.assertEqual(settings.default_actor_groups, ("students", "library"))
         self.assertEqual(settings.default_actor_roles, ("student",))
-        self.assertEqual(settings.default_campus_scope, "north")
-        self.assertEqual(settings.trusted_jwt_user_id_claims, ("email", "sub"))
-        self.assertEqual(settings.trusted_jwt_groups_claims, ("groups", "custom_groups"))
-        self.assertEqual(settings.trusted_jwt_roles_claims, ("roles",))
-        self.assertEqual(settings.agno_supervisor_model, "gpt-supervisor")
-        self.assertEqual(settings.agno_specialist_model, "gpt-specialist")
+        self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
+        self.assertEqual(settings.supervisor_prompt_model, "gpt-supervisor")
+        self.assertEqual(settings.specialist_prompt_model, "gpt-specialist")
+        self.assertEqual(settings.prompt_runtime_provider, "openai-responses")
+        self.assertFalse(settings.prompt_strict_structured_outputs)
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
+
+    def test_api_settings_from_env_uses_shared_prompt_runtime_model_when_role_overrides_are_absent(self) -> None:
+        env = {
+            "PROMPT_RUNTIME_MODEL": "gpt-shared",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
+        self.assertEqual(settings.supervisor_prompt_model, "gpt-shared")
+        self.assertEqual(settings.specialist_prompt_model, "gpt-shared")
 
     def test_answer_route_rejects_missing_bearer_actor_identity_configuration(self) -> None:
         app = create_app(
@@ -940,7 +1211,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
 
-    def test_answer_route_rejects_missing_trusted_worker_identity_fallback(self) -> None:
+    def test_answer_route_rejects_missing_trusted_worker_context(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
@@ -953,7 +1224,6 @@ class SupervisorApiTest(unittest.TestCase):
             "/api/v1/answer",
             headers={
                 "x-worker-origin-auth": "worker-secret",
-                "cf-access-jwt-assertion": _make_jwt({}),
             },
             json_body={
                 "user_goal": "library hours",
@@ -964,8 +1234,8 @@ class SupervisorApiTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 500)
-        self.assertEqual(response.json_body["error"]["code"], "auth_not_configured")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
 
 
 def _make_jwt(payload: dict[str, object]) -> str:

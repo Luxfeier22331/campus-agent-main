@@ -19,6 +19,9 @@ class SplitManifestDocument:
     page_end: int
     source_uri: str | None = None
     handbook_section: str | None = None
+    entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
+    visibility_scope: str | None = None
+    visibility_level: str = ""
     acl_groups: tuple[str, ...] = field(default_factory=tuple)
     campus_scope: str | None = None
     status: str = "active"
@@ -36,6 +39,36 @@ class SplitManifestDocument:
             raise ValueError("source_uri must not be blank")
         if not self.status:
             raise ValueError("status is required")
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or (
+            "restricted" if entitlement_groups else "public"
+        )
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
+        if visibility_level != self.visibility_level:
+            object.__setattr__(self, "visibility_level", visibility_level)
+
+    def resolved_entitlement_groups(self) -> tuple[str, ...]:
+        return self.entitlement_groups
+
+    def resolved_visibility_scope(self, default_scope: str | None = None) -> str | None:
+        if self.visibility_scope is not None:
+            return self.visibility_scope
+        if not self.entitlement_groups:
+            return None
+        return default_scope
+
+    def resolved_visibility_level(self) -> str:
+        return self.visibility_level
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +107,13 @@ def load_split_manifest(
             page_end=int(item["page_end"]),
             source_uri=_optional_string(item.get("source_uri")),
             handbook_section=_optional_string(item.get("handbook_section")),
+            entitlement_groups=tuple(
+                _optional_string(value) or ""
+                for value in list(item.get("entitlement_groups") or [])
+                if _optional_string(value)
+            ),
+            visibility_scope=_optional_string(item.get("visibility_scope")),
+            visibility_level=_optional_string(item.get("visibility_level")) or "",
             acl_groups=tuple(
                 _optional_string(value) or "" for value in list(item.get("acl_groups") or []) if _optional_string(value)
             ),

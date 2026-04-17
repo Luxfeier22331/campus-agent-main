@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState, startTransition } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -13,17 +13,27 @@ import {
 import { useAuthenticated, useDataProvider } from "react-admin";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
+import { PANEL_COPY } from "../panel-copy";
+import { formatSurfaceLabel } from "../requests/request-formatters";
 import type { PanelOverviewRecord } from "../types";
+
+function formatPrincipalClass(value: string) {
+  if (value === "human") {
+    return "人工";
+  }
+
+  return value;
+}
 
 function renderDomainStatus(status: string) {
   if (status === "ready") {
-    return <Chip color="success" label="Ready" size="small" />;
+    return <Chip color="success" label={PANEL_COPY.domainStatus.ready} size="small" />;
   }
   if (status === "deferred") {
-    return <Chip color="warning" label="Deferred" size="small" variant="outlined" />;
+    return <Chip color="warning" label={PANEL_COPY.domainStatus.deferred} size="small" variant="outlined" />;
   }
 
-  return <Chip color="default" label="Blocked" size="small" variant="outlined" />;
+  return <Chip color="default" label={PANEL_COPY.domainStatus.blocked} size="small" variant="outlined" />;
 }
 
 export function OverviewPage() {
@@ -32,39 +42,56 @@ export function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [record, setRecord] = useState<PanelOverviewRecord | null>(null);
+  const getOverviewRef = useRef(dataProvider.getOverview);
 
-  const loadOverview = useEffectEvent(async () => {
+  useEffect(() => {
+    getOverviewRef.current = dataProvider.getOverview;
+  }, [dataProvider.getOverview]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     startTransition(() => {
       setError(null);
       setIsLoading(true);
     });
 
-    try {
-      const response = await dataProvider.getOverview();
-      startTransition(() => {
-        setRecord(response.data);
-        setIsLoading(false);
-      });
-    } catch (loadError) {
-      startTransition(() => {
-        setError(loadError instanceof Error ? loadError.message : "Failed to load panel overview.");
-        setIsLoading(false);
-      });
-    }
-  });
+    void (async () => {
+      try {
+        const response = await getOverviewRef.current({
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) {
+          return;
+        }
 
-  useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+        startTransition(() => {
+          setRecord(response.data);
+          setIsLoading(false);
+        });
+      } catch (loadError) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        startTransition(() => {
+          setError(loadError instanceof Error ? loadError.message : "加载面板总览失败。");
+          setIsLoading(false);
+        });
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   return (
     <Box sx={{ p: 3 }}>
       <Stack spacing={3}>
         <Stack spacing={1}>
-          <Typography variant="h4">Overview</Typography>
+          <Typography variant="h4">总览</Typography>
           <Typography color="text.secondary" variant="body1">
-            Protected operator control plane status for the Worker shell and its app-api
-            query seam.
+            展示 Worker 壳层及其 app-api 查询接缝的受保护运维控制面状态。
           </Typography>
         </Stack>
 
@@ -90,26 +117,26 @@ export function OverviewPage() {
             <Card>
               <CardContent>
                 <Stack spacing={2}>
-                  <Typography variant="h6">Runtime</Typography>
+                  <Typography variant="h6">运行时</Typography>
                   <Divider />
                   <Stack spacing={1}>
                     <Typography variant="body2">
-                      <strong>App</strong>: {record.appName}
+                      <strong>应用</strong>: {record.appName}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Surface</strong>: {record.surface}
+                      <strong>接入面</strong>: {formatSurfaceLabel(record.surface)}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Runtime</strong>: {record.runtime}
+                      <strong>运行时</strong>: {record.runtime}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Protected Hostname</strong>: {record.protectedHostname || "Not set"}
+                      <strong>受保护域名</strong>: {record.protectedHostname || PANEL_COPY.notSet}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>Protection Envelope</strong>: {record.protectionEnvelope}
+                      <strong>保护封装</strong>: {record.protectionEnvelope}
                     </Typography>
                     <Typography variant="body2">
-                      <strong>App API Base URL</strong>: {record.runtimeApiBaseUrl || "Bound via Worker service binding"}
+                      <strong>App API 基础 URL</strong>: {record.runtimeApiBaseUrl || PANEL_COPY.workerServiceBinding}
                     </Typography>
                   </Stack>
                 </Stack>
@@ -119,33 +146,32 @@ export function OverviewPage() {
             <Card>
               <CardContent>
                 <Stack spacing={2}>
-                  <Typography variant="h6">Operator Context</Typography>
+                  <Typography variant="h6">运维身份上下文</Typography>
                   <Divider />
                   {record.operatorContext ? (
                     <Stack spacing={1}>
                       <Typography variant="body2">
-                        <strong>Operator ID</strong>: {record.operatorContext.operatorId}
+                        <strong>运维 ID</strong>: {record.operatorContext.operatorId}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Display Name</strong>: {record.operatorContext.displayName || "Not provided"}
+                        <strong>显示名称</strong>: {record.operatorContext.displayName || PANEL_COPY.notProvided}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Email</strong>: {record.operatorContext.email || "Not provided"}
+                        <strong>邮箱</strong>: {record.operatorContext.email || PANEL_COPY.notProvided}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Principal Class</strong>: {record.operatorContext.principalClass}
+                        <strong>主体类别</strong>: {formatPrincipalClass(record.operatorContext.principalClass)}
                       </Typography>
                       <Typography variant="body2">
-                        <strong>Groups</strong>:{" "}
+                        <strong>分组</strong>:{" "}
                         {record.operatorContext.groups.length > 0
                           ? record.operatorContext.groups.join(", ")
-                          : "No groups projected"}
+                          : PANEL_COPY.noGroupsProjected}
                       </Typography>
                     </Stack>
                   ) : (
                     <Alert severity="info">
-                      Upstream protected access is required before the panel projects operator
-                      identity into the overview surface.
+                      需要先通过上游受保护访问，面板才会把运维身份投影到总览页。
                     </Alert>
                   )}
                 </Stack>
@@ -155,7 +181,7 @@ export function OverviewPage() {
             <Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
               <CardContent>
                 <Stack spacing={2}>
-                  <Typography variant="h6">Domain Rollout</Typography>
+                  <Typography variant="h6">域能力 rollout</Typography>
                   <Divider />
                   <Box
                     sx={{
@@ -175,8 +201,8 @@ export function OverviewPage() {
                         spacing={2}
                         sx={{ alignItems: "center" }}
                       >
-                        <Typography sx={{ textTransform: "capitalize" }} variant="body2">
-                          {domain}
+                        <Typography variant="body2">
+                          {PANEL_COPY.overviewDomains[domain as keyof typeof PANEL_COPY.overviewDomains] ?? domain}
                         </Typography>
                         {renderDomainStatus(status)}
                       </Stack>

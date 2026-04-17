@@ -1,0 +1,13 @@
+{
+  "schema_version": "official_web_qc_policy.v1",
+  "site_id": "muc_public",
+  "qc_policy_version": "muc_public_qc_v1",
+  "allowed_review_issue_codes": [
+    "shell_family_requires_manual_review"
+  ],
+  "allowed_review_page_families": [
+    "dynamic_shell_page",
+    "structural_shell_page"
+  ],
+  "host_overrides": []
+}

@@ -8,6 +8,7 @@ import os
 from typing import Mapping
 from urllib.parse import urlsplit
 
+from campus_shared import load_repo_env
 from campus_supervisor_core import handle_request
 
 from campus_supervisor_api.api import HttpResponse
@@ -73,7 +74,10 @@ class _RequestHandler(BaseHTTPRequestHandler):
         for key, value in response.headers.items():
             self.send_header(key, value)
         self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.wfile.write(payload)
+        except BrokenPipeError:
+            return
 
 
 def dispatch_http_request(
@@ -161,6 +165,7 @@ def serve(
 
 
 def main() -> None:
+    load_repo_env()
     serve()
 
 

@@ -26,12 +26,12 @@ The root route and protected SPA routes now serve the `react-admin` shell once u
 
 Canonical references:
 
-- `docs/architecture/protected-panel-boundary.md`
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/protected-panel-operator-access.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
@@ -40,6 +40,7 @@ Canonical references:
 Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
+- `docs/plans/protected-panel-requests-triage-table-redesign.md`
 - `.planning/protected-panel-worker-implementation-plan.md`
 - `.planning/protected-panel-runtime-api-inventory.md`
 
@@ -90,10 +91,14 @@ Environment:
 - `PANEL_APP_NAME`
 - `PANEL_APP_API_SHARED_SECRET`
 - `PANEL_RUNTIME_API_BASE_URL`
-- `PANEL_PROTECTED_HOSTNAME`
 - `PANEL_PROTECTION_ENVELOPE`
 - `ACCESS_TEAM_DOMAIN`
 - `ACCESS_POLICY_AUD`
+
+Hostname mapping:
+
+- the protected hostname is owned by `wrangler.toml` Custom Domain deploy config, not by runtime env
+- staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` are deploy-time injected and must not be hardcoded into `wrangler.toml`
 
 Runtime bindings:
 
@@ -102,9 +107,14 @@ Runtime bindings:
 
 Readiness expectations:
 
-- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, hostname/runtime base URL, `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
+- `GET /readyz` stays `503` until `APP_API`, `ASSETS`, runtime base URL, `PANEL_APP_API_SHARED_SECRET`, `PANEL_PROTECTION_ENVELOPE=cloudflare-access`, `ACCESS_TEAM_DOMAIN`, and `ACCESS_POLICY_AUD` are all configured
+- placeholder Access defaults such as `https://team.cloudflareaccess.com` and `panel-audience` are treated as not configured
+- `GET /readyz` also probes shared `app-api /readyz`; panel readiness is not green until shared runtime dependencies are actually ready
+- shell routes and `/api/overview` stay fail-closed until upstream admission, the trusted `APP_API` bridge, and frontend assets are all configured
 - when admission config is missing or `PANEL_PROTECTION_ENVELOPE` is not `cloudflare-access`, the Worker fails closed for the shell and `/api/overview` instead of exposing a partially protected panel surface
 - `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
+- `pnpm deploy:staging` also fails before publish unless `STAGING_ACCESS_TEAM_DOMAIN` and `STAGING_ACCESS_POLICY_AUD` are explicitly provided
+- `pnpm deploy:staging` injects `SENTRY_RELEASE=protected-panel-web@staging-<git-sha>` by default; use `STAGING_SENTRY_RELEASE` only when a fixed release override is required
 - proxied panel API responses are forced to `Cache-Control: no-store`
 
 Current operator-access env contract for Cloudflare Access admission includes:

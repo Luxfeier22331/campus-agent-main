@@ -12,8 +12,11 @@ export const APP_API_KNOWN_SCHEMAS = ["runtime", "operator", "official_web"];
 
 const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;
+const ALTER_TABLE_ADD_COLUMN_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" ADD COLUMN "([^"]+)"/i;
+const ALTER_TABLE_DROP_COLUMN_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" DROP COLUMN(?: IF EXISTS)? "([^"]+)"/i;
 const ALTER_TABLE_CONSTRAINT_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" ADD CONSTRAINT "([^"]+)"/i;
 const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)" ON "([^"]+)"\."([^"]+)"/i;
+const DROP_INDEX_RE = /^DROP INDEX "([^"]+)"\."([^"]+)";?$/i;
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const appRoot = dirname(scriptsDir);
@@ -35,6 +38,56 @@ function normalizeColumnSpec(columnSpec) {
     primaryKey: Boolean(columnSpec.primaryKey),
     type: columnSpec.type,
   };
+}
+
+function normalizeSnapshotIndexSpec(indexName, indexSpec) {
+  return {
+    columns: (indexSpec.columns ?? []).map((column) => column.expression),
+    method: typeof indexSpec.method === "string" ? indexSpec.method.toLowerCase() : null,
+    name: indexName,
+    unique: Boolean(indexSpec.isUnique),
+  };
+}
+
+function normalizeInventoryIndexSpec(indexSpec) {
+  if (typeof indexSpec === "string") {
+    return {
+      columns: [],
+      method: null,
+      name: indexSpec,
+      unique: null,
+    };
+  }
+
+  return {
+    columns: [...(indexSpec.columns ?? [])],
+    method: typeof indexSpec.method === "string" ? indexSpec.method.toLowerCase() : null,
+    name: indexSpec.name,
+    unique: typeof indexSpec.unique === "boolean" ? indexSpec.unique : null,
+  };
+}
+
+function parseIndexDefinition(indexName, indexDefinition) {
+  const match = indexDefinition.match(/^CREATE (UNIQUE )?INDEX .* USING (\w+) \((.*)\)$/i);
+  if (!match) {
+    return normalizeInventoryIndexSpec(indexName);
+  }
+
+  return {
+    columns: match[3].split(",").map((column) => column.trim().replaceAll('"', "")),
+    method: match[2].toLowerCase(),
+    name: indexName,
+    unique: Boolean(match[1]),
+  };
+}
+
+function compareIndexSpec(actual, expected) {
+  return (
+    actual.method === expected.method
+    && actual.unique === expected.unique
+    && actual.columns.length === expected.columns.length
+    && actual.columns.every((column, index) => column === expected.columns[index])
+  );
 }
 
 export function loadMigrationJournal() {
@@ -111,15 +164,29 @@ export function loadMigrationContext() {
 export function buildExpectedTableSpecs(snapshot) {
   const specs = new Map();
   for (const [qualifiedName, tableSpec] of Object.entries(snapshot.tables ?? {})) {
+    const columns = new Map(
+      Object.entries(tableSpec.columns ?? {}).map(([columnName, columnSpec]) => [
+        columnName,
+        normalizeColumnSpec(columnSpec),
+      ]),
+    );
+    for (const compositePrimaryKey of Object.values(tableSpec.compositePrimaryKeys ?? {})) {
+      for (const columnName of compositePrimaryKey.columns ?? []) {
+        const existingColumn = columns.get(columnName);
+        if (existingColumn) {
+          existingColumn.primaryKey = true;
+        }
+      }
+    }
     specs.set(qualifiedName, {
-      columns: new Map(
-        Object.entries(tableSpec.columns ?? {}).map(([columnName, columnSpec]) => [
-          columnName,
-          normalizeColumnSpec(columnSpec),
+      columns,
+      constraints: new Set(Object.keys(tableSpec.foreignKeys ?? {})),
+      indexes: new Map(
+        Object.entries(tableSpec.indexes ?? {}).map(([indexName, indexSpec]) => [
+          indexName,
+          normalizeSnapshotIndexSpec(indexName, indexSpec),
         ]),
       ),
-      constraints: new Set(Object.keys(tableSpec.foreignKeys ?? {})),
-      indexes: new Set(Object.keys(tableSpec.indexes ?? {})),
       schema: tableSpec.schema,
       table: tableSpec.name,
     });
@@ -148,6 +215,28 @@ export function parseMigrationStatement(statement) {
       table: match[2],
     };
   }
+  match = trimmed.match(ALTER_TABLE_ADD_COLUMN_RE);
+  if (match) {
+    return {
+      column: match[3],
+      existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
+      kind: "column",
+      schema: match[1],
+      statement: trimmed,
+      table: match[2],
+    };
+  }
+  match = trimmed.match(ALTER_TABLE_DROP_COLUMN_RE);
+  if (match) {
+    return {
+      column: match[3],
+      existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
+      kind: "drop_column",
+      schema: match[1],
+      statement: trimmed,
+      table: match[2],
+    };
+  }
   match = trimmed.match(ALTER_TABLE_CONSTRAINT_RE);
   if (match) {
     return {
@@ -170,6 +259,16 @@ export function parseMigrationStatement(statement) {
       table: match[3],
     };
   }
+  match = trimmed.match(DROP_INDEX_RE);
+  if (match) {
+    return {
+      existsKey: `${match[1]}@${match[2]}`,
+      index: match[2],
+      kind: "drop_index",
+      schema: match[1],
+      statement: trimmed,
+    };
+  }
   throw new Error(`Unsupported migration statement shape: ${trimmed}`);
 }
 
@@ -178,6 +277,38 @@ function buildEmptyInventory() {
     journalRows: [],
     schemas: new Set(),
     tables: new Map(),
+  };
+}
+
+function cloneInventory(inventory) {
+  return {
+    journalRows: [...inventory.journalRows],
+    schemas: new Set(inventory.schemas),
+    tables: new Map(
+      [...inventory.tables.entries()].map(([qualifiedName, table]) => [
+        qualifiedName,
+        {
+          columns: new Map(
+            [...table.columns.entries()].map(([columnName, column]) => [
+              columnName,
+              { ...column },
+            ]),
+          ),
+          constraints: new Set(table.constraints),
+          indexes: new Map(
+            [...table.indexes.entries()].map(([indexName, indexSpec]) => [
+              indexName,
+              {
+                ...indexSpec,
+                columns: [...indexSpec.columns],
+              },
+            ]),
+          ),
+          schema: table.schema,
+          table: table.table,
+        },
+      ]),
+    ),
   };
 }
 
@@ -200,7 +331,12 @@ export function makeInventory(input = {}) {
         ]),
       ),
       constraints: new Set(table.constraints ?? []),
-      indexes: new Set(table.indexes ?? []),
+      indexes: new Map(
+        (table.indexes ?? []).map((indexSpec) => {
+          const normalizedIndex = normalizeInventoryIndexSpec(indexSpec);
+          return [normalizedIndex.name, normalizedIndex];
+        }),
+      ),
       schema: table.schema,
       table: table.table,
     });
@@ -243,7 +379,15 @@ function compareColumnSpec(actual, expected) {
   );
 }
 
-export function validateInventoryAgainstExpectedTables(inventory, expectedTables) {
+function hasPlannedTarget(plannedTargetKeys, expectedKey, qualifiedName) {
+  return plannedTargetKeys.has(expectedKey) || plannedTargetKeys.has(qualifiedName);
+}
+
+export function validateInventoryAgainstExpectedTables(
+  inventory,
+  expectedTables,
+  plannedTargetKeys = new Set(),
+) {
   const mismatches = [];
   for (const [qualifiedName, actualTable] of inventory.tables.entries()) {
     const expectedTable = expectedTables.get(qualifiedName);
@@ -252,16 +396,12 @@ export function validateInventoryAgainstExpectedTables(inventory, expectedTables
     }
     const actualColumns = actualTable.columns;
     const expectedColumns = expectedTable.columns;
-    if (actualColumns.size !== expectedColumns.size) {
-      mismatches.push(
-        `${qualifiedName} column set mismatch: expected ${expectedColumns.size}, got ${actualColumns.size}`,
-      );
-      continue;
-    }
     for (const [columnName, expectedColumn] of expectedColumns.entries()) {
       const actualColumn = actualColumns.get(columnName);
       if (!actualColumn) {
-        mismatches.push(`${qualifiedName} missing column ${columnName}`);
+        if (!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)) {
+          mismatches.push(`${qualifiedName} missing column ${columnName}`);
+        }
         continue;
       }
       if (!compareColumnSpec(actualColumn, expectedColumn)) {
@@ -270,23 +410,80 @@ export function validateInventoryAgainstExpectedTables(inventory, expectedTables
         );
       }
     }
+    for (const columnName of actualColumns.keys()) {
+      if (!expectedColumns.has(columnName)
+        && !hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)) {
+        mismatches.push(`${qualifiedName} unexpected column ${columnName}`);
+      }
+    }
     for (const constraint of expectedTable.constraints) {
-      if (!actualTable.constraints.has(constraint)) {
+      if (!actualTable.constraints.has(constraint)
+        && !hasPlannedTarget(plannedTargetKeys, `${qualifiedName}#${constraint}`, qualifiedName)) {
         mismatches.push(`${qualifiedName} missing constraint ${constraint}`);
       }
     }
-    for (const index of expectedTable.indexes) {
-      if (!actualTable.indexes.has(index)) {
-        mismatches.push(`${qualifiedName} missing index ${index}`);
+    for (const [indexName, expectedIndex] of expectedTable.indexes.entries()) {
+      const actualIndex = actualTable.indexes.get(indexName);
+      if (!actualIndex) {
+        if (!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}@${indexName}`, qualifiedName)) {
+          mismatches.push(`${qualifiedName} missing index ${indexName}`);
+        }
+        continue;
+      }
+      if (!compareIndexSpec(actualIndex, expectedIndex)) {
+        mismatches.push(`${qualifiedName} index ${indexName} definition mismatch`);
       }
     }
   }
   return mismatches;
 }
 
+function findInventoryIndex(inventory, target) {
+  if (target.kind === "index") {
+    const table = inventory.tables.get(qualifyTable(target.schema, target.table));
+    const index = table?.indexes.get(target.index);
+    return table && index ? { index, table } : null;
+  }
+
+  for (const table of inventory.tables.values()) {
+    if (table.schema !== target.schema) {
+      continue;
+    }
+    const index = table.indexes.get(target.index);
+    if (index) {
+      return { index, table };
+    }
+  }
+
+  return null;
+}
+
+function findExpectedIndex(expectedTablesForMigration, target) {
+  if (target.kind === "index") {
+    return expectedTablesForMigration.get(qualifyTable(target.schema, target.table))?.indexes.get(target.index) ?? null;
+  }
+
+  for (const table of expectedTablesForMigration.values()) {
+    if (table.schema !== target.schema) {
+      continue;
+    }
+    const index = table.indexes.get(target.index);
+    if (index) {
+      return index;
+    }
+  }
+
+  return null;
+}
+
 function targetExists(inventory, target) {
   if (target.kind === "schema") {
     return inventory.schemas.has(target.schema);
+  }
+  if (target.kind === "drop_index") {
+    return [...inventory.tables.values()].some(
+      (table) => table.schema === target.schema && table.indexes.has(target.index),
+    );
   }
   const qualifiedName = qualifyTable(target.schema, target.table);
   const table = inventory.tables.get(qualifiedName);
@@ -295,6 +492,12 @@ function targetExists(inventory, target) {
   }
   if (!table) {
     return false;
+  }
+  if (target.kind === "column") {
+    return table.columns.has(target.column);
+  }
+  if (target.kind === "drop_column") {
+    return !table.columns.has(target.column);
   }
   if (target.kind === "constraint") {
     return table.constraints.has(target.constraint);
@@ -305,31 +508,145 @@ function targetExists(inventory, target) {
   return false;
 }
 
+function shouldApplyStatement(inventory, target, expectedTablesForMigration) {
+  if (target.kind === "drop_index") {
+    const actualIndex = findInventoryIndex(inventory, target);
+    if (!actualIndex) {
+      return false;
+    }
+    const expectedIndex = findExpectedIndex(expectedTablesForMigration, target);
+    if (!expectedIndex) {
+      return true;
+    }
+    return !compareIndexSpec(actualIndex.index, expectedIndex);
+  }
+  if (target.kind === "index") {
+    return !targetExists(inventory, target);
+  }
+  return !targetExists(inventory, target);
+}
+
+function buildSimulatedTable(spec) {
+  return {
+    columns: new Map(
+      [...spec.columns.entries()].map(([columnName, column]) => [columnName, { ...column }]),
+    ),
+    constraints: new Set(),
+    indexes: new Map(),
+    schema: spec.schema,
+    table: spec.table,
+  };
+}
+
+function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
+  if (target.kind === "schema") {
+    inventory.schemas.add(target.schema);
+    return;
+  }
+
+  if (target.kind === "drop_index") {
+    for (const table of inventory.tables.values()) {
+      if (table.schema === target.schema) {
+        table.indexes.delete(target.index);
+      }
+    }
+    return;
+  }
+
+  const qualifiedName = qualifyTable(target.schema, target.table);
+  if (target.kind === "table") {
+    const expectedTable = expectedTablesForMigration.get(qualifiedName);
+    if (!expectedTable) {
+      throw new Error(`Missing expected table spec for ${qualifiedName} during adoption planning`);
+    }
+    inventory.schemas.add(target.schema);
+    inventory.tables.set(qualifiedName, buildSimulatedTable(expectedTable));
+    return;
+  }
+
+  const table = inventory.tables.get(qualifiedName);
+  if (!table) {
+    throw new Error(`Missing simulated table ${qualifiedName} during adoption planning`);
+  }
+
+  if (target.kind === "column") {
+    const expectedColumn = expectedTablesForMigration.get(qualifiedName)?.columns.get(target.column);
+    if (!expectedColumn) {
+      throw new Error(
+        `Missing expected column ${qualifiedName}.${target.column} during adoption planning`,
+      );
+    }
+    table.columns.set(target.column, { ...expectedColumn });
+    return;
+  }
+
+  if (target.kind === "drop_column") {
+    table.columns.delete(target.column);
+    return;
+  }
+
+  if (target.kind === "constraint") {
+    table.constraints.add(target.constraint);
+    return;
+  }
+
+  if (target.kind === "index") {
+    const expectedIndex = expectedTablesForMigration.get(qualifiedName)?.indexes.get(target.index);
+    if (!expectedIndex) {
+      throw new Error(`Missing expected index ${qualifiedName}@${target.index} during adoption planning`);
+    }
+    table.indexes.set(target.index, {
+      ...expectedIndex,
+      columns: [...expectedIndex.columns],
+    });
+  }
+}
+
 export function buildAdoptionPlan({ inventory, migrationContext }) {
   const snapshot0000 = migrationContext.snapshots.get(migrationContext.journal.entries[0].tag);
   if (!snapshot0000) {
     throw new Error("Missing baseline drizzle snapshot for shared-db adoption");
   }
   const expectedLatestTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
-  const mismatches = validateInventoryAgainstExpectedTables(inventory, expectedLatestTables);
   const state = classifySharedDatabaseState({
     inventory,
     snapshot0000,
     snapshotLatest: migrationContext.latestSnapshot,
   });
   const statements = [];
+  const plannedInventory = cloneInventory(inventory);
+  const expectedTablesByMigrationTag = new Map(
+    migrationContext.migrations.map((migration) => {
+      const snapshot = migrationContext.snapshots.get(migration.tag);
+      if (!snapshot) {
+        throw new Error(`Missing drizzle snapshot for migration ${migration.tag}`);
+      }
+      return [migration.tag, buildExpectedTableSpecs(snapshot)];
+    }),
+  );
   for (const migration of migrationContext.migrations) {
+    const expectedTablesForMigration = expectedTablesByMigrationTag.get(migration.tag);
+    if (!expectedTablesForMigration) {
+      throw new Error(`Missing expected table specs for migration ${migration.tag}`);
+    }
     for (const statement of migration.statements) {
       const target = parseMigrationStatement(statement);
-      if (!targetExists(inventory, target)) {
+      if (shouldApplyStatement(plannedInventory, target, expectedTablesForMigration)) {
         statements.push({
           migrationTag: migration.tag,
           statement,
           target,
         });
+        applyTargetToInventory(plannedInventory, target, expectedTablesForMigration);
       }
     }
   }
+  const plannedTargetKeys = new Set(statements.map((item) => item.target.existsKey));
+  const mismatches = validateInventoryAgainstExpectedTables(
+    plannedInventory,
+    expectedLatestTables,
+    plannedTargetKeys,
+  );
   const journalRowsToInsert = migrationContext.migrations.filter(
     (migration) => !inventory.journalRows.some((row) => row.hash === migration.hash),
   );
@@ -370,7 +687,7 @@ async function readDatabaseInventory(client) {
     [APP_API_KNOWN_SCHEMAS],
   );
   const { rows: indexRows } = await client.query(
-    "select schemaname as table_schema, tablename as table_name, indexname from pg_indexes where schemaname = any($1::text[])",
+    "select schemaname as table_schema, tablename as table_name, indexname, indexdef from pg_indexes where schemaname = any($1::text[])",
     [APP_API_KNOWN_SCHEMAS],
   );
   const { rows: constraintRows } = await client.query(
@@ -386,7 +703,7 @@ async function readDatabaseInventory(client) {
     inventory.tables.set(qualifyTable(tableRow.table_schema, tableRow.table_name), {
       columns: new Map(),
       constraints: new Set(),
-      indexes: new Set(),
+      indexes: new Map(),
       schema: tableRow.table_schema,
       table: tableRow.table_name,
     });
@@ -423,7 +740,7 @@ async function readDatabaseInventory(client) {
   for (const indexRow of indexRows) {
     inventory.tables
       .get(qualifyTable(indexRow.table_schema, indexRow.table_name))
-      ?.indexes.add(indexRow.indexname);
+      ?.indexes.set(indexRow.indexname, parseIndexDefinition(indexRow.indexname, indexRow.indexdef));
   }
   for (const constraintRow of constraintRows) {
     inventory.tables

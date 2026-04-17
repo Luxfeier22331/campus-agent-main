@@ -8,9 +8,11 @@ from pathlib import Path
 import re
 from typing import Protocol
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.artifacts import (
     CANONICAL_MARKDOWN_FILENAME,
     DOCUMENT_UNITS_FILENAME,
+    LAYOUT_ELEMENTS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
 from campus_ingestion_core.models import (
@@ -75,12 +77,15 @@ class DocumentImportInput:
     corpus: str = ""
     collection: str = ""
     campus_scope: str | None = None
+    visibility_scope: str | None = None
     status: str = "active"
     raw_path: Path | None = None
     raw_source_uri: str | None = None
     raw_asset_id: str | None = None
     raw_version_id: str | None = None
     provider_response_object_key: str | None = None
+    layout_elements_bytes: bytes | None = None
+    layout_elements_object_key: str | None = None
     additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
     title: str | None = None
     year: str | None = None
@@ -102,6 +107,7 @@ DEFAULT_SOURCE_PREFERENCE = {
     "source-faithful": ("pdf_ocr", "manual_curated", "official_web"),
     "editorial": ("manual_curated", "official_web", "pdf_ocr"),
 }
+OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS = frozenset({"official_web"})
 
 
 class ObjectStoreWriter(Protocol):
@@ -119,7 +125,8 @@ class S3ObjectStoreWriter:
     def __init__(self, settings: ObjectStoreSettings) -> None:
         from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 
-        self._client = S3ObjectStoreClientFactory(settings).create()
+        self._factory = S3ObjectStoreClientFactory(settings)
+        self._client = self._factory.create()
 
     def put_bytes(
         self,
@@ -129,12 +136,27 @@ class S3ObjectStoreWriter:
         data: bytes,
         content_type: str,
     ) -> None:
-        self._client.put_object(
-            Bucket=bucket,
-            Key=key,
-            Body=data,
-            ContentType=content_type,
-        )
+        client = self._one_shot_client_for_zero_byte_payload() if not data else self._client
+        try:
+            client.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
+        finally:
+            if client is not self._client:
+                close = getattr(client, "close", None)
+                if callable(close):
+                    close()
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        response = self._client.get_object(Bucket=bucket, Key=key)
+        return response["Body"].read()
+    def _one_shot_client_for_zero_byte_payload(self):
+        # Local MinIO can stall on the next reused connection after a zero-byte put_object.
+        # Isolating empty writes to a throwaway client keeps the shared client pool healthy.
+        return self._factory.create()
 
 
 def _build_source_observation(
@@ -187,6 +209,13 @@ def _source_priority(*, revision_track: str, source_channel: str) -> int:
         return len(preferences) - preferences.index(source_channel)
     except ValueError:
         return 0
+
+
+def _document_semantic_hash(*, document: DocumentImportInput) -> str:
+    explicit_hash = normalize_optional_text(document.metadata.get("semantic_content_hash"))
+    if explicit_hash is not None:
+        return explicit_hash
+    return hashlib.sha256(document.document_units_bytes).hexdigest()
 
 
 def _merge_source_observation(existing: SourceObservation, candidate: SourceObservation) -> SourceObservation:
@@ -291,18 +320,154 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         raise ValueError("doc_id and version_id are required in OCR JSONL")
     acl = raw.get("acl") or {}
     source = raw.get("source") or {}
+    nested_metadata = raw.get("metadata") or {}
+    nested_metadata_dict = nested_metadata if isinstance(nested_metadata, dict) else {}
+    source_url = raw.get("source_url")
+    if not isinstance(source_url, str) or not source_url.strip():
+        source_url = nested_metadata_dict.get("source_url")
+    entitlement_groups = _resolve_row_entitlement_groups(raw, acl=acl)
+    visibility_scope = (
+        normalize_optional_text(raw.get("visibility_scope"))
+        or normalize_optional_text(raw.get("campus_scope"))
+    )
+    visibility_level = _resolve_row_visibility_level(
+        raw=raw,
+        entitlement_groups=entitlement_groups,
+    )
+    policy_projection_version = (
+        normalize_optional_text(raw.get("policy_projection_version"))
+        or DEFAULT_POLICY_PROJECTION_VERSION
+    )
     return {
         "document_id": document_id,
         "version_id": version_id,
         "revision_track": str(raw.get("revision_track") or "source-faithful"),
-        "source_url": raw.get("source_url"),
+        "source_url": source_url,
         "source_md": raw.get("source_md"),
         "source_id": source.get("id"),
         "source_pdf": normalize_optional_text(raw.get("source_pdf")),
         "raw_page_start": normalize_optional_int(raw.get("page_start")),
         "raw_page_end": normalize_optional_int(raw.get("page_end")),
-        "acl_groups": tuple(str(item) for item in list(acl.get("allow_groups") or [])),
+        "acl_groups": entitlement_groups,
+        "semantic_content_hash": normalize_optional_text(nested_metadata_dict.get("semantic_content_hash")),
+        "title": normalize_optional_text(nested_metadata_dict.get("title")),
+        "page_family": normalize_optional_text(nested_metadata_dict.get("page_family")),
+        "serving_intent": normalize_optional_text(nested_metadata_dict.get("serving_intent")),
+        "content_role": normalize_optional_text(nested_metadata_dict.get("content_role")),
+        "entitlement_groups": entitlement_groups,
+        "campus_scope": visibility_scope,
+        "visibility_scope": visibility_scope,
+        "visibility_level": visibility_level,
+        "policy_projection_version": policy_projection_version,
     }
+
+
+def apply_authorization_projection_metadata(
+    metadata: dict[str, object],
+    *,
+    entitlement_groups: tuple[str, ...] | list[str],
+    visibility_scope: str | None,
+    visibility_level: str | None = None,
+    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION,
+) -> None:
+    _assert_canonical_authorization_metadata(metadata)
+    normalized_groups = _normalize_group_values(entitlement_groups)
+    normalized_scope = normalize_optional_text(visibility_scope)
+    normalized_visibility_level = normalize_optional_text(visibility_level)
+    resolved_visibility_level = (
+        normalized_visibility_level
+        or ("restricted" if normalized_groups else "public")
+    )
+    normalized_policy_projection_version = (
+        normalize_optional_text(policy_projection_version)
+        or DEFAULT_POLICY_PROJECTION_VERSION
+    )
+
+    metadata["entitlement_groups"] = list(normalized_groups)
+    metadata["visibility_scope"] = normalized_scope
+    metadata["visibility_level"] = resolved_visibility_level
+    metadata["policy_projection_version"] = normalized_policy_projection_version
+
+
+def _resolve_entitlement_groups(metadata: dict[str, object]) -> tuple[str, ...]:
+    entitlement_groups = _normalize_group_values(metadata.get("entitlement_groups"))
+    if entitlement_groups:
+        return entitlement_groups
+    return _normalize_group_values(metadata.get("acl_groups"))
+
+
+def _resolve_visibility_scope(
+    *,
+    metadata: dict[str, object],
+    document: DocumentImportInput,
+    default_visibility_scope: str | None,
+) -> str | None:
+    metadata_scope = (
+        normalize_optional_text(metadata.get("visibility_scope"))
+        or normalize_optional_text(metadata.get("campus_scope"))
+    )
+    if metadata_scope is not None:
+        return metadata_scope
+    if document.visibility_scope is not None:
+        return document.visibility_scope
+    if document.campus_scope is not None:
+        return document.campus_scope
+    return default_visibility_scope
+
+
+def _resolve_visibility_level(
+    *,
+    metadata: dict[str, object],
+    entitlement_groups: tuple[str, ...],
+) -> str:
+    metadata_visibility_level = normalize_optional_text(metadata.get("visibility_level"))
+    if metadata_visibility_level is not None:
+        return metadata_visibility_level
+    return "restricted" if entitlement_groups else "public"
+
+
+def _resolve_policy_projection_version(metadata: dict[str, object]) -> str:
+    return (
+        normalize_optional_text(metadata.get("policy_projection_version"))
+        or DEFAULT_POLICY_PROJECTION_VERSION
+    )
+
+
+def _normalize_group_values(value: object) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        return ()
+    normalized: list[str] = []
+    for item in value:
+        text = normalize_optional_text(item)
+        if text is not None:
+            normalized.append(text)
+    return tuple(normalized)
+
+
+def _resolve_row_entitlement_groups(
+    raw: dict[str, object],
+    *,
+    acl: dict[str, object],
+) -> tuple[str, ...]:
+    entitlement_groups = _normalize_group_values(raw.get("entitlement_groups"))
+    if entitlement_groups:
+        return entitlement_groups
+    return _normalize_group_values(acl.get("allow_groups"))
+
+
+def _resolve_row_visibility_level(
+    *,
+    raw: dict[str, object],
+    entitlement_groups: tuple[str, ...],
+) -> str:
+    visibility_level = normalize_optional_text(raw.get("visibility_level"))
+    if visibility_level is not None:
+        return visibility_level
+    return "restricted" if entitlement_groups else "public"
+
+
+def _assert_canonical_row_authorization_metadata(raw: dict[str, object]) -> None:
+    return None
 
 
 def persist_import_documents(
@@ -315,13 +480,16 @@ def persist_import_documents(
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
-    default_campus_scope: str | None,
     import_mode: str,
     report_dir: Path,
     report_prefix: str,
+    default_campus_scope: str | None = None,
+    default_visibility_scope: str | None = None,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
+    scope_refresh: tuple[str, str] | None = None,
 ) -> ImportReport:
+    resolved_default_scope = default_visibility_scope or default_campus_scope
     stats = collect_import_document_stats(
         documents=documents,
         registry=registry,
@@ -331,9 +499,11 @@ def persist_import_documents(
         parser_version=parser_version,
         embedding_model=embedding_model,
         cleaning_policy_version=cleaning_policy_version,
-        default_campus_scope=default_campus_scope,
+        default_campus_scope=resolved_default_scope,
+        default_visibility_scope=resolved_default_scope,
         unresolved_source_pdfs=unresolved_source_pdfs,
         initial_errors=initial_errors,
+        scope_refresh=scope_refresh,
     )
     return write_import_report(
         import_mode=import_mode,
@@ -364,11 +534,13 @@ def collect_import_document_stats(
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
-    default_campus_scope: str | None,
+    default_campus_scope: str | None = None,
+    default_visibility_scope: str | None = None,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
     scope_refresh: tuple[str, str] | None = None,
 ) -> PersistImportStats:
+    resolved_default_scope = default_visibility_scope or default_campus_scope
     success_count = 0
     skipped_count = 0
     failed_count = len(initial_errors or [])
@@ -383,7 +555,11 @@ def collect_import_document_stats(
     uploaded_raw_assets: set[tuple[str, str]] = set()
     documents_by_scope = _group_documents_by_scope(documents)
     existing_records_by_scope = {
-        scope: registry.list_by_scope(scope[0], scope[1])
+        scope: _prefetch_existing_scope_records(
+            registry=registry,
+            scope=scope,
+            scope_refresh=scope_refresh,
+        )
         for scope in documents_by_scope
     }
     if scope_refresh is not None:
@@ -443,7 +619,7 @@ def collect_import_document_stats(
                     raw_uploaded_count += 1
 
             document_units_bytes = document.document_units_bytes
-            content_hash = hashlib.sha256(document_units_bytes).hexdigest()
+            content_hash = _document_semantic_hash(document=document)
             title = document.title or _derive_document_title(metadata=metadata, document_id=document_id)
             year = document.year or _derive_document_year(metadata=metadata)
             scope = (document.corpus, document.collection)
@@ -455,9 +631,17 @@ def collect_import_document_stats(
                 (record for record in document_records if record.content_hash == content_hash),
                 None,
             )
+            if matching_content_record is None:
+                matching_content_record = _find_equivalent_scope_record(
+                    existing_records_by_lineage=existing_records_by_lineage,
+                    scope=scope,
+                    document=document,
+                    content_hash=content_hash,
+                )
             effective_version_id = matching_content_record.version_id if matching_content_record is not None else version_id
             incoming_source_uri = derive_source_uri(metadata)
             provider_response_key = document.provider_response_object_key
+            layout_elements_key = document.layout_elements_object_key
             if document.provider_response_bytes is not None and provider_response_key is None:
                 provider_response_key = build_document_artifact_key(
                     corpus=document.corpus,
@@ -466,6 +650,17 @@ def collect_import_document_stats(
                     revision_track=document.revision_track,
                     version_id=effective_version_id,
                     filename=PROVIDER_RESPONSE_FILENAME,
+                    title=title,
+                    year=year,
+                )
+            if document.layout_elements_bytes is not None and layout_elements_key is None:
+                layout_elements_key = build_document_artifact_key(
+                    corpus=document.corpus,
+                    collection=document.collection,
+                    document_id=document_id,
+                    revision_track=document.revision_track,
+                    version_id=effective_version_id,
+                    filename=LAYOUT_ELEMENTS_FILENAME,
                     title=title,
                     year=year,
                 )
@@ -478,6 +673,17 @@ def collect_import_document_stats(
                     bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
                     key=provider_response_key,
                     data=document.provider_response_bytes,
+                    content_type="application/x-ndjson",
+                )
+            if (
+                document.layout_elements_bytes is not None
+                and layout_elements_key is not None
+                and _is_source_level_artifact_key(layout_elements_key)
+            ):
+                writer.put_bytes(
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    key=layout_elements_key,
+                    data=document.layout_elements_bytes,
                     content_type="application/x-ndjson",
                 )
 
@@ -508,6 +714,7 @@ def collect_import_document_stats(
                     key
                     for key in (
                         provider_response_key,
+                        layout_elements_key,
                         canonical_markdown_key,
                         document_units_key,
                         *document.additional_processed_object_keys,
@@ -530,8 +737,13 @@ def collect_import_document_stats(
                 )
                 if artifact_refresh_supported and _registry_record_needs_refresh(
                     existing=matching_content_record,
+                    document_units_bytes=document_units_bytes,
                     document_units_key=document_units_key,
+                    provider_response_bytes=document.provider_response_bytes,
                     provider_response_key=provider_response_key,
+                    layout_elements_bytes=document.layout_elements_bytes,
+                    layout_elements_key=layout_elements_key,
+                    canonical_markdown_bytes=document.canonical_markdown_bytes,
                     canonical_markdown_key=canonical_markdown_key,
                     processed_object_keys=processed_object_keys,
                     writer=writer,
@@ -546,6 +758,17 @@ def collect_import_document_stats(
                             bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
                             key=provider_response_key,
                             data=document.provider_response_bytes,
+                            content_type="application/x-ndjson",
+                        )
+                    if (
+                        document.layout_elements_bytes is not None
+                        and layout_elements_key is not None
+                        and not _is_source_level_artifact_key(layout_elements_key)
+                    ):
+                        writer.put_bytes(
+                            bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                            key=layout_elements_key,
+                            data=document.layout_elements_bytes,
                             content_type="application/x-ndjson",
                         )
                     if document.canonical_markdown_bytes is not None and canonical_markdown_key is not None:
@@ -567,13 +790,14 @@ def collect_import_document_stats(
                         metadata=metadata,
                         content_hash=content_hash,
                         document=document,
-                        default_campus_scope=default_campus_scope,
+                        default_visibility_scope=resolved_default_scope,
                         parser_version=parser_version,
                         embedding_model=embedding_model,
                         cleaning_policy_version=cleaning_policy_version,
                         raw_asset=raw_asset,
                         document_units_key=document_units_key,
                         provider_response_key=provider_response_key,
+                        layout_elements_key=layout_elements_key,
                         canonical_markdown_key=canonical_markdown_key,
                         processed_object_keys=processed_object_keys,
                         timestamp=timestamp,
@@ -667,6 +891,17 @@ def collect_import_document_stats(
                     data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
                 )
+            if (
+                document.layout_elements_bytes is not None
+                and layout_elements_key is not None
+                and not _is_source_level_artifact_key(layout_elements_key)
+            ):
+                writer.put_bytes(
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    key=layout_elements_key,
+                    data=document.layout_elements_bytes,
+                    content_type="application/x-ndjson",
+                )
             if document.canonical_markdown_bytes is not None and canonical_markdown_key is not None:
                 writer.put_bytes(
                     bucket=object_store.bucket_derived,
@@ -686,13 +921,14 @@ def collect_import_document_stats(
                 metadata=metadata,
                 content_hash=content_hash,
                 document=document,
-                default_campus_scope=default_campus_scope,
+                default_visibility_scope=resolved_default_scope,
                 parser_version=parser_version,
                 embedding_model=embedding_model,
                 cleaning_policy_version=cleaning_policy_version,
                 raw_asset=raw_asset,
                 document_units_key=document_units_key,
                 provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
                 canonical_markdown_key=canonical_markdown_key,
                 processed_object_keys=processed_object_keys,
                 timestamp=timestamp,
@@ -772,6 +1008,37 @@ def collect_import_document_stats(
         unresolved_source_pdfs=unresolved_source_pdfs,
         errors=tuple(errors),
         timestamp=timestamp,
+    )
+
+
+def _prefetch_existing_scope_records(
+    *,
+    registry: DocumentRegistry,
+    scope: tuple[str, str],
+    scope_refresh: tuple[str, str] | None,
+) -> tuple[DocumentRegistryRecord, ...]:
+    list_importable_scope_records = getattr(registry, "list_importable_scope_records_by_scope", None)
+    if callable(list_importable_scope_records):
+        return tuple(list_importable_scope_records(scope[0], scope[1]))
+    try:
+        return registry.list_by_scope(scope[0], scope[1])
+    except ValueError as exc:
+        if scope_refresh == scope and _can_recover_scope_refresh_from_legacy_registry_rows(
+            registry=registry,
+            exc=exc,
+        ):
+            return ()
+        raise
+
+
+def _can_recover_scope_refresh_from_legacy_registry_rows(
+    *,
+    registry: DocumentRegistry,
+    exc: ValueError,
+) -> bool:
+    list_processed_object_keys = getattr(registry, "list_processed_object_keys_by_scope", None)
+    return callable(list_processed_object_keys) and (
+        "registry payload contains unsupported authorization projection keys" in str(exc)
     )
 
 
@@ -863,23 +1130,36 @@ def _build_registry_record(
     metadata: dict[str, object],
     content_hash: str,
     document: DocumentImportInput,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
     parser_version: str,
     embedding_model: str,
     cleaning_policy_version: str,
     raw_asset: ResolvedRawAsset | None,
     document_units_key: str,
     provider_response_key: str | None,
+    layout_elements_key: str | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     timestamp: str,
 ) -> DocumentRegistryRecord:
+    _assert_canonical_authorization_metadata(metadata)
     source_uri = derive_source_uri(metadata)
     registry_raw_asset = _resolve_registry_raw_asset_ref(
         raw_asset=raw_asset,
         document=document,
         metadata=metadata,
     )
+    entitlement_groups = _resolve_entitlement_groups(metadata)
+    visibility_scope = _resolve_visibility_scope(
+        metadata=metadata,
+        document=document,
+        default_visibility_scope=default_visibility_scope,
+    )
+    visibility_level = _resolve_visibility_level(
+        metadata=metadata,
+        entitlement_groups=entitlement_groups,
+    )
+    policy_projection_version = _resolve_policy_projection_version(metadata)
     return DocumentRegistryRecord(
         document_id=document_id,
         revision_track=document.revision_track,
@@ -889,12 +1169,12 @@ def _build_registry_record(
         corpus=document.corpus,
         collection=document.collection,
         cleaning_policy_version=cleaning_policy_version,
-        acl_groups=tuple(str(item) for item in metadata["acl_groups"]),
-        campus_scope=_resolve_campus_scope(
-            metadata=metadata,
-            document=document,
-            default_campus_scope=default_campus_scope,
-        ),
+        entitlement_groups=entitlement_groups,
+        acl_groups=entitlement_groups,
+        campus_scope=visibility_scope,
+        visibility_scope=visibility_scope,
+        visibility_level=visibility_level,
+        policy_projection_version=policy_projection_version,
         status=_resolve_status(metadata=metadata, document=document),
         ingestion_timestamp=timestamp,
         parser_version=parser_version,
@@ -915,9 +1195,47 @@ def _build_registry_record(
         ),
         document_units_object_key=document_units_key,
         provider_response_object_key=provider_response_key,
+        layout_elements_object_key=layout_elements_key,
         canonical_markdown_object_key=canonical_markdown_key,
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
+    )
+
+
+def _assert_canonical_authorization_metadata(metadata: dict[str, object]) -> None:
+    unsupported_keys = tuple(
+        key
+        for key in metadata
+        if _looks_like_authorization_projection_key(key)
+        and key not in _SUPPORTED_AUTHORIZATION_METADATA_KEYS
+    )
+    if unsupported_keys:
+        joined = ", ".join(unsupported_keys)
+        raise ValueError(
+            f"unsupported authorization metadata keys are not allowed: {joined}"
+        )
+
+
+_SUPPORTED_AUTHORIZATION_METADATA_KEYS = frozenset(
+    {
+        "acl_groups",
+        "campus_scope",
+        "entitlement_groups",
+        "visibility_scope",
+        "visibility_level",
+        "policy_projection_version",
+    }
+)
+
+
+def _looks_like_authorization_projection_key(key: str) -> bool:
+    return (
+        key.startswith("entitlement_")
+        or key.startswith("visibility_")
+        or key.startswith("policy_projection_")
+        or key.endswith("_groups")
+        or key.endswith("_scope")
+        or key.endswith("_level")
     )
 
 
@@ -947,8 +1265,13 @@ def _resolve_registry_raw_asset_ref(
 def _registry_record_needs_refresh(
     *,
     existing: DocumentRegistryRecord,
+    document_units_bytes: bytes,
     document_units_key: str,
+    provider_response_bytes: bytes | None,
     provider_response_key: str | None,
+    layout_elements_bytes: bytes | None,
+    layout_elements_key: str | None,
+    canonical_markdown_bytes: bytes | None,
     canonical_markdown_key: str | None,
     processed_object_keys: tuple[str, ...],
     writer: ObjectStoreWriter,
@@ -962,10 +1285,38 @@ def _registry_record_needs_refresh(
         return True
     if tuple(existing.processed_object_keys) != processed_object_keys:
         return True
-    return _missing_processed_object_keys(
+    if _missing_processed_object_keys(
         writer=writer,
         object_store=object_store,
         object_keys=processed_object_keys,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=document_units_key,
+        expected_bytes=document_units_bytes,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=provider_response_key,
+        expected_bytes=provider_response_bytes,
+    ):
+        return True
+    if _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=layout_elements_key,
+        expected_bytes=layout_elements_bytes,
+    ):
+        return True
+    return _stored_artifact_payload_differs(
+        writer=writer,
+        object_store=object_store,
+        key=canonical_markdown_key,
+        expected_bytes=canonical_markdown_bytes,
     )
 
 
@@ -986,6 +1337,28 @@ def _missing_processed_object_keys(
     return False
 
 
+def _stored_artifact_payload_differs(
+    *,
+    writer: ObjectStoreWriter,
+    object_store: ObjectStoreSettings,
+    key: str | None,
+    expected_bytes: bytes | None,
+) -> bool:
+    if key is None or expected_bytes is None:
+        return False
+    get_bytes = getattr(writer, "get_bytes", None)
+    if not callable(get_bytes):
+        return False
+    try:
+        stored_bytes = get_bytes(
+            bucket=_artifact_bucket_for_key(object_store=object_store, key=key),
+            key=key,
+        )
+    except Exception:
+        return True
+    return stored_bytes != expected_bytes
+
+
 def _artifact_bucket_for_key(*, object_store: ObjectStoreSettings, key: str) -> str:
     if is_source_object_key(key):
         return object_store.bucket_source
@@ -1002,6 +1375,42 @@ def _group_documents_by_scope(
         scope: tuple(scope_documents)
         for scope, scope_documents in grouped.items()
     }
+
+
+def _find_equivalent_scope_record(
+    *,
+    existing_records_by_lineage: dict[
+        tuple[str, str],
+        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
+    ],
+    scope: tuple[str, str],
+    document: DocumentImportInput,
+    content_hash: str,
+) -> DocumentRegistryRecord | None:
+    if document.source_channel not in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS:
+        return None
+    scope_records = existing_records_by_lineage.get(scope, {})
+    candidates = [
+        record
+        for lineage_records in scope_records.values()
+        for record in lineage_records
+        if record.revision_track == document.revision_track
+        and record.content_hash == content_hash
+        and record.source_channel in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS
+    ]
+    if not candidates:
+        return None
+    current_candidates = [record for record in candidates if record.is_current]
+    ranked_candidates = current_candidates or candidates
+    return max(
+        ranked_candidates,
+        key=lambda record: (
+            record.is_current,
+            record.ingestion_timestamp,
+            record.document_id,
+            record.version_id,
+        ),
+    )
 
 
 def _index_scope_records_by_lineage(
@@ -1129,14 +1538,13 @@ def _resolve_campus_scope(
     *,
     metadata: dict[str, object],
     document: DocumentImportInput,
-    default_campus_scope: str | None,
+    default_visibility_scope: str | None,
 ) -> str | None:
-    metadata_scope = normalize_optional_text(metadata.get("campus_scope"))
-    if metadata_scope is not None:
-        return metadata_scope
-    if document.campus_scope is not None:
-        return document.campus_scope
-    return default_campus_scope
+    return _resolve_visibility_scope(
+        metadata=metadata,
+        document=document,
+        default_visibility_scope=default_visibility_scope,
+    )
 
 
 def _resolve_status(*, metadata: dict[str, object], document: DocumentImportInput) -> str:

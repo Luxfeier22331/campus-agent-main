@@ -23,6 +23,10 @@ describe("app-api shared product bootstrap contracts", () => {
     expect(packageJson.scripts["db:reconcile-shared-drift"]).toContain(
       "reconcile-shared-db-drift.mjs",
     );
+    expect(packageJson.scripts["official-web:drain-projection"]).toContain(
+      "drain-official-web-projection.ts",
+    );
+    expect(packageJson.scripts["official-web:drain-projection"]).toContain("tsx");
     expect(packageJson.scripts["test"]).toBe("pnpm run test:node");
     expect(packageJson.scripts["test:all"]).toContain("vitest.config.mts");
     expect(packageJson.scripts["test:node"]).toContain("vitest.node.config.mts");
@@ -36,10 +40,13 @@ describe("app-api shared product bootstrap contracts", () => {
     const requiredFiles = [
       "db/shared-product-migrations/0001_chat_schema.sql",
       "db/shared-product-migrations/0002_message_retryable.sql",
+      "db/shared-product-migrations/0003_chat_session_slots.sql",
+      "db/shared-product-migrations/0004_chat_message_structured_parts.sql",
       "scripts/bootstrap-shared-product-database.mjs",
       "scripts/ensure-app-auth-role-search-path.mjs",
       "scripts/print-shared-product-auth-migration.mjs",
       "scripts/reconcile-shared-db-drift.mjs",
+      "scripts/drain-official-web-projection.ts",
       "scripts/shared-product-database-bootstrap.mjs",
       "scripts/shared-product-database-bootstrap.d.mts",
       "vitest.worker.config.mts",
@@ -58,6 +65,7 @@ describe("app-api shared product bootstrap contracts", () => {
     expect(readme).toContain("db:bootstrap");
     expect(readme).toContain("db:ensure-app-auth-role-search-path");
     expect(readme).toContain("db:reconcile-shared-drift");
+    expect(readme).toContain("official-web:drain-projection");
     expect(readme).toContain("test:node");
     expect(readme).toContain("test:worker");
     expect(readme).toContain("test:shared-db-integration");

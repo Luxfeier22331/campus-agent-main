@@ -23,6 +23,7 @@ const RECONCILABLE_EXTRA_TABLES = new Set([
 const RECONCILABLE_EXTRA_COLUMNS = new Map([
   ["official_web.crawl_runs", new Set(["run_intent"])],
   ["operator.official_web_run_projection", new Set(["run_intent"])],
+  ["runtime.request_execution", new Set(["actor_campus_scope", "actor_groups_json"])],
 ]);
 const CRAWL_RUNS_SITE_SCHEDULER_INDEX = "official_web_crawl_runs_site_scheduler_idx";
 
@@ -77,6 +78,30 @@ function collectExtraColumns(inventory, expectedTables) {
   );
 }
 
+function collectMissingColumns(inventory, expectedTables) {
+  const missingColumns = [];
+
+  for (const [qualifiedName, expectedTable] of expectedTables.entries()) {
+    const actualTable = inventory.tables.get(qualifiedName);
+    if (!actualTable) {
+      continue;
+    }
+
+    for (const columnName of expectedTable.columns.keys()) {
+      if (!actualTable.columns.has(columnName)) {
+        missingColumns.push({
+          columnName,
+          qualifiedName,
+        });
+      }
+    }
+  }
+
+  return missingColumns.sort((left, right) =>
+    left.qualifiedName.localeCompare(right.qualifiedName) || left.columnName.localeCompare(right.columnName),
+  );
+}
+
 function collectExtraTables(inventory, expectedTables) {
   const extraTables = [];
 
@@ -89,6 +114,22 @@ function collectExtraTables(inventory, expectedTables) {
   return extraTables.sort();
 }
 
+function collectMissingTables(inventory, expectedTables) {
+  if (inventory.journalRows.length === 0) {
+    return [];
+  }
+
+  const missingTables = [];
+
+  for (const qualifiedName of expectedTables.keys()) {
+    if (!inventory.tables.has(qualifiedName)) {
+      missingTables.push(qualifiedName);
+    }
+  }
+
+  return missingTables.sort();
+}
+
 function collectOrphanedJournalRows(inventory, migrationContext) {
   const knownHashes = new Set(migrationContext.migrations.map((migration) => migration.hash));
 
@@ -97,8 +138,16 @@ function collectOrphanedJournalRows(inventory, migrationContext) {
     .sort((left, right) => left.createdAt - right.createdAt);
 }
 
-function readAllowedExtraColumns(qualifiedName) {
-  return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
+function collectPendingMigrationTags(inventory, migrationContext) {
+  if (inventory.journalRows.length === 0) {
+    return [];
+  }
+
+  const appliedHashes = new Set(inventory.journalRows.map((row) => row.hash));
+
+  return migrationContext.migrations
+    .filter((migration) => !appliedHashes.has(migration.hash))
+    .map((migration) => migration.tag);
 }
 
 function buildDropTableOperation(qualifiedName, rowCount) {
@@ -129,6 +178,10 @@ function buildDeleteJournalRowOperation(hash) {
   };
 }
 
+function readAllowedExtraColumns(qualifiedName) {
+  return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
+}
+
 export function buildSharedDatabaseDriftReconcilePlan({
   extraTableRowCounts = new Map(),
   inventory,
@@ -136,8 +189,11 @@ export function buildSharedDatabaseDriftReconcilePlan({
 }) {
   const expectedTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
   const extraColumns = collectExtraColumns(inventory, expectedTables);
+  const missingColumns = collectMissingColumns(inventory, expectedTables);
   const extraTables = collectExtraTables(inventory, expectedTables);
+  const missingTables = collectMissingTables(inventory, expectedTables);
   const orphanedJournalRows = collectOrphanedJournalRows(inventory, migrationContext);
+  const pendingMigrationTags = collectPendingMigrationTags(inventory, migrationContext);
   const blockedReasons = [];
   const operations = [];
 
@@ -169,6 +225,18 @@ export function buildSharedDatabaseDriftReconcilePlan({
     operations.push(buildDropColumnOperation(item.qualifiedName, item.columnName));
   }
 
+  for (const qualifiedName of missingTables) {
+    blockedReasons.push(`Missing table from current repo truth: ${qualifiedName}`);
+  }
+
+  for (const item of missingColumns) {
+    blockedReasons.push(`Missing column from current repo truth: ${item.qualifiedName}.${item.columnName}`);
+  }
+
+  if (pendingMigrationTags.length > 0) {
+    blockedReasons.push(`Pending repo migrations not applied: ${pendingMigrationTags.join(", ")}`);
+  }
+
   if (crawlRunsNeedsIndexRebuild) {
     operations.push({
       indexName: CRAWL_RUNS_SITE_SCHEDULER_INDEX,
@@ -197,15 +265,24 @@ export function buildSharedDatabaseDriftReconcilePlan({
 
   return {
     blockedReasons,
-    driftDetected: extraColumns.length > 0 || extraTables.length > 0 || orphanedJournalRows.length > 0,
+    driftDetected:
+      extraColumns.length > 0
+      || extraTables.length > 0
+      || missingColumns.length > 0
+      || missingTables.length > 0
+      || orphanedJournalRows.length > 0
+      || pendingMigrationTags.length > 0,
     extraColumns,
     extraTables: extraTables.map((qualifiedName) => ({
       qualifiedName,
       rowCount: extraTableRowCounts.get(qualifiedName) ?? 0,
     })),
+    missingColumns,
+    missingTables,
     nonEmptyDriftTables,
     operations,
     orphanedJournalRows,
+    pendingMigrationTags,
   };
 }
 
@@ -303,6 +380,8 @@ function formatPlan(plan) {
       driftDetected: plan.driftDetected,
       extraColumns: plan.extraColumns,
       extraTables: plan.extraTables,
+      missingColumns: plan.missingColumns,
+      missingTables: plan.missingTables,
       nonEmptyDriftTables: plan.nonEmptyDriftTables,
       operations: plan.operations.map((operation) => {
         if (operation.kind === "delete_journal_row") {
@@ -319,6 +398,7 @@ function formatPlan(plan) {
         };
       }),
       orphanedJournalRows: plan.orphanedJournalRows,
+      pendingMigrationTags: plan.pendingMigrationTags,
     },
     null,
     2,
@@ -397,8 +477,8 @@ export async function runSharedDatabaseDriftReconcile({
       );
     }
 
-    const adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
-    if (adoptionResult.plan.mismatches.length > 0 || adoptionResult.plan.statements.length > 0) {
+    let adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
+    if (adoptionResult.plan.mismatches.length > 0) {
       throw new Error(
         `Shared database drift reconciliation did not converge to repo truth:\n${JSON.stringify(
           {
@@ -409,6 +489,22 @@ export async function runSharedDatabaseDriftReconcile({
           2,
         )}`,
       );
+    }
+    if (adoptionResult.plan.statements.length > 0 || adoptionResult.plan.journalRowsToInsert.length > 0) {
+      await runSharedDatabaseAdoption({ apply: true, env });
+      adoptionResult = await runSharedDatabaseAdoption({ apply: false, env });
+      if (adoptionResult.plan.mismatches.length > 0 || adoptionResult.plan.statements.length > 0) {
+        throw new Error(
+          `Shared database drift reconciliation did not converge to repo truth:\n${JSON.stringify(
+            {
+              mismatches: adoptionResult.plan.mismatches,
+              statements: adoptionResult.plan.statements.map((item) => item.target.existsKey),
+            },
+            null,
+            2,
+          )}`,
+        );
+      }
     }
 
     return {

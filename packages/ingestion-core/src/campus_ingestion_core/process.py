@@ -24,12 +24,13 @@ from campus_ingestion_core.chunking import (
     TEXTUAL_UNIT_TYPES,
     assemble_chunk_text,
     build_curriculum_chunk_profile,
+    build_official_web_chunk_profile,
     build_student_handbook_chunk_profile,
     build_chunk_text_context,
     chunk_table_unit,
     chunk_structured_unit,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.curriculum_chunk_units import (
     _is_curriculum_course_map_placeholder_unit,
     _is_curriculum_course_map_title_line,
@@ -65,7 +66,7 @@ class StructuredUnit:
     text: str
     source_chunk_id: str | None
     anchor: dict[str, object]
-    acl_level: str
+    visibility_level: str
     unit_type: str
     root_unit_id: str
     metadata: dict[str, object] = field(default_factory=dict)
@@ -80,11 +81,8 @@ class IndexableChunk:
     chunk_order: int
     corpus: str
     collection: str
-    acl_groups: tuple[str, ...]
-    campus_scope: str | None
     source_uri: str
     source_chunk_id: str | None
-    acl_level: str
     anchor: dict[str, object]
     text: str
     source_channel: str
@@ -94,7 +92,10 @@ class IndexableChunk:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
     visibility_level: str = ""
+    acl_level: str = ""
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
+    acl_groups: tuple[str, ...] = field(default_factory=tuple)
+    campus_scope: str | None = None
     canonical_url: str = ""
     latest_url: str = ""
     status: str = "active"
@@ -108,7 +109,12 @@ class IndexableChunk:
         acl_groups = self.acl_groups or self.entitlement_groups
         visibility_scope = self.visibility_scope or self.campus_scope
         campus_scope = self.campus_scope or self.visibility_scope
-        visibility_level = self.visibility_level.strip() or self.acl_level.strip() or "public"
+        visibility_level = self.visibility_level.strip() or self.acl_level.strip()
+        if not visibility_level and entitlement_groups:
+            visibility_level = "restricted"
+        if not visibility_level:
+            visibility_level = "public"
+        acl_level = self.acl_level.strip() or visibility_level
         policy_projection_version = (
             self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
         )
@@ -123,6 +129,8 @@ class IndexableChunk:
             object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
+        if acl_level != self.acl_level:
+            object.__setattr__(self, "acl_level", acl_level)
         if policy_projection_version != self.policy_projection_version:
             object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
@@ -141,6 +149,7 @@ class IndexableChunk:
                 "entitlement_groups": list(self.entitlement_groups),
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
+                "acl_level": self.acl_level,
                 "policy_projection_version": self.policy_projection_version,
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
@@ -148,7 +157,6 @@ class IndexableChunk:
                 "canonical_url": self.canonical_url or self.source_uri,
                 "latest_url": self.latest_url or self.canonical_url or self.source_uri,
                 "source_chunk_id": self.source_chunk_id,
-                "acl_level": self.acl_level,
                 "status": self.status,
                 "anchor": self.anchor,
                 "source_channel": self.source_channel,
@@ -177,6 +185,8 @@ _SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD = 72
 _SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD = 0.4
 _SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS = 120
 _SHORT_TEXTUAL_MAX_MEMBER_COUNT = 4
+_SHORT_TEXTUAL_MERGE_UNIT_TYPES = frozenset((*TEXTUAL_UNIT_TYPES, "institutional_regulation_block"))
+_OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset({"source_attribution", "boilerplate", "media_caption"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,7 +200,7 @@ class _ChunkCandidate:
     unit_type: str
     root_unit_id: str
     source_chunk_id: str | None
-    acl_level: str
+    visibility_level: str
     anchor: dict[str, object]
     metadata: dict[str, object]
     piece: SemanticChunkPiece
@@ -203,7 +213,7 @@ class _CollectionChunkStrategy:
     build_chunk_profile: Callable[[DocumentRegistryRecord], ChunkProfile]
     load_structured_units: Callable[[DocumentRegistryRecord, bytes], tuple[StructuredUnit, ...]]
     build_unit_pieces: Callable[[StructuredUnit, ChunkProfile], tuple[SemanticChunkPiece, ...]]
-    resolve_unit_chunk_profile: Callable[[DocumentRegistryRecord, ChunkProfile, str, bool], ChunkProfile]
+    resolve_unit_chunk_profile: Callable[[DocumentRegistryRecord, ChunkProfile, StructuredUnit, bool], ChunkProfile]
     should_skip_unit: Callable[[StructuredUnit, set[str]], bool]
     postprocess_candidates: Callable[
         [Sequence[_ChunkCandidate], DocumentRegistryRecord, ChunkProfile, bool],
@@ -227,12 +237,36 @@ def _build_curriculum_runtime_chunk_profile(record: DocumentRegistryRecord) -> C
     )
 
 
+def _build_official_web_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    return build_official_web_chunk_profile(
+        profile_version=runtime_profile.chunk_profile_version,
+    )
+
+
 def _build_generic_runtime_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
     runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    chunk_profile = load_chunk_profile(record.corpus, record.collection)
+    if chunk_profile.chunk_profile_version != runtime_profile.chunk_profile_version:
+        raise ValueError(
+            "chunk-profile version does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.chunk_profile_version} != {runtime_profile.chunk_profile_version}"
+        )
+    if chunk_profile.cleaning_policy_version != runtime_profile.cleaning_policy_version:
+        raise ValueError(
+            "chunk-profile cleaning policy does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.cleaning_policy_version} != {runtime_profile.cleaning_policy_version}"
+        )
     return ChunkProfile(
+        chunk_size=chunk_profile.runtime_defaults.chunk_size,
+        max_chunk_size=chunk_profile.runtime_defaults.max_chunk_size,
+        chunk_overlap=chunk_profile.runtime_defaults.chunk_overlap,
+        min_chunk_size=chunk_profile.runtime_defaults.min_chunk_size,
         chunk_policy_version=runtime_profile.chunk_profile_version,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
-        strategy_name=f"{record.collection}_generic",
+        strategy_name=chunk_profile.runtime_defaults.strategy_name,
         strategy=None,
     )
 
@@ -268,7 +302,7 @@ def _load_default_structured_units(
                 text=text,
                 source_chunk_id=_normalize_optional_text(raw.get("chunk_id")),
                 anchor=_normalize_anchor(raw.get("anchor")),
-                acl_level=_normalize_acl_level(raw.get("acl")),
+                visibility_level=_resolve_structured_visibility_level(raw),
                 unit_type=_normalize_unit_type(raw.get("unit_type")),
                 root_unit_id=_normalize_root_unit_id(raw),
                 metadata=_normalize_unit_metadata(raw),
@@ -315,17 +349,17 @@ def _build_curriculum_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProf
 def _resolve_default_unit_chunk_profile(
     record: DocumentRegistryRecord,
     runtime_profile: ChunkProfile,
-    unit_type: str,
+    unit: StructuredUnit,
     use_collection_unit_profiles: bool,
 ) -> ChunkProfile:
-    del record, unit_type, use_collection_unit_profiles
+    del record, unit, use_collection_unit_profiles
     return runtime_profile
 
 
 def _resolve_curriculum_unit_chunk_profile(
     record: DocumentRegistryRecord,
     runtime_profile: ChunkProfile,
-    unit_type: str,
+    unit: StructuredUnit,
     use_collection_unit_profiles: bool,
 ) -> ChunkProfile:
     if not use_collection_unit_profiles:
@@ -338,7 +372,7 @@ def _resolve_curriculum_unit_chunk_profile(
     return build_curriculum_chunk_profile(
         profile_version=runtime_profile.chunk_policy_version,
         model_name=record.embedding_model,
-        unit_type=unit_type,
+        unit_type=unit.unit_type,
     )
 
 
@@ -358,20 +392,175 @@ def _should_skip_curriculum_unit(unit: StructuredUnit, table_roots_with_semantic
     return _is_curriculum_course_map_noise_unit(unit)
 
 
+def _should_skip_official_web_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if _should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    return str(unit.metadata.get("content_role") or "").strip() in _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES
+
+
+def _should_skip_internal_notice_unit(unit: StructuredUnit, table_roots_with_semantic_units: set[str]) -> bool:
+    if unit.unit_type == "attachment_ref":
+        return True
+    return _should_skip_generic_unit(unit, table_roots_with_semantic_units)
+
+
+_INTERNAL_NOTICE_NOTICE_BODY_LANE = "notice_body"
+_INTERNAL_NOTICE_ATTACHMENT_TEXT_LANE = "attachment_text_extractable"
+_INTERNAL_NOTICE_ATTACHMENT_OCR_LANE = "attachment_ocr_required"
+
+
+def _load_internal_notice_structured_units(
+    record: DocumentRegistryRecord,
+    structured_jsonl_bytes: bytes,
+) -> tuple[StructuredUnit, ...]:
+    units = _load_default_structured_units(record, structured_jsonl_bytes)
+    if not units:
+        return ()
+    title = _derive_internal_notice_document_title(units)
+    enriched_units: list[StructuredUnit] = []
+    for unit in units:
+        metadata = dict(unit.metadata)
+        if title is not None and not str(metadata.get("title") or "").strip():
+            metadata["title"] = title
+        metadata["internal_notice_lane"] = _resolve_internal_notice_lane(record=record, unit=unit)
+        enriched_units.append(
+            StructuredUnit(
+                unit_index=unit.unit_index,
+                document_id=unit.document_id,
+                version_id=unit.version_id,
+                text=unit.text,
+                source_chunk_id=unit.source_chunk_id,
+                anchor=dict(unit.anchor),
+                visibility_level=unit.visibility_level,
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                metadata=metadata,
+            )
+        )
+    return tuple(enriched_units)
+
+
+def _derive_internal_notice_document_title(units: Sequence[StructuredUnit]) -> str | None:
+    for unit in units:
+        title = str(unit.metadata.get("title") or "").strip()
+        if title:
+            return title
+    for unit in units:
+        if unit.unit_type in {"policy_page", "attachment_title"}:
+            title = unit.text.strip()
+            if title:
+                return title
+    for unit in units:
+        title = unit.text.strip()
+        if title:
+            return title
+    return None
+
+
+def _resolve_internal_notice_lane(*, record: DocumentRegistryRecord, unit: StructuredUnit) -> str:
+    if not record.document_id.startswith("notice_attachment:"):
+        return _INTERNAL_NOTICE_NOTICE_BODY_LANE
+    extraction_class = str(unit.metadata.get("extraction_class") or "").strip()
+    if extraction_class == "text_extractable":
+        return _INTERNAL_NOTICE_ATTACHMENT_TEXT_LANE
+    if extraction_class == "ocr_required":
+        return _INTERNAL_NOTICE_ATTACHMENT_OCR_LANE
+    raise ValueError(
+        "internal_notice attachment document requires extraction_class for lane resolution: "
+        f"{record.document_id}#{unit.source_chunk_id or unit.root_unit_id}"
+    )
+
+
+def _build_collection_lane_chunk_profile(
+    *,
+    record: DocumentRegistryRecord,
+    lane: str,
+) -> ChunkProfile:
+    runtime_profile = load_runtime_profile(record.corpus, record.collection)
+    chunk_profile = load_chunk_profile(record.corpus, record.collection)
+    if chunk_profile.chunk_profile_version != runtime_profile.chunk_profile_version:
+        raise ValueError(
+            "chunk-profile version does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.chunk_profile_version} != {runtime_profile.chunk_profile_version}"
+        )
+    if chunk_profile.cleaning_policy_version != runtime_profile.cleaning_policy_version:
+        raise ValueError(
+            "chunk-profile cleaning policy does not match runtime-profile for "
+            f"{record.corpus}/{record.collection}: "
+            f"{chunk_profile.cleaning_policy_version} != {runtime_profile.cleaning_policy_version}"
+        )
+    lane_defaults = chunk_profile.lane_defaults.get(lane)
+    if lane_defaults is None:
+        raise ValueError(
+            f"chunk-profile lane_defaults missing {lane!r} for {record.corpus}/{record.collection}"
+        )
+    return ChunkProfile(
+        chunk_size=lane_defaults.chunk_size,
+        max_chunk_size=lane_defaults.max_chunk_size,
+        chunk_overlap=lane_defaults.chunk_overlap,
+        min_chunk_size=lane_defaults.min_chunk_size,
+        chunk_policy_version=runtime_profile.chunk_profile_version,
+        cleaning_policy_version=runtime_profile.cleaning_policy_version,
+        strategy_name=lane_defaults.strategy_name,
+        strategy=None,
+        final_text_aware=True,
+        safety_margin=8,
+    )
+
+
+def _resolve_internal_notice_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit: StructuredUnit,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_collection_unit_profiles:
+        return runtime_profile
+    if record.collection != "internal_notice":
+        return runtime_profile
+    return _build_collection_lane_chunk_profile(
+        record=record,
+        lane=_resolve_internal_notice_lane(record=record, unit=unit),
+    )
+
+
+def _resolve_scoped_rule_lane(*, record: DocumentRegistryRecord, unit: StructuredUnit) -> str:
+    document_nature = str(unit.metadata.get("document_nature") or "").strip()
+    if document_nature:
+        return document_nature
+    raise ValueError(
+        "scoped_rules unit requires document_nature for lane resolution: "
+        f"{record.document_id}#{unit.source_chunk_id or unit.root_unit_id}"
+    )
+
+
+def _resolve_scoped_rule_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit: StructuredUnit,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_collection_unit_profiles:
+        return runtime_profile
+    if (record.corpus, record.collection) != ("regulations", "scoped_rules"):
+        return runtime_profile
+    return _build_collection_lane_chunk_profile(
+        record=record,
+        lane=_resolve_scoped_rule_lane(record=record, unit=unit),
+    )
+
+
 def _postprocess_default_chunk_candidates(
     chunk_candidates: Sequence[_ChunkCandidate],
     record: DocumentRegistryRecord,
     runtime_profile: ChunkProfile,
     use_collection_unit_profiles: bool,
 ) -> tuple[_ChunkCandidate, ...]:
+    del record, use_collection_unit_profiles
     return _merge_adjacent_short_textual_candidates(
         chunk_candidates=chunk_candidates,
-        chunk_profile=_resolve_default_unit_chunk_profile(
-            record=record,
-            runtime_profile=runtime_profile,
-            unit_type="section_text",
-            use_collection_unit_profiles=use_collection_unit_profiles,
-        ),
+        chunk_profile=runtime_profile,
     )
 
 
@@ -381,18 +570,22 @@ def _postprocess_curriculum_chunk_candidates(
     runtime_profile: ChunkProfile,
     use_collection_unit_profiles: bool,
 ) -> tuple[_ChunkCandidate, ...]:
-    section_chunk_profile = _resolve_curriculum_unit_chunk_profile(
-        record=record,
-        runtime_profile=runtime_profile,
-        unit_type="section_text",
-        use_collection_unit_profiles=use_collection_unit_profiles,
-    )
-    table_chunk_profile = _resolve_curriculum_unit_chunk_profile(
-        record=record,
-        runtime_profile=runtime_profile,
-        unit_type="table_unit",
-        use_collection_unit_profiles=use_collection_unit_profiles,
-    )
+    section_chunk_profile = runtime_profile
+    table_chunk_profile = runtime_profile
+    if use_collection_unit_profiles and runtime_profile.chunk_policy_version in {
+        CURRICULUM_V1_CHUNK_POLICY_VERSION,
+        CURRICULUM_V2_CHUNK_POLICY_VERSION,
+    }:
+        section_chunk_profile = build_curriculum_chunk_profile(
+            profile_version=runtime_profile.chunk_policy_version,
+            model_name=record.embedding_model,
+            unit_type="section_text",
+        )
+        table_chunk_profile = build_curriculum_chunk_profile(
+            profile_version=runtime_profile.chunk_policy_version,
+            model_name=record.embedding_model,
+            unit_type="table_unit",
+        )
     merged_candidates = _merge_adjacent_short_textual_candidates(
         chunk_candidates=chunk_candidates,
         chunk_profile=section_chunk_profile,
@@ -406,6 +599,106 @@ def _postprocess_curriculum_chunk_candidates(
         chunk_candidates=merged_candidates,
         chunk_profile=table_chunk_profile,
     )
+
+
+def _postprocess_internal_notice_chunk_candidates(
+    chunk_candidates: Sequence[_ChunkCandidate],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    if not use_collection_unit_profiles:
+        return _merge_adjacent_short_textual_candidates(
+            chunk_candidates=chunk_candidates,
+            chunk_profile=runtime_profile,
+        )
+    merged: list[_ChunkCandidate] = []
+    current_lane: str | None = None
+    current_group: list[_ChunkCandidate] = []
+    for candidate in chunk_candidates:
+        candidate_lane = str(candidate.metadata.get("internal_notice_lane") or "").strip()
+        if not candidate_lane:
+            raise ValueError(
+                f"internal_notice chunk candidate missing lane metadata: {record.document_id}"
+            )
+        if current_lane is None:
+            current_lane = candidate_lane
+        if candidate_lane != current_lane:
+            merged.extend(
+                _merge_adjacent_short_textual_candidates(
+                    chunk_candidates=tuple(current_group),
+                    chunk_profile=_build_collection_lane_chunk_profile(
+                        record=record,
+                        lane=current_lane,
+                    ),
+                )
+            )
+            current_group = []
+            current_lane = candidate_lane
+        current_group.append(candidate)
+    if current_group and current_lane is not None:
+        merged.extend(
+            _merge_adjacent_short_textual_candidates(
+                chunk_candidates=tuple(current_group),
+                chunk_profile=_build_collection_lane_chunk_profile(
+                    record=record,
+                    lane=current_lane,
+                ),
+            )
+        )
+    return tuple(merged)
+
+
+def _postprocess_scoped_rule_chunk_candidates(
+    chunk_candidates: Sequence[_ChunkCandidate],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    if not use_collection_unit_profiles:
+        return _merge_adjacent_short_textual_candidates(
+            chunk_candidates=chunk_candidates,
+            chunk_profile=runtime_profile,
+        )
+    merged: list[_ChunkCandidate] = []
+    current_lane: str | None = None
+    current_group: list[_ChunkCandidate] = []
+    for candidate in chunk_candidates:
+        candidate_lane = str(candidate.metadata.get("document_nature") or "").strip()
+        if not candidate_lane:
+            raise ValueError(
+                f"scoped_rules chunk candidate missing document_nature metadata: {record.document_id}"
+            )
+        if current_lane is None:
+            current_lane = candidate_lane
+        if candidate_lane != current_lane:
+            merged.extend(
+                _merge_adjacent_short_textual_candidates(
+                    chunk_candidates=tuple(current_group),
+                    chunk_profile=_build_collection_lane_chunk_profile(
+                        record=record,
+                        lane=current_lane,
+                    ),
+                )
+            )
+            current_group = []
+            current_lane = candidate_lane
+        current_group.append(candidate)
+    if current_group and current_lane is not None:
+        merged.extend(
+            _merge_adjacent_short_textual_candidates(
+                chunk_candidates=tuple(current_group),
+                chunk_profile=_build_collection_lane_chunk_profile(
+                    record=record,
+                    lane=current_lane,
+                ),
+            )
+        )
+    return tuple(merged)
 
 
 _DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
@@ -434,10 +727,36 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         should_skip_unit=_should_skip_curriculum_unit,
         postprocess_candidates=_postprocess_curriculum_chunk_candidates,
     ),
+    ("official_web", "muc_public_pages"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_official_web_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_default_unit_chunk_profile,
+        should_skip_unit=_should_skip_official_web_unit,
+        postprocess_candidates=_postprocess_default_chunk_candidates,
+    ),
+    ("campus_notices", "internal_notice"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_generic_runtime_chunk_profile,
+        load_structured_units=_load_internal_notice_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_internal_notice_unit_chunk_profile,
+        should_skip_unit=_should_skip_internal_notice_unit,
+        postprocess_candidates=_postprocess_internal_notice_chunk_candidates,
+    ),
+    ("regulations", "scoped_rules"): _CollectionChunkStrategy(
+        build_chunk_profile=_build_generic_runtime_chunk_profile,
+        load_structured_units=_load_default_structured_units,
+        build_unit_pieces=_build_default_unit_pieces,
+        resolve_unit_chunk_profile=_resolve_scoped_rule_unit_chunk_profile,
+        should_skip_unit=_should_skip_generic_unit,
+        postprocess_candidates=_postprocess_scoped_rule_chunk_candidates,
+    ),
 }
 
 
 def _resolve_collection_chunk_strategy(record: DocumentRegistryRecord) -> _CollectionChunkStrategy:
+    if record.corpus == "official_web":
+        return _COLLECTION_CHUNK_STRATEGIES[("official_web", "muc_public_pages")]
     return _COLLECTION_CHUNK_STRATEGIES.get((record.corpus, record.collection), _DEFAULT_COLLECTION_CHUNK_STRATEGY)
 
 
@@ -480,15 +799,17 @@ def build_indexable_chunks_from_jsonl(
     )
 
     chunks: list[IndexableChunk] = []
+    document_entitlement_groups = record.entitlement_groups
+    document_visibility_scope = record.visibility_scope
     chunk_order = 0
     for candidate, embedding in zip(chunk_candidates, dense_embeddings, strict=True):
         chunk_order += 1
         chunk_id = (
             f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
         )
-        effective_visibility_level = _resolve_effective_acl_level(
-            unit_acl_level=candidate.acl_level,
-            document_acl_groups=record.entitlement_groups or record.acl_groups,
+        effective_visibility_level = _resolve_effective_visibility_level(
+            unit_visibility_level=candidate.visibility_level,
+            document_entitlement_groups=document_entitlement_groups,
         )
         chunks.append(
             IndexableChunk(
@@ -499,13 +820,10 @@ def build_indexable_chunks_from_jsonl(
                 chunk_order=chunk_order,
                 corpus=record.corpus,
                 collection=record.collection,
-                acl_groups=record.acl_groups,
-                campus_scope=record.campus_scope,
                 source_uri=record.source_uri,
                 canonical_url=record.source_uri,
                 latest_url=record.source_uri,
                 source_chunk_id=candidate.source_chunk_id,
-                acl_level=effective_visibility_level,
                 status=record.status,
                 anchor=candidate.anchor,
                 text=candidate.chunk_assembly.text,
@@ -513,8 +831,8 @@ def build_indexable_chunks_from_jsonl(
                 is_current=record.is_current,
                 parser_version=record.parser_version,
                 embedding_model=record.embedding_model,
-                entitlement_groups=record.entitlement_groups,
-                visibility_scope=record.visibility_scope,
+                entitlement_groups=document_entitlement_groups,
+                visibility_scope=document_visibility_scope,
                 visibility_level=effective_visibility_level,
                 policy_projection_version=record.policy_projection_version,
                 embedding=embedding,
@@ -563,7 +881,7 @@ def _build_chunk_candidates(
         resolved_chunk_profile = collection_chunk_strategy.resolve_unit_chunk_profile(
             record,
             chunk_profile,
-            unit.unit_type,
+            unit,
             use_collection_unit_profiles,
         )
         if collection_chunk_strategy.should_skip_unit(unit, table_roots_with_semantic_units):
@@ -583,7 +901,7 @@ def _build_chunk_candidates(
                     unit_type=piece.unit_type,
                     root_unit_id=piece.root_unit_id,
                     source_chunk_id=unit.source_chunk_id,
-                    acl_level=unit.acl_level,
+                    visibility_level=unit.visibility_level,
                     anchor=dict(unit.anchor),
                     metadata={
                         "strategy_name": resolved_chunk_profile.strategy_name,
@@ -796,7 +1114,7 @@ def _try_merge_curriculum_table_candidates(
 ) -> _ChunkCandidate | None:
     if current.unit_type != "table_unit" or incoming.unit_type != "table_unit":
         return None
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return None
     if not _curriculum_table_section_paths_are_compatible(current=current, incoming=incoming):
         return None
@@ -824,7 +1142,7 @@ def _try_merge_curriculum_table_candidates(
         unit_type=current.unit_type,
         root_unit_id=current.root_unit_id,
         source_chunk_id=current.source_chunk_id,
-        acl_level=current.acl_level,
+        visibility_level=current.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -869,7 +1187,7 @@ def _try_merge_curriculum_section_context_candidates(
         unit_type=base_candidate.unit_type,
         root_unit_id=base_candidate.root_unit_id,
         source_chunk_id=base_candidate.source_chunk_id,
-        acl_level=base_candidate.acl_level,
+        visibility_level=base_candidate.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -909,7 +1227,7 @@ def _curriculum_section_context_candidates_are_compatible(
         return False
     if incoming.unit_type not in {"section_text", "table_unit"}:
         return False
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return False
     current_path = _normalize_section_path(current.anchor)
     incoming_path = _normalize_section_path(incoming.anchor)
@@ -997,7 +1315,15 @@ def _try_merge_short_textual_candidates(
         return None
 
     members = (*current.members, *incoming.members)
-    aggregated_anchor = _build_aggregated_anchor(members)
+    aggregated_anchor = (
+        _build_institutional_regulation_aggregated_anchor(
+            current=current,
+            incoming=incoming,
+            members=members,
+        )
+        if current.unit_type == "institutional_regulation_block"
+        else _build_aggregated_anchor(members)
+    )
     aggregated_metadata = _build_aggregated_metadata(current=current, members=members)
     aggregated_display_text = _build_aggregated_display_text(members)
     chunk_assembly = assemble_chunk_text(
@@ -1012,7 +1338,7 @@ def _try_merge_short_textual_candidates(
         unit_type=current.unit_type,
         root_unit_id=current.root_unit_id,
         source_chunk_id=current.source_chunk_id,
-        acl_level=current.acl_level,
+        visibility_level=current.visibility_level,
         anchor=aggregated_anchor,
         metadata=aggregated_metadata,
         piece=SemanticChunkPiece(
@@ -1031,11 +1357,17 @@ def _short_textual_candidates_are_compatible(
 ) -> bool:
     if current.unit_type != incoming.unit_type:
         return False
-    if current.acl_level != incoming.acl_level:
+    if current.visibility_level != incoming.visibility_level:
         return False
     if current.unit_type == "policy_page" and _policy_page_label_shape_conflicts(current=current, incoming=incoming):
         return False
-    if not _short_textual_section_paths_are_compatible(current=current, incoming=incoming):
+    if current.unit_type == "institutional_regulation_block":
+        if not _institutional_regulation_block_section_paths_are_compatible(
+            current=current,
+            incoming=incoming,
+        ):
+            return False
+    elif not _short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
@@ -1113,8 +1445,26 @@ def _policy_page_section_paths_are_compatible(
     return current_parent == incoming_parent
 
 
+def _institutional_regulation_block_section_paths_are_compatible(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    if current_path == incoming_path:
+        return True
+    if not current_path or not incoming_path:
+        return False
+    if incoming_path[: len(current_path)] == current_path:
+        return True
+    if current_path[: len(incoming_path)] == incoming_path:
+        return True
+    return False
+
+
 def _is_short_textual_merge_eligible(candidate: _ChunkCandidate) -> bool:
-    if candidate.unit_type not in TEXTUAL_UNIT_TYPES:
+    if candidate.unit_type not in _SHORT_TEXTUAL_MERGE_UNIT_TYPES:
         return False
     if candidate.piece.split_reason is not None:
         return False
@@ -1224,6 +1574,29 @@ def _build_aggregated_anchor(members: Sequence[_ChunkMember]) -> dict[str, objec
         aggregated_anchor["provision_label"] = _collapse_label_range(provision_labels)
     else:
         aggregated_anchor.pop("provision_label", None)
+    return aggregated_anchor
+
+
+def _build_institutional_regulation_aggregated_anchor(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+    members: Sequence[_ChunkMember],
+) -> dict[str, object]:
+    aggregated_anchor = _build_aggregated_anchor(members)
+    current_path = _normalize_section_path(current.anchor)
+    incoming_path = _normalize_section_path(incoming.anchor)
+    resolved_path: tuple[str, ...] = ()
+    if current_path == incoming_path:
+        resolved_path = current_path
+    elif current_path and incoming_path and incoming_path[: len(current_path)] == current_path:
+        resolved_path = incoming_path if _institutional_regulation_candidate_is_heading_only(current) else current_path
+    elif current_path and incoming_path and current_path[: len(incoming_path)] == incoming_path:
+        resolved_path = current_path if _institutional_regulation_candidate_is_heading_only(incoming) else incoming_path
+    if resolved_path:
+        aggregated_anchor["section_path"] = list(resolved_path)
+    aggregated_anchor.pop("article_label", None)
+    aggregated_anchor.pop("provision_label", None)
     return aggregated_anchor
 
 
@@ -1409,6 +1782,18 @@ def _curriculum_candidate_is_heading_only(candidate: _ChunkCandidate) -> bool:
     if not lines:
         return False
     return len(_leading_curriculum_heading_lines(lines)) == len(lines)
+
+
+def _institutional_regulation_candidate_is_heading_only(candidate: _ChunkCandidate) -> bool:
+    if candidate.unit_type != "institutional_regulation_block":
+        return False
+    section_path = _normalize_section_path(candidate.anchor)
+    if not section_path:
+        return False
+    lines = [line.strip() for line in candidate.piece.text.splitlines() if line.strip()]
+    if len(lines) != 1:
+        return False
+    return lines[0] == section_path[-1]
 
 
 def _curriculum_candidate_is_title_only(candidate: _ChunkCandidate) -> bool:
@@ -1670,26 +2055,27 @@ def _normalize_anchor(value: object) -> dict[str, object]:
     return dict(value) if isinstance(value, dict) else {}
 
 
-def _normalize_acl_level(value: object) -> str:
-    if not isinstance(value, dict):
-        return "public"
-    allow_groups = value.get("allow_groups")
-    if isinstance(allow_groups, list) and any(isinstance(item, str) and item.strip() for item in allow_groups):
+def _resolve_structured_visibility_level(raw: dict[str, object]) -> str:
+    visibility_level = raw.get("visibility_level")
+    if isinstance(visibility_level, str) and visibility_level.strip():
+        return visibility_level.strip()
+    entitlement_groups = raw.get("entitlement_groups")
+    if isinstance(entitlement_groups, list) and any(
+        isinstance(item, str) and item.strip()
+        for item in entitlement_groups
+    ):
         return "restricted"
-    acl_level = value.get("level")
-    if not isinstance(acl_level, str) or not acl_level.strip():
-        return "public"
-    return acl_level.strip()
+    return "public"
 
 
-def _resolve_effective_acl_level(
+def _resolve_effective_visibility_level(
     *,
-    unit_acl_level: str,
-    document_acl_groups: tuple[str, ...],
+    unit_visibility_level: str,
+    document_entitlement_groups: tuple[str, ...],
 ) -> str:
-    if document_acl_groups and unit_acl_level == "public":
+    if document_entitlement_groups and unit_visibility_level == "public":
         return "restricted"
-    return unit_acl_level
+    return unit_visibility_level
 
 
 def _normalize_unit_type(value: object) -> str:
@@ -1780,13 +2166,13 @@ def _ensure_payload_indexes(*, qdrant_client: QdrantClient, collection_name: str
         ("version_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("corpus", qdrant_models.PayloadSchemaType.KEYWORD),
         ("collection", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_course_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_course_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("canonical_program_family_id", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_scope", qdrant_models.PayloadSchemaType.KEYWORD),
         ("entitlement_groups", qdrant_models.PayloadSchemaType.KEYWORD),
         ("visibility_level", qdrant_models.PayloadSchemaType.KEYWORD),
         ("policy_projection_version", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("campus_scope", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("acl_groups", qdrant_models.PayloadSchemaType.KEYWORD),
-        ("acl_level", qdrant_models.PayloadSchemaType.KEYWORD),
         ("status", qdrant_models.PayloadSchemaType.KEYWORD),
         ("source_channel", qdrant_models.PayloadSchemaType.KEYWORD),
         ("is_current", qdrant_models.PayloadSchemaType.BOOL),

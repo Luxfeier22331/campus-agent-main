@@ -1,0 +1,18 @@
+{
+  "corpus": "curriculum",
+  "collection": "program_semester_facts",
+  "chunk_profile_version": "curriculum_program_semester_facts_semantic_v1",
+  "structured_input": "document_units_jsonl",
+  "runtime_defaults": {
+    "strategy_name": "curriculum_program_semester_facts_generic_v1",
+    "chunk_size": 220,
+    "max_chunk_size": 320,
+    "chunk_overlap": 32,
+    "min_chunk_size": 32
+  },
+  "cleaning_policy_version": "curriculum_program_semester_facts_projection_v1",
+  "notes": [
+    "program_semester_facts is an internal curriculum serving surface for resolved program + semester course-list retrieval.",
+    "Projection rows are already answer-shaped and should stay aligned with ingestion-core projection truth."
+  ]
+}

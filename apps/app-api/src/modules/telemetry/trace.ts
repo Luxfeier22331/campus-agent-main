@@ -3,7 +3,7 @@ export interface TracePropagationHeaders {
   sentryTrace?: string | null;
 }
 
-interface TraceDataLike {
+export interface TraceDataLike {
   baggage?: unknown;
   "sentry-trace"?: unknown;
 }

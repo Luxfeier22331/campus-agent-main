@@ -347,7 +347,7 @@ def _evaluate_document(
                     unit_type=piece.unit_type,
                     root_unit_id=piece.root_unit_id,
                     source_chunk_id=unit.source_chunk_id,
-                    acl_level=unit.acl_level,
+                    visibility_level=unit.acl_level,
                     anchor=dict(unit.anchor),
                     metadata=dict(unit.metadata),
                     piece=piece,

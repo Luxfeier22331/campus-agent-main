@@ -4,13 +4,22 @@ export type {
   ChatConversationResponse,
   ChatConversationSummary,
   ChatConversationSummaryResponse,
+  ChatMessageStructuredPart,
+  ChatPlaceCard,
+  ChatPlaceCardStructuredPart,
+  ChatPlacePointGeometry,
   ChatMessage,
   ChatMessageRole,
+  ChatSessionSlot,
+  VendorChatHistoryItemResponse,
+  VendorChatHistoryPageResponse,
 } from "./model";
 export {
   DRAFT_CONVERSATION_TITLE,
+  normalizeChatStructuredParts,
   toConversationResponse,
   toConversationSummaryResponse,
+  toVendorChatHistoryItemResponse,
 } from "./model";
 export {
   buildChatConversationService,

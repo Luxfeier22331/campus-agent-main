@@ -1,3 +1,66 @@
 from campus_shared.constants import ANSWER_ROUTE, APP_NAME, HEALTH_ROUTE, READY_ROUTE
+from campus_shared.env_bootstrap import (
+    RepoEnvBootstrapState,
+    get_repo_env_bootstrap_state,
+    load_repo_env,
+    reset_repo_env_bootstrap_state,
+)
+from campus_shared.provider_config import ProviderConfigResolutionError, ResolvedProviderConfig, resolve_provider_config
+from campus_shared.provider_config import (
+    ResolvedEmbeddingProviderConfig,
+    ResolvedLLMProviderConfig,
+    resolve_embedding_provider_config,
+    resolve_llm_provider_config,
+)
+from campus_shared.prompt_runtime import (
+    DEFAULT_PROMPT_RUNTIME_BASE_URL,
+    NormalizedProviderGroundingSupport,
+    PromptRuntimeValidationError,
+    PromptRuntimeHTTPSettings,
+    PromptRuntimeProviderConfig,
+    REPO_GLOBAL_DEVELOPER_INVARIANTS_ID,
+    REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION,
+    ResponsesStructuredOutputExecutor,
+    build_prompt_trace,
+    classify_prompt_runtime_failure,
+    get_repo_global_developer_invariants_text,
+    normalize_provider_grounding_supports,
+    require_non_empty_output_text,
+    serialize_prompt_payload,
+    validate_prompt_packet_contract,
+    validate_prompt_trace_contract,
+)
 
-__all__ = ["ANSWER_ROUTE", "APP_NAME", "HEALTH_ROUTE", "READY_ROUTE"]
+__all__ = [
+    "ANSWER_ROUTE",
+    "APP_NAME",
+    "DEFAULT_PROMPT_RUNTIME_BASE_URL",
+    "HEALTH_ROUTE",
+    "NormalizedProviderGroundingSupport",
+    "READY_ROUTE",
+    "PromptRuntimeHTTPSettings",
+    "PromptRuntimeProviderConfig",
+    "ProviderConfigResolutionError",
+    "ResolvedEmbeddingProviderConfig",
+    "ResolvedLLMProviderConfig",
+    "RepoEnvBootstrapState",
+    "ResolvedProviderConfig",
+    "PromptRuntimeValidationError",
+    "REPO_GLOBAL_DEVELOPER_INVARIANTS_ID",
+    "REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION",
+    "ResponsesStructuredOutputExecutor",
+    "build_prompt_trace",
+    "classify_prompt_runtime_failure",
+    "get_repo_env_bootstrap_state",
+    "get_repo_global_developer_invariants_text",
+    "load_repo_env",
+    "normalize_provider_grounding_supports",
+    "require_non_empty_output_text",
+    "resolve_embedding_provider_config",
+    "resolve_llm_provider_config",
+    "resolve_provider_config",
+    "reset_repo_env_bootstrap_state",
+    "serialize_prompt_payload",
+    "validate_prompt_packet_contract",
+    "validate_prompt_trace_contract",
+]

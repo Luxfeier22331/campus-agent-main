@@ -1,0 +1,16 @@
+{
+  "corpus": "campus_notices",
+  "collection": "internal_notice",
+  "canonical_profile_version": "authenticated_notice_projection_v1",
+  "source_channel": "authenticated_notice_portal",
+  "primary_source_unit": "notice",
+  "raw_asset_id_strategy": "site_id_notice_id",
+  "raw_version_id_strategy": "title_body_categories_attachments_hash",
+  "primary_input": "notices_bundle_json",
+  "structured_source": "source_truth_blocks_jsonl",
+  "notes": [
+    "Document identity is projected from notice source truth, not from the temporary collector SQLite row.",
+    "The bootstrap bundle is an import seam only; long-term rebuild starts from capture/provider/source-truth artifacts.",
+    "Restricted authorization projection is applied during document import, not encoded into source truth."
+  ]
+}

@@ -1,31 +1,55 @@
-import { and, desc, eq, gt, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, lte, not, or } from "drizzle-orm";
 
+import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
-import { officialWebRunProjection, officialWebSiteProjection } from "../../db/schema";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
+import {
+  officialWebRunProjection,
+  officialWebSiteProjection,
+  pageFreshness,
+  pageObservations,
+} from "../../db/schema";
 import type {
+  OfficialWebFetchDisposition,
+  OfficialWebPageChangeStatus,
+  OfficialWebRunIntent,
+} from "../official-web-command";
+import type {
+  OfficialWebFreshnessPageRecord,
   NormalizedOfficialWebRunListFilters,
+  OfficialWebPageChangeRecord,
   OfficialWebQueryStore,
   OfficialWebRunRecord,
+  OfficialWebSiteFreshnessBacklog,
+  OfficialWebSiteFreshnessSummary,
   OfficialWebSiteRecord,
 } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 interface OfficialWebRunCursor {
   runId: string;
   startedAt: string;
 }
 
+const PAGE_CHANGE_STATUSES: OfficialWebPageChangeStatus[] = [
+  "new",
+  "changed",
+  "deleted",
+  "fetch_failed",
+];
+
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
 }
 
 function encodeCursor(input: OfficialWebRunCursor): string {
-  return Buffer.from(JSON.stringify(input), "utf8").toString("base64url");
+  return encodeBase64UrlJson(input);
 }
 
 function decodeCursor(cursor: string): OfficialWebRunCursor | null {
   try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as Partial<OfficialWebRunCursor>;
+    const parsed = decodeBase64UrlJson<Partial<OfficialWebRunCursor>>(cursor);
     if (
       typeof parsed.runId !== "string" ||
       !parsed.runId ||
@@ -54,9 +78,15 @@ function toRunRecord(row: typeof officialWebRunProjection.$inferSelect): Officia
     id: row.runId,
     ingestionDispatchRef: row.ingestionDispatchRef ?? null,
     ingestionDispatchStatus: row.ingestionDispatchStatus,
+    ingestionExecutionErrorCode: row.ingestionExecutionErrorCode ?? null,
+    ingestionExecutionErrorMessage: row.ingestionExecutionErrorMessage ?? null,
+    ingestionExecutionRef: row.ingestionExecutionRef ?? null,
+    ingestionExecutionStatus: row.ingestionExecutionStatus,
+    ingestionExecutionUpdatedAt: toIsoString(row.ingestionExecutionUpdatedAt),
     lastHeartbeatAt: toIsoString(row.lastHeartbeatAt),
     projectedAt: row.projectedAt.toISOString(),
     runId: row.runId,
+    runIntent: row.runIntent as OfficialWebRunIntent,
     siteId: row.siteId,
     startedAt: row.startedAt.toISOString(),
     status: row.status,
@@ -74,6 +104,9 @@ function toSiteRecord(row: typeof officialWebSiteProjection.$inferSelect): Offic
     latestCollectorVersion: row.latestCollectorVersion ?? null,
     latestConfigVersion: row.latestConfigVersion ?? null,
     latestIngestionDispatchStatus: row.latestIngestionDispatchStatus ?? null,
+    latestIngestionExecutionErrorCode: row.latestIngestionExecutionErrorCode ?? null,
+    latestIngestionExecutionStatus: row.latestIngestionExecutionStatus ?? null,
+    latestIngestionExecutionUpdatedAt: toIsoString(row.latestIngestionExecutionUpdatedAt),
     latestRunId: row.latestRunId ?? null,
     latestRunStatus: row.latestRunStatus ?? null,
     projectedAt: row.projectedAt.toISOString(),
@@ -81,10 +114,96 @@ function toSiteRecord(row: typeof officialWebSiteProjection.$inferSelect): Offic
   };
 }
 
-export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
+function toPageChangeRecord(row: typeof pageObservations.$inferSelect): OfficialWebPageChangeRecord {
+  return {
+    changeStatus: row.changeStatus as OfficialWebPageChangeStatus,
+    fetchDisposition: row.fetchDisposition as OfficialWebFetchDisposition,
+    host: row.host,
+    httpStatus: row.httpStatus ?? null,
+    id: row.observationId,
+    lastChangeReason: row.lastChangeReason,
+    normalizedCanonicalUrl: row.normalizedCanonicalUrl,
+    observedAt: row.observedAt.toISOString(),
+    pageFamily: row.pageFamily,
+    pageTitleNormalized: row.pageTitleNormalized,
+    rawAssetId: row.rawAssetId ?? null,
+    rawVersionId: row.rawVersionId ?? null,
+    runId: row.runId,
+  };
+}
+
+function toFreshnessPageRecord(
+  row: typeof pageFreshness.$inferSelect,
+): OfficialWebFreshnessPageRecord {
+  return {
+    cadenceClass: row.cadenceClass,
+    host: row.host,
+    lastChangeReason: row.lastChangeReason,
+    lastChangedAt: toIsoString(row.lastChangedAt),
+    lastFetchDisposition: row.lastFetchDisposition as OfficialWebFetchDisposition,
+    lastHttpStatus: row.lastHttpStatus ?? null,
+    lastSeenAt: row.lastSeenAt.toISOString(),
+    nextEligibleFetchAt: row.nextEligibleFetchAt.toISOString(),
+    normalizedCanonicalUrl: row.normalizedCanonicalUrl,
+    pageFamily: row.pageFamily,
+    pageTitleNormalized: row.pageTitleNormalized,
+    priorityScore: row.priorityScore,
+    siteId: row.siteId,
+  };
+}
+
+function buildFreshnessSummary(
+  rows: Array<typeof pageFreshness.$inferSelect>,
+  nowIso: string,
+): OfficialWebSiteFreshnessSummary {
+  const now = new Date(nowIso).valueOf();
+  const changedSince = now - 24 * 60 * 60 * 1000;
+  const summary: OfficialWebSiteFreshnessSummary = {
+    changedLast24h: 0,
+    deletedPages: 0,
+    duePages: 0,
+    failedFetchPages: 0,
+    hotPages: 0,
+    repairPages: 0,
+    totalPages: rows.length,
+  };
+
+  for (const row of rows) {
+    const isDeleted = row.lastFetchDisposition === "deleted";
+    if (!isDeleted && row.nextEligibleFetchAt.valueOf() <= now) {
+      summary.duePages += 1;
+    }
+    if (!isDeleted && (row.cadenceClass === "listing_hot" || row.cadenceClass === "detail_recent")) {
+      summary.hotPages += 1;
+    }
+    if (!isDeleted && (row.cadenceClass === "repair" || row.lastFetchDisposition === "fetch_failed")) {
+      summary.repairPages += 1;
+    }
+    if (row.lastFetchDisposition === "fetch_failed") {
+      summary.failedFetchPages += 1;
+    }
+    if (row.lastFetchDisposition === "deleted") {
+      summary.deletedPages += 1;
+    }
+    if (row.lastChangedAt && row.lastChangedAt.valueOf() >= changedSince) {
+      summary.changedLast24h += 1;
+    }
+  }
+
+  return summary;
+}
+
+export function createPgOfficialWebQueryStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): OfficialWebQueryStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async getRunById(runId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebRunProjection)
@@ -95,7 +214,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async getSiteById(siteId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebSiteProjection)
@@ -105,8 +224,128 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
       return rows[0] ? toSiteRecord(rows[0]) : null;
     },
 
+    async getSiteFreshnessSummary(input) {
+      const db = await getDb();
+      const rows = await db.select().from(pageFreshness).where(eq(pageFreshness.siteId, input.siteId));
+
+      return buildFreshnessSummary(rows, input.now);
+    },
+
+    async listSiteFreshnessBacklog(input) {
+      const db = await getDb();
+      const now = new Date(input.now);
+      const [dueRows, hotRows, failedRows, deletedRows] = await Promise.all([
+        db
+          .select()
+          .from(pageFreshness)
+          .where(
+            and(
+              eq(pageFreshness.siteId, input.siteId),
+              lte(pageFreshness.nextEligibleFetchAt, now),
+              not(eq(pageFreshness.lastFetchDisposition, "deleted")),
+            ),
+          )
+          .orderBy(
+            desc(pageFreshness.priorityScore),
+            asc(pageFreshness.nextEligibleFetchAt),
+            desc(pageFreshness.lastChangedAt),
+            asc(pageFreshness.normalizedCanonicalUrl),
+          )
+          .limit(input.limit),
+        db
+          .select()
+          .from(pageFreshness)
+          .where(
+            and(
+              eq(pageFreshness.siteId, input.siteId),
+              inArray(pageFreshness.cadenceClass, ["listing_hot", "detail_recent"]),
+              not(eq(pageFreshness.lastFetchDisposition, "deleted")),
+            ),
+          )
+          .orderBy(
+            desc(pageFreshness.priorityScore),
+            asc(pageFreshness.nextEligibleFetchAt),
+            desc(pageFreshness.lastChangedAt),
+            asc(pageFreshness.normalizedCanonicalUrl),
+          )
+          .limit(input.limit),
+        db
+          .select()
+          .from(pageFreshness)
+          .where(
+            and(
+              eq(pageFreshness.siteId, input.siteId),
+              eq(pageFreshness.lastFetchDisposition, "fetch_failed"),
+            ),
+          )
+          .orderBy(
+            asc(pageFreshness.nextEligibleFetchAt),
+            desc(pageFreshness.priorityScore),
+            desc(pageFreshness.lastSeenAt),
+            asc(pageFreshness.normalizedCanonicalUrl),
+          )
+          .limit(input.limit),
+        db
+          .select()
+          .from(pageFreshness)
+          .where(
+            and(
+              eq(pageFreshness.siteId, input.siteId),
+              eq(pageFreshness.lastFetchDisposition, "deleted"),
+            ),
+          )
+          .orderBy(
+            desc(pageFreshness.lastSeenAt),
+            desc(pageFreshness.priorityScore),
+            asc(pageFreshness.normalizedCanonicalUrl),
+          )
+          .limit(input.limit),
+      ]);
+
+      return {
+        deletedPages: deletedRows.map(toFreshnessPageRecord),
+        duePages: dueRows.map(toFreshnessPageRecord),
+        failedFetchPages: failedRows.map(toFreshnessPageRecord),
+        hotPages: hotRows.map(toFreshnessPageRecord),
+      } satisfies OfficialWebSiteFreshnessBacklog;
+    },
+
+    async listPageChangesByRunId(runId, limit) {
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(pageObservations)
+        .where(
+          and(
+            eq(pageObservations.runId, runId),
+            inArray(pageObservations.changeStatus, PAGE_CHANGE_STATUSES),
+          ),
+        )
+        .orderBy(desc(pageObservations.observedAt), desc(pageObservations.observationId))
+        .limit(limit);
+
+      return rows.map(toPageChangeRecord);
+    },
+
+    async listRecentPageChangesBySiteId(siteId, limit) {
+      const db = await getDb();
+      const rows = await db
+        .select()
+        .from(pageObservations)
+        .where(
+          and(
+            eq(pageObservations.siteId, siteId),
+            inArray(pageObservations.changeStatus, PAGE_CHANGE_STATUSES),
+          ),
+        )
+        .orderBy(desc(pageObservations.observedAt), desc(pageObservations.observationId))
+        .limit(limit);
+
+      return rows.map(toPageChangeRecord);
+    },
+
     async listRecentRunsBySiteId(siteId, limit) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebRunProjection)
@@ -118,7 +357,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async listRuns(filters) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const conditions = [];
 
       if (filters.siteId) {
@@ -131,6 +370,9 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
         conditions.push(
           eq(officialWebRunProjection.ingestionDispatchStatus, filters.ingestionDispatchStatus),
         );
+      }
+      if (filters.runIntent) {
+        conditions.push(eq(officialWebRunProjection.runIntent, filters.runIntent));
       }
       if (filters.startedAfter) {
         conditions.push(gt(officialWebRunProjection.startedAt, new Date(filters.startedAfter)));
@@ -178,7 +420,7 @@ export function createPgOfficialWebQueryStore(env: Env): OfficialWebQueryStore {
     },
 
     async listSites() {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(officialWebSiteProjection)

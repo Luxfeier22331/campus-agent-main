@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 import unicodedata
 from typing import Sequence
 
 from campus_contracts import EvidenceSource
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
+from campus_retrieval_core.curriculum_query_resolution import (
+    filter_curriculum_query_sources,
+    interpret_curriculum_query,
+    query_targets_curriculum_source_title,
+)
 
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ASCII_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+_TITLE_BRACKETED_SEGMENT_RE = re.compile(r"[（(][^（）()]+[）)]")
 _LOW_SIGNAL_CJK_TOKENS = frozenset(
     {
         "中央",
@@ -34,7 +41,18 @@ _LOW_SIGNAL_CJK_TOKENS = frozenset(
         "流程",
     }
 )
-_NEGATIVE_CONTENT_ROLES = frozenset({"appendix", "background", "closing_provision", "navigation"})
+_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
+_NEGATIVE_CONTENT_ROLES = frozenset(
+    {
+        "appendix",
+        "background",
+        "closing_provision",
+        "navigation",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+    }
+)
 _CONTENT_ROLE_PRIORITY = {
     "procedure": 40,
     "requirement": 32,
@@ -42,11 +60,16 @@ _CONTENT_ROLE_PRIORITY = {
     "time_rule": 32,
     "deadline": 30,
     "table_fact": 28,
+    "notice_fact": 26,
+    "reference_fact": 24,
     "scope_rule": 0,
     "definition": 0,
     "appendix": -20,
     "background": -24,
+    "media_caption": -28,
+    "source_attribution": -36,
     "closing_provision": -40,
+    "boilerplate": -48,
     "navigation": -32,
 }
 _CONTENT_KIND_PRIORITY = {
@@ -66,6 +89,7 @@ class _SourceRankingFeatures:
     source: EvidenceSource
     title_match_priority: int
     title_overlap_count: int
+    title_compactness: int
     detail_support_count: int
     content_support_count: int
     answer_bearing_bonus: int
@@ -78,6 +102,7 @@ class _DocumentRankingFeatures:
     doc_id: str
     title_match_priority: int
     title_overlap_count: int
+    title_compactness: int
     detail_support_count: int
     content_support_count: int
     answer_bearing_count: int
@@ -96,7 +121,7 @@ def prioritize_evidence_sources(
     if not query_key:
         return tuple(sources)
 
-    ranked = (
+    ranked = tuple(
         _build_ranking_features(
             query_text=query_text,
             normalized_query=normalized_query,
@@ -105,6 +130,7 @@ def prioritize_evidence_sources(
         )
         for source in sources
     )
+    ranked = _neutralize_title_compactness_for_ambiguous_title_fragment(query_key=query_key, features=ranked)
     return tuple(
         feature.source
         for feature in sorted(
@@ -124,22 +150,40 @@ def select_supporting_evidence_sources(
     if max_sources <= 0:
         return ()
 
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.curriculum_lookup_target == "course_map":
+        return ()
+
+    scoped_sources, scope_applied = filter_curriculum_query_sources(
+        query_text=query_text,
+        sources=sources,
+    )
+    if scope_applied:
+        if not scoped_sources:
+            return ()
+        sources = scoped_sources
+
     normalized_query = _normalize_text(query_text)
     query_key = _match_key(normalized_query)
     if not query_key:
         return tuple(sources[:max_sources])
 
+    raw_features = tuple(
+        _build_ranking_features(
+            query_text=query_text,
+            normalized_query=normalized_query,
+            query_key=query_key,
+            source=source,
+        )
+        for source in sources
+    )
+    normalized_features = _neutralize_title_compactness_for_ambiguous_title_fragment(
+        query_key=query_key,
+        features=raw_features,
+    )
     ranked_features = tuple(
         sorted(
-            (
-                _build_ranking_features(
-                    query_text=query_text,
-                    normalized_query=normalized_query,
-                    query_key=query_key,
-                    source=source,
-                )
-                for source in sources
-            ),
+            normalized_features,
             key=_source_sort_key,
             reverse=True,
         )
@@ -159,6 +203,14 @@ def select_supporting_evidence_sources(
         if ranked_documents and _query_targets_document(query_key=query_key, feature=ranked_documents[0])
         else ""
     )
+    curriculum_lookup_selected = _select_curriculum_lookup_support_sources(
+        query_text=query_text,
+        ranked_features=ranked_features,
+        locked_doc_id=locked_doc_id,
+        max_sources=max_sources,
+    )
+    if curriculum_lookup_selected:
+        return curriculum_lookup_selected
 
     primary: list[EvidenceSource] = []
     secondary: list[EvidenceSource] = []
@@ -202,11 +254,60 @@ def select_supporting_evidence_sources(
     return (fallback_source,)
 
 
+def _select_curriculum_lookup_support_sources(
+    *,
+    query_text: str,
+    ranked_features: Sequence[_SourceRankingFeatures],
+    locked_doc_id: str,
+    max_sources: int,
+) -> tuple[EvidenceSource, ...]:
+    if max_sources <= 0:
+        return ()
+    interpretation = interpret_curriculum_query(query_text)
+    if (
+        interpretation.intent_kind != "curriculum_lookup"
+        or interpretation.curriculum_lookup_target == "course_map"
+    ):
+        return ()
+    eligible_features = tuple(
+        feature
+        for feature in ranked_features
+        if not locked_doc_id or feature.source.doc_id == locked_doc_id
+    )
+    if not eligible_features:
+        return ()
+
+    distinct_sections: dict[str, _SourceRankingFeatures] = {}
+    for feature in eligible_features:
+        distinct_sections.setdefault(_curriculum_support_section_key(feature.source), feature)
+
+    selected_features = sorted(
+        distinct_sections.values(),
+        key=lambda feature: _curriculum_lookup_section_sort_key(
+            query_text=query_text,
+            feature=feature,
+        ),
+    )
+    selected_chunk_ids = {feature.source.chunk_id for feature in selected_features}
+    remaining_features = tuple(
+        feature
+        for feature in eligible_features
+        if feature.source.chunk_id not in selected_chunk_ids
+    )
+    ordered_features = tuple((*selected_features, *remaining_features))
+    return tuple(feature.source for feature in ordered_features[:max_sources])
+
+
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:
+    if query_targets_curriculum_source_title(query_text=query_text, source=source):
+        return True
     normalized_query = _normalize_text(query_text)
     query_key = _match_key(normalized_query)
     if not query_key:
         return False
+    explicit_title_key = _match_key(source.source_title)
+    if _is_official_web_short_title_match(query_key=query_key, source=source, explicit_title_key=explicit_title_key):
+        return True
     title_keys = _source_title_keys(source)
     title_match_priority = _title_match_priority(query_key=query_key, title_keys=title_keys)
     title_overlap_count = max(
@@ -220,7 +321,36 @@ def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bo
         ),
         default=0,
     )
-    return title_match_priority >= 2 or (_is_short_semantic_query(query_key) and title_overlap_count >= 2)
+    semantic_title_coverage = max(
+        (_semantic_title_coverage(query_key=query_key, title_key=title_key) for title_key in title_keys),
+        default=0.0,
+    )
+    return (
+        title_match_priority >= 2
+        or (_is_short_semantic_query(query_key) and title_overlap_count >= 2)
+        or (title_overlap_count >= 8 and semantic_title_coverage >= 0.6)
+    )
+
+
+def _is_official_web_short_title_match(
+    *,
+    query_key: str,
+    source: EvidenceSource,
+    explicit_title_key: str,
+) -> bool:
+    if (
+        source.source_channel != "official_web"
+        or not is_official_web_stable_reference_like_collection(source.collection)
+    ):
+        return False
+    if len(explicit_title_key) < 2 or len(explicit_title_key) > 3:
+        return False
+    if query_key == explicit_title_key:
+        return True
+    if not query_key.endswith(explicit_title_key):
+        return False
+    prefix = query_key[: -len(explicit_title_key)]
+    return prefix in {"", "中央民族大学"}
 
 
 def _build_ranking_features(
@@ -251,6 +381,7 @@ def _build_ranking_features(
         source=source,
         title_match_priority=title_match_priority,
         title_overlap_count=title_overlap_count,
+        title_compactness=_title_compactness(query_key=query_key, title_keys=title_keys),
         detail_support_count=detail_support_count,
         content_support_count=content_support_count,
         answer_bearing_bonus=1 if source.is_answer_bearing else 0,
@@ -288,6 +419,7 @@ def _build_document_ranking_features(
             doc_id=doc_id,
             title_match_priority=max(item.title_match_priority for item in doc_features),
             title_overlap_count=max(item.title_overlap_count for item in doc_features),
+            title_compactness=max(item.title_compactness for item in doc_features),
             detail_support_count=max(item.detail_support_count for item in doc_features),
             content_support_count=max(item.content_support_count for item in doc_features),
             answer_bearing_count=sum(item.answer_bearing_bonus for item in doc_features),
@@ -303,10 +435,11 @@ def _query_targets_document(*, query_key: str, feature: _DocumentRankingFeatures
     return feature.title_match_priority >= 2 or (_is_short_semantic_query(query_key) and feature.title_overlap_count >= 2)
 
 
-def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
+        feature.title_compactness,
         1 if feature.content_role_priority >= 0 else 0,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_bonus,
@@ -316,16 +449,74 @@ def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, in
     )
 
 
-def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, float]:
+def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
+        feature.title_compactness,
         feature.content_role_priority,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_count,
         feature.content_kind_priority,
         feature.best_score,
     )
+
+
+def _curriculum_lookup_section_sort_key(
+    *,
+    query_text: str,
+    feature: _SourceRankingFeatures,
+) -> tuple[int, int, float]:
+    focus_priority = 0 if _curriculum_lookup_source_matches_query(query_text=query_text, source=feature.source) else 1
+    return (
+        focus_priority,
+        _source_chunk_ordinal(feature.source),
+        -feature.source.score,
+    )
+
+
+def _curriculum_lookup_source_matches_query(*, query_text: str, source: EvidenceSource) -> bool:
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.curriculum_lookup_target == "course_settings":
+        query_terms = (_normalize_text("课程设置"),)
+    elif interpretation.curriculum_lookup_target == "study_advice":
+        query_terms = (_normalize_text("修读建议"),)
+    else:
+        return False
+    normalized_query = _normalize_text(query_text)
+    normalized_section = _normalize_text(_curriculum_support_section_text(source))
+    return any(
+        term in normalized_query and term in normalized_section
+        for term in query_terms
+    )
+
+
+def _curriculum_support_section_key(source: EvidenceSource) -> str:
+    for part in reversed(source.structural_path):
+        normalized = part.strip()
+        if normalized:
+            return normalized
+    if source.detail_label.strip():
+        return source.detail_label.strip()
+    return source.chunk_id
+
+
+def _curriculum_support_section_text(source: EvidenceSource) -> str:
+    return " ".join(
+        part
+        for part in (
+            *source.structural_path,
+            source.detail_label,
+        )
+        if part.strip()
+    )
+
+
+def _source_chunk_ordinal(source: EvidenceSource) -> int:
+    match = re.search(r"chunk-(\d+)", source.chunk_id)
+    if match is None:
+        return 1_000_000
+    return int(match.group(1))
 
 
 def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:
@@ -339,26 +530,51 @@ def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:
 
 
 def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
-    candidates: list[str] = []
+    base_candidates: list[str] = []
     explicit_title = source.source_title.strip()
     if explicit_title:
-        candidates.append(explicit_title)
+        base_candidates.append(explicit_title)
 
     doc_label = source.doc_id.split(":", 1)[-1].strip()
     if _looks_like_title(doc_label):
-        candidates.append(doc_label)
+        base_candidates.append(doc_label)
 
     for path_item in source.structural_path[:1]:
+        if not _should_include_structural_root_as_title_candidate(
+            source=source,
+            explicit_title=explicit_title,
+            path_item=path_item,
+        ):
+            continue
         if _looks_like_title(path_item):
-            candidates.append(path_item)
+            base_candidates.append(path_item)
 
     snippet = _normalize_text(source.snippet)
     for separator in ("\n", " / "):
         if separator in snippet:
             prefix = snippet.split(separator, 1)[0].strip()
             if _looks_like_title(prefix):
-                candidates.append(prefix)
+                base_candidates.append(prefix)
+
+    candidates: list[str] = []
+    for candidate in base_candidates:
+        candidates.extend(_title_variants(candidate))
     return tuple(dict.fromkeys(candidates))
+
+
+def _should_include_structural_root_as_title_candidate(
+    *,
+    source: EvidenceSource,
+    explicit_title: str,
+    path_item: str,
+) -> bool:
+    if (
+        source.source_channel == "official_web"
+        and is_official_web_stable_reference_like_collection(source.collection)
+        and explicit_title
+    ):
+        return _match_key(explicit_title) == _match_key(path_item)
+    return True
 
 
 def _source_detail_text(source: EvidenceSource) -> str:
@@ -394,6 +610,38 @@ def _focused_query_key(*, query_key: str, title_keys: Sequence[str]) -> str:
     return query_key
 
 
+def _title_compactness(*, query_key: str, title_keys: Sequence[str]) -> int:
+    if not _is_short_title_fragment_query(query_key):
+        return 0
+    extra_chars = min(
+        (len(title_key) - len(query_key) for title_key in title_keys if title_key and query_key and query_key in title_key),
+        default=None,
+    )
+    if extra_chars is None:
+        return 0
+    return -max(extra_chars, 0)
+
+
+def _neutralize_title_compactness_for_ambiguous_title_fragment(
+    *,
+    query_key: str,
+    features: tuple[_SourceRankingFeatures, ...],
+) -> tuple[_SourceRankingFeatures, ...]:
+    if not _is_short_title_fragment_query(query_key):
+        return features
+    if len({feature.source.doc_id for feature in features if feature.title_match_priority >= 2}) < 2:
+        return features
+    return tuple(replace(feature, title_compactness=0) for feature in features)
+
+
+def _semantic_title_coverage(*, query_key: str, title_key: str) -> float:
+    query_tokens = _semantic_query_tokens(query_key)
+    if not query_tokens or not title_key:
+        return 0.0
+    matched_tokens = sum(1 for token in query_tokens if token in title_key)
+    return matched_tokens / len(query_tokens)
+
+
 def _query_lexical_support_count(
     *,
     normalized_query: str,
@@ -427,6 +675,32 @@ def _looks_like_title(text: str) -> bool:
     if any(_is_cjk_char(char) for char in normalized):
         return True
     return len(normalized.split()) >= 3
+
+
+def _title_variants(text: str) -> tuple[str, ...]:
+    normalized_text = _normalize_text(text)
+    if not normalized_text:
+        return ()
+    without_bracketed_segment = _normalize_text(_TITLE_BRACKETED_SEGMENT_RE.sub("", normalized_text))
+    return tuple(
+        dict.fromkeys(
+            candidate
+            for candidate in (normalized_text, without_bracketed_segment)
+            if candidate and _looks_like_title(candidate)
+        )
+    )
+
+
+def _semantic_query_tokens(query_key: str) -> tuple[str, ...]:
+    tokens: list[str] = []
+    for segment in _cjk_segments(query_key):
+        for token_size in (3, 2):
+            tokens.extend(
+                token
+                for token in _cjk_tokens(segment, token_size=token_size)
+                if token not in _LOW_SIGNAL_CJK_TOKENS and token not in _QUERY_ASK_CUES
+            )
+    return tuple(dict.fromkeys(tokens))
 
 
 def _normalize_text(text: str) -> str:
@@ -475,6 +749,15 @@ def _is_cjk_char(char: str) -> bool:
 
 def _is_short_semantic_query(query_key: str) -> bool:
     return sum(len(segment) for segment in _cjk_segments(query_key)) <= 10
+
+
+def _is_short_title_fragment_query(query_key: str) -> bool:
+    if not _is_short_semantic_query(query_key):
+        return False
+    cjk_length = sum(len(segment) for segment in _cjk_segments(query_key))
+    if cjk_length == 0 or cjk_length > 6:
+        return False
+    return not any(cue in query_key for cue in _QUERY_ASK_CUES)
 
 
 __all__ = [

@@ -51,7 +51,6 @@ def readyz(settings: ProtectedPanelSettings) -> HttpResponse:
         json_body={
             "status": "ready",
             "runtime_api_base_url": settings.runtime_api_base_url,
-            "protected_hostname": settings.protected_hostname,
             "protection_envelope": settings.protection_envelope,
         },
     )
@@ -71,6 +70,5 @@ def fail_closed_root(settings: ProtectedPanelSettings) -> HttpResponse:
                 )
             ),
             "runtime_api_base_url": settings.runtime_api_base_url,
-            "protected_hostname": settings.protected_hostname,
         },
     )

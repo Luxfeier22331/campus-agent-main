@@ -69,6 +69,14 @@ export function errorEnvelope(input: {
 }
 
 export function routeErrorResponse(error: AppApiRouteError): Response {
+  const headers: Record<string, string> = {};
+  if (error.requestId) {
+    headers["x-request-id"] = error.requestId;
+  }
+  if (error.traceId) {
+    headers["x-trace-id"] = error.traceId;
+  }
+
   return jsonResponse(
     errorEnvelope({
       code: error.code,
@@ -78,6 +86,6 @@ export function routeErrorResponse(error: AppApiRouteError): Response {
       retryable: error.retryable,
       traceId: error.traceId,
     }),
-    { status: error.status },
+    { headers, status: error.status },
   );
 }

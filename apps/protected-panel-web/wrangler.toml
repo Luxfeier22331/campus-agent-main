@@ -5,13 +5,28 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 preview_urls = false
 
-routes = [
-  { pattern = "panel.example.com/*", zone_name = "example.com" }
-]
+[secrets]
+required = ["PANEL_APP_API_SHARED_SECRET"]
 
 [[services]]
 binding = "APP_API"
 service = "app-api"
+
+[env.staging.vars]
+PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
+PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"
+SENTRY_ENVIRONMENT = "staging"
+
+[env.staging.secrets]
+required = ["PANEL_APP_API_SHARED_SECRET", "SENTRY_DSN"]
+
+[[env.staging.routes]]
+pattern = "campus-panel-staging.ayafeed.com"
+custom_domain = true
+
+[[env.staging.services]]
+binding = "APP_API"
+service = "app-api-staging"
 
 [assets]
 directory = "./dist"

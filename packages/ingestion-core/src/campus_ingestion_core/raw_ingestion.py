@@ -61,7 +61,10 @@ DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS = 300
 DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION = "paddleocr-vl-1.5"
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
 ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
+ONLINE_OCR_PROVIDER_ASYNC_JOBS = "paddleocr_async_jobs"
+ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE = "paddleocr_vl_service"
 DEFAULT_ONLINE_OCR_PROVIDER = "paddleocr_async"
+NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC = "paddleocr_async"
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
 
 
@@ -96,6 +99,7 @@ class OnlineOcrSettings:
     base_url: str
     api_key: str
     model: str = DEFAULT_ONLINE_OCR_MODEL
+    provider: str = DEFAULT_ONLINE_OCR_PROVIDER
     poll_seconds: int = DEFAULT_ONLINE_OCR_POLL_SECONDS
     timeout_seconds: int = DEFAULT_ONLINE_OCR_TIMEOUT_SECONDS
 
@@ -116,6 +120,7 @@ class OnlineOcrSettings:
         if not base_url or not api_key:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
         model = (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip() or DEFAULT_ONLINE_OCR_MODEL
+        provider = (source.get("OCR_PROVIDER_MODE") or DEFAULT_ONLINE_OCR_PROVIDER).strip() or DEFAULT_ONLINE_OCR_PROVIDER
         poll_seconds = max(1, int((source.get("OCR_POLL_SECONDS") or str(DEFAULT_ONLINE_OCR_POLL_SECONDS)).strip()))
         timeout_seconds = max(
             poll_seconds,
@@ -125,6 +130,7 @@ class OnlineOcrSettings:
             base_url=base_url,
             api_key=api_key,
             model=model,
+            provider=provider,
             poll_seconds=poll_seconds,
             timeout_seconds=timeout_seconds,
         )
@@ -132,6 +138,7 @@ class OnlineOcrSettings:
 
 class OnlineOcrClient(Protocol):
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult: ...
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult: ...
 
 
 class ObjectStoreReader(Protocol):
@@ -143,6 +150,9 @@ class PaddleOcrAsyncClient:
         self._settings = settings
 
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        return self.parse_file(pdf_path)
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
         try:
             import requests
         except ImportError as exc:  # pragma: no cover
@@ -159,7 +169,7 @@ class PaddleOcrAsyncClient:
                 }
             ),
         }
-        with pdf_path.open("rb") as file_obj:
+        with file_path.open("rb") as file_obj:
             response = requests.post(
                 self._settings.base_url,
                 headers=headers,
@@ -191,6 +201,19 @@ class PaddleOcrAsyncClient:
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"online OCR job {job_id} did not finish before timeout")
             time.sleep(self._settings.poll_seconds)
+
+
+def build_online_ocr_client(settings: OnlineOcrSettings) -> OnlineOcrClient:
+    return PaddleOcrAsyncClient(settings)
+
+
+def normalize_online_ocr_provider_label(provider: str) -> str:
+    normalized = str(provider or "").strip().lower()
+    if normalized in {"", NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC, ONLINE_OCR_PROVIDER_ASYNC_JOBS}:
+        return NORMALIZED_ONLINE_OCR_PROVIDER_ASYNC
+    if normalized == ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE:
+        return ONLINE_OCR_PROVIDER_LAYOUT_PARSING_SERVICE
+    return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -668,10 +691,12 @@ def _build_split_manifest_document_input(
     structured_rows: list[dict[str, object]],
     provider_response_key: str,
     layout_elements_key: str,
-    default_campus_scope: str | None,
     corpus: str,
     collection: str,
+    default_campus_scope: str | None = None,
+    default_visibility_scope: str | None = None,
 ) -> DocumentImportInput:
+    resolved_default_scope = default_campus_scope or default_visibility_scope
     version_id = _build_split_version_id(
         raw_version_id=raw_asset_record.raw_version_id,
         manifest_version=manifest_version,
@@ -695,7 +720,7 @@ def _build_split_manifest_document_input(
     document_units_bytes = _serialize_rows(split_rows)
     metadata = load_metadata_from_bytes(document_units_bytes)
     metadata["title"] = manifest_document.title
-    metadata["campus_scope"] = manifest_document.campus_scope or default_campus_scope
+    metadata["campus_scope"] = manifest_document.campus_scope or resolved_default_scope
     metadata["status"] = manifest_document.status
     return DocumentImportInput(
         source_label=f"{raw_asset_record.object_key}#{manifest_document.document_id}",
@@ -709,7 +734,7 @@ def _build_split_manifest_document_input(
         is_current=True,
         corpus=corpus,
         collection=collection,
-        campus_scope=manifest_document.campus_scope or default_campus_scope,
+        campus_scope=manifest_document.campus_scope or resolved_default_scope,
         status=manifest_document.status,
         raw_path=None,
         raw_source_uri=raw_asset_record.raw_source_uri,

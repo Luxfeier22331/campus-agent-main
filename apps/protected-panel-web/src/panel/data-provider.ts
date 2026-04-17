@@ -19,6 +19,7 @@ import {
 
 import { fetchJson } from "./http";
 import {
+  normalizeOfficialWebRunDetailRecord,
   normalizeOfficialWebRunRecord,
   normalizeOfficialWebSiteDetailRecord,
   normalizeOfficialWebSiteRecord,
@@ -34,11 +35,17 @@ import {
   type RawPanelOverviewResponse,
   type RawRequestDetailResponse,
   type RawRequestListResponse,
+  type RawRequestObservabilityRecord,
   type RequestProjectionRecord,
+  type RequestObservabilityRecord,
 } from "./types";
 
 export interface ProtectedPanelDataProvider extends DataProvider {
   getOverview(input?: { signal?: AbortSignal }): Promise<{ data: PanelOverviewRecord }>;
+  getRequestObservability(input: {
+    requestId: Identifier;
+    signal?: AbortSignal;
+  }): Promise<{ data: RequestObservabilityRecord }>;
 }
 
 const requestPageCursors = new Map<string, Map<number, string | null>>();
@@ -92,11 +99,15 @@ function pruneCursorHistory(history: Map<number, string | null>, currentPage: nu
 }
 
 function appendRequestFilters(query: URLSearchParams, filter: GetListParams["filter"]) {
+  const q = normalizeFilterValue(filter?.q);
   const requestId = normalizeFilterValue(filter?.requestId);
   const conversationId = normalizeFilterValue(filter?.conversationId);
   const status = normalizeFilterValue(filter?.status);
   const surface = normalizeFilterValue(filter?.surface);
 
+  if (q) {
+    query.set("q", q);
+  }
   if (requestId) {
     query.set("requestId", requestId);
   }
@@ -169,6 +180,7 @@ function appendOfficialWebRunFilters(query: URLSearchParams, filter: GetListPara
   const siteId = normalizeFilterValue(filter?.siteId);
   const status = normalizeFilterValue(filter?.status);
   const ingestionDispatchStatus = normalizeFilterValue(filter?.ingestionDispatchStatus);
+  const runIntent = normalizeFilterValue(filter?.runIntent);
 
   if (siteId) {
     query.set("siteId", siteId);
@@ -178,6 +190,9 @@ function appendOfficialWebRunFilters(query: URLSearchParams, filter: GetListPara
   }
   if (ingestionDispatchStatus) {
     query.set("ingestionDispatchStatus", ingestionDispatchStatus);
+  }
+  if (runIntent) {
+    query.set("runIntent", runIntent);
   }
 }
 
@@ -251,7 +266,7 @@ async function getOfficialWebRunDetail(
   });
 
   return {
-    data: normalizeOfficialWebRunRecord(payload.run),
+    data: normalizeOfficialWebRunDetailRecord(payload),
   };
 }
 
@@ -300,6 +315,22 @@ async function getRequestDetail(
 
   return {
     data: normalizeRequestRecord(payload.request),
+  };
+}
+
+async function getRequestObservabilityDetail(
+  requestId: Identifier,
+  signal?: AbortSignal,
+): Promise<{ data: RequestObservabilityRecord }> {
+  const payload = await fetchJson<RawRequestObservabilityRecord>(
+    `/api/requests/${requestId}/observability`,
+    {
+      signal,
+    },
+  );
+
+  return {
+    data: payload,
   };
 }
 
@@ -390,6 +421,9 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
     return {
       data: normalizeOverviewRecord(payload),
     };
+  },
+  async getRequestObservability(input) {
+    return getRequestObservabilityDetail(input.requestId, input.signal);
   },
   async update(resource, _params?: UpdateParams) {
     unsupportedMethod(resource, "update");

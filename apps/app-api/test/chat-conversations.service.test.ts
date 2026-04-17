@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildChatConversationService,
   DRAFT_CONVERSATION_TITLE,
+  type ChatConversationService,
   type ChatConversationStore,
 } from "../src/modules/chat";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -12,44 +13,59 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 function createPrincipal(
   input: Partial<ResolvedAppPrincipal> = {},
 ): ResolvedAppPrincipal {
+  const principalType = input.principal?.type ?? input.actor?.principalType ?? "campus_member";
+  const defaultRoles =
+    principalType === "student" ||
+    principalType === "staff" ||
+    principalType === "faculty"
+      ? ["campus_member", principalType]
+      : [principalType];
   return {
     actor: {
-      campusScope: "main",
       departments: [],
-      groups: ["students"],
       principalId: "user_01HQ",
-      roles: ["student"],
+      principalType,
+      roles: defaultRoles,
       userId: "user_01HQ",
+      ...input.actor,
     },
     permissions: {
       chat: true,
       operator: false,
+      ...input.permissions,
     },
     principal: {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user",
+      type: principalType,
+      ...input.principal,
     },
-    session: {
-      expiresAt: "2026-03-29T07:00:00.000Z",
-      sessionId: "sess_01HQ",
-    },
-    ...input,
+    authorization: input.authorization,
+    session: input.session === undefined
+      ? {
+          expiresAt: "2026-03-29T07:00:00.000Z",
+          sessionId: "sess_01HQ",
+        }
+      : input.session,
   };
 }
 
 function createStore(): ChatConversationStore {
   return {
     createConversationDraft: vi.fn(),
+    deleteConversationByOwner: vi.fn(),
+    deleteConversationsByOwner: vi.fn(),
+    deleteTrailingMessagesFromMessageByOwner: vi.fn(),
     getConversationByOwner: vi.fn(),
     getConversationDetailByOwner: vi.fn(),
+    listConversationSummariesPageByOwner: vi.fn(),
     listConversationSummariesByOwner: vi.fn(),
-  };
+  } as ChatConversationStore;
 }
 
 describe("chat conversation service", () => {
-  it("lists chat conversation summaries for public users only", async () => {
+  it("lists chat conversation summaries for chat-enabled campus principals only", async () => {
     const store = createStore();
     store.listConversationSummariesByOwner = vi.fn().mockResolvedValue([
       {
@@ -166,6 +182,48 @@ describe("chat conversation service", () => {
       }),
     ).rejects.toMatchObject({
       code: "conversation_not_found",
+      status: 404,
+    });
+  });
+
+  it("deletes trailing messages from the selected owned message and hides missing message targets behind 404", async () => {
+    const store = createStore() as ChatConversationStore & {
+      deleteTrailingMessagesFromMessageByOwner: ReturnType<typeof vi.fn>;
+    };
+    store.deleteTrailingMessagesFromMessageByOwner = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+    const service = buildChatConversationService({ store }) as ChatConversationService & {
+      deleteTrailingMessages: (input: {
+        conversationId: string;
+        messageId: string;
+        principal: ResolvedAppPrincipal;
+      }) => Promise<{ deleted: true }>;
+    };
+
+    await expect(
+      service.deleteTrailingMessages({
+        conversationId: "conv_01HQ",
+        messageId: "msg_01HQ",
+        principal: createPrincipal(),
+      }),
+    ).resolves.toEqual({ deleted: true });
+    expect(store.deleteTrailingMessagesFromMessageByOwner).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      messageId: "msg_01HQ",
+      ownerUserId: "user_01HQ",
+      updatedAt: expect.any(String),
+    });
+
+    await expect(
+      service.deleteTrailingMessages({
+        conversationId: "conv_01HQ",
+        messageId: "msg_missing",
+        principal: createPrincipal(),
+      }),
+    ).rejects.toMatchObject({
+      code: "message_not_found",
       status: 404,
     });
   });

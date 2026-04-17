@@ -126,6 +126,27 @@ def publish_release_alias(
     return previous_collection_name
 
 
+def unpublish_release_alias(
+    *,
+    qdrant_client: QdrantClient,
+    binding: QdrantIndexBinding,
+) -> str | None:
+    previous_collection_name = resolve_alias_target(
+        qdrant_client=qdrant_client,
+        alias_name=binding.alias_name,
+    )
+    if previous_collection_name is None:
+        return None
+    qdrant_client.update_collection_aliases(
+        [
+            qdrant_models.DeleteAliasOperation(
+                delete_alias=qdrant_models.DeleteAlias(alias_name=binding.alias_name)
+            )
+        ]
+    )
+    return previous_collection_name
+
+
 def rollback_release_alias(
     *,
     qdrant_client: QdrantClient,
