@@ -27,9 +27,15 @@ function createStoredRun(
     ingestionDispatchRef: null,
     ingestionDispatchStatus: "pending",
     ingestionDispatchedAt: null,
+    ingestionExecutionErrorCode: null,
+    ingestionExecutionErrorMessage: null,
+    ingestionExecutionRef: null,
+    ingestionExecutionStatus: "pending",
+    ingestionExecutionUpdatedAt: null,
     lastHeartbeatAt: null,
     latestHeartbeatSequence: 0,
     runId: "owrun_01HQ",
+    runIntent: "baseline",
     schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
     seedSet: ["https://www.muc.edu.cn/"],
     siteId: "www_muc_edu_cn",
@@ -54,6 +60,7 @@ describe("official web command service", () => {
       finalizeRun: vi.fn(),
       getRunById: vi.fn(),
       getRunBySchedulerKey: vi.fn().mockResolvedValue(null),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       generateId: vi
@@ -71,6 +78,7 @@ describe("official web command service", () => {
         configVersion: "git:abc1234",
         crawlPolicyVersion: "2026-03-29",
         hostSet: ["www.muc.edu.cn"],
+        runIntent: "baseline",
         schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
         seedSet: ["https://www.muc.edu.cn/"],
         siteId: "www_muc_edu_cn",
@@ -113,6 +121,7 @@ describe("official web command service", () => {
       finalizeRun: vi.fn(),
       getRunById: vi.fn(),
       getRunBySchedulerKey: vi.fn().mockResolvedValue(createStoredRun()),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       computeStartFingerprint: () => "start-fingerprint",
@@ -127,6 +136,7 @@ describe("official web command service", () => {
         configVersion: "git:abc1234",
         crawlPolicyVersion: "2026-03-29",
         hostSet: ["www.muc.edu.cn"],
+        runIntent: "baseline",
         schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
         seedSet: ["https://www.muc.edu.cn/"],
         siteId: "www_muc_edu_cn",
@@ -147,6 +157,7 @@ describe("official web command service", () => {
       finalizeRun: vi.fn(),
       getRunById: vi.fn(),
       getRunBySchedulerKey: vi.fn().mockResolvedValue(createStoredRun()),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       computeStartFingerprint: () => "different-fingerprint",
@@ -160,8 +171,9 @@ describe("official web command service", () => {
           collectorVersion: "official-web-collector@0.1.0",
           configVersion: "git:changed",
           crawlPolicyVersion: "2026-03-29",
-          hostSet: ["www.muc.edu.cn"],
-          schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
+        hostSet: ["www.muc.edu.cn"],
+        runIntent: "baseline",
+        schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
           seedSet: ["https://www.muc.edu.cn/"],
           siteId: "www_muc_edu_cn",
           startedAt: "2026-03-29T08:00:01.000Z",
@@ -195,6 +207,7 @@ describe("official web command service", () => {
       finalizeRun: vi.fn(),
       getRunById: vi.fn().mockResolvedValue(createStoredRun()),
       getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       generateId: vi.fn().mockReturnValue("owhb_01HQ"),
@@ -252,6 +265,7 @@ describe("official web command service", () => {
         }),
       ),
       getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       now: () => new Date("2026-03-29T08:05:00.000Z"),
@@ -305,6 +319,7 @@ describe("official web command service", () => {
         }),
       ),
       getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       computeFinalizeFingerprint: () => "finalize-fingerprint",
@@ -330,6 +345,28 @@ describe("official web command service", () => {
           },
         ],
         finishedAt: "2026-03-29T08:17:32.000Z",
+        pageObservations: [
+          {
+            contentType: "text/html",
+            discoveredFromUrl: null,
+            discoveryMethod: "seed",
+            disposition: "fetched",
+            etag: "etag-1",
+            finalUrl: "https://www.muc.edu.cn/admissions",
+            host: "www.muc.edu.cn",
+            httpStatus: 200,
+            lastModified: "Sat, 29 Mar 2026 08:00:00 GMT",
+            mainContentHash: "main-1",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+            observedAt: "2026-03-29T08:17:32.000Z",
+            pageFamily: "article_detail",
+            pageTitleNormalized: "Admissions",
+            rawAssetId: "raw_01",
+            rawVersionId: "rawv_01",
+            requestedUrl: "https://www.muc.edu.cn/admissions",
+            responseBodyHash: "body-1",
+          },
+        ],
         summary: {
           failureCount: 12,
           pagesNormalized: 310,
@@ -356,11 +393,162 @@ describe("official web command service", () => {
         outboxEvent: expect.objectContaining({
           eventId: "owevt_completed_01HQ",
           eventType: "official_web.run.completed_with_errors",
+          payload: expect.objectContaining({
+            pageChangeSummary: {
+              changedPages: 0,
+              deletedPages: 0,
+              failedFetchPages: 0,
+              newPages: 1,
+              notModifiedPages: 0,
+            },
+            runIntent: "baseline",
+          }),
         }),
+        observations: [
+          expect.objectContaining({
+            changeStatus: "new",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+            runIntent: "baseline",
+          }),
+        ],
         run: expect.objectContaining({
           ingestionDispatchStatus: "queued",
           status: "completed_with_errors",
           terminalPayloadSha256: "finalize-fingerprint",
+        }),
+      }),
+    );
+  });
+
+  it("preserves prior freshness change timestamps for not_modified observations", async () => {
+    const terminalRun = createStoredRun({
+      finishedAt: "2026-03-29T09:00:00.000Z",
+      ingestionDispatchStatus: "queued",
+      siteId: "muc_public",
+      status: "completed",
+      summary: {
+        failureCount: 0,
+        pagesNormalized: 1,
+        urlsDiscovered: 1,
+        urlsFetched: 1,
+      },
+      terminalPayloadSha256: "not-modified-fingerprint",
+    });
+    const store: OfficialWebCommandStore = {
+      acceptRun: vi.fn(),
+      appendHeartbeat: vi.fn(),
+      finalizeRun: vi.fn().mockResolvedValue(terminalRun),
+      getRunById: vi.fn().mockResolvedValue(
+        createStoredRun({
+          latestHeartbeatSequence: 1,
+          runId: "owrun_not_modified",
+          schedulerRunKey: "cron-2026-03-29T08:30:00.000Z",
+          siteId: "muc_public",
+          status: "running",
+        }),
+      ),
+      getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([
+        {
+          cadenceClass: "detail_recent",
+          contentType: "text/html",
+          discoveredFromUrl: "https://www.muc.edu.cn/news/",
+          discoveryMethod: "listing_link",
+          etag: "\"etag-prev\"",
+          host: "www.muc.edu.cn",
+          lastChangeReason: "main_content_changed",
+          lastChangedAt: "2026-03-29T07:00:00.000Z",
+          lastFetchDisposition: "fetched",
+          lastHttpStatus: 200,
+          lastModified: "Sat, 29 Mar 2026 07:00:00 GMT",
+          lastNotModifiedAt: null,
+          lastSeenAt: "2026-03-29T07:00:00.000Z",
+          lastSuccessfulRunId: "owrun_prev",
+          mainContentHash: "main-prev",
+          nextEligibleFetchAt: "2026-03-29T13:00:00.000Z",
+          normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+          pageFamily: "article_detail",
+          pageTitleNormalized: "Notice",
+          priorityScore: 75,
+          responseBodyHash: "body-prev",
+          siteId: "muc_public",
+        },
+      ]),
+    };
+    const service = buildOfficialWebCommandService({
+      computeFinalizeFingerprint: () => "not-modified-fingerprint",
+      generateId: vi.fn().mockReturnValue("owevt_completed_not_modified"),
+      now: () => new Date("2026-03-29T09:00:00.000Z"),
+      store,
+    });
+
+    const response = await service.finalize({
+      payload: {
+        artifacts: [],
+        finishedAt: "2026-03-29T09:00:00.000Z",
+        pageObservations: [
+          {
+            contentType: "text/html",
+            discoveredFromUrl: "https://www.muc.edu.cn/news/",
+            discoveryMethod: "listing_link",
+            disposition: "not_modified",
+            etag: "\"etag-prev\"",
+            finalUrl: "https://www.muc.edu.cn/news/notice.htm",
+            host: "www.muc.edu.cn",
+            httpStatus: 304,
+            lastModified: "Sat, 29 Mar 2026 07:00:00 GMT",
+            mainContentHash: "main-prev",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+            observedAt: "2026-03-29T09:00:00.000Z",
+            pageFamily: "article_detail",
+            pageTitleNormalized: "Notice",
+            rawAssetId: null,
+            rawVersionId: null,
+            requestedUrl: "https://www.muc.edu.cn/news/notice.htm",
+            responseBodyHash: "body-prev",
+          },
+        ],
+        summary: {
+          failureCount: 0,
+          pagesNormalized: 1,
+          urlsDiscovered: 1,
+          urlsFetched: 1,
+        },
+        terminalStatus: "completed",
+      },
+      principal: collectorPrincipal,
+      runId: "owrun_not_modified",
+    });
+
+    expect(response.run.status).toBe("completed");
+    expect(store.finalizeRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        observations: [
+          expect.objectContaining({
+            changeStatus: "not_modified",
+            fetchDisposition: "not_modified",
+            freshness: {
+              lastChangedAt: "2026-03-29T07:00:00.000Z",
+              lastNotModifiedAt: "2026-03-29T09:00:00.000Z",
+              lastSuccessfulRunId: "owrun_not_modified",
+              mainContentHash: "main-prev",
+              responseBodyHash: "body-prev",
+            },
+            lastChangeReason: "conditional_not_modified",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+          }),
+        ],
+        outboxEvent: expect.objectContaining({
+          payload: expect.objectContaining({
+            pageChangeSummary: {
+              changedPages: 0,
+              deletedPages: 0,
+              failedFetchPages: 0,
+              newPages: 0,
+              notModifiedPages: 1,
+            },
+            pageChanges: [],
+          }),
         }),
       }),
     );
@@ -384,6 +572,7 @@ describe("official web command service", () => {
         }),
       ),
       getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       computeFinalizeFingerprint: () => "same-terminal-fingerprint",
@@ -395,6 +584,7 @@ describe("official web command service", () => {
       payload: {
         artifacts: [],
         finishedAt: "2026-03-29T08:17:32.000Z",
+        pageObservations: [],
         summary: {
           failureCount: 0,
           pagesNormalized: 310,
@@ -423,6 +613,7 @@ describe("official web command service", () => {
         }),
       ),
       getRunBySchedulerKey: vi.fn(),
+      listPageFreshnessStates: vi.fn().mockResolvedValue([]),
     };
     const service = buildOfficialWebCommandService({
       computeFinalizeFingerprint: () => "different-terminal-fingerprint",
@@ -435,6 +626,7 @@ describe("official web command service", () => {
         payload: {
           artifacts: [],
           finishedAt: "2026-03-29T08:17:32.000Z",
+          pageObservations: [],
           summary: {
             failureCount: 0,
           },

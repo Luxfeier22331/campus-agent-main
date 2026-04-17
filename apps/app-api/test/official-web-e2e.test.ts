@@ -7,6 +7,7 @@ import {
   buildOfficialWebCommandService,
   type OfficialWebArtifactRecord,
   type OfficialWebCommandStore,
+  type StoredOfficialWebPageFreshnessState,
   type StoredOfficialWebRun,
 } from "../src/modules/official-web-command";
 import {
@@ -20,8 +21,10 @@ import {
 } from "../src/modules/official-web-projection";
 import {
   buildOfficialWebQueryService,
+  type OfficialWebPageChangeRecord,
   type OfficialWebQueryStore,
   type OfficialWebRunRecord,
+  type OfficialWebSiteFreshnessSummary,
   type OfficialWebSiteRecord,
 } from "../src/modules/official-web-query";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -34,6 +37,8 @@ interface MemoryOutboxEvent extends OfficialWebRunOutboxEvent {
 interface MemoryState {
   artifactsByRunId: Map<string, OfficialWebArtifactRecord[]>;
   outboxEvents: MemoryOutboxEvent[];
+  pageChanges: OfficialWebPageChangeRecord[];
+  pageFreshnessByUrl: Map<string, StoredOfficialWebPageFreshnessState>;
   runProjections: Map<string, OfficialWebRunRecord>;
   runs: Map<string, StoredOfficialWebRun>;
   siteProjections: Map<string, OfficialWebSiteRecord>;
@@ -55,10 +60,9 @@ const env = {
 function createOperatorPrincipal(): ResolvedAppPrincipal {
   return {
     actor: {
-      campusScope: "main",
       departments: ["ops"],
-      groups: ["panel"],
       principalId: "ops@example.com",
+      principalType: "operator",
       roles: ["operator"],
       userId: "ops@example.com",
     },
@@ -80,6 +84,8 @@ function createMemoryState(): MemoryState {
   return {
     artifactsByRunId: new Map(),
     outboxEvents: [],
+    pageChanges: [],
+    pageFreshnessByUrl: new Map(),
     runProjections: new Map(),
     runs: new Map(),
     siteProjections: new Map(),
@@ -103,6 +109,47 @@ function createMemoryCommandStore(state: MemoryState): OfficialWebCommandStore {
     async finalizeRun(input) {
       state.runs.set(input.run.runId, { ...input.run });
       state.artifactsByRunId.set(input.run.runId, input.artifacts.map((artifact) => ({ ...artifact })));
+      for (const observation of input.observations) {
+        state.pageChanges.push({
+          changeStatus: observation.changeStatus,
+          fetchDisposition: observation.fetchDisposition,
+          host: observation.host,
+          httpStatus: observation.httpStatus,
+          id: observation.observationId,
+          lastChangeReason: observation.lastChangeReason,
+          normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+          observedAt: observation.observedAt,
+          pageFamily: observation.pageFamily,
+          pageTitleNormalized: observation.pageTitleNormalized,
+          rawAssetId: observation.rawAssetId,
+          rawVersionId: observation.rawVersionId,
+          runId: observation.runId,
+        });
+        state.pageFreshnessByUrl.set(`${observation.siteId}::${observation.normalizedCanonicalUrl}`, {
+          cadenceClass: observation.cadenceClass,
+          contentType: observation.contentType,
+          discoveredFromUrl: observation.discoveredFromUrl,
+          discoveryMethod: observation.discoveryMethod,
+          etag: observation.etag,
+          host: observation.host,
+          lastChangeReason: observation.lastChangeReason,
+          lastChangedAt: observation.freshness.lastChangedAt,
+          lastFetchDisposition: observation.fetchDisposition,
+          lastHttpStatus: observation.httpStatus,
+          lastModified: observation.lastModified,
+          lastNotModifiedAt: observation.freshness.lastNotModifiedAt,
+          lastSeenAt: observation.observedAt,
+          lastSuccessfulRunId: observation.freshness.lastSuccessfulRunId,
+          mainContentHash: observation.freshness.mainContentHash,
+          nextEligibleFetchAt: observation.nextEligibleFetchAt,
+          normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+          pageFamily: observation.pageFamily,
+          pageTitleNormalized: observation.pageTitleNormalized,
+          priorityScore: observation.priorityScore,
+          responseBodyHash: observation.freshness.responseBodyHash,
+          siteId: observation.siteId,
+        });
+      }
       state.outboxEvents.push({
         ...input.outboxEvent,
         lastError: input.outboxEvent.lastError,
@@ -113,14 +160,24 @@ function createMemoryCommandStore(state: MemoryState): OfficialWebCommandStore {
       const run = state.runs.get(runId);
       return run ? { ...run } : null;
     },
-    async getRunBySchedulerKey(siteId, schedulerRunKey) {
+    async getRunBySchedulerKey(siteId, schedulerRunKey, runIntent) {
       for (const run of state.runs.values()) {
-        if (run.siteId === siteId && run.schedulerRunKey === schedulerRunKey) {
+        if (
+          run.siteId === siteId &&
+          run.schedulerRunKey === schedulerRunKey &&
+          run.runIntent === runIntent
+        ) {
           return { ...run };
         }
       }
 
       return null;
+    },
+    async listPageFreshnessStates(siteId, normalizedCanonicalUrls) {
+      return normalizedCanonicalUrls
+        .map((url) => state.pageFreshnessByUrl.get(`${siteId}::${url}`))
+        .filter((item): item is StoredOfficialWebPageFreshnessState => Boolean(item))
+        .map((item) => ({ ...item }));
     },
   };
 }
@@ -142,8 +199,14 @@ function toRunProjectionSource(
     hostSet: [...run.hostSet],
     ingestionDispatchRef: run.ingestionDispatchRef,
     ingestionDispatchStatus: run.ingestionDispatchStatus,
+    ingestionExecutionErrorCode: run.ingestionExecutionErrorCode,
+    ingestionExecutionErrorMessage: run.ingestionExecutionErrorMessage,
+    ingestionExecutionRef: run.ingestionExecutionRef,
+    ingestionExecutionStatus: run.ingestionExecutionStatus,
+    ingestionExecutionUpdatedAt: run.ingestionExecutionUpdatedAt,
     lastHeartbeatAt: run.lastHeartbeatAt,
     runId: run.runId,
+    runIntent: run.runIntent,
     schedulerRunKey: run.schedulerRunKey,
     seedSet: [...run.seedSet],
     siteId: run.siteId,
@@ -181,6 +244,9 @@ function createMemoryProjectionStore(state: MemoryState): OfficialWebProjectionP
         latestCollectorVersion: latest.collectorVersion,
         latestConfigVersion: latest.configVersion,
         latestIngestionDispatchStatus: latest.ingestionDispatchStatus,
+        latestIngestionExecutionErrorCode: latest.ingestionExecutionErrorCode,
+        latestIngestionExecutionStatus: latest.ingestionExecutionStatus,
+        latestIngestionExecutionUpdatedAt: latest.ingestionExecutionUpdatedAt,
         latestRunId: latest.runId,
         latestRunStatus: latest.status,
         siteId: latest.siteId,
@@ -229,6 +295,22 @@ function createMemoryProjectionStore(state: MemoryState): OfficialWebProjectionP
         ingestionDispatchedAt: input.dispatchedAt,
       });
     },
+    async updateRunExecutionStatus(input) {
+      const run = state.runs.get(input.runId);
+      if (!run) {
+        return false;
+      }
+
+      state.runs.set(input.runId, {
+        ...run,
+        ingestionExecutionErrorCode: input.errorCode,
+        ingestionExecutionErrorMessage: input.errorMessage,
+        ingestionExecutionRef: input.executionRef,
+        ingestionExecutionStatus: input.status,
+        ingestionExecutionUpdatedAt: input.updatedAt,
+      });
+      return true;
+    },
     async upsertRunProjection(projection: OfficialWebRunProjectionMaterialization) {
       state.runProjections.set(projection.runId, {
         artifacts: projection.artifacts.map((artifact) => ({ ...artifact })),
@@ -239,9 +321,15 @@ function createMemoryProjectionStore(state: MemoryState): OfficialWebProjectionP
         id: projection.runId,
         ingestionDispatchRef: projection.ingestionDispatchRef,
         ingestionDispatchStatus: projection.ingestionDispatchStatus,
+        ingestionExecutionErrorCode: projection.ingestionExecutionErrorCode,
+        ingestionExecutionErrorMessage: projection.ingestionExecutionErrorMessage,
+        ingestionExecutionRef: projection.ingestionExecutionRef,
+        ingestionExecutionStatus: projection.ingestionExecutionStatus,
+        ingestionExecutionUpdatedAt: projection.ingestionExecutionUpdatedAt,
         lastHeartbeatAt: projection.lastHeartbeatAt,
         projectedAt: projection.projectedAt,
         runId: projection.runId,
+        runIntent: projection.runIntent,
         siteId: projection.siteId,
         startedAt: projection.startedAt,
         status: projection.status,
@@ -258,6 +346,9 @@ function createMemoryProjectionStore(state: MemoryState): OfficialWebProjectionP
         latestCollectorVersion: projection.latestCollectorVersion,
         latestConfigVersion: projection.latestConfigVersion,
         latestIngestionDispatchStatus: projection.latestIngestionDispatchStatus,
+        latestIngestionExecutionErrorCode: projection.latestIngestionExecutionErrorCode,
+        latestIngestionExecutionStatus: projection.latestIngestionExecutionStatus,
+        latestIngestionExecutionUpdatedAt: projection.latestIngestionExecutionUpdatedAt,
         latestRunId: projection.latestRunId,
         latestRunStatus: projection.latestRunStatus,
         projectedAt: projection.projectedAt,
@@ -276,6 +367,93 @@ function createMemoryQueryStore(state: MemoryState): OfficialWebQueryStore {
     async getSiteById(siteId) {
       const site = state.siteProjections.get(siteId);
       return site ? { ...site, hostRoots: [...site.hostRoots] } : null;
+    },
+    async getSiteFreshnessSummary(input): Promise<OfficialWebSiteFreshnessSummary> {
+      const now = new Date(input.now).valueOf();
+      const changedSince = now - 24 * 60 * 60 * 1000;
+      const rows = [...state.pageFreshnessByUrl.values()].filter((row) => row.siteId === input.siteId);
+
+      return {
+        changedLast24h: rows.filter(
+          (row) => row.lastChangedAt && new Date(row.lastChangedAt).valueOf() >= changedSince,
+        ).length,
+        deletedPages: rows.filter((row) => row.lastFetchDisposition === "deleted").length,
+        duePages: rows.filter(
+          (row) =>
+            row.lastFetchDisposition !== "deleted" &&
+            new Date(row.nextEligibleFetchAt).valueOf() <= now,
+        ).length,
+        failedFetchPages: rows.filter((row) => row.lastFetchDisposition === "fetch_failed").length,
+        hotPages: rows.filter(
+          (row) =>
+            row.lastFetchDisposition !== "deleted" &&
+            (row.cadenceClass === "listing_hot" || row.cadenceClass === "detail_recent"),
+        ).length,
+        repairPages: rows.filter(
+          (row) =>
+            row.lastFetchDisposition !== "deleted" &&
+            (row.cadenceClass === "repair" || row.lastFetchDisposition === "fetch_failed"),
+        ).length,
+        totalPages: rows.length,
+      };
+    },
+    async listSiteFreshnessBacklog(input) {
+      const rows = [...state.pageFreshnessByUrl.values()]
+        .filter((row) => row.siteId === input.siteId)
+        .map((row) => ({
+          cadenceClass: row.cadenceClass,
+          host: row.host,
+          lastChangeReason: row.lastChangeReason,
+          lastChangedAt: row.lastChangedAt,
+          lastFetchDisposition: row.lastFetchDisposition,
+          lastHttpStatus: row.lastHttpStatus,
+          lastSeenAt: row.lastSeenAt,
+          nextEligibleFetchAt: row.nextEligibleFetchAt,
+          normalizedCanonicalUrl: row.normalizedCanonicalUrl,
+          pageFamily: row.pageFamily,
+          pageTitleNormalized: row.pageTitleNormalized,
+          priorityScore: row.priorityScore,
+          siteId: row.siteId,
+        }))
+        .slice(0, input.limit);
+
+      return {
+        deletedPages: rows.filter((row) => row.lastFetchDisposition === "deleted"),
+        duePages: rows.filter(
+          (row) =>
+            row.lastFetchDisposition !== "deleted" &&
+            new Date(row.nextEligibleFetchAt).valueOf() <= new Date(input.now).valueOf(),
+        ),
+        failedFetchPages: rows.filter((row) => row.lastFetchDisposition === "fetch_failed"),
+        hotPages: rows.filter(
+          (row) =>
+            row.lastFetchDisposition !== "deleted" &&
+            (row.cadenceClass === "listing_hot" || row.cadenceClass === "detail_recent"),
+        ),
+      };
+    },
+    async listPageChangesByRunId(runId) {
+      return state.pageChanges
+        .filter(
+          (change) =>
+            change.runId === runId &&
+            change.changeStatus !== "not_modified",
+        )
+        .map((change) => ({ ...change }));
+    },
+    async listRecentPageChangesBySiteId(siteId) {
+      const urls = new Set(
+        [...state.pageFreshnessByUrl.values()]
+          .filter((item) => item.siteId === siteId)
+          .map((item) => item.normalizedCanonicalUrl),
+      );
+      return state.pageChanges
+        .filter(
+          (change) =>
+            urls.has(change.normalizedCanonicalUrl) &&
+            change.changeStatus !== "not_modified",
+        )
+        .map((change) => ({ ...change }));
     },
     async listRecentRunsBySiteId(siteId) {
       return [...state.runProjections.values()]
@@ -331,10 +509,15 @@ describe("official web app-api e2e", () => {
         store: createMemoryProjectionStore(state),
       }),
       officialWebQueryService: buildOfficialWebQueryService({
+        now: () => new Date("2026-03-29T14:30:00.000Z"),
         store: createMemoryQueryStore(state),
       }),
       requestProjector: {
         drain: vi.fn().mockResolvedValue({
+          failed: 0,
+          processed: 0,
+        }),
+        drainRequest: vi.fn().mockResolvedValue({
           failed: 0,
           processed: 0,
         }),
@@ -348,6 +531,7 @@ describe("official web app-api e2e", () => {
           configVersion: "git:abc1234",
           crawlPolicyVersion: "2026-03-29",
           hostSet: ["www.muc.edu.cn"],
+          runIntent: "baseline",
           schedulerRunKey: "cron-2026-03-29T08:00:00.000Z",
           seedSet: ["https://www.muc.edu.cn/"],
           siteId: "www_muc_edu_cn",
@@ -403,6 +587,28 @@ describe("official web app-api e2e", () => {
             },
           ],
           finishedAt: "2026-03-29T08:17:32.000Z",
+          pageObservations: [
+            {
+              contentType: "text/html",
+              discoveredFromUrl: null,
+              discoveryMethod: "seed",
+              disposition: "fetched",
+              etag: "etag-1",
+              finalUrl: "https://www.muc.edu.cn/admissions",
+              host: "www.muc.edu.cn",
+              httpStatus: 200,
+              lastModified: "Sat, 29 Mar 2026 08:00:00 GMT",
+              mainContentHash: "main-1",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+              observedAt: "2026-03-29T08:17:32.000Z",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "Admissions",
+              rawAssetId: "raw_01",
+              rawVersionId: "rawv_01",
+              requestedUrl: "https://www.muc.edu.cn/admissions",
+              responseBodyHash: "body-1",
+            },
+          ],
           summary: {
             failureCount: 0,
             pagesNormalized: 310,
@@ -427,20 +633,31 @@ describe("official web app-api e2e", () => {
     );
     expect(runResponse.status).toBe(200);
     await expect(runResponse.json()).resolves.toEqual({
-      run: expect.objectContaining({
-        artifacts: [
+      run: {
+        pageChangeSummary: expect.objectContaining({
+          newPages: 1,
+        }),
+        pageChanges: [
           expect.objectContaining({
-            artifactType: "crawl_run_manifest",
-          }),
-          expect.objectContaining({
-            artifactType: "source_truth_bundle",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
           }),
         ],
-        ingestionDispatchRef: "dispatch_01HQ",
-        ingestionDispatchStatus: "dispatched",
-        runId: "owrun_01HQ",
-        status: "completed",
-      }),
+        run: expect.objectContaining({
+          artifacts: [
+            expect.objectContaining({
+              artifactType: "crawl_run_manifest",
+            }),
+            expect.objectContaining({
+              artifactType: "source_truth_bundle",
+            }),
+          ],
+          ingestionDispatchRef: "dispatch_01HQ",
+          ingestionDispatchStatus: "dispatched",
+          ingestionExecutionStatus: "pending",
+          runId: "owrun_01HQ",
+          status: "completed",
+        }),
+      },
     });
 
     const siteResponse = await runtime.fetch(
@@ -448,14 +665,39 @@ describe("official web app-api e2e", () => {
     );
     expect(siteResponse.status).toBe(200);
     await expect(siteResponse.json()).resolves.toEqual({
+      freshnessBacklog: {
+        deletedPages: [],
+        duePages: [
+          expect.objectContaining({
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+          }),
+        ],
+        failedFetchPages: [],
+        hotPages: [
+          expect.objectContaining({
+            cadenceClass: "detail_recent",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+          }),
+        ],
+      },
+      freshnessSummary: expect.objectContaining({
+        totalPages: 1,
+      }),
+      recentPageChanges: [
+        expect.objectContaining({
+          normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
+        }),
+      ],
       recentRuns: [
         expect.objectContaining({
           ingestionDispatchStatus: "dispatched",
+          ingestionExecutionStatus: "pending",
           runId: "owrun_01HQ",
         }),
       ],
       site: expect.objectContaining({
         latestIngestionDispatchStatus: "dispatched",
+        latestIngestionExecutionStatus: "pending",
         latestRunId: "owrun_01HQ",
         siteId: "www_muc_edu_cn",
       }),
@@ -467,5 +709,216 @@ describe("official web app-api e2e", () => {
         siteId: "www_muc_edu_cn",
       }),
     );
+  });
+
+  it("projects not_modified runs into operator-visible summaries without creating recent page changes", async () => {
+    const state = createMemoryState();
+    state.pageFreshnessByUrl.set("muc_public::https://www.muc.edu.cn/news/notice.htm", {
+      cadenceClass: "detail_recent",
+      contentType: "text/html",
+      discoveredFromUrl: "https://www.muc.edu.cn/news/",
+      discoveryMethod: "listing_link",
+      etag: "\"etag-prev\"",
+      host: "www.muc.edu.cn",
+      lastChangeReason: "main_content_changed",
+      lastChangedAt: "2026-03-29T07:00:00.000Z",
+      lastFetchDisposition: "fetched",
+      lastHttpStatus: 200,
+      lastModified: "Sat, 29 Mar 2026 07:00:00 GMT",
+      lastNotModifiedAt: null,
+      lastSeenAt: "2026-03-29T07:00:00.000Z",
+      lastSuccessfulRunId: "owrun_prev",
+      mainContentHash: "main-prev",
+      nextEligibleFetchAt: "2026-03-29T13:00:00.000Z",
+      normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+      pageFamily: "article_detail",
+      pageTitleNormalized: "Notice",
+      priorityScore: 75,
+      responseBodyHash: "body-prev",
+      siteId: "muc_public",
+    });
+
+    const handoffPublisher = {
+      publish: vi.fn().mockResolvedValue({
+        dispatchRef: "dispatch_not_modified",
+      }),
+    };
+    const runtime = createWorkerRuntime(env, {
+      getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
+      officialWebCommandService: buildOfficialWebCommandService({
+        generateId: vi
+          .fn()
+          .mockReturnValueOnce("owrun_not_modified")
+          .mockReturnValueOnce("owevt_accepted_not_modified")
+          .mockReturnValueOnce("owevt_completed_not_modified"),
+        now: () => new Date("2026-03-29T09:00:00.000Z"),
+        store: createMemoryCommandStore(state),
+      }),
+      officialWebProjector: buildOfficialWebProjectionProjector({
+        handoffPublisher,
+        now: () => new Date("2026-03-29T09:00:01.000Z"),
+        store: createMemoryProjectionStore(state),
+      }),
+      officialWebQueryService: buildOfficialWebQueryService({
+        now: () => new Date("2026-03-29T15:30:00.000Z"),
+        store: createMemoryQueryStore(state),
+      }),
+      requestProjector: {
+        drain: vi.fn().mockResolvedValue({
+          failed: 0,
+          processed: 0,
+        }),
+        drainRequest: vi.fn().mockResolvedValue({
+          failed: 0,
+          processed: 0,
+        }),
+      } satisfies RequestProjectionProjector,
+    });
+
+    const start = await runtime.fetch(
+      new Request("https://app-api.internal/api/official-web/runs", {
+        body: JSON.stringify({
+          collectorVersion: "official-web-collector@0.1.0",
+          configVersion: "git:abc1234",
+          crawlPolicyVersion: "2026-03-29",
+          hostSet: ["www.muc.edu.cn"],
+          runIntent: "hot",
+          schedulerRunKey: "cron-2026-03-29T09:00:00.000Z",
+          seedSet: ["https://www.muc.edu.cn/"],
+          siteId: "muc_public",
+          startedAt: "2026-03-29T09:00:00.000Z",
+          triggerType: "scheduled",
+        }),
+        headers: {
+          authorization: "Bearer trusted-collector-token",
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+    expect(start.status).toBe(200);
+
+    const finalize = await runtime.fetch(
+      new Request("https://app-api.internal/api/official-web/runs/owrun_not_modified/finalize", {
+        body: JSON.stringify({
+          artifacts: [],
+          finishedAt: "2026-03-29T09:00:00.000Z",
+          pageObservations: [
+            {
+              contentType: "text/html",
+              discoveredFromUrl: "https://www.muc.edu.cn/news/",
+              discoveryMethod: "listing_link",
+              disposition: "not_modified",
+              etag: "\"etag-prev\"",
+              finalUrl: "https://www.muc.edu.cn/news/notice.htm",
+              host: "www.muc.edu.cn",
+              httpStatus: 304,
+              lastModified: "Sat, 29 Mar 2026 07:00:00 GMT",
+              mainContentHash: "main-prev",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+              observedAt: "2026-03-29T09:00:00.000Z",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "Notice",
+              rawAssetId: null,
+              rawVersionId: null,
+              requestedUrl: "https://www.muc.edu.cn/news/notice.htm",
+              responseBodyHash: "body-prev",
+            },
+          ],
+          summary: {
+            failureCount: 0,
+            pagesNormalized: 1,
+            urlsDiscovered: 1,
+            urlsFetched: 1,
+          },
+          terminalStatus: "completed",
+        }),
+        headers: {
+          authorization: "Bearer trusted-collector-token",
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }),
+    );
+    expect(finalize.status).toBe(200);
+
+    await runtime.scheduled();
+
+    expect(
+      state.pageFreshnessByUrl.get("muc_public::https://www.muc.edu.cn/news/notice.htm"),
+    ).toMatchObject({
+      lastChangeReason: "conditional_not_modified",
+      lastChangedAt: "2026-03-29T07:00:00.000Z",
+      lastFetchDisposition: "not_modified",
+      lastNotModifiedAt: "2026-03-29T09:00:00.000Z",
+      lastSuccessfulRunId: "owrun_not_modified",
+    });
+
+    const runResponse = await runtime.fetch(
+      new Request("https://app-api.internal/api/operator/official-web/runs/owrun_not_modified"),
+    );
+    expect(runResponse.status).toBe(200);
+    await expect(runResponse.json()).resolves.toEqual({
+      run: {
+        pageChangeSummary: expect.objectContaining({
+          changedPages: 0,
+          deletedPages: 0,
+          failedFetchPages: 0,
+          newPages: 0,
+          notModifiedPages: 1,
+        }),
+        pageChanges: [],
+        run: expect.objectContaining({
+          ingestionDispatchRef: "dispatch_not_modified",
+          ingestionDispatchStatus: "dispatched",
+          ingestionExecutionStatus: "pending",
+          runId: "owrun_not_modified",
+          siteId: "muc_public",
+          status: "completed",
+        }),
+      },
+    });
+
+    const siteResponse = await runtime.fetch(
+      new Request("https://app-api.internal/api/operator/official-web/sites/muc_public"),
+    );
+    expect(siteResponse.status).toBe(200);
+    await expect(siteResponse.json()).resolves.toEqual({
+      freshnessBacklog: {
+        deletedPages: [],
+        duePages: [
+          expect.objectContaining({
+            lastFetchDisposition: "not_modified",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+          }),
+        ],
+        failedFetchPages: [],
+        hotPages: [
+          expect.objectContaining({
+            lastFetchDisposition: "not_modified",
+            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/notice.htm",
+          }),
+        ],
+      },
+      freshnessSummary: expect.objectContaining({
+        changedLast24h: 1,
+        duePages: 1,
+        hotPages: 1,
+        totalPages: 1,
+      }),
+      recentPageChanges: [],
+      recentRuns: [
+        expect.objectContaining({
+          runId: "owrun_not_modified",
+          siteId: "muc_public",
+        }),
+      ],
+      site: expect.objectContaining({
+        latestIngestionDispatchStatus: "dispatched",
+        latestIngestionExecutionStatus: "pending",
+        latestRunId: "owrun_not_modified",
+        siteId: "muc_public",
+      }),
+    });
   });
 });

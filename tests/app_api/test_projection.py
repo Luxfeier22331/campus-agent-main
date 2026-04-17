@@ -7,6 +7,10 @@ from campus_contracts import (
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
     ContextProjection,
+    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+    CURRICULUM_PROGRAM_SLOT_NAME,
+    CURRICULUM_SEMESTER_SLOT_NAME,
+    CurriculumFollowUpSlots,
     ProfileMemoryItem,
     ProfileMemorySummary,
     SessionSlot,
@@ -28,15 +32,15 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
+                principal_type="student",
                 roles=("student",),
-                groups=("students",),
-                campus_scope="north",
                 cohort="2023",
                 major="philosophy",
                 program="undergraduate",
             ),
             authorization=AuthorizationInput(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-03-29",
                 entitlement_groups=("students",),
                 visibility_scope="north",
@@ -46,9 +50,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilterInput(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -75,16 +77,16 @@ class AppApiProjectionTest(unittest.TestCase):
                 actor=ActorContext(
                     user_id="student-001",
                     principal_id="principal-001",
+                    principal_type="student",
                     roles=("student",),
                     departments=(),
-                    groups=("students",),
-                    campus_scope="north",
                     cohort="2023",
                     major="philosophy",
                     program="undergraduate",
                 ),
                 authorization=AuthorizationProjection(
                     principal_id="principal-001",
+                    projection_source="campus_identity",
                     entitlement_snapshot_id="entitlements-2026-03-29",
                     entitlement_groups=("students",),
                     visibility_scope="north",
@@ -94,9 +96,7 @@ class AppApiProjectionTest(unittest.TestCase):
                     retrieval_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=("students",),
                         visibility_level="public",
-                        acl_groups=("students",),
                         visibility_scope="north",
-                        campus_scope="north",
                         policy_projection_version="phase1-authorization-projection-v1",
                     ),
                 ),
@@ -125,8 +125,68 @@ class AppApiProjectionTest(unittest.TestCase):
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
-                groups=("students",),
-                campus_scope="north",
+                principal_type="student",
+            ),
+        )
+
+        self.assertEqual(
+            projection.actor,
+            ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+                roles=(),
+                departments=(),
+                cohort=None,
+                major=None,
+                program=None,
+            ),
+        )
+        self.assertEqual(
+            projection.authorization,
+            AuthorizationProjection(
+                principal_id="principal-001",
+                projection_source="campus_identity",
+                entitlement_snapshot_id="",
+                entitlement_groups=(),
+                visibility_scope=None,
+                applicability_scope=None,
+                ownership_scopes=(),
+                approval_state="",
+                retrieval_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=(),
+                    visibility_level="public",
+                    visibility_scope=None,
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            ),
+        )
+
+    def test_build_context_projection_keeps_verified_identity_separate_from_explicit_authorization_input(self) -> None:
+        projection = build_context_projection(
+            identity=VerifiedIdentityInput(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+                roles=("campus_member", "student"),
+                departments=("philosophy",),
+                cohort="2023",
+                major="philosophy",
+                program="undergraduate",
+            ),
+            authorization=AuthorizationInput(
+                principal_id="principal-001",
+                projection_source="campus_identity",
+                entitlement_snapshot_id="entitlements-2026-04-02",
+                entitlement_groups=("campus_members", "students"),
+                visibility_scope="north",
+                applicability_scope="undergraduate",
+                ownership_scopes=("conversation:student-001",),
+                approval_state="not_required",
+                retrieval_filter=AuthorizedRetrievalFilterInput(
+                    entitlement_groups=("campus_members", "students"),
+                    visibility_scope="north",
+                ),
             ),
         )
 
@@ -134,20 +194,32 @@ class AppApiProjectionTest(unittest.TestCase):
             projection.authorization,
             AuthorizationProjection(
                 principal_id="principal-001",
-                entitlement_snapshot_id="",
-                entitlement_groups=("students",),
+                projection_source="campus_identity",
+                entitlement_snapshot_id="entitlements-2026-04-02",
+                entitlement_groups=("campus_members", "students"),
                 visibility_scope="north",
-                applicability_scope=None,
-                ownership_scopes=(),
-                approval_state="",
+                applicability_scope="undergraduate",
+                ownership_scopes=("conversation:student-001",),
+                approval_state="not_required",
                 retrieval_filter=AuthorizedRetrievalFilter(
-                    entitlement_groups=("students",),
+                    entitlement_groups=("campus_members", "students"),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
+            ),
+        )
+        self.assertEqual(
+            projection.actor,
+            ActorContext(
+                user_id="student-001",
+                principal_id="principal-001",
+                principal_type="student",
+                roles=("campus_member", "student"),
+                departments=("philosophy",),
+                cohort="2023",
+                major="philosophy",
+                program="undergraduate",
             ),
         )
 
@@ -170,16 +242,36 @@ class AppApiProjectionTest(unittest.TestCase):
             ),
         )
 
+    def test_build_context_projection_preserves_curriculum_follow_up_slot_contract(self) -> None:
+        projection = build_context_projection(
+            identity=VerifiedIdentityInput(user_id="student-001", principal_id="principal-001"),
+            session_slots=(
+                SessionSlotRecord(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
+                SessionSlotRecord(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
+                SessionSlotRecord(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
+            ),
+            turn_count=5,
+        )
+
+        self.assertEqual(
+            projection.session.curriculum_follow_up,
+            CurriculumFollowUpSlots(
+                program_family="民族实验班",
+                program="法学民族实验班",
+                semester="第四学期",
+            ),
+        )
+
     def test_build_context_projection_does_not_let_memory_or_session_rewrite_authorization(self) -> None:
         projection = build_context_projection(
             identity=VerifiedIdentityInput(
                 user_id="student-001",
                 principal_id="principal-001",
-                groups=("students",),
-                campus_scope="north",
+                principal_type="student",
             ),
             authorization=AuthorizationInput(
                 principal_id="principal-001",
+                projection_source="campus_identity",
                 entitlement_snapshot_id="entitlements-2026-03-29",
                 entitlement_groups=("students",),
                 visibility_scope="north",
@@ -189,9 +281,7 @@ class AppApiProjectionTest(unittest.TestCase):
                 retrieval_filter=AuthorizedRetrievalFilterInput(
                     entitlement_groups=("students",),
                     visibility_level="public",
-                    acl_groups=("students",),
                     visibility_scope="north",
-                    campus_scope="north",
                     policy_projection_version="phase1-authorization-projection-v1",
                 ),
             ),
@@ -211,15 +301,47 @@ class AppApiProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(projection.authorization.entitlement_groups, ("students",))
+        self.assertEqual(projection.authorization.projection_source, "campus_identity")
         self.assertEqual(
             projection.authorization.retrieval_filter.entitlement_groups,
             ("students",),
         )
         self.assertEqual(projection.authorization.retrieval_filter.visibility_level, "public")
-        self.assertEqual(projection.authorization.retrieval_filter.campus_scope, "north")
         self.assertEqual(projection.authorization.retrieval_filter.visibility_scope, "north")
         self.assertEqual(projection.profile_memory.items[0].value, "admins")
         self.assertEqual(projection.session.confirmed_slots[0].value, "south")
+
+    def test_verified_identity_input_rejects_legacy_acl_carrier_fields(self) -> None:
+        with self.assertRaises(TypeError):
+            VerifiedIdentityInput(user_id="student-001", groups=("students",))
+
+        with self.assertRaises(TypeError):
+            VerifiedIdentityInput(user_id="student-001", campus_scope="north")
+
+    def test_build_context_projection_does_not_backfill_custom_retrieval_filter_fields(self) -> None:
+        projection = build_context_projection(
+            identity=VerifiedIdentityInput(
+                user_id="student-001",
+                principal_id="principal-001",
+            ),
+            authorization=AuthorizationInput(
+                principal_id="principal-001",
+                retrieval_filter=AuthorizedRetrievalFilterInput(
+                    entitlement_groups=("students",),
+                    visibility_scope="north",
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            projection.authorization.retrieval_filter,
+            AuthorizedRetrievalFilter(
+                entitlement_groups=("students",),
+                visibility_level="public",
+                visibility_scope="north",
+                policy_projection_version="phase1-authorization-projection-v1",
+            ),
+        )
 
 
 if __name__ == "__main__":

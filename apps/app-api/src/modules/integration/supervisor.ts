@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
   DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
   parsePositiveInteger,
   type Env,
@@ -9,10 +10,24 @@ import {
   resolveTracePropagationHeaders,
   type TracePropagationHeaders,
 } from "../telemetry/trace";
+import {
+  summarizeObservedSources,
+  type ObservedSourceTraceEntry,
+} from "../source-trace";
 
 export interface RequestedScope {
   corpus: string;
   collection: string;
+}
+
+export interface SupervisorPromptTrace {
+  modelName: string | null;
+  modelProvider: string | null;
+  outputSchemaVersion: string | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  templateSha256: string | null;
+  variablesSchemaVersion: string | null;
 }
 
 export interface SupervisorProfileMemoryItem {
@@ -53,10 +68,39 @@ export interface SupervisorExecutionInput {
   conversationId: string;
   requestId: string;
   requestedCapability?: string;
-  requestedScope?: RequestedScope;
+  requestedScope?: RequestedScope | null;
+  surface?: string;
   traceHeaders?: TracePropagationHeaders;
   traceId: string;
   userGoal: string;
+}
+
+export interface SupervisorExecutionObservability {
+  aclAnomalyCode: string | null;
+  aclDecision: string | null;
+  cachedInputTokens: number | null;
+  candidateCount: number | null;
+  citationCount: number | null;
+  citationExpected: boolean | null;
+  citationMissing: boolean | null;
+  estimatedCostMicrousd: number | null;
+  failClosed: boolean | null;
+  inputTokens: number | null;
+  modelName: string | null;
+  modelProvider: string | null;
+  outputTokens: number | null;
+  policyReason?: string | null;
+  promptRuntimeDetail?: string | null;
+  promptRuntimeState?: string | null;
+  promptTrace?: SupervisorPromptTrace | null;
+  resolvedScopeCollection?: string | null;
+  resolvedScopeCorpus?: string | null;
+  refusalClass: string | null;
+  retrievedSourceCount: number | null;
+  retrievedSources?: ObservedSourceTraceEntry[] | null;
+  retrievalAttempted: boolean | null;
+  scopeClass?: string | null;
+  semanticOutcome?: string | null;
 }
 
 export interface SupervisorExecutionResponse {
@@ -67,6 +111,7 @@ export interface SupervisorExecutionResponse {
     retryable?: boolean;
   } | null;
   followUpQuestion: string;
+  observability?: SupervisorExecutionObservability | null;
   result: unknown;
   selectedTarget: string | null;
   status:
@@ -81,6 +126,95 @@ export interface SupervisorExecutionResponse {
 
 export interface SupervisorExecutionClient {
   execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+}
+
+export async function probeSupervisorApiReady(
+  env: Pick<
+    Env,
+    | "SUPERVISOR_API_BASE_URL"
+    | "SUPERVISOR_API_TIMEOUT_MS"
+  >,
+  input: {
+    fetchImplementation?: typeof fetch;
+  } = {},
+): Promise<void> {
+  const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
+  if (!baseUrl) {
+    throw new SupervisorTransportError({
+      code: "dependency_not_ready",
+      message: "Supervisor runtime is not configured.",
+      retryable: true,
+      status: 503,
+    });
+  }
+
+  const timeoutMs = parsePositiveInteger(
+    env.SUPERVISOR_API_TIMEOUT_MS,
+    DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+  );
+  const fetchImplementation = input.fetchImplementation ?? fetch;
+
+  let response: Response;
+  try {
+    response = await new Promise<Response>((resolve, reject) => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(
+          new SupervisorTransportError({
+            code: "execution_timeout",
+            message: `Supervisor readiness probe exceeded ${timeoutMs}ms timeout.`,
+            retryable: true,
+            status: 504,
+          }),
+        );
+      }, timeoutMs);
+
+      fetchImplementation(`${baseUrl}/readyz`, {
+        method: "GET",
+        signal: controller.signal,
+      })
+        .then(resolve)
+        .catch((error) => {
+          if (error instanceof Error && error.name === "AbortError") {
+            reject(
+              new SupervisorTransportError({
+                code: "execution_timeout",
+                message: `Supervisor readiness probe exceeded ${timeoutMs}ms timeout.`,
+                retryable: true,
+                status: 504,
+              }),
+            );
+            return;
+          }
+
+          reject(error);
+        })
+        .finally(() => {
+          clearTimeout(timeoutId);
+        });
+    });
+  } catch (error) {
+    if (error instanceof SupervisorTransportError) {
+      throw error;
+    }
+
+    throw new SupervisorTransportError({
+      code: "supervisor_unavailable",
+      message: error instanceof Error ? error.message : "Supervisor readiness probe failed.",
+      retryable: true,
+      status: 502,
+    });
+  }
+
+  if (response.status !== 200) {
+    throw new SupervisorTransportError({
+      code: mapStatusCodeToErrorCode(response.status),
+      message: `Supervisor readiness probe returned ${response.status}.`,
+      retryable: response.status >= 500,
+      status: response.status,
+    });
+  }
 }
 
 export class SupervisorTransportError extends Error {
@@ -104,12 +238,14 @@ export class SupervisorTransportError extends Error {
 
 function toSupervisorActor(actor: ExecutionActorContext) {
   return {
+    cohort: actor.cohort,
     user_id: actor.userId,
+    major: actor.major,
     principal_id: actor.principalId,
+    principal_type: actor.principalType,
+    program: actor.program,
     roles: actor.roles,
     departments: actor.departments,
-    groups: actor.groups,
-    campus_scope: actor.campusScope,
   };
 }
 
@@ -118,6 +254,7 @@ function toSupervisorContext(context: SupervisorContextProjection) {
     actor: toSupervisorActor(context.actor),
     authorization: {
       principal_id: context.authorization.principalId,
+      projection_source: context.authorization.projectionSource,
       entitlement_snapshot_id: context.authorization.entitlementSnapshotId,
       entitlement_groups: context.authorization.entitlementGroups,
       visibility_scope: context.authorization.visibilityScope,
@@ -125,8 +262,6 @@ function toSupervisorContext(context: SupervisorContextProjection) {
       ownership_scopes: context.authorization.ownershipScopes,
       approval_state: context.authorization.approvalState,
       retrieval_filter: {
-        acl_groups: context.authorization.retrievalFilter.aclGroups,
-        campus_scope: context.authorization.retrievalFilter.campusScope,
         entitlement_groups: context.authorization.retrievalFilter.entitlementGroups,
         policy_projection_version:
           context.authorization.retrievalFilter.policyProjectionVersion,
@@ -164,10 +299,108 @@ function mapStatusCodeToErrorCode(status: number): string {
   return "supervisor_unavailable";
 }
 
+function getRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function normalizeNullableBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function normalizeNullableNumber(value: unknown): number | null {
+  return Number.isFinite(value) ? Number(value) : null;
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
+  const record = getRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const parsed: SupervisorPromptTrace = {
+    modelName: normalizeNullableString(record.model_name),
+    modelProvider: normalizeNullableString(record.model_provider),
+    outputSchemaVersion: normalizeNullableString(record.output_schema_version),
+    promptId: normalizeNullableString(record.prompt_id),
+    promptVersion: normalizeNullableString(record.prompt_version),
+    templateSha256: normalizeNullableString(record.template_sha256),
+    variablesSchemaVersion: normalizeNullableString(record.variables_schema_version),
+  };
+
+  if (Object.values(parsed).every((item) => item === null)) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function parseExecutionObservability(
+  value: unknown,
+): SupervisorExecutionObservability | null {
+  const record = getRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
+  const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
+  const rawRetrievedSources =
+    "retrieved_sources" in record ? record.retrieved_sources : record.retrievedSources;
+  const hasRetrievedSourcesTrace = Array.isArray(rawRetrievedSources);
+  const retrievedSources = summarizeObservedSources(rawRetrievedSources);
+  const retrievalAttempted = normalizeNullableBoolean(record.retrieval_attempted);
+  const explicitRetrievedSourceCount = normalizeNullableNumber(record.retrieved_source_count);
+  const retrievedSourceCount =
+    explicitRetrievedSourceCount ??
+    (retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
+  const parsed: SupervisorExecutionObservability = {
+    aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
+    aclDecision: normalizeNullableString(record.acl_decision),
+    cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens),
+    candidateCount: normalizeNullableNumber(record.candidate_count),
+    citationCount: normalizeNullableNumber(record.citation_count),
+    citationExpected: normalizeNullableBoolean(record.citation_expected),
+    citationMissing: normalizeNullableBoolean(record.citation_missing),
+    estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
+    failClosed: normalizeNullableBoolean(record.fail_closed),
+    inputTokens: normalizeNullableNumber(record.input_tokens),
+    modelName: normalizeNullableString(record.model_name),
+    modelProvider: normalizeNullableString(record.model_provider),
+    outputTokens: normalizeNullableNumber(record.output_tokens),
+    policyReason: normalizeNullableString(record.policy_reason),
+    promptRuntimeDetail: normalizeNullableString(record.prompt_runtime_detail),
+    promptRuntimeState: normalizeNullableString(record.prompt_runtime_state),
+    promptTrace: parsePromptTrace(record.prompt_trace),
+    refusalClass: normalizeNullableString(record.refusal_class),
+    retrievedSourceCount,
+    ...(hasRetrievedSourcesTrace ? { retrievedSources } : {}),
+    retrievalAttempted,
+    scopeClass: normalizeNullableString(record.scope_class),
+    semanticOutcome: normalizeNullableString(record.semantic_outcome),
+    ...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
+    ...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
+  };
+
+  if (Object.values(parsed).every((item) => item === null)) {
+    return null;
+  }
+
+  return parsed;
+}
+
 export function createSupervisorExecutionClient(
   env: Pick<
     Env,
-    "SUPERVISOR_API_BASE_URL" | "SUPERVISOR_API_SHARED_SECRET" | "SUPERVISOR_API_TIMEOUT_MS"
+    | "SUPERVISOR_API_BASE_URL"
+    | "SUPERVISOR_API_SHARED_SECRET"
+    | "SUPERVISOR_API_TIMEOUT_MS"
+    | "SUPERVISOR_API_EVAL_TIMEOUT_MS"
   >,
   input: {
     fetchImplementation?: typeof fetch;
@@ -181,10 +414,15 @@ export function createSupervisorExecutionClient(
     async execute(payload: SupervisorExecutionInput): Promise<SupervisorExecutionResponse> {
       const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
       const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
-      const timeoutMs = parsePositiveInteger(
+      const defaultTimeoutMs = parsePositiveInteger(
         env.SUPERVISOR_API_TIMEOUT_MS,
         DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
       );
+      const evalTimeoutMs = parsePositiveInteger(
+        env.SUPERVISOR_API_EVAL_TIMEOUT_MS,
+        DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
+      );
+      const timeoutMs = payload.surface === "eval_benchmark" ? evalTimeoutMs : defaultTimeoutMs;
       if (!baseUrl || !sharedSecret) {
         throw new SupervisorTransportError({
           code: "dependency_not_ready",
@@ -225,17 +463,19 @@ export function createSupervisorExecutionClient(
             applyTracePropagationHeaders(headers, payload.traceHeaders);
           }
 
+          const requestBody = {
+            context: toSupervisorContext(payload.context),
+            conversation_id: payload.conversationId,
+            request_id: payload.requestId,
+            requested_capability: payload.requestedCapability,
+            ...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
+            user_goal: payload.userGoal,
+          };
+
           fetchImplementation(`${baseUrl}/api/v1/answer`, {
             method: "POST",
             headers: Object.fromEntries(headers.entries()),
-            body: JSON.stringify({
-              context: toSupervisorContext(payload.context),
-              conversation_id: payload.conversationId,
-              request_id: payload.requestId,
-              requested_capability: payload.requestedCapability,
-              requested_scope: payload.requestedScope,
-              user_goal: payload.userGoal,
-            }),
+            body: JSON.stringify(requestBody),
             signal: controller.signal,
           })
             .then(resolve)
@@ -328,6 +568,7 @@ export function createSupervisorExecutionClient(
             : null,
         followUpQuestion:
           typeof parsed?.follow_up_question === "string" ? parsed.follow_up_question : "",
+        observability: parseExecutionObservability(parsed?.observability),
         result: parsed?.result ?? null,
         selectedTarget: typeof parsed?.selected_target === "string" ? parsed.selected_target : null,
         status:

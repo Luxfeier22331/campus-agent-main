@@ -1,4 +1,13 @@
-import { index, integer, jsonb, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgSchema,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 const officialWeb = pgSchema("official_web");
 
@@ -8,6 +17,7 @@ export const crawlRuns = officialWeb.table(
     runId: text("run_id").primaryKey(),
     siteId: text("site_id").notNull(),
     schedulerRunKey: text("scheduler_run_key").notNull(),
+    runIntent: text("run_intent").notNull().default("baseline"),
     triggerType: text("trigger_type").notNull(),
     collectorVersion: text("collector_version").notNull(),
     configVersion: text("config_version").notNull(),
@@ -27,6 +37,13 @@ export const crawlRuns = officialWeb.table(
     ingestionDispatchStatus: text("ingestion_dispatch_status").notNull().default("pending"),
     ingestionDispatchedAt: timestamp("ingestion_dispatched_at", { withTimezone: true }),
     ingestionDispatchRef: text("ingestion_dispatch_ref"),
+    ingestionExecutionStatus: text("ingestion_execution_status").notNull().default("pending"),
+    ingestionExecutionRef: text("ingestion_execution_ref"),
+    ingestionExecutionUpdatedAt: timestamp("ingestion_execution_updated_at", {
+      withTimezone: true,
+    }),
+    ingestionExecutionErrorCode: text("ingestion_execution_error_code"),
+    ingestionExecutionErrorMessage: text("ingestion_execution_error_message"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -34,6 +51,7 @@ export const crawlRuns = officialWeb.table(
     siteSchedulerRunKeyUnique: uniqueIndex("official_web_crawl_runs_site_scheduler_idx").on(
       table.siteId,
       table.schedulerRunKey,
+      table.runIntent,
     ),
     statusStartedAtIndex: index("official_web_crawl_runs_status_started_at_idx").on(
       table.status,
@@ -97,6 +115,102 @@ export const runArtifacts = officialWeb.table(
       table.artifactType,
       table.objectKey,
     ),
+  }),
+);
+
+export const pageObservations = officialWeb.table(
+  "page_observations",
+  {
+    observationId: text("observation_id").primaryKey(),
+    runId: text("run_id")
+      .notNull()
+      .references(() => crawlRuns.runId, { onDelete: "cascade" }),
+    siteId: text("site_id").notNull(),
+    runIntent: text("run_intent").notNull(),
+    host: text("host").notNull(),
+    requestedUrl: text("requested_url").notNull(),
+    finalUrl: text("final_url").notNull(),
+    normalizedCanonicalUrl: text("normalized_canonical_url").notNull(),
+    pageFamily: text("page_family").notNull(),
+    pageTitleNormalized: text("page_title_normalized").notNull(),
+    discoveryMethod: text("discovery_method").notNull(),
+    discoveredFromUrl: text("discovered_from_url"),
+    rawAssetId: text("raw_asset_id"),
+    rawVersionId: text("raw_version_id"),
+    httpStatus: integer("http_status"),
+    contentType: text("content_type"),
+    etag: text("etag"),
+    lastModified: text("last_modified"),
+    responseBodyHash: text("response_body_hash"),
+    mainContentHash: text("main_content_hash"),
+    fetchDisposition: text("fetch_disposition").notNull(),
+    changeStatus: text("change_status").notNull(),
+    lastChangeReason: text("last_change_reason").notNull(),
+    cadenceClass: text("cadence_class").notNull(),
+    priorityScore: integer("priority_score").notNull(),
+    nextEligibleFetchAt: timestamp("next_eligible_fetch_at", { withTimezone: true }).notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    runObservedAtIndex: index("official_web_page_observations_run_observed_at_idx").on(
+      table.runId,
+      table.observedAt,
+    ),
+    siteCanonicalObservedAtIndex: index("official_web_page_observations_site_url_observed_at_idx").on(
+      table.siteId,
+      table.normalizedCanonicalUrl,
+      table.observedAt,
+    ),
+    changeStatusObservedAtIndex: index("official_web_page_observations_change_status_observed_at_idx").on(
+      table.changeStatus,
+      table.observedAt,
+    ),
+  }),
+);
+
+export const pageFreshness = officialWeb.table(
+  "page_freshness",
+  {
+    siteId: text("site_id").notNull(),
+    normalizedCanonicalUrl: text("normalized_canonical_url").notNull(),
+    host: text("host").notNull(),
+    pageFamily: text("page_family").notNull(),
+    pageTitleNormalized: text("page_title_normalized").notNull(),
+    discoveredFromUrl: text("discovered_from_url"),
+    discoveryMethod: text("discovery_method").notNull(),
+    lastFetchDisposition: text("last_fetch_disposition").notNull(),
+    lastHttpStatus: integer("last_http_status"),
+    contentType: text("content_type"),
+    etag: text("etag"),
+    lastModified: text("last_modified"),
+    responseBodyHash: text("response_body_hash"),
+    mainContentHash: text("main_content_hash"),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    lastChangedAt: timestamp("last_changed_at", { withTimezone: true }),
+    lastNotModifiedAt: timestamp("last_not_modified_at", { withTimezone: true }),
+    cadenceClass: text("cadence_class").notNull(),
+    priorityScore: integer("priority_score").notNull(),
+    nextEligibleFetchAt: timestamp("next_eligible_fetch_at", { withTimezone: true }).notNull(),
+    lastSuccessfulRunId: text("last_successful_run_id"),
+    lastChangeReason: text("last_change_reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    pageFreshnessPk: primaryKey({
+      columns: [table.siteId, table.normalizedCanonicalUrl],
+      name: "official_web_page_freshness_pk",
+    }),
+    cadenceEligibleIndex: index("official_web_page_freshness_cadence_eligible_idx").on(
+      table.cadenceClass,
+      table.nextEligibleFetchAt,
+    ),
+    hostUpdatedAtIndex: index("official_web_page_freshness_host_updated_at_idx").on(
+      table.host,
+      table.updatedAt,
+    ),
+    lastSeenAtIndex: index("official_web_page_freshness_last_seen_at_idx").on(table.lastSeenAt),
   }),
 );
 

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 
 import {
   getMissingRuntimeConfig,
+  parseCsvList,
   readAppApiConfig,
   resolveAppName,
   type Env,
@@ -13,22 +14,38 @@ import {
   routeErrorResponse,
   withNoStore,
 } from "./http";
+import { probeRuntimeDatabase } from "./db/runtime";
 import {
   buildChatConversationService,
   createPgChatConversationStore,
   type ChatConversationService,
 } from "./modules/chat";
-import { createSupervisorExecutionClient } from "./modules/integration";
+import { createSupervisorExecutionClient, probeSupervisorApiReady } from "./modules/integration";
 import {
   buildOfficialWebCommandService,
   createPgOfficialWebCommandStore,
   type OfficialWebCommandService,
 } from "./modules/official-web-command";
 import {
+  buildOperatorObservabilityCommandService,
+  createPgOperatorObservabilityCommandStore,
+  type OperatorObservabilityCommandService,
+} from "./modules/operator-observability-command";
+import {
   buildOfficialWebQueryService,
   createPgOfficialWebQueryStore,
   type OfficialWebQueryService,
 } from "./modules/official-web-query";
+import { createPgOfficialWebProjectionStore } from "./modules/official-web-projection";
+import {
+  buildOfficialWebExecutionStatusService,
+  type OfficialWebExecutionStatusService,
+} from "./modules/official-web-execution";
+import {
+  buildOfficialWebPlannerService,
+  createPgOfficialWebPlannerStore,
+  type OfficialWebPlannerService,
+} from "./modules/official-web-planner";
 import {
   buildOperatorQueryService,
   createPgOperatorQueryStore,
@@ -41,22 +58,53 @@ import {
 } from "./modules/runtime-command";
 import { createAppTelemetry, type AppTelemetry } from "./modules/telemetry";
 import {
+  buildInternalEvalPrincipal,
   buildBetterAuthConfig,
+  hasTrustedInternalRequest,
+  hasMatchingInternalSecret,
   handleAuthRequest,
+  probeAppAuthRuntime,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
+  type AppAuthResolutionInput,
   type ResolvedAppPrincipal,
 } from "./modules/auth";
+import { createRequestRuntimeScope } from "./request-runtime-scope";
 
 export interface AppDependencies {
-  authHandler?: (request: Request, env: Env) => Promise<Response> | Response;
+  authHandler?: (request: Request, env: Env, input?: AppAuthResolutionInput) => Promise<Response> | Response;
   chatConversationService?: ChatConversationService;
   chatCommandService?: ChatCommandService;
-  getPrincipal?: (request: Request, env: Env) => Promise<ResolvedAppPrincipal | null>;
+  getPrincipal?: (
+    request: Request,
+    env: Env,
+    input?: AppAuthResolutionInput,
+  ) => Promise<ResolvedAppPrincipal | null>;
   officialWebCommandService?: OfficialWebCommandService;
+  officialWebExecutionStatusService?: OfficialWebExecutionStatusService;
+  officialWebPlannerService?: OfficialWebPlannerService;
   officialWebQueryService?: OfficialWebQueryService;
+  operatorObservabilityCommandService?: OperatorObservabilityCommandService;
   operatorQueryService?: OperatorQueryService;
+  scheduleRequestProjectionDrain?: (input: {
+    requestId: string;
+    waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+  }) => void;
   telemetry?: AppTelemetry;
+  runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
+}
+type AppRuntimeDependencyName = "auth" | "database" | "supervisorApi";
+
+export interface AppRuntimeReadinessResult {
+  dependencies: {
+    auth: "ready" | "not_ready";
+    database: "ready" | "not_ready";
+    officialWebHandoff: "configured" | "not_configured";
+    operatorBridge: "configured";
+    publicChatOrigin: "configured";
+    supervisorApi: "ready" | "not_ready";
+  };
+  failed: Partial<Record<AppRuntimeDependencyName, string>>;
 }
 
 function dependencyNotReadyResponse() {
@@ -92,6 +140,43 @@ function serviceCredentialRequiredResponse() {
   );
 }
 
+function internalAuthRequiredResponse() {
+  return jsonResponse(
+    errorEnvelope({
+      code: "internal_auth_required",
+      message: "Trusted internal shared secret required.",
+      retryable: false,
+    }),
+    { status: 401 },
+  );
+}
+
+function buildInternalEvalPrincipalFromRequest(request: Request): ResolvedAppPrincipal {
+  return buildInternalEvalPrincipal({
+    actorRoles: parseCsvList(request.headers.get("x-eval-actor-roles") ?? undefined),
+    applicabilityScope: request.headers.get("x-eval-applicability-scope") ?? undefined,
+    cohort: request.headers.get("x-eval-cohort") ?? undefined,
+    departments: parseCsvList(request.headers.get("x-eval-departments") ?? undefined),
+    displayName: request.headers.get("x-eval-user-name") ?? undefined,
+    email: request.headers.get("x-eval-user-email") ?? "",
+    major: request.headers.get("x-eval-major") ?? undefined,
+    entitlementGroups: parseCsvList(request.headers.get("x-eval-entitlement-groups") ?? undefined),
+    entitlementSnapshotId: request.headers.get("x-eval-entitlement-snapshot-id") ?? undefined,
+    ownershipScopes: parseCsvList(request.headers.get("x-eval-ownership-scopes") ?? undefined),
+    principalId: request.headers.get("x-eval-user-id") ?? undefined,
+    principalType:
+      (request.headers.get("x-eval-principal-type") as
+        | "campus_member"
+        | "student"
+        | "staff"
+        | "faculty"
+        | null) ?? undefined,
+    program: request.headers.get("x-eval-program") ?? undefined,
+    visibilityLevel: request.headers.get("x-eval-visibility-level") ?? undefined,
+    visibilityScope: request.headers.get("x-eval-visibility-scope"),
+  });
+}
+
 function parseLimit(value: string | null | undefined): number | null {
   if (!value) {
     return null;
@@ -99,6 +184,21 @@ function parseLimit(value: string | null | undefined): number | null {
 
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function readOperatorAggregateFilters(request: {
+  query(name: string): string | undefined;
+}) {
+  return {
+    collection: request.query("collection") ?? null,
+    granularity: request.query("granularity") ?? null,
+    modelName: request.query("modelName") ?? null,
+    principalType: request.query("principalType") ?? null,
+    requestedCapability: request.query("requestedCapability") ?? null,
+    selectedTarget: request.query("selectedTarget") ?? null,
+    surface: request.query("surface") ?? null,
+    window: request.query("window") ?? null,
+  };
 }
 
 function operatorAccessForbiddenResponse() {
@@ -118,14 +218,50 @@ function resolveRequestSurface(request: Request): string {
   if (pathname.startsWith("/api/operator/")) {
     return "protected_panel_web";
   }
+  if (pathname.startsWith("/api/internal/official-web/")) {
+    return "official_web";
+  }
   if (pathname.startsWith("/api/official-web/")) {
     return "official_web";
   }
-  if (pathname.startsWith("/api/chat/") || pathname.startsWith("/api/auth/") || pathname === "/api/me") {
+  if (
+    pathname === "/api/chat" ||
+    pathname === "/api/history" ||
+    pathname.startsWith("/api/chat/") ||
+    pathname.startsWith("/api/auth/") ||
+    pathname === "/api/me"
+  ) {
     return "public_chat_web";
   }
 
   return "app_api";
+}
+
+function createFallbackCorrelation() {
+  return {
+    requestId: `req_${crypto.randomUUID().replace(/-/g, "")}`,
+    traceId: `trace_${crypto.randomUUID().replace(/-/g, "")}`,
+  };
+}
+
+function routeErrorResponseWithFallbackCorrelation(
+  error: AppApiRouteError,
+  correlation: {
+    requestId: string;
+    traceId: string;
+  },
+): Response {
+  return routeErrorResponse(
+    new AppApiRouteError({
+      code: error.code,
+      details: error.details,
+      message: error.message,
+      requestId: error.requestId ?? correlation.requestId,
+      retryable: error.retryable,
+      status: error.status,
+      traceId: error.traceId ?? correlation.traceId,
+    }),
+  );
 }
 
 async function readJsonRequestBody(request: Request): Promise<Record<string, unknown>> {
@@ -153,40 +289,208 @@ async function readJsonRequestBody(request: Request): Promise<Record<string, unk
     : {};
 }
 
+function resolveWaitUntil(
+  context: { executionCtx?: { waitUntil(promise: Promise<unknown>): void } } | null | undefined,
+): ((promise: Promise<unknown>) => void) | undefined {
+  try {
+    return context?.executionCtx?.waitUntil.bind(context.executionCtx);
+  } catch {
+    return undefined;
+  }
+}
+
+function formatRuntimeDependencyFailure(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown dependency probe failure.";
+}
+
+async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
+  const dependencies: AppRuntimeReadinessResult["dependencies"] = {
+    auth: "not_ready",
+    database: "not_ready",
+    officialWebHandoff:
+      env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
+        ? "configured"
+        : "not_configured",
+    operatorBridge: "configured",
+    publicChatOrigin: "configured",
+    supervisorApi: "not_ready",
+  };
+  const failed: AppRuntimeReadinessResult["failed"] = {};
+
+  try {
+    const config = readAppApiConfig(env);
+    buildBetterAuthConfig({
+      appName: config.appName,
+      betterAuthSecret: config.betterAuthSecret,
+      database: {},
+      endUserEmailAllowlist: config.endUserEmailAllowlist,
+      endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
+      environment: config.environment,
+      publicChatOrigin: config.publicChatOrigin,
+    });
+  } catch (error) {
+    return {
+      dependencies,
+      failed: {
+        auth: formatRuntimeDependencyFailure(error),
+        database: formatRuntimeDependencyFailure(error),
+        supervisorApi: formatRuntimeDependencyFailure(error),
+      },
+    };
+  }
+
+  try {
+    await probeRuntimeDatabase(env);
+    dependencies.database = "ready";
+  } catch (error) {
+    failed.database = formatRuntimeDependencyFailure(error);
+  }
+
+  try {
+    await probeAppAuthRuntime(env);
+    dependencies.auth = "ready";
+  } catch (error) {
+    failed.auth = formatRuntimeDependencyFailure(error);
+  }
+
+  try {
+    await probeSupervisorApiReady(env);
+    dependencies.supervisorApi = "ready";
+  } catch (error) {
+    failed.supervisorApi = formatRuntimeDependencyFailure(error);
+  }
+
+  return {
+    dependencies,
+    failed,
+  };
+}
+
 export function createApp(env: Env, dependencies: AppDependencies = {}) {
   const app = new Hono<{ Bindings: Env }>();
   const authHandler = dependencies.authHandler ?? handleAuthRequest;
   const telemetry = dependencies.telemetry ?? createAppTelemetry(env);
-  const chatConversationStore = createPgChatConversationStore(env);
-  const chatConversationService =
-    dependencies.chatConversationService ??
-    buildChatConversationService({
-      store: chatConversationStore,
-    });
-  const chatCommandService =
-    dependencies.chatCommandService ??
-    buildChatCommandService({
-      conversationStore: chatConversationStore,
-      store: createPgChatCommandStore(env),
-      supervisor: createSupervisorExecutionClient(env),
-      telemetry,
-    });
   const getPrincipal = dependencies.getPrincipal ?? resolveRequestPrincipal;
-  const officialWebCommandService =
-    dependencies.officialWebCommandService ??
-    buildOfficialWebCommandService({
-      store: createPgOfficialWebCommandStore(env),
+  const officialWebExecutionStatusService =
+    dependencies.officialWebExecutionStatusService ??
+    buildOfficialWebExecutionStatusService({
+      store: createPgOfficialWebProjectionStore(env),
     });
-  const officialWebQueryService =
-    dependencies.officialWebQueryService ??
-    buildOfficialWebQueryService({
-      store: createPgOfficialWebQueryStore(env),
+  const officialWebPlannerService =
+    dependencies.officialWebPlannerService ??
+    buildOfficialWebPlannerService({
+      store: createPgOfficialWebPlannerStore(env),
     });
-  const operatorQueryService =
-    dependencies.operatorQueryService ??
-    buildOperatorQueryService({
-      store: createPgOperatorQueryStore(env),
+  const runtimeReadinessProbe = dependencies.runtimeReadinessProbe ?? (() => defaultRuntimeReadinessProbe(env));
+  const scheduleRequestProjectionDrain = dependencies.scheduleRequestProjectionDrain;
+
+  function createRequestScope() {
+    const runtime = createRequestRuntimeScope(env);
+    let chatConversationService = dependencies.chatConversationService ?? null;
+    let chatCommandService = dependencies.chatCommandService ?? null;
+    let officialWebCommandService = dependencies.officialWebCommandService ?? null;
+    let officialWebQueryService = dependencies.officialWebQueryService ?? null;
+    let operatorObservabilityCommandService =
+      dependencies.operatorObservabilityCommandService ?? null;
+    let operatorQueryService = dependencies.operatorQueryService ?? null;
+
+    function resolveChatConversationService(): ChatConversationService {
+      if (chatConversationService) {
+        return chatConversationService;
+      }
+
+      chatConversationService = buildChatConversationService({
+        store: createPgChatConversationStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return chatConversationService;
+    }
+
+    function resolveChatCommandService(): ChatCommandService {
+      if (chatCommandService) {
+        return chatCommandService;
+      }
+
+      const chatConversationStore = createPgChatConversationStore(env, { getDb: runtime.getFreshDb });
+      chatCommandService = buildChatCommandService({
+        conversationStore: chatConversationStore,
+        store: createPgChatCommandStore(env, { getDb: runtime.getFreshDb }),
+        supervisor: createSupervisorExecutionClient(env),
+        telemetry,
+      });
+      return chatCommandService;
+    }
+
+    function resolveOfficialWebCommandService(): OfficialWebCommandService {
+      if (officialWebCommandService) {
+        return officialWebCommandService;
+      }
+
+      officialWebCommandService = buildOfficialWebCommandService({
+        store: createPgOfficialWebCommandStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return officialWebCommandService;
+    }
+
+    function resolveOfficialWebQueryService(): OfficialWebQueryService {
+      if (officialWebQueryService) {
+        return officialWebQueryService;
+      }
+
+      officialWebQueryService = buildOfficialWebQueryService({
+        store: createPgOfficialWebQueryStore(env, { getDb: runtime.getDb }),
+      });
+      return officialWebQueryService;
+    }
+
+    function resolveOperatorQueryService(): OperatorQueryService {
+      if (operatorQueryService) {
+        return operatorQueryService;
+      }
+
+      operatorQueryService = buildOperatorQueryService({
+        store: createPgOperatorQueryStore(env, { getDb: runtime.getDb }),
+      });
+      return operatorQueryService;
+    }
+
+    function resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService {
+      if (operatorObservabilityCommandService) {
+        return operatorObservabilityCommandService;
+      }
+
+      operatorObservabilityCommandService = buildOperatorObservabilityCommandService({
+        store: createPgOperatorObservabilityCommandStore(env, { getDb: runtime.getFreshDb }),
+      });
+      return operatorObservabilityCommandService;
+    }
+
+    return {
+      getAppAuth: runtime.getAppAuth,
+      resolveChatCommandService,
+      resolveChatConversationService,
+      resolveOfficialWebCommandService,
+      resolveOfficialWebQueryService,
+      resolveOperatorObservabilityCommandService,
+      resolveOperatorQueryService,
+    };
+  }
+
+  async function resolvePrincipalForScope(
+    request: Request,
+    scope: ReturnType<typeof createRequestScope>,
+  ): Promise<ResolvedAppPrincipal | null> {
+    return getPrincipal(request, env, {
+      getAppAuth: scope.getAppAuth,
     });
+  }
+
+  function principalResolutionErrorResponse(error: unknown): Response {
+    if (error instanceof AppApiRouteError) {
+      return routeErrorResponse(error);
+    }
+
+    return dependencyNotReadyResponse();
+  }
 
   app.use("*", async (c, next) => {
     telemetry.configureHttpRequestScope({
@@ -221,24 +525,15 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       );
     }
 
-    try {
-      const config = readAppApiConfig(env);
-      buildBetterAuthConfig({
-        appName: config.appName,
-        betterAuthSecret: config.betterAuthSecret,
-        database: {},
-        environment: config.environment,
-        publicChatOrigin: config.publicChatOrigin,
-      });
-    } catch (error) {
+    const readiness = await runtimeReadinessProbe();
+    if (Object.keys(readiness.failed).length > 0) {
       return jsonResponse(
         errorEnvelope({
           code: "dependency_not_ready",
-          message: "Runtime configuration is incomplete.",
+          message: "Runtime dependencies are not ready.",
           retryable: true,
           details: {
-            reason:
-              error instanceof Error ? error.message : "Unable to initialize app-api runtime.",
+            failed: readiness.failed,
           },
         }),
         { status: 503 },
@@ -247,35 +542,32 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
 
     return jsonResponse({
       status: "ready",
-      dependencies: {
-        auth: "configured",
-        database: "configured",
-        officialWebHandoff:
-          env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
-            ? "configured"
-            : "not_configured",
-        operatorBridge: "configured",
-        publicChatOrigin: "configured",
-        supervisorApi: "configured",
-      },
+      dependencies: readiness.dependencies,
     });
   });
 
   app.all("/api/auth/*", async (c) => {
+    const scope = createRequestScope();
+
     try {
-      return withNoStore(await authHandler(c.req.raw, env));
+      return withNoStore(
+        await authHandler(c.req.raw, env, {
+          getAppAuth: scope.getAppAuth,
+        }),
+      );
     } catch {
       return dependencyNotReadyResponse();
     }
   });
 
   app.get("/api/me", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -290,47 +582,62 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/chat/requests", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
       return sessionRequiredResponse();
     }
 
-    const payload = await readJsonRequestBody(c.req.raw);
+    const fallbackCorrelation = createFallbackCorrelation();
 
-    const response = await chatCommandService.submit({
-      idempotencyKey: c.req.header("idempotency-key") ?? null,
-      payload,
-      principal,
-    });
+    try {
+      const payload = await readJsonRequestBody(c.req.raw);
 
-    return jsonResponse(
-      {
-        answer: response.answer,
-      },
-      {
-        headers: {
-          "x-request-id": response.requestId,
-          "x-trace-id": response.traceId,
+      const response = await scope.resolveChatCommandService().submit({
+        idempotencyKey: c.req.header("idempotency-key") ?? null,
+        payload,
+        principal,
+      });
+      scheduleRequestProjectionDrain?.({
+        requestId: response.requestId,
+        waitUntil: resolveWaitUntil(c),
+      });
+
+      return jsonResponse(
+        {
+          answer: response.answer,
         },
-        status: 200,
-      },
-    );
+        {
+          headers: {
+            "x-request-id": response.requestId,
+            "x-trace-id": response.traceId,
+          },
+          status: 200,
+        },
+      );
+    } catch (error) {
+      if (error instanceof AppApiRouteError) {
+        return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+      }
+      throw error;
+    }
   });
 
   app.post("/api/official-web/runs", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.start({
+    const response = await scope.resolveOfficialWebCommandService().start({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
     });
@@ -339,12 +646,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/official-web/runs/:runId/heartbeats", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.heartbeat({
+    const response = await scope.resolveOfficialWebCommandService().heartbeat({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
       runId: c.req.param("runId"),
@@ -354,12 +662,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.post("/api/official-web/runs/:runId/finalize", async (c) => {
+    const scope = createRequestScope();
     const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
     if (!principal) {
       return serviceCredentialRequiredResponse();
     }
 
-    const response = await officialWebCommandService.finalize({
+    const response = await scope.resolveOfficialWebCommandService().finalize({
       payload: await readJsonRequestBody(c.req.raw),
       principal,
       runId: c.req.param("runId"),
@@ -368,67 +677,264 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse(response);
   });
 
+  app.post("/api/official-web/plans:resolve", async (c) => {
+    const principal = await resolveOfficialWebCollectorPrincipal(c.req.raw, env);
+    if (!principal) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await officialWebPlannerService.resolve({
+        payload: await readJsonRequestBody(c.req.raw),
+        principal,
+      }),
+    );
+  });
+
+  app.post("/api/internal/operator/quality/grades", async (c) => {
+    const scope = createRequestScope();
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorObservabilityCommandService().ingestGrades({
+        payload: await readJsonRequestBody(c.req.raw),
+      }),
+    );
+  });
+
+  app.post("/api/internal/official-web/runs/:runId/ingestion-execution", async (c) => {
+    if (!hasTrustedInternalRequest(c.req.raw, env)) {
+      return internalAuthRequiredResponse();
+    }
+
+    return jsonResponse(
+      await officialWebExecutionStatusService.updateRunExecutionStatus({
+        payload: await readJsonRequestBody(c.req.raw),
+        runId: c.req.param("runId"),
+      }),
+    );
+  });
+
+  app.post("/api/internal/operator/trace-backlinks", async (c) => {
+    const scope = createRequestScope();
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorObservabilityCommandService().ingestTraceBacklinks({
+        payload: await readJsonRequestBody(c.req.raw),
+      }),
+    );
+  });
+
+  app.post("/api/internal/evals/chat/requests", async (c) => {
+    const scope = createRequestScope();
+    if (!hasMatchingInternalSecret(c.req.raw, env)) {
+      return serviceCredentialRequiredResponse();
+    }
+
+    const fallbackCorrelation = createFallbackCorrelation();
+
+    try {
+      const response = await scope.resolveChatCommandService().submit({
+        idempotencyKey: c.req.header("idempotency-key") ?? null,
+        payload: await readJsonRequestBody(c.req.raw),
+        principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
+        surface: "eval_benchmark",
+      });
+
+      return jsonResponse(
+        {
+          answer: response.answer,
+          supervisor: response.supervisor ?? null,
+        },
+        {
+          headers: {
+            "x-request-id": response.requestId,
+            "x-trace-id": response.traceId,
+          },
+          status: 200,
+        },
+      );
+    } catch (error) {
+      if (error instanceof AppApiRouteError) {
+        return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+      }
+      throw error;
+    }
+  });
   app.get("/api/chat/conversations", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.list({ principal });
+    const response = await scope.resolveChatConversationService().list({ principal });
+    return jsonResponse(response);
+  });
+
+  app.get("/api/history", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const limitParam = c.req.query("limit");
+    const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : 20;
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
+
+    const response = await scope.resolveChatConversationService().listHistoryPage({
+      endingBeforeConversationId: c.req.query("ending_before") ?? null,
+      limit,
+      principal,
+    });
     return jsonResponse(response);
   });
 
   app.post("/api/chat/conversations", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.createDraft({ principal });
+    const response = await scope.resolveChatConversationService().createDraft({ principal });
     return jsonResponse(response, { status: 201 });
   });
 
-  app.get("/api/chat/conversations/:conversationId", async (c) => {
+  app.delete("/api/history", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
       return sessionRequiredResponse();
     }
 
-    const response = await chatConversationService.getById({
+    const response = await scope.resolveChatConversationService().deleteAll({ principal });
+    return jsonResponse(response);
+  });
+
+  app.get("/api/chat/conversations/:conversationId", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const response = await scope.resolveChatConversationService().getById({
       conversationId: c.req.param("conversationId"),
       principal,
     });
     return jsonResponse(response);
   });
 
-  app.get("/api/operator/requests", async (c) => {
+  app.delete("/api/chat/conversations/:conversationId/messages/:messageId/trailing", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    await scope.resolveChatConversationService().deleteTrailingMessages({
+      conversationId: c.req.param("conversationId"),
+      messageId: c.req.param("messageId"),
+      principal,
+    });
+    return new Response(null, { status: 204 });
+  });
+
+  app.delete("/api/chat", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+
+    const conversationId = c.req.query("id");
+    if (!conversationId) {
+      return jsonResponse(
+        {
+          error: {
+            code: "conversation_id_required",
+            details: null,
+            message: "Conversation id is required.",
+            requestId: null,
+            retryable: false,
+            traceId: null,
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    const response = await scope.resolveChatConversationService().deleteById({
+      conversationId,
+      principal,
+    });
+    return jsonResponse(response);
+  });
+
+  app.get("/api/operator/overview", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -438,11 +944,228 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return operatorAccessForbiddenResponse();
     }
 
-    const response = await operatorQueryService.list({
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getOverview({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/summary", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getQualitySummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/timeseries", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getQualityTimeseries({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/quality/badcases", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().listQualityBadcases({
+        filters: {
+          causeClass: c.req.query("causeClass") ?? null,
+          cursor: c.req.query("cursor") ?? null,
+          detectedBy: c.req.query("detectedBy") ?? null,
+          limit: parseLimit(c.req.query("limit")),
+          status: c.req.query("status") ?? null,
+        },
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/safety/summary", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getSafetySummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/cost/summary", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getCostSummary({
+        filters: readOperatorAggregateFilters(c.req),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/audit", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().listAudit({
+        filters: {
+          cursor: c.req.query("cursor") ?? null,
+          eventType: c.req.query("eventType") ?? null,
+          limit: parseLimit(c.req.query("limit")),
+          principalType: c.req.query("principalType") ?? null,
+          requestId: c.req.query("requestId") ?? null,
+          selectedTarget: c.req.query("selectedTarget") ?? null,
+          status: c.req.query("status") ?? null,
+          surface: c.req.query("surface") ?? null,
+          traceId: c.req.query("traceId") ?? null,
+        },
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/audit/:auditEventId", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOperatorQueryService().getAuditById({
+        auditEventId: c.req.param("auditEventId"),
+        principal,
+      }),
+    );
+  });
+
+  app.get("/api/operator/requests", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    const response = await scope.resolveOperatorQueryService().list({
       filters: {
         conversationId: c.req.query("conversationId") ?? null,
         cursor: c.req.query("cursor") ?? null,
         limit: parseLimit(c.req.query("limit")),
+        q: c.req.query("q") ?? null,
         requestId: c.req.query("requestId") ?? null,
         status: c.req.query("status") ?? null,
         surface: c.req.query("surface") ?? null,
@@ -454,12 +1177,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/requests/:requestId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -469,7 +1193,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       return operatorAccessForbiddenResponse();
     }
 
-    const request = await operatorQueryService.getById({
+    const request = await scope.resolveOperatorQueryService().getById({
       principal,
       requestId: c.req.param("requestId"),
     });
@@ -477,13 +1201,14 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     return jsonResponse({ request });
   });
 
-  app.get("/api/operator/official-web/sites", async (c) => {
+  app.get("/api/operator/requests/:requestId/observability", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -494,19 +1219,45 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.listSites({
+      await scope.resolveOperatorQueryService().getObservabilityById({
+        principal,
+        requestId: c.req.param("requestId"),
+      }),
+    );
+  });
+
+  app.get("/api/operator/official-web/sites", async (c) => {
+    const scope = createRequestScope();
+    let principal: ResolvedAppPrincipal | null = null;
+
+    try {
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
+    }
+
+    if (!principal) {
+      return sessionRequiredResponse();
+    }
+    if (!principal.permissions.operator) {
+      return operatorAccessForbiddenResponse();
+    }
+
+    return jsonResponse(
+      await scope.resolveOfficialWebQueryService().listSites({
         principal,
       }),
     );
   });
 
   app.get("/api/operator/official-web/sites/:siteId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -517,7 +1268,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.getSiteById({
+      await scope.resolveOfficialWebQueryService().getSiteById({
         principal,
         siteId: c.req.param("siteId"),
       }),
@@ -525,12 +1276,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/official-web/runs", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -541,11 +1293,12 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse(
-      await officialWebQueryService.listRuns({
+      await scope.resolveOfficialWebQueryService().listRuns({
         filters: {
           cursor: c.req.query("cursor") ?? null,
           ingestionDispatchStatus: c.req.query("ingestionDispatchStatus") ?? null,
           limit: parseLimit(c.req.query("limit")),
+          runIntent: c.req.query("runIntent") ?? null,
           siteId: c.req.query("siteId") ?? null,
           startedAfter: c.req.query("startedAfter") ?? null,
           startedBefore: c.req.query("startedBefore") ?? null,
@@ -557,12 +1310,13 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
   });
 
   app.get("/api/operator/official-web/runs/:runId", async (c) => {
+    const scope = createRequestScope();
     let principal: ResolvedAppPrincipal | null = null;
 
     try {
-      principal = await getPrincipal(c.req.raw, env);
-    } catch {
-      return dependencyNotReadyResponse();
+      principal = await resolvePrincipalForScope(c.req.raw, scope);
+    } catch (error) {
+      return principalResolutionErrorResponse(error);
     }
 
     if (!principal) {
@@ -573,7 +1327,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     }
 
     return jsonResponse({
-      run: await officialWebQueryService.getRunById({
+      run: await scope.resolveOfficialWebQueryService().getRunById({
         principal,
         runId: c.req.param("runId"),
       }),
@@ -584,6 +1338,24 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
     if (error instanceof AppApiRouteError) {
       return routeErrorResponse(error);
     }
+
+    console.error(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? {
+                message: error.message,
+                name: error.name,
+              }
+            : {
+                message: String(error),
+                name: "UnknownError",
+              },
+        route: c.req.path,
+        source: "app-api.onError",
+        surface: resolveRequestSurface(c.req.raw),
+      }),
+    );
 
     telemetry.captureException(error, {
       route: c.req.path,

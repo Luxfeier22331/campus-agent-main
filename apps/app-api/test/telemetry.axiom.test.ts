@@ -138,4 +138,46 @@ describe("axiom runtime event sink", () => {
       }),
     );
   });
+
+  it("fails open when the Axiom ingest fetch exceeds the timeout budget", async () => {
+    vi.useFakeTimers();
+
+    const logger = { warn: vi.fn() };
+    const fetchImplementation = vi.fn(
+      (_input: URL | RequestInfo, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+    const sink = createAxiomRuntimeEventSink(
+      {
+        AXIOM_DATASET: "campus_agent_runtime",
+        AXIOM_ENDPOINT: "https://us-east-1.aws.edge.axiom.co",
+        AXIOM_TOKEN: "axiom-secret",
+      },
+      {
+        fetchImplementation,
+        logger,
+        timeoutMs: 10,
+      },
+    );
+
+    const emitPromise = sink.emit({
+      event_type: "request.finalized",
+      request_id: "req_01HQ",
+      status: "completed",
+      surface: "public_chat_web",
+      trace_id: "trace_01HQ",
+    });
+
+    await vi.advanceTimersByTimeAsync(10);
+    await emitPromise;
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith("Axiom ingest failed: Axiom ingest timed out after 10ms.");
+
+    vi.useRealTimers();
+  });
 });

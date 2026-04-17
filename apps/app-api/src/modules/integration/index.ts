@@ -5,11 +5,14 @@ export {
 export {
   SupervisorTransportError,
   createSupervisorExecutionClient,
+  probeSupervisorApiReady,
 } from "./supervisor";
 export type {
   RequestedScope,
   SupervisorExecutionClient,
+  SupervisorContextProjection,
   SupervisorExecutionInput,
+  SupervisorExecutionObservability,
   SupervisorExecutionResponse,
 } from "./supervisor";
 export type {

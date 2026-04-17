@@ -1,66 +1,64 @@
-import { boolean, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, index, pgSchema, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
-const auth = pgSchema("auth");
+const auth = pgSchema("app_auth");
 
 export const user = auth.table(
-  "users",
+  "user",
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     email: text("email").notNull(),
-    emailVerified: boolean("email_verified").notNull().default(false),
+    emailVerified: boolean("emailVerified").notNull().default(false),
     image: text("image"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
   },
   (table) => ({
-    emailUnique: uniqueIndex("auth_users_email_idx").on(table.email),
+    emailUnique: uniqueIndex("user_email_uidx").on(table.email),
   }),
 );
 
 export const session = auth.table(
-  "sessions",
+  "session",
   {
     id: text("id").primaryKey(),
     token: text("token").notNull(),
-    userId: text("user_id")
+    userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    ipAddress: text("ip_address"),
-    userAgent: text("user_agent"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+    ipAddress: text("ipAddress"),
+    userAgent: text("userAgent"),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
   },
   (table) => ({
-    tokenUnique: uniqueIndex("auth_sessions_token_idx").on(table.token),
+    tokenUnique: uniqueIndex("session_token_uidx").on(table.token),
+    userIdIndex: index("session_userId_idx").on(table.userId),
   }),
 );
 
 export const account = auth.table(
-  "accounts",
+  "account",
   {
     id: text("id").primaryKey(),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    userId: text("user_id")
+    accountId: text("accountId").notNull(),
+    providerId: text("providerId").notNull(),
+    userId: text("userId")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    idToken: text("id_token"),
-    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
-    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    accessToken: text("accessToken"),
+    refreshToken: text("refreshToken"),
+    idToken: text("idToken"),
+    accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { withTimezone: true }),
     scope: text("scope"),
     password: text("password"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
   },
   (table) => ({
-    providerAccountUnique: uniqueIndex("auth_accounts_provider_account_idx").on(
-      table.providerId,
-      table.accountId,
-    ),
+    userIdIndex: index("account_userId_idx").on(table.userId),
   }),
 );
 
@@ -70,14 +68,18 @@ export const verification = auth.table(
     id: text("id").primaryKey(),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+    createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
   },
   (table) => ({
-    identifierValueUnique: uniqueIndex("auth_verification_identifier_value_idx").on(
-      table.identifier,
-      table.value,
-    ),
+    identifierIndex: index("verification_identifier_idx").on(table.identifier),
   }),
 );
+
+export const appAuthSchema = {
+  user,
+  session,
+  account,
+  verification,
+};

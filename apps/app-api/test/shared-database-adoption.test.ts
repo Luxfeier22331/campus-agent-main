@@ -1,0 +1,373 @@
+// @vitest-environment node
+
+import { describe, expect, it } from "vitest";
+
+import {
+  buildAdoptionPlan,
+  buildExpectedTableSpecs,
+  classifySharedDatabaseState,
+  loadMigrationContext,
+  makeInventory,
+  parseMigrationStatement,
+} from "../scripts/adopt-shared-database.mjs";
+
+const migrationContext = loadMigrationContext();
+const snapshot0000 = migrationContext.snapshots.get("0000_funny_tiger_shark")!;
+const snapshotLatest = migrationContext.latestSnapshot;
+const snapshot0000Specs = buildExpectedTableSpecs(snapshot0000);
+const latestSpecs = buildExpectedTableSpecs(snapshotLatest);
+
+function buildTableFromSnapshot(
+  specs: ReturnType<typeof buildExpectedTableSpecs>,
+  qualifiedName: string,
+) {
+  const spec = specs.get(qualifiedName);
+  if (!spec) {
+    throw new Error(`Missing expected table spec for ${qualifiedName}`);
+  }
+  return {
+    schema: spec.schema,
+    table: spec.table,
+    columns: [...spec.columns.values()],
+    constraints: [...spec.constraints],
+    indexes: [...spec.indexes.values()],
+  };
+}
+
+function buildTableFromExpected(qualifiedName: string) {
+  return buildTableFromSnapshot(latestSpecs, qualifiedName);
+}
+
+describe("shared database adoption", () => {
+  it("parses supported migration statement shapes", () => {
+    expect(parseMigrationStatement('CREATE SCHEMA IF NOT EXISTS "official_web";')).toMatchObject({
+      existsKey: "official_web",
+      kind: "schema",
+    });
+    expect(parseMigrationStatement('CREATE TABLE "runtime"."request_execution" (')).toMatchObject({
+      existsKey: "runtime.request_execution",
+      kind: "table",
+    });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "official_web"."crawl_runs" ADD COLUMN "run_intent" text NOT NULL DEFAULT \'baseline\';',
+      ),
+    ).toMatchObject({
+      existsKey: "official_web.crawl_runs:run_intent",
+      kind: "column",
+    });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" ADD COLUMN "diagnostics_json" jsonb;',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:diagnostics_json",
+      kind: "column",
+    });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" ADD COLUMN "entitlement_snapshot_id" text;',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:entitlement_snapshot_id",
+      kind: "column",
+    });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "official_web"."run_outbox" ADD CONSTRAINT "run_outbox_run_id_crawl_runs_run_id_fk" FOREIGN KEY ("run_id") REFERENCES "official_web"."crawl_runs"("run_id") ON DELETE cascade ON UPDATE no action;',
+      ),
+    ).toMatchObject({
+      existsKey: "official_web.run_outbox#run_outbox_run_id_crawl_runs_run_id_fk",
+      kind: "constraint",
+    });
+    expect(
+      parseMigrationStatement(
+        'CREATE UNIQUE INDEX "runtime_request_execution_actor_idempotency_idx" ON "runtime"."request_execution" USING btree ("actor_user_id","idempotency_key");',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution@runtime_request_execution_actor_idempotency_idx",
+      kind: "index",
+    });
+    expect(
+      parseMigrationStatement('DROP INDEX "official_web"."official_web_crawl_runs_site_scheduler_idx";'),
+    ).toMatchObject({
+      existsKey: "official_web@official_web_crawl_runs_site_scheduler_idx",
+      kind: "drop_index",
+    });
+    expect(
+      parseMigrationStatement(
+        'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
+      ),
+    ).toMatchObject({
+      existsKey: "runtime.request_execution:actor_groups_json",
+      kind: "drop_column",
+    });
+  });
+
+  it("classifies non-owned shared schemas as fresh for app-api adoption", () => {
+    const inventory = makeInventory({
+      schemas: ["auth", "chat"],
+    });
+
+    expect(
+      classifySharedDatabaseState({
+        inventory,
+        snapshot0000,
+        snapshotLatest,
+      }),
+    ).toBe("fresh");
+  });
+
+  it("plans missing runtime/operator/official_web statements for shared databases without app-api-owned schemas", () => {
+    const inventory = makeInventory({
+      schemas: ["auth", "chat"],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(plan.state).toBe("fresh");
+    expect(plan.statements.some((item) => item.target.existsKey === "runtime.request_execution")).toBe(true);
+    expect(
+      plan.statements.some((item) => item.target.existsKey === "runtime.request_observability_fact"),
+    ).toBe(true);
+    expect(plan.statements.some((item) => item.target.existsKey === "operator.request_projection")).toBe(true);
+    expect(plan.statements.some((item) => item.target.existsKey === "official_web.crawl_runs")).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web@official_web_crawl_runs_site_scheduler_idx",
+      ),
+    ).toBe(true);
+    expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toEqual(
+      migrationContext.migrations.map((item) => item.tag),
+    );
+  });
+
+  it("plans stale index drops only when the pre-migration index still exists", () => {
+    const inventory = makeInventory({
+      schemas: ["official_web"],
+      tables: [buildTableFromSnapshot(snapshot0000Specs, "official_web.crawl_runs")],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web@official_web_crawl_runs_site_scheduler_idx",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web.crawl_runs@official_web_crawl_runs_site_scheduler_idx",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not replan the crawl_runs scheduler index when the latest definition already exists", () => {
+    const inventory = makeInventory({
+      schemas: ["official_web"],
+      tables: [buildTableFromExpected("official_web.crawl_runs")],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web@official_web_crawl_runs_site_scheduler_idx",
+      ),
+    ).toBe(false);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web.crawl_runs@official_web_crawl_runs_site_scheduler_idx",
+      ),
+    ).toBe(false);
+  });
+
+  it("allows add-column migrations to reconcile legacy official_web tables without a journal", () => {
+    const inventory = makeInventory({
+      schemas: ["official_web", "operator"],
+      tables: [
+        buildTableFromSnapshot(snapshot0000Specs, "official_web.crawl_runs"),
+        buildTableFromSnapshot(snapshot0000Specs, "operator.official_web_run_projection"),
+      ],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(plan.statements.some((item) => item.target.existsKey === "official_web.crawl_runs:run_intent")).toBe(
+      true,
+    );
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "official_web.crawl_runs:ingestion_execution_status",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "operator.official_web_run_projection:run_intent",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) =>
+          item.target.existsKey ===
+          "operator.official_web_run_projection:ingestion_execution_status",
+      ),
+    ).toBe(true);
+  });
+
+  it("backfills legacy run_intent columns with baseline during adoption", () => {
+    const crawlRunsRunIntentStatement =
+      'ALTER TABLE "official_web"."crawl_runs" ADD COLUMN "run_intent" text';
+    const runProjectionRunIntentStatement =
+      'ALTER TABLE "operator"."official_web_run_projection" ADD COLUMN "run_intent" text';
+    const runIntentBackfillMigration = migrationContext.migrations.find(
+      (migration) =>
+        migration.statements.some(
+          (statement) =>
+            statement.includes(crawlRunsRunIntentStatement) && statement.includes("DEFAULT 'baseline'"),
+        )
+        && migration.statements.some(
+          (statement) =>
+            statement.includes(runProjectionRunIntentStatement) && statement.includes("DEFAULT 'baseline'"),
+        ),
+    );
+
+    expect(runIntentBackfillMigration?.statements.some((statement) => statement.includes(crawlRunsRunIntentStatement))).toBe(
+      true,
+    );
+    expect(
+      runIntentBackfillMigration?.statements.some((statement) =>
+        statement.includes(runProjectionRunIntentStatement),
+      ),
+    ).toBe(true);
+    expect(
+      runIntentBackfillMigration?.statements.some((statement) =>
+        statement.includes(crawlRunsRunIntentStatement) && statement.includes("DEFAULT 'baseline'"),
+      ),
+    ).toBe(true);
+    expect(
+      runIntentBackfillMigration?.statements.some((statement) =>
+        statement.includes(runProjectionRunIntentStatement) && statement.includes("DEFAULT 'baseline'"),
+      ),
+    ).toBe(true);
+  });
+
+  it("surfaces composite primary key columns from drizzle snapshots", () => {
+    const pageFreshness = latestSpecs.get("official_web.page_freshness");
+
+    expect(pageFreshness?.columns.get("site_id")).toMatchObject({
+      name: "site_id",
+      primaryKey: true,
+    });
+    expect(pageFreshness?.columns.get("normalized_canonical_url")).toMatchObject({
+      name: "normalized_canonical_url",
+      primaryKey: true,
+    });
+  });
+
+  it("fails closed when an existing app-api-owned table diverges from the repo snapshot", () => {
+    const inventory = makeInventory({
+      schemas: ["runtime"],
+      tables: [
+        {
+          ...buildTableFromExpected("runtime.request_execution"),
+          columns: [
+            ...buildTableFromExpected("runtime.request_execution").columns.filter(
+              (column) => column.name !== "trace_id",
+            ),
+          ],
+        },
+      ],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches[0]).toContain("runtime.request_execution");
+  });
+
+  it("treats pending add-column migrations as repairable rather than schema divergence", () => {
+    const inventory = makeInventory({
+      schemas: ["operator", "runtime"],
+      tables: [
+        {
+          ...buildTableFromExpected("runtime.request_execution"),
+          columns: buildTableFromExpected("runtime.request_execution").columns.filter(
+            (column) => column.name !== "resolved_scope_json",
+          ),
+        },
+        {
+          ...buildTableFromExpected("runtime.request_observability_fact"),
+          columns: buildTableFromExpected("runtime.request_observability_fact").columns.filter(
+            (column) => column.name !== "resolved_scope_summary",
+          ),
+        },
+        {
+          ...buildTableFromExpected("operator.request_projection"),
+          columns: buildTableFromExpected("operator.request_projection").columns.filter(
+            (column) => column.name !== "resolved_scope_json",
+          ),
+        },
+      ],
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "runtime.request_execution:resolved_scope_json",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) =>
+          item.target.existsKey === "runtime.request_observability_fact:resolved_scope_summary",
+      ),
+    ).toBe(true);
+    expect(
+      plan.statements.some(
+        (item) => item.target.existsKey === "operator.request_projection:resolved_scope_json",
+      ),
+    ).toBe(true);
+  });
+
+  it("treats retired drop-column migrations as already satisfied once the latest snapshot is present", () => {
+    const inventory = makeInventory({
+      schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+      tables: [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName)),
+    });
+
+    const plan = buildAdoptionPlan({
+      inventory,
+      migrationContext,
+    });
+
+    expect(plan.mismatches).toEqual([]);
+    expect(plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_groups_json"'))).toBe(
+      false,
+    );
+    expect(plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_campus_scope"'))).toBe(
+      false,
+    );
+  });
+});

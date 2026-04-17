@@ -19,6 +19,7 @@ export {
   type ProjectionOutboxWrite,
   type RequestExecutionStatus,
   type RequestExecutionWrite,
+  type RequestObservabilityFactWrite,
   type StoredIdempotentRequest,
 } from "./store";
 export { SupervisorTransportError } from "../integration";
