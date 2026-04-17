@@ -20,12 +20,12 @@
 修改本目录前，优先阅读：
 
 - `../../AGENTS.md`
-- `../../docs/architecture/long-term-architecture.md`
-- `../../docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `../../docs/architecture/retrieval-query-strategy.md`
+- `../../docs/architecture/target-architecture.md`
+- `../../docs/architecture/data-plane-architecture.md`
+- `../../docs/architecture/retrieval-serving-architecture.md`
 - `../../docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `../../docs/reference/runtime-serving-and-index-terms.md`
-- `../../docs/plans/agentic-rag-foundation.md`
+- `../../docs/architecture/target-architecture.md`
 - `src/campus_rag_specialist/service.py`
 - `README.md`
 

@@ -16,9 +16,7 @@ export function DelayedDomainPage({ domain, reason }: DelayedDomainPageProps) {
               <PendingActionsOutlinedIcon color="action" />
               <Typography variant="h5">{domain}</Typography>
             </Stack>
-            <Alert severity="info">
-              {domain} remains intentionally delayed in the current rollout.
-            </Alert>
+            <Alert severity="info">{domain} 在当前 rollout 中被有意延后。</Alert>
             <Typography color="text.secondary" variant="body1">
               {reason}
             </Typography>

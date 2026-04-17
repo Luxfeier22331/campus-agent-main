@@ -1,5 +1,10 @@
 import { AppApiRouteError } from "../../http";
 import type { ResolvedAppPrincipal } from "../auth";
+import type {
+  OfficialWebFetchDisposition,
+  OfficialWebPageChangeStatus,
+  OfficialWebRunIntent,
+} from "../official-web-command";
 
 export interface OfficialWebArtifactRecord {
   artifactType: string;
@@ -18,6 +23,9 @@ export interface OfficialWebSiteRecord {
   latestCollectorVersion: string | null;
   latestConfigVersion: string | null;
   latestIngestionDispatchStatus: string | null;
+  latestIngestionExecutionErrorCode: string | null;
+  latestIngestionExecutionStatus: string | null;
+  latestIngestionExecutionUpdatedAt: string | null;
   latestRunId: string | null;
   latestRunStatus: string | null;
   projectedAt: string;
@@ -33,19 +41,89 @@ export interface OfficialWebRunRecord {
   id: string;
   ingestionDispatchRef: string | null;
   ingestionDispatchStatus: string;
+  ingestionExecutionErrorCode: string | null;
+  ingestionExecutionErrorMessage: string | null;
+  ingestionExecutionRef: string | null;
+  ingestionExecutionStatus: string;
+  ingestionExecutionUpdatedAt: string | null;
   lastHeartbeatAt: string | null;
   projectedAt: string;
   runId: string;
+  runIntent: OfficialWebRunIntent;
   siteId: string;
   startedAt: string;
   status: string;
   summary: Record<string, unknown> | null;
 }
 
+export interface OfficialWebPageChangeRecord {
+  changeStatus: OfficialWebPageChangeStatus;
+  fetchDisposition: OfficialWebFetchDisposition;
+  host: string;
+  httpStatus: number | null;
+  id: string;
+  lastChangeReason: string;
+  normalizedCanonicalUrl: string;
+  observedAt: string;
+  pageFamily: string;
+  pageTitleNormalized: string;
+  rawAssetId: string | null;
+  rawVersionId: string | null;
+  runId: string;
+}
+
+export interface OfficialWebSiteFreshnessSummary {
+  changedLast24h: number;
+  deletedPages: number;
+  duePages: number;
+  failedFetchPages: number;
+  hotPages: number;
+  repairPages: number;
+  totalPages: number;
+}
+
+export interface OfficialWebFreshnessPageRecord {
+  cadenceClass: string;
+  host: string;
+  lastChangeReason: string;
+  lastChangedAt: string | null;
+  lastFetchDisposition: OfficialWebFetchDisposition;
+  lastHttpStatus: number | null;
+  lastSeenAt: string;
+  nextEligibleFetchAt: string;
+  normalizedCanonicalUrl: string;
+  pageFamily: string;
+  pageTitleNormalized: string;
+  priorityScore: number;
+  siteId: string;
+}
+
+export interface OfficialWebSiteFreshnessBacklog {
+  deletedPages: OfficialWebFreshnessPageRecord[];
+  duePages: OfficialWebFreshnessPageRecord[];
+  failedFetchPages: OfficialWebFreshnessPageRecord[];
+  hotPages: OfficialWebFreshnessPageRecord[];
+}
+
+export interface OfficialWebRunDetailRecord {
+  pageChangeSummary: Record<string, number>;
+  pageChanges: OfficialWebPageChangeRecord[];
+  run: OfficialWebRunRecord;
+}
+
+export interface OfficialWebSiteDetailRecord {
+  freshnessBacklog: OfficialWebSiteFreshnessBacklog;
+  freshnessSummary: OfficialWebSiteFreshnessSummary;
+  recentPageChanges: OfficialWebPageChangeRecord[];
+  recentRuns: OfficialWebRunRecord[];
+  site: OfficialWebSiteRecord;
+}
+
 export interface OfficialWebRunListFilters {
   cursor?: string | null;
   ingestionDispatchStatus?: string | null;
   limit?: number | null;
+  runIntent?: string | null;
   siteId?: string | null;
   startedAfter?: string | null;
   startedBefore?: string | null;
@@ -56,6 +134,7 @@ export interface NormalizedOfficialWebRunListFilters {
   cursor: string | null;
   ingestionDispatchStatus: string | null;
   limit: number;
+  runIntent: OfficialWebRunIntent | null;
   siteId: string | null;
   startedAfter: string | null;
   startedBefore: string | null;
@@ -65,6 +144,17 @@ export interface NormalizedOfficialWebRunListFilters {
 export interface OfficialWebQueryStore {
   getRunById(runId: string): Promise<OfficialWebRunRecord | null>;
   getSiteById(siteId: string): Promise<OfficialWebSiteRecord | null>;
+  getSiteFreshnessSummary(input: {
+    now: string;
+    siteId: string;
+  }): Promise<OfficialWebSiteFreshnessSummary>;
+  listSiteFreshnessBacklog(input: {
+    limit: number;
+    now: string;
+    siteId: string;
+  }): Promise<OfficialWebSiteFreshnessBacklog>;
+  listPageChangesByRunId(runId: string, limit: number): Promise<OfficialWebPageChangeRecord[]>;
+  listRecentPageChangesBySiteId(siteId: string, limit: number): Promise<OfficialWebPageChangeRecord[]>;
   listRecentRunsBySiteId(siteId: string, limit: number): Promise<OfficialWebRunRecord[]>;
   listRuns(filters: NormalizedOfficialWebRunListFilters): Promise<{
     page: {
@@ -81,14 +171,11 @@ export interface OfficialWebQueryService {
   getRunById(input: {
     principal: ResolvedAppPrincipal;
     runId: string;
-  }): Promise<OfficialWebRunRecord>;
+  }): Promise<OfficialWebRunDetailRecord>;
   getSiteById(input: {
     principal: ResolvedAppPrincipal;
     siteId: string;
-  }): Promise<{
-    recentRuns: OfficialWebRunRecord[];
-    site: OfficialWebSiteRecord;
-  }>;
+  }): Promise<OfficialWebSiteDetailRecord>;
   listRuns(input: {
     filters: OfficialWebRunListFilters;
     principal: ResolvedAppPrincipal;
@@ -106,12 +193,17 @@ export interface OfficialWebQueryService {
 }
 
 export interface OfficialWebQueryServiceDependencies {
+  now?: () => Date;
   store: OfficialWebQueryStore;
 }
 
 const DEFAULT_LIMIT = 20;
+const DEFAULT_RUN_PAGE_CHANGE_LIMIT = 50;
+const DEFAULT_SITE_FRESHNESS_BACKLOG_LIMIT = 10;
+const DEFAULT_SITE_PAGE_CHANGE_LIMIT = 20;
 const DEFAULT_SITE_RECENT_RUN_LIMIT = 10;
 const MAX_LIMIT = 100;
+const ALLOWED_RUN_INTENTS = new Set<OfficialWebRunIntent>(["baseline", "hot", "repair"]);
 
 function normalizeOptionalString(value: string | null | undefined): string | null {
   const normalized = value?.trim();
@@ -124,6 +216,26 @@ function normalizeLimit(value: number | null | undefined): number {
   }
 
   return Math.min(Math.floor(value), MAX_LIMIT);
+}
+
+function normalizeOptionalRunIntent(
+  value: string | null | undefined,
+): OfficialWebRunIntent | null {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return null;
+  }
+  if (ALLOWED_RUN_INTENTS.has(normalized as OfficialWebRunIntent)) {
+    return normalized as OfficialWebRunIntent;
+  }
+
+  throw new AppApiRouteError({
+    code: "validation_failed",
+    details: { field: "runIntent" },
+    message: "runIntent must be one of: baseline, hot, repair.",
+    retryable: false,
+    status: 400,
+  });
 }
 
 function normalizeOptionalTimestamp(value: string | null | undefined, field: string): string | null {
@@ -157,9 +269,34 @@ function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
   }
 }
 
+function extractPageChangeSummary(summary: Record<string, unknown> | null): Record<string, number> {
+  const normalized: Record<string, number> = {
+    changedPages: 0,
+    deletedPages: 0,
+    failedFetchPages: 0,
+    newPages: 0,
+    notModifiedPages: 0,
+  };
+
+  if (!summary) {
+    return normalized;
+  }
+
+  for (const key of Object.keys(normalized)) {
+    const candidate = summary[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      normalized[key] = candidate;
+    }
+  }
+
+  return normalized;
+}
+
 export function buildOfficialWebQueryService(
   dependencies: OfficialWebQueryServiceDependencies,
 ): OfficialWebQueryService {
+  const now = dependencies.now ?? (() => new Date());
+
   return {
     async getRunById(input) {
       ensureOperatorPrincipal(input.principal);
@@ -183,7 +320,14 @@ export function buildOfficialWebQueryService(
         });
       }
 
-      return run;
+      return {
+        pageChanges: await dependencies.store.listPageChangesByRunId(
+          runId,
+          DEFAULT_RUN_PAGE_CHANGE_LIMIT,
+        ),
+        pageChangeSummary: extractPageChangeSummary(run.summary),
+        run,
+      };
     },
 
     async getSiteById(input) {
@@ -208,8 +352,25 @@ export function buildOfficialWebQueryService(
         });
       }
 
+      const currentNow = now().toISOString();
       return {
-        recentRuns: await dependencies.store.listRecentRunsBySiteId(siteId, DEFAULT_SITE_RECENT_RUN_LIMIT),
+        freshnessBacklog: await dependencies.store.listSiteFreshnessBacklog({
+          limit: DEFAULT_SITE_FRESHNESS_BACKLOG_LIMIT,
+          now: currentNow,
+          siteId,
+        }),
+        freshnessSummary: await dependencies.store.getSiteFreshnessSummary({
+          now: currentNow,
+          siteId,
+        }),
+        recentPageChanges: await dependencies.store.listRecentPageChangesBySiteId(
+          siteId,
+          DEFAULT_SITE_PAGE_CHANGE_LIMIT,
+        ),
+        recentRuns: await dependencies.store.listRecentRunsBySiteId(
+          siteId,
+          DEFAULT_SITE_RECENT_RUN_LIMIT,
+        ),
         site,
       };
     },
@@ -221,6 +382,7 @@ export function buildOfficialWebQueryService(
         cursor: normalizeOptionalString(input.filters.cursor),
         ingestionDispatchStatus: normalizeOptionalString(input.filters.ingestionDispatchStatus),
         limit: normalizeLimit(input.filters.limit),
+        runIntent: normalizeOptionalRunIntent(input.filters.runIntent),
         siteId: normalizeOptionalString(input.filters.siteId),
         startedAfter: normalizeOptionalTimestamp(input.filters.startedAfter, "startedAfter"),
         startedBefore: normalizeOptionalTimestamp(input.filters.startedBefore, "startedBefore"),

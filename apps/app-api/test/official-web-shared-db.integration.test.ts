@@ -3,49 +3,28 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { dirname, resolve } from "node:path";
-import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 
 import { type Env } from "../src/config";
 import { createApp } from "../src/app";
-import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs";
-import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
+import {
+  buildSharedDbIntegrationEnv,
+  convergeSharedDbForAppApiIntegration,
+  readRequiredSharedDbEnv,
+  resolveSharedDbSslConfig,
+} from "./shared-db-integration-helpers";
 
 const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
 
-function loadOptionalEnvFile(filePath: string): void {
-  try {
-    process.loadEnvFile(filePath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
+async function relationExists(client: Client, qualifiedRelationName: string): Promise<boolean> {
+  const result = await client.query("select to_regclass($1) as relation_name", [qualifiedRelationName]);
+  return Boolean(result.rows[0]?.relation_name);
 }
-
-function readRequiredEnv(key: string): string {
-  const value = process.env[key]?.trim();
-  if (!value) {
-    throw new Error(`${key} is required for the app-api shared DB integration test.`);
-  }
-  return value;
-}
-
-function resolveSslConfig():
-  | false
-  | {
-      rejectUnauthorized: false;
-    } {
-  return process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-    ? false
-    : { rejectUnauthorized: false };
-}
-
 function requireClient(client: Client | null): Client {
   if (!client) {
     throw new Error("Expected official-web shared DB integration client to be initialized.");
@@ -57,65 +36,32 @@ function requireClient(client: Client | null): Client {
 describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", () => {
   let app: ReturnType<typeof createApp>;
   let client: Client | null = null;
-  let runId: string | null = null;
+  const runIds: string[] = [];
+  const freshnessKeys: Array<{ normalizedCanonicalUrl: string; siteId: string }> = [];
 
   beforeAll(async () => {
-    loadOptionalEnvFile(envFilePath);
-    loadOptionalEnvFile(devVarsFilePath);
+    const { managementConnectionString, runtimeConnectionString } =
+      await convergeSharedDbForAppApiIntegration({
+        contextLabel: "the app-api shared DB integration test",
+        devVarsFilePath,
+        envFilePath,
+      });
 
-    const runtimeConnectionString = readRequiredEnv(
-      "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-    );
-    const managementConnectionString =
-      process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
-    await bootstrapSharedProductDatabase({
-      APP_API_DATABASE_SSLMODE: process.env.APP_API_DATABASE_SSLMODE?.trim() || "require",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-    });
-    await runSharedDatabaseAdoption({
-      apply: true,
-      env: {
-        ...process.env,
-        APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+    const env: Env = buildSharedDbIntegrationEnv({
+      managementConnectionString,
+      runtimeConnectionString,
+      overrides: {
+        APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: readRequiredSharedDbEnv(
+          "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
+          "the app-api shared DB integration test",
+        ),
       },
     });
-
-    const env: Env = {
-      APP_API_NAME: process.env.APP_API_NAME?.trim() || "campus-agent-app-api",
-      APP_API_ENVIRONMENT: "test",
-      APP_API_DATABASE_SSLMODE:
-        process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
-          ? "disable"
-          : process.env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
-            ? "prefer"
-            : "require",
-      APP_API_DB: {
-        connectionString: runtimeConnectionString,
-      },
-      APP_API_INTERNAL_SHARED_SECRET:
-        process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-      APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
-      APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"),
-      APP_API_OPERATOR_EMAIL_ALLOWLIST:
-        process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
-      BETTER_AUTH_SECRET:
-        process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-      PUBLIC_CHAT_WEB_ORIGIN:
-        process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-      SUPERVISOR_API_BASE_URL:
-        process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
-      SUPERVISOR_API_SHARED_SECRET:
-        process.env.SUPERVISOR_API_SHARED_SECRET?.trim() || "shared-db-integration-secret",
-    };
 
     app = createApp(env);
     client = new Client({
       connectionString: managementConnectionString,
-      ssl: resolveSslConfig(),
+      ssl: resolveSharedDbSslConfig(),
     });
     await client.connect();
   });
@@ -124,8 +70,19 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
     if (!client) {
       return;
     }
-    if (runId) {
-      await client.query('delete from "official_web"."crawl_runs" where "run_id" = $1', [runId]);
+
+    if (await relationExists(client, "official_web.page_freshness")) {
+      for (const key of freshnessKeys) {
+        await client.query(
+          'delete from "official_web"."page_freshness" where "site_id" = $1 and "normalized_canonical_url" = $2',
+          [key.siteId, key.normalizedCanonicalUrl],
+        );
+      }
+    }
+    if (await relationExists(client, "official_web.crawl_runs")) {
+      for (const runId of runIds) {
+        await client.query('delete from "official_web"."crawl_runs" where "run_id" = $1', [runId]);
+      }
     }
     await client.end();
   });
@@ -143,14 +100,15 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             configVersion: "git:shared-db-test",
             crawlPolicyVersion: "2026-03-30",
             hostSet: ["www.muc.edu.cn"],
+            runIntent: "baseline",
             schedulerRunKey: uniqueKey,
             seedSet: ["https://www.muc.edu.cn/"],
-            siteId: "www_muc_edu_cn",
+            siteId: "muc_public",
             startedAt: "2026-03-30T08:00:01.000Z",
             triggerType: "scheduled",
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",
@@ -163,7 +121,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
           runId: string;
         };
       };
-      runId = startPayload.run.runId;
+      runIds.push(startPayload.run.runId);
+      const runId = startPayload.run.runId;
 
       const heartbeatResponse = await app.fetch(
         new Request(`https://app-api.internal/api/official-web/runs/${runId}/heartbeats`, {
@@ -179,7 +138,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             sequence: 1,
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",
@@ -196,14 +155,14 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
                 artifactType: "crawl_run_manifest",
                 byteSize: 512,
                 contentSha256: "manifest-sha256",
-                objectKey: `official_web/www_muc_edu_cn/runs/${runId}/crawl-run.json`,
+                objectKey: `official_web/muc_public/runs/${runId}/crawl-run.json`,
                 recordCount: 1,
               },
               {
                 artifactType: "source_truth_bundle",
                 byteSize: 2_048,
                 contentSha256: "source-truth-sha256",
-                objectKey: `official_web/www_muc_edu_cn/runs/${runId}/source-truth.tar`,
+                objectKey: `official_web/muc_public/runs/${runId}/source-truth.tar`,
                 recordCount: 24,
               },
             ],
@@ -217,7 +176,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
             terminalStatus: "completed",
           }),
           headers: {
-            authorization: `Bearer ${readRequiredEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN")}`,
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
             "content-type": "application/json",
           },
           method: "POST",
@@ -257,7 +216,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
       expect(crawlRunResult.rows).toHaveLength(1);
       expect(crawlRunResult.rows[0]).toMatchObject({
         run_id: runId,
-        site_id: "www_muc_edu_cn",
+        site_id: "muc_public",
         status: "completed",
         ingestion_dispatch_status: "queued",
         latest_heartbeat_sequence: 1,
@@ -275,6 +234,191 @@ describe.skipIf(!RUN_INTEGRATION)("app-api official_web shared DB integration", 
         "official_web.run.completed",
       ]);
       expect(migrationJournalResult.rows[0]?.count).toBeGreaterThanOrEqual(1);
+    },
+    30_000,
+  );
+
+  it(
+    "preserves last_changed_at when a later run reports not_modified for the same page",
+    async () => {
+      const dbClient = requireClient(client);
+      const uniqueKey = `shared-db-not-modified-${Date.now()}`;
+      const canonicalUrl = `https://www.muc.edu.cn/integration/${uniqueKey}.htm`;
+      freshnessKeys.push({
+        normalizedCanonicalUrl: canonicalUrl,
+        siteId: "muc_public",
+      });
+
+      const startFirstResponse = await app.fetch(
+        new Request("https://app-api.internal/api/official-web/runs", {
+          body: JSON.stringify({
+            collectorVersion: "official-web-collector@integration",
+            configVersion: "git:shared-db-test",
+            crawlPolicyVersion: "2026-03-30",
+            hostSet: ["www.muc.edu.cn"],
+            runIntent: "baseline",
+            schedulerRunKey: `${uniqueKey}-first`,
+            seedSet: ["https://www.muc.edu.cn/"],
+            siteId: "muc_public",
+            startedAt: "2026-03-30T09:00:01.000Z",
+            triggerType: "scheduled",
+          }),
+          headers: {
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      expect(startFirstResponse.status).toBe(200);
+      const startFirstPayload = (await startFirstResponse.json()) as {
+        run: {
+          runId: string;
+        };
+      };
+      const firstRunId = startFirstPayload.run.runId;
+      runIds.push(firstRunId);
+
+      const finalizeFirstResponse = await app.fetch(
+        new Request(`https://app-api.internal/api/official-web/runs/${firstRunId}/finalize`, {
+          body: JSON.stringify({
+            artifacts: [],
+            finishedAt: "2026-03-30T09:01:00.000Z",
+            pageObservations: [
+              {
+                contentType: "text/html",
+                discoveredFromUrl: "https://www.muc.edu.cn/news/",
+                discoveryMethod: "listing_link",
+                disposition: "fetched",
+                etag: "\"etag-first\"",
+                finalUrl: canonicalUrl,
+                host: "www.muc.edu.cn",
+                httpStatus: 200,
+                lastModified: "Sun, 30 Mar 2026 09:00:00 GMT",
+                mainContentHash: "main-first",
+                normalizedCanonicalUrl: canonicalUrl,
+                observedAt: "2026-03-30T09:01:00.000Z",
+                pageFamily: "article_detail",
+                pageTitleNormalized: "Integration Notice",
+                rawAssetId: "raw_first",
+                rawVersionId: "rawv_first",
+                requestedUrl: canonicalUrl,
+                responseBodyHash: "body-first",
+              },
+            ],
+            summary: {
+              failureCount: 0,
+              pagesNormalized: 1,
+              urlsDiscovered: 1,
+              urlsFetched: 1,
+            },
+            terminalStatus: "completed",
+          }),
+          headers: {
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      expect(finalizeFirstResponse.status).toBe(200);
+
+      const startSecondResponse = await app.fetch(
+        new Request("https://app-api.internal/api/official-web/runs", {
+          body: JSON.stringify({
+            collectorVersion: "official-web-collector@integration",
+            configVersion: "git:shared-db-test",
+            crawlPolicyVersion: "2026-03-30",
+            hostSet: ["www.muc.edu.cn"],
+            runIntent: "hot",
+            schedulerRunKey: `${uniqueKey}-second`,
+            seedSet: ["https://www.muc.edu.cn/"],
+            siteId: "muc_public",
+            startedAt: "2026-03-30T10:00:01.000Z",
+            triggerType: "scheduled",
+          }),
+          headers: {
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      expect(startSecondResponse.status).toBe(200);
+      const startSecondPayload = (await startSecondResponse.json()) as {
+        run: {
+          runId: string;
+        };
+      };
+      const secondRunId = startSecondPayload.run.runId;
+      runIds.push(secondRunId);
+
+      const finalizeSecondResponse = await app.fetch(
+        new Request(`https://app-api.internal/api/official-web/runs/${secondRunId}/finalize`, {
+          body: JSON.stringify({
+            artifacts: [],
+            finishedAt: "2026-03-30T10:01:00.000Z",
+            pageObservations: [
+              {
+                contentType: "text/html",
+                discoveredFromUrl: "https://www.muc.edu.cn/news/",
+                discoveryMethod: "listing_link",
+                disposition: "not_modified",
+                etag: "\"etag-first\"",
+                finalUrl: canonicalUrl,
+                host: "www.muc.edu.cn",
+                httpStatus: 304,
+                lastModified: "Sun, 30 Mar 2026 09:00:00 GMT",
+                mainContentHash: "main-first",
+                normalizedCanonicalUrl: canonicalUrl,
+                observedAt: "2026-03-30T10:01:00.000Z",
+                pageFamily: "article_detail",
+                pageTitleNormalized: "Integration Notice",
+                rawAssetId: null,
+                rawVersionId: null,
+                requestedUrl: canonicalUrl,
+                responseBodyHash: "body-first",
+              },
+            ],
+            summary: {
+              failureCount: 0,
+              pagesNormalized: 1,
+              urlsDiscovered: 1,
+              urlsFetched: 1,
+            },
+            terminalStatus: "completed",
+          }),
+          headers: {
+            authorization: `Bearer ${readRequiredSharedDbEnv("APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN", "the app-api shared DB integration test")}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+        }),
+      );
+      expect(finalizeSecondResponse.status).toBe(200);
+
+      const freshnessResult = await dbClient.query(
+        `select
+           "last_fetch_disposition",
+           "last_changed_at",
+           "last_not_modified_at",
+           "last_successful_run_id",
+           "main_content_hash",
+           "response_body_hash"
+         from "official_web"."page_freshness"
+         where "site_id" = $1 and "normalized_canonical_url" = $2`,
+        ["muc_public", canonicalUrl],
+      );
+
+      expect(freshnessResult.rows).toHaveLength(1);
+      expect(freshnessResult.rows[0]).toMatchObject({
+        last_fetch_disposition: "not_modified",
+        last_changed_at: new Date("2026-03-30T09:01:00.000Z"),
+        last_not_modified_at: new Date("2026-03-30T10:01:00.000Z"),
+        last_successful_run_id: secondRunId,
+        main_content_hash: "main-first",
+        response_body_hash: "body-first",
+      });
     },
     30_000,
   );

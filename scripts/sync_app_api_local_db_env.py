@@ -5,19 +5,16 @@ from pathlib import Path
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     load_target_seed,
     parse_env_file,
-    require_env_value,
     replace_or_append_env_values,
+    require_env_value,
     resolve_source_env_path,
 )
 
 
 TARGET_PATH = Path("apps/app-api/.env")
-TARGET_KEYS = (
-    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
-    "APP_API_MANAGEMENT_DATABASE_URL",
-)
 
 
 def sync_app_api_local_db_env(
@@ -29,11 +26,19 @@ def sync_app_api_local_db_env(
         raise FileNotFoundError(f"Source env file not found: {source_path}")
 
     source_values = parse_env_file(source_path)
-    database_url = require_env_value(source_values, SHARED_POSTGRES_ENV_KEY)
+    runtime_database_url = require_env_value(source_values, SHARED_POSTGRES_ENV_KEY)
+    management_database_url = require_env_value(
+        source_values,
+        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    )
 
     target_path = repo_root / TARGET_PATH
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    assignments = {target_key: database_url for target_key in TARGET_KEYS}
+    assignments = {
+        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB": runtime_database_url,
+        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH": runtime_database_url,
+        "APP_API_MANAGEMENT_DATABASE_URL": management_database_url,
+    }
     content = replace_or_append_env_values(load_target_seed(target_path), assignments)
     target_path.write_text(content, encoding="utf-8")
     return target_path
@@ -42,8 +47,9 @@ def sync_app_api_local_db_env(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Fan out the root-worktree shared Supabase Postgres URL into the app-api local "
-            "process env used by Wrangler Hyperdrive local development and Drizzle commands."
+            "Fan out the root-worktree shared Supabase runtime/management Postgres URLs "
+            "into the app-api local process env used by Wrangler Hyperdrive local "
+            "development and Drizzle commands."
         )
     )
     parser.add_argument(

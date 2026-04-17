@@ -22,14 +22,13 @@ const env = {
   },
 };
 
-function createPublicPrincipal() {
+function createCampusPrincipal() {
   return {
     actor: {
-      campusScope: null,
       departments: [],
-      groups: ["public_chat_users"],
       principalId: "user_01HQ",
-      roles: ["public_user"],
+      principalType: "campus_member",
+      roles: ["campus_member"],
       userId: "user_01HQ",
     },
     permissions: {
@@ -40,7 +39,7 @@ function createPublicPrincipal() {
       displayName: "Jane Doe",
       email: "jane@example.edu",
       principalId: "user_01HQ",
-      type: "public_user" as const,
+      type: "campus_member" as const,
     },
     session: {
       expiresAt: "2026-03-29T07:00:00.000Z",
@@ -70,6 +69,7 @@ function createConversationService() {
         requestId: null,
         retryable: null,
         role: "user",
+        structuredParts: [],
         text: "图书馆开放到几点？",
       },
     ],
@@ -77,15 +77,34 @@ function createConversationService() {
     updatedAt: "2026-03-28T08:01:00.000Z",
   };
 
-  const service: ChatConversationService = {
+  const deleteTrailingMessages = vi.fn().mockResolvedValue({ deleted: true });
+  const service: ChatConversationService & {
+    deleteTrailingMessages: typeof deleteTrailingMessages;
+  } = {
     createDraft: vi.fn().mockResolvedValue({ conversation }),
+    deleteAll: vi.fn().mockResolvedValue({ deletedCount: 1 }),
+    deleteById: vi.fn().mockResolvedValue({ deleted: true }),
+    deleteTrailingMessages,
     getById: vi.fn().mockResolvedValue({ conversation }),
+    listHistoryPage: vi.fn().mockResolvedValue({
+      chats: [
+        {
+          createdAt: "2026-03-28T08:00:00.000Z",
+          id: "conv_01HQ",
+          title: "图书馆开放时间",
+          updatedAt: "2026-03-28T08:01:00.000Z",
+          visibility: "private",
+        },
+      ],
+      hasMore: false,
+    }),
     list: vi.fn().mockResolvedValue({ conversations }),
   };
 
   return {
     conversation,
     conversations,
+    deleteTrailingMessages,
     service,
   };
 }
@@ -95,7 +114,7 @@ describe("chat conversation routes", () => {
     const { service, conversations } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(new Request("https://app-api.internal/api/chat/conversations"));
@@ -115,7 +134,7 @@ describe("chat conversation routes", () => {
     const { service, conversation } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -139,7 +158,7 @@ describe("chat conversation routes", () => {
     const { service, conversation } = createConversationService();
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(
@@ -150,6 +169,118 @@ describe("chat conversation routes", () => {
     await expect(response.json()).resolves.toEqual({ conversation });
     expect(service.getById).toHaveBeenCalledWith({
       conversationId: "conv_01HQ",
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("serves vendor-compatible paginated history through /api/history", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/history?limit=20"),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      chats: [
+        {
+          createdAt: "2026-03-28T08:00:00.000Z",
+          id: "conv_01HQ",
+          title: "图书馆开放时间",
+          updatedAt: "2026-03-28T08:01:00.000Z",
+          visibility: "private",
+        },
+      ],
+      hasMore: false,
+    });
+    expect(service.listHistoryPage).toHaveBeenCalledWith({
+      endingBeforeConversationId: null,
+      limit: 20,
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes a single chat through the vendor-compatible /api/chat?id= route", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/chat?id=conv_01HQ", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deleted: true });
+    expect(service.deleteById).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes all chats through the vendor-compatible /api/history route", async () => {
+    const { service } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request("https://app-api.internal/api/history", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ deletedCount: 1 });
+    expect(service.deleteAll).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        principal: expect.objectContaining({
+          principalId: "user_01HQ",
+        }),
+      }),
+    });
+  });
+
+  it("deletes trailing messages from an owned conversation through the chat edit route", async () => {
+    const { service, deleteTrailingMessages } = createConversationService();
+    const app = createApp(env, {
+      chatConversationService: service,
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/chat/conversations/conv_01HQ/messages/msg_01HQ/trailing",
+        {
+          method: "DELETE",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(204);
+    expect(deleteTrailingMessages).toHaveBeenCalledWith({
+      conversationId: "conv_01HQ",
+      messageId: "msg_01HQ",
       principal: expect.objectContaining({
         principal: expect.objectContaining({
           principalId: "user_01HQ",
@@ -192,7 +323,7 @@ describe("chat conversation routes", () => {
     );
     const app = createApp(env, {
       chatConversationService: service,
-      getPrincipal: vi.fn().mockResolvedValue(createPublicPrincipal()),
+      getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
     });
 
     const response = await app.fetch(

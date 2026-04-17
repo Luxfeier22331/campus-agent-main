@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-04-12
 ---
 
 # App API Official Web Schema
@@ -14,7 +14,8 @@ updated: 2026-03-29
 它补充但不替代以下文档：
 
 - `app-api` 基础 schema：`docs/data/app-api-schema.md`
-- `official_web` control-plane 架构：`docs/architecture/official-web-control-plane-on-app-api.md`
+- `official_web` control-plane 架构：`docs/architecture/official-web-architecture.md`
+- 领域导航：`docs/reference/official-web-reading-guide.md`
 - `official_web` HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 
@@ -24,6 +25,16 @@ updated: 2026-03-29
 - 具体托管商
 - 对象存储 bucket 细节
 - ingestion worker 内部 job schema
+- `fresh_news` / `news_archive` 的 rollout/opening posture
+
+## Schema 与实现范围说明
+
+这份文档冻结的是 `official_web` control-plane 的逻辑 schema、ownership 与最小表形态。
+
+判断当前已实现子集时：
+
+- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与 `docs/reference/official-web-reading-guide.md` 为准
+- 当前项目执行状态、独立 worktree 进度与 closeout 证据不在本文维护
 
 ## Storage Conclusion
 
@@ -72,6 +83,7 @@ updated: 2026-03-29
 - `run_id`
 - `site_id`
 - `scheduler_run_key`
+- `run_intent`
 - `trigger_type`
 - `collector_version`
 - `config_version`
@@ -93,7 +105,7 @@ updated: 2026-03-29
 
 最小索引：
 
-- unique `(site_id, scheduler_run_key)`
+- unique `(site_id, scheduler_run_key, run_intent)`
 - `(status, started_at desc)`
 - `(site_id, started_at desc)`
 - `(ingestion_dispatch_status, updated_at desc)`
@@ -119,6 +131,8 @@ updated: 2026-03-29
 - 这是 crawl-run lifecycle 的 canonical owner
 - `summary_json` 只保存 projection-friendly summary，不保存整份 artifact 内容
 - `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion worker 的内部 job truth
+- ingestion execution 回调当前允许 `pending -> running -> staged -> promoted/failed`
+- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被 promote 改写
 
 ## `official_web.run_heartbeats`
 
@@ -174,6 +188,8 @@ updated: 2026-03-29
 - `url_results`
 - `failures`
 - `source_truth_bundle`
+- `quality_audit`
+- `page_observations`
 
 规则：
 
@@ -216,6 +232,92 @@ updated: 2026-03-29
 - projector 与 ingestion handoff 都必须以 `event_id` 幂等消费
 - outbox payload 只携带 run identity、site identity、terminal status 与 artifact refs
 
+## `official_web.page_observations`
+
+用途：
+
+- durable 记录 collector 上报的 page-level observation
+- 为 page freshness state 和 ingestion handoff change-set 提供 canonical 上游事实
+
+最小列：
+
+- `observation_id`
+- `run_id`
+- `site_id`
+- `run_intent`
+- `host`
+- `requested_url`
+- `final_url`
+- `normalized_canonical_url`
+- `page_family`
+- `page_title_normalized`
+- `discovery_method`
+- `discovered_from_url` nullable
+- `raw_asset_id` nullable
+- `raw_version_id` nullable
+- `http_status` nullable
+- `content_type` nullable
+- `etag` nullable
+- `last_modified` nullable
+- `response_body_hash` nullable
+- `main_content_hash` nullable
+- `fetch_disposition`
+- `change_status`
+- `last_change_reason`
+- `cadence_class`
+- `priority_score`
+- `next_eligible_fetch_at`
+- `observed_at`
+- `created_at`
+
+规则：
+
+- `fetch_disposition` 反映 collector 观察到的 fetch 结果，例如 `fetched` / `not_modified` / `deleted` / `fetch_failed`
+- `change_status` 反映 `app-api` 依据 freshness truth 计算出的 `new` / `changed` / `deleted` / `not_modified` / `fetch_failed`
+- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion handoff page change
+- 这是 control-plane durable truth，不退回对象存储扫描或 ingestion worker 内部状态
+
+## `official_web.page_freshness`
+
+用途：
+
+- 持有 page/url 级 freshness truth 与下一次抓取资格
+
+最小列：
+
+- `site_id`
+- `normalized_canonical_url`
+- `host`
+- `page_family`
+- `page_title_normalized`
+- `discovered_from_url` nullable
+- `discovery_method`
+- `last_fetch_disposition`
+- `last_http_status` nullable
+- `content_type` nullable
+- `etag` nullable
+- `last_modified` nullable
+- `response_body_hash` nullable
+- `main_content_hash` nullable
+- `last_seen_at`
+- `last_changed_at` nullable
+- `last_not_modified_at` nullable
+- `cadence_class`
+- `priority_score`
+- `next_eligible_fetch_at`
+- `last_successful_run_id` nullable
+- `last_change_reason`
+- `created_at`
+- `updated_at`
+
+规则：
+
+- `(site_id, normalized_canonical_url)` 是 canonical page identity
+- `page_freshness` 是 scheduler / collector 后续拉取动态 workset 的 durable truth
+- `last_fetch_disposition` 当前允许 `fetched / not_modified / deleted / fetch_failed`
+- `new / changed / deleted / not_modified / fetch_failed` 的分类以这里和 `page_observations` 的组合为准
+- `plans:resolve` 会基于 `next_eligible_fetch_at`、`cadence_class` 与 `last_fetch_disposition` 从这里解析动态 workset
+
 ## `operator.official_web_run_projection`
 
 用途：
@@ -248,6 +350,7 @@ updated: 2026-03-29
 
 - `artifacts_json` 是 panel-friendly summary，不是对象存储浏览器替代
 - 不直接从对象存储目录实时拼装
+- run detail 额外展示的 `pageChangeSummary` 与 `pageChanges` 分别来自 run summary 和 `official_web.page_observations`，不是额外 projection 表
 
 ## `operator.official_web_site_projection`
 
@@ -276,6 +379,8 @@ updated: 2026-03-29
 
 规则：
 
+- site detail 中的 `freshnessSummary` 由 `official_web.page_freshness` 即时聚合，不额外物化进 projection 表
+- `recentPageChanges` 从 `official_web.page_observations` 读取，默认包含 `new / changed / deleted / fetch_failed`
 - 站点基础配置仍来自 repo-tracked config；projection 只缓存 panel-friendly summary
 - 不把数据库变成 source config 的长期真相源
 

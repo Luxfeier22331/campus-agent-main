@@ -1,8 +1,21 @@
-export { buildBetterAuthConfig, createAppAuth, getAppAuth, handleAuthRequest } from "./auth";
 export {
+  buildBetterAuthConfig,
+  createAppAuth,
+  getAppAuth,
+  handleAuthRequest,
+  hashAppPassword,
+  probeAppAuthRuntime,
+  verifyAppPassword,
+} from "./auth";
+export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";
+export {
+  buildInternalEvalPrincipal,
   buildExecutionAuthorizationContext,
+  hasTrustedInternalRequest,
+  hasMatchingInternalSecret,
+  mapSessionToAppPrincipal,
+  mapSessionToCampusMemberPrincipal,
   mapOperatorHeadersToPrincipal,
-  mapSessionToPublicUserPrincipal,
   resolveOfficialWebCollectorPrincipal,
   resolveRequestPrincipal,
 } from "./principal";
@@ -10,10 +23,13 @@ export type {
   AppPermissions,
   AppPrincipalPayload,
   AppSessionPayload,
+  AuthorizationProjectionSource,
   BetterAuthSessionPayload,
+  CampusIdentityClaimsInput,
   ExecutionAuthorizationContext,
   ExecutionAuthorizationRetrievalFilter,
   ExecutionActorContext,
+  InternalEvalPrincipalInput,
   OfficialWebCollectorPrincipal,
   ResolvedAppPrincipal,
 } from "./principal";

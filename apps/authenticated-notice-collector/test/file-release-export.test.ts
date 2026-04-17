@@ -1,0 +1,451 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  buildAuthenticatedNoticeFileReleaseCaptureKey,
+  buildFileReleaseRecord,
+  collectFileReleaseBundle,
+  writeFileReleaseArtifacts,
+} from "../src/file-release-export";
+
+describe("authenticated notice collector file release export", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const tempDir of tempDirs.splice(0)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("builds file release bundle records from page, detail, and resolved download payloads", () => {
+    const record = buildFileReleaseRecord({
+      detail: {
+        detImportant: 1,
+        explainDept: "教务处（考试中心、教师教学发展中心）",
+        filecode: "民大校发〔2026〕39号",
+        filedepartment: "教务处（考试中心、教师教学发展中心）",
+        filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+        filetime: "2026-03-31 13:51:11",
+        filetypeid: 18,
+        fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
+        id: 646,
+        important: 12,
+        role: 2,
+        state: 1,
+        upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+      },
+      downloadUrl: "/comsys-prompt-portlet-web/file/sample.pdf",
+      fileTypeNameById: new Map([[18, "教学管理"]]),
+      item: {
+        filecode: "民大校发〔2026〕39号",
+        filedepartment: "教务处（考试中心、教师教学发展中心）",
+        filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+        filetime: "2026-03-31 13:51:11",
+        id: 646,
+        typename: "教学管理",
+        user_name: "张老师",
+      },
+      observedAt: "2026-04-12T00:30:00.000Z",
+      sourceHomeUrl: "https://portal.example.edu",
+    });
+
+    expect(record).toEqual({
+      file_release: {
+        det_important: 1,
+        enrich_attempted_at: "2026-04-12T00:30:00.000Z",
+        explain_department: "教务处（考试中心、教师教学发展中心）",
+        file_type_id: 18,
+        file_type_name: "教学管理",
+        filecode: "民大校发〔2026〕39号",
+        filedepartment: "教务处（考试中心、教师教学发展中心）",
+        filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+        filetime: "2026-03-31 13:51:11",
+        important: 12,
+        last_seen_at: "2026-04-12T00:30:00.000Z",
+        original_portal_file_url: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
+        publisher_user_name: "张老师",
+        resolved_download_url: "https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
+        role: 2,
+        source_surface: "file_release",
+        upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+      },
+      file_release_id: 646,
+      released_file: {
+        bucket: null,
+        byte_size: null,
+        created_at: "2026-04-12T00:30:00.000Z",
+        downloaded_at: null,
+        etag: null,
+        final_url: "https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
+        ingest_status: "reference_only",
+        last_error: null,
+        local_path: null,
+        mime_type: null,
+        normalized_source_url: "https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
+        object_key: null,
+        origin_host: "portal.example.edu",
+        origin_scope: "internal",
+        origin_url_scheme: "https",
+        original_filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+        provenance_status: "reference_only",
+        sha256: null,
+        source_url: "https://portal.example.edu/comsys-prompt-portlet-web/file/sample.pdf",
+        storage_provider: "reference_only",
+        updated_at: "2026-04-12T00:30:00.000Z",
+        uploaded_at: null,
+        version_id: null,
+      },
+    });
+  });
+
+  it("collects file release pages into a deduplicated export bundle and disposes the api context", async () => {
+    const detailCalls: number[] = [];
+    const urlCalls: number[] = [];
+    let disposed = false;
+
+    const result = await collectFileReleaseBundle({
+      createApiContext: async () => ({
+        dispose: async () => {
+          disposed = true;
+        },
+        get: async () => ({
+          body: async () => Buffer.from(""),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-12T00:30:00.000Z",
+      fetchFileReleaseDetail: async ({ fileReleaseId }) => {
+        detailCalls.push(fileReleaseId);
+        return {
+          filecode: `民大校发〔2026〕${fileReleaseId}号`,
+          filedepartment: "教务处",
+          filename: `制度 ${fileReleaseId}`,
+          filetime: "2026-03-31 13:51:11",
+          filetypeid: 18,
+          fileurl: `/comsys/20181214/webapps/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
+          id: fileReleaseId,
+          state: 1,
+          upfilename: `制度-${fileReleaseId}.pdf`,
+        };
+      },
+      fetchFileReleaseDownloadUrl: async ({ fileReleaseId }) => {
+        urlCalls.push(fileReleaseId);
+        return {
+          state: true,
+          url: `/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
+        };
+      },
+      fetchFileReleasePage: async ({ currentPage }) => {
+        if (currentPage === 1) {
+          return {
+            data: [
+              {
+                filecode: "民大校发〔2026〕646号",
+                filedepartment: "教务处",
+                filename: "制度 646",
+                filetime: "2026-03-31 13:51:11",
+                id: 646,
+                typename: "教学管理",
+                user_name: "张老师",
+              },
+              {
+                filecode: "民大校发〔2026〕647号",
+                filedepartment: "教务处",
+                filename: "制度 647",
+                filetime: "2026-03-31 13:56:42",
+                id: 647,
+                typename: "教学管理",
+                user_name: "张老师",
+              },
+            ],
+            dws: [{ filedepartment: "教务处" }],
+            size: 3,
+            state: true,
+            sync: false,
+          };
+        }
+
+        return {
+          data: [
+            {
+              filecode: "民大校发〔2026〕646号",
+              filedepartment: "教务处",
+              filename: "制度 646",
+              filetime: "2026-03-31 13:51:11",
+              id: 646,
+              typename: "教学管理",
+              user_name: "张老师",
+            },
+          ],
+          dws: [{ filedepartment: "教务处" }],
+          size: 3,
+          state: true,
+          sync: false,
+        };
+      },
+      fetchFileReleaseTypes: async () => ({
+        data: [
+          {
+            id: 18,
+            sort: 3,
+            typename: "教学管理",
+          },
+        ],
+        state: true,
+      }),
+      maxFileReleases: 2,
+      pageSize: 2,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu",
+    });
+
+    expect(disposed).toBe(true);
+    expect(detailCalls).toEqual([646, 647]);
+    expect(urlCalls).toEqual([646, 647]);
+    expect(result.stats).toEqual({
+      detailFetched: 2,
+      fileUrlsResolved: 2,
+      fileReleasesCollected: 2,
+      fileObjectsUploaded: 0,
+      pagesFetched: 1,
+    });
+    expect(result.exportManifest.observed_departments).toEqual(["教务处"]);
+    expect(result.exportManifest.observed_file_types).toEqual([
+      {
+        id: 18,
+        sort: 3,
+        typename: "教学管理",
+      },
+    ]);
+    expect(result.bundleRecords.map((item) => item.file_release_id)).toEqual([646, 647]);
+  });
+
+  it("materializes released files into object-backed rows when an artifact store is configured", async () => {
+    const storedObjects: Array<{
+      contentType: string;
+      data: string;
+      key: string;
+      metadata: Record<string, string> | undefined;
+    }> = [];
+
+    const result = await collectFileReleaseBundle({
+      attachmentArtifactStore: {
+        storageProvider: "object_store",
+        putObject: async ({ objectKey, data, contentType, metadata }) => {
+          storedObjects.push({
+            contentType,
+            data: Buffer.from(data).toString("utf-8"),
+            key: objectKey,
+            metadata,
+          });
+          return {
+            bucket: "campus-rag-source",
+            byteSize: data.byteLength,
+            contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            etag: "\"etag-1\"",
+            objectKey,
+            versionId: null,
+          };
+        },
+      },
+      createApiContext: async () => ({
+        dispose: async () => {},
+        get: async () => ({
+          body: async () => Buffer.from("hello"),
+          headers: () => ({
+            "content-disposition": "attachment; filename*=UTF-8''sample.pdf",
+            "content-type": "application/pdf",
+          }),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-12T00:30:00.000Z",
+      fetchFileReleaseDetail: async ({ fileReleaseId }) => ({
+        filecode: "民大校发〔2026〕39号",
+        filedepartment: "教务处",
+        filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+        filetime: "2026-03-31 13:51:11",
+        filetypeid: 18,
+        fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
+        id: fileReleaseId,
+        state: 1,
+        upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+      }),
+      fetchFileReleaseDownloadUrl: async () => ({
+        state: true,
+        url: "/comsys-prompt-portlet-web/file/sample.pdf",
+      }),
+      fetchFileReleasePage: async () => ({
+        data: [
+          {
+            filecode: "民大校发〔2026〕39号",
+            filedepartment: "教务处",
+            filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+            filetime: "2026-03-31 13:51:11",
+            id: 646,
+            typename: "教学管理",
+            user_name: "张老师",
+          },
+        ],
+        dws: [{ filedepartment: "教务处" }],
+        size: 1,
+        state: true,
+        sync: false,
+      }),
+      fetchFileReleaseTypes: async () => ({
+        data: [
+          {
+            id: 18,
+            sort: 3,
+            typename: "教学管理",
+          },
+        ],
+        state: true,
+      }),
+      pageSize: 10,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu",
+    });
+
+    expect(result.stats.fileObjectsUploaded).toBe(1);
+    expect(result.bundleRecords[0]?.released_file).toMatchObject({
+      bucket: "campus-rag-source",
+      byte_size: 5,
+      ingest_status: "uploaded",
+      mime_type: "application/pdf",
+      object_key:
+        "authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+      original_filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+      provenance_status: "collected_internal",
+      sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      storage_provider: "object_store",
+    });
+    expect(storedObjects).toEqual([
+      {
+        contentType: "application/pdf",
+        data: "hello",
+        key:
+          "authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+        metadata: {
+          "content-sha256": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+          "source-surface": "file_release",
+        },
+      },
+    ]);
+  });
+
+  it("writes file release bundle and manifest under the configured exports directory", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-file-release-export-"));
+    tempDirs.push(tempDir);
+
+    const written = writeFileReleaseArtifacts({
+      bundleRecords: [
+        buildFileReleaseRecord({
+          detail: {
+            filecode: "民大校发〔2026〕39号",
+            filedepartment: "教务处",
+            filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+            filetime: "2026-03-31 13:51:11",
+            filetypeid: 18,
+            fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
+            id: 646,
+            state: 1,
+            upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+          },
+          downloadUrl: "/comsys-prompt-portlet-web/file/sample.pdf",
+          fileTypeNameById: new Map([[18, "教学管理"]]),
+          item: {
+            filecode: "民大校发〔2026〕39号",
+            filedepartment: "教务处",
+            filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+            filetime: "2026-03-31 13:51:11",
+            id: 646,
+            typename: "教学管理",
+            user_name: "张老师",
+          },
+          observedAt: "2026-04-12T00:30:00.000Z",
+          sourceHomeUrl: "https://portal.example.edu",
+        }),
+      ],
+      exportManifest: {
+        collector: {
+          export_contract_version: "authenticated_notice_file_release_export_v1",
+          file_release_collection_mode: "prompt_portlet_reference_only",
+          file_storage_mode: "reference_only",
+          runtime_shell: "repo_local_node",
+        },
+        export_date: "20260412",
+        export_scope: "file-release-20260412T003000Z",
+        exported_at: "2026-04-12T00:30:00.000Z",
+        filters: {
+          max_file_releases: null,
+          max_pages: null,
+          page_size: 10,
+        },
+        observed_departments: ["教务处"],
+        observed_file_types: [
+          {
+            id: 18,
+            sort: 3,
+            typename: "教学管理",
+          },
+        ],
+        run: {
+          detail_fetched: 1,
+          errors: 0,
+          file_urls_resolved: 1,
+          finished_at: "2026-04-12T00:30:00.000Z",
+          items_inserted: 1,
+          items_seen: 1,
+          mode: "file_release_export",
+          pages_fetched: 1,
+          started_at: "2026-04-12T00:30:00.000Z",
+          status: "success",
+        },
+        schema_version: "authenticated_notice_file_release_export_v1",
+        site_id: "muc_internal_portal",
+        source_channel: "authenticated_notice_portal",
+        source_home_url: "https://portal.example.edu",
+        source_surface: "file_release",
+      },
+      outputDir: tempDir,
+    });
+
+    expect(path.basename(written.bundlePath)).toBe("file-releases-bundle-20260412T003000Z.json");
+    expect(path.basename(written.manifestPath)).toBe("file-releases-manifest-20260412T003000Z.json");
+    expect(JSON.parse(fs.readFileSync(written.bundlePath, "utf-8"))).toHaveLength(1);
+    expect(JSON.parse(fs.readFileSync(written.manifestPath, "utf-8")).source_surface).toBe("file_release");
+  });
+
+  it("builds ADR-aligned object keys for file release capture bytes", () => {
+    expect(
+      buildAuthenticatedNoticeFileReleaseCaptureKey({
+        contentSha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+        fileReleaseId: 646,
+        filename: "sample.pdf",
+        year: "2026",
+      }),
+    ).toBe(
+      "authenticated_notice_portal/file-release-646/2026/sha256-2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824/capture/sample.pdf",
+    );
+  });
+});

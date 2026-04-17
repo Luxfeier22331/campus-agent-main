@@ -52,11 +52,13 @@ Current runtime scope:
 Runtime hardening baseline:
 
 - `GET /readyz` now fails closed unless database binding, Better Auth origin, operator allowlist, internal bridge secret, and supervisor config are all present
+- end-user Better Auth email/password sign-up and sign-in are admitted only for configured campus email domain suffixes plus optional exact-email exceptions
 - `GET /readyz` also reports whether the optional `official_web` ingestion handoff runtime is configured
 - auth responses, chat responses, and operator query responses default to `Cache-Control: no-store`
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate limiting
 - the protected panel operator bridge is accepted only when allowlisted operator headers arrive with a matching internal shared secret
 - `app-api -> supervisor-api` uses a bounded timeout budget and typed invalid-response handling
+- successful chat/eval request ingress now opportunistically triggers a bounded request-projection drain via Worker `waitUntil`; scheduled drain remains the recovery/backstop path
 - the request projector now retries with backoff and marks exhausted events terminally instead of spinning forever
 - the `official_web` projector now dispatches terminal run handoff payloads before marking outbox events processed, and it projects `queued` / `dispatched` / `ingestion_failed` explicitly for panel consumers
 - Worker `fetch` and `scheduled` are wrapped by Sentry; `app-api` is the primary observability owner for this product topology
@@ -76,10 +78,10 @@ Observability data policy:
 
 Canonical references:
 
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/official-web-control-plane-on-app-api.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
@@ -95,11 +97,15 @@ Canonical references:
 Database baseline:
 
 - runtime reads/writes use Hyperdrive-style runtime connection config against the shared repo Postgres
+- runtime now distinguishes `APP_API_DB` for cached/read-mostly access and optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
 - migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
 - Better Auth uses repo-owned `app_auth.*`; `apps/app-api` is now the shared-db bootstrap owner for `app_auth.*` / `chat.*`
-- on the current Supabase session pooler, `app_auth.*` relies on a role-level default `search_path`; connection-string `options=-c search_path=...` alone does not converge
+- Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit `app_auth.*` schema metadata instead of a dedicated auth-only `pg.Pool`
+- when `APP_API_DB_FRESH` is provisioned, Better Auth and request-scoped command-side services read/write through the no-cache Hyperdrive lane so `sign-up -> immediate sign-in` does not get trapped behind stale negative auth lookups
+- on the current Supabase session pooler, role-level `search_path=app_auth, public, extensions` remains a shared-product bootstrap convention, but runtime auth no longer depends on connection-string `options=-c search_path=...`
+- deployed Worker envs (`staging` / `production`) cache the static Worker/app assembly again, but runtime DB handles and Better Auth state are now rebuilt per request scope instead of being held across invocations; only the `test` harness keeps global runtime caches
 - `app-api` stores migration journal rows in `drizzle.app_api_migrations`, not the default shared Drizzle table
 
 Environment:
@@ -109,15 +115,19 @@ Environment:
 - `APP_API_NAME`
 - `APP_API_ENVIRONMENT`
 - `APP_API_DB.connectionString`
+- `APP_API_DB_FRESH.connectionString`
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 - `APP_API_OFFICIAL_WEB_HANDOFF_URL`
 - `APP_API_OFFICIAL_WEB_HANDOFF_TOKEN`
 - `APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS`
 - `BETTER_AUTH_SECRET`
 - `PUBLIC_CHAT_WEB_ORIGIN`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
+- `APP_API_END_USER_EMAIL_ALLOWLIST`
 - `SUPERVISOR_API_BASE_URL`
 - `SUPERVISOR_API_SHARED_SECRET`
 - `SUPERVISOR_API_TIMEOUT_MS`
+- `SUPERVISOR_API_EVAL_TIMEOUT_MS`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_MANAGEMENT_DATABASE_URL`
@@ -129,10 +139,30 @@ Environment:
 - `AXIOM_DATASET`
 - `AXIOM_TOKEN`
 
+Local development:
+
+- `pnpm dev` runs `wrangler dev -e local`
+- the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from `wrangler.toml` `env.local`
+- put local Wrangler / Drizzle process env in `apps/app-api/.env`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
+  - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
+  - `APP_API_MANAGEMENT_DATABASE_URL=...`
+- if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
+  `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
+  to generate `apps/app-api/.env`; the sync script will mirror the runtime DSN into both
+  `APP_API_DB` and `APP_API_DB_FRESH` local bindings unless you later override them manually
+- put Worker string env in `apps/app-api/.dev.vars`
+- for `official_web` live control-plane smoke,
+  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
+  `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
+- if current staging only targets `app-api + public-chat-web + protected-panel-web`, and does not yet enable official-web live control-plane, `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
+
 Deployment minimum gate:
 
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
+- `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths stay fresh
 - `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web` origin because Better Auth keeps origin / CSRF checks enabled for proxied `/api/auth/*`
+- `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` must contain the admitted campus email suffixes for end-user auth; `APP_API_END_USER_EMAIL_ALLOWLIST` is optional for explicit exceptions
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present together; partial configuration does not produce a ready runtime
@@ -146,6 +176,9 @@ pnpm db:ensure-app-auth-role-search-path
 pnpm db:bootstrap
 pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- --email help_bot@outlook.com --name "Help Bot"
+pnpm official-web:drain-projection -- --limit 50
+pnpm projection:drain
 pnpm test
 pnpm test:all
 pnpm test:node
@@ -154,8 +187,19 @@ pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:migrate:staging
+STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:reconcile-shared-drift:staging
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 pnpm dev
 ```
+
+Deploy note:
+
+- `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
+- 在任何 staging `official_web` / operator surface smoke 之前，先执行
+  `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
+  和需要时的 `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:migrate:staging`
+- 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与 `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 
 Testing lanes:
 
@@ -165,3 +209,4 @@ Testing lanes:
 - `pnpm test:shared-db-integration` is the explicit shared Postgres / Better Auth integration lane and is not part of the default `pnpm test` gate.
 - `pnpm test:shared-db-integration` also fails closed when the connected shared DB no longer converges with the repo-owned `official_web/runtime/operator` snapshot.
 - When shared DB drift is detected, inspect it with `pnpm db:reconcile-shared-drift -- --json` before applying cleanup with backup and `--apply`.
+- `pnpm projection:drain` hits the repo-local Worker scheduled test route (`/cdn-cgi/handler/scheduled`), so local dev should be running with `pnpm dev -- --test-scheduled` or an equivalent Wrangler flag before using it.

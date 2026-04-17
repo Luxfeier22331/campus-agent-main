@@ -10,6 +10,7 @@ export default defineProject({
     include: [
       "test/shared-product-db.integration.test.ts",
       "test/official-web-shared-db.integration.test.ts",
+      "test/operator-observability-shared-db.integration.test.ts",
     ],
   },
 });

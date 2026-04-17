@@ -1,4 +1,9 @@
-import type { OfficialWebIngestionDispatchStatus, OfficialWebRunStatus } from "../official-web-command";
+import type {
+  OfficialWebIngestionDispatchStatus,
+  OfficialWebIngestionExecutionStatus,
+  OfficialWebRunStatus,
+} from "../official-web-command";
+import type { OfficialWebPageChange, OfficialWebRunIntent } from "../official-web-command";
 
 export interface OfficialWebArtifactSummary {
   artifactType: string;
@@ -14,6 +19,7 @@ export interface OfficialWebRunOutboxEvent {
   eventId: string;
   eventType: string;
   occurredAt: string;
+  payload: Record<string, unknown>;
   processedAt: string | null;
   runId: string;
 }
@@ -28,9 +34,15 @@ export interface OfficialWebRunProjectionSource {
   hostSet: string[];
   ingestionDispatchRef: string | null;
   ingestionDispatchStatus: OfficialWebIngestionDispatchStatus;
+  ingestionExecutionErrorCode: string | null;
+  ingestionExecutionErrorMessage: string | null;
+  ingestionExecutionRef: string | null;
+  ingestionExecutionStatus: OfficialWebIngestionExecutionStatus;
+  ingestionExecutionUpdatedAt: string | null;
   lastHeartbeatAt: string | null;
   projectedAtHint?: string | null;
   runId: string;
+  runIntent: OfficialWebRunIntent;
   schedulerRunKey: string;
   seedSet: string[];
   siteId: string;
@@ -48,6 +60,9 @@ export interface OfficialWebSiteProjectionSource {
   latestCollectorVersion: string | null;
   latestConfigVersion: string | null;
   latestIngestionDispatchStatus: OfficialWebIngestionDispatchStatus | null;
+  latestIngestionExecutionErrorCode: string | null;
+  latestIngestionExecutionStatus: OfficialWebIngestionExecutionStatus | null;
+  latestIngestionExecutionUpdatedAt: string | null;
   latestRunId: string | null;
   latestRunStatus: OfficialWebRunStatus | null;
   projectedAtHint?: string | null;
@@ -84,6 +99,14 @@ export interface OfficialWebProjectionProjectorStore {
     runId: string;
     status: OfficialWebIngestionDispatchStatus;
   }): Promise<void>;
+  updateRunExecutionStatus(input: {
+    errorCode: string | null;
+    errorMessage: string | null;
+    executionRef: string | null;
+    runId: string;
+    status: OfficialWebIngestionExecutionStatus;
+    updatedAt: string;
+  }): Promise<boolean>;
   upsertRunProjection(projection: OfficialWebRunProjectionMaterialization): Promise<void>;
   upsertSiteProjection(projection: OfficialWebSiteProjectionMaterialization): Promise<void>;
 }
@@ -97,7 +120,10 @@ export interface OfficialWebIngestionHandoffPayload {
   eventType: string;
   finishedAt: string | null;
   hostSet: string[];
+  pageChanges: OfficialWebPageChange[];
+  pageChangeSummary: Record<string, number>;
   runId: string;
+  runIntent: OfficialWebRunIntent;
   schedulerRunKey: string;
   seedSet: string[];
   siteId: string;
@@ -193,7 +219,23 @@ function toOfficialWebIngestionHandoffPayload(input: {
     eventType: input.event.eventType,
     finishedAt: input.run.finishedAt,
     hostSet: input.run.hostSet,
+    pageChanges:
+      Array.isArray(input.event.payload.pageChanges)
+        ? (input.event.payload.pageChanges as OfficialWebPageChange[])
+        : [],
+    pageChangeSummary:
+      input.event.payload.pageChangeSummary &&
+      typeof input.event.payload.pageChangeSummary === "object"
+        ? (input.event.payload.pageChangeSummary as Record<string, number>)
+        : {
+            changedPages: 0,
+            deletedPages: 0,
+            failedFetchPages: 0,
+            newPages: 0,
+            notModifiedPages: 0,
+          },
     runId: input.run.runId,
+    runIntent: input.run.runIntent,
     schedulerRunKey: input.run.schedulerRunKey,
     seedSet: input.run.seedSet,
     siteId: input.run.siteId,

@@ -15,10 +15,10 @@
 修改本目录前，优先阅读：
 
 - `../../AGENTS.md`
-- `../../docs/architecture/long-term-architecture.md`
-- `../../docs/architecture/supervisor-architecture.md`
+- `../../docs/architecture/target-architecture.md`
+- `../../docs/architecture/execution-and-specialists-architecture.md`
 - `../../docs/reference/runtime-serving-and-index-terms.md`
-- `../../docs/plans/agentic-rag-foundation.md`
+- `../../docs/architecture/target-architecture.md`
 - `src/campus_supervisor_core/__init__.py`
 - `README.md`
 

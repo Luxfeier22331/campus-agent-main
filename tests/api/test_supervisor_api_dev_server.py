@@ -8,7 +8,7 @@ from unittest.mock import patch
 from campus_contracts import SupervisorRequest, SupervisorResponse
 
 from campus_supervisor_api.app import create_app
-from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request
+from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request, main as dev_server_main
 from campus_supervisor_api.settings import ApiSettings
 
 
@@ -70,7 +70,6 @@ class SupervisorApiDevServerTest(unittest.TestCase):
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
-                default_actor_groups=("students",),
                 default_actor_roles=("student",),
             ),
             supervisor_handler=fake_supervisor,
@@ -138,6 +137,16 @@ class SupervisorApiDevServerTest(unittest.TestCase):
 
         self.assertEqual(settings.host, "0.0.0.0")
         self.assertEqual(settings.port, 8765)
+
+    def test_main_loads_repo_env_before_serving(self) -> None:
+        with (
+            patch("campus_supervisor_api.dev_server.load_repo_env") as load_repo_env,
+            patch("campus_supervisor_api.dev_server.serve") as serve,
+        ):
+            dev_server_main()
+
+        load_repo_env.assert_called_once_with()
+        serve.assert_called_once_with()
 
 
 if __name__ == "__main__":

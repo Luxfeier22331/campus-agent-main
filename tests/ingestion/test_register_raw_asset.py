@@ -6,6 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from campus_ingestion_worker.register_raw_asset import build_parser
 from campus_ingestion_worker.register_raw_asset import register_raw_asset as _register_raw_asset
 from tests.support.in_memory_registry import InMemoryRawAssetRegistry
 
@@ -44,6 +45,37 @@ def register_raw_asset(**kwargs):
 
 
 class RegisterRawAssetTest(unittest.TestCase):
+    def test_build_parser_accepts_file_path_and_legacy_pdf_path(self) -> None:
+        parser = build_parser()
+
+        file_args = parser.parse_args(
+            [
+                "--file-path",
+                "student-handbook.pdf",
+                "--raw-source-uri",
+                "https://campus.example/student-handbook.pdf",
+                "--corpus",
+                "regulations",
+                "--collection",
+                "student_handbook",
+            ]
+        )
+        legacy_args = parser.parse_args(
+            [
+                "--pdf-path",
+                "student-handbook.pdf",
+                "--raw-source-uri",
+                "https://campus.example/student-handbook.pdf",
+                "--corpus",
+                "regulations",
+                "--collection",
+                "student_handbook",
+            ]
+        )
+
+        self.assertEqual(file_args.file_path, "student-handbook.pdf")
+        self.assertEqual(legacy_args.file_path, "student-handbook.pdf")
+
     def test_register_raw_asset_uses_filename_derived_identity_and_reuses_existing_record(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

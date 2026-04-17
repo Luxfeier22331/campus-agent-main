@@ -1,11 +1,30 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
-import { conversations, messages, projectionOutbox, requestExecution } from "../../db/schema";
-import type { ChatConversation, ChatMessage } from "../chat";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
+import {
+  conversations,
+  messages,
+  projectionOutbox,
+  requestExecution,
+  requestObservabilityFact,
+  sessionSlots,
+} from "../../db/schema";
+import {
+  normalizeChatStructuredParts,
+  type ChatConversation,
+  type ChatMessage,
+  type ChatSessionSlot,
+} from "../chat";
 import type { RequestedScope } from "../integration";
+import type {
+  RequestClaimSupportSummary,
+  RequestDiagnosticsSummary,
+} from "../request-diagnostics";
+import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export type RequestExecutionStatus =
   | "accepted"
@@ -26,20 +45,24 @@ export interface RequestExecutionWrite {
   actorPrincipalId: string;
   actorRoles: string[];
   actorDepartments: string[];
-  actorGroups: string[];
-  actorCampusScope: string | null;
   principalType: string;
   principalLabel: string | null;
+  entitlementSnapshotId: string | null;
+  entitlementGroups: string[];
+  visibilityScope: string | null;
+  applicabilityScope: string | null;
   idempotencyKey: string | null;
   requestFingerprintSha256: string | null;
   traceId: string;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
+  resolvedScope: RequestedScope | null;
   selectedTarget: string | null;
   status: RequestExecutionStatus;
   errorCode: string | null;
   questionPreview: string;
   answerPreview: string | null;
+  diagnostics: RequestDiagnosticsSummary | null;
   sourceDocIds: string[];
   startedAt: string;
   completedAt: string | null;
@@ -60,6 +83,60 @@ export interface ProjectionOutboxWrite {
   lastError: string | null;
 }
 
+export interface RequestObservabilityFactWrite {
+  requestId: string;
+  traceId: string;
+  conversationId: string;
+  surface: string;
+  principalType: string;
+  entitlementSnapshotId: string | null;
+  policyProjectionVersion: string | null;
+  policyReason: string | null;
+  requestedCapability: string | null;
+  requestedScopeSummary: string | null;
+  resolvedScopeSummary: string | null;
+  collection: string | null;
+  selectedTarget: string | null;
+  status: RequestExecutionStatus;
+  errorCode: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  retrievalAttempted: boolean | null;
+  candidateCount: number | null;
+  retrievedSourceCount: number | null;
+  retrievedSources: ObservedSourceTraceEntry[];
+  supportingSources: ObservedSourceTraceEntry[];
+  emptyRecall: boolean | null;
+  citationExpected: boolean | null;
+  citationCount: number | null;
+  citationMissing: boolean | null;
+  refusalClass: string | null;
+  semanticOutcome: string | null;
+  scopeClass: string | null;
+  aclDecision: string | null;
+  aclAnomalyCode: string | null;
+  failClosed: boolean | null;
+  modelProvider: string | null;
+  modelName: string | null;
+  promptId: string | null;
+  promptVersion: string | null;
+  templateSha256: string | null;
+  promptRuntimeState: string | null;
+  promptRuntimeDetail: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cachedInputTokens: number | null;
+  estimatedCostMicrousd: number | null;
+  retrievalAdequacyVerdict: string | null;
+  retrievalAdequacyReason: string | null;
+  claimSupportSummary: RequestClaimSupportSummary | null;
+  traceAvailable: boolean;
+  projectionLagMs: number | null;
+  measuredAt: string;
+  updatedAt: string;
+}
+
 export interface AcceptRequestWrite {
   conversationSeed?: {
     id: string;
@@ -71,6 +148,7 @@ export interface AcceptRequestWrite {
   conversationTitle: string;
   ownerUserId: string;
   outboxEvent: ProjectionOutboxWrite;
+  requestObservabilityFact: RequestObservabilityFactWrite;
   requestExecution: RequestExecutionWrite;
   userMessage: ChatMessage;
 }
@@ -80,7 +158,9 @@ export interface FinalizeRequestWrite {
   conversationTitle: string;
   ownerUserId: string;
   outboxEvent: ProjectionOutboxWrite;
+  requestObservabilityFact: RequestObservabilityFactWrite;
   requestExecution: RequestExecutionWrite;
+  sessionSlots: ChatSessionSlot[];
 }
 
 export interface StoredIdempotentRequest {
@@ -112,12 +192,14 @@ function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
     createdAt: toIsoString(row.createdAt),
     requestId: row.requestId ?? null,
     retryable: row.retryable ?? null,
+    structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
   };
 }
 
 function toChatConversation(
   row: typeof conversations.$inferSelect,
   messageRows: Array<typeof messages.$inferSelect>,
+  sessionSlotRows: Array<typeof sessionSlots.$inferSelect>,
 ): ChatConversation {
   return {
     id: row.id,
@@ -125,16 +207,29 @@ function toChatConversation(
     title: row.title,
     createdAt: toIsoString(row.createdAt),
     updatedAt: toIsoString(row.updatedAt),
+    sessionSlots: sessionSlotRows.map((slot) => ({
+      confirmed: slot.confirmed,
+      name: slot.name,
+      updatedAt: toIsoString(slot.updatedAt),
+      value: slot.value,
+    })),
     messages: messageRows.map(toChatMessage),
   };
 }
 
-export function createPgChatCommandStore(env: Env): ChatCommandStore {
+export function createPgChatCommandStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): ChatCommandStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   async function loadConversation(
     ownerUserId: string,
     conversationId: string,
   ): Promise<ChatConversation | null> {
-    const db = await createRuntimeDatabase(env);
+    const db = await getDb();
     const conversationRows = await db
       .select()
       .from(conversations)
@@ -150,13 +245,18 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
       .from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(asc(messages.createdAt));
+    const sessionSlotRows = await db
+      .select()
+      .from(sessionSlots)
+      .where(eq(sessionSlots.conversationId, conversationId))
+      .orderBy(asc(sessionSlots.name));
 
-    return toChatConversation(conversationRow, messageRows);
+    return toChatConversation(conversationRow, messageRows, sessionSlotRows);
   }
 
   return {
     async findIdempotentRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const executionRows = await db
         .select()
         .from(requestExecution)
@@ -228,14 +328,15 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
         requestFingerprintSha256: executionRow.requestFingerprintSha256 ?? "",
         response: {
           answer: {
-            conversation: {
-              id: conversation.id,
-              title: conversation.title,
-              createdAt: conversation.createdAt,
-              updatedAt: conversation.updatedAt,
-              messages: conversation.messages,
-            },
-            result,
+              conversation: {
+                id: conversation.id,
+                title: conversation.title,
+                createdAt: conversation.createdAt,
+                updatedAt: conversation.updatedAt,
+                sessionSlots: conversation.sessionSlots,
+                messages: conversation.messages,
+              },
+              result,
           },
           requestId: executionRow.requestId,
           traceId: executionRow.traceId,
@@ -245,7 +346,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
     },
 
     async acceptRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         if (input.conversationSeed) {
           await tx.insert(conversations).values({
@@ -265,6 +366,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             role: input.userMessage.role,
             kind: null,
             text: input.userMessage.text,
+            structuredPartsJson: input.userMessage.structuredParts,
             createdAt: new Date(input.userMessage.createdAt),
             requestId: null,
             retryable: null,
@@ -282,21 +384,26 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             actorPrincipalId: input.requestExecution.actorPrincipalId,
             actorRolesJson: input.requestExecution.actorRoles,
             actorDepartmentsJson: input.requestExecution.actorDepartments,
-            actorGroupsJson: input.requestExecution.actorGroups,
-            actorCampusScope: input.requestExecution.actorCampusScope,
             principalType: input.requestExecution.principalType,
             principalLabel: input.requestExecution.principalLabel,
+            entitlementSnapshotId: input.requestExecution.entitlementSnapshotId,
+            entitlementGroupsJson: input.requestExecution.entitlementGroups,
+            visibilityScope: input.requestExecution.visibilityScope,
+            applicabilityScope: input.requestExecution.applicabilityScope,
             idempotencyKey: input.requestExecution.idempotencyKey,
             requestFingerprintSha256: input.requestExecution.requestFingerprintSha256,
             traceId: input.requestExecution.traceId,
             requestedCapability: input.requestExecution.requestedCapability,
             requestedScopeJson:
               (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
+            resolvedScopeJson:
+              (input.requestExecution.resolvedScope as Record<string, unknown> | null) ?? null,
             selectedTarget: null,
             status: input.requestExecution.status,
             errorCode: null,
             questionPreview: input.requestExecution.questionPreview,
             answerPreview: null,
+            diagnosticsJson: null,
             sourceDocIdsJson: [],
             startedAt: new Date(input.requestExecution.startedAt),
             completedAt: null,
@@ -319,6 +426,62 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             lastError: null,
           });
 
+        await tx.insert(requestObservabilityFact).values({
+          aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+          aclDecision: input.requestObservabilityFact.aclDecision,
+          cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+          candidateCount: input.requestObservabilityFact.candidateCount,
+          claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+          retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+          supportingSourcesJson: input.requestObservabilityFact.supportingSources,
+          citationCount: input.requestObservabilityFact.citationCount,
+          citationExpected: input.requestObservabilityFact.citationExpected,
+          citationMissing: input.requestObservabilityFact.citationMissing,
+          collection: input.requestObservabilityFact.collection,
+          completedAt: input.requestObservabilityFact.completedAt
+            ? new Date(input.requestObservabilityFact.completedAt)
+            : null,
+          conversationId: input.requestObservabilityFact.conversationId,
+          durationMs: input.requestObservabilityFact.durationMs,
+          emptyRecall: input.requestObservabilityFact.emptyRecall,
+          entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+          errorCode: input.requestObservabilityFact.errorCode,
+          estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+          failClosed: input.requestObservabilityFact.failClosed,
+          inputTokens: input.requestObservabilityFact.inputTokens,
+          measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+          modelName: input.requestObservabilityFact.modelName,
+          modelProvider: input.requestObservabilityFact.modelProvider,
+          promptId: input.requestObservabilityFact.promptId,
+          promptVersion: input.requestObservabilityFact.promptVersion,
+          templateSha256: input.requestObservabilityFact.templateSha256,
+          promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+          promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
+          outputTokens: input.requestObservabilityFact.outputTokens,
+          policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+          policyReason: input.requestObservabilityFact.policyReason,
+          retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+          retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
+          principalType: input.requestObservabilityFact.principalType,
+          projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+          requestId: input.requestObservabilityFact.requestId,
+          requestedCapability: input.requestObservabilityFact.requestedCapability,
+          requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+          resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
+          refusalClass: input.requestObservabilityFact.refusalClass,
+          scopeClass: input.requestObservabilityFact.scopeClass,
+          semanticOutcome: input.requestObservabilityFact.semanticOutcome,
+          retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+          retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+          selectedTarget: input.requestObservabilityFact.selectedTarget,
+          startedAt: new Date(input.requestObservabilityFact.startedAt),
+          status: input.requestObservabilityFact.status,
+          surface: input.requestObservabilityFact.surface,
+          traceAvailable: input.requestObservabilityFact.traceAvailable,
+          traceId: input.requestObservabilityFact.traceId,
+          updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+        });
+
         await tx
           .update(conversations)
           .set({
@@ -335,7 +498,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
     },
 
     async finalizeRequest(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db.transaction(async (tx) => {
         await tx
           .insert(messages)
@@ -345,6 +508,7 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             role: input.assistantMessage.role,
             kind: input.assistantMessage.kind,
             text: input.assistantMessage.text,
+            structuredPartsJson: input.assistantMessage.structuredParts,
             createdAt: new Date(input.assistantMessage.createdAt),
             requestId: input.assistantMessage.requestId,
             retryable: input.assistantMessage.retryable,
@@ -357,7 +521,12 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
             selectedTarget: input.requestExecution.selectedTarget,
             status: input.requestExecution.status,
             errorCode: input.requestExecution.errorCode,
+            requestedScopeJson:
+              (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
+            resolvedScopeJson:
+              (input.requestExecution.resolvedScope as Record<string, unknown> | null) ?? null,
             answerPreview: input.requestExecution.answerPreview,
+            diagnosticsJson: input.requestExecution.diagnostics,
             sourceDocIdsJson: input.requestExecution.sourceDocIds,
             completedAt: input.requestExecution.completedAt
               ? new Date(input.requestExecution.completedAt)
@@ -382,6 +551,121 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
           });
 
         await tx
+          .insert(requestObservabilityFact)
+          .values({
+            aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+            aclDecision: input.requestObservabilityFact.aclDecision,
+            cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+            candidateCount: input.requestObservabilityFact.candidateCount,
+            claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+            retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+            supportingSourcesJson: input.requestObservabilityFact.supportingSources,
+            citationCount: input.requestObservabilityFact.citationCount,
+            citationExpected: input.requestObservabilityFact.citationExpected,
+            citationMissing: input.requestObservabilityFact.citationMissing,
+            collection: input.requestObservabilityFact.collection,
+            completedAt: input.requestObservabilityFact.completedAt
+              ? new Date(input.requestObservabilityFact.completedAt)
+              : null,
+            conversationId: input.requestObservabilityFact.conversationId,
+            durationMs: input.requestObservabilityFact.durationMs,
+            emptyRecall: input.requestObservabilityFact.emptyRecall,
+            entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+            errorCode: input.requestObservabilityFact.errorCode,
+            estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+            failClosed: input.requestObservabilityFact.failClosed,
+            inputTokens: input.requestObservabilityFact.inputTokens,
+            measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+            modelName: input.requestObservabilityFact.modelName,
+            modelProvider: input.requestObservabilityFact.modelProvider,
+            promptId: input.requestObservabilityFact.promptId,
+            promptVersion: input.requestObservabilityFact.promptVersion,
+            templateSha256: input.requestObservabilityFact.templateSha256,
+            promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+            promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
+            outputTokens: input.requestObservabilityFact.outputTokens,
+            policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+            policyReason: input.requestObservabilityFact.policyReason,
+            retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+            retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
+            principalType: input.requestObservabilityFact.principalType,
+            projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+            requestId: input.requestObservabilityFact.requestId,
+            requestedCapability: input.requestObservabilityFact.requestedCapability,
+            requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+            resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
+            refusalClass: input.requestObservabilityFact.refusalClass,
+            scopeClass: input.requestObservabilityFact.scopeClass,
+            semanticOutcome: input.requestObservabilityFact.semanticOutcome,
+            retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+            retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+            selectedTarget: input.requestObservabilityFact.selectedTarget,
+            startedAt: new Date(input.requestObservabilityFact.startedAt),
+            status: input.requestObservabilityFact.status,
+            surface: input.requestObservabilityFact.surface,
+            traceAvailable: input.requestObservabilityFact.traceAvailable,
+            traceId: input.requestObservabilityFact.traceId,
+            updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+          })
+          .onConflictDoUpdate({
+            set: {
+              aclAnomalyCode: input.requestObservabilityFact.aclAnomalyCode,
+              aclDecision: input.requestObservabilityFact.aclDecision,
+              cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
+              candidateCount: input.requestObservabilityFact.candidateCount,
+              claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+              retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
+              supportingSourcesJson: input.requestObservabilityFact.supportingSources,
+              citationCount: input.requestObservabilityFact.citationCount,
+              citationExpected: input.requestObservabilityFact.citationExpected,
+              citationMissing: input.requestObservabilityFact.citationMissing,
+              collection: input.requestObservabilityFact.collection,
+              completedAt: input.requestObservabilityFact.completedAt
+                ? new Date(input.requestObservabilityFact.completedAt)
+                : null,
+              conversationId: input.requestObservabilityFact.conversationId,
+              durationMs: input.requestObservabilityFact.durationMs,
+              emptyRecall: input.requestObservabilityFact.emptyRecall,
+              entitlementSnapshotId: input.requestObservabilityFact.entitlementSnapshotId,
+              errorCode: input.requestObservabilityFact.errorCode,
+              estimatedCostMicrousd: input.requestObservabilityFact.estimatedCostMicrousd,
+              failClosed: input.requestObservabilityFact.failClosed,
+              inputTokens: input.requestObservabilityFact.inputTokens,
+              measuredAt: new Date(input.requestObservabilityFact.measuredAt),
+              modelName: input.requestObservabilityFact.modelName,
+              modelProvider: input.requestObservabilityFact.modelProvider,
+              promptId: input.requestObservabilityFact.promptId,
+              promptVersion: input.requestObservabilityFact.promptVersion,
+              templateSha256: input.requestObservabilityFact.templateSha256,
+              promptRuntimeState: input.requestObservabilityFact.promptRuntimeState,
+              promptRuntimeDetail: input.requestObservabilityFact.promptRuntimeDetail,
+              outputTokens: input.requestObservabilityFact.outputTokens,
+              policyProjectionVersion: input.requestObservabilityFact.policyProjectionVersion,
+              policyReason: input.requestObservabilityFact.policyReason,
+              retrievalAdequacyReason: input.requestObservabilityFact.retrievalAdequacyReason,
+              retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
+              principalType: input.requestObservabilityFact.principalType,
+              projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+              requestedCapability: input.requestObservabilityFact.requestedCapability,
+              requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
+              resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
+              refusalClass: input.requestObservabilityFact.refusalClass,
+              scopeClass: input.requestObservabilityFact.scopeClass,
+              semanticOutcome: input.requestObservabilityFact.semanticOutcome,
+              retrievedSourceCount: input.requestObservabilityFact.retrievedSourceCount,
+              retrievalAttempted: input.requestObservabilityFact.retrievalAttempted,
+              selectedTarget: input.requestObservabilityFact.selectedTarget,
+              startedAt: new Date(input.requestObservabilityFact.startedAt),
+              status: input.requestObservabilityFact.status,
+              surface: input.requestObservabilityFact.surface,
+              traceAvailable: input.requestObservabilityFact.traceAvailable,
+              traceId: input.requestObservabilityFact.traceId,
+              updatedAt: new Date(input.requestObservabilityFact.updatedAt),
+            },
+            target: requestObservabilityFact.requestId,
+          });
+
+        await tx
           .update(conversations)
           .set({
             title: input.conversationTitle,
@@ -393,6 +677,22 @@ export function createPgChatCommandStore(env: Env): ChatCommandStore {
               eq(conversations.ownerUserId, input.ownerUserId),
             ),
           );
+
+        await tx
+          .delete(sessionSlots)
+          .where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
+
+        if (input.sessionSlots.length > 0) {
+          await tx.insert(sessionSlots).values(
+            input.sessionSlots.map((slot) => ({
+              conversationId: input.requestExecution.conversationId,
+              name: slot.name,
+              value: slot.value,
+              confirmed: slot.confirmed,
+              updatedAt: new Date(slot.updatedAt),
+            })),
+          );
+        }
       });
 
       const conversation = await loadConversation(

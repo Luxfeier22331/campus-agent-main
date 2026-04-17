@@ -32,14 +32,14 @@ describe("app-api shared product database bootstrap", () => {
     expect(env.publicChatOrigin).toBe("https://chat.example.com");
   });
 
-  it("adopts clean legacy public better-auth tables into app_auth", () => {
-    expect(
+  it("rejects legacy public better-auth tables instead of adopting them", () => {
+    expect(() =>
       classifyBetterAuthTableOwnership({
         authSchema: "app_auth",
         authSchemaTables: [],
         publicSchemaTables: ["user", "session", "account", "verification"],
       }),
-    ).toBe("legacy_public_schema");
+    ).toThrow("Legacy Better Auth tables in public are no longer supported");
   });
 
   it("rejects split better-auth ownership across public and app_auth", () => {

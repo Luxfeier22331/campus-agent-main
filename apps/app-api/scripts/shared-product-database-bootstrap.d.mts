@@ -45,4 +45,4 @@ export function classifyBetterAuthTableOwnership(input: {
   authSchema: string;
   authSchemaTables: string[];
   publicSchemaTables: string[];
-}): "fresh" | "legacy_public_schema" | "target_schema";
+}): "fresh" | "target_schema";

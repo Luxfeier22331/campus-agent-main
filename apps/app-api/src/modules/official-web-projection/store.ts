@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { Env } from "../../config";
-import { createRuntimeDatabase } from "../../db/runtime";
+import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
   crawlRuns,
   officialWebRunProjection,
@@ -10,7 +10,12 @@ import {
   runArtifacts,
   runOutbox,
 } from "../../db/schema";
-import type { OfficialWebIngestionDispatchStatus, OfficialWebRunStatus } from "../official-web-command";
+import type {
+  OfficialWebIngestionDispatchStatus,
+  OfficialWebIngestionExecutionStatus,
+  OfficialWebRunIntent,
+  OfficialWebRunStatus,
+} from "../official-web-command";
 import type {
   OfficialWebArtifactSummary,
   OfficialWebProjectionProjectorStore,
@@ -20,6 +25,8 @@ import type {
   OfficialWebSiteProjectionMaterialization,
   OfficialWebSiteProjectionSource,
 } from "./service";
+
+type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 function toIsoString(value: Date | null): string | null {
   return value ? value.toISOString() : null;
@@ -50,6 +57,7 @@ function toRunOutboxEvent(row: typeof runOutbox.$inferSelect): OfficialWebRunOut
     eventId: row.eventId,
     eventType: row.eventType,
     occurredAt: row.occurredAt.toISOString(),
+    payload: row.payloadJson,
     processedAt: toIsoString(row.processedAt),
     runId: row.runId,
   };
@@ -81,8 +89,14 @@ function toRunProjectionSource(
     hostSet: row.hostSetJson,
     ingestionDispatchRef: row.ingestionDispatchRef ?? null,
     ingestionDispatchStatus: row.ingestionDispatchStatus as OfficialWebIngestionDispatchStatus,
+    ingestionExecutionErrorCode: row.ingestionExecutionErrorCode ?? null,
+    ingestionExecutionErrorMessage: row.ingestionExecutionErrorMessage ?? null,
+    ingestionExecutionRef: row.ingestionExecutionRef ?? null,
+    ingestionExecutionStatus: row.ingestionExecutionStatus as OfficialWebIngestionExecutionStatus,
+    ingestionExecutionUpdatedAt: toIsoString(row.ingestionExecutionUpdatedAt),
     lastHeartbeatAt: toIsoString(row.lastHeartbeatAt),
     runId: row.runId,
+    runIntent: row.runIntent as OfficialWebRunIntent,
     schedulerRunKey: row.schedulerRunKey,
     seedSet: row.seedSetJson,
     siteId: row.siteId,
@@ -93,10 +107,17 @@ function toRunProjectionSource(
   };
 }
 
-export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProjectionProjectorStore {
+export function createPgOfficialWebProjectionStore(
+  env: Env,
+  input: {
+    getDb?: RuntimeDbGetter;
+  } = {},
+): OfficialWebProjectionProjectorStore {
+  const getDb = input.getDb ?? createRuntimeDbGetter(env);
+
   return {
     async getRunProjectionSource(runId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const runRows = await db.select().from(crawlRuns).where(eq(crawlRuns.runId, runId)).limit(1);
       const runRow = runRows[0];
       if (!runRow) {
@@ -113,7 +134,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async getSiteProjectionSource(siteId) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const latestRows = await db
         .select()
         .from(crawlRuns)
@@ -157,6 +178,10 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
         latestConfigVersion: latest.configVersion,
         latestIngestionDispatchStatus:
           latest.ingestionDispatchStatus as OfficialWebIngestionDispatchStatus,
+        latestIngestionExecutionErrorCode: latest.ingestionExecutionErrorCode ?? null,
+        latestIngestionExecutionStatus:
+          latest.ingestionExecutionStatus as OfficialWebIngestionExecutionStatus,
+        latestIngestionExecutionUpdatedAt: toIsoString(latest.ingestionExecutionUpdatedAt),
         latestRunId: latest.runId,
         latestRunStatus: latest.status as OfficialWebRunStatus,
         siteId: latest.siteId,
@@ -164,7 +189,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async listPendingEvents(limit, now) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const rows = await db
         .select()
         .from(runOutbox)
@@ -176,7 +201,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markEventFailed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(runOutbox)
         .set({
@@ -189,7 +214,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markEventProcessed(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(runOutbox)
         .set({
@@ -201,7 +226,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async markTimedOutRunsAsAbandoned(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       const cutoff = new Date(new Date(input.now).valueOf() - input.heartbeatTimeoutSeconds * 1000);
       const rows = await db
         .select()
@@ -254,7 +279,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async updateRunDispatchStatus(input) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .update(crawlRuns)
         .set({
@@ -266,8 +291,26 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
         .where(eq(crawlRuns.runId, input.runId));
     },
 
+    async updateRunExecutionStatus(input) {
+      const db = await getDb();
+      const rows = await db
+        .update(crawlRuns)
+        .set({
+          ingestionExecutionErrorCode: input.errorCode,
+          ingestionExecutionErrorMessage: input.errorMessage,
+          ingestionExecutionRef: input.executionRef,
+          ingestionExecutionStatus: input.status,
+          ingestionExecutionUpdatedAt: new Date(input.updatedAt),
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(eq(crawlRuns.runId, input.runId))
+        .returning({ runId: crawlRuns.runId });
+
+      return rows.length > 0;
+    },
+
     async upsertRunProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .insert(officialWebRunProjection)
         .values({
@@ -278,9 +321,17 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
           finishedAt: projection.finishedAt ? new Date(projection.finishedAt) : null,
           ingestionDispatchRef: projection.ingestionDispatchRef,
           ingestionDispatchStatus: projection.ingestionDispatchStatus,
+          ingestionExecutionErrorCode: projection.ingestionExecutionErrorCode,
+          ingestionExecutionErrorMessage: projection.ingestionExecutionErrorMessage,
+          ingestionExecutionRef: projection.ingestionExecutionRef,
+          ingestionExecutionStatus: projection.ingestionExecutionStatus,
+          ingestionExecutionUpdatedAt: projection.ingestionExecutionUpdatedAt
+            ? new Date(projection.ingestionExecutionUpdatedAt)
+            : null,
           lastHeartbeatAt: projection.lastHeartbeatAt ? new Date(projection.lastHeartbeatAt) : null,
           projectedAt: new Date(projection.projectedAt),
           runId: projection.runId,
+          runIntent: projection.runIntent,
           siteId: projection.siteId,
           startedAt: new Date(projection.startedAt),
           status: projection.status,
@@ -295,8 +346,16 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
             finishedAt: projection.finishedAt ? new Date(projection.finishedAt) : null,
             ingestionDispatchRef: projection.ingestionDispatchRef,
             ingestionDispatchStatus: projection.ingestionDispatchStatus,
+            ingestionExecutionErrorCode: projection.ingestionExecutionErrorCode,
+            ingestionExecutionErrorMessage: projection.ingestionExecutionErrorMessage,
+            ingestionExecutionRef: projection.ingestionExecutionRef,
+            ingestionExecutionStatus: projection.ingestionExecutionStatus,
+            ingestionExecutionUpdatedAt: projection.ingestionExecutionUpdatedAt
+              ? new Date(projection.ingestionExecutionUpdatedAt)
+              : null,
             lastHeartbeatAt: projection.lastHeartbeatAt ? new Date(projection.lastHeartbeatAt) : null,
             projectedAt: new Date(projection.projectedAt),
+            runIntent: projection.runIntent,
             siteId: projection.siteId,
             startedAt: new Date(projection.startedAt),
             status: projection.status,
@@ -307,7 +366,7 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
     },
 
     async upsertSiteProjection(projection) {
-      const db = await createRuntimeDatabase(env);
+      const db = await getDb();
       await db
         .insert(officialWebSiteProjection)
         .values({
@@ -318,6 +377,11 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
           latestCollectorVersion: projection.latestCollectorVersion,
           latestConfigVersion: projection.latestConfigVersion,
           latestIngestionDispatchStatus: projection.latestIngestionDispatchStatus,
+          latestIngestionExecutionErrorCode: projection.latestIngestionExecutionErrorCode,
+          latestIngestionExecutionStatus: projection.latestIngestionExecutionStatus,
+          latestIngestionExecutionUpdatedAt: projection.latestIngestionExecutionUpdatedAt
+            ? new Date(projection.latestIngestionExecutionUpdatedAt)
+            : null,
           latestRunId: projection.latestRunId,
           latestRunStatus: projection.latestRunStatus,
           projectedAt: new Date(projection.projectedAt),
@@ -332,6 +396,11 @@ export function createPgOfficialWebProjectionStore(env: Env): OfficialWebProject
             latestCollectorVersion: projection.latestCollectorVersion,
             latestConfigVersion: projection.latestConfigVersion,
             latestIngestionDispatchStatus: projection.latestIngestionDispatchStatus,
+            latestIngestionExecutionErrorCode: projection.latestIngestionExecutionErrorCode,
+            latestIngestionExecutionStatus: projection.latestIngestionExecutionStatus,
+            latestIngestionExecutionUpdatedAt: projection.latestIngestionExecutionUpdatedAt
+              ? new Date(projection.latestIngestionExecutionUpdatedAt)
+              : null,
             latestRunId: projection.latestRunId,
             latestRunStatus: projection.latestRunStatus,
             projectedAt: new Date(projection.projectedAt),

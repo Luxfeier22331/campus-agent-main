@@ -106,7 +106,6 @@ export function classifyBetterAuthTableOwnership(input) {
   const authTables = new Set(input.authSchemaTables);
   const publicTables = new Set(input.publicSchemaTables);
   const allAuthSchema = BETTER_AUTH_TABLES.every((tableName) => authTables.has(tableName));
-  const allPublicSchema = BETTER_AUTH_TABLES.every((tableName) => publicTables.has(tableName));
   const anyAuthSchema = BETTER_AUTH_TABLES.some((tableName) => authTables.has(tableName));
   const anyPublicSchema = BETTER_AUTH_TABLES.some((tableName) => publicTables.has(tableName));
 
@@ -116,8 +115,10 @@ export function classifyBetterAuthTableOwnership(input) {
   if (allAuthSchema && !anyPublicSchema) {
     return "target_schema";
   }
-  if (allPublicSchema && !anyAuthSchema) {
-    return "legacy_public_schema";
+  if (anyPublicSchema && !anyAuthSchema) {
+    throw new Error(
+      `Legacy Better Auth tables in public are no longer supported; move them into ${input.authSchema} before bootstrap.`,
+    );
   }
 
   throw new Error(
@@ -146,69 +147,6 @@ async function listBetterAuthTables(pool, authSchema) {
       .filter((row) => row.table_schema === "public")
       .map((row) => row.table_name),
   };
-}
-
-async function publicBetterAuthTablesAreEmpty(pool) {
-  for (const tableName of BETTER_AUTH_TABLES) {
-    const existsResult = await pool.query(
-      "select exists(select 1 from information_schema.tables where table_schema = 'public' and table_name = $1) as present",
-      [tableName],
-    );
-    if (!existsResult.rows[0]?.present) {
-      return false;
-    }
-
-    const countResult = await pool.query(
-      `select count(*)::int as count from "public"."${assertIdentifier("table", tableName)}"`,
-    );
-    if ((countResult.rows[0]?.count ?? 0) > 0) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-async function dropEmptyLegacyPublicBetterAuthTables(pool) {
-  for (const tableName of ["session", "account", "verification", "user"]) {
-    await pool.query(`drop table if exists "public"."${assertIdentifier("table", tableName)}"`);
-  }
-}
-
-async function adoptLegacyBetterAuthTables(pool, env) {
-  const tableInventory = await listBetterAuthTables(pool, env.authSchema);
-  let state;
-  try {
-    state = classifyBetterAuthTableOwnership({
-      authSchema: env.authSchema,
-      ...tableInventory,
-    });
-  } catch (error) {
-    const authTables = new Set(tableInventory.authSchemaTables);
-    const publicTables = new Set(tableInventory.publicSchemaTables);
-    const hasAllAuthTables = BETTER_AUTH_TABLES.every((tableName) => authTables.has(tableName));
-    const hasAllPublicTables = BETTER_AUTH_TABLES.every((tableName) => publicTables.has(tableName));
-
-    if (hasAllAuthTables && hasAllPublicTables && (await publicBetterAuthTablesAreEmpty(pool))) {
-      await dropEmptyLegacyPublicBetterAuthTables(pool);
-      return "target_schema";
-    }
-
-    throw error;
-  }
-
-  if (state !== "legacy_public_schema") {
-    return state;
-  }
-
-  await pool.query(`CREATE SCHEMA IF NOT EXISTS "${assertIdentifier("schema", env.authSchema)}";`);
-  for (const tableName of BETTER_AUTH_TABLES) {
-    await pool.query(
-      `ALTER TABLE "public"."${assertIdentifier("table", tableName)}" SET SCHEMA "${assertIdentifier("schema", env.authSchema)}";`,
-    );
-  }
-
-  return "target_schema";
 }
 
 function buildBetterAuthOptions(env, pool) {
@@ -314,7 +252,10 @@ export async function bootstrapSharedProductDatabase(envOverrides = process.env)
 
   try {
     await pool.query(buildSchemaSql(env));
-    const betterAuthState = await adoptLegacyBetterAuthTables(pool, env);
+    const betterAuthState = classifyBetterAuthTableOwnership({
+      authSchema: env.authSchema,
+      ...(await listBetterAuthTables(pool, env.authSchema)),
+    });
     await ensureBetterAuthRoleSearchPath(pool, env);
     if (betterAuthState === "fresh") {
       await runBetterAuthMigrations(env);

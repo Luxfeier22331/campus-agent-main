@@ -4,9 +4,9 @@ This note records what the repo should borrow from `react-admin` and what it sho
 
 It is an app-local implementation reference, not a replacement for:
 
-- `docs/architecture/protected-panel-boundary.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
-- `docs/architecture/protected-panel-operator-access.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
 
 ## Reference Scope

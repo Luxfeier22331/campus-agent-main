@@ -10,39 +10,57 @@ import {
   TextInput,
 } from "react-admin";
 
+import { PANEL_COPY } from "../panel-copy";
+import { PanelDatagridHeader } from "../panel-datagrid-header";
+import { PanelListErrorState } from "../panel-list-error";
+import { PanelListActions } from "../panel-list-actions";
+import { PanelPagination } from "../panel-pagination";
 import type { OfficialWebRunRecord } from "../types";
+import { formatOfficialWebRunIntentLabel } from "./official-web-formatters";
 import {
   OfficialWebFailureSummary,
   OfficialWebIngestionStatusChip,
+  OfficialWebRunIntentChip,
   OfficialWebRunStatusChip,
 } from "./official-web-presenters";
 
 const runFilters = [
-  <TextInput alwaysOn key="siteId" label="Site ID" source="siteId" />,
+  <TextInput alwaysOn key="siteId" label="站点 ID" source="siteId" />,
   <SelectInput
     choices={[
-      { id: "accepted", name: "Accepted" },
-      { id: "running", name: "Running" },
-      { id: "completed", name: "Completed" },
-      { id: "completed_with_errors", name: "Completed with errors" },
-      { id: "failed", name: "Failed" },
-      { id: "abandoned", name: "Abandoned" },
+      { id: "baseline", name: formatOfficialWebRunIntentLabel("baseline") },
+      { id: "hot", name: formatOfficialWebRunIntentLabel("hot") },
+      { id: "repair", name: formatOfficialWebRunIntentLabel("repair") },
     ]}
-    emptyText="All statuses"
+    emptyText="全部意图"
+    key="runIntent"
+    label="运行意图"
+    source="runIntent"
+  />,
+  <SelectInput
+    choices={[
+      { id: "accepted", name: PANEL_COPY.officialWebStatus.accepted },
+      { id: "running", name: PANEL_COPY.officialWebStatus.running },
+      { id: "completed", name: PANEL_COPY.officialWebStatus.completed },
+      { id: "completed_with_errors", name: PANEL_COPY.officialWebStatus.completed_with_errors },
+      { id: "failed", name: PANEL_COPY.officialWebStatus.failed },
+      { id: "abandoned", name: PANEL_COPY.officialWebStatus.abandoned },
+    ]}
+    emptyText="全部状态"
     key="status"
-    label="Status"
+    label="状态"
     source="status"
   />,
   <SelectInput
     choices={[
-      { id: "pending", name: "Pending" },
-      { id: "queued", name: "Queued" },
-      { id: "dispatched", name: "Dispatched" },
-      { id: "ingestion_failed", name: "Dispatch failed" },
+      { id: "pending", name: PANEL_COPY.ingestionStatus.pending },
+      { id: "queued", name: PANEL_COPY.ingestionStatus.queued },
+      { id: "dispatched", name: PANEL_COPY.ingestionStatus.dispatched },
+      { id: "ingestion_failed", name: PANEL_COPY.ingestionStatus.ingestion_failed },
     ]}
-    emptyText="All dispatch states"
+    emptyText="全部分发状态"
     key="ingestionDispatchStatus"
-    label="Dispatch"
+    label="分发"
     source="ingestionDispatchStatus"
   />,
 ];
@@ -52,11 +70,25 @@ function OfficialWebRunsAside() {
     <Card sx={{ width: { lg: 320, xs: "100%" } }}>
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h6">Read model notes</Typography>
+          <Typography variant="h6">读模型说明</Typography>
           <Alert severity="info">
-            Crawl runs reads app-api owned projections. Cursor pagination is sequential by design and
-            does not bypass the runtime seam.
+            采集运行列表读取 app-api 维护的投影视图。游标分页按设计只能顺序前进，不会绕过运行时接缝。
           </Alert>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OfficialWebRunsEmpty() {
+  return (
+    <Card>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Typography variant="h6">{PANEL_COPY.emptyState.officialWebRuns}</Typography>
+          <Typography color="text.secondary" variant="body2">
+            该列表只展示 app-api 已物化的官网采集运行投影。若当前 staging 尚未回放样本运行或投影未完成，这里会保持为空。
+          </Typography>
         </Stack>
       </CardContent>
     </Card>
@@ -66,33 +98,51 @@ function OfficialWebRunsAside() {
 export function OfficialWebRunsListPage() {
   return (
     <List
+      actions={<PanelListActions />}
       aside={<OfficialWebRunsAside />}
+      empty={<OfficialWebRunsEmpty />}
       emptyWhileLoading
+      error={
+        <PanelListErrorState
+          description="官网采集运行页读取的是 app-api 已物化的运行投影；如果查询失败，面板会直接显示后端错误，而不是退化成空态。"
+          title="官网采集运行读取失败"
+        />
+      }
       filters={runFilters}
+      pagination={<PanelPagination />}
       perPage={20}
       sort={{ field: "startedAt", order: "DESC" }}
-      title="Official Web Crawl Runs"
+      title="官网采集运行"
     >
-      <Datagrid bulkActionButtons={false} rowClick="show">
-        <TextField label="Run ID" source="runId" />
-        <TextField label="Site" source="siteId" />
+      <Datagrid
+        bulkActionButtons={false}
+        empty={<OfficialWebRunsEmpty />}
+        header={<PanelDatagridHeader />}
+        rowClick="show"
+      >
+        <TextField label="运行 ID" source="runId" />
+        <TextField label="站点" source="siteId" />
         <FunctionField
-          label="Status"
+          label="运行意图"
+          render={(record: OfficialWebRunRecord) => <OfficialWebRunIntentChip runIntent={record.runIntent} />}
+        />
+        <FunctionField
+          label="状态"
           render={(record: OfficialWebRunRecord) => <OfficialWebRunStatusChip status={record.status} />}
         />
         <FunctionField
-          label="Dispatch"
+          label="分发"
           render={(record: OfficialWebRunRecord) => (
             <OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />
           )}
         />
         <FunctionField
-          label="Failures"
+          label="失败数"
           render={(record: OfficialWebRunRecord) => <OfficialWebFailureSummary record={record} />}
         />
-        <DateField label="Started" showTime source="startedAt" />
-        <DateField label="Finished" showTime source="finishedAt" />
-        <ShowButton />
+        <DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
+        <DateField label="结束时间" locales="zh-CN" showTime source="finishedAt" />
+        <ShowButton label={PANEL_COPY.view} />
       </Datagrid>
     </List>
   );

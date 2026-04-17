@@ -3,6 +3,11 @@ from __future__ import annotations
 from campus_contracts import ActorContext, KnowledgeScope
 
 from campus_evals.models import GoldenCase, TraceExpectation, expected_source_ref
+from campus_evals.official_web_inventory import (
+    official_web_current_truth_doc_ids_by_bucket,
+    official_web_inventory_only_doc_ids_by_disposition,
+    official_web_release_gate_doc_ids,
+)
 
 
 def _handbook_scope() -> KnowledgeScope:
@@ -11,6 +16,18 @@ def _handbook_scope() -> KnowledgeScope:
 
 def _curriculum_scope() -> KnowledgeScope:
     return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+
+
+def _official_web_scope(*, collection: str = "muc_public_pages") -> KnowledgeScope:
+    return KnowledgeScope(corpus="official_web", collection=collection)
+
+
+def official_web_stable_reference_scope() -> KnowledgeScope:
+    return _official_web_scope(collection="stable_reference")
+
+
+def official_web_fresh_news_scope() -> KnowledgeScope:
+    return _official_web_scope(collection="fresh_news")
 
 
 def _reference_context_ids(*context_ids: str) -> tuple[str, ...]:
@@ -214,6 +231,39 @@ def handbook_regression_locked_cases() -> tuple[GoldenCase, ...]:
             ),
             tags=("handbook", "regression_locked"),
         ),
+        GoldenCase(
+            case_id="handbook-regression-needs-clarification-policy-object",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("handbook", "regression_locked", "ambiguity"),
+        ),
+        GoldenCase(
+            case_id="handbook-regression-national-scholarship-no-answer-author-affiliation",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("handbook", "regression_locked", "ambiguity"),
+        ),
     )
 
 
@@ -363,6 +413,61 @@ def handbook_release_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
             ),
             tags=("handbook", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="release-gate-national-scholarship-alias",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="国奖第九条里对论文和著作怎么要求的？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),),
+            forbidden_sources=(expected_source_ref("handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"),),
+            required_facts=("第一作者", "第一、二作者"),
+            reference_context_ids=_reference_context_ids("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
+            forbidden_claims=("综合素质测评",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("handbook", "release_gate", "ambiguity"),
+        ),
+        GoldenCase(
+            case_id="release-gate-national-scholarship-no-answer-author-affiliation",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("handbook", "release_gate", "ambiguity"),
+        ),
+        GoldenCase(
+            case_id="release-gate-needs-clarification-policy-object",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("handbook", "release_gate", "ambiguity"),
         ),
         GoldenCase(
             case_id="release-gate-no-answer",
@@ -536,7 +641,7 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:经济学拔尖人才创新班人才培养方案"),),
-            required_facts=("课程地图",),
+            required_facts=("专业核心课程 30 学分",),
             reference_context_ids=_reference_context_ids("curriculum:经济学拔尖人才创新班人才培养方案"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
@@ -546,6 +651,206 @@ def curriculum_release_gate_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
             ),
             tags=("curriculum", "release_gate"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-course-family-membership",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="思修课包括哪些课",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "course_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-course-family-audience-short-alias",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="思政有哪些专业要上",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("所有本预科学生",),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只限法学专业",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "course_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-course-single-schedule",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="习概第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("第1学期(理工/艺体)", "第2学期(文科)"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只在一个学期开设",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "course", "schedule"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-course-single-schedule-alias-variant",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="习概开设学期",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("第1学期(理工/艺体)", "第2学期(文科)"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只在一个学期开设", "课程事实"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "course", "schedule", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-program-family-membership",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民族班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("法学", "信息与计算科学", "计算机科学与技术"),
+            reference_contexts=("民大的民族班有法学、信息与计算科学、计算机科学与技术。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-program-family-experimental-membership",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="实验班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("孝通实验班", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-program-family-strong-base-membership-full-alias",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="强基计划有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("历史学", "哲学", "中国少数民族语言文学"),
+            reference_contexts=("按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-program-family-name-pattern-experimental-membership",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="名称里带实验班的培养方案有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("孝通实验班", "法学（民族实验班）", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "program_family", "alias", "name_pattern"),
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-program-follow-up-session-replay",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="法学民族班培养方案里大二下有什么课",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:法学（民族实验班）本科人才培养方案"),),
+            required_facts=("中国少数民族文字学", "侵权责任法"),
+            reference_context_ids=_reference_context_ids("curriculum:法学（民族实验班）本科人才培养方案"),
+            conversation_turns=(
+                "法学民族班培养方案里大一上有什么课",
+                "那大二下呢",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "follow_up", "session"),
+            notes="通过 app-api conversation-scoped session slots 重放同一会话里的课程 follow-up。",
+        ),
+        GoldenCase(
+            case_id="curriculum-release-gate-strong-base-follow-up-session-replay",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="历史学强基计划培养方案里大二下有什么课",
+            actor=ActorContext(major="历史学"),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:历史学（强基计划）本科人才培养方案"),),
+            required_facts=("大学英语(四)", "中国近代边疆民族史料研读"),
+            reference_context_ids=_reference_context_ids("curriculum:历史学（强基计划）本科人才培养方案"),
+            conversation_turns=(
+                "历史学强基计划培养方案里大一上有什么课",
+                "那大二下呢",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "release_gate", "follow_up", "session", "verified_identity"),
+            notes="通过 app-api internal eval ingress 注入 verified major，验证强基计划 follow-up 的 session replay 闭环。",
         ),
         GoldenCase(
             case_id="curriculum-release-gate-no-answer",
@@ -628,6 +933,121 @@ def curriculum_smoke_cases() -> tuple[GoldenCase, ...]:
             tags=("curriculum", "smoke"),
         ),
         GoldenCase(
+            case_id="curriculum-smoke-hanyu-international-credits",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="汉语国际教育国际学生本科人才培养方案总学分是多少？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:汉语国际教育（国际学生）本科人才培养方案"),),
+            forbidden_sources=(expected_source_ref("curriculum:汉语国际教育本科人才培养方案"),),
+            required_facts=("146学分",),
+            reference_context_ids=_reference_context_ids("curriculum:汉语国际教育（国际学生）本科人才培养方案"),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke"),
+        ),
+        GoldenCase(
+            case_id="curriculum-smoke-program-family-membership",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="民族班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("法学", "信息与计算科学", "计算机科学与技术"),
+            reference_contexts=("民大的民族班有法学、信息与计算科学、计算机科学与技术。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-smoke-program-family-innovation-membership",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="创新班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("经济学拔尖人才创新班", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-smoke-program-family-strong-base-membership",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="强基有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("历史学", "哲学", "中国少数民族语言文学"),
+            reference_contexts=("按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-smoke-program-family-ethnic-experimental-membership",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="民族实验班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("法学", "信息与计算科学", "计算机科学与技术"),
+            reference_contexts=("民大的民族班有法学、信息与计算科学、计算机科学与技术。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-smoke-program-family-second-degree-membership-full-alias",
+            split="smoke",
+            source_type="expert_authored",
+            user_goal="第二学士学位有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("民族学", "法学", "教育学"),
+            reference_contexts=(
+                "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "smoke", "program_family", "alias"),
+        ),
+        GoldenCase(
             case_id="curriculum-smoke-no-answer",
             split="smoke",
             source_type="expert_authored",
@@ -689,6 +1109,26 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             tags=("curriculum", "regression_locked"),
         ),
         GoldenCase(
+            case_id="curriculum-regression-history-strong-base-deictic-major",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="我这个专业的基地班大二下有什么课",
+            actor=ActorContext(major="历史学"),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:历史学（强基计划）本科人才培养方案"),),
+            forbidden_sources=(expected_source_ref("curriculum:历史学本科人才培养方案"),),
+            reference_context_ids=_reference_context_ids("curriculum:历史学（强基计划）本科人才培养方案"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "ambiguity", "personalization"),
+            notes="deictic family alias 只有在 verified major 把 active candidates 安全收敛到唯一 doc 时才允许完成。",
+        ),
+        GoldenCase(
             case_id="curriculum-regression-course-map-table",
             split="regression_locked",
             source_type="expert_authored",
@@ -697,7 +1137,7 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
             scope=scope,
             expected_status="completed",
             expected_sources=(expected_source_ref("curriculum:经济学拔尖人才创新班人才培养方案"),),
-            required_facts=("课程地图",),
+            required_facts=("专业核心课程 30 学分",),
             reference_context_ids=_reference_context_ids("curriculum:经济学拔尖人才创新班人才培养方案"),
             forbidden_claims=("学生手册",),
             trace_expectation=TraceExpectation(
@@ -728,6 +1168,511 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
             ),
             tags=("curriculum", "regression_locked"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-minority-language-strong-base",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="中国少数民族语言文学强基计划本科人才培养方案",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"),),
+            forbidden_sources=(expected_source_ref("curriculum:中国少数民族语言文学本科人才培养方案"),),
+            required_facts=("古文字学方向", "强基计划"),
+            reference_context_ids=_reference_context_ids("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案"),
+            supplemental_metric_overrides=_metric_overrides(answer_relevancy=False),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-education-second-degree-years",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="教育学本科第二学士学位人才培养方案学制几年？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:教育学本科第二学士学位人才培养方案"),),
+            forbidden_sources=(expected_source_ref("curriculum:教育学本科人才培养方案"),),
+            required_facts=("两年",),
+            reference_context_ids=_reference_context_ids("curriculum:教育学本科第二学士学位人才培养方案"),
+            forbidden_claims=("四年", "学生手册"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-fiscal-core-credits",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="财政学本科人才培养方案专业核心课多少学分？",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(expected_source_ref("curriculum:财政学本科人才培养方案"),),
+            required_facts=("30 学分",),
+            reference_context_ids=_reference_context_ids("curriculum:财政学本科人才培养方案"),
+            forbidden_claims=("学生手册",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课包括哪些课",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-membership-sixiuke",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思修课包括哪些课",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-membership-sizhengkecheng",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课程包括哪些课",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("习近平新时代中国特色社会主义思想概论", "中华民族共同体概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只包括习近平新时代中国特色社会主义思想概论",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-audience",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课有哪些专业要上",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("所有本预科学生",),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只限法学专业",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-schedule",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("中国近现代史纲要", "马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("所有思政课都在同一个学期开设",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "schedule"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-schedule-short-alias",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "schedule", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-schedule-alias-variant",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课程第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "schedule", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-schedule-sixiuke",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思修课第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("所有思政课都在同一个学期开设", "课程事实"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "schedule", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-partial-answer",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课是哪个学院开的，有哪些专业要上",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("所有本预科学生", "当前还不能稳定确认开课学院"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("不得猜测开课学院",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "partial_answer"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-family-schedule-partial-answer",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="思政课哪个学院开，第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("马克思主义基本原理", "习近平新时代中国特色社会主义思想概论", "当前还不能稳定确认开课学院"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("不得猜测开课学院", "所有思政课都在同一个学期开设"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course_family", "schedule", "partial_answer"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-single-schedule-partial-answer",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="习概哪个学院开，第几学期开",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("第1学期(理工/艺体)", "第2学期(文科)", "当前还不能稳定确认开课学院"),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("不得猜测开课学院", "课程事实"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course", "schedule", "partial_answer"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-course-single-audience",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="习概有哪些专业要上",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("所有本预科学生",),
+            reference_context_ids=_reference_context_ids("curriculum:中央民族大学通识课程思想政治理论课教学计划"),
+            forbidden_claims=("只限少数专业",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "course"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-base-class-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="基地班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("历史学", "哲学", "中国少数民族语言文学"),
+            reference_contexts=("民大的基地班有历史学、哲学、中国少数民族语言文学（古文字学方向）。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-second-degree-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="二学位有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("民族学", "法学", "教育学"),
+            reference_contexts=(
+                "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-second-degree-membership-alias-variant",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="第二学位有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("民族学", "法学", "教育学"),
+            reference_contexts=(
+                "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-second-degree-membership-full-alias",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="第二学士学位有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("民族学", "法学", "教育学"),
+            reference_contexts=(
+                "按当前已采集的培养方案，第二学士学位项目有民族学、社会学、文物与博物馆学、金融学、会计学、法学、环境工程、数据科学与大数据技术、教育学。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-generic-experimental-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="实验班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("孝通实验班", "理工科交叉创新人才培养实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-generic-innovation-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="创新班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("经济学拔尖人才创新班", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-innovation-experimental-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="创新实验班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("经济学拔尖人才创新班", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-ethnic-experimental-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="民族实验班有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("法学", "信息与计算科学", "计算机科学与技术"),
+            reference_contexts=("民大的民族班有法学、信息与计算科学、计算机科学与技术。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-strong-base-membership-full-alias",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="强基计划有哪些专业",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("历史学", "哲学", "中国少数民族语言文学"),
+            reference_contexts=("按当前已采集的培养方案，强基计划有历史学、哲学、中国少数民族语言文学（古文字学方向）。",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-name-pattern-experimental-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="名称里带实验班的培养方案有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("孝通实验班", "法学（民族实验班）", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“实验班”的有孝通实验班、法学（民族实验班）、信息与计算科学（民族实验班）、计算机科学与技术（民族实验班）、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias", "name_pattern"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-program-family-name-pattern-innovation-membership",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="名称里带创新班的培养方案有哪些",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            required_facts=("经济学拔尖人才创新班", "理工科交叉创新人才培养实验班", "光电科学与工程创新实验班"),
+            reference_contexts=(
+                "按当前已采集的培养方案，名称里带“创新班”或“创新实验班”的有经济学拔尖人才创新班、理工科交叉创新人才培养实验班、光电科学与工程创新实验班。",
+            ),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "alias", "name_pattern"),
         ),
         GoldenCase(
             case_id="curriculum-regression-no-answer-program",
@@ -761,6 +1706,57 @@ def curriculum_regression_locked_cases() -> tuple[GoldenCase, ...]:
                 error_expected=False,
             ),
             tags=("curriculum", "regression_locked"),
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-needs-clarification-deictic-experimental-class-with-verified-major",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="我这个专业的实验班大二下有什么课",
+            actor=ActorContext(major="历史学"),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "program_family", "ambiguity", "personalization"),
+            notes="verified major 不能把 deictic 的实验班短别名静默收敛成单一培养方案，仍应先澄清。",
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-needs-clarification-base-class-with-verified-major",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="基地班",
+            actor=ActorContext(major="历史学"),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=False,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "ambiguity", "personalization"),
+            notes="verified major 只能作为 soft prior；generic family alias 仍必须先澄清。",
+        ),
+        GoldenCase(
+            case_id="curriculum-regression-needs-clarification-ethnic-experimental-class",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="民族实验班",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="needs_clarification",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=True,
+                error_expected=False,
+            ),
+            tags=("curriculum", "regression_locked", "ambiguity"),
+            notes="短标题片段会同时命中多个民族实验班培养方案，必须澄清而不是锁定单一 doc truth。",
         ),
     )
 
@@ -826,3 +1822,635 @@ def curriculum_error_gate_cases() -> tuple[GoldenCase, ...]:
             metadata={"failure_mode": "invalid_backend_contract"},
         ),
     )
+
+
+def _official_web_reference_release_gate_cases(
+    *,
+    scope: KnowledgeScope,
+    case_id_prefix: str,
+) -> tuple[GoldenCase, ...]:
+    return (
+        GoldenCase(
+            case_id=f"{case_id_prefix}-school-profile",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学学校简介",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+                    "owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
+                ),
+            ),
+            required_facts=("中央民族大学", "延安民族学院", "双一流"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-school-overview",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学学校概况",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+                    "owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                ),
+            ),
+            required_facts=("三个校区", "12个学科门类"),
+            forbidden_claims=("延安民族学院", "双一流"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-current-leadership",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学现任领导",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
+                    "owdocver:14935f44e582597fdebffe3e8f2bcc9921e2fd06",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:df9f5e313546d24c7a384598d1b676d6b005d881",
+                    "owdocver:1970a7c8d052144896ffd12d5785055720c8fa82",
+                ),
+            ),
+            required_facts=("查显友", "强世功"),
+            forbidden_claims=("安徽怀宁人", "博士生导师"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-alumni-profile",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学校友会简介",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+                    "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+                    "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+                ),
+            ),
+            required_facts=("校友会简介", "服务校友"),
+            forbidden_claims=("高举习近平新时代中国特色社会主义思想", "阔步前行"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-foundation-profile",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学基金会简介",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+                    "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+                    "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
+                ),
+            ),
+            required_facts=("姚佳琳", "白勇"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-undergraduate-education",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学本科培养",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:dfd33d034080e7df93a707edef7f555a95d78b13",
+                    "owdocver:0d26c91eeefd72d7cfbb5f194d077108d35a1f02",
+                ),
+            ),
+            required_facts=("本科专业71个", "3个专业入选国家“强基计划”"),
+            forbidden_claims=("担当使命", "强国栋梁"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-postdoctoral-program",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学博士后",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
+                    "owdocver:522c255c713a682644556a362c4547689d0d1754",
+                ),
+            ),
+            required_facts=("6个博士后科研流动站", "合格率均为100％"),
+            forbidden_claims=("双一流",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-graduate-education",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学研究生培养",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:d043e2b8d29c0023c945a9c5909cb09b1f68d0ca",
+                    "owdocver:2009a50d7181bf21a7ee5f4521ce0eb1149dc0b0",
+                ),
+            ),
+            required_facts=("12个学科门类", "24个研究生招生培养单位"),
+            forbidden_claims=("600余项", "500多人"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-scholars",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学学术名流",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+                    "owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2:source-faithful:owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981:chunk-0015",
+                ),
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+                    "owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2:source-faithful:owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981:chunk-0001",
+                ),
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+                    "owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
+                    "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2:source-faithful:owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981:chunk-0011",
+                ),
+            ),
+            required_facts=("陈振铎", "翦伯赞", "杨成志"),
+            forbidden_claims=("1919年", "副校长", "1934年赴法国留学"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "stable_reference"),
+        ),
+    )
+
+
+def _official_web_mixed_only_release_gate_cases(*, scope: KnowledgeScope) -> tuple[GoldenCase, ...]:
+    return (
+        GoldenCase(
+            case_id="official-web-release-gate-library-lecture-notice",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民图一小时 信息素养讲座",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:b6e3922bbc68f5bfe601407b62e4c2de47a0f226",
+                    "owdocver:71ac6c6da0c348bf08fcd7911fc1e09fb4e0555e",
+                ),
+            ),
+            forbidden_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:730b3e6266ad7b47dfc7dc82e83e9ea41090bf53",
+                    "owdocver:fe7d2ffa13c025179f41146c4b86856d09aaa8d2",
+                ),
+            ),
+            required_facts=("人大复印报刊资料数据库", "14:00", "丰台校区图书馆视听空间125室"),
+            forbidden_claims=("二维码", "线上腾讯会议"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "notice"),
+        ),
+        GoldenCase(
+            case_id="official-web-release-gate-law-interpretation",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="民族团结进步促进法 解读",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:871878763a91199730493efe0cbb0358b884fe58",
+                    "owdocver:fa5f1f590e722118a3800d65e8e95125af62c74a",
+                ),
+            ),
+            required_facts=("民族团结进步促进法", "统战新语", "强世功"),
+            forbidden_claims=("承载着怎样的历史使命与时代内涵",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "news"),
+        ),
+    )
+
+
+def _official_web_fail_close_release_gate_cases(
+    *,
+    scope: KnowledgeScope,
+    case_id_prefix: str,
+) -> tuple[GoldenCase, ...]:
+    return (
+        GoldenCase(
+            case_id=f"{case_id_prefix}-freshness-sensitive-no-answer",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学今天有什么讲座",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="no_answer",
+            expected_semantic_outcome="freshness_fail_close",
+            expected_scope_class="in_scope",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("official_web", "release_gate", "freshness_fail_close"),
+        ),
+        GoldenCase(
+            case_id=f"{case_id_prefix}-unanchored-life-service-no-answer",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="食堂营业时间",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="no_answer",
+            expected_semantic_outcome="unsupported_by_evidence",
+            expected_scope_class="in_scope",
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+                fail_closed_expected=True,
+            ),
+            tags=("official_web", "release_gate", "fail_close"),
+        ),
+    )
+
+
+def official_web_release_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = _official_web_scope()
+    cases = (
+        _official_web_reference_release_gate_cases(
+            scope=scope,
+            case_id_prefix="official-web-release-gate",
+        )
+        + _official_web_mixed_only_release_gate_cases(scope=scope)
+        + _official_web_fail_close_release_gate_cases(
+            scope=scope,
+            case_id_prefix="official-web-release-gate",
+        )
+    )
+    _validate_official_web_release_gate_cases(cases)
+    return cases
+
+
+def official_web_stable_reference_release_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = official_web_stable_reference_scope()
+    return (
+        _official_web_reference_release_gate_cases(
+            scope=scope,
+            case_id_prefix="official-web-stable-reference-release-gate",
+        )
+        + _official_web_fail_close_release_gate_cases(
+            scope=scope,
+            case_id_prefix="official-web-stable-reference-release-gate",
+        )
+    )
+
+
+def official_web_fresh_news_release_gate_cases() -> tuple[GoldenCase, ...]:
+    scope = official_web_fresh_news_scope()
+    cases = (
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-library-visit",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="西北四所高校图书馆同仁到我校丰台校区图书馆考察调研",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:730b3e6266ad7b47dfc7dc82e83e9ea41090bf53",
+                    "owdocver:fe7d2ffa13c025179f41146c4b86856d09aaa8d2",
+                ),
+            ),
+            required_facts=("丰台校区图书馆",),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-reading-class",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:950afb54fe2745172658b9ba160ddf69dba02c6c",
+                    "owdocver:e1afad1f0511f6c59dc052e7dee1947fae4ec7a5",
+                ),
+            ),
+            required_facts=("正确政绩观", "读书班"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-employment-base",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:ac8ea5921fa808dea152c171d6b0c6c0ba1cc62f",
+                    "owdocver:9be8a3dbe619d97df54d60cbe77d8903698b8fd3",
+                ),
+            ),
+            required_facts=("北京丰台人才集团", "就业实习实践基地"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-employment-meeting",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="校领导拜会北京市委组织部领导交流高质量就业工作",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:69b18ca70f673279950ef39cf1d3740f1bd1e067",
+                    "owdocver:bcaca11c23ad203dedcd9d3967f60d437f0de87d",
+                ),
+            ),
+            required_facts=("北京市委组织部", "高质量就业"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-hyperspectral-breakthrough",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:55174a666231a3cdb7fa4739121e1091eec6b0e9",
+                    "owdocver:e3922645cf9811c97f6e100dec0afecbd7ed24cb",
+                ),
+            ),
+            required_facts=("唐鑫团队", "红外高光谱成像系统"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-debate-championship",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="外国语学院学子在2026中国大学生演讲与辩论锦标赛中喜获佳绩",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:8ee1f8f61b1ff362549a114c4ff6e5e9c7d54957",
+                    "owdocver:34fda6dffebc2d009b03c2f34f9eada7681ffde7",
+                ),
+            ),
+            required_facts=("外国语学院", "演讲与辩论锦标赛"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-history-research-bid",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:fbace53c8842dd1fb6b11017383c5d2ced0eaff3",
+                    "owdocver:56bcb501036683b529191ba685e3de910941679f",
+                ),
+            ),
+            required_facts=("中国历史研究院", "开题论证会"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+        GoldenCase(
+            case_id="official-web-fresh-news-release-gate-political-ethics-commentary",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="《学习时报》孔新峰：政德何以重要",
+            actor=ActorContext(),
+            scope=scope,
+            expected_status="completed",
+            expected_sources=(
+                expected_source_ref(
+                    "official_web:muc_public:article_detail:8a957d812e3bf832a450d7f3ed1845062db8b850",
+                    "owdocver:5e739c818c83b0c9e7ba877e086bf2f6adc1aa1c",
+                ),
+            ),
+            required_facts=("孔新峰", "政德何以重要"),
+            trace_expectation=TraceExpectation(
+                selected_scope=scope,
+                retrieval_called=True,
+                clarification_expected=False,
+                error_expected=False,
+            ),
+            tags=("official_web", "release_gate", "fresh_news"),
+        ),
+    )
+    expected_doc_ids = {
+        source.doc_id
+        for case in cases
+        if case.expected_status == "completed"
+        for source in case.expected_sources
+    }
+    fresh_news_doc_ids = official_web_inventory_only_doc_ids_by_disposition()["future_fresh_news_surface"]
+    if expected_doc_ids != fresh_news_doc_ids:
+        raise ValueError(
+            "official_web fresh_news release gate cases drifted from future fresh-news inventory "
+            f"(cases={sorted(expected_doc_ids)}, inventory={sorted(fresh_news_doc_ids)})"
+        )
+    return cases
+
+
+def _validate_official_web_release_gate_cases(cases: tuple[GoldenCase, ...]) -> None:
+    expected_doc_ids = {
+        source.doc_id
+        for case in cases
+        if case.expected_status == "completed"
+        for source in case.expected_sources
+    }
+    current_truth_partition = official_web_current_truth_doc_ids_by_bucket()
+    release_gate_doc_ids = current_truth_partition["release_gate_required"]
+    if expected_doc_ids != release_gate_doc_ids:
+        raise ValueError(
+            "official_web release gate cases drifted from current truth inventory "
+            f"(cases={sorted(expected_doc_ids)}, inventory={sorted(release_gate_doc_ids)})"
+        )
+
+    inventory_only_doc_ids = {
+        *current_truth_partition["retain_inventory_only"],
+        *current_truth_partition["current_scope_follow_up_candidate"],
+        *current_truth_partition["future_fresh_news_surface"],
+    }
+    unexpected_inventory_only_doc_ids = sorted(expected_doc_ids & inventory_only_doc_ids)
+    if unexpected_inventory_only_doc_ids:
+        raise ValueError(
+            "official_web release gate cases unexpectedly depend on inventory_only docs "
+            f"{unexpected_inventory_only_doc_ids}"
+        )

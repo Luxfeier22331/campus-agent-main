@@ -1,9 +1,16 @@
 import type { AuthProvider } from "react-admin";
 
 import { fetchJson } from "./http";
+import { PANEL_COPY } from "./panel-copy";
 import { normalizeOverviewRecord, type PanelOverviewRecord, type RawPanelOverviewResponse } from "./types";
 
 let cachedOverviewPromise: Promise<PanelOverviewRecord> | null = null;
+const LOGOUT_ERROR_CODES = new Set([
+  "operator_identity_required",
+  "session_expired",
+  "session_required",
+  "unauthorized",
+]);
 
 async function loadOverview(force = false): Promise<PanelOverviewRecord> {
   if (!cachedOverviewPromise || force) {
@@ -19,6 +26,47 @@ function clearOverviewCache() {
   cachedOverviewPromise = null;
 }
 
+function readErrorStatus(error: unknown): number | null {
+  if (!error || typeof error !== "object" || !("status" in error)) {
+    return null;
+  }
+
+  const status = error.status;
+  return typeof status === "number" ? status : null;
+}
+
+function readErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("body" in error)) {
+    return null;
+  }
+
+  const body = error.body;
+  if (!body || typeof body !== "object" || !("error" in body)) {
+    return null;
+  }
+
+  const errorEnvelope = body.error;
+  if (!errorEnvelope || typeof errorEnvelope !== "object" || !("code" in errorEnvelope)) {
+    return null;
+  }
+
+  return typeof errorEnvelope.code === "string" ? errorEnvelope.code : null;
+}
+
+function shouldPropagateAuthError(error: unknown): boolean {
+  const status = readErrorStatus(error);
+  if (status !== 401 && status !== 403) {
+    return false;
+  }
+
+  const code = readErrorCode(error);
+  if (!code) {
+    return true;
+  }
+
+  return LOGOUT_ERROR_CODES.has(code);
+}
+
 export const protectedPanelAuthProvider: AuthProvider = {
   async canAccess() {
     return true;
@@ -32,7 +80,7 @@ export const protectedPanelAuthProvider: AuthProvider = {
     }
   },
   async checkError(error) {
-    if (error?.status === 401 || error?.status === 403) {
+    if (shouldPropagateAuthError(error)) {
       clearOverviewCache();
       throw error;
     }
@@ -43,7 +91,7 @@ export const protectedPanelAuthProvider: AuthProvider = {
 
     if (!operator) {
       return {
-        fullName: "Protected Operator",
+        fullName: "受保护运维身份",
         id: "protected-operator",
       };
     }
@@ -54,10 +102,17 @@ export const protectedPanelAuthProvider: AuthProvider = {
     };
   },
   async login() {},
-  async logout() {
+  async logout(params) {
     clearOverviewCache();
-    if (typeof window !== "undefined") {
-      window.location.assign("/cdn-cgi/access/logout");
+
+    if (params === null) {
+      if (typeof window !== "undefined") {
+        return new URL("/cdn-cgi/access/logout", window.location.origin).toString();
+      }
+
+      return "/cdn-cgi/access/logout";
     }
+
+    return "/login";
   },
 };

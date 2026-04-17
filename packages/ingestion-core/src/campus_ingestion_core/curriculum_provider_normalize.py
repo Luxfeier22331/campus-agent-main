@@ -37,8 +37,10 @@ def normalize_curriculum_provider_result(
     *,
     provider_jsonl_bytes: bytes,
     source_pdf: str,
+    ocr_provider: str | None = None,
     ocr_model: str,
 ) -> bytes:
+    del ocr_provider
     raw_lines = [line.strip() for line in provider_jsonl_bytes.decode("utf-8").splitlines() if line.strip()]
     if not raw_lines:
         raise ValueError("curriculum provider result is empty")

@@ -4,7 +4,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from scripts.env_sync import SHARED_POSTGRES_ENV_KEY, resolve_source_env_path
+from scripts.env_sync import (
+    SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    resolve_source_env_path,
+)
 from scripts.sync_app_api_local_db_env import sync_app_api_local_db_env
 
 
@@ -15,7 +19,10 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             feature_worktree = root_worktree / ".worktrees" / "official-web-crawler"
             feature_worktree.mkdir(parents=True)
             source_env = root_worktree / ".env"
-            source_env.write_text(f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.example\n", encoding="utf-8")
+            source_env.write_text(
+                f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.example\n",
+                encoding="utf-8",
+            )
 
             resolved = resolve_source_env_path(feature_worktree)
 
@@ -28,7 +35,16 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             feature_worktree.mkdir(parents=True)
 
             (root_worktree / ".env").write_text(
-                f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.example/campus_agent\n",
+                "\n".join(
+                    [
+                        f"{SHARED_POSTGRES_ENV_KEY}=postgres://pooler.example/campus_agent",
+                        (
+                            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY}="
+                            "postgres://direct.example/campus_agent"
+                        ),
+                    ]
+                )
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -38,6 +54,7 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
                         "APP_API_MANAGEMENT_DATABASE_URL=",
                     ]
                 )
@@ -51,11 +68,16 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             env_text = target_path.read_text(encoding="utf-8")
             self.assertIn(
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB="
-                "postgres://db.example/campus_agent\n",
+                "postgres://pooler.example/campus_agent\n",
                 env_text,
             )
             self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://db.example/campus_agent\n",
+                "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH="
+                "postgres://pooler.example/campus_agent\n",
+                env_text,
+            )
+            self.assertIn(
+                "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent\n",
                 env_text,
             )
 
@@ -66,14 +88,24 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             app_api_dir.mkdir(parents=True)
 
             (repo_root / ".env").write_text(
-                f"{SHARED_POSTGRES_ENV_KEY}=postgres://db.new.example/campus_agent\n",
+                "\n".join(
+                    [
+                        f"{SHARED_POSTGRES_ENV_KEY}=postgres://pooler.new.example/campus_agent",
+                        (
+                            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY}="
+                            "postgres://direct.new.example/campus_agent"
+                        ),
+                    ]
+                )
+                + "\n",
                 encoding="utf-8",
             )
             (app_api_dir / ".env").write_text(
                 "\n".join(
                     [
-                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://db.old.example/campus_agent",
-                        "APP_API_MANAGEMENT_DATABASE_URL=postgres://db.old.example/campus_agent",
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://pooler.old.example/campus_agent",
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://pooler.old.example/campus_agent",
+                        "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.old.example/campus_agent",
                         "KEEP_ME=1",
                     ]
                 )
@@ -86,24 +118,35 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             env_text = (app_api_dir / ".env").read_text(encoding="utf-8")
             self.assertIn(
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB="
-                "postgres://db.new.example/campus_agent\n",
+                "postgres://pooler.new.example/campus_agent\n",
                 env_text,
             )
             self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://db.new.example/campus_agent\n",
+                "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH="
+                "postgres://pooler.new.example/campus_agent\n",
+                env_text,
+            )
+            self.assertIn(
+                "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.new.example/campus_agent\n",
                 env_text,
             )
             self.assertIn("KEEP_ME=1\n", env_text)
 
-    def test_sync_app_api_local_db_env_requires_source_database_url(self) -> None:
+    def test_sync_app_api_local_db_env_requires_source_runtime_and_management_database_urls(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
-            (repo_root / ".env").write_text("OTHER_KEY=value\n", encoding="utf-8")
+            (repo_root / ".env").write_text(
+                f"{SHARED_POSTGRES_ENV_KEY}=postgres://pooler.example/campus_agent\n",
+                encoding="utf-8",
+            )
 
             with self.assertRaisesRegex(
                 ValueError,
-                f"Missing required env value in source env: {SHARED_POSTGRES_ENV_KEY}",
+                (
+                    "Missing required env value in source env: "
+                    f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY}"
+                ),
             ):
                 sync_app_api_local_db_env(repo_root=repo_root)
 
