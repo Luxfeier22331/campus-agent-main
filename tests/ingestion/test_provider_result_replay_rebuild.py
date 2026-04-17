@@ -263,8 +263,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
                     side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
                 ),
-                patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index_chunks,
-                patch("campus_ingestion_core.registry_scope_release.publish_release_alias", return_value=None),
+                patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
             ):
                 _index_replayed_documents(
                     source={
@@ -444,8 +444,8 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
                     side_effect=lambda **kwargs: built_chunks[kwargs["record"].document_id],
                 ),
-                patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index_chunks,
-                patch("campus_ingestion_core.registry_scope_release.publish_release_alias", return_value=None),
+                patch("campus_ingestion_core.local_rebuild.index_chunks_to_qdrant") as index_chunks,
+                patch("campus_ingestion_core.local_rebuild.publish_release_alias", return_value=None),
             ):
                 _index_replayed_documents(
                     source={
@@ -1029,7 +1029,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             qdrant_client = QdrantClient(location=":memory:")
 
             with patch(
-                "campus_ingestion_core.registry_scope_release.validate_scope_release",
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
                 return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
             ):
                 report = replay_provider_response_rebuild(
@@ -1250,13 +1250,13 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                 "campus_ingestion_core.local_rebuild.build_indexable_chunks_from_jsonl",
                 side_effect=_capture_chunk_profile,
             ), patch(
-                "campus_ingestion_core.registry_scope_release.validate_scope_release",
+                "campus_ingestion_core.local_rebuild.validate_scope_release",
                 return_value=SimpleNamespace(status="passed", summary={"chunk_count": 1}),
             ), patch(
-                "campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant",
+                "campus_ingestion_core.local_rebuild.index_chunks_to_qdrant",
                 return_value=(),
             ), patch(
-                "campus_ingestion_core.registry_scope_release.publish_release_alias",
+                "campus_ingestion_core.local_rebuild.publish_release_alias",
                 return_value=None,
             ):
                 report = replay_provider_response_rebuild(

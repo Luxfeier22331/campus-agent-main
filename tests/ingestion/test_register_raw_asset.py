@@ -8,6 +8,7 @@ import unittest
 from io import BytesIO
 
 from PIL import Image
+from campus_ingestion_worker.register_raw_asset import build_parser
 from campus_ingestion_worker.register_raw_asset import register_raw_asset as _register_raw_asset
 from tests.support.in_memory_registry import InMemoryRawAssetRegistry
 

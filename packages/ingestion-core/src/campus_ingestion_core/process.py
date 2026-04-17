@@ -105,15 +105,28 @@ class IndexableChunk:
     metadata: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        visibility_level = self.visibility_level.strip()
-        if not visibility_level and self.entitlement_groups:
+        entitlement_groups = self.entitlement_groups or self.acl_groups
+        acl_groups = self.acl_groups or self.entitlement_groups
+        visibility_scope = self.visibility_scope or self.campus_scope
+        campus_scope = self.campus_scope or self.visibility_scope
+        visibility_level = self.visibility_level.strip() or self.acl_level.strip()
+        if not visibility_level and entitlement_groups:
             visibility_level = "restricted"
         if not visibility_level:
             visibility_level = "public"
+        acl_level = self.acl_level.strip() or visibility_level
         policy_projection_version = (
             self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
         )
 
+        if entitlement_groups != self.entitlement_groups:
+            object.__setattr__(self, "entitlement_groups", entitlement_groups)
+        if acl_groups != self.acl_groups:
+            object.__setattr__(self, "acl_groups", acl_groups)
+        if visibility_scope != self.visibility_scope:
+            object.__setattr__(self, "visibility_scope", visibility_scope)
+        if campus_scope != self.campus_scope:
+            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
         if acl_level != self.acl_level:
@@ -136,7 +149,6 @@ class IndexableChunk:
                 "entitlement_groups": list(self.entitlement_groups),
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
-                "acl_level": self.acl_level,
                 "policy_projection_version": self.policy_projection_version,
                 "source_uri": self.source_uri,
                 "canonical_url": self.canonical_url or self.source_uri,

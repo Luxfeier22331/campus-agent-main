@@ -134,7 +134,9 @@ def main() -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Register a raw asset with an explicit corpus/collection scope")
-    parser.add_argument("--file-path", required=True)
+    path_group = parser.add_mutually_exclusive_group(required=True)
+    path_group.add_argument("--file-path", dest="file_path")
+    path_group.add_argument("--pdf-path", dest="file_path", help=argparse.SUPPRESS)
     parser.add_argument("--raw-source-uri", required=True)
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
