@@ -12,6 +12,7 @@ from campus_contracts import (
     SupervisorStatus,
 )
 from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
+from campus_evals.operator_observability import OperatorRequestCorrelation
 
 
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
@@ -26,14 +27,27 @@ class ExpectedSourceRef:
     doc_id: str
     version_id: str | None = None
     chunk_id: str | None = None
+    canonical_source_id: str | None = None
+    source_unit_kind: str | None = None
+    source_unit_key: str | None = None
 
 
 def expected_source_ref(
     doc_id: str,
     version_id: str | None = None,
     chunk_id: str | None = None,
+    canonical_source_id: str | None = None,
+    source_unit_kind: str | None = None,
+    source_unit_key: str | None = None,
 ) -> ExpectedSourceRef:
-    return ExpectedSourceRef(doc_id=doc_id, version_id=version_id, chunk_id=chunk_id)
+    return ExpectedSourceRef(
+        doc_id=doc_id,
+        version_id=version_id,
+        chunk_id=chunk_id,
+        canonical_source_id=canonical_source_id,
+        source_unit_kind=source_unit_kind,
+        source_unit_key=source_unit_key,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,12 +86,24 @@ class GoldenCase:
     actor: ActorContext
     expected_status: SupervisorStatus
     scope: KnowledgeScope
+    conversation_turns: tuple[str, ...] = field(default_factory=tuple)
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     required_facts: tuple[str, ...] = field(default_factory=tuple)
+    reference_facts: tuple[str, ...] = field(default_factory=tuple)
+    reference_context_ids: tuple[str, ...] = field(default_factory=tuple)
+    reference_contexts: tuple[str, ...] = field(default_factory=tuple)
+    supplemental_metric_overrides: dict[str, bool] = field(default_factory=dict)
     forbidden_claims: tuple[str, ...] = field(default_factory=tuple)
     trace_expectation: TraceExpectation | None = None
     grader_policy: GraderPolicy = field(default_factory=GraderPolicy)
+    expected_semantic_outcome: str = ""
+    expected_scope_class: str = ""
+    expected_policy_reason: str = ""
+    expected_retrieval_adequacy_verdict: str = ""
+    expected_retrieval_adequacy_reason: str = ""
+    expected_grounding_verdict: str = ""
+    expected_unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     generator_name: str = ""
     generator_version: str = ""
     generation_recipe: str = ""
@@ -95,6 +121,17 @@ class GoldenCase:
             raise ValueError(f"unsupported expected_status: {self.expected_status}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        if any(not turn.strip() for turn in self.conversation_turns):
+            raise ValueError("conversation_turns must not contain empty turns")
+        invalid_metric_keys = [
+            key
+            for key, value in self.supplemental_metric_overrides.items()
+            if not str(key).strip() or not isinstance(value, bool)
+        ]
+        if invalid_metric_keys:
+            raise ValueError("supplemental_metric_overrides must map non-empty metric names to bool values")
+        if any(not str(field_name).strip() for field_name in self.expected_unsupported_fields):
+            raise ValueError("expected_unsupported_fields must not contain empty items")
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,6 +148,7 @@ class ObservedTrace:
 class ExecutionResult:
     response: SpecialistResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
+    request_correlation: OperatorRequestCorrelation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +167,7 @@ class CaseResult:
     trace_result: DimensionResult
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
     observed_trace: ObservedTrace | None = None
+    request_correlation: OperatorRequestCorrelation | None = None
     supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
 
 

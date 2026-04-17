@@ -5,9 +5,9 @@ Runtime shell for campus-agent v2 ingestion commands.
 Env bootstrap rule:
 
 - Worker CLI first reads `./.env` from the current repo/worktree root.
-- If the current worktree has no `./.env`, worker CLI falls back to the root worktree `.env`.
+- Worker CLI does not fall back to another worktree's `.env`; missing local env should be fixed explicitly in the current worktree.
 - Do not introduce local mock backends or file-registry compatibility paths just because a feature worktree is missing `.env`.
-- repo root `.env` only owns shared runtime config such as `OBJECT_STORE_*`, retrieval, OCR provider, and shared registry settings.
+- current worktree `.env` owns the runtime config consumed by local worker commands.
 - Per-command override examples live under `env/commands/*.env.example`.
 
 ## Commands
@@ -20,6 +20,149 @@ Env bootstrap rule:
 - Phase 03.2 freezes `single source consumption + multi-projection fan-out` as the canonical ingestion model: a source asset is consumed once, source truth is persisted once, and downstream outputs rebuild from declared projections instead of returning to the original PDF.
 - Serving/indexing terms follow `docs/reference/runtime-serving-and-index-terms.md`.
 - Operator release flow follows `docs/runbooks/index-release-runbook.md`.
+
+### `campus-ingestion-official-web-handoff-dev`
+
+Local `official_web` handoff receiver for `app-api -> ingestion-worker` seam verification.
+
+Required env:
+
+- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_TOKEN`
+
+Optional env:
+
+- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR`
+- `INGESTION_WORKER_HTTP_HOST`
+- `INGESTION_WORKER_HTTP_PORT`
+
+Command override example:
+
+- `env/commands/official-web-handoff-receiver.env.example`
+
+Behavior:
+
+- Exposes `POST /api/official-web/handoffs`
+- Requires `Authorization: Bearer <token>`
+- Validates the typed `official_web` handoff payload before accepting it
+- Persists one durable inbox record per `eventId` under the configured inbox directory
+- Returns a stable `dispatchRef` for duplicate deliveries of the same `eventId`
+- Exposes `GET /healthz` and `GET /readyz` for local seam checks
+- Seeds new inbox records with `processingStatus=pending` and `processingAttemptCount=0`
+- This receiver closes the handoff acceptance seam only; offline execution happens in a separate consumer shell
+
+### `campus-ingestion-consume-official-web-handoffs`
+
+Offline `official_web` handoff consumer for `app-api -> ingestion-worker` replay verification.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+- `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+
+Optional env:
+
+- `OBJECT_STORE_BUCKET_SOURCE`
+- `OBJECT_STORE_BUCKET_DERIVED`
+- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR`
+- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_EXECUTION_ROOT_DIR`
+- `INGESTION_WORKER_OFFICIAL_WEB_PROMOTE_IMPORT`
+- `INGESTION_WORKER_OFFICIAL_WEB_MINIMUM_PROMOTE_PAGES`
+- `INGESTION_WORKER_OFFICIAL_WEB_MINIMUM_SEED_COVERAGE_RATIO`
+- `INGESTION_WORKER_OFFICIAL_WEB_MINIMUM_HOST_COVERAGE_RATIO`
+- `INGESTION_WORKER_APP_API_BASE_URL`
+- `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
+
+Optional CLI args:
+
+- `--event-id`
+- `--limit`
+- `--force`
+- `--promote`
+- `--declarations-path`
+
+Command override example:
+
+- `env/commands/official-web-handoff-consumer.env.example`
+
+Behavior:
+
+- Reads durable inbox records written by `campus-ingestion-official-web-handoff-dev`
+- Resolves `source_truth_bundle` from handoff `artifacts`; if absent, falls back to the deterministic run artifact key
+- Downloads `source-truth-bundle.json` and each page `page-manifest.json` / `content-blocks.jsonl` from the source bucket
+- Reconstructs a local replay input tree under the configured execution root
+- Runs `official_web` projection replay, projection validator, chunk audit, and coverage gates, then writes `execution-report.json`
+- Default behavior is `stage` only: replay outputs and audit evidence are materialized locally, but registry current truth is not mutated
+- Only explicit `--promote` / `INGESTION_WORKER_OFFICIAL_WEB_PROMOTE_IMPORT=true` allows registry writes, and promotion still fails closed on low coverage, failed chunk audit, or staged-only page-family output
+- Promotion success upserts canonical `RawAssetRecord` and `DocumentRegistryRecord` entries for replayed `official_web` documents
+- Calls back into `app-api` `POST /api/internal/official-web/runs/:runId/ingestion-execution` when the optional callback env is configured
+- Updates each inbox record with `processingStatus`, `processingAttemptCount`, `processedAt`, `lastError`, `executionReportPath`, `projectionOutputDir`, and `replayInputDir`
+- `processingStatus` now distinguishes `staged`, `promoted`, and `failed`
+
+### `campus-ingestion-import-official-web-projection`
+
+Operator-facing local import shell for a validated `official_web` projection output.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `DOCUMENT_REGISTRY_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+- `RAW_ASSET_REGISTRY_DATABASE_URL` or `DOCUMENT_REGISTRY_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+
+Required CLI args:
+
+- `--projection-output-dir`
+- `--replay-input-dir`
+- `--work-dir`
+- `--corpus`
+- `--collection`
+
+Optional CLI args:
+
+- `--source-bucket`
+- `--require-promotable`
+
+Behavior:
+
+- Reads a local replayed `projection-report.json` plus `replay-input/source-truth-bundle.json`
+- Reconstructs canonical import inputs from local `canonical.md` / `document-units.jsonl` and source-bucket provider artifacts
+- Supports registry `scope_refresh` so one clean subset can replace the current truth of a target scope in one import
+- `--require-promotable` fails closed if any replayed document is non-`promotable` or belongs to staged-only page families
+- Intended for local subset validation and controlled current-truth replacement before running `campus-ingestion-release-registry-scope`
+
+### `campus-ingestion-backfill-official-web-history`
+
+Backfills missing historical `official_web` run artifacts from recoverable local collector output into the source bucket.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+
+Optional env:
+
+- `OBJECT_STORE_BUCKET_SOURCE`
+- `INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR`
+
+Optional CLI args:
+
+- `--event-id`
+- `--limit`
+- `--local-output-glob`
+- `--dry-run`
+
+Behavior:
+
+- Inventories historical inbox records against source-bucket `source-truth-bundle.json` availability
+- Reuses recoverable local collector outputs instead of introducing worker-local `/tmp` fallback into runtime execution
+- Uploads canonical run artifacts under `official_web/{siteId}/runs/{runId}/...`
+- Uploads canonical source assets under `official_web/{rawAssetId}/undated/{rawVersionId}/...`
+- Rewrites the durable inbox payload `artifacts` array so later offline execution can consume the canonical object-store refs
 
 ### `process_raw_ingestion_job`
 
@@ -87,7 +230,7 @@ Optional env:
 - `INGESTION_SPLIT_MANIFEST_PATH`
 - `RAW_INGESTION_ARTIFACT_MODE`
 - `INGESTION_EMBEDDING_MODEL`
-- `INGESTION_DEFAULT_CAMPUS_SCOPE`
+- `INGESTION_DEFAULT_VISIBILITY_SCOPE`
 - `HF_HOME` / `HF_HUB_CACHE` / `TRANSFORMERS_CACHE`
 - `HF_HUB_OFFLINE`
 
@@ -193,6 +336,162 @@ Behavior:
 - Writes release manifests under `{corpus}/releases/{collection}/{release_id}/...`.
 - Only switches the serving alias when `--publish-alias` is enabled.
 - Never writes chunk dumps back to object storage.
+
+### `campus-ingestion-release-registry-scope`
+
+Operator-facing release shell for an already-imported registry scope.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+
+Optional CLI args:
+
+- `--reset-index`
+- `--publish-alias`
+- `--no-publish-alias`
+
+Command override example:
+
+- `env/commands/release-registry-scope.env.example`
+
+Behavior:
+
+- Reads current scope truth from `DocumentRegistry`, not from local projection output.
+- Rebuilds chunks from each record's `document_units_object_key`.
+- Uses the scope runtime profile to select releasable records:
+  - `status=active`
+  - `serving_revision_tracks` when configured
+  - `is_current=true` when `current_only=true`
+- Creates a new physical collection as `<collection_prefix>__<release_id>`.
+- Writes release manifests under `{corpus}/releases/{collection}/{release_id}/...`.
+- Only switches the serving alias when `--publish-alias` is enabled.
+- This is the current operator entry for `official_web/muc_public_pages` after handoff replay/import has already populated registry truth.
+
+### `project_official_web_source_truth`
+
+Local replay shell for the current `official_web` source-truth QC batches.
+
+Required CLI args:
+
+- `--output-dir`
+- `--projection-output-dir`
+
+Optional CLI args:
+
+- `--declarations-path`
+
+Behavior:
+
+- Reads local collector output from `source-truth-bundle.json` plus per-page `page-manifest.json` / `content-blocks.jsonl`
+- Applies repo-tracked `configs/sources/official_web/<site_id>/projection-declarations.json`
+- Emits local canonical document artifacts:
+  - `projection-report.json`
+  - `documents/<target_corpus>/<target_collection>/<doc-dir>/canonical.md`
+  - `documents/<target_corpus>/<target_collection>/<doc-dir>/document-units.jsonl`
+- Keeps shell-family pages in `manual_review`; does not auto-emit them as正文文档
+- Does not touch document registry, chunking, index release, or serving alias
+
+### `validate_official_web_projection`
+
+Validator for the local `official_web` projection replay output.
+
+Required CLI args:
+
+- `--projection-output-dir`
+
+Behavior:
+
+- Verifies `projection-report.json` exists and is parseable
+- Verifies every emitted document still has both `canonical.md` and `document-units.jsonl`
+- Verifies `document-units.jsonl` rows keep stable `doc_id` / `version_id`
+- Fails closed when emitted document artifacts are missing or empty
+
+### `campus-ingestion-audit-official-web-projection-chunking`
+
+Local audit shell for `official_web` cleaning/chunking quality before import or release.
+
+Required CLI args:
+
+- `--projection-output-dir`
+
+Behavior:
+
+- Reads `projection-report.json`, `canonical.md`, and `document-units.jsonl` from local projection output
+- Rebuilds runtime chunks from emitted `document-units.jsonl` without touching document registry
+- Reports per-document unit/chunk counts, token summary, short-chunk counts, and representative warning examples
+- Surfaces local warning classes such as collapsed `section_path`, stacked short label lines, and ellipsis truncation
+- Does not write registry truth, Qdrant collections, or serving aliases
+
+### `qdrant_backup_create`
+
+Operator-facing backup shell for one release-managed Qdrant collection snapshot bundle.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+- `--backup-reason`
+
+Optional CLI args:
+
+- `--operator`
+
+Behavior:
+
+- Reads `{corpus}/releases/{collection}/{release_id}/index-release.json`.
+- Creates a collection snapshot for that release's physical collection.
+- Uploads the snapshot to `{corpus}/backups/{collection}/{release_id}/{backup_id}/...`.
+- Writes `backup-manifest.json` with alias binding, checksum, manifest key, and operator metadata.
+
+### `qdrant_backup_restore`
+
+Operator-facing restore shell for one previously exported snapshot bundle.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+- `--backup-id`
+
+Optional CLI args:
+
+- `--operator`
+- `--target-collection-name`
+- `--apply-alias`
+
+Behavior:
+
+- Downloads one snapshot bundle from derived bucket.
+- Restores the physical collection into Qdrant Cloud.
+- Verifies collection existence, points count, and release payload metadata.
+- Only reapplies serving alias when `--apply-alias` is enabled and verification passes.
+- Writes `restore-report.json` back to the same backup prefix.
+
+### `qdrant_gc_check`
+
+Operator-facing gate check for old physical collection cleanup.
+
+Required CLI args:
+
+- `--corpus`
+- `--collection`
+- `--release-id`
+
+Optional CLI args:
+
+- `--protected-physical-collection-name`
+- `--manual-blocker`
+
+Behavior:
+
+- Loads the target release manifest and compares it with live alias state.
+- Evaluates whether the target is `current` / `previous` / `migration_baseline` / `archive_candidate`.
+- Requires validation summary and snapshot bundle evidence before reporting `eligible=true`.
+- Does not delete anything; it only emits a structured gate report.
 
 ### Source-Truth Fan-Out Rule
 

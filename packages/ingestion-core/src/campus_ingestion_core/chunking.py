@@ -1481,6 +1481,18 @@ def _normalize_context_text(value: object) -> str | None:
     return normalized or None
 
 
+def _dedupe_context_section_path(*, title_text: str | None, section_path: tuple[str, ...]) -> tuple[str, ...]:
+    if not title_text or not section_path:
+        return section_path
+    if _context_text_equivalent(title_text, section_path[-1]):
+        return section_path[:-1]
+    return section_path
+
+
+def _context_text_equivalent(left: str, right: str) -> bool:
+    return left.strip().casefold() == right.strip().casefold()
+
+
 def _resolve_detail_label(
     *,
     article_text: str | None,

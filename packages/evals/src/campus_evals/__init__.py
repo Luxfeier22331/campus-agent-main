@@ -65,6 +65,18 @@ from campus_evals.ragas_adapter import (
     build_ragas_scorer,
     build_ragas_supplemental_adapter_from_env,
 )
+from campus_evals.official_web_inventory import (
+    OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH,
+    load_official_web_current_truth_inventory,
+    official_web_current_truth_doc_ids_by_bucket,
+    official_web_future_fresh_news_doc_ids,
+    official_web_future_fresh_news_titles,
+    official_web_inventory_only_doc_ids_by_disposition,
+    official_web_inventory_only_titles_by_disposition,
+    official_web_release_gate_doc_ids,
+    official_web_retain_inventory_only_doc_ids,
+    official_web_retain_inventory_only_titles,
+)
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
     curriculum_error_gate_cases,
@@ -86,6 +98,7 @@ __all__ = [
     "GoldenCase",
     "GraderPolicy",
     "JudgeLLMSettings",
+    "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "ObservedTrace",
     "OpenAICompatibleHTTPEmbeddings",
     "OpenAICompatibleResponsesLLM",
@@ -129,6 +142,15 @@ __all__ = [
     "evaluate_retrieval_run",
     "evaluate_case",
     "expected_source_ref",
+    "official_web_current_truth_doc_ids_by_bucket",
+    "official_web_future_fresh_news_doc_ids",
+    "official_web_future_fresh_news_titles",
+    "official_web_inventory_only_doc_ids_by_disposition",
+    "official_web_inventory_only_titles_by_disposition",
+    "official_web_release_gate_doc_ids",
+    "official_web_retain_inventory_only_doc_ids",
+    "official_web_retain_inventory_only_titles",
+    "load_official_web_current_truth_inventory",
     "load_retrieval_hybrid_query_dataset",
     "load_retrieval_benchmark_run",
     "load_handbook_judge_rubrics",

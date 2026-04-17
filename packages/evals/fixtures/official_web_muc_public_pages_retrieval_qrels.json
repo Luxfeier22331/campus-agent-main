@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "corpus": "official_web",
+  "collection": "muc_public_pages",
+  "baseline": {
+    "dense_model": "Qwen3-Embedding-4B",
+    "dense_dimensions": 2560,
+    "sparse_model": "qdrant/bm25",
+    "sparse_tokenizer": "multilingual",
+    "sparse_language": "none",
+    "fusion": "rrf"
+  },
+  "cases": [
+    {
+      "case_id": "topic-law-interpretation",
+      "split": "smoke",
+      "query": "民族团结进步促进法 解读",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:871878763a91199730493efe0cbb0358b884fe58",
+          "version_id": "owdocver:fa5f1f590e722118a3800d65e8e95125af62c74a",
+          "grade": 2,
+          "rationale": "明确主题问法应命中当前 registry truth 中的法治解读文章。"
+        }
+      ],
+      "notes": "主题词明确的新闻类 query。"
+    },
+    {
+      "case_id": "cross-host-duplicate-employment-base",
+      "split": "regression_locked",
+      "query": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:ac8ea5921fa808dea152c171d6b0c6c0ba1cc62f",
+          "version_id": "owdocver:9be8a3dbe619d97df54d60cbe77d8903698b8fd3",
+          "grade": 2,
+          "rationale": "news/xxgk 跨 host 同文在 current truth 中应只保留一个逻辑文档。"
+        }
+      ],
+      "notes": "跨 host 同文去重回归。"
+    },
+    {
+      "case_id": "stable-reference-school-profile",
+      "split": "smoke",
+      "query": "中央民族大学学校简介",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+          "version_id": "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+          "grade": 2,
+          "rationale": "学校简介 query 应命中当前稳定介绍页，而不是新闻正文。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+          "version_id": "owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
+          "grade": 0,
+          "rationale": "标题已明确指向学校简介时，不应再把学校概况作为并列 retrieval truth。"
+        }
+      ],
+      "notes": "稳定介绍页命中回归。"
+    },
+    {
+      "case_id": "stable-reference-current-leadership",
+      "split": "smoke",
+      "query": "中央民族大学现任领导",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
+          "version_id": "owdocver:14935f44e582597fdebffe3e8f2bcc9921e2fd06",
+          "grade": 2,
+          "rationale": "现任领导 query 应命中当前 roster/reference 页面。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:df9f5e313546d24c7a384598d1b676d6b005d881",
+          "version_id": "owdocver:1970a7c8d052144896ffd12d5785055720c8fa82",
+          "grade": 0,
+          "rationale": "现任领导 query 不应误召回更泛的干部人事栏目页。"
+        }
+      ],
+      "notes": "稳定 roster/reference 页命中回归。"
+    },
+    {
+      "case_id": "stable-reference-alumni-association-profile",
+      "split": "smoke",
+      "query": "中央民族大学校友会简介",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+          "version_id": "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
+          "grade": 2,
+          "rationale": "校友会简介 query 应命中校友会页面。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+          "version_id": "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+          "grade": 0,
+          "rationale": "校友会简介 query 不应误召回基金会简介。"
+        }
+      ],
+      "notes": "相邻组织简介页面区分回归。"
+    },
+    {
+      "case_id": "stable-reference-foundation-profile",
+      "split": "smoke",
+      "query": "中央民族大学基金会简介",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+          "version_id": "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+          "grade": 2,
+          "rationale": "基金会简介 query 应命中基金会页面。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+          "version_id": "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
+          "grade": 0,
+          "rationale": "基金会简介 query 不应误召回校友会简介。"
+        }
+      ],
+      "notes": "相邻组织简介页面区分回归。"
+    },
+    {
+      "case_id": "stable-reference-library-lecture-notice",
+      "split": "smoke",
+      "query": "民图一小时 信息素养讲座",
+      "expected_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:b6e3922bbc68f5bfe601407b62e4c2de47a0f226",
+          "version_id": "owdocver:71ac6c6da0c348bf08fcd7911fc1e09fb4e0555e",
+          "grade": 2,
+          "rationale": "图书馆讲座定向 query 应命中对应讲座预告。"
+        }
+      ],
+      "forbidden_sources": [
+        {
+          "doc_id": "official_web:muc_public:article_detail:730b3e6266ad7b47dfc7dc82e83e9ea41090bf53",
+          "version_id": "owdocver:fe7d2ffa13c025179f41146c4b86856d09aaa8d2",
+          "grade": 0,
+          "rationale": "讲座预告 query 不应误召回图书馆调研新闻。"
+        }
+      ],
+      "notes": "lib.muc.edu.cn 当前 scope 命中回归。"
+    },
+    {
+      "case_id": "no-hit-campus-name-generic",
+      "split": "regression_locked",
+      "query": "中央民族大学",
+      "notes": "泛学校名查询在当前 official_web news-like truth 下应 fail-close。"
+    },
+    {
+      "case_id": "no-hit-unanchored-life-service",
+      "split": "regression_locked",
+      "query": "食堂营业时间",
+      "notes": "无锚点生活服务查询在当前 scope 下应 fail-close。"
+    }
+  ]
+}

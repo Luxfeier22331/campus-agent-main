@@ -5,6 +5,7 @@ description = "Ingestion runtime shell for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "campus-shared",
   "campus-ingestion-core",
 ]
 
@@ -12,6 +13,7 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
+campus-shared = { workspace = true }
 campus-ingestion-core = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
@@ -19,6 +21,14 @@ packages = ["src/campus_ingestion_worker"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/campus_ingestion_worker", "pyproject.toml", "README.md"]
+
+[project.scripts]
+campus-ingestion-audit-official-web-projection-chunking = "campus_ingestion_worker.audit_official_web_projection_chunking:main"
+campus-ingestion-consume-official-web-handoffs = "campus_ingestion_worker.official_web_handoff_consumer:main"
+campus-ingestion-backfill-official-web-history = "campus_ingestion_worker.official_web_historical_backfill:main"
+campus-ingestion-official-web-handoff-dev = "campus_ingestion_worker.official_web_handoff_receiver:main"
+campus-ingestion-import-official-web-projection = "campus_ingestion_worker.official_web_projection_import:main"
+campus-ingestion-release-registry-scope = "campus_ingestion_worker.release_registry_scope:main"
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

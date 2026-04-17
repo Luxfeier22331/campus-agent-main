@@ -73,6 +73,22 @@ from campus_ingestion_core.handbook_source_migration import (
     StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
 )
+from campus_ingestion_core.official_web_projection import (
+    OfficialWebProjectionDeclaration,
+    OfficialWebProjectionDeclarationsConfig,
+    OfficialWebProjectionReplayReport,
+    OfficialWebProjectionValidationReport,
+    default_official_web_projection_declarations_path,
+    load_official_web_projection_declarations,
+    replay_official_web_source_truth_local,
+    validate_official_web_projection_output,
+)
+from campus_ingestion_core.official_web_chunking_audit import (
+    OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION,
+    OfficialWebProjectionChunkingAuditDocumentReport,
+    OfficialWebProjectionChunkingAuditReport,
+    audit_official_web_projection_chunking,
+)
 from campus_ingestion_core.handbook_chunking_validation import (
     ChunkValidationFailure,
     StudentHandbookChunkingScanResult,
@@ -105,6 +121,10 @@ from campus_ingestion_core.local_rebuild import (
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
+from campus_ingestion_core.registry_scope_release import (
+    RegistryScopeReleaseReport,
+    release_registry_scope,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.process import (
     IndexableChunk,
@@ -130,6 +150,7 @@ from campus_ingestion_core.settings import (
     DEFAULT_BUCKET_SOURCE,
     ObjectStoreSettings,
 )
+from campus_ingestion_core.scope_alias import ScopeAliasReport, set_scope_release_alias
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
     SparseEmbeddingSettings,
@@ -166,6 +187,15 @@ __all__ = [
     "IndexReleaseManifest",
     "IndexReleaseValidationResult",
     "ChunkValidationFailure",
+    "OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION",
+    "OfficialWebProjectionChunkingAuditDocumentReport",
+    "OfficialWebProjectionChunkingAuditReport",
+    "OfficialWebProjectionDeclaration",
+    "OfficialWebProjectionDeclarationsConfig",
+    "OfficialWebProjectionReplayReport",
+    "OfficialWebProjectionValidationReport",
+    "RegistryScopeReleaseReport",
+    "ScopeAliasReport",
     "StudentHandbookChunkingScanResult",
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
@@ -207,9 +237,11 @@ __all__ = [
     "chunk_structured_unit",
     "clean_structured_text",
     "default_query_scopes",
+    "default_official_web_projection_declarations_path",
     "default_release_id",
     "assert_known_corpus",
     "assert_known_scope",
+    "audit_official_web_projection_chunking",
     "ObjectStoreSettings",
     "build_mock_embedding_model",
     "prefetch_hf_tokenizer",
@@ -219,8 +251,11 @@ __all__ = [
     "MockSparseEmbeddingSettings",
     "process_raw_ingestion_job",
     "PROVIDER_RESPONSE_FILENAME",
+    "load_official_web_projection_declarations",
     "migrate_student_handbook_source_faithful",
+    "release_registry_scope",
     "rebuild_local_data",
+    "replay_official_web_source_truth_local",
     "replay_provider_response_rebuild",
     "resolve_prefetched_hf_tokenizer_path",
     "S3ObjectStoreClientFactory",
@@ -242,9 +277,11 @@ __all__ = [
     "resolve_alias_target",
     "rollback_release_alias",
     "scan_student_handbook_chunking",
+    "set_scope_release_alias",
     "SparseEmbeddingSettings",
     "build_mock_sparse_embedding_model",
     "build_sparse_embedding_model",
+    "validate_official_web_projection_output",
     "validate_scope_release",
     "validate_student_handbook_chunking",
     "write_index_release_artifacts",

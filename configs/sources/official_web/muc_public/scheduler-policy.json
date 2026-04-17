@@ -1,0 +1,41 @@
+{
+  "schema_version": "official_web_scheduler_policy.v1",
+  "site_id": "muc_public",
+  "scheduler_policy_version": "muc_public_scheduler_v1",
+  "timezone": "Asia/Shanghai",
+  "lanes": [
+    {
+      "enabled": true,
+      "run_intent": "baseline",
+      "cadence_minutes": 1440,
+      "host_filter": [],
+      "max_pages_per_host": 40,
+      "max_total_pages": 1200,
+      "notes": "Daily broad-coverage baseline crawl across enabled public hosts."
+    },
+    {
+      "enabled": true,
+      "run_intent": "hot",
+      "cadence_minutes": 30,
+      "host_filter": [
+        "www.muc.edu.cn",
+        "news.muc.edu.cn",
+        "xxgk.muc.edu.cn",
+        "xiaoyou.muc.edu.cn",
+        "lib.muc.edu.cn"
+      ],
+      "max_pages_per_host": 20,
+      "max_total_pages": 120,
+      "notes": "High-frequency refresh for homepage, news, information-disclosure, alumni, and library surfaces."
+    },
+    {
+      "enabled": true,
+      "run_intent": "repair",
+      "cadence_minutes": 120,
+      "host_filter": [],
+      "max_pages_per_host": 15,
+      "max_total_pages": 150,
+      "notes": "Retry pages whose latest observation is fetch_failed without widening coverage."
+    }
+  ]
+}
