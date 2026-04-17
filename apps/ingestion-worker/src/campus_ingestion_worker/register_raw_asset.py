@@ -131,6 +131,7 @@ def main() -> None:
     )
     print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Register a raw asset with an explicit corpus/collection scope")
     parser.add_argument("--file-path", required=True)

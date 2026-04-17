@@ -92,7 +92,10 @@ class IndexableChunk:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
     visibility_level: str = ""
+    acl_level: str = ""
     policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION
+    acl_groups: tuple[str, ...] = field(default_factory=tuple)
+    campus_scope: str | None = None
     canonical_url: str = ""
     latest_url: str = ""
     status: str = "active"
@@ -113,6 +116,8 @@ class IndexableChunk:
 
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
+        if acl_level != self.acl_level:
+            object.__setattr__(self, "acl_level", acl_level)
         if policy_projection_version != self.policy_projection_version:
             object.__setattr__(self, "policy_projection_version", policy_projection_version)
 
@@ -131,6 +136,7 @@ class IndexableChunk:
                 "entitlement_groups": list(self.entitlement_groups),
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
+                "acl_level": self.acl_level,
                 "policy_projection_version": self.policy_projection_version,
                 "source_uri": self.source_uri,
                 "canonical_url": self.canonical_url or self.source_uri,

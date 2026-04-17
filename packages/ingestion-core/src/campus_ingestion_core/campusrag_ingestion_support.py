@@ -465,10 +465,13 @@ def persist_import_documents(
     import_mode: str,
     report_dir: Path,
     report_prefix: str,
+    default_campus_scope: str | None = None,
+    default_visibility_scope: str | None = None,
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
     scope_refresh: tuple[str, str] | None = None,
 ) -> ImportReport:
+    resolved_default_scope = default_visibility_scope or default_campus_scope
     stats = collect_import_document_stats(
         documents=documents,
         registry=registry,
@@ -517,6 +520,7 @@ def collect_import_document_stats(
     initial_errors: list[str] | None = None,
     scope_refresh: tuple[str, str] | None = None,
 ) -> PersistImportStats:
+    resolved_default_scope = default_visibility_scope or default_campus_scope
     success_count = 0
     skipped_count = 0
     failed_count = len(initial_errors or [])

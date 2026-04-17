@@ -205,6 +205,7 @@ __all__ = [
     "GoldenCase",
     "GraderPolicy",
     "JudgeLLMSettings",
+    "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "ObservedTrace",
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "OperatorObservabilityPublishConfig",

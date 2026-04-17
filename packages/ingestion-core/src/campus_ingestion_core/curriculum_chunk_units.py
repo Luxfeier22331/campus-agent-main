@@ -21,6 +21,10 @@ class DerivedStructuredUnit:
     visibility_level: str
     metadata: dict[str, object] = field(default_factory=dict)
 
+    @property
+    def acl_level(self) -> str:
+        return self.visibility_level
+
 
 def build_curriculum_structured_units(
     *,

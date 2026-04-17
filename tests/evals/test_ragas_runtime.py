@@ -323,6 +323,18 @@ class RagasSettingsTest(unittest.TestCase):
 
         self.assertEqual(adapter.metric_names, build_default_ragas_metric_names())
 
+    def test_build_ragas_supplemental_adapter_from_env_exposes_default_metric_names(self) -> None:
+        adapter = build_ragas_supplemental_adapter_from_env(
+            {
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        self.assertEqual(adapter.metric_names, build_default_ragas_metric_names())
+
 
 class RagasDatasetTest(unittest.TestCase):
     def test_build_ragas_dataset_projects_single_turn_sample(self) -> None:

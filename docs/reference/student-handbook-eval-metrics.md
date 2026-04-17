@@ -56,6 +56,82 @@ updated: 2026-04-12
 - 新一轮 rerun 如要替换基线，应直接更新本文件里的分母、结论和关键数值
 - 一次性 `.tmp` artifact 继续只作为运行产物，不再在本文件里逐条挂路径
 
+## 当前快照（2026-03-31）
+
+当前最新 acceptance artifact：
+
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/final-summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/summary.json)
+- [`.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/student-handbook-formal-benchmark-accept-20260331T210128/run/supplemental-provider-summary.json)
+
+当前真相：
+
+- `deterministic_verdict = pass`
+- `supplemental_verdict = pass`
+- `final_overall_verdict = pass`
+- `repair` 正确跳过：
+  - `selected_target_count = 0`
+  - `applied_target_count = 0`
+- case set 已扩为 `8` 条 `release_gate` case：
+  - `completed = 6`
+  - `no_answer = 1`
+  - `needs_clarification = 1`
+- deterministic surface 稳定通过：
+  - `run_pass_counts = [8, 8, 8]`
+  - `mean_pass_rate = 1.0`
+  - `stable_across_runs = true`
+- supplemental runtime 已完全恢复可用：
+  - preflight `3/3 passed`
+  - provider summary 显示 `https://www.su8.codes /responses` 成功 `95/95`，`https://ai.gitee.com /embeddings` 成功 `19/19`
+- 所有 supplemental soft gate 已转为 `pass`：
+  - `ragas.faithfulness`
+    - `mean_average_score = 0.9076839826839826`
+  - `ragas.answer_relevancy`
+    - `mean_average_score = 0.8735049661543189`
+    - `run_average_scores = [0.8775421874043997, 0.8682606525061326, 0.8747120585524245]`
+  - `ragas.context_precision`
+    - `mean_average_score = 1.0`
+  - `ragas.context_recall`
+    - `mean_average_score = 1.0`
+  - `judge.answer_correctness_rubric`
+    - `mean_average_score = 0.9227777777777777`
+  - `judge.refusal_quality`
+    - `mean_average_score = 0.9783333333333334`
+
+## Fresh Rerun Diagnosis（2026-03-31）
+
+本轮 `210128` acceptance 已把 repo-head remediation 从“代码已落地”推进成“live artifact 已验证”：
+
+- `GoldenCase.reference_context_ids` + ID-based context metrics 继续把 `context_precision/context_recall` 稳定维持在 `1.0`
+- `supplemental_metric_overrides` 继续把 lookup/title/article 型 case 排除在 `answer_relevancy` denominator 之外
+- `handbook_release_gate_cases()` 当前正式 case set 已固定为 `8` 条，其中 procedure 自然问句包含：
+  - `release-gate-student-card`
+  - `release-gate-student-card-materials`
+  - `release-gate-student-card-time`
+- `procedure_directness` 已进入 deterministic surface，并在 3 轮 run 中都达到 `3/3 pass`
+- `ragas.answer_relevancy` 不再只由单个 `student-card` case 决定，而是由上述 3 个 procedure case 构成当前 denominator：
+  - `run_average_scores = [0.8775421874043997, 0.8682606525061326, 0.8747120585524245]`
+  - `mean_average_score = 0.8735049661543189`
+
+因此，当前 handbook quality line 的正式解释已经变为：
+
+- serving/runtime/provider 稳定性问题已关闭
+- context truth 与 denominator 污染问题已关闭
+- procedure renderer + expanded natural-question inventory 已通过正式 acceptance
+- 2026-03-31 `160402` 只保留为当天 earlier snapshot，不再代表当前 handbook truth
+
+## Current Baseline / Future Use（2026-03-31）
+
+当前 repo-head / artifact truth 已重新对齐：
+
+- handbook live acceptance rerun 已完成，不再存在“还需要下一次 rerun 才能确认 repo-head remediation”的待办
+- 后续 handbook 相关改动应以 `210128` artifact 作为新的回归基线
+- 若未来再次出现 supplemental 退化，应优先比较：
+  - `procedure_directness`
+  - `student-card / materials / time`
+  - `answer_relevancy` denominator
+- 在没有新的 runtime failure 证据前，不再回到 provider timeout、repair 语义或 serving alias 稳定性排查
+
 ## Gate Topology
 
 `student_handbook` release gate 固定拆成两条轨道：

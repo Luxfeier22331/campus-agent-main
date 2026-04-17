@@ -1622,7 +1622,10 @@ def _build_split_manifest_document_input(
     default_visibility_scope: str | None,
     corpus: str,
     collection: str,
+    default_campus_scope: str | None = None,
+    default_visibility_scope: str | None = None,
 ) -> DocumentImportInput:
+    resolved_default_scope = default_campus_scope or default_visibility_scope
     version_id = _build_split_version_id(
         raw_version_id=raw_asset_record.raw_version_id,
         manifest_version=manifest_version,

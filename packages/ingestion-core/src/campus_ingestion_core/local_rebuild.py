@@ -916,7 +916,12 @@ def _resolve_import_runner(import_mode: str) -> Callable[..., Any]:
 
 
 def _build_document_registry_for_rebuild(source: dict[str, str], corpus: str) -> DocumentRegistry:
-    return build_document_registry_from_env(source)
+    try:
+        return build_document_registry_from_env(source)
+    except ValueError as exc:
+        if str(exc) == "DOCUMENT_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL is required":
+            raise ValueError(str(exc)) from exc
+        raise
 
 
 def _build_raw_asset_registry_for_rebuild(source: dict[str, str], corpus: str) -> RawAssetRegistry:

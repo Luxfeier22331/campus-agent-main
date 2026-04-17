@@ -467,6 +467,32 @@ class HandbookLiveProfileTest(unittest.TestCase):
         )
 
 
+class HandbookLiveProfileTest(unittest.TestCase):
+    def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(self) -> None:
+        profile = build_handbook_live_profile(
+            env={
+                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_HTTP_READ_TIMEOUT_SECONDS": "90",
+            }
+        )
+
+        with patch(
+            "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
+            return_value=("adapters",),
+        ) as build_adapters:
+            adapters = profile.supplemental_adapters_factory()
+
+        self.assertEqual(adapters, ("adapters",))
+        self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
+        self.assertEqual(
+            build_adapters.call_args.kwargs["http_settings"].read_timeout_seconds,
+            180.0,
+        )
+
+
 class HandbookLiveBenchmarkCliTest(unittest.TestCase):
     def test_build_default_output_dir_uses_timestamped_eval_directory(self) -> None:
         path = build_default_output_dir(prefix="student-handbook-formal-benchmark", timestamp="20260329T123456")

@@ -193,7 +193,7 @@ Required env:
 
 Required CLI args:
 
-- `--pdf-path`
+- `--file-path`
 - `--raw-source-uri`
 - `--corpus`
 - `--collection`
