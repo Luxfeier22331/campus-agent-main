@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Callable
 
 from campus_availability_specialist import delegate_to_availability_specialist
-from campus_navigation_specialist import delegate_to_navigation_specialist
 from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
@@ -47,7 +46,6 @@ class SupervisorAgent:
             self.specialist_delegates = {
                 "rag-specialist": self._delegate_to_rag_specialist,
                 "availability-specialist": delegate_to_availability_specialist,
-                "navigation-specialist": delegate_to_navigation_specialist,
             }
 
     def _delegate_to_rag_specialist(self, request: SpecialistRequest) -> SpecialistResponse:

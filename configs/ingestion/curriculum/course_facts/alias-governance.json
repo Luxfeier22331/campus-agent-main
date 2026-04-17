@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "corpus": "curriculum",
+  "collection": "course_facts",
+  "entities": [
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.marxist_basic_principles",
+      "title": "马克思主义基本原理",
+      "aliases": ["马原"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.modern_chinese_history_outline",
+      "title": "中国近现代史纲要",
+      "aliases": ["史纲"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.mao_zedong_thought_and_theoretical_system",
+      "title": "毛泽东思想和中国特色社会主义理论体系概论",
+      "aliases": ["毛概"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.xigai",
+      "title": "习近平新时代中国特色社会主义思想概论",
+      "aliases": ["习概"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.ideological_morality_and_rule_of_law",
+      "title": "思想道德与法治",
+      "aliases": ["思修"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.situation_and_policy",
+      "title": "形势与政策",
+      "aliases": ["形策"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course",
+      "canonical_id": "course:muc.community_for_chinese_nation",
+      "title": "中华民族共同体概论",
+      "aliases": ["民概"],
+      "default_action": "hard_canonical"
+    },
+    {
+      "entity_type": "course_family",
+      "canonical_id": "course_family:muc.ideological_political_theory",
+      "title": "思想政治理论课",
+      "aliases": ["思政课", "思修课", "思政", "思政课程"],
+      "default_action": "resolved_family"
+    }
+  ]
+}

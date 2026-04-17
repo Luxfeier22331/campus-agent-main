@@ -41,7 +41,7 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
 
     if capability == "place_lookup":
         return RoutingDecision(
-            target="navigation-specialist",
+            target=None,
             primary_corpus=None,
             primary_collection=None,
             intent_frame=intent_frame,
