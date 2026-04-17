@@ -1,5 +1,5 @@
 ---
-doc_type: index
+doc_type: reference
 status: active
 created: 2026-04-12
 updated: 2026-04-15
@@ -22,12 +22,14 @@ updated: 2026-04-15
 
 ## Official Web 活动基线
 
+- `official-web-reading-guide.md`
 - `official-web-fresh-news-eval-baseline-20260405.md`
 - `official-web-fresh-news-surface-handoff.md`
 - `official-web-stable-reference-eval-baseline-20260405.md`
 
 ## Authenticated Notice / Internal Notice 策略与口径
 
+- `authenticated-notice-reading-guide.md`
 - `internal-notice-manual-review-collection-strategy.md`
 - `internal-notice-manual-review-future-query-contract.md`
 - `internal-notice-offline-preparation-quality-acceptance.md`

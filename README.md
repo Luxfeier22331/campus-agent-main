@@ -94,6 +94,7 @@
 ## 协作约定
 
 - 提交标题默认使用 `Conventional Commit` 前缀加中文结果描述，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice + navigation_mode）`
+- 仓库协作流程、分支流转与验证门槛见 `CONTRIBUTING.md`
 - 详细工作协议与提交标题规则以根 `AGENTS.md` 为准
 
 ## 实现入口

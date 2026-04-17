@@ -16,7 +16,9 @@ updated: 2026-03-29
 - app-local env template
   每个 app 在自己的 runtime boundary 下维护自己的本地模板，不再由 repo root `.env.example` 代管
 - command-scoped override template
-  一次性 rebuild / migration / replay 的 override 放在 `env/commands/*.env.example`
+  当前活跃的一次性 rebuild / replay override 放在 `env/commands/*.env.example`
+- historical command-scoped template
+  仅保留追溯/恢复价值的历史模板放在 `env/commands/historical/*.env.example`
 
 ## 归属约束
 
@@ -44,8 +46,18 @@ updated: 2026-03-29
   `process_raw_ingestion_job` 的一次性 override
 - command-scoped [`env/commands/rebuild-local-data.env.example`](../../env/commands/rebuild-local-data.env.example)
   `rebuild_local_data` 的一次性 override
-- command-scoped [`env/commands/migrate-student-handbook.env.example`](../../env/commands/migrate-student-handbook.env.example)
-  `migrate_student_handbook_source_faithful` 的一次性 override
+- command-scoped [`env/commands/release-registry-scope.env.example`](../../env/commands/release-registry-scope.env.example)
+  `release_registry_scope` 的一次性 override
+- command-scoped [`env/commands/official-web-handoff-receiver.env.example`](../../env/commands/official-web-handoff-receiver.env.example)
+  `official_web` handoff receiver 的一次性 override
+- command-scoped [`env/commands/official-web-handoff-consumer.env.example`](../../env/commands/official-web-handoff-consumer.env.example)
+  `official_web` handoff consumer 的一次性 override
+- command-scoped [`env/commands/compare-online-ocr.env.example`](../../env/commands/compare-online-ocr.env.example)
+  OCR provider compare / audit 的一次性 override
+- historical command-scoped [`env/commands/historical/migrate-student-handbook.env.example`](../../env/commands/historical/migrate-student-handbook.env.example)
+  `migrate_student_handbook_source_faithful` 的历史恢复 override
+- historical command-scoped [`env/commands/historical/official-web-history-backfill.env.example`](../../env/commands/historical/official-web-history-backfill.env.example)
+  `official_web` historical backfill 的历史恢复 override
 
 ## 当前待提供项
 
@@ -62,7 +74,8 @@ updated: 2026-03-29
 
 ## 命令级 Override 约束
 
-- `env/commands/*.env.example` 只放 override，不重复 shared runtime secrets
+- `env/commands/*.env.example` 只放当前活跃 override，不重复 shared runtime secrets
+- `env/commands/historical/*.env.example` 只保留 historical recovery / comparison 模板；不要把它们重新当成默认 operator path
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection` 这类任务输入优先走 CLI args
 - `INGESTION_SPLIT_MANIFEST_PATH`、`HANDBOOK_SOURCE_PROJECTIONS_PATH` 只在偏离 repo-tracked truth 时作为显式 override 使用
 - `QDRANT_UPSERT_BATCH_SIZE`、`IMPORT_REPORT_DIR`、`HF_*`、`INGESTION_EMBEDDING_MODEL` 一类局部运行参数不再放回 root `.env.example`

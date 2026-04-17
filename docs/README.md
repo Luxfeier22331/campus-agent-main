@@ -38,8 +38,6 @@ updated: 2026-04-12
   - 可重复执行的操作步骤与验收手册
 - [policies/README.md](./policies/README.md)
   - 治理规则、阈值与 collection-specific 约束
-- [domains/README.md](./domains/README.md)
-  - 跨文档类型的领域导航
 - [environment/README.md](./environment/README.md)
   - 环境变量 ownership、配置分层与 provider / secret inventory 入口
 - [plans/README.md](./plans/README.md)
@@ -51,7 +49,7 @@ updated: 2026-04-12
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
-- 需要按领域聚合同一主题下的多类材料，读 `domains/`
+- 需要按主题聚合同一领域下的多类材料，读 `reference/` 中的专题 guide
 - 需要判断哪些 implementation material 仍对当前工作有效，读 `plans/`
 
 ## Docs And Planning
