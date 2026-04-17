@@ -1,0 +1,140 @@
+{
+  "schema_version": "authenticated_notice_notice_family_classification_v1",
+  "corpus": "campus_notices",
+  "collection": "internal_notice",
+  "source_channel": "authenticated_notice_portal",
+  "default_family": "other",
+  "default_admission_policy": "review_later",
+  "default_priority": 40,
+  "rules": [
+    {
+      "family": "lecture_publicity",
+      "admission_policy": "defer",
+      "priority": 10,
+      "description": "讲座、讲堂、论坛和读书会等宣传型通知，当前不进入优先处理范围。",
+      "title_any_patterns": [
+        "讲座预告",
+        "讲堂",
+        "论坛",
+        "大讲堂",
+        "读书会",
+        "前沿讲堂",
+        "文华讲堂"
+      ]
+    },
+    {
+      "family": "event_activity",
+      "admission_policy": "defer",
+      "priority": 20,
+      "description": "活动、赛事、社会实践、招募和宣传型通知，当前延后处理。",
+      "title_any_patterns": [
+        "活动预告",
+        "活动通知",
+        "社会实践活动",
+        "比赛",
+        "招募",
+        "邀请函",
+        "石榴籽杯",
+        "挑战杯",
+        "读书会"
+      ],
+      "body_any_patterns": [
+        "活动主题",
+        "活动时间",
+        "活动内容",
+        "青春返乡行"
+      ],
+      "title_exclude_patterns": [
+        "管理办法",
+        "管理规定",
+        "实施细则",
+        "制度",
+        "规范",
+        "手册"
+      ]
+    },
+    {
+      "family": "roster_publication",
+      "admission_policy": "admit_after_policy",
+      "priority": 50,
+      "description": "名单、公示、成绩与结果公告等时效型通知，优先级低于规章制度类。",
+      "title_any_patterns": [
+        "名单公示",
+        "录取名单",
+        "拟接收名单",
+        "入选名单",
+        "候选人",
+        "成绩公示",
+        "结果公示",
+        "最终公示"
+      ]
+    },
+    {
+      "family": "operational_procedure",
+      "admission_policy": "admit_next",
+      "priority": 80,
+      "description": "办事流程、操作指南和具体事务办理通知，作为规章制度类后的第二批。",
+      "title_any_patterns": [
+        "申请流程",
+        "操作指南",
+        "办事指南",
+        "查询申请流程",
+        "工作安排",
+        "体检安排",
+        "办理",
+        "选课",
+        "申报",
+        "安排的通知"
+      ],
+      "title_exclude_patterns": [
+        "讲座预告",
+        "比赛",
+        "活动预告"
+      ]
+    },
+    {
+      "family": "policy_regulation",
+      "admission_policy": "priority_now",
+      "priority": 100,
+      "description": "规章制度、实施细则、治理规范和稳定操作手册类通知，当前优先处理。",
+      "title_any_patterns": [
+        "管理办法",
+        "管理规定",
+        "实施细则",
+        "工作规程",
+        "制度",
+        "规程",
+        "条例",
+        "章程",
+        "准则",
+        "指导意见",
+        "应知应会手册",
+        "工作手册",
+        "办事指南",
+        "操作指南",
+        "关于发布《[^》]*(管理办法|管理规定|实施细则|工作规程|制度|规范|条例|章程|准则|指导意见|手册|指南)[^》]*》的通知",
+        "关于印发《[^》]*(管理办法|管理规定|实施细则|工作规程|制度|规范|条例|章程|准则|指导意见|手册|指南)[^》]*》的通知",
+        "关于修订《[^》]*(管理办法|管理规定|实施细则|工作规程|制度|规范|条例|章程|准则|指导意见|手册|指南)[^》]*》的通知"
+      ],
+      "title_exclude_patterns": [
+        "讲座预告",
+        "活动预告",
+        "活动",
+        "解读会",
+        "解读",
+        "学习",
+        "网络课程",
+        "报告会",
+        "宣传周",
+        "论坛",
+        "读书会",
+        "自评报告",
+        "工作方案",
+        "实施方案",
+        "宣传海报",
+        "领取",
+        "运动会"
+      ]
+    }
+  ]
+}

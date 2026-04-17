@@ -24,11 +24,14 @@ include = ["src/campus_ingestion_worker", "pyproject.toml", "README.md"]
 
 [project.scripts]
 campus-ingestion-audit-official-web-projection-chunking = "campus_ingestion_worker.audit_official_web_projection_chunking:main"
+campus-ingestion-compare-online-ocr = "campus_ingestion_worker.compare_online_ocr:main"
 campus-ingestion-consume-official-web-handoffs = "campus_ingestion_worker.official_web_handoff_consumer:main"
 campus-ingestion-backfill-official-web-history = "campus_ingestion_worker.official_web_historical_backfill:main"
 campus-ingestion-official-web-handoff-dev = "campus_ingestion_worker.official_web_handoff_receiver:main"
 campus-ingestion-import-official-web-projection = "campus_ingestion_worker.official_web_projection_import:main"
+campus-ingestion-materialize-curriculum-program-semester-facts = "campus_ingestion_worker.materialize_curriculum_program_semester_facts:main"
 campus-ingestion-release-registry-scope = "campus_ingestion_worker.release_registry_scope:main"
+campus-ingestion-validate-internal-notice-chunking = "campus_ingestion_worker.validate_internal_notice_chunking:main"
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

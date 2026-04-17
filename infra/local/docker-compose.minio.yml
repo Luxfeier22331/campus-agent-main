@@ -1,3 +1,5 @@
+name: campus-agent-local
+
 services:
   minio:
     image: minio/minio:latest
@@ -6,10 +8,13 @@ services:
       MINIO_ROOT_USER: ${OBJECT_STORE_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${OBJECT_STORE_SECRET_KEY:-minioadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    restart: unless-stopped
     volumes:
       - minio-data:/data
 
 volumes:
   minio-data:
+    external: true
+    name: local_minio-data

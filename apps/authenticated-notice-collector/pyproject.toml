@@ -1,0 +1,14 @@
+[project]
+name = "campus-authenticated-notice-collector"
+version = "0.1.0"
+description = "Repo-local runtime shell for authenticated_notice_portal collection with typed reference-only bootstrap export."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

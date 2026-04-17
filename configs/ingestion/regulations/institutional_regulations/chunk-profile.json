@@ -1,0 +1,35 @@
+{
+  "corpus": "regulations",
+  "collection": "institutional_regulations",
+  "chunk_profile_version": "institutional_regulations_semantic_v1",
+  "structured_input": "document_units_jsonl",
+  "runtime_defaults": {
+    "strategy_name": "institutional_regulations_semantic_v1",
+    "chunk_size": 260,
+    "max_chunk_size": 360,
+    "chunk_overlap": 48,
+    "min_chunk_size": 48
+  },
+  "lane_defaults": {
+    "formal_regulation": {
+      "strategy_name": "institutional_regulations_formal_v1",
+      "chunk_size": 280,
+      "max_chunk_size": 380,
+      "chunk_overlap": 48,
+      "min_chunk_size": 48
+    },
+    "normative_handbook": {
+      "strategy_name": "institutional_regulations_handbook_v1",
+      "chunk_size": 240,
+      "max_chunk_size": 340,
+      "chunk_overlap": 40,
+      "min_chunk_size": 40
+    }
+  },
+  "cleaning_policy_version": "institutional_regulations_cleaning_v1",
+  "notes": [
+    "This collection chunks canonical regulation text after wrapper semantics have been removed.",
+    "Chunk units should follow regulation section/article structure instead of internal_notice wrapper boundaries.",
+    "Promotion execution is still pending; this file only freezes the target-side runtime scaffold."
+  ]
+}

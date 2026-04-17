@@ -153,7 +153,6 @@ class S3ObjectStoreWriter:
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         response = self._client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
-
     def _one_shot_client_for_zero_byte_payload(self):
         # Local MinIO can stall on the next reused connection after a zero-byte put_object.
         # Isolating empty writes to a throwaway client keeps the shared client pool healthy.
@@ -1196,6 +1195,7 @@ def _build_registry_record(
         ),
         document_units_object_key=document_units_key,
         provider_response_object_key=provider_response_key,
+        layout_elements_object_key=layout_elements_key,
         canonical_markdown_object_key=canonical_markdown_key,
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
