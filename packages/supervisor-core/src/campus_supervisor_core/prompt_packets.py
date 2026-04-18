@@ -37,6 +37,7 @@ class SupervisorPromptPacket:
     prompt_id: str
     task: SupervisorTaskPacket
     user_input_text: str
+    safety_identifier: str | None = None
 
 
 def build_supervisor_clarify_prompt_packet(
@@ -80,6 +81,7 @@ def build_supervisor_clarify_prompt_packet(
         prompt_id="supervisor_clarify_v1",
         task=task,
         user_input_text=context.user_goal,
+        safety_identifier=context.request.safety_identifier,
     )
 
 
@@ -118,6 +120,7 @@ def build_supervisor_approval_required_prompt_packet(
         prompt_id="supervisor_approval_required_v1",
         task=task,
         user_input_text=context.user_goal,
+        safety_identifier=context.request.safety_identifier,
     )
 
 
@@ -152,6 +155,7 @@ def build_supervisor_out_of_scope_prompt_packet(
         prompt_id="supervisor_out_of_scope_v1",
         task=task,
         user_input_text=context.user_goal,
+        safety_identifier=context.request.safety_identifier,
     )
 
 
@@ -188,6 +192,7 @@ def build_supervisor_reject_prompt_packet(
         prompt_id="supervisor_reject_v1",
         task=task,
         user_input_text=context.user_goal,
+        safety_identifier=context.request.safety_identifier,
     )
 
 

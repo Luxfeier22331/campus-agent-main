@@ -417,6 +417,7 @@ export function createApp(env: Env, dependencies: AppDependencies = {}) {
       const chatConversationStore = createPgChatConversationStore(env, { getDb: runtime.getFreshDb });
       chatCommandService = buildChatCommandService({
         conversationStore: chatConversationStore,
+        safetyIdentifierHmacSecret: env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
         store: createPgChatCommandStore(env, { getDb: runtime.getFreshDb }),
         supervisor: createSupervisorExecutionClient(env),
         telemetry,

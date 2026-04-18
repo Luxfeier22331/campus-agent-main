@@ -32,6 +32,7 @@ interface BaseRequestTelemetry {
   requestedCapability: string;
   requestedScope?: RequestedScope | null;
   resolvedScope?: RequestedScope | null;
+  safetyIdentifier?: string | null;
   surface: string;
   traceId: string;
 }
@@ -149,6 +150,7 @@ function applyRequestTags(input: {
   resolvedScope?: RequestedScope | null;
   requestId?: string | null;
   route?: string | null;
+  safetyIdentifier?: string | null;
   selectedTarget?: string | null;
   status?: string | null;
   surface?: string | null;
@@ -165,6 +167,9 @@ function applyRequestTags(input: {
   }
   if (input.route) {
     Sentry.setTag("route", input.route);
+  }
+  if (input.safetyIdentifier) {
+    Sentry.setTag("safety_identifier", input.safetyIdentifier);
   }
   if (input.status) {
     Sentry.setTag("status", input.status);
@@ -226,6 +231,7 @@ export function createAppTelemetry(
           requestId: input.requestId,
           requestedCapability: input.requestedCapability,
           requestedScope: input.requestedScope,
+          safetyIdentifier: input.safetyIdentifier,
           status: "accepted",
           surface: input.surface,
           traceId: input.traceId,
@@ -281,6 +287,7 @@ export function createAppTelemetry(
         requested_capability: input.requestedCapability,
         requested_scope_summary: toScopeSummary(input.requestedScope),
         resolved_scope_summary: toScopeSummary(input.resolvedScope),
+        safety_identifier: input.safetyIdentifier ?? null,
         surface: input.surface,
         trace_id: input.traceId,
       });
@@ -291,6 +298,7 @@ export function createAppTelemetry(
         requestId: input.requestId,
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
+        safetyIdentifier: input.safetyIdentifier,
         status: input.status,
         surface: input.surface,
         traceId: input.traceId,
@@ -304,6 +312,7 @@ export function createAppTelemetry(
         request_id: input.requestId,
         requested_capability: input.requestedCapability,
         requested_scope_summary: toScopeSummary(input.requestedScope),
+        safety_identifier: input.safetyIdentifier ?? null,
         status: input.status,
         surface: input.surface,
         trace_id: input.traceId,
@@ -316,6 +325,7 @@ export function createAppTelemetry(
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
         resolvedScope: input.resolvedScope,
+        safetyIdentifier: input.safetyIdentifier,
         selectedTarget: input.selectedTarget,
         status: input.status,
         surface: input.surface,
@@ -332,6 +342,7 @@ export function createAppTelemetry(
         requested_scope_summary: toScopeSummary(input.requestedScope),
         resolved_scope_summary: toScopeSummary(input.resolvedScope),
         retryable: input.retryable,
+        safety_identifier: input.safetyIdentifier ?? null,
         selected_target: input.selectedTarget,
         source_doc_ids_count: input.sourceDocIds.length,
         source_doc_ids_summary: toSourceDocIdsSummary(input.sourceDocIds),
@@ -346,6 +357,7 @@ export function createAppTelemetry(
         requestId: input.requestId,
         requestedCapability: input.requestedCapability,
         requestedScope: input.requestedScope,
+        safetyIdentifier: input.safetyIdentifier,
         status: "error",
         surface: input.surface,
         traceId: input.traceId,
@@ -359,6 +371,7 @@ export function createAppTelemetry(
         requested_capability: input.requestedCapability,
         requested_scope_summary: toScopeSummary(input.requestedScope),
         retryable: input.retryable,
+        safety_identifier: input.safetyIdentifier ?? null,
         status: "error",
         surface: input.surface,
         trace_id: input.traceId,

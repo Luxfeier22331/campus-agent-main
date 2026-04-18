@@ -98,6 +98,7 @@ def handle_answer(
             user_goal=user_goal,
             conversation_id=str(payload.get("conversation_id", "")),
             request_id=str(payload.get("request_id", "")),
+            safety_identifier=_parse_optional_string(payload.get("safety_identifier")),
             trace=TraceContext(trace_id=trace_id),
             actor=actor,
             context=context,

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import { AppApiRouteError } from "../../http";
 import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../auth";
@@ -86,8 +86,10 @@ export interface ChatCommandServiceDependencies {
     requestedScope: RequestedScope | null;
   }) => string;
   conversationStore: ChatConversationStore;
+  deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
   generateId?: (prefix: string) => string;
   now?: () => Date;
+  safetyIdentifierHmacSecret?: string;
   store: ChatCommandStore;
   supervisor: SupervisorExecutionClient;
   telemetry?: AppTelemetry;
@@ -141,6 +143,35 @@ function normalizeRequestedScope(value: unknown): RequestedScope | null {
 function normalizeRequestedCapability(value: unknown): string | null {
   const capability = normalizeString(value);
   return capability || null;
+}
+
+function resolveSafetyIdentifierSource(
+  principal: ResolvedAppPrincipal,
+): string | null {
+  const principalId = normalizeString(principal.principal.principalId);
+  if (principalId) {
+    return `principal:${principalId}`;
+  }
+
+  const sessionId = normalizeString(principal.session?.sessionId);
+  if (sessionId) {
+    return `session:${sessionId}`;
+  }
+
+  return null;
+}
+
+export function deriveSafetyIdentifier(
+  principal: ResolvedAppPrincipal,
+  secret: string,
+): string | null {
+  const source = resolveSafetyIdentifierSource(principal);
+  const normalizedSecret = normalizeString(secret);
+  if (!source || !normalizedSecret) {
+    return null;
+  }
+
+  return createHmac("sha256", normalizedSecret).update(source).digest("hex");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -356,6 +387,7 @@ function buildAcceptedWrite(input: {
   requestId: string;
   requestedCapability: string;
   requestedScope: RequestedScope | null;
+  safetyIdentifier: string | null;
   surface: string;
   traceId: string;
   userMessageId: string;
@@ -397,6 +429,7 @@ function buildAcceptedWrite(input: {
       idempotencyKey: input.idempotencyKey,
       requestFingerprintSha256: input.requestFingerprintSha256,
       traceId: input.traceId,
+      safetyIdentifier: input.safetyIdentifier,
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
       resolvedScope: null,
@@ -420,6 +453,7 @@ function buildAcceptedWrite(input: {
       requestedCapability: input.requestedCapability,
       requestedScope: input.requestedScope,
       resolvedScope: null,
+      safetyIdentifier: input.safetyIdentifier,
       startedAt: input.now,
       surface: input.surface,
       traceId: input.traceId,
@@ -505,6 +539,7 @@ function buildFinalizedWrite(input: {
   requestedCapability: string;
   requestedScope: RequestedScope | null;
   response: SupervisorExecutionResponse;
+  safetyIdentifier: string | null;
   surface: string;
   startedAt: string;
   traceId: string;
@@ -641,6 +676,7 @@ function buildFinalizedWrite(input: {
       idempotencyKey: null,
       requestFingerprintSha256: null,
       traceId: normalizedTraceId,
+      safetyIdentifier: input.safetyIdentifier,
       requestedCapability: "knowledge",
       requestedScope: input.requestedScope,
       resolvedScope,
@@ -669,6 +705,7 @@ function buildFinalizedWrite(input: {
       requestedScope: input.requestedScope,
       resolvedScope,
       response: normalizedSupervisorResponse,
+      safetyIdentifier: input.safetyIdentifier,
       sourceDocIds,
       startedAt: input.startedAt,
       status,
@@ -735,6 +772,10 @@ export function buildChatCommandService(
   dependencies: ChatCommandServiceDependencies,
 ): ChatCommandService {
   const computeFingerprint = dependencies.computeFingerprint ?? defaultComputeFingerprint;
+  const deriveSafetyIdentifierForPrincipal =
+    dependencies.deriveSafetyIdentifier ??
+    ((principal: ResolvedAppPrincipal) =>
+      deriveSafetyIdentifier(principal, dependencies.safetyIdentifierHmacSecret ?? ""));
   const generateId = dependencies.generateId ?? defaultGenerateId;
   const now = dependencies.now ?? (() => new Date());
   const telemetry = dependencies.telemetry;
@@ -805,6 +846,7 @@ export function buildChatCommandService(
 
       const requestId = generateId("req");
       const traceId = generateId("trace");
+      const safetyIdentifier = deriveSafetyIdentifierForPrincipal(input.principal);
       const acceptedAt = now().toISOString();
       const userMessageId = generateId("msg");
       const acceptedEventId = generateId("evt");
@@ -853,6 +895,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        safetyIdentifier,
         surface,
         traceId,
         userMessageId,
@@ -868,6 +911,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        safetyIdentifier,
         surface,
         traceId,
       });
@@ -883,6 +927,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        safetyIdentifier,
         status: "accepted",
         surface,
         traceId,
@@ -893,6 +938,7 @@ export function buildChatCommandService(
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
+        safetyIdentifier,
         surface,
         traceId,
       });
@@ -917,6 +963,7 @@ export function buildChatCommandService(
           requestId,
           requestedCapability: validatedPayload.requestedCapability,
           requestedScope: validatedPayload.requestedScope,
+          safetyIdentifier,
           surface,
           traceHeaders: telemetry?.getTraceHeaders(),
           traceId,
@@ -938,6 +985,7 @@ export function buildChatCommandService(
           requestId,
           requestedCapability: validatedPayload.requestedCapability,
           requestedScope: validatedPayload.requestedScope,
+          safetyIdentifier,
           retryable: transportError.retryable,
           surface,
           traceId,
@@ -960,6 +1008,7 @@ export function buildChatCommandService(
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
         response: executionResponse,
+        safetyIdentifier,
         surface,
         startedAt: acceptedAt,
         traceId,
@@ -994,6 +1043,7 @@ export function buildChatCommandService(
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
         resolvedScope: finalized.write.requestExecution.resolvedScope,
+        safetyIdentifier,
         surface,
         traceId: finalized.write.requestExecution.traceId,
       });
@@ -1006,6 +1056,7 @@ export function buildChatCommandService(
         requestedScope: validatedPayload.requestedScope,
         resolvedScope: finalized.write.requestExecution.resolvedScope,
         retryable: finalized.write.assistantMessage.retryable,
+        safetyIdentifier,
         selectedTarget: finalized.write.requestExecution.selectedTarget,
         sourceDocIds: finalized.write.requestExecution.sourceDocIds,
         status: finalized.write.requestExecution.status as

@@ -56,6 +56,7 @@ export interface RequestExecutionWrite {
   idempotencyKey: string | null;
   requestFingerprintSha256: string | null;
   traceId: string;
+  safetyIdentifier?: string | null;
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
   resolvedScope: RequestedScope | null;
@@ -88,6 +89,7 @@ export interface ProjectionOutboxWrite {
 export interface RequestObservabilityFactWrite {
   requestId: string;
   traceId: string;
+  safetyIdentifier?: string | null;
   conversationId: string;
   surface: string;
   principalType: string;
@@ -397,6 +399,7 @@ export function createPgChatCommandStore(
             idempotencyKey: input.requestExecution.idempotencyKey,
             requestFingerprintSha256: input.requestExecution.requestFingerprintSha256,
             traceId: input.requestExecution.traceId,
+            safetyIdentifier: input.requestExecution.safetyIdentifier ?? null,
             requestedCapability: input.requestExecution.requestedCapability,
             requestedScopeJson:
               (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
@@ -472,6 +475,7 @@ export function createPgChatCommandStore(
           principalType: input.requestObservabilityFact.principalType,
           projectionLagMs: input.requestObservabilityFact.projectionLagMs,
           requestId: input.requestObservabilityFact.requestId,
+          safetyIdentifier: input.requestObservabilityFact.safetyIdentifier ?? null,
           requestedCapability: input.requestObservabilityFact.requestedCapability,
           requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
           resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
@@ -532,6 +536,7 @@ export function createPgChatCommandStore(
               (input.requestExecution.requestedScope as Record<string, unknown> | null) ?? null,
             resolvedScopeJson:
               (input.requestExecution.resolvedScope as Record<string, unknown> | null) ?? null,
+            safetyIdentifier: input.requestExecution.safetyIdentifier ?? null,
             answerPreview: input.requestExecution.answerPreview,
             diagnosticsJson: input.requestExecution.diagnostics,
             sourceDocIdsJson: input.requestExecution.sourceDocIds,
@@ -601,6 +606,7 @@ export function createPgChatCommandStore(
             principalType: input.requestObservabilityFact.principalType,
             projectionLagMs: input.requestObservabilityFact.projectionLagMs,
             requestId: input.requestObservabilityFact.requestId,
+            safetyIdentifier: input.requestObservabilityFact.safetyIdentifier ?? null,
             requestedCapability: input.requestObservabilityFact.requestedCapability,
             requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
             resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,
@@ -659,6 +665,7 @@ export function createPgChatCommandStore(
               retrievalAdequacyVerdict: input.requestObservabilityFact.retrievalAdequacyVerdict,
               principalType: input.requestObservabilityFact.principalType,
               projectionLagMs: input.requestObservabilityFact.projectionLagMs,
+              safetyIdentifier: input.requestObservabilityFact.safetyIdentifier ?? null,
               requestedCapability: input.requestObservabilityFact.requestedCapability,
               requestedScopeSummary: input.requestObservabilityFact.requestedScopeSummary,
               resolvedScopeSummary: input.requestObservabilityFact.resolvedScopeSummary,

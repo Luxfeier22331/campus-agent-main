@@ -77,4 +77,55 @@ describe("app telemetry", () => {
       sentryTrace: null,
     });
   });
+
+  it("projects canonical safety identifier into sentry tags and runtime telemetry payloads", async () => {
+    const axiomSink = { emit: vi.fn().mockResolvedValue(undefined) };
+    const telemetry = createAppTelemetry({}, { axiomSink });
+    const safetyIdentifier =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    telemetry.configureChatRequestScope({
+      actor: {
+        principalType: "campus_member",
+        subject: "user_01",
+      },
+      conversationId: "conv_01",
+      requestId: "req_01",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      safetyIdentifier,
+      surface: "public_chat_web",
+      traceId: "trace_01",
+    });
+
+    await telemetry.recordRequestAccepted({
+      actor: {
+        principalType: "campus_member",
+        subject: "user_01",
+      },
+      conversationId: "conv_01",
+      requestId: "req_01",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      safetyIdentifier,
+      status: "accepted",
+      surface: "public_chat_web",
+      traceId: "trace_01",
+    });
+
+    expect(sentryMocks.setTag).toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
+    expect(axiomSink.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event_type: "request.accepted",
+        request_id: "req_01",
+        safety_identifier: safetyIdentifier,
+      }),
+    );
+  });
 });

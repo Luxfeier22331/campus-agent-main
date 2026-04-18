@@ -95,6 +95,8 @@ describe("supervisor execution adapter", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      safetyIdentifier:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       traceHeaders: {
         baggage: "sentry-environment=test",
         sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
@@ -159,6 +161,8 @@ describe("supervisor execution adapter", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      safety_identifier:
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       user_goal: "图书馆开放到几点？",
     });
     expect(result).toEqual({

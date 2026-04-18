@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { SupervisorExecutionResponse } from "../src/modules/integration";
-import { buildFinalizedRequestObservabilityFact } from "../src/modules/request-observability";
+import {
+  buildAcceptedRequestObservabilityFact,
+  buildFinalizedRequestObservabilityFact,
+} from "../src/modules/request-observability";
 
 function createPrincipal(): ResolvedAppPrincipal {
   return {
@@ -62,6 +65,58 @@ function createResponse(
 }
 
 describe("request observability", () => {
+  it("carries the same safety identifier through accepted and finalized observability facts", () => {
+    const safetyIdentifier =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    const accepted = buildAcceptedRequestObservabilityFact({
+      conversationId: "conv_01HQ",
+      principal: createPrincipal(),
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      resolvedScope: null,
+      safetyIdentifier,
+      startedAt: "2026-04-05T08:00:00.000Z",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    const finalized = buildFinalizedRequestObservabilityFact({
+      completedAt: "2026-04-05T08:00:01.000Z",
+      conversationId: "conv_01HQ",
+      diagnostics: null,
+      durationMs: 1000,
+      errorCode: null,
+      principal: createPrincipal(),
+      requestId: "req_01HQ",
+      requestedCapability: "knowledge",
+      requestedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      resolvedScope: {
+        collection: "student_handbook",
+        corpus: "regulations",
+      },
+      response: createResponse({
+        status: "completed",
+      }),
+      safetyIdentifier,
+      sourceDocIds: [],
+      startedAt: "2026-04-05T08:00:00.000Z",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    expect(accepted.safetyIdentifier).toBe(safetyIdentifier);
+    expect(finalized.safetyIdentifier).toBe(safetyIdentifier);
+  });
+
   it("derives semantic outcome fields for in-scope no-answer responses", () => {
     const fact = buildFinalizedRequestObservabilityFact({
       completedAt: "2026-04-05T08:00:01.000Z",
@@ -124,6 +179,7 @@ describe("request observability", () => {
         corpus: "regulations",
       },
       response: createResponse(),
+      safetyIdentifier: null,
       sourceDocIds: [],
       startedAt: "2026-04-05T08:00:00.000Z",
       status: "no_answer",

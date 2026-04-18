@@ -69,6 +69,7 @@ export interface SupervisorExecutionInput {
   requestId: string;
   requestedCapability?: string;
   requestedScope?: RequestedScope | null;
+  safetyIdentifier?: string | null;
   surface?: string;
   traceHeaders?: TracePropagationHeaders;
   traceId: string;
@@ -469,6 +470,7 @@ export function createSupervisorExecutionClient(
             request_id: payload.requestId,
             requested_capability: payload.requestedCapability,
             ...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
+            ...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
             user_goal: payload.userGoal,
           };
 

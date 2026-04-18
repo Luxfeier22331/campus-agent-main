@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 from typing import Literal, TypeAlias
 
 
@@ -68,6 +69,7 @@ DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
 CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family"
 CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program"
 CURRICULUM_SEMESTER_SLOT_NAME = "curriculum_semester"
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -555,6 +557,7 @@ class SupervisorRequest:
     user_goal: str
     conversation_id: str = ""
     request_id: str = ""
+    safety_identifier: str | None = None
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
@@ -566,6 +569,11 @@ class SupervisorRequest:
     def __post_init__(self) -> None:
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        normalized_safety_identifier = _normalize_optional_safety_identifier(
+            self.safety_identifier
+        )
+        if normalized_safety_identifier != self.safety_identifier:
+            object.__setattr__(self, "safety_identifier", normalized_safety_identifier)
         _coerce_context_projection(self)
         if (
             self.requested_capability is not None
@@ -583,6 +591,7 @@ class SpecialistRequest:
     payload: RagRequestPayload | AvailabilityCheckPayload | PlaceLookupPayload
     conversation_id: str = ""
     request_id: str = ""
+    safety_identifier: str | None = None
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
@@ -592,6 +601,11 @@ class SpecialistRequest:
             raise ValueError(f"unsupported specialist target: {self.target}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
+        normalized_safety_identifier = _normalize_optional_safety_identifier(
+            self.safety_identifier
+        )
+        if normalized_safety_identifier != self.safety_identifier:
+            object.__setattr__(self, "safety_identifier", normalized_safety_identifier)
         _coerce_context_projection(self)
 
 
@@ -651,6 +665,19 @@ def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -
         return
     if request.actor != request.context.actor:
         raise ValueError("actor and context.actor must match")
+
+
+def _normalize_optional_safety_identifier(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if not _SHA256_HEX_RE.fullmatch(normalized):
+        raise ValueError(
+            "safety_identifier must be a 64-character lowercase hex string"
+        )
+    return normalized
 
 
 def _validate_corpus(corpus: str) -> None:

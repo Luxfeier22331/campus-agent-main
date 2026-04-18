@@ -10,6 +10,7 @@ export {
   type ChatCommandResult,
   type ChatCommandService,
   type ChatCommandServiceDependencies,
+  deriveSafetyIdentifier,
 } from "./service";
 export {
   createPgChatCommandStore,

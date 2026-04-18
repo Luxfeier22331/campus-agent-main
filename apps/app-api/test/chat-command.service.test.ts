@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { createHmac } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
@@ -9,6 +11,7 @@ import {
   buildChatCommandService,
   DRAFT_CONVERSATION_TITLE,
   SupervisorTransportError,
+  deriveSafetyIdentifier,
   type ChatConversationStore,
   type ChatCommandStore,
   type FinalizeRequestWrite,
@@ -186,10 +189,50 @@ function createTelemetryMock(): AppTelemetry {
 }
 
 describe("chat command service", () => {
+  it("derives safety identifier from principal first, then app-owned session id, else null", () => {
+    const principal = createPrincipal();
+    const secret = "phase-h-safety-secret";
+
+    expect(deriveSafetyIdentifier(principal, secret)).toBe(
+      createHmac("sha256", secret).update("principal:user_01HQ").digest("hex"),
+    );
+
+    expect(
+      deriveSafetyIdentifier(
+        {
+          ...principal,
+          principal: {
+            ...principal.principal,
+            principalId: "",
+          },
+        },
+        secret,
+      ),
+    ).toBe(createHmac("sha256", secret).update("session:sess_01HQ").digest("hex"));
+
+    expect(
+      deriveSafetyIdentifier(
+        {
+          ...principal,
+          principal: {
+            ...principal.principal,
+            principalId: "",
+          },
+          session: null,
+        },
+        secret,
+      ),
+    ).toBeNull();
+  });
+
   it("accepts a chat request, calls supervisor with explicit actor, and finalizes a completed answer", async () => {
     const { store, acceptedWrites, finalWrites } = createCommandStore();
     const { store: conversationStore } = createConversationStore();
     const telemetry = createTelemetryMock();
+    const safetySecret = "phase-h-safety-secret";
+    const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
+      .update("principal:user_01HQ")
+      .digest("hex");
     const supervisor: SupervisorExecutionClient = {
       execute: vi.fn().mockResolvedValue({
         answerText: "图书馆开放到 22:00。",
@@ -207,6 +250,7 @@ describe("chat command service", () => {
     };
 
     const service = buildChatCommandService({
+      deriveSafetyIdentifier: (principal) => deriveSafetyIdentifier(principal, safetySecret),
       generateId: createDeterministicIdGenerator(),
       now: () => new Date("2026-03-28T08:00:00.000Z"),
       conversationStore,
@@ -249,6 +293,7 @@ describe("chat command service", () => {
         collection: "student_handbook",
         corpus: "regulations",
       },
+      safetyIdentifier: expectedSafetyIdentifier,
       surface: "public_chat_web",
       traceHeaders: {
         baggage: "sentry-environment=test",
@@ -261,6 +306,7 @@ describe("chat command service", () => {
       expect.objectContaining({
         requestId: "req_0001",
         requestedCapability: "knowledge",
+        safetyIdentifier: expectedSafetyIdentifier,
         traceId: "trace_0001",
       }),
     );
@@ -280,9 +326,14 @@ describe("chat command service", () => {
         principalType: "student",
         questionPreview: "图书馆开放到几点？",
         requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
         status: "accepted",
         traceId: "trace_0001",
         visibilityScope: "main",
+      },
+      requestObservabilityFact: {
+        requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
       },
     });
     expect(
@@ -312,10 +363,15 @@ describe("chat command service", () => {
         entitlementGroups: ["students"],
         entitlementSnapshotId: "entitlements-2026-03-29",
         requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
         selectedTarget: "rag-specialist",
         sourceDocIds: ["handbook:library-hours"],
         status: "completed",
         visibilityScope: "main",
+      },
+      requestObservabilityFact: {
+        requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
       },
     });
     expect(
@@ -354,6 +410,7 @@ describe("chat command service", () => {
       expect.objectContaining({
         conversationId: "conv_01HQ",
         requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
         traceId: "trace_0001",
       }),
     );
@@ -374,6 +431,7 @@ describe("chat command service", () => {
     expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
         selectedTarget: "rag-specialist",
         sourceDocIds: ["handbook:library-hours"],
         status: "completed",

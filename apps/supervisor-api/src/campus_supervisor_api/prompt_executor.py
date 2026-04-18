@@ -68,6 +68,7 @@ class ProviderBackedSupervisorPromptExecutor:
         parsed = self._structured_executor.execute(
             stack,
             response_model=_FollowUpQuestionModel,
+            safety_identifier=packet.safety_identifier,
         )
         return SupervisorPromptExecutionResult(
             output=SupervisorClarifyPromptOutput(
@@ -111,6 +112,7 @@ class ProviderBackedSupervisorPromptExecutor:
         parsed = self._structured_executor.execute(
             stack,
             response_model=_AnswerTextModel,
+            safety_identifier=packet.safety_identifier,
         )
         return SupervisorPromptExecutionResult(
             output=SupervisorTerminalPromptOutput(answer_text=parsed.answer_text),
@@ -150,6 +152,7 @@ class ProviderBackedRagPromptExecutor:
         parsed = self._structured_executor.execute(
             stack,
             response_model=_FollowUpQuestionModel,
+            safety_identifier=packet.safety_identifier,
         )
         return RagPromptExecutionResult(
             output=RagClarifyPromptOutput(
@@ -187,6 +190,7 @@ class ProviderBackedRagPromptExecutor:
         parsed = self._structured_executor.execute(
             stack,
             response_model=_AnswerTextModel,
+            safety_identifier=packet.safety_identifier,
         )
         return RagPromptExecutionResult(
             output=RagAnswerPromptOutput(answer_text=parsed.answer_text),

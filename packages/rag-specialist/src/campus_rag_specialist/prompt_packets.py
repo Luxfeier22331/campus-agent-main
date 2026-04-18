@@ -51,6 +51,7 @@ class RagPromptPacket:
     prompt_id: str
     task: RagTaskPacket
     user_input_text: str
+    safety_identifier: str | None = None
     evidence: tuple[RagEvidencePacketEntry, ...] = ()
 
 
@@ -88,6 +89,7 @@ def build_rag_clarify_prompt_packet(
         prompt_id="rag_clarify_v1",
         task=task,
         user_input_text=request.user_goal,
+        safety_identifier=request.safety_identifier,
     )
 
 
@@ -128,6 +130,7 @@ def build_rag_no_answer_prompt_packet(
         prompt_id=prompt_id,
         task=task,
         user_input_text=request.user_goal,
+        safety_identifier=request.safety_identifier,
         evidence=tuple(_serialize_evidence_entry(source) for source in evidence.sources),
     )
 
@@ -167,6 +170,7 @@ def build_rag_answer_prompt_packet(
         prompt_id="rag_answer_v1",
         task=task,
         user_input_text=request.user_goal,
+        safety_identifier=request.safety_identifier,
         evidence=tuple(_serialize_evidence_entry(source) for source in evidence.sources),
     )
 

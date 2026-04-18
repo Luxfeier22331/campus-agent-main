@@ -234,6 +234,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
   requestedCapability: string | null;
   requestedScope: RequestedScope | null;
   resolvedScope: RequestedScope | null;
+  safetyIdentifier?: string | null;
   surface: string;
   startedAt: string;
   traceId: string;
@@ -283,6 +284,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     refusalClass: null,
     scopeClass: null,
     semanticOutcome: null,
+    safetyIdentifier: input.safetyIdentifier ?? null,
     templateSha256: null,
     retrievedSourceCount: null,
     retrievalAttempted: null,
@@ -307,6 +309,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
   requestedScope: RequestedScope | null;
   resolvedScope: RequestedScope | null;
   response: SupervisorExecutionResponse;
+  safetyIdentifier?: string | null;
   sourceDocIds: string[];
   startedAt: string;
   status: RequestExecutionStatus;
@@ -404,6 +407,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
       response: input.response,
       status: input.status,
     }),
+    safetyIdentifier: input.safetyIdentifier ?? null,
     templateSha256: observability?.promptTrace?.templateSha256 ?? null,
     retrievedSourceCount,
     retrievalAttempted,

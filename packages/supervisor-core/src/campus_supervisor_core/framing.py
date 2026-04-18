@@ -42,6 +42,7 @@ def frame_specialist_request(
         user_goal=context.user_goal,
         conversation_id=context.conversation_id,
         request_id=context.request_id,
+        safety_identifier=context.request.safety_identifier,
         trace=context.request.trace,
         actor=context.request.actor,
         context=context.context,

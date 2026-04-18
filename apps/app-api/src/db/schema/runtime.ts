@@ -40,6 +40,7 @@ export const requestExecution = runtime.table(
     idempotencyKey: text("idempotency_key"),
     requestFingerprintSha256: text("request_fingerprint_sha256"),
     traceId: text("trace_id").notNull(),
+    safetyIdentifier: text("safety_identifier"),
     requestedCapability: text("requested_capability"),
     requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
     resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
@@ -102,6 +103,7 @@ export const requestObservabilityFact = runtime.table(
   {
     requestId: text("request_id").primaryKey(),
     traceId: text("trace_id").notNull(),
+    safetyIdentifier: text("safety_identifier"),
     conversationId: text("conversation_id").notNull(),
     surface: text("surface").notNull(),
     principalType: text("principal_type").notNull(),
