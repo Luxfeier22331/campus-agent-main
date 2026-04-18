@@ -1252,7 +1252,7 @@ def _chunks_could_merge_for_validation(
         return False
     if str(current_metadata.get("unit_type") or "") != str(neighbor_metadata.get("unit_type") or ""):
         return False
-    if getattr(current, "acl_level", None) != getattr(neighbor, "acl_level", None):
+    if getattr(current, "visibility_level", None) != getattr(neighbor, "visibility_level", None):
         return False
     for field_name in ("title", "policy_doc_no"):
         if current_metadata.get(field_name) != neighbor_metadata.get(field_name):

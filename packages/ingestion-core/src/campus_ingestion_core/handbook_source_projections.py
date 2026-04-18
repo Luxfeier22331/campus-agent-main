@@ -5,7 +5,11 @@ import hashlib
 import json
 from pathlib import Path
 
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput, load_metadata_from_bytes
+from campus_ingestion_core.campusrag_ingestion_support import (
+    DocumentImportInput,
+    apply_authorization_projection_metadata,
+    load_metadata_from_bytes,
+)
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units, validate_handbook_manifest_title
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import build_processed_artifact_key
@@ -164,6 +168,12 @@ def build_handbook_projection_import_documents(
         )
         metadata = load_metadata_from_bytes(document_units_bytes)
         metadata["title"] = target_title
+        apply_authorization_projection_metadata(
+            metadata,
+            entitlement_groups=manifest_document.resolved_entitlement_groups(),
+            visibility_scope=manifest_document.resolved_visibility_scope(),
+            visibility_level=manifest_document.resolved_visibility_level(),
+        )
         metadata["status"] = manifest_document.status
         documents.append(
             DocumentImportInput(
@@ -178,7 +188,7 @@ def build_handbook_projection_import_documents(
                 is_current=False,
                 corpus=projection.target_corpus,
                 collection=projection.target_collection,
-                campus_scope=manifest_document.campus_scope,
+                visibility_scope=manifest_document.resolved_visibility_scope(),
                 status=manifest_document.status,
                 raw_path=None,
                 raw_source_uri=raw_asset_record.raw_source_uri,

@@ -4,7 +4,10 @@ import argparse
 from pathlib import Path
 from typing import Callable
 
+import httpx
+
 from campus_contracts import ErrorInfo, EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
+from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
 from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
@@ -40,6 +43,23 @@ def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Pa
 
 
 def build_curriculum_live_executor(
+    *,
+    settings: AppApiEvalClientSettings | None = None,
+    env: dict[str, str] | None = None,
+    default_timeout_seconds: float | None = None,
+    client: httpx.Client | None = None,
+) -> Callable[[GoldenCase], ExecutionResult]:
+    return build_app_api_curriculum_live_executor(
+        settings=settings
+        or AppApiEvalClientSettings.from_env(
+            env,
+            default_timeout_seconds=default_timeout_seconds or 15.0,
+        ),
+        client=client,
+    )
+
+
+def build_legacy_curriculum_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
     delegate: Delegate = delegate_to_rag_agent,
@@ -94,6 +114,28 @@ def build_curriculum_live_executor(
     return _execute
 
 
+def build_app_api_curriculum_live_executor(
+    *,
+    settings: AppApiEvalClientSettings,
+    client: httpx.Client | None = None,
+) -> Callable[[GoldenCase], ExecutionResult]:
+    app_api_client = AppApiEvalClient(settings=settings, client=client)
+    legacy_executor = build_legacy_curriculum_live_executor()
+
+    def _execute(case: GoldenCase) -> ExecutionResult:
+        failure_mode = str(case.metadata.get("failure_mode") or "").strip()
+        if failure_mode:
+            return legacy_executor(case)
+        execution = app_api_client.execute_knowledge_request(case=case)
+        return ExecutionResult(
+            response=execution.response,
+            observed_trace=execution.observed_trace,
+            request_correlation=execution.request_correlation,
+        )
+
+    return _execute
+
+
 def _build_deterministic_error_response(
     request: SpecialistRequest,
     *,
@@ -133,7 +175,10 @@ def build_curriculum_live_profile(env: dict[str, str] | None = None) -> Benchmar
         policy_path=CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH,
         http_settings=http_settings,
         cases_factory=lambda: (*curriculum_release_gate_cases(), *curriculum_error_gate_cases()),
-        executor_factory=build_curriculum_live_executor,
+        executor_factory=lambda: build_curriculum_live_executor(
+            env=env,
+            default_timeout_seconds=http_settings.read_timeout_seconds,
+        ),
         supplemental_adapters_factory=lambda: (
             build_ragas_supplemental_adapter_from_env(env, http_settings=http_settings),
         ),

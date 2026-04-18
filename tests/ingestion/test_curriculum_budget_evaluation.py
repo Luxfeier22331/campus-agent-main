@@ -28,8 +28,8 @@ def _make_curriculum_record(*, document_id: str, version_id: str, title: str) ->
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version="curriculum_plan_cleaning_v1",
-        acl_groups=("students",),
-        campus_scope="main",
+        entitlement_groups=("students",),
+        visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
         parser_version="raw-online-ocr-v1",
@@ -254,6 +254,8 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
         self.assertIn("经济学拔尖人才创新班人才培养方案", runtime_titles)
         self.assertTrue(all(document.probe_cases for document in documents))
         self.assertTrue(all(document.tier == "runtime" for document in documents))
+        self.assertTrue(all(document.record.visibility_level == "public" for document in documents))
+        self.assertTrue(all(document.record.visibility_scope is None for document in documents))
 
     def test_historical_curriculum_budget_documents_require_explicit_opt_in(self) -> None:
         documents = load_historical_curriculum_budget_evaluation_documents()

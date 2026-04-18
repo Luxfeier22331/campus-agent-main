@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from pathlib import Path
+import re
 from typing import Literal
 
 from campus_contracts import EvidenceSource, KnowledgeScope
@@ -12,27 +14,37 @@ from campus_evals.models import ALLOWED_CASE_SPLITS, CaseSplit
 HybridQueryCategory = Literal[
     "article_number_exact_match",
     "policy_title_exact_match",
+    "policy_alias_targeted",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
     "short_fact_section",
     "table_retrieval",
     "needs_clarification",
-    "acl_filter",
-    "campus_scope_filter",
+    "restricted_entitlement_filter",
+    "restricted_visibility_scope_filter",
     "no_hit",
 ]
 ALLOWED_HYBRID_QUERY_CATEGORIES = (
     "article_number_exact_match",
     "policy_title_exact_match",
+    "policy_alias_targeted",
     "fixed_phrase_sparse_win",
     "semantic_dense_win",
     "short_fact_section",
     "table_retrieval",
     "needs_clarification",
-    "acl_filter",
-    "campus_scope_filter",
+    "restricted_entitlement_filter",
+    "restricted_visibility_scope_filter",
     "no_hit",
 )
+ALLOWED_HYBRID_QUERY_SCOPE_KEYS = (
+    "entitlement_groups",
+    "visibility_scope",
+)
+FixtureValidationSeverity = Literal["warn", "error"]
+_QRELS_QUERY_ASK_CUES = frozenset({"多少", "几年", "怎么", "如何", "安排", "什么", "哪些"})
+_QRELS_WHITESPACE_RE = re.compile(r"\s+")
+_PROGRAM_FAMILY_MEMBERSHIP_CUES = ("有哪些", "有哪几个", "都有哪些", "包括哪些")
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +126,11 @@ class RetrievalCaseMetrics:
     recall_at_5: float
     precision_at_5: float
     mrr_at_5: float
+    doc_hit_at_1: float
+    doc_hit_at_3: float
+    doc_recall_at_5: float
+    doc_precision_at_5: float
+    doc_mrr_at_5: float
     forbidden_hit: bool
 
 
@@ -125,6 +142,11 @@ class RetrievalMetricSummary:
     recall_at_5: float
     precision_at_5: float
     mrr_at_5: float
+    doc_hit_at_1: float
+    doc_hit_at_3: float
+    doc_recall_at_5: float
+    doc_precision_at_5: float
+    doc_mrr_at_5: float
     forbidden_hit_rate: float
     by_split: dict[str, "RetrievalMetricSummary"] = field(default_factory=dict)
 
@@ -173,19 +195,33 @@ def validate_retrieval_hybrid_query_fixture(
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     documents = tuple(manifest.get("documents") or ())
     titles = tuple(_optional_string(item.get("title")) or "" for item in documents)
-    manifest_has_acl = any(bool(item.get("acl_groups")) for item in documents)
-    manifest_has_campus_scope = any(bool(item.get("campus_scope")) for item in documents)
+    manifest_has_entitlement_projection = any(
+        bool(item.get("entitlement_groups"))
+        for item in documents
+    )
+    manifest_has_visibility_scope = any(
+        item.get("visibility_scope") is not None
+        for item in documents
+    )
 
     errors: list[str] = []
     scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
     for case in dataset.cases:
-        if (case.category == "acl_filter" or case.scope.get("acl_groups")) and not manifest_has_acl:
+        if (
+            case.category == "restricted_entitlement_filter"
+            or case.scope.get("entitlement_groups")
+        ) and not manifest_has_entitlement_projection:
             errors.append(
-                f"case {case.case_id} requires ACL scope, but the manifest has no ACL-bearing {scope_label} documents"
+                f"case {case.case_id} requires entitlement scope, but the manifest has no "
+                f"entitlement-projected {scope_label} documents"
             )
-        if (case.category == "campus_scope_filter" or case.scope.get("campus_scope")) and not manifest_has_campus_scope:
+        if (
+            case.category == "restricted_visibility_scope_filter"
+            or case.scope.get("visibility_scope")
+        ) and not manifest_has_visibility_scope:
             errors.append(
-                f"case {case.case_id} requires campus_scope, but the manifest has no campus-scoped {scope_label} documents"
+                f"case {case.case_id} requires visibility_scope, but the manifest has no "
+                f"visibility-scoped {scope_label} documents"
             )
         if case.category in {"policy_title_exact_match", "fixed_phrase_sparse_win"} and not _case_is_grounded_in_titles(
             case,
@@ -195,6 +231,186 @@ def validate_retrieval_hybrid_query_fixture(
                 f"case {case.case_id} category {case.category} is not grounded in any current {scope_label} title keyword"
             )
     return tuple(errors)
+
+
+def validate_retrieval_qrels_fixture(
+    path: str | Path,
+    *,
+    manifest_path: str | Path,
+    ambiguity_severity: FixtureValidationSeverity = "warn",
+) -> tuple[str, ...]:
+    dataset = load_retrieval_qrels_dataset(path)
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    documents = tuple(manifest.get("documents") or ())
+    scope_label = f"{dataset.scope.corpus}/{dataset.scope.collection}"
+
+    issues: list[str] = []
+    for case in dataset.cases:
+        family_alias_issue = _find_course_family_alias_qrels_issue(case)
+        if family_alias_issue is not None:
+            issues.append(f"{ambiguity_severity}: {family_alias_issue}")
+        program_family_alias_issue = _find_program_family_alias_qrels_issue(case)
+        if program_family_alias_issue is not None:
+            issues.append(f"{ambiguity_severity}: {program_family_alias_issue}")
+        soft_personalization_issue = _find_soft_personalization_qrels_issue(case)
+        if soft_personalization_issue is not None:
+            issues.append(f"{ambiguity_severity}: {soft_personalization_issue}")
+        matched_titles = _find_ambiguous_manifest_title_matches(case.query, documents=documents)
+        if len(matched_titles) < 2 or not case.expected_sources:
+            continue
+        issues.append(
+            (
+                f"{ambiguity_severity}: case {case.case_id} query {case.query!r} ambiguously matches "
+                f"{len(matched_titles)} current {scope_label} titles "
+                f"({', '.join(item.title for item in matched_titles[:3])}); canonical qrels must not lock this "
+                f"to a single retrieval truth. Move it to a needs_clarification workflow case or diagnostic fixture."
+            )
+        )
+    return tuple(issues)
+
+
+def _find_course_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if not any(alias in normalized_query for alias in _load_course_family_aliases()):
+        return None
+    if not any(cue in case.query for cue in ("哪些专业要上", "包括哪些课", "哪些课", "谁要上", "第几学期开", "什么学期开", "哪学期开", "开设学期")):
+        return None
+    if not case.expected_sources:
+        return None
+    if len(case.expected_sources) != 1:
+        return None
+    expected = case.expected_sources[0]
+    if expected.doc_id != "curriculum:中央民族大学通识课程思想政治理论课教学计划":
+        return None
+    return (
+        f"case {case.case_id} query {case.query!r} uses course-family alias truth; canonical qrels must not lock this "
+        "to a single-course or single-doc retrieval truth. Move it to a family-aware completed case or needs_clarification fixture."
+    )
+
+
+def _find_program_family_alias_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if not any(cue in normalized_query for cue in _PROGRAM_FAMILY_MEMBERSHIP_CUES):
+        return None
+    if not any(any(alias in normalized_query for alias in aliases) for aliases in _load_program_family_aliases()):
+        return None
+    if not case.expected_sources:
+        return None
+    return (
+        f"case {case.case_id} query {case.query!r} uses program-family alias truth; canonical qrels must not lock this "
+        "to a single program doc truth. Move it to a family-aware completed case or needs_clarification fixture."
+    )
+
+
+def _find_soft_personalization_qrels_issue(case: RetrievalQrelsCase) -> str | None:
+    normalized_query = _fixture_query_key(case.query)
+    if len(case.expected_sources) != 1:
+        return None
+    if not _request_uses_soft_personalization_only(case.request_overrides):
+        return None
+    if not _query_uses_family_alias(normalized_query):
+        return None
+
+    return (
+        f"case {case.case_id} query {case.query!r} uses soft personalization alone; canonical qrels must not let "
+        "recent_goal, confirmed_slot_terms, or profile memory collapse family alias ambiguity into single-doc truth."
+    )
+
+
+def _request_uses_soft_personalization_only(request_overrides: dict[str, object]) -> bool:
+    if not isinstance(request_overrides, dict):
+        return False
+    has_soft_personalization = _mapping_contains_non_empty_key(
+        request_overrides,
+        {"recent_goal", "confirmed_slot_terms", "confirmed_slots", "profile_memory"},
+    )
+    if not has_soft_personalization:
+        return False
+    if _mapping_contains_non_empty_key(request_overrides, {"verified_major"}):
+        return False
+    actor = request_overrides.get("actor")
+    if isinstance(actor, dict):
+        actor_major = actor.get("major")
+        if isinstance(actor_major, str) and actor_major.strip():
+            return False
+    return True
+
+
+def _mapping_contains_non_empty_key(payload: object, keys: set[str]) -> bool:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and _value_is_non_empty(value):
+                return True
+            if _mapping_contains_non_empty_key(value, keys):
+                return True
+        return False
+    if isinstance(payload, (list, tuple)):
+        return any(_mapping_contains_non_empty_key(item, keys) for item in payload)
+    return False
+
+
+def _value_is_non_empty(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_value_is_non_empty(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_value_is_non_empty(item) for item in value)
+    return value is not None
+
+
+def _query_uses_family_alias(normalized_query: str) -> bool:
+    if any(alias in normalized_query for alias in _load_course_family_aliases()):
+        return True
+    return any(any(alias in normalized_query for alias in aliases) for aliases in _load_program_family_aliases())
+
+
+@lru_cache(maxsize=1)
+def _load_course_family_aliases() -> tuple[str, ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "course_facts"
+        / "alias-governance.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    aliases: list[str] = []
+    for item in payload.get("entities", ()):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("entity_type", "")).strip() != "course_family":
+            continue
+        for alias in item.get("aliases", ()):
+            if isinstance(alias, str) and alias.strip():
+                aliases.append(alias.strip())
+    return tuple(dict.fromkeys(aliases))
+
+
+@lru_cache(maxsize=1)
+def _load_program_family_aliases() -> tuple[tuple[str, ...], ...]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "program_family_facts"
+        / "family-governance.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    aliases: list[tuple[str, ...]] = []
+    for item in payload.get("families", ()):
+        if not isinstance(item, dict):
+            continue
+        match_aliases = tuple(
+            value.strip()
+            for value in item.get("match_aliases", ())
+            if isinstance(value, str) and value.strip()
+        )
+        if match_aliases:
+            aliases.append(match_aliases)
+    return tuple(aliases)
 
 
 def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
@@ -219,6 +435,9 @@ def evaluate_retrieval_case(
     ranked_sources = tuple(sources)
     relevant_sources = case.expected_sources
     relevant_total = len(relevant_sources)
+    relevant_doc_ids = tuple(dict.fromkeys(source_ref.doc_id for source_ref in relevant_sources))
+    ranked_doc_sources = _dedupe_sources_by_doc_id(ranked_sources)
+    relevant_doc_total = len(relevant_doc_ids)
     forbidden_hit = any(
         _matches_expected(source_ref, source)
         for source_ref in case.forbidden_sources
@@ -235,24 +454,62 @@ def evaluate_retrieval_case(
             recall_at_5=empty_success,
             precision_at_5=empty_success,
             mrr_at_5=empty_success,
+            doc_hit_at_1=empty_success,
+            doc_hit_at_3=empty_success,
+            doc_recall_at_5=empty_success,
+            doc_precision_at_5=empty_success,
+            doc_mrr_at_5=empty_success,
             forbidden_hit=forbidden_hit,
         )
 
     def hit_at(limit: int) -> float:
-        return 1.0 if any(_matches_expected(source_ref, source) for source in ranked_sources[:limit] for source_ref in relevant_sources) else 0.0
+        return (
+            1.0
+            if any(
+                _matches_expected(source_ref, source)
+                for source in ranked_sources[:limit]
+                for source_ref in relevant_sources
+            )
+            else 0.0
+        )
+
+    def doc_hit_at(limit: int) -> float:
+        return (
+            1.0
+            if any(
+                source.doc_id == relevant_doc_id
+                for source in ranked_doc_sources[:limit]
+                for relevant_doc_id in relevant_doc_ids
+            )
+            else 0.0
+        )
 
     matched_within_5 = {
         _source_identity(source_ref)
         for source_ref in relevant_sources
         if any(_matches_expected(source_ref, source) for source in ranked_sources[:5])
     }
+    matched_doc_ids_within_5 = {
+        relevant_doc_id
+        for relevant_doc_id in relevant_doc_ids
+        if any(source.doc_id == relevant_doc_id for source in ranked_doc_sources[:5])
+    }
     relevant_hits_within_5 = len(matched_within_5)
     precision_denominator = min(len(ranked_sources), 5)
+    doc_precision_denominator = min(len(ranked_doc_sources), 5)
     first_relevant_rank = next(
         (
             index
             for index, source in enumerate(ranked_sources[:5], start=1)
             if any(_matches_expected(source_ref, source) for source_ref in relevant_sources)
+        ),
+        None,
+    )
+    first_relevant_doc_rank = next(
+        (
+            index
+            for index, source in enumerate(ranked_doc_sources[:5], start=1)
+            if source.doc_id in matched_doc_ids_within_5
         ),
         None,
     )
@@ -264,6 +521,15 @@ def evaluate_retrieval_case(
         recall_at_5=(relevant_hits_within_5 / relevant_total) if relevant_total else 0.0,
         precision_at_5=(relevant_hits_within_5 / precision_denominator) if precision_denominator else 0.0,
         mrr_at_5=(1.0 / first_relevant_rank) if first_relevant_rank is not None else 0.0,
+        doc_hit_at_1=doc_hit_at(1),
+        doc_hit_at_3=doc_hit_at(3),
+        doc_recall_at_5=(len(matched_doc_ids_within_5) / relevant_doc_total) if relevant_doc_total else 0.0,
+        doc_precision_at_5=(
+            len(matched_doc_ids_within_5) / doc_precision_denominator
+        )
+        if doc_precision_denominator
+        else 0.0,
+        doc_mrr_at_5=(1.0 / first_relevant_doc_rank) if first_relevant_doc_rank is not None else 0.0,
         forbidden_hit=forbidden_hit,
     )
 
@@ -287,6 +553,11 @@ def _summarize_retrieval_metrics(
             recall_at_5=0.0,
             precision_at_5=0.0,
             mrr_at_5=0.0,
+            doc_hit_at_1=0.0,
+            doc_hit_at_3=0.0,
+            doc_recall_at_5=0.0,
+            doc_precision_at_5=0.0,
+            doc_mrr_at_5=0.0,
             forbidden_hit_rate=0.0,
             by_split={},
         )
@@ -297,6 +568,11 @@ def _summarize_retrieval_metrics(
         recall_at_5=_average(item.recall_at_5 for item in metric_items),
         precision_at_5=_average(item.precision_at_5 for item in metric_items),
         mrr_at_5=_average(item.mrr_at_5 for item in metric_items),
+        doc_hit_at_1=_average(item.doc_hit_at_1 for item in metric_items),
+        doc_hit_at_3=_average(item.doc_hit_at_3 for item in metric_items),
+        doc_recall_at_5=_average(item.doc_recall_at_5 for item in metric_items),
+        doc_precision_at_5=_average(item.doc_precision_at_5 for item in metric_items),
+        doc_mrr_at_5=_average(item.doc_mrr_at_5 for item in metric_items),
         forbidden_hit_rate=_average(1.0 if item.forbidden_hit else 0.0 for item in metric_items),
         by_split=(
             {
@@ -334,11 +610,22 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
 
 
 def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryCase:
+    category = str(payload["category"])
+    scope = dict(payload.get("scope") or {})
+    unsupported_scope_keys = tuple(
+        key
+        for key in scope
+        if key not in ALLOWED_HYBRID_QUERY_SCOPE_KEYS
+    )
+    if unsupported_scope_keys:
+        joined = ", ".join(unsupported_scope_keys)
+        raise ValueError(f"unsupported hybrid fixture scope keys: {joined}")
+
     return RetrievalHybridQueryCase(
         case_id=str(payload["case_id"]),
-        category=str(payload["category"]),
+        category=category,
         query=str(payload["query"]),
-        scope=dict(payload.get("scope") or {}),
+        scope=scope,
         expected_keywords=tuple(str(item) for item in payload.get("expected_keywords") or ()),
         forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
         notes=str(payload.get("notes") or ""),
@@ -368,8 +655,89 @@ def _case_is_grounded_in_titles(case: RetrievalHybridQueryCase, *, titles: tuple
     return any(term in title for title in titles for term in normalized_terms)
 
 
+@dataclass(frozen=True, slots=True)
+class _ManifestTitleMatch:
+    doc_id: str
+    title: str
+
+
+def _find_ambiguous_manifest_title_matches(
+    query: str,
+    *,
+    documents: tuple[dict[str, object], ...],
+) -> tuple[_ManifestTitleMatch, ...]:
+    query_key = _fixture_query_key(query)
+    if not _query_can_lock_ambiguous_title_truth(query_key):
+        return ()
+
+    matches: list[_ManifestTitleMatch] = []
+    for item in documents:
+        title = _manifest_document_title(item)
+        if not title:
+            continue
+        if any(query_key in title_key for title_key in _fixture_title_keys(title)):
+            matches.append(
+                _ManifestTitleMatch(
+                    doc_id=str(item.get("document_id") or "").strip(),
+                    title=title,
+                )
+            )
+    return tuple(dict.fromkeys(matches))
+
+
+def _manifest_document_title(payload: dict[str, object]) -> str:
+    title = _optional_string(payload.get("title"))
+    if title is not None:
+        return title
+    doc_id = _optional_string(payload.get("document_id"))
+    if doc_id is None:
+        return ""
+    return doc_id.split(":", 1)[-1]
+
+
+def _query_can_lock_ambiguous_title_truth(query_key: str) -> bool:
+    if not query_key:
+        return False
+    if any(cue in query_key for cue in _QRELS_QUERY_ASK_CUES):
+        return False
+    cjk_length = sum(1 for char in query_key if _is_cjk_char(char))
+    return 0 < cjk_length <= 8
+
+
+def _fixture_query_key(text: str) -> str:
+    normalized = _QRELS_WHITESPACE_RE.sub(" ", text).strip().lower()
+    return "".join(char for char in normalized if char.isalnum() or _is_cjk_char(char))
+
+
+def _fixture_title_keys(text: str) -> tuple[str, ...]:
+    key = _fixture_query_key(text)
+    return (key,) if key else ()
+
+
+def _is_cjk_char(char: str) -> bool:
+    code_point = ord(char)
+    return (
+        0x3400 <= code_point <= 0x4DBF
+        or 0x4E00 <= code_point <= 0x9FFF
+        or 0xF900 <= code_point <= 0xFAFF
+    )
+
+
 def _source_identity(source_ref: RetrievalQrelsSourceRef) -> tuple[str, str | None, str | None]:
     return (source_ref.doc_id, source_ref.version_id, source_ref.chunk_id)
+
+
+def _dedupe_sources_by_doc_id(
+    sources: tuple[EvidenceSource, ...] | list[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    deduped: list[EvidenceSource] = []
+    seen_doc_ids: set[str] = set()
+    for source in sources:
+        if source.doc_id in seen_doc_ids:
+            continue
+        deduped.append(source)
+        seen_doc_ids.add(source.doc_id)
+    return tuple(deduped)
 
 
 def _matches_expected(source_ref: RetrievalQrelsSourceRef, source: EvidenceSource) -> bool:
@@ -397,6 +765,22 @@ def load_retrieval_benchmark_run(path: str | Path) -> RetrievalBenchmarkRun:
     )
 
 
+def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
+    dataset = load_retrieval_qrels_dataset(path)
+    repo_root = Path(__file__).resolve().parents[4]
+    manifest_path = (
+        repo_root
+        / "configs"
+        / "ingestion"
+        / dataset.scope.corpus
+        / dataset.scope.collection
+        / "split-manifest.v1.json"
+    )
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"unable to resolve split manifest for {dataset.scope}: {manifest_path}")
+    return manifest_path
+
+
 def evaluate_retrieval_run(
     dataset: RetrievalQrelsDataset,
     run: RetrievalBenchmarkRun,
@@ -415,7 +799,6 @@ def evaluate_retrieval_run(
                     version_id=source.version_id or "",
                     chunk_id=source.chunk_id or "",
                     anchor={},
-                    acl_level="public",
                     canonical_url="",
                     latest_url="",
                     source_channel="pdf_ocr",
@@ -439,6 +822,11 @@ def render_retrieval_summary_text(summary: RetrievalMetricSummary) -> str:
         f"recall@5: {summary.recall_at_5:.3f}",
         f"precision@5: {summary.precision_at_5:.3f}",
         f"mrr@5: {summary.mrr_at_5:.3f}",
+        f"doc_hit@1: {summary.doc_hit_at_1:.3f}",
+        f"doc_hit@3: {summary.doc_hit_at_3:.3f}",
+        f"doc_recall@5: {summary.doc_recall_at_5:.3f}",
+        f"doc_precision@5: {summary.doc_precision_at_5:.3f}",
+        f"doc_mrr@5: {summary.doc_mrr_at_5:.3f}",
         f"forbidden_hit_rate: {summary.forbidden_hit_rate:.3f}",
     ]
     if summary.by_split:
@@ -451,6 +839,11 @@ def render_retrieval_summary_text(summary: RetrievalMetricSummary) -> str:
                 f"recall@5={split_summary.recall_at_5:.3f}, "
                 f"precision@5={split_summary.precision_at_5:.3f}, "
                 f"mrr@5={split_summary.mrr_at_5:.3f}, "
+                f"doc_hit@1={split_summary.doc_hit_at_1:.3f}, "
+                f"doc_hit@3={split_summary.doc_hit_at_3:.3f}, "
+                f"doc_recall@5={split_summary.doc_recall_at_5:.3f}, "
+                f"doc_precision@5={split_summary.doc_precision_at_5:.3f}, "
+                f"doc_mrr@5={split_summary.doc_mrr_at_5:.3f}, "
                 f"forbidden_hit_rate={split_summary.forbidden_hit_rate:.3f}"
             )
     return "\n".join(lines)

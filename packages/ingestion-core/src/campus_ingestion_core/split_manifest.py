@@ -22,8 +22,6 @@ class SplitManifestDocument:
     entitlement_groups: tuple[str, ...] = field(default_factory=tuple)
     visibility_scope: str | None = None
     visibility_level: str = ""
-    acl_groups: tuple[str, ...] = field(default_factory=tuple)
-    campus_scope: str | None = None
     status: str = "active"
 
     def __post_init__(self) -> None:
@@ -39,21 +37,9 @@ class SplitManifestDocument:
             raise ValueError("source_uri must not be blank")
         if not self.status:
             raise ValueError("status is required")
-        entitlement_groups = self.entitlement_groups or self.acl_groups
-        acl_groups = self.acl_groups or self.entitlement_groups
-        visibility_scope = self.visibility_scope or self.campus_scope
-        campus_scope = self.campus_scope or self.visibility_scope
         visibility_level = self.visibility_level.strip() or (
-            "restricted" if entitlement_groups else "public"
+            "restricted" if self.entitlement_groups else "public"
         )
-        if entitlement_groups != self.entitlement_groups:
-            object.__setattr__(self, "entitlement_groups", entitlement_groups)
-        if acl_groups != self.acl_groups:
-            object.__setattr__(self, "acl_groups", acl_groups)
-        if visibility_scope != self.visibility_scope:
-            object.__setattr__(self, "visibility_scope", visibility_scope)
-        if campus_scope != self.campus_scope:
-            object.__setattr__(self, "campus_scope", campus_scope)
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
 
@@ -97,6 +83,7 @@ def load_split_manifest(
     expected_collection: str | None = None,
 ) -> SplitManifest:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    _assert_manifest_uses_canonical_authorization_projection(payload)
     corpus = str(payload.get("corpus") or "")
     collection = str(payload.get("collection") or "")
     documents = tuple(
@@ -107,17 +94,9 @@ def load_split_manifest(
             page_end=int(item["page_end"]),
             source_uri=_optional_string(item.get("source_uri")),
             handbook_section=_optional_string(item.get("handbook_section")),
-            entitlement_groups=tuple(
-                _optional_string(value) or ""
-                for value in list(item.get("entitlement_groups") or [])
-                if _optional_string(value)
-            ),
-            visibility_scope=_optional_string(item.get("visibility_scope")),
+            entitlement_groups=_resolved_manifest_entitlement_groups(item),
+            visibility_scope=_resolved_manifest_visibility_scope(item),
             visibility_level=_optional_string(item.get("visibility_level")) or "",
-            acl_groups=tuple(
-                _optional_string(value) or "" for value in list(item.get("acl_groups") or []) if _optional_string(value)
-            ),
-            campus_scope=_optional_string(item.get("campus_scope")),
             status=_optional_string(item.get("status")) or "active",
         )
         for item in list(payload.get("documents") or [])
@@ -142,6 +121,47 @@ def load_split_manifest(
             f"expected {expected_collection}, got {manifest.collection}"
         )
     return manifest
+
+
+def _assert_manifest_uses_canonical_authorization_projection(payload: dict[str, object]) -> None:
+    documents = payload.get("documents") or []
+    if not isinstance(documents, list):
+        return
+    for item in documents:
+        if not isinstance(item, dict):
+            continue
+        unsupported_keys = _collect_unsupported_authorization_projection_keys(item)
+        if unsupported_keys:
+            joined = ", ".join(unsupported_keys)
+            raise ValueError(
+                f"split manifest contains unsupported authorization projection keys: {joined}"
+            )
+
+
+def _collect_unsupported_authorization_projection_keys(payload: dict[str, object]) -> tuple[str, ...]:
+    supported_keys = {
+        "entitlement_groups",
+        "visibility_scope",
+        "visibility_level",
+        "policy_projection_version",
+    }
+    return tuple(
+        key
+        for key in payload
+        if _looks_like_authorization_projection_key(key)
+        and key not in supported_keys
+    )
+
+
+def _looks_like_authorization_projection_key(key: str) -> bool:
+    return (
+        key.startswith("entitlement_")
+        or key.startswith("visibility_")
+        or key.startswith("policy_projection_")
+        or key.endswith("_groups")
+        or key.endswith("_scope")
+        or key.endswith("_level")
+    )
 
 
 def _validate_non_overlapping_page_ranges(documents: tuple[SplitManifestDocument, ...]) -> None:
@@ -169,6 +189,25 @@ def _optional_string(value: object) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    normalized: list[str] = []
+    for item in value:
+        text = _optional_string(item)
+        if text is not None:
+            normalized.append(text)
+    return tuple(normalized)
+
+
+def _resolved_manifest_entitlement_groups(item: dict[str, object]) -> tuple[str, ...]:
+    return _string_tuple(item.get("entitlement_groups"))
+
+
+def _resolved_manifest_visibility_scope(item: dict[str, object]) -> str | None:
+    return _optional_string(item.get("visibility_scope"))
 
 
 def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:

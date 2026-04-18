@@ -8,7 +8,8 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
-from campus_ingestion_core.local_rebuild import _index_replayed_documents
+from campus_ingestion_core.local_rebuild import RebuildRequest, _index_replayed_documents
+from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.registry import DocumentRegistryRecord
 from campus_ingestion_core.local_rebuild import replay_provider_response_rebuild
@@ -135,8 +136,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                     content_hash=f"sha256:{document_id}",
                     corpus="regulations",
                     collection="student_handbook",
-                    acl_groups=("students",),
-                    campus_scope=None,
+                    entitlement_groups=("students",),
                     status="active",
                     ingestion_timestamp="2026-03-26T10:00:00+00:00",
                     parser_version="paddleocr-vl-1.5",
@@ -204,8 +204,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         content_hash=f"sha256:{document_id}",
                         corpus="regulations",
                         collection="student_handbook",
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
                         status="active",
                         ingestion_timestamp="2026-03-26T10:00:00+00:00",
                         parser_version="paddleocr-vl-1.5",
@@ -239,11 +238,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         chunk_order=1,
                         corpus="regulations",
                         collection="student_handbook",
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
+                        visibility_scope=None,
+                        visibility_level="restricted",
                         source_uri=f'https://campus.example/{document.metadata["document_id"]}',
                         source_chunk_id=None,
-                        acl_level="restricted",
                         anchor={"page_start": index + 1, "page_end": index + 1},
                         text=f'chunk text {index + 1}',
                         source_channel="pdf_ocr",
@@ -353,8 +352,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         content_hash=f'sha256:{document.metadata["document_id"]}',
                         corpus=document.corpus,
                         collection=document.collection,
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
                         status="active",
                         ingestion_timestamp="2026-03-26T10:00:00+00:00",
                         parser_version="paddleocr-vl-1.5",
@@ -376,11 +374,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         chunk_order=1,
                         corpus="regulations",
                         collection="student_handbook",
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
+                        visibility_scope=None,
+                        visibility_level="restricted",
                         source_uri="https://campus.example/handbook:test-001",
                         source_chunk_id=None,
-                        acl_level="restricted",
                         anchor={"page_start": 1, "page_end": 1},
                         text="handbook chunk",
                         source_channel="pdf_ocr",
@@ -399,11 +397,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         chunk_order=1,
                         corpus="campus_services",
                         collection="contact_directory",
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
+                        visibility_scope=None,
+                        visibility_level="restricted",
                         source_uri="https://campus.example/campus_services:contact_directory:test-001",
                         source_chunk_id=None,
-                        acl_level="restricted",
                         anchor={"page_start": 1, "page_end": 1},
                         text="contact chunk",
                         source_channel="pdf_ocr",
@@ -422,11 +420,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         chunk_order=1,
                         corpus="campus_services",
                         collection="service_catalog",
-                        acl_groups=("students",),
-                        campus_scope=None,
+                        entitlement_groups=("students",),
+                        visibility_scope=None,
+                        visibility_level="restricted",
                         source_uri="https://campus.example/campus_services:service_catalog:test-001",
                         source_chunk_id=None,
-                        acl_level="restricted",
                         anchor={"page_start": 1, "page_end": 1},
                         text="service chunk",
                         source_channel="pdf_ocr",
@@ -799,6 +797,88 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
 
             self.assertEqual(raw_asset_registry.list_by_scope("regulations", "student_handbook"), ())
 
+    def test_replay_provider_response_rebuild_writes_trace_events_when_trace_path_is_configured(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "documents": [
+                            {
+                                "document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                                "title": "普通高等学校学生管理规定",
+                                "handbook_section": "国家高等教育管理有关规定",
+                                "page_start": 1,
+                                "page_end": 2,
+                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "普通高等学校学生管理规定", block_id="p1-title", block_order=1),
+                        _provider_block("text", "第一条 学校坚持育人为本。", block_id="p1-body", block_order=2),
+                    ),
+                    _provider_page(
+                        _provider_block("text", "第二条 学生应当遵守校纪校规。", block_id="p2-body", block_order=1),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
+            trace_path = root / "trace" / "rebuild.jsonl"
+
+            with patch("campus_ingestion_core.local_rebuild._index_replayed_documents") as index_documents:
+                replay_provider_response_rebuild(
+                    env={
+                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                        "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                        "REBUILD_CORPUS": "regulations",
+                        "REBUILD_COLLECTION": "student_handbook",
+                        "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                        "RAW_VERSION_ID": "sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
+                        "REPLAY_SOURCE_PDF": "学生手册_2018.pdf",
+                        "IMPORT_REPORT_DIR": str(root / "reports"),
+                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                        "EMBEDDING_PROVIDER": "mock",
+                        "REBUILD_TRACE_JSONL_PATH": str(trace_path),
+                    },
+                    object_store=object_store,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                )
+
+            index_documents.assert_not_called()
+            events = [
+                json.loads(line)
+                for line in trace_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            event_pairs = {(event["stage"], event["event"]) for event in events}
+            self.assertIn(("replay.load_source_artifacts", "end"), event_pairs)
+            self.assertIn(("replay.build_documents", "end"), event_pairs)
+            self.assertIn(("replay.persist_documents", "end"), event_pairs)
+
     def test_replay_provider_response_rebuild_can_optionally_index_qdrant(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -914,7 +994,7 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         "manifest_version": "curriculum_plan_split_manifest_v1",
                         "corpus": "curriculum",
                         "collection": "curriculum_plan",
-                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "raw_asset_id": "asset:curriculum-plan-2022",
                         "documents": [
                             {
                                 "document_id": "curriculum:test-doc-001",
@@ -986,6 +1066,102 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
             self.assertTrue(any(key.endswith("/index-release.json") for key in upload_keys))
             self.assertTrue(any(key.endswith("/validation-summary.json") for key in upload_keys))
 
+    def test_replay_provider_response_rebuild_uses_raw_asset_source_pdf_when_request_omits_it(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-2022",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:test-doc-001",
+                                "title": "培养方案示例",
+                                "page_start": 1,
+                                "page_end": 1,
+                                "source_uri": "campus-agent://curriculum/curriculum_plan/docs/curriculum:test-doc-001",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            provider_lines = [
+                _provider_batch_line(
+                    _provider_page(
+                        _provider_block("doc_title", "培养方案示例", block_id="p1-title", block_order=1),
+                        _provider_block("text", "一、培养目标。", block_id="p1-body", block_order=2),
+                    ),
+                )
+            ]
+            provider_result_bytes = (
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in provider_lines) + "\n"
+            ).encode("utf-8")
+            object_store = _FakeObjectStore(provider_result_bytes=provider_result_bytes)
+            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_raw_assets.json"
+            )
+            raw_asset_registry.upsert(
+                RawAssetRecord(
+                    raw_asset_id="asset:curriculum-plan-2022",
+                    raw_version_id="sha256:curriculum-replay-001",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    raw_source_uri="s3://upstream/curriculum-plan-2022.pdf",
+                    content_hash="curriculum-replay-001",
+                    source_filename="curriculum-plan-2022.pdf",
+                    object_key=(
+                        "official_pdf/curriculum-plan/2022/sha256/curriculum-replay-001/"
+                        "capture/curriculum-plan-2022.pdf"
+                    ),
+                    ingestion_timestamp="2026-04-03T00:00:00+00:00",
+                    import_source="raw_online_ocr",
+                )
+            )
+
+            report = replay_provider_response_rebuild(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": SOURCE_BUCKET,
+                    "REBUILD_CORPUS": "curriculum",
+                    "REBUILD_COLLECTION": "curriculum_plan",
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "RAW_VERSION_ID": "sha256:curriculum-replay-001",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "EMBEDDING_PROVIDER": "mock",
+                },
+                request=RebuildRequest(
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    import_mode="provider_response_replay",
+                    raw_version_id="sha256:curriculum-replay-001",
+                ),
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.failed_count, 0)
+            self.assertEqual(
+                object_store.reads[0],
+                (
+                    SOURCE_BUCKET,
+                    "official_pdf/curriculum-plan/2022/sha256/"
+                    "curriculum-replay-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+                ),
+            )
+
     def test_replay_provider_response_rebuild_indexing_defers_to_record_chunk_profile(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1055,11 +1231,11 @@ class ProviderResultReplayRebuildTest(unittest.TestCase):
                         chunk_order=1,
                         corpus=record.corpus,
                         collection=record.collection,
-                        acl_groups=record.acl_groups,
-                        campus_scope=record.campus_scope,
+                        entitlement_groups=record.entitlement_groups,
+                        visibility_scope=record.visibility_scope,
+                        visibility_level="public",
                         source_uri=record.source_uri,
                         source_chunk_id=None,
-                        acl_level="public",
                         anchor={"page_start": 1, "page_end": 1},
                         text="captured chunk",
                         source_channel=record.source_channel,

@@ -3,7 +3,7 @@
   "corpus": "regulations",
   "collection": "student_handbook",
   "instructions": [
-    "只标注真实属于 student_handbook 主集合的制度文档，不把 campus service / ACL / campus_scope 样本混入 handbook qrels。",
+    "只标注真实属于 student_handbook 主集合的制度文档，不把 campus service / restricted visibility scope 样本混入 handbook qrels。",
     "对每条 query 先抓取 top-10 retrieval results，再人工审核。",
     "主相关 source 标记到 expected_sources，使用 grade=2。",
     "可接受相关 source 标记到 expected_sources，使用 grade=1。",
@@ -76,6 +76,28 @@
       "expected_sources": [],
       "forbidden_sources": [],
       "notes": "奖学金同主题制度区分。"
+    },
+    {
+      "case_id": "policy-alias-national-scholarship-article-nine",
+      "category": "policy_alias_targeted",
+      "split": "regression_locked",
+      "query": "国奖第九条里对论文和著作怎么要求的？",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "非正式简称 + 条款问法应命中《国家奖学金评审办法》，并避开综测制度。"
+    },
+    {
+      "case_id": "policy-alias-national-scholarship-author-affiliation",
+      "category": "policy_alias_targeted",
+      "split": "regression_locked",
+      "query": "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
+      "request_overrides": {},
+      "retrieved_sources": [],
+      "expected_sources": [],
+      "forbidden_sources": [],
+      "notes": "高词面污染国奖问法仍应锁定国奖制度，不应漂移到综测办法。"
     },
     {
       "case_id": "fixed-phrase-dormitory-lighting",

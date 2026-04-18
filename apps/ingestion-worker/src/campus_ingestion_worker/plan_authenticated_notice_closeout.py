@@ -19,14 +19,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--bundle-path", required=True)
     parser.add_argument("--manifest-path")
-    parser.add_argument("--attachment-blob-root")
     parser.add_argument("--site-id", required=True)
     parser.add_argument("--source-home-url", required=True)
+    parser.add_argument("--run-id", required=True)
     parser.add_argument("--corpus", default="campus_notices")
     parser.add_argument("--collection", default="internal_notice")
-    parser.add_argument("--entitlement-group", action="append", default=[])
     parser.add_argument("--visibility-scope", default="campus")
-    parser.add_argument("--run-id", required=True)
+    parser.add_argument(
+        "--entitlement-group",
+        action="append",
+        dest="entitlement_groups",
+        default=[],
+    )
     parser.add_argument("--shard-size", type=int, default=250)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--max-concurrency", type=int, default=8)
@@ -39,27 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    entitlement_groups = tuple(
-        str(item).strip()
-        for item in args.entitlement_group
-        if str(item).strip()
-    )
-    request_kwargs: dict[str, object] = {
-        "bundle_path": Path(args.bundle_path),
-        "export_manifest_path": (
-            Path(args.manifest_path) if args.manifest_path else None
-        ),
-        "attachment_blob_root": (
-            Path(args.attachment_blob_root) if args.attachment_blob_root else None
-        ),
-        "site_id": args.site_id,
-        "source_home_url": args.source_home_url,
-        "corpus": args.corpus,
-        "collection": args.collection,
-        "visibility_scope": args.visibility_scope,
-    }
-    if entitlement_groups:
-        request_kwargs["default_entitlement_groups"] = entitlement_groups
+    entitlement_groups = tuple(group.strip() for group in args.entitlement_groups if group.strip())
     service = AuthenticatedNoticeCloseoutService.from_env(
         planner=CloseoutPlanner(
             shard_size=args.shard_size,
@@ -67,7 +51,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     )
     summary = service.plan_run(
-        request=AuthenticatedNoticeImportRequest(**request_kwargs),
+        request=AuthenticatedNoticeImportRequest(
+            bundle_path=Path(args.bundle_path),
+            export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
+            site_id=args.site_id,
+            source_home_url=args.source_home_url,
+            corpus=args.corpus,
+            collection=args.collection,
+            default_entitlement_groups=(entitlement_groups or ("campus_members",)),
+            visibility_scope=args.visibility_scope,
+        ),
         run_id=args.run_id,
         max_concurrency=args.max_concurrency,
         notice_concurrency=args.notice_concurrency,
@@ -77,11 +70,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 
-__all__ = [
-    "AuthenticatedNoticeImportRequest",
-    "build_parser",
-    "main",
-]
+__all__ = ["build_parser", "main"]
 
 
 if __name__ == "__main__":

@@ -150,8 +150,6 @@ class IndexableChunk:
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
                 "policy_projection_version": self.policy_projection_version,
-                "acl_groups": list(self.acl_groups),
-                "campus_scope": self.campus_scope,
                 "source_uri": self.source_uri,
                 "canonical_url": self.canonical_url or self.source_uri,
                 "latest_url": self.latest_url or self.canonical_url or self.source_uri,

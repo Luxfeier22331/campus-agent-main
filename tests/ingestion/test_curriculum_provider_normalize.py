@@ -12,6 +12,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         structured_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=Path(fixture_path).read_bytes(),
             source_pdf="curriculum-plan-2022.pdf",
+            ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
         )
         return [
@@ -24,6 +25,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         structured_bytes = normalize_curriculum_provider_result(
             provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
             source_pdf="curriculum-plan.pdf",
+            ocr_provider="paddleocr_vl_service",
             ocr_model="PaddleOCR-VL-1.5",
         )
         return [
@@ -139,6 +141,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[8]["heading_level"], 3)
         self.assertEqual(rows[4]["row_type"], "page_number")
         self.assertEqual(rows[0]["schema_version"], "curriculum_layout_elements_v3")
+        self.assertEqual(rows[0]["ocr_provider"], "paddleocr_vl_service")
         self.assertEqual(rows[0]["source_pdf"], "curriculum-plan.pdf")
         self.assertEqual(rows[0]["page_start"], 1)
         self.assertEqual(rows[8]["page_start"], 2)

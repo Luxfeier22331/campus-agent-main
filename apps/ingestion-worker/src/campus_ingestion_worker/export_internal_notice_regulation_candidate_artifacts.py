@@ -105,7 +105,7 @@ def _build_local_snapshot_runtime(
         raise ValueError(
             "--documents-json, --source-truth-inventory-json, and --object-store-root must be provided together"
         )
-    registry = InMemoryDocumentRegistry.from_persisted_json_file(Path(documents_json))
+    registry = InMemoryDocumentRegistry.from_json_file(Path(documents_json))
     inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
     inventory_payload = json.loads(Path(source_truth_inventory_json).read_text(encoding="utf-8"))
     rows = inventory_payload.values() if isinstance(inventory_payload, dict) else inventory_payload

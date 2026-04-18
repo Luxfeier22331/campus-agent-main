@@ -398,11 +398,7 @@ def _resolve_rebuild_target_qdrant_bindings(
                     collection=projection.target_collection,
                 )
             )
-    if (
-        request.import_mode == "provider_response_replay"
-        and request.collection == "curriculum_plan"
-        and request.index_qdrant
-    ):
+    if request.import_mode == "provider_response_replay" and request.collection == "curriculum_plan":
         target_bindings.append(
             _resolve_target_qdrant_binding(
                 corpus="curriculum",

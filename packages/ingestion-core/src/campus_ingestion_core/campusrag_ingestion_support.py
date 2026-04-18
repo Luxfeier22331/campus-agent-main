@@ -76,7 +76,6 @@ class DocumentImportInput:
     is_current: bool = False
     corpus: str = ""
     collection: str = ""
-    campus_scope: str | None = None
     visibility_scope: str | None = None
     status: str = "active"
     raw_path: Path | None = None
@@ -153,6 +152,7 @@ class S3ObjectStoreWriter:
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         response = self._client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
+
     def _one_shot_client_for_zero_byte_payload(self):
         # Local MinIO can stall on the next reused connection after a zero-byte put_object.
         # Isolating empty writes to a throwaway client keeps the shared client pool healthy.
@@ -318,18 +318,15 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
     version_id = str(raw.get("version_id") or "")
     if not document_id or not version_id:
         raise ValueError("doc_id and version_id are required in OCR JSONL")
-    acl = raw.get("acl") or {}
+    _assert_canonical_row_authorization_metadata(raw)
     source = raw.get("source") or {}
     nested_metadata = raw.get("metadata") or {}
     nested_metadata_dict = nested_metadata if isinstance(nested_metadata, dict) else {}
     source_url = raw.get("source_url")
     if not isinstance(source_url, str) or not source_url.strip():
         source_url = nested_metadata_dict.get("source_url")
-    entitlement_groups = _resolve_row_entitlement_groups(raw, acl=acl)
-    visibility_scope = (
-        normalize_optional_text(raw.get("visibility_scope"))
-        or normalize_optional_text(raw.get("campus_scope"))
-    )
+    entitlement_groups = _resolve_row_entitlement_groups(raw)
+    visibility_scope = normalize_optional_text(raw.get("visibility_scope"))
     visibility_level = _resolve_row_visibility_level(
         raw=raw,
         entitlement_groups=entitlement_groups,
@@ -348,14 +345,12 @@ def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
         "source_pdf": normalize_optional_text(raw.get("source_pdf")),
         "raw_page_start": normalize_optional_int(raw.get("page_start")),
         "raw_page_end": normalize_optional_int(raw.get("page_end")),
-        "acl_groups": entitlement_groups,
         "semantic_content_hash": normalize_optional_text(nested_metadata_dict.get("semantic_content_hash")),
         "title": normalize_optional_text(nested_metadata_dict.get("title")),
         "page_family": normalize_optional_text(nested_metadata_dict.get("page_family")),
         "serving_intent": normalize_optional_text(nested_metadata_dict.get("serving_intent")),
         "content_role": normalize_optional_text(nested_metadata_dict.get("content_role")),
         "entitlement_groups": entitlement_groups,
-        "campus_scope": visibility_scope,
         "visibility_scope": visibility_scope,
         "visibility_level": visibility_level,
         "policy_projection_version": policy_projection_version,
@@ -390,10 +385,7 @@ def apply_authorization_projection_metadata(
 
 
 def _resolve_entitlement_groups(metadata: dict[str, object]) -> tuple[str, ...]:
-    entitlement_groups = _normalize_group_values(metadata.get("entitlement_groups"))
-    if entitlement_groups:
-        return entitlement_groups
-    return _normalize_group_values(metadata.get("acl_groups"))
+    return _normalize_group_values(metadata.get("entitlement_groups"))
 
 
 def _resolve_visibility_scope(
@@ -402,16 +394,11 @@ def _resolve_visibility_scope(
     document: DocumentImportInput,
     default_visibility_scope: str | None,
 ) -> str | None:
-    metadata_scope = (
-        normalize_optional_text(metadata.get("visibility_scope"))
-        or normalize_optional_text(metadata.get("campus_scope"))
-    )
+    metadata_scope = normalize_optional_text(metadata.get("visibility_scope"))
     if metadata_scope is not None:
         return metadata_scope
     if document.visibility_scope is not None:
         return document.visibility_scope
-    if document.campus_scope is not None:
-        return document.campus_scope
     return default_visibility_scope
 
 
@@ -444,15 +431,8 @@ def _normalize_group_values(value: object) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def _resolve_row_entitlement_groups(
-    raw: dict[str, object],
-    *,
-    acl: dict[str, object],
-) -> tuple[str, ...]:
-    entitlement_groups = _normalize_group_values(raw.get("entitlement_groups"))
-    if entitlement_groups:
-        return entitlement_groups
-    return _normalize_group_values(acl.get("allow_groups"))
+def _resolve_row_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:
+    return _normalize_group_values(raw.get("entitlement_groups"))
 
 
 def _resolve_row_visibility_level(
@@ -467,7 +447,8 @@ def _resolve_row_visibility_level(
 
 
 def _assert_canonical_row_authorization_metadata(raw: dict[str, object]) -> None:
-    return None
+    if raw.get("acl") is not None:
+        raise ValueError("legacy row authorization metadata is not allowed: acl")
 
 
 def persist_import_documents(
@@ -790,7 +771,7 @@ def collect_import_document_stats(
                         metadata=metadata,
                         content_hash=content_hash,
                         document=document,
-                        default_visibility_scope=resolved_default_scope,
+                        default_visibility_scope=default_visibility_scope,
                         parser_version=parser_version,
                         embedding_model=embedding_model,
                         cleaning_policy_version=cleaning_policy_version,
@@ -921,7 +902,7 @@ def collect_import_document_stats(
                 metadata=metadata,
                 content_hash=content_hash,
                 document=document,
-                default_visibility_scope=resolved_default_scope,
+                default_visibility_scope=default_visibility_scope,
                 parser_version=parser_version,
                 embedding_model=embedding_model,
                 cleaning_policy_version=cleaning_policy_version,
@@ -1170,8 +1151,6 @@ def _build_registry_record(
         collection=document.collection,
         cleaning_policy_version=cleaning_policy_version,
         entitlement_groups=entitlement_groups,
-        acl_groups=entitlement_groups,
-        campus_scope=visibility_scope,
         visibility_scope=visibility_scope,
         visibility_level=visibility_level,
         policy_projection_version=policy_projection_version,
@@ -1218,8 +1197,6 @@ def _assert_canonical_authorization_metadata(metadata: dict[str, object]) -> Non
 
 _SUPPORTED_AUTHORIZATION_METADATA_KEYS = frozenset(
     {
-        "acl_groups",
-        "campus_scope",
         "entitlement_groups",
         "visibility_scope",
         "visibility_level",
@@ -1280,6 +1257,8 @@ def _registry_record_needs_refresh(
     if existing.document_units_object_key != document_units_key:
         return True
     if existing.provider_response_object_key != provider_response_key:
+        return True
+    if existing.layout_elements_object_key != layout_elements_key:
         return True
     if existing.canonical_markdown_object_key != canonical_markdown_key:
         return True

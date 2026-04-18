@@ -226,29 +226,11 @@ def _load_parent_source_truth_from_snapshot(
     notice_manifest_key = str(parent_snapshot["notice_manifest_key"])
     content_blocks_key = str(parent_snapshot["content_blocks_key"])
     attachment_refs_key = str(parent_snapshot["attachment_refs_key"])
-    detail_response_key = next(
-        (
-            key
-            for key in processed_object_keys
-            if str(key).endswith("/detail-response.json")
-        ),
-        None,
-    )
     manifest = _load_json_payload(
         object_store.get_bytes(
             bucket=object_store_settings.bucket_source,
             key=notice_manifest_key,
         )
-    )
-    detail_response = (
-        _load_json_payload(
-            object_store.get_bytes(
-                bucket=object_store_settings.bucket_source,
-                key=detail_response_key,
-            )
-        )
-        if detail_response_key is not None
-        else None
     )
     content_blocks = _load_jsonl_rows(
         object_store.get_bytes(
@@ -265,7 +247,6 @@ def _load_parent_source_truth_from_snapshot(
     return _AuthenticatedNoticeParentSourceTruth(
         record=record,
         manifest=manifest,
-        detail_response=detail_response,
         content_blocks=content_blocks,
         attachment_refs=attachment_refs,
         source_keys=source_artifact_keys,

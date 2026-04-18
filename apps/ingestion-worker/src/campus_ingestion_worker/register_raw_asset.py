@@ -21,6 +21,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     build_raw_asset_id,
     utc_now,
 )
+from campus_ingestion_core.raw_asset_typing import infer_raw_asset_typed_metadata
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
@@ -37,7 +38,7 @@ class RawAssetRegistrationResult:
 
 def register_raw_asset(
     *,
-    pdf_path: Path,
+    file_path: Path,
     raw_source_uri: str,
     corpus: str,
     collection: str,
@@ -47,7 +48,7 @@ def register_raw_asset(
     raw_asset_registry: RawAssetRegistry | None = None,
 ) -> RawAssetRegistrationResult:
     source = env if env is not None else os.environ
-    source_path = Path(pdf_path)
+    source_path = Path(file_path)
     if not source_path.exists() or not source_path.is_file():
         raise ValueError(f"raw source file not found: {source_path}")
     normalized_source_uri = raw_source_uri.strip()
@@ -60,6 +61,7 @@ def register_raw_asset(
     writer = object_store or S3ObjectStoreWriter(object_store_settings)
 
     file_bytes = source_path.read_bytes()
+    typed_metadata = infer_raw_asset_typed_metadata(source_path=source_path, file_bytes=file_bytes)
     content_hash = hashlib.sha256(file_bytes).hexdigest()
     raw_version_id = f"sha256:{content_hash}"
     source_filename = source_path.name
@@ -84,7 +86,7 @@ def register_raw_asset(
         bucket=object_store_settings.bucket_source,
         key=object_key,
         data=file_bytes,
-        content_type="application/pdf",
+        content_type=typed_metadata.content_type or "application/octet-stream",
     )
     record = RawAssetRecord(
         raw_asset_id=canonical_raw_asset_id,
@@ -95,6 +97,15 @@ def register_raw_asset(
         content_hash=content_hash,
         source_filename=source_filename,
         object_key=object_key,
+        content_type=typed_metadata.content_type,
+        file_extension=typed_metadata.file_extension,
+        byte_size=typed_metadata.byte_size,
+        page_count=typed_metadata.page_count,
+        image_width=typed_metadata.image_width,
+        image_height=typed_metadata.image_height,
+        asset_kind=typed_metadata.asset_kind,
+        asset_subkind=typed_metadata.asset_subkind,
+        classification_confidence=typed_metadata.classification_confidence,
         ingestion_timestamp=utc_now(),
         import_source="raw_online_ocr",
     )
@@ -112,7 +123,7 @@ def main() -> None:
     load_worker_env()
     args = build_parser().parse_args()
     result = register_raw_asset(
-        pdf_path=Path(args.file_path),
+        file_path=Path(args.file_path),
         raw_source_uri=args.raw_source_uri,
         corpus=args.corpus,
         collection=args.collection,

@@ -33,7 +33,7 @@ from campus_ingestion_core.registry import (
     PostgresRawAssetRegistry,
     RawAssetRegistry,
     _coerce_json_payload,
-    _document_record_from_persisted_payload,
+    _document_record_from_dict,
     _ensure_table_schema,
     _postgres_connection,
     _qualified_table_sql,
@@ -782,8 +782,7 @@ def _page_postgres_document_registry_scope_records(
         if not rows:
             break
         page_records = tuple(
-            _document_record_from_persisted_payload(_coerce_json_payload(row[0]))
-            for row in rows
+            _document_record_from_dict(_coerce_json_payload(row[0])) for row in rows
         )
         records.extend(page_records)
         last_record = page_records[-1]

@@ -19,7 +19,7 @@ from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedd
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef
 from campus_ingestion_core.object_store import build_processed_artifact_key
-from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
@@ -33,8 +33,8 @@ def _make_registry_record() -> DocumentRegistryRecord:
         content_hash="sha256:test-001",
         corpus="regulations",
         collection="student_handbook",
-        acl_groups=("students", "staff"),
-        campus_scope=None,
+        entitlement_groups=("students", "staff"),
+        visibility_scope=None,
         status="active",
         ingestion_timestamp="2026-03-22T10:00:00+00:00",
         parser_version="campusrag-import-v1",
@@ -66,6 +66,48 @@ def _make_registry_record() -> DocumentRegistryRecord:
     )
 
 
+def _make_public_registry_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="handbook:test-public",
+        revision_track="source-faithful",
+        version_id="v1:test-public",
+        source_uri="https://campus.example/handbook/test-public",
+        content_hash="sha256:test-public",
+        corpus="regulations",
+        collection="student_handbook",
+        entitlement_groups=(),
+        visibility_scope=None,
+        status="active",
+        ingestion_timestamp="2026-03-22T10:00:00+00:00",
+        parser_version="campusrag-import-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        document_units_object_key=build_processed_artifact_key(
+            corpus="regulations",
+            collection="student_handbook",
+            document_id="handbook:test-public",
+            revision_track="source-faithful",
+            version_id="v1:test-public",
+            title=None,
+            year=None,
+            filename="document-units.jsonl",
+        ),
+        processed_object_keys=(
+            build_processed_artifact_key(
+                corpus="regulations",
+                collection="student_handbook",
+                document_id="handbook:test-public",
+                revision_track="source-faithful",
+                version_id="v1:test-public",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
 def _make_curriculum_registry_record() -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="curriculum:test-001",
@@ -76,8 +118,8 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version=CURRICULUM_CLEANING_POLICY_VERSION,
-        acl_groups=("students",),
-        campus_scope="main",
+        entitlement_groups=("students",),
+        visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
@@ -106,6 +148,26 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
             ),
         ),
         import_source="raw_online_ocr",
+    )
+
+
+def _make_official_web_registry_record(*, collection: str = "muc_public_pages") -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="official_web:muc_public:listing_page:test-001",
+        revision_track="source-faithful",
+        version_id="owdocver:test-001",
+        source_uri="https://news.muc.edu.cn/jxky.htm",
+        content_hash="sha256:official-web-test-001",
+        corpus="official_web",
+        collection=collection,
+        cleaning_policy_version="official_web_cleaning_v1",
+        status="active",
+        ingestion_timestamp="2026-04-02T10:00:00+00:00",
+        parser_version="official_web_projection_replay.v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="official_web",
+        is_current=True,
+        import_source="manual_chunk_test",
     )
 
 
@@ -261,8 +323,6 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIsNone(chunk.visibility_scope)
         self.assertEqual(chunk.visibility_level, "restricted")
         self.assertEqual(chunk.policy_projection_version, "phase1-authorization-projection-v1")
-        self.assertEqual(chunk.acl_groups, ("students", "staff"))
-        self.assertIsNone(chunk.campus_scope)
         self.assertEqual(chunk.source_chunk_id, "legacy-chunk-001")
         self.assertEqual(chunk.anchor["page_start"], 12)
         self.assertEqual(chunk.source_channel, "pdf_ocr")
@@ -288,7 +348,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             node.metadata["policy_projection_version"],
             "phase1-authorization-projection-v1",
         )
-        self.assertEqual(node.metadata["acl_groups"], ["students", "staff"])
+        self.assertNotIn("acl_groups", node.metadata)
+        self.assertNotIn("campus_scope", node.metadata)
+        self.assertNotIn("acl_level", node.metadata)
 
     def test_build_indexable_chunks_from_jsonl_defaults_to_runtime_curriculum_profile(self) -> None:
         record = _make_curriculum_registry_record()
@@ -337,6 +399,177 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION)
         self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
+
+    def test_build_indexable_chunks_from_jsonl_prefers_canonical_document_authorization_projection(self) -> None:
+        record = DocumentRegistryRecord(
+            document_id="handbook:test-authz",
+            revision_track="source-faithful",
+            version_id="v1:test-authz",
+            source_uri="https://campus.example/handbook/test-authz",
+            content_hash="sha256:test-authz",
+            corpus="regulations",
+            collection="student_handbook",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            status="active",
+            ingestion_timestamp="2026-04-02T10:00:00+00:00",
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            source_channel="pdf_ocr",
+            document_units_object_key=build_processed_artifact_key(
+                corpus="regulations",
+                collection="student_handbook",
+                document_id="handbook:test-authz",
+                revision_track="source-faithful",
+                version_id="v1:test-authz",
+                title=None,
+                year=None,
+                filename="document-units.jsonl",
+            ),
+            processed_object_keys=(
+                build_processed_artifact_key(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    document_id="handbook:test-authz",
+                    revision_track="source-faithful",
+                    version_id="v1:test-authz",
+                    title=None,
+                    year=None,
+                    filename="document-units.jsonl",
+                ),
+            ),
+            import_source="raw_online_ocr",
+        )
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "legacy-chunk-001",
+                        "row_id": "legacy-chunk-001",
+                        "row_type": "policy_page",
+                        "clean_text": "Campus notice for enrolled students only.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "source_pdf": "authz.pdf",
+                        "source_url": record.source_uri,
+                        "acl": {"level": "public", "allow_groups": []},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.entitlement_groups, ("students",))
+        self.assertEqual(chunk.visibility_scope, "main")
+        self.assertEqual(chunk.visibility_level, "restricted")
+
+    def test_build_indexable_chunks_from_jsonl_reads_canonical_row_authorization_projection(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "canonical-row-001",
+                        "row_id": "canonical-row-001",
+                        "row_type": "policy_page",
+                        "clean_text": "Campus notice for enrolled students only.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "source_pdf": "authz.pdf",
+                        "source_url": record.source_uri,
+                        "entitlement_groups": ["students"],
+                        "visibility_scope": "main",
+                        "visibility_level": "restricted",
+                        "policy_projection_version": "phase1-authorization-projection-v1",
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertEqual(chunk.entitlement_groups, ("students", "staff"))
+        self.assertIsNone(chunk.visibility_scope)
+        self.assertEqual(chunk.visibility_level, "restricted")
+
+    def test_build_indexable_chunks_from_jsonl_does_not_read_non_canonical_row_visibility_metadata(self) -> None:
+        record = _make_public_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "legacy-acl-row-001",
+                        "row_id": "legacy-acl-row-001",
+                        "row_type": "policy_page",
+                        "clean_text": "This row should remain public without canonical authz projection.",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "acl": {"level": "restricted", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].entitlement_groups, ())
+        self.assertEqual(chunks[0].visibility_level, "public")
+
+    def test_indexable_chunk_defaults_visibility_level_from_entitlements(self) -> None:
+        chunk = IndexableChunk(
+            document_id="handbook:test-authz",
+            revision_track="source-faithful",
+            version_id="v1:test-authz",
+            chunk_id="handbook:test-authz:source-faithful:v1:test-authz:chunk-0001",
+            chunk_order=1,
+            corpus="regulations",
+            collection="student_handbook",
+            source_uri="https://campus.example/handbook/test-authz",
+            source_chunk_id="legacy-chunk-001",
+            anchor={"page_start": 1, "page_end": 1},
+            text="Campus notice for enrolled students only.",
+            source_channel="pdf_ocr",
+            is_current=True,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="",
+        )
+
+        self.assertEqual(chunk.entitlement_groups, ("students",))
+        self.assertEqual(chunk.visibility_scope, "main")
+        self.assertEqual(chunk.visibility_level, "restricted")
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
         record = _make_registry_record()
@@ -548,7 +781,7 @@ class ProcessingPipelineTest(unittest.TestCase):
                 page_end=2,
                 source_uri="https://campus.example/handbook/scholarship-policy",
                 handbook_section="中央民族大学学生奖励管理规定",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
         )
@@ -561,8 +794,8 @@ class ProcessingPipelineTest(unittest.TestCase):
             corpus="regulations",
             collection="student_handbook",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            acl_groups=("students",),
-            campus_scope="main",
+            entitlement_groups=("students",),
+            visibility_scope="main",
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",
@@ -615,6 +848,14 @@ class ProcessingPipelineTest(unittest.TestCase):
             {"article_body", "table_unit"},
         )
         self.assertTrue(all(1 <= int(chunk.anchor["page_start"]) <= 2 for chunk in chunks))
+        document_unit_rows = [
+            json.loads(line)
+            for line in serialize_handbook_document_units(cleanup_result.document_units).decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertTrue(all("acl" not in row for row in document_unit_rows))
+        self.assertTrue(all(row["entitlement_groups"] == ["students"] for row in document_unit_rows))
+        self.assertTrue(all(row["visibility_level"] == "restricted" for row in document_unit_rows))
 
     def test_build_indexable_chunks_contextualizes_handbook_text_with_document_metadata(self) -> None:
         cleanup_result = cleanup_handbook_document(
@@ -630,7 +871,7 @@ class ProcessingPipelineTest(unittest.TestCase):
                 page_end=1,
                 source_uri="https://campus.example/handbook/scholarship-policy",
                 handbook_section="中央民族大学学生奖励管理规定",
-                acl_groups=("students",),
+                entitlement_groups=("students",),
             ),
             source_doc="student-handbook.pdf",
         )
@@ -643,8 +884,8 @@ class ProcessingPipelineTest(unittest.TestCase):
             corpus="regulations",
             collection="student_handbook",
             cleaning_policy_version="student_handbook_cleaning_v1",
-            acl_groups=("students",),
-            campus_scope="main",
+            entitlement_groups=("students",),
+            visibility_scope="main",
             status="active",
             ingestion_timestamp="2026-03-23T10:00:00+00:00",
             parser_version="paddleocr-vl-1.5",
@@ -735,6 +976,281 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("二、学生课堂行为规范", chunk.text)
         self.assertIn("第十六条", chunk.text)
         self.assertIn("3、学生应严格遵守课堂纪律", chunk.text)
+
+    def test_build_indexable_chunks_deduplicates_identical_official_web_title_and_section_path(self) -> None:
+        record = _make_official_web_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0001",
+                        unit_type="link_list",
+                        root_unit_id=f"{record.document_id}:root-0001",
+                        clean_text="中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
+                        anchor={
+                            "section_path": ["教学科研"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://news.muc.edu.cn/jxky.htm",
+                            "page_family": "listing_page",
+                        },
+                        metadata={
+                            "title": "教学科研",
+                            "site_id": "muc_public",
+                            "host": "news.muc.edu.cn",
+                            "page_family": "listing_page",
+                            "projection_family": "navigation_document",
+                            "document_kind": "listing",
+                            "declaration_id": "muc_public_listing_page_v1",
+                        },
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        chunk = chunks[0]
+        self.assertTrue(chunk.metadata["contextualized_text"])
+        self.assertNotIn("教学科研 / 教学科研", chunk.text)
+        self.assertNotIn("标题：教学科研 | 章节：教学科研", chunk.text)
+        self.assertTrue(chunk.text.startswith("教学科研\n"))
+        self.assertIn("中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", chunk.text)
+
+    def test_build_indexable_chunks_uses_official_web_collection_specific_strategy(self) -> None:
+        record = _make_official_web_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0001",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0001",
+                        clean_text="中央民族大学召开专题工作会议，部署本学期重点任务。",
+                        anchor={
+                            "section_path": ["校园新闻"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/info/1002/10001.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "中央民族大学新闻网",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "primary_content",
+                        },
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["strategy_name"], "official_web_structure_v2")
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], "official_web_semantic_v2")
+        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], "official_web_cleaning_v2")
+
+    def test_build_indexable_chunks_uses_official_web_strategy_for_stable_reference_scope(self) -> None:
+        record = _make_official_web_registry_record(collection="stable_reference")
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0001",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0001",
+                        clean_text="学校现有本科专业71个，在招专业61个，涵盖11个学科门类。",
+                        anchor={
+                            "section_path": ["人才培养"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/rcpy/bkpy.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "本科培养",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "reference_fact",
+                        },
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["strategy_name"], "official_web_structure_v2")
+        self.assertEqual(chunks[0].metadata["chunk_policy_version"], "official_web_semantic_v2")
+        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], "official_web_cleaning_v2")
+
+    def test_build_indexable_chunks_skips_support_only_official_web_units(self) -> None:
+        record = _make_official_web_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0001",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0001",
+                        clean_text="学校现有本科专业71个，在招专业61个，涵盖11个学科门类。",
+                        anchor={
+                            "section_path": ["人才培养"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/rcpy/bkpy.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "本科培养",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "reference_fact",
+                        },
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0002",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0002",
+                        clean_text="（来源：教务处）",
+                        anchor={
+                            "section_path": ["人才培养"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/rcpy/bkpy.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "本科培养",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "source_attribution",
+                        },
+                    ),
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0003",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0003",
+                        clean_text="投稿方式：mucxcb@muc.edu.cn",
+                        anchor={
+                            "section_path": ["人才培养"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/rcpy/bkpy.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "本科培养",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "boilerplate",
+                        },
+                    ),
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].metadata["content_role"], "reference_fact")
+        self.assertNotIn("教务处", chunks[0].text)
+        self.assertNotIn("投稿方式", chunks[0].text)
+
+    def test_build_indexable_chunks_keeps_labeled_header_for_short_official_web_sections(self) -> None:
+        record = _make_official_web_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id=f"{record.document_id}:unit-0001",
+                        unit_type="section_text",
+                        root_unit_id=f"{record.document_id}:root-0001",
+                        clean_text="图书馆馆藏图书500万余册，是首批全国古籍重点保护单位。",
+                        anchor={
+                            "section_path": ["学校概况", "学校简介"],
+                            "page_start": 1,
+                            "page_end": 1,
+                            "normalized_canonical_url": "https://www.muc.edu.cn/xxgk1/xxgk.htm",
+                            "page_family": "article_detail",
+                        },
+                        metadata={
+                            "title": "学校概况",
+                            "site_id": "muc_public",
+                            "host": "www.muc.edu.cn",
+                            "page_family": "article_detail",
+                            "projection_family": "content_document",
+                            "document_kind": "article",
+                            "declaration_id": "muc_public_article_detail_v1",
+                            "serving_intent": "promotable",
+                            "content_role": "reference_fact",
+                        },
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+
+        self.assertEqual(len(chunks), 1)
+        first_line = chunks[0].text.splitlines()[0]
+        self.assertEqual(chunks[0].metadata["header_mode"], "compact_path")
+        self.assertTrue(first_line.startswith("标题：学校概况 | 章节：学校简介"))
+        self.assertNotIn("学校概况 / 学校简介", first_line)
 
     def test_build_indexable_chunks_merges_adjacent_short_textual_units_before_embedding(self) -> None:
         record = _make_registry_record()

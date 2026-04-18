@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.scope_catalog import assert_known_corpus
@@ -227,6 +229,8 @@ def build_operations_artifact_key(
             filename,
         ]
     )
+
+
 def build_processed_asset_artifact_key(
     *,
     corpus: str,
@@ -381,7 +385,7 @@ def _normalize_source_asset_slug(value: str) -> str:
 def _document_directory_name(*, document_id: str, title: str | None) -> str:
     document_suffix = _document_id_suffix(document_id)
     title_slug = _slugify_path_label(title or document_suffix)
-    docid8 = _document_id_short_label(document_suffix)
+    docid8 = _document_id_short_label(document_id=document_id, document_suffix=document_suffix)
     return f"{title_slug}--{docid8}"
 
 
@@ -390,11 +394,16 @@ def _document_id_suffix(document_id: str) -> str:
     return segments[-1]
 
 
-def _document_id_short_label(value: str) -> str:
-    normalized = _slugify_path_label(value)
+def _document_id_short_label(*, document_id: str, document_suffix: str) -> str:
+    normalized_suffix = _slugify_path_label(document_suffix)
+    if _looks_like_hash(normalized_suffix) and len(normalized_suffix) > 8:
+        return normalized_suffix[:8]
+    normalized = _slugify_path_label(document_id)
     if _looks_like_hash(normalized) and len(normalized) > 8:
         return normalized[:8]
-    return normalized
+    if document_suffix.startswith("attachment-"):
+        return hashlib.sha1(document_id.encode("utf-8")).hexdigest()[:8]
+    return normalized_suffix
 
 
 def _normalize_year_label(value: str | None) -> str:
@@ -437,20 +446,119 @@ def _slugify_path_label(value: str) -> str:
 class S3ObjectStoreClientFactory:
     settings: ObjectStoreSettings
 
-    def client_config(self) -> dict[str, object]:
+    def client_config(self, *, bucket: str | None = None) -> dict[str, object]:
+        from botocore.config import Config
+
+        access_key, secret_key = (
+            self.settings.credentials_for_bucket(bucket)
+            if bucket is not None
+            else self._default_credentials()
+        )
         return {
             "endpoint_url": self.settings.endpoint,
             "region_name": self.settings.region,
-            "aws_access_key_id": self.settings.access_key,
-            "aws_secret_access_key": self.settings.secret_key,
+            "aws_access_key_id": access_key,
+            "aws_secret_access_key": secret_key,
             "use_ssl": self.settings.secure,
+            "config": Config(s3={"addressing_style": "path"}),
         }
 
-    def create(self):  # pragma: no cover - exercised only when boto3 is installed
+    def create(self, *, bucket: str | None = None):  # pragma: no cover - exercised only when boto3 is installed
+        if bucket is not None:
+            return self._create_base_client(bucket=bucket)
+        return _BucketAwareS3Client(self)
+
+    def _create_base_client(self, *, bucket: str):
         try:
             import boto3
         except ImportError as exc:  # pragma: no cover - dependent on environment
             raise RuntimeError(
                 "boto3 is required to create the S3-compatible object store client"
             ) from exc
-        return boto3.client("s3", **self.client_config())
+        return boto3.client("s3", **self.client_config(bucket=bucket))
+
+    def _default_credentials(self) -> tuple[str, str]:
+        if self.settings.has_shared_credentials:
+            return self.settings.access_key, self.settings.secret_key
+        if self.settings.has_source_credentials:
+            return self.settings.source_access_key, self.settings.source_secret_key
+        if self.settings.has_derived_credentials:
+            return self.settings.derived_access_key, self.settings.derived_secret_key
+        raise ValueError("no object-store credentials configured")
+
+
+class _BucketAwareS3Client:
+    def __init__(self, factory: S3ObjectStoreClientFactory) -> None:
+        self._factory = factory
+        self._clients: dict[tuple[str, str], Any] = {}
+
+    def get_object(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).get_object(**kwargs)
+
+    def put_object(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).put_object(**kwargs)
+
+    def list_objects_v2(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).list_objects_v2(**kwargs)
+
+    def head_object(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).head_object(**kwargs)
+
+    def delete_object(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).delete_object(**kwargs)
+
+    def delete_objects(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).delete_objects(**kwargs)
+
+    def upload_file(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).upload_file(**kwargs)
+
+    def download_file(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).download_file(**kwargs)
+
+    def copy_object(self, **kwargs: Any) -> Any:
+        target_bucket = str(kwargs["Bucket"])
+        copy_source = kwargs.get("CopySource") or {}
+        if not isinstance(copy_source, dict):
+            return self._client_for_bucket(target_bucket).copy_object(**kwargs)
+        source_bucket = str(copy_source.get("Bucket") or "")
+        source_key = str(copy_source.get("Key") or "")
+        if not source_bucket or not source_key:
+            return self._client_for_bucket(target_bucket).copy_object(**kwargs)
+
+        source_credentials = self._credentials_for_bucket(source_bucket)
+        target_credentials = self._credentials_for_bucket(target_bucket)
+        if source_credentials == target_credentials:
+            return self._client_for_bucket(target_bucket).copy_object(**kwargs)
+
+        source_object = self._client_for_bucket(source_bucket).get_object(
+            Bucket=source_bucket,
+            Key=source_key,
+        )
+        put_kwargs: dict[str, Any] = {
+            "Bucket": target_bucket,
+            "Key": kwargs["Key"],
+            "Body": source_object["Body"].read(),
+            "ContentType": source_object.get("ContentType") or "application/octet-stream",
+        }
+        metadata = source_object.get("Metadata")
+        if metadata:
+            put_kwargs["Metadata"] = dict(metadata)
+        return self._client_for_bucket(target_bucket).put_object(**put_kwargs)
+
+    def close(self) -> None:
+        for client in self._clients.values():
+            close = getattr(client, "close", None)
+            if callable(close):
+                close()
+
+    def _credentials_for_bucket(self, bucket: str) -> tuple[str, str]:
+        return self._factory.settings.credentials_for_bucket(bucket)
+
+    def _client_for_bucket(self, bucket: str):
+        credentials = self._credentials_for_bucket(bucket)
+        client = self._clients.get(credentials)
+        if client is None:
+            client = self._factory._create_base_client(bucket=bucket)
+            self._clients[credentials] = client
+        return client

@@ -10,8 +10,10 @@ from campus_contracts import ActorContext, KnowledgeScope
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
+    OperatorObservabilityPublishConfig,
     accept_live_benchmark_profile,
     build_default_profile_http_settings,
+    main_for_profile,
     repair_live_benchmark_profile,
     run_live_benchmark_profile,
 )
@@ -220,6 +222,160 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         self.assertIsNone(summary["repair_run_dir"])
         self.assertEqual(summary["repair"]["selected_target_count"], 0)
         repair_profile.assert_not_called()
+
+    def test_accept_live_benchmark_profile_publishes_final_case_results_when_configured(self) -> None:
+        profile = BenchmarkProfile(
+            profile_id="test_profile",
+            benchmark_type="test_live_gate",
+            repair_benchmark_type="test_live_gate_repair",
+            run_prefix="test-live-gate",
+            repair_prefix="test-live-gate-repair",
+            description="test profile",
+            policy_path=Path("/tmp/test-policy.json"),
+            cases_factory=lambda: (_case(),),
+            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            supplemental_adapters_factory=lambda: (),
+        )
+
+        publish_config = OperatorObservabilityPublishConfig(
+            grade_source="openai_trace_grader",
+            grader_version="grader@2026-04-03",
+            dry_run=True,
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "accept"
+            run_dir = output_dir / "run"
+
+            def fake_run(**kwargs):
+                self.assertEqual(kwargs["output_dir"], run_dir)
+                run_dir.mkdir(parents=True, exist_ok=True)
+                payload = {
+                    "benchmark_type": "test_live_gate",
+                    "reruns": 2,
+                    "deterministic": {"stable_across_runs": True, "mean_pass_rate": 1.0},
+                    "gate_report": {"overall_verdict": "pass"},
+                    "supplemental_runtime": {"status_counts": {"available": 1}},
+                }
+                (run_dir / "summary.json").write_text(json.dumps(payload), encoding="utf-8")
+                (run_dir / "run-01-case-results.json").write_text(
+                    json.dumps({"schema_version": 1, "run_number": 1, "results": []}),
+                    encoding="utf-8",
+                )
+                (run_dir / "run-02-case-results.json").write_text(
+                    json.dumps({"schema_version": 1, "run_number": 2, "results": []}),
+                    encoding="utf-8",
+                )
+                return payload
+
+            with (
+                patch("campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run),
+                patch("campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets", return_value=[]),
+                patch(
+                    "campus_evals.live_benchmark.publish_case_results_artifact",
+                    return_value={
+                        "case_results_path": str(run_dir / "run-02-case-results.json"),
+                        "request_correlations_path": None,
+                        "grade_source": "openai_trace_grader",
+                        "grader_version": "grader@2026-04-03",
+                        "dry_run": True,
+                        "grade_count": 1,
+                        "backlink_count": 1,
+                        "accepted_grades": 0,
+                        "accepted_backlinks": 0,
+                        "skipped": [],
+                    },
+                ) as publish_artifact,
+            ):
+                summary = accept_live_benchmark_profile(
+                    profile=profile,
+                    reruns=2,
+                    output_dir=output_dir,
+                    operator_observability_publish=publish_config,
+                )
+                self.assertTrue(
+                    (output_dir / "operator-observability-publish-summary.json").exists()
+                )
+                accept_config = json.loads((output_dir / "accept-config.json").read_text(encoding="utf-8"))
+
+        publish_artifact.assert_called_once_with(
+            case_results_path=run_dir / "run-02-case-results.json",
+            request_correlations_path=None,
+            grade_source="openai_trace_grader",
+            grader_version="grader@2026-04-03",
+            metric_domain_overrides=None,
+            dry_run=True,
+        )
+        self.assertEqual(
+            summary["operator_observability_publish"]["summary"]["grade_count"],
+            1,
+        )
+        self.assertEqual(
+            summary["operator_observability_publish"]["case_results_path"],
+            str(run_dir / "run-02-case-results.json"),
+        )
+        self.assertEqual(
+            accept_config["operator_observability_publish"],
+            {
+                "enabled": True,
+                "dry_run": True,
+                "grade_source": "openai_trace_grader",
+                "grader_version": "grader@2026-04-03",
+                "request_correlations_path": None,
+                "metric_domain_overrides": {},
+            },
+        )
+
+    def test_main_for_profile_accept_builds_operator_publish_config_from_flags(self) -> None:
+        profile = BenchmarkProfile(
+            profile_id="test_profile",
+            benchmark_type="test_live_gate",
+            repair_benchmark_type="test_live_gate_repair",
+            run_prefix="test-live-gate",
+            repair_prefix="test-live-gate-repair",
+            description="test profile",
+            policy_path=Path("/tmp/test-policy.json"),
+            cases_factory=lambda: (_case(),),
+            executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
+            supplemental_adapters_factory=lambda: (),
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "accept"
+            with (
+                patch("campus_evals.live_benchmark.load_repo_env"),
+                patch("campus_evals.live_benchmark.accept_live_benchmark_profile") as accept_profile,
+                patch("builtins.print"),
+            ):
+                exit_code = main_for_profile(
+                    profile=profile,
+                    argv=[
+                        "accept",
+                        "--reruns",
+                        "2",
+                        "--output-dir",
+                        str(output_dir),
+                        "--publish-operator-observability",
+                        "--publish-operator-observability-dry-run",
+                        "--publish-grade-source",
+                        "openai_trace_grader",
+                        "--publish-grader-version",
+                        "grader@2026-04-03",
+                        "--publish-metric-domain-override",
+                        "judge.refusal_quality=policy",
+                    ],
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            accept_profile.call_args.kwargs["operator_observability_publish"],
+            OperatorObservabilityPublishConfig(
+                grade_source="openai_trace_grader",
+                grader_version="grader@2026-04-03",
+                dry_run=True,
+                metric_domain_overrides={"judge.refusal_quality": "policy"},
+            ),
+        )
 
 
 if __name__ == "__main__":

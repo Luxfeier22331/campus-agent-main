@@ -9,10 +9,21 @@ Evaluation helpers for campus-agent v2.
 - `student_handbook_hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担 canonical retrieval qrels
 - `curriculum_plan_hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live hybrid/query 验收样本，不承担 canonical retrieval qrels
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
-- handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 ACL、`campus_scope`、服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
+- handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 `entitlement_groups`、`visibility_scope` 或服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
+- curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
+- curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
+- curriculum program + semester 课表问句现在额外有一条 internal `program_semester_facts` serving surface：像 `法学民族班培养方案里大二下有什么课` 这类 resolved single-doc + semester course-list 问句应优先切到这个 collection，而不是继续依赖 raw `curriculum_plan` table chunks
+- `民族实验班有哪些`、`强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在也属于固定 program-family completed lanes；full alias 与显式 name-pattern 问句都不能再退回 doc-level qrels truth
+- `习概有哪些专业要上`、`习概第几学期开`、`习概开设学期`、`思政课有哪些专业要上`、`思政课包括哪些课`、`思政课程包括哪些课`、`思政课第几学期开`、`思政第几学期开`、`思政课程第几学期开`、`思修课第几学期开` 与 mixed partial-answer case 现在属于固定 curriculum regression lanes；family alias 不得 collapse 到单课 qrels truth
+- `民族班有哪些`、`民族实验班有哪些`、`基地班有哪些`、`强基有哪些专业`、`强基计划有哪些专业`、`二学位有哪些专业`、`第二学位有哪些专业`、`第二学士学位有哪些专业`、`实验班有哪些`、`创新班有哪些`、`创新实验班有哪些`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在都属于固定 program-family completed lanes；其中 full alias 与显式 name-pattern query 也必须持续留在 regression gate
+- curriculum deterministic gate 现在接受 `curriculum_plan -> course_facts/program_family_facts/program_semester_facts` 的内部切换；selected scope 仍保持 `curriculum_plan`
+- retrieval qrels preflight 现在会 fast-fail `思政课` / `思修课` / `思政` / `思政课程` 这类 course-family alias，以及 `民族班有哪些` / `民族实验班有哪些` / `基地班有哪些` / `强基有哪些专业` / `强基计划有哪些专业` / `二学位有哪些专业` / `第二学位有哪些专业` / `第二学士学位有哪些专业` / `实验班有哪些` / `创新班有哪些` / `创新实验班有哪些` / `名称里带实验班的培养方案有哪些` / `名称里带创新班的培养方案有哪些` 这类 program-family membership alias 被 author 成单 doc canonical truth 的 fixture
+- `我这个专业的实验班大二下有什么课` 这类 deictic curriculum 问句仍然不应因为 generic family alias 而静默落单 doc；当前正确行为依旧是 clarification-first
+- deictic curriculum truth 现在固定为：只有 `verified major + unique candidate` 才允许像 `我这个专业的基地班大二下有什么课` 这样的问题进入 single-doc completed lane
+- `recent_goal` / `confirmed_slot_terms` / profile-memory-only request overrides 不得被 author 成 curriculum family alias 的 canonical single-doc qrels；这类 truth 现在同样由 preflight fast-fail
 - selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id + version_id`；`chunk_id` 仍只在边界长期稳定后使用
 - `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的 `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case 集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked 常设回归样本
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
@@ -60,15 +71,16 @@ live benchmark profile/core：
 
 ragas runtime：
 
-- `campus_evals.settings.RagasSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_RAGAS_MODEL`、`EVAL_EMBEDDING_*`
-- `campus_evals.settings.JudgeLLMSettings.from_env()` 长期主入口只消费 `EVAL_LLM_*`、`EVAL_JUDGE_MODEL`
+- 共享 provider 真相默认来自 `LLM_*` 与 `EMBEDDING_*`
+- `campus_evals.settings.RagasSettings.from_env()` 的 provider 解析优先级固定为 `EVAL_LLM_* > LLM_*` 与 `EVAL_EMBEDDING_* > EMBEDDING_*`
+- `campus_evals.settings.JudgeLLMSettings.from_env()` 的 provider 解析优先级固定为 `EVAL_LLM_* > LLM_*`
+- `EVAL_LLM_*` / `EVAL_EMBEDDING_*` 只用于 eval 需要独立 provider、独立预算或独立限流的场景；默认不再作为 root `.env` 主真相
 - repo 主路径里的 ragas / judge HTTP runtime tuning 不再从 env 读取，而是由 `BenchmarkProfile.http_settings` 显式注入
 - low-level helper 仍保留 `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark ownership
-- ragas model 选择优先级固定为 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
-- judge model 若未单独配置，则回退到 `EVAL_RAGAS_MODEL > RAGAS_LLM_MODEL > LLM_REASONING_MODEL > LLM_CHAT_MODEL`
-- 默认运行面走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`，直接对 OpenAI-compatible `/responses` 与 `/embeddings` 发原生 HTTP 请求；其中 ragas LLM 固定走 text-first `/responses`，rubric judge 才保留 structured `/responses`，实现边界固定在 `campus_evals.supplemental_http`
-- 这样做的直接原因是：当前 provider 对原生 HTTP `Responses API` 可用，但会阻断 OpenAI Python SDK / LangChain transport；因此 LangChain 兼容 helper 只保留在内部测试模块 `campus_evals._langchain_compat`，不再作为默认或公开 runtime surface
-- `RAGAS_USE_RESPONSES_API` 仍保留在 settings 中，用于 LangChain compatibility helper 的回归测试；默认值仍为 `true`
+- ragas model 现在只接受 `EVAL_RAGAS_MODEL`
+- judge model 现在只接受 `EVAL_JUDGE_MODEL`，未单独配置时回退到 `EVAL_RAGAS_MODEL`
+- eval LLM transport 现在显式由 `EVAL_LLM_TRANSPORT` 持有，并允许 `EVAL_RAGAS_LLM_TRANSPORT` / `EVAL_JUDGE_LLM_TRANSPORT` 做 surface override；允许值固定为 `responses` 或 `chat_completions`
+- 默认运行面仍走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`；LLM transport 会按当前 env 对 OpenAI-compatible `/responses` 或 `/chat/completions` 发原生 HTTP 请求，embeddings 固定走 `/embeddings`，实现边界固定在 `campus_evals.supplemental_http`
 - `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime circuit breaker、preflight timeout、request pacing 与 keep-alive
 - pacing / breaker 的共享粒度已经收口到 `provider origin + api key`，避免不同 credential 互相污染 rate budget
 - 若需要针对某类 benchmark profile 单独调整 pacing，应修改 repo-tracked profile config，而不是再向 root `.env` 添加新键
@@ -76,15 +88,19 @@ ragas runtime：
 - preflight 现在承担 run-level availability gate：
   - `transient_retryable` / `hard_unavailable` 会把对应 supplemental adapter 标成 `skip_adapter`
   - `non_retryable_request` 会在写出 `supplemental-preflight.json` 后直接中止 benchmark，避免继续生成误导性 0 分 artifact
-- ragas preflight 只探测 text `/responses` + `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
+- ragas preflight 只探测当前选中 LLM transport 的 text endpoint 加 `/embeddings` 可用性，不再把 structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
 - preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker / preflight cache 置入 fast-fail 状态
-- Responses judge payload 支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
+- judge/ragas LLM payload 都支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
 - `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects 执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现
-- `uv run` 不会自动读取 `.env`；本地运行前需先 `set -a && source .env && set +a`
+- repo-shipped eval CLI 会在本地自动 bootstrap 当前 worktree `.env`
+- ad-hoc `uv run ... python - <<'PY'` / REPL 仍不会自动读取 `.env`；这类临时脚本需要先 `set -a && source .env && set +a`，或显式调用 `campus_shared.load_repo_env()`
+- 如果要确认当前 worktree 的 eval provider/env 是否真正可见，优先使用：
+  - `uv run --all-packages python -m scripts.doctor_env evals --json`
+  - 该命令会报告 bootstrap state、checked key order、resolved key source 与 model presence，但不会打印 raw secret values
 
-最小 smoke：
+最小 smoke（ad-hoc inline Python）：
 
 - `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run --package campus-evals python - <<'PY'`
 - `from campus_evals import RagasProjection, RagasSettings, build_ragas_scorer`
@@ -92,6 +108,14 @@ ragas runtime：
 - `scorer = build_ragas_scorer(settings)`
 - `print(scorer(RagasProjection(case_id="smoke", user_input="学校图书馆开放时间是什么？", response="图书馆开放时间为 08:00 到 22:00。", retrieved_contexts=("图书馆开放时间为 08:00-22:00。",), reference="图书馆开放时间为 08:00-22:00。")))`
 - `PY`
+
+provider 诊断约定：
+
+- shared provider precedence 已收口到 `campus_shared.provider_config`
+- eval LLM provider key 优先级固定为 `EVAL_LLM_API_KEY > LLM_API_KEY`
+- eval embedding provider key 优先级固定为 `EVAL_EMBEDDING_API_KEY > EMBEDDING_API_KEY`
+- provider key 缺失现在会给出 surface-aware typed error，而不是只报笼统 `LLM_API_KEY is required`
+- deploy-side provider secret 治理见 `docs/runbooks/provider-secret-governance.md`
 
 student handbook formal benchmark：
 
@@ -102,6 +126,7 @@ student handbook formal benchmark：
   - `summary.json`
   - `gate-report.json`
   - `SUMMARY.md`
+- `run-XX-case-results.json` 现在会直接内嵌每个 case 的 `request_correlation`；如果 live executor 走 `app-api` internal eval ingress，这里会包含 canonical `request_id` / `trace_id`，后续 operator publisher 可直接消费，不再强依赖额外 manifest
 - `campus_evals.handbook_benchmark.collect_repairable_handbook_benchmark_targets(...)` 会从既有 artifact 中筛出可修复的 supplemental infra failure：
   - 已写入 case 结果的 transient runtime failure
   - `supplemental-preflight.json` 中被 `skip_adapter` 跳过、后续可 backfill 的 unavailable metrics
@@ -138,12 +163,30 @@ student handbook formal benchmark：
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
   - `uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl`
-  - 该入口直接复用当前 `delegate_to_rag_agent` + `retrieve_sources` 真链路，把 `GoldenCase` 收口为 live `ExecutionResult`
+  - 默认入口现在优先通过 `app-api` internal eval ingress 进入真实产品 command path，生成 canonical `request_id` / `trace_id`
+  - 本地运行前，需要先启动 repo-local `supervisor-api` 与 `app-api` dev runtime，并在 root `.env` 提供 `APP_API_BASE_URL`、`APP_API_INTERNAL_SHARED_SECRET`、`APP_API_EVAL_USER_EMAIL`
+  - 这些 `APP_API_*` 只描述当前 worktree 的本地 eval ingress，不是远端部署环境真相；其中 `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
+  - 如需让 acceptance artifact 直接产出 panel-safe backlink，可选配置：
+    - `APP_API_EVAL_TRACE_LINK_TEMPLATE`
+    - `APP_API_EVAL_ISSUE_LINK_TEMPLATE`
+    - `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
+  - 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`selected_target`、`corpus`、`collection`
+  - 如需保留 trace-rich specialist/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/curriculum-runtime-events.jsonl`
   - 该入口通过 shared `BenchmarkProfile` core 显式绑定 `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
+  - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的 case 仍显式回退 legacy executor，保证错误注入可控
+  - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval ingress 参数
+  - backlink 模板配置同 handbook live runner
+- official-web live runner 现已固定为 `campus_evals.official_web_live_benchmark`：
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark repair --benchmark-dir <artifact-dir> --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark accept --reruns 1 --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope stable_reference --qdrant-collection-name <physical-collection>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --reruns 1 --official-web-scope fresh_news --qdrant-collection-name <physical-collection>`
+  - 该入口只做本地 deterministic 验证：通过 monkeypatch 临时打开所选 `official_web/*` scope 的 retrieval，并把 alias 指向指定 unpublished physical collection；repo-tracked `offline_preparation` truth 不会被命令行改写
 
 runtime observability artifact：
 
@@ -153,5 +196,17 @@ runtime observability artifact：
 - `accept` 会在 acceptance 根目录额外写：
   - `accept-config.json`
   - `final-summary.json`
+- 若 `accept` 显式启用 operator publish，还会额外写：
+  - `operator-observability-publish-summary.json`
+- `accept` 现已支持把最终使用的 `run-XX-case-results.json` 直接回流到 `app-api` 的 operator observability ingest seam：
+  - `--publish-operator-observability`
+  - `--publish-operator-observability-dry-run`
+  - `--publish-grade-source <stable-source-id>`
+  - `--publish-grader-version <stable-version>`
+  - `--publish-metric-domain-override adapter.metric=grounding|citation|policy`
+  - `--publish-request-correlations <path>` 仅在仍需外部 manifest 时使用；默认优先消费 case-results 内嵌 `request_correlation`
+  - 当前 publish batch 同时消费：
+    - `supplemental_results` 中可发布的 grounding / citation / policy grader 结果
+    - `metric_results` 中已映射的 deterministic refusal 指标，例如 `deterministic.out_of_scope_accuracy`、`deterministic.unsupported_abstention_accuracy`、`deterministic.false_refusal_rate`、`deterministic.unsafe_false_allow_rate`
 - `--log-jsonl` 会把 `accept` 的 runtime log 路径拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail 等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试

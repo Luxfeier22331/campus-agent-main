@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from botocore.config import Config
+
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
@@ -13,6 +15,25 @@ from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_s
 
 
 class ObjectStoreConfigTest(unittest.TestCase):
+    def test_bucket_scoped_credentials_can_replace_shared_credentials(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.cstcloud.cn",
+                "OBJECT_STORE_SOURCE_ACCESS_KEY": "source-ak",
+                "OBJECT_STORE_SOURCE_SECRET_KEY": "source-sk",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+                "OBJECT_STORE_SECURE": "true",
+            }
+        )
+
+        self.assertEqual(settings.endpoint, "https://s3.cstcloud.cn")
+        self.assertTrue(settings.secure)
+        self.assertEqual(settings.source_access_key, "source-ak")
+        self.assertEqual(settings.source_secret_key, "source-sk")
+        self.assertEqual(settings.derived_access_key, "derived-ak")
+        self.assertEqual(settings.derived_secret_key, "derived-sk")
+
     def test_defaults_match_phase1_bucket_contract(self) -> None:
         settings = ObjectStoreSettings.from_env(
             {
@@ -105,6 +126,31 @@ class ObjectStoreConfigTest(unittest.TestCase):
             "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
         )
 
+    def test_build_processed_artifact_key_distinguishes_internal_notice_attachment_documents(self) -> None:
+        title = "关于两校区通勤班车新增班次的通知 / 附件 1 / 班次表.jpg"
+        first_key = build_processed_artifact_key(
+            corpus="campus_notices",
+            collection="internal_notice",
+            document_id="notice_attachment:muc_internal_portal:353901:attachment-0001",
+            revision_track="source-faithful",
+            version_id="sha256:attachment-a",
+            filename="document-units.jsonl",
+            title=title,
+            year="2025",
+        )
+        second_key = build_processed_artifact_key(
+            corpus="campus_notices",
+            collection="internal_notice",
+            document_id="notice_attachment:muc_internal_portal:354270:attachment-0001",
+            revision_track="source-faithful",
+            version_id="sha256:attachment-b",
+            filename="document-units.jsonl",
+            title=title,
+            year="2025",
+        )
+
+        self.assertNotEqual(first_key, second_key)
+
     def test_build_raw_asset_key_supports_curriculum_plan(self) -> None:
         object_key = build_raw_asset_key(
             corpus="curriculum",
@@ -170,6 +216,33 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self.assertEqual(config["aws_access_key_id"], "minioadmin")
         self.assertEqual(config["aws_secret_access_key"], "minioadmin")
         self.assertFalse(config["use_ssl"])
+        self.assertIsInstance(config["config"], Config)
+        self.assertEqual(config["config"].s3.get("addressing_style"), "path")
+
+    def test_factory_resolves_bucket_specific_credentials(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.cstcloud.cn",
+                "OBJECT_STORE_ACCESS_KEY": "shared-ak",
+                "OBJECT_STORE_SECRET_KEY": "shared-sk",
+                "OBJECT_STORE_SOURCE_ACCESS_KEY": "source-ak",
+                "OBJECT_STORE_SOURCE_SECRET_KEY": "source-sk",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+            }
+        )
+        factory = S3ObjectStoreClientFactory(settings)
+
+        source_config = factory.client_config(bucket=settings.bucket_source)
+        derived_config = factory.client_config(bucket=settings.bucket_derived)
+        fallback_config = factory.client_config(bucket="other-bucket")
+
+        self.assertEqual(source_config["aws_access_key_id"], "source-ak")
+        self.assertEqual(source_config["aws_secret_access_key"], "source-sk")
+        self.assertEqual(derived_config["aws_access_key_id"], "derived-ak")
+        self.assertEqual(derived_config["aws_secret_access_key"], "derived-sk")
+        self.assertEqual(fallback_config["aws_access_key_id"], "shared-ak")
+        self.assertEqual(fallback_config["aws_secret_access_key"], "shared-sk")
 
 
 if __name__ == "__main__":

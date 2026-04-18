@@ -27,8 +27,8 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version="curriculum_plan_cleaning_v1",
-        acl_groups=("students",),
-        campus_scope="main",
+        entitlement_groups=("students",),
+        visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
         parser_version="raw-online-ocr-v1",
@@ -41,6 +41,33 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
             "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
             "official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl",
+        ),
+        import_source="raw_online_ocr",
+    )
+
+
+def _make_public_curriculum_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="curriculum:test-public",
+        revision_track="source-faithful",
+        version_id="sha256:test-public:split:test-public:abc123",
+        source_uri="campusrag://source/curriculum/test-public/pages/1-1",
+        content_hash="sha256:test-public",
+        corpus="curriculum",
+        collection="curriculum_plan",
+        cleaning_policy_version="curriculum_plan_cleaning_v1",
+        entitlement_groups=(),
+        visibility_scope="main",
+        status="active",
+        ingestion_timestamp="2026-03-24T10:00:00+00:00",
+        parser_version="raw-online-ocr-v1",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="pdf_ocr",
+        document_units_object_key=(
+            "curriculum/documents/curriculum_plan/test-public--test-public/source-faithful/undated/document-units.jsonl"
+        ),
+        processed_object_keys=(
+            "curriculum/documents/curriculum_plan/test-public--test-public/source-faithful/undated/document-units.jsonl",
         ),
         import_source="raw_online_ocr",
     )
@@ -77,7 +104,7 @@ def _build_real_curriculum_projection_chunks(
         structured_rows=layout_rows,
         provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
         layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-        default_campus_scope="main",
+        default_visibility_scope="main",
         corpus="curriculum",
         collection="curriculum_plan",
     )
@@ -90,8 +117,8 @@ def _build_real_curriculum_projection_chunks(
         corpus="curriculum",
         collection="curriculum_plan",
         cleaning_policy_version="curriculum_plan_cleaning_v1",
-        acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
-        campus_scope="main",
+        entitlement_groups=tuple(document_input.metadata.get("entitlement_groups") or ()),
+        visibility_scope=str(document_input.metadata.get("visibility_scope") or "main"),
         status=str(document_input.metadata.get("status") or "active"),
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
         parser_version="raw-online-ocr-v1",
@@ -132,6 +159,59 @@ def _build_real_curriculum_runtime_chunks(
 
 
 class CurriculumChunkingTest(unittest.TestCase):
+    def test_build_indexable_chunks_from_jsonl_uses_canonical_curriculum_row_visibility(self) -> None:
+        record = _make_public_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0001",
+                        "row_id": "page-0001-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "一、培养目标",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "visibility_level": "restricted",
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0001-block-0002",
+                        "row_id": "page-0001-block-0002",
+                        "row_type": "paragraph",
+                        "clean_text": "仅对受限用户可见的课程说明。",
+                        "page_start": 1,
+                        "page_end": 1,
+                        "visibility_level": "restricted",
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0].entitlement_groups, ())
+        self.assertEqual(chunks[0].visibility_level, "restricted")
+
     def test_build_curriculum_contextual_text_only_prepends_missing_parent_headings(self) -> None:
         contextual_text = _build_curriculum_contextual_text(
             unit_type="section_text",
@@ -1097,7 +1177,7 @@ class CurriculumChunkingTest(unittest.TestCase):
             ],
             provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
-            default_campus_scope="main",
+            default_visibility_scope="main",
             corpus="curriculum",
             collection="curriculum_plan",
         )
@@ -1110,8 +1190,8 @@ class CurriculumChunkingTest(unittest.TestCase):
             corpus="curriculum",
             collection="curriculum_plan",
             cleaning_policy_version="curriculum_plan_cleaning_v1",
-            acl_groups=tuple(document_input.metadata.get("acl_groups") or ()),
-            campus_scope="main",
+            entitlement_groups=tuple(document_input.metadata.get("entitlement_groups") or ()),
+            visibility_scope="main",
             status=str(document_input.metadata.get("status") or "active"),
             ingestion_timestamp="2026-03-28T10:00:00+00:00",
             parser_version="raw-online-ocr-v1",

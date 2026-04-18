@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from dataclasses import dataclass
 import hashlib
 from html.parser import HTMLParser
@@ -333,7 +334,7 @@ def cleanup_handbook_document(
         version_id=version_id,
         source_pdf=source_doc,
         source_url=manifest_document.source_uri,
-        acl_groups=manifest_document.acl_groups,
+        entitlement_groups=manifest_document.resolved_entitlement_groups(),
         title=title,
         policy_doc_no=policy_doc_no,
         preface_text=preface_text,
@@ -1700,7 +1701,7 @@ def _build_document_rows(
     version_id: str,
     source_pdf: str,
     source_url: str,
-    acl_groups: tuple[str, ...],
+    entitlement_groups: tuple[str, ...],
     title: str,
     policy_doc_no: str | None,
     preface_text: str | None,
@@ -1728,7 +1729,7 @@ def _build_document_rows(
                     clean_text=str(event["text"]),
                     source_pdf=source_pdf,
                     source_url=source_url,
-                    acl_groups=acl_groups,
+                    entitlement_groups=entitlement_groups,
                     anchor={
                         "page_start": int(event["page_start"]),
                         "page_end": int(event["page_end"]),
@@ -1761,7 +1762,7 @@ def _build_document_rows(
                     clean_text=str(event.get("text") or ""),
                     source_pdf=source_pdf,
                     source_url=source_url,
-                    acl_groups=acl_groups,
+                    entitlement_groups=entitlement_groups,
                     anchor={
                         "page_start": int(event["page_start"]),
                         "page_end": int(event["page_end"]),
@@ -1794,7 +1795,7 @@ def _build_document_rows(
                     clean_text=str(event.get("text") or ""),
                     source_pdf=source_pdf,
                     source_url=source_url,
-                    acl_groups=acl_groups,
+                    entitlement_groups=entitlement_groups,
                     anchor={
                         "page_start": int(event["page_start"]),
                         "page_end": int(event["page_end"]),
@@ -1832,7 +1833,7 @@ def _build_document_rows(
                         ),
                         source_pdf=source_pdf,
                         source_url=source_url,
-                        acl_groups=acl_groups,
+                        entitlement_groups=entitlement_groups,
                         anchor={
                             "page_start": int(event["page_start"]),
                             "page_end": int(event["page_end"]),
@@ -1873,12 +1874,13 @@ def _build_structured_unit_row(
     clean_text: str,
     source_pdf: str,
     source_url: str,
-    acl_groups: tuple[str, ...],
+    entitlement_groups: tuple[str, ...],
     anchor: dict[str, object],
     metadata: dict[str, object] | None = None,
     html: object = None,
     table_cells: object = None,
 ) -> dict[str, object]:
+    visibility_level = "restricted" if entitlement_groups else "public"
     return {
         "doc_id": doc_id,
         "version_id": version_id,
@@ -1894,7 +1896,10 @@ def _build_structured_unit_row(
         "page_end": int(anchor["page_end"]),
         "anchor": anchor,
         "metadata": metadata or {},
-        "acl": _build_acl_metadata(acl_groups),
+        "entitlement_groups": list(entitlement_groups),
+        "visibility_scope": None,
+        "visibility_level": visibility_level,
+        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
         "html": html,
         "table_cells": table_cells,
     }
@@ -1912,14 +1917,6 @@ def _build_unit_metadata(
     if preface_text:
         metadata["preface_text"] = preface_text
     return metadata
-
-
-def _build_acl_metadata(acl_groups: tuple[str, ...]) -> dict[str, object]:
-    return {
-        "level": "restricted" if acl_groups else "public",
-        "allow_groups": list(acl_groups),
-    }
-
 
 def _row_text(row: dict[str, object]) -> str:
     for field_name in ("text_normalized", "text_raw"):

@@ -20,6 +20,10 @@ from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.scope_catalog import QdrantIndexBinding
 
 _CURRICULUM_COURSE_MAP_HEADING = "六、课程地图"
+_OFFICIAL_WEB_MIN_RELEASE_DOCUMENTS = 2
+_OFFICIAL_WEB_DISALLOWED_PAGE_FAMILIES = frozenset(
+    {"listing_page", "generic_content_page", "dynamic_shell_page", "structural_shell_page"}
+)
 
 
 class IndexReleaseWriter(Protocol):
@@ -90,8 +94,6 @@ def resolve_alias_target(
     for alias in aliases:
         if alias.alias_name == alias_name:
             return alias.collection_name
-    if qdrant_client.collection_exists(alias_name):
-        return alias_name
     return None
 
 
@@ -166,15 +168,10 @@ def reset_index_binding(
     binding: QdrantIndexBinding,
 ) -> tuple[str, ...]:
     deleted: list[str] = []
-    current_alias_target = resolve_alias_target(qdrant_client=qdrant_client, alias_name=binding.alias_name)
-    if current_alias_target is not None:
-        qdrant_client.update_collection_aliases(
-            [
-                qdrant_models.DeleteAliasOperation(
-                    delete_alias=qdrant_models.DeleteAlias(alias_name=binding.alias_name)
-                )
-            ]
-        )
+    current_alias_target = unpublish_release_alias(
+        qdrant_client=qdrant_client,
+        binding=binding,
+    )
     for collection in qdrant_client.get_collections().collections or []:
         name = str(collection.name or "")
         if not name:
@@ -321,6 +318,8 @@ def validate_scope_release(
 ) -> IndexReleaseValidationResult:
     if collection == "curriculum_plan":
         return _validate_curriculum_release(chunks)
+    if corpus == "official_web":
+        return _validate_official_web_release(chunks)
     return _validate_default_release(chunks)
 
 
@@ -336,6 +335,50 @@ def _validate_default_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseV
         },
     }
     return IndexReleaseValidationResult(status="passed", summary=summary)
+
+
+def _validate_official_web_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseValidationResult:
+    token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
+    page_family_counts = _count_by_value(str(chunk.metadata.get("page_family") or "unknown") for chunk in chunks)
+    serving_intent_counts = _count_by_value(str(chunk.metadata.get("serving_intent") or "unknown") for chunk in chunks)
+    disallowed_page_family_chunks = sum(
+        count
+        for page_family, count in page_family_counts.items()
+        if page_family in _OFFICIAL_WEB_DISALLOWED_PAGE_FAMILIES
+    )
+    audit_only_chunks = int(serving_intent_counts.get("audit_only") or 0)
+    promotable_chunks = int(serving_intent_counts.get("promotable") or 0)
+    non_promotable_serving_intent_chunks = max(len(chunks) - promotable_chunks, 0)
+    unknown_serving_intent_chunks = int(serving_intent_counts.get("unknown") or 0)
+    missing_page_family_chunks = int(page_family_counts.get("unknown") or 0)
+    document_count = len({chunk.document_id for chunk in chunks})
+    summary = {
+        "chunk_count": len(chunks),
+        "document_count": document_count,
+        "documents_below_minimum": 1 if document_count < _OFFICIAL_WEB_MIN_RELEASE_DOCUMENTS else 0,
+        "disallowed_page_family_chunks": disallowed_page_family_chunks,
+        "audit_only_chunks": audit_only_chunks,
+        "non_promotable_serving_intent_chunks": non_promotable_serving_intent_chunks,
+        "unknown_serving_intent_chunks": unknown_serving_intent_chunks,
+        "missing_page_family_chunks": missing_page_family_chunks,
+        "page_family_counts": page_family_counts,
+        "serving_intent_counts": serving_intent_counts,
+        "unit_type_counts": _count_by_value(str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks),
+        "token_summary": {
+            "min": min(token_counts) if token_counts else 0,
+            "max": max(token_counts) if token_counts else 0,
+            "avg": round(sum(token_counts) / len(token_counts), 2) if token_counts else 0.0,
+        },
+    }
+    status = (
+        "passed"
+        if summary["documents_below_minimum"] == 0
+        and disallowed_page_family_chunks == 0
+        and non_promotable_serving_intent_chunks == 0
+        and missing_page_family_chunks == 0
+        else "failed"
+    )
+    return IndexReleaseValidationResult(status=status, summary=summary)
 
 
 def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseValidationResult:

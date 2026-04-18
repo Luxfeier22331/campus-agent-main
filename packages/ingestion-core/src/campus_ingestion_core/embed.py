@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 
+import httpx
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.base.embeddings.base import Embedding
 from llama_index.core.callbacks.base import CallbackManager
@@ -15,6 +16,14 @@ DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 60.0
 DEFAULT_EMBED_BATCH_SIZE = 100
 DEFAULT_QWEN3_EMBEDDING_DIMENSIONS = 2560
+
+
+def _build_openai_http_client(*, timeout_seconds: float) -> httpx.Client:
+    return httpx.Client(timeout=timeout_seconds, trust_env=False)
+
+
+def _build_openai_async_http_client(*, timeout_seconds: float) -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=timeout_seconds, trust_env=False)
 
 
 class OpenAICompatibleEmbedding(BaseEmbedding):
@@ -45,17 +54,21 @@ class OpenAICompatibleEmbedding(BaseEmbedding):
         self.dimensions = dimensions
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
+        sync_http_client = _build_openai_http_client(timeout_seconds=timeout_seconds)
+        async_http_client = _build_openai_async_http_client(timeout_seconds=timeout_seconds)
         self._client = OpenAI(
             api_key=api_key or None,
             base_url=api_base,
             timeout=timeout_seconds,
             max_retries=max_retries,
+            http_client=sync_http_client,
         )
         self._aclient = AsyncOpenAI(
             api_key=api_key or None,
             base_url=api_base,
             timeout=timeout_seconds,
             max_retries=max_retries,
+            http_client=async_http_client,
         )
 
     def _build_payload(self, texts: list[str]) -> dict[str, object]:
@@ -172,6 +185,8 @@ class MockEmbeddingSettings:
 def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
     provider = settings.provider.strip().lower()
     if provider == "openai":
+        sync_http_client = _build_openai_http_client(timeout_seconds=settings.timeout_seconds)
+        async_http_client = _build_openai_async_http_client(timeout_seconds=settings.timeout_seconds)
         kwargs = {
             "model": settings.model,
             "api_key": settings.api_key or None,
@@ -179,6 +194,8 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
             "timeout": settings.timeout_seconds,
             "embed_batch_size": settings.embed_batch_size,
             "model_name": settings.model,
+            "http_client": sync_http_client,
+            "async_http_client": async_http_client,
         }
         if settings.dimensions is not None:
             kwargs["dimensions"] = settings.dimensions

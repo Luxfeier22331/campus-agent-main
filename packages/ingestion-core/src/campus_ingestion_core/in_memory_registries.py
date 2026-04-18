@@ -5,11 +5,7 @@ import json
 from pathlib import Path
 
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
-from campus_ingestion_core.registry import (
-    _document_record_from_dict,
-    _document_record_from_persisted_payload,
-    _raw_asset_record_from_dict,
-)
+from campus_ingestion_core.registry import _document_record_from_dict, _raw_asset_record_from_dict
 
 
 class InMemoryDocumentRegistry:
@@ -32,15 +28,6 @@ class InMemoryDocumentRegistry:
     def from_json_file(cls, path: Path) -> InMemoryDocumentRegistry:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         records = tuple(_document_record_from_dict(raw) for raw in payload.values())
-        return cls(records, backing_path=Path(path))
-
-    @classmethod
-    def from_persisted_json_file(cls, path: Path) -> InMemoryDocumentRegistry:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        records = tuple(
-            _document_record_from_persisted_payload(raw)
-            for raw in payload.values()
-        )
         return cls(records, backing_path=Path(path))
 
     def get(

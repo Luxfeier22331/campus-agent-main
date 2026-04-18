@@ -14,7 +14,7 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Delete unreferenced legacy authenticated notice attachment objects"
+        description="Delete unreferenced authenticated notice legacy attachment objects and write deletion evidence"
     )
     parser.add_argument("--unreferenced-inventory-path", required=True)
     parser.add_argument("--output-dir", required=True)
@@ -24,13 +24,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    payload = cleanup_authenticated_notice_source_attachment_keys(
+    result = cleanup_authenticated_notice_source_attachment_keys(
         request=AuthenticatedNoticeAttachmentKeyCleanupRequest(
             unreferenced_inventory_path=Path(args.unreferenced_inventory_path),
             output_dir=Path(args.output_dir),
         )
     )
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 __all__ = [

@@ -202,7 +202,6 @@ class AuthenticatedNoticeProjectedNotice:
 class _AuthenticatedNoticeParentSourceTruth:
     record: DocumentRegistryRecord
     manifest: dict[str, Any]
-    detail_response: dict[str, Any] | None
     content_blocks: tuple[dict[str, Any], ...]
     attachment_refs: tuple[dict[str, Any], ...]
     source_keys: tuple[str, ...]
@@ -516,22 +515,11 @@ def _load_parent_source_truths(
         attachment_refs_key = _find_processed_key(record, "source-truth/attachment-refs.jsonl")
         if notice_manifest_key is None or content_blocks_key is None or attachment_refs_key is None:
             continue
-        detail_response_key = _find_processed_key(record, "/detail-response.json")
         _site_id, notice_id = _parse_notice_document_id(record.document_id)
         if selected_notice_ids and notice_id not in selected_notice_ids:
             continue
         manifest = _load_json_payload(
             object_store.get_bytes(bucket=object_store_settings.bucket_source, key=notice_manifest_key)
-        )
-        detail_response = (
-            _load_json_payload(
-                object_store.get_bytes(
-                    bucket=object_store_settings.bucket_source,
-                    key=detail_response_key,
-                )
-            )
-            if detail_response_key is not None
-            else None
         )
         content_blocks = _load_jsonl_rows(
             object_store.get_bytes(bucket=object_store_settings.bucket_source, key=content_blocks_key)
@@ -543,7 +531,6 @@ def _load_parent_source_truths(
             _AuthenticatedNoticeParentSourceTruth(
                 record=record,
                 manifest=manifest,
-                detail_response=detail_response,
                 content_blocks=content_blocks,
                 attachment_refs=attachment_refs,
                 source_keys=tuple(
@@ -636,15 +623,7 @@ def _build_attachment_projection_result(
     object_key = _normalize_optional_text(attachment_ref.get("object_key"))
     if object_key is None:
         raise ValueError(f"{parent_record.document_id}#{attachment_ref_id} object_key is required")
-    attachment_bytes, resolved_object_key = _load_attachment_bytes(
-        attachment_ref=attachment_ref,
-        object_store=object_store,
-        object_store_settings=object_store_settings,
-        extra_candidate_keys=_detail_response_attachment_object_keys(
-            parent_source_truth=parent_source_truth,
-            attachment_ref=attachment_ref,
-        ),
-    )
+    attachment_bytes = object_store.get_bytes(bucket=object_store_settings.bucket_source, key=object_key)
     actual_attachment_sha256 = hashlib.sha256(attachment_bytes).hexdigest()
     expected_attachment_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
     if expected_attachment_sha256 is not None and expected_attachment_sha256 != actual_attachment_sha256:
@@ -674,7 +653,7 @@ def _build_attachment_projection_result(
                 materialization_policy=materialization_policy,
                 outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
                 document_id=derived_document_id,
-                attachment_object_key=resolved_object_key,
+                attachment_object_key=object_key,
                 attachment_content_sha256=actual_attachment_sha256,
                 provider_response_bytes=None,
                 review_reason=review_reason,
@@ -698,7 +677,7 @@ def _build_attachment_projection_result(
         "attachment_role": _resolve_attachment_role(attachment_ref=attachment_ref, config=config),
         "attachment_content_sha256": actual_attachment_sha256,
         "attachment_mime_type": _normalize_optional_text(attachment_ref.get("mime_type")),
-        "attachment_object_key": resolved_object_key,
+        "attachment_object_key": object_key,
         "attachment_filename": filename,
         "source_resource_role": _normalize_optional_text(attachment_ref.get("resource_role")),
         "source_relation_source": _normalize_optional_text(attachment_ref.get("relation_source")),
@@ -768,7 +747,7 @@ def _build_attachment_projection_result(
                 materialization_policy=materialization_policy,
                 outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
                 document_id=derived_document_id,
-                attachment_object_key=resolved_object_key,
+                attachment_object_key=object_key,
                 attachment_content_sha256=actual_attachment_sha256,
                 provider_response_bytes=provider_response_bytes,
                 review_reason=review_reason,
@@ -856,7 +835,7 @@ def _build_attachment_projection_result(
             materialization_policy=materialization_policy,
             outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
             document_id=derived_document_id,
-            attachment_object_key=resolved_object_key,
+            attachment_object_key=object_key,
             attachment_content_sha256=actual_attachment_sha256,
             provider_response_bytes=None,
             review_reason=review_reason,
@@ -1028,120 +1007,16 @@ def _load_attachment_bytes_for_classification(
     object_store: AuthenticatedNoticeProjectionObjectStore | None,
     object_store_settings: ObjectStoreSettings | None,
 ) -> bytes | None:
-    if object_store is None or object_store_settings is None:
+    object_key = _normalize_optional_text(attachment_ref.get("object_key"))
+    if object_key is None or object_store is None or object_store_settings is None:
         return None
     try:
-        attachment_bytes, _resolved_object_key = _load_attachment_bytes(
-            attachment_ref=attachment_ref,
-            object_store=object_store,
-            object_store_settings=object_store_settings,
+        return object_store.get_bytes(
+            bucket=object_store_settings.bucket_source,
+            key=object_key,
         )
-        return attachment_bytes
     except Exception:
         return None
-
-
-def _load_attachment_bytes(
-    *,
-    attachment_ref: dict[str, Any],
-    object_store: AuthenticatedNoticeProjectionObjectStore,
-    object_store_settings: ObjectStoreSettings,
-    extra_candidate_keys: tuple[str, ...] = (),
-) -> tuple[bytes, str]:
-    candidate_keys = _attachment_object_key_candidates(
-        attachment_ref,
-        extra_candidate_keys=extra_candidate_keys,
-    )
-    if not candidate_keys:
-        raise ValueError("attachment object_key is required")
-    last_error: Exception | None = None
-    for candidate_key in candidate_keys:
-        try:
-            return (
-                object_store.get_bytes(
-                    bucket=object_store_settings.bucket_source,
-                    key=candidate_key,
-                ),
-                candidate_key,
-            )
-        except Exception as exc:  # pragma: no cover
-            last_error = exc
-    assert last_error is not None
-    raise last_error
-
-
-def _attachment_object_key_candidates(
-    attachment_ref: dict[str, Any],
-    *,
-    extra_candidate_keys: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    candidates: list[str] = []
-    object_key = _normalize_optional_text(attachment_ref.get("object_key"))
-    if object_key is not None:
-        candidates.append(object_key)
-    content_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
-    filename = _guess_attachment_filename(attachment_ref)
-    if content_sha256 is not None and filename:
-        legacy_key = f"{content_sha256[:2]}/{content_sha256}/{filename}"
-        if legacy_key not in candidates:
-            candidates.append(legacy_key)
-    for candidate_key in extra_candidate_keys:
-        normalized = _normalize_optional_text(candidate_key)
-        if normalized is not None and normalized not in candidates:
-            candidates.append(normalized)
-    return tuple(candidates)
-
-
-def _detail_response_attachment_object_keys(
-    *,
-    parent_source_truth: _AuthenticatedNoticeParentSourceTruth,
-    attachment_ref: dict[str, Any],
-) -> tuple[str, ...]:
-    detail_response = parent_source_truth.detail_response
-    if not isinstance(detail_response, dict):
-        return ()
-    attachments = detail_response.get("attachments") or ()
-    if not isinstance(attachments, list):
-        return ()
-    ref_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
-    ref_original_filename = _normalize_optional_text(attachment_ref.get("original_filename"))
-    ref_source_url = _normalize_optional_text(attachment_ref.get("source_url"))
-    ref_normalized_source_url = _normalize_optional_text(
-        attachment_ref.get("normalized_source_url")
-    )
-    ref_final_url = _normalize_optional_text(attachment_ref.get("final_url"))
-    scored_candidates: list[tuple[int, str]] = []
-    for attachment in attachments:
-        if not isinstance(attachment, dict):
-            continue
-        object_key = _normalize_optional_text(attachment.get("object_key"))
-        if object_key is None:
-            continue
-        score = 0
-        if ref_sha256 is not None and _normalize_optional_text(attachment.get("sha256")) == ref_sha256:
-            score += 8
-        if (
-            ref_original_filename is not None
-            and _normalize_optional_text(attachment.get("original_filename")) == ref_original_filename
-        ):
-            score += 4
-        if ref_source_url is not None and _normalize_optional_text(attachment.get("source_url")) == ref_source_url:
-            score += 2
-        if (
-            ref_normalized_source_url is not None
-            and _normalize_optional_text(attachment.get("normalized_source_url")) == ref_normalized_source_url
-        ):
-            score += 2
-        if ref_final_url is not None and _normalize_optional_text(attachment.get("final_url")) == ref_final_url:
-            score += 2
-        if score > 0:
-            scored_candidates.append((score, object_key))
-    scored_candidates.sort(key=lambda item: (-item[0], item[1]))
-    deduped: list[str] = []
-    for _score, object_key in scored_candidates:
-        if object_key not in deduped:
-            deduped.append(object_key)
-    return tuple(deduped)
 
 
 def _looks_like_spatial_visual_asset(attachment_bytes: bytes) -> bool:

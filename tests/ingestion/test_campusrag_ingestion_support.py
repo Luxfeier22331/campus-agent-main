@@ -895,22 +895,19 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             "phase1-authorization-projection-v1",
         )
         self.assertNotIn("acl_level", metadata)
-        self.assertEqual(metadata["acl_groups"], ("students",))
-        self.assertEqual(metadata["campus_scope"], "main")
+        self.assertNotIn("acl_groups", metadata)
 
-    def test_load_metadata_from_bytes_accepts_legacy_acl_row_metadata_for_wave3_compat(self) -> None:
-        metadata = load_metadata_from_bytes(
-            (
-                '{"doc_id":"handbook:doc-authz","version_id":"v1:doc-authz",'
-                '"visibility_scope":"main",'
-                '"visibility_level":"restricted",'
-                '"acl":{"level":"public","allow_groups":["legacy-staff"]}}\n'
-            ).encode("utf-8")
-        )
-
-        self.assertEqual(metadata["entitlement_groups"], ("legacy-staff",))
-        self.assertEqual(metadata["acl_groups"], ("legacy-staff",))
-        self.assertEqual(metadata["campus_scope"], "main")
+    def test_load_metadata_from_bytes_rejects_legacy_acl_row_metadata(self) -> None:
+        with self.assertRaisesRegex(ValueError, "legacy row authorization metadata is not allowed"):
+            load_metadata_from_bytes(
+                (
+                    '{"doc_id":"handbook:doc-authz","version_id":"v1:doc-authz",'
+                    '"entitlement_groups":["students"],'
+                    '"visibility_scope":"main",'
+                    '"visibility_level":"restricted",'
+                    '"acl":{"level":"public","allow_groups":["legacy-staff"]}}\n'
+                ).encode("utf-8")
+            )
 
 if __name__ == "__main__":
     unittest.main()

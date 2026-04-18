@@ -204,7 +204,14 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(summary_row["page_end"], 288)
         self.assertEqual(summary_row["source_url"], source_uri)
         self.assertEqual(summary_row["source"], {"id": source_uri})
-        self.assertEqual(summary_row["acl"], {"level": "public", "allow_groups": []})
+        self.assertEqual(summary_row["entitlement_groups"], [])
+        self.assertIsNone(summary_row["visibility_scope"])
+        self.assertEqual(summary_row["visibility_level"], "public")
+        self.assertEqual(
+            summary_row["policy_projection_version"],
+            "phase1-authorization-projection-v1",
+        )
+        self.assertNotIn("acl", summary_row)
         self.assertIn("国际经济与贸易本科人才培养方案", summary_row["clean_text"])
 
         first_page_row = rows[1]
@@ -214,6 +221,9 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(first_page_row["page_end"], 278)
         self.assertEqual(first_page_row["doc_id"], document.document_id)
         self.assertEqual(first_page_row["source_url"], source_uri)
+        self.assertEqual(first_page_row["entitlement_groups"], [])
+        self.assertEqual(first_page_row["visibility_level"], "public")
+        self.assertNotIn("acl", first_page_row)
 
     def test_build_manifest_document_rows_canonicalizes_root_heading_to_manifest_title(self) -> None:
         manifest_document = SplitManifestDocument(

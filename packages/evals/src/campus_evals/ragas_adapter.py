@@ -144,7 +144,7 @@ def _build_statement_level_contexts(evidence: EvidenceBundle) -> tuple[tuple[str
 
 
 def _source_projection_id(source) -> str:
-    return str(source.doc_id or source.chunk_id or "").strip()
+    return str(source.canonical_source_id or source.doc_id or source.chunk_id or "").strip()
 
 
 def _reference_source_type(case: GoldenCase) -> str:

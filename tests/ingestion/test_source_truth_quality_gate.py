@@ -65,6 +65,7 @@ def _curriculum_rows_from_payload(provider_payload: dict[str, object]) -> list[d
         for line in normalize_curriculum_provider_result(
             provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
             source_pdf="curriculum-plan.pdf",
+            ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
         ).decode("utf-8").splitlines()
         if line.strip()
@@ -83,6 +84,7 @@ def _provider_curriculum_fixture_rows() -> list[dict[str, object]]:
         for line in normalize_curriculum_provider_result(
             provider_jsonl_bytes=fixture_path.read_bytes(),
             source_pdf="curriculum-plan-2022.pdf",
+            ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
         ).decode("utf-8").splitlines()
         if line.strip()
