@@ -405,7 +405,8 @@ attachment extraction lane 固定按类型分流：
   - 不生成 child document
 - `text_extractable`
   - 走确定性 native text extraction
-  - 当前至少覆盖 `docx`
+  - 当前覆盖 `docx`、`xls`、`xlsx`
+  - `xls` / `xlsx` 已属于 canonical success path，不再视为未完成支持
   - 不把 `pdf` 当作这条 lane 的默认 canonical 输入
 - `manual_review_required`
   - 当前用于校园导览图、位置图、楼宇分区图等空间关系主导的 inline image
@@ -427,6 +428,7 @@ attachment extraction lane 固定按类型分流：
 - `unsupported_binary`
   - 直接 fast-fail
   - 不静默降级成可检索文档
+  - 当前 `.doc` 继续属于这条 lane；后续如果补齐，只允许经 worker-owned normalizer 进入现有 `text_extractable` path
 
 child attachment document 必须携带明确的 derived metadata，包括但不限于：
 
@@ -531,6 +533,7 @@ repo 内已经具备：
 - 不对同一 scope 做 parent-only / child-only 多次 promote
 - 不回到 collector 本地文件系统重新建 canonical truth
 - 不把 `unsupported_binary` 静默降级成普通文本
+- 不在 `packages/ingestion-core` 里手写 `.doc` legacy binary parser
 - 不把 long-running persistent worker 放到 Supabase transaction pooler
 - 不以“先跑起来”为理由破坏 single-promoter `replace_scope` 语义
 
@@ -548,3 +551,7 @@ repo 内已经具备：
   `https://supabase.com/docs/guides/troubleshooting/supavisor-and-connection-terminology-explained-9pr_ZO`
 - PostgreSQL bulk population guidance:
   `https://www.postgresql.org/docs/18/populate.html`
+- LibreOffice command-line conversion (`--convert-to`):
+  `https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html`
+- Unstructured partitioning (`partition_doc` via LibreOffice -> `partition_docx`):
+  `https://docs.unstructured.io/open-source/core-functionality/partitioning`

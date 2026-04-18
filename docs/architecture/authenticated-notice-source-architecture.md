@@ -342,10 +342,10 @@ child attachment document 的长期约束：
 attachment extraction lane 固定按类型分流，不做多套 fallback：
 
 - `reference_only`：只保留 source-truth relation，不生成 child document
-- `text_extractable`：走确定性的 native text extraction；当前 `internal_notice` 默认只把 `docx` 这类可稳定原生解析的 Office 文本附件放进这条 lane
+- `text_extractable`：走确定性的 native text extraction；当前 `internal_notice` 默认把 `docx`、`xls`、`xlsx` 这类可稳定原生解析的 Office 文本附件放进这条 lane
 - `manual_review_required`：空间导览图、位置图和其他不以线性文本为主的 visual asset 不进入当前正文 OCR 主链路；只保留 relation truth，并显式记录 `review_reason`
 - `ocr_required`：走 PaddleOCR-VL provider 路径；当前 authenticated notice historical replay 的 canonical runtime shape 仍是 cloud async jobs。对 `internal_notice`，规章制度 / 手册类 `pdf` 默认也进入这条 lane；native PDF extraction 最多只作为 diagnostics / probe，不是 canonical 主链路。对 `state=done` 但 `resultUrl.jsonUrl` 持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为 provider contract breach
-- `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档
+- `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档；当前 `.doc` 继续属于这条 lane，后续如果补齐，也只能通过 worker-owned normalization lane 回到现有 `text_extractable` 路径，而不是在 `ingestion-core` 内手写 legacy Word binary parser
 
 `reference_only` 的固定补充：
 
