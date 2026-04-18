@@ -3,10 +3,10 @@ doc_type: decision
 decision_id: ADR-0029
 status: accepted
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-19
 ---
 
-# ADR-0029 IPv4 Session-Pooler Postgres Connectivity
+# ADR-0029 IPv4 Operator Session-Pooler Postgres Connectivity
 
 适用范围：repo-owned persistent runtime 的 Postgres 连接策略、Supabase-backed registry/control-plane database、authenticated notice / ingestion-worker / app runtime 的长期 IPv4 部署姿态
 
@@ -56,8 +56,10 @@ updated: 2026-04-05
 这意味着：
 
 - `CAMPUS_SHARED_POSTGRES_URL` 的长期语义是 runtime-ready shared DSN
+- canonical operator env 命名使用 `*_OPERATOR_*`，并统一指向 IPv4 可达的 session pooler `:5432`
+- 现存 `*_MANAGEMENT_*` env 名称只保留为兼容别名，不再代表 repo-level direct/default posture
 - 在当前 IPv4-only 姿态下，它应指向 session pooler，而不是 `db.<project-ref>.supabase.co`
-- 人工 DBA / migration / dump / one-off SQL client 如需使用 direct connection，应在明确可达的运维环境单独选择，不反向影响 runtime 主路径
+- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 capability / 决策收口，而不是继续复用默认 operator env
 
 ## 决策 4：所有长驻 runtime 必须使用 application-side pooling
 

@@ -35,12 +35,22 @@ function qualifyName(schema, name) {
   return `${schema}.${name}`;
 }
 
-function readRequiredManagementDatabaseUrl(env = process.env) {
-  const value = env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
+function normalizePostgresConnectionStringForExplicitSsl(connectionString) {
+  const nextUrl = new URL(connectionString);
+  nextUrl.searchParams.delete("sslmode");
+  return nextUrl.toString();
+}
+
+function readRequiredOperatorDatabaseUrl(env = process.env) {
+  const value =
+    env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+    env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
   if (!value) {
-    throw new Error("APP_API_MANAGEMENT_DATABASE_URL is required for shared-db drift reconciliation.");
+    throw new Error(
+      "APP_API_OPERATOR_DATABASE_URL is required for shared-db drift reconciliation. Legacy APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias.",
+    );
   }
-  return value;
+  return normalizePostgresConnectionStringForExplicitSsl(value);
 }
 
 function readSslMode(env = process.env) {
@@ -412,7 +422,7 @@ export async function runSharedDatabaseDriftReconcile({
   env = process.env,
 } = {}) {
   const migrationContext = loadMigrationContext();
-  const connectionString = readRequiredManagementDatabaseUrl(env);
+  const connectionString = readRequiredOperatorDatabaseUrl(env);
   const sslMode = readSslMode(env);
   const inventory = await inspectSharedDatabase({ connectionString, sslMode });
   const client = openClient({ connectionString, sslMode });

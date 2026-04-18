@@ -2,6 +2,8 @@ APP_API_NAME=campus-agent-app-api
 APP_API_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
+# Generate a different high-entropy secret for anonymous safety identifier derivation.
+APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Must match the deployed origin of `apps/public-chat-web`.
 PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
 # Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
@@ -40,4 +42,5 @@ AXIOM_TOKEN=
 # For local Wrangler / Drizzle commands, place the process-level database URLs in
 # `apps/app-api/.env` instead. `pnpm dev`, `pnpm db:generate`, and `pnpm db:migrate`
 # load that file before invoking the underlying tool.
-# APP_API_MANAGEMENT_DATABASE_URL is used only for schema generation and migrations.
+# APP_API_OPERATOR_DATABASE_URL lives in `apps/app-api/.env` for schema generation,
+# drift reconciliation, and repo-owned operator scripts.

@@ -15,6 +15,20 @@ function resolveSslConfig(databaseSslMode: string) {
       };
 }
 
+function resolveOperatorConnectionString(env: NodeJS.ProcessEnv): string {
+  const connectionString =
+    env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+    env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
+  if (!connectionString) {
+    throw new Error(
+      "APP_API_OPERATOR_DATABASE_URL is required. Legacy APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias.",
+    );
+  }
+  const nextUrl = new URL(connectionString);
+  nextUrl.searchParams.delete("sslmode");
+  return nextUrl.toString();
+}
+
 const databaseSslMode =
   process.env.APP_API_DATABASE_SSLMODE?.trim() === "disable"
     ? "disable"
@@ -39,7 +53,7 @@ async function main() {
       },
       async executeSql(sql, params) {
         const client = new Client({
-          connectionString: process.env.APP_API_MANAGEMENT_DATABASE_URL,
+          connectionString: resolveOperatorConnectionString(process.env),
           ssl: resolveSslConfig(databaseSslMode),
         });
 

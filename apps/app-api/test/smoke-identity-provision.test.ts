@@ -26,7 +26,7 @@ describe("app-api smoke identity provisioning", () => {
         {
           APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
           APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
-          APP_API_MANAGEMENT_DATABASE_URL: "postgresql://db.example/campus_agent",
+          APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
         } as NodeJS.ProcessEnv,
       ),
     ).toThrow("APP_API_SMOKE_IDENTITY_PASSWORD is required");
@@ -38,7 +38,7 @@ describe("app-api smoke identity provisioning", () => {
       {
         APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
         APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
-        APP_API_MANAGEMENT_DATABASE_URL: "postgresql://db.example/campus_agent",
+        APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
         APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
         PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
       } as NodeJS.ProcessEnv,
@@ -92,7 +92,7 @@ describe("app-api smoke identity provisioning", () => {
             {
               APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
               APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
-              APP_API_MANAGEMENT_DATABASE_URL: "postgresql://db.example/campus_agent",
+              APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
               APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
               PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
             } as NodeJS.ProcessEnv,

@@ -78,7 +78,7 @@ release identity 的长期规则固定为：
 
 - required secret presence 必须在 deploy 前显式校验
 - non-secret runtime truth 可以存在于 repo-owned config
-- operator Access team domain、policy audience、deploy-side DB management URL 等环境值继续通过 shell / secret store 注入，不回写 repo
+- operator Access team domain、policy audience、deploy-side DB operator URL 等环境值继续通过 shell / secret store 注入，不回写 repo
 
 ### Cross-App Invariants
 

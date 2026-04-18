@@ -18,6 +18,14 @@ for (const path of [localEnvPath, localDevVarsPath]) {
   }
 }
 
+const operatorDatabaseUrl =
+  process.env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+  process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
+if (operatorDatabaseUrl) {
+  process.env.APP_API_OPERATOR_DATABASE_URL = operatorDatabaseUrl;
+  process.env.APP_API_MANAGEMENT_DATABASE_URL = operatorDatabaseUrl;
+}
+
 const [command, ...args] = process.argv.slice(2);
 if (!command) {
   console.error("Usage: node ./scripts/run-with-local-env.mjs <command> [args...]");

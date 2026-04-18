@@ -7,6 +7,7 @@ from typing import Any, Sequence
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     load_target_seed,
     parse_env_file,
@@ -188,13 +189,22 @@ def _rewrite_root_env_from_shared_source(
     source_env_path: Path,
 ) -> Path:
     source_values = parse_env_file(source_env_path)
+    shared_operator_url = (
+        source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
+        or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip()
+        or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()
+    )
     assignments = {
         key: value
         for key, value in (
             (SHARED_POSTGRES_ENV_KEY, source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()),
             (
+                SHARED_POSTGRES_OPERATOR_ENV_KEY,
+                shared_operator_url,
+            ),
+            (
                 SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-                source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                shared_operator_url,
             ),
             (
                 "DOCUMENT_REGISTRY_DATABASE_URL",
@@ -202,9 +212,16 @@ def _rewrite_root_env_from_shared_source(
                 or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
             ),
             (
+                "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
+                source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
+            ),
+            (
                 "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
             ),
             (
                 "RAW_ASSET_REGISTRY_DATABASE_URL",
@@ -212,9 +229,16 @@ def _rewrite_root_env_from_shared_source(
                 or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
             ),
             (
+                "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
+                source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
+            ),
+            (
                 "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip(),
+                source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
+                or shared_operator_url,
             ),
         )
         if value
@@ -255,8 +279,14 @@ def _restore_or_sync_app_api_env(
                 ).strip(),
             ),
             (
+                "APP_API_OPERATOR_DATABASE_URL",
+                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
+            ),
+            (
                 "APP_API_MANAGEMENT_DATABASE_URL",
-                source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
+                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
+                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
             ),
         )
         if value

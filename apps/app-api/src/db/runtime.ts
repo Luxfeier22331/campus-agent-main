@@ -32,6 +32,19 @@ const cacheHost = globalThis as typeof globalThis & {
   __appApiPoolCache?: Map<string, Pool>;
 };
 
+export function normalizePostgresConnectionStringForExplicitSsl(
+  connectionString: string,
+): string {
+  const normalized = connectionString.trim();
+  if (!normalized) {
+    throw new Error("PostgreSQL connection string is required.");
+  }
+
+  const nextUrl = new URL(normalized);
+  nextUrl.searchParams.delete("sslmode");
+  return nextUrl.toString();
+}
+
 export function assertPgIdentifier(label: string, value: string): string {
   if (!IDENTIFIER.test(value)) {
     throw new Error(`${label} must be a lowercase PostgreSQL identifier.`);
@@ -116,16 +129,30 @@ export function buildRuntimeDatabaseConfig(
   };
 }
 
-export function buildManagementDatabaseConfig(env: Env) {
-  const connectionString = env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
+function resolveOperatorConnectionString(env: Env): string | undefined {
+  return (
+    env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+    env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
+    undefined
+  );
+}
+
+export function buildOperatorDatabaseConfig(env: Env) {
+  const connectionString = resolveOperatorConnectionString(env);
   if (!connectionString) {
-    throw new Error("APP_API_MANAGEMENT_DATABASE_URL is required.");
+    throw new Error(
+      "APP_API_OPERATOR_DATABASE_URL is required. Legacy APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias.",
+    );
   }
 
   return {
-    connectionString,
+    connectionString: normalizePostgresConnectionStringForExplicitSsl(connectionString),
     ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
   };
+}
+
+export function buildManagementDatabaseConfig(env: Env) {
+  return buildOperatorDatabaseConfig(env);
 }
 
 function buildPoolOptions(input: {

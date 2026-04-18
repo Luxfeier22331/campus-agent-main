@@ -70,7 +70,8 @@ uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
 
 - root `.env`
   - `CAMPUS_SHARED_POSTGRES_URL`
-  - `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+  - `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
   - `DOCUMENT_REGISTRY_DATABASE_URL`
   - `DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL`
   - `RAW_ASSET_REGISTRY_DATABASE_URL`
@@ -78,7 +79,8 @@ uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
 - `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`
-  - `APP_API_MANAGEMENT_DATABASE_URL`
+  - `APP_API_OPERATOR_DATABASE_URL`
+  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - `apps/app-api/.dev.vars`
   - `APP_API_DATABASE_SSLMODE=disable`
 

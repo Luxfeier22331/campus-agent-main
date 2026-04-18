@@ -122,7 +122,8 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgresql://app-api-local/postgres",
-                        "APP_API_MANAGEMENT_DATABASE_URL=postgresql://app-api-management/postgres",
+                        "APP_API_OPERATOR_DATABASE_URL=postgresql://app-api-operator/postgres",
+                        "APP_API_MANAGEMENT_DATABASE_URL=postgresql://app-api-operator/postgres",
                     ]
                 )
                 + "\n",

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Environment
@@ -114,10 +114,10 @@ updated: 2026-04-14
 - 当前 Cloudflare tier 下，不再把 `*.rag.ayafeed.com` 这类深一级 staging custom domain 作为可依赖的 SSL deploy truth；forward staging hostnames 必须统一使用 `ayafeed.com` 下一级子域
 - `ayafeed.com` 是共享 zone，generic 一级子域（例如 `api-staging.ayafeed.com`）不能继续假定为本 repo 可占用；staging hostname 必须带项目隔离前缀，避免与其他仓库或既有环境冲突
 - 当前阶段不冻结 `apps/supervisor-api` 的 staging hostname；`app-api` deploy 时必须显式注入当轮可达的 `STAGING_SUPERVISOR_API_BASE_URL`
-- `app-api` 的 Worker deploy 只覆盖 runtime shell；staging shared Postgres schema 仍需通过 direct management 连接单独执行 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
+- `app-api` 的 Worker deploy 只覆盖 runtime shell；staging shared Postgres schema 仍需通过独立 operator shell env 单独执行 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
 - 这些 deploy hostnames 由各 app 自己的 `wrangler.toml` 中 `env.staging` 持有，不写回 `.dev.vars.example`；repo 中若仍残留 `*.rag.ayafeed.com`，应视为待迁移实现残留，不再代表 staging deploy truth
 - `apps/app-api` 这类直接由 Wrangler 发布的 Worker 使用 `STAGING_SUPERVISOR_API_BASE_URL=... pnpm --dir apps/app-api deploy:staging`
-- staging shared DB 管理连接通过 deploy shell env `STAGING_APP_API_MANAGEMENT_DATABASE_URL` 注入，不写回 repo-tracked `.env.example`
+- staging shared DB operator 连接通过 deploy shell env `STAGING_APP_API_OPERATOR_DATABASE_URL` 注入；legacy `STAGING_APP_API_MANAGEMENT_DATABASE_URL` 仍作为兼容别名接受，不写回 repo-tracked `.env.example`
 - 真实 deploy 命令直接消费当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev / test / local build
 - `apps/protected-panel-web` staging deploy 还必须显式注入 `STAGING_ACCESS_TEAM_DOMAIN` 与 `STAGING_ACCESS_POLICY_AUD`；这两个值不再写进 `wrangler.toml`，且占位默认值会被 deploy 脚本拒绝
 - 三个 Worker 的 staging deploy 都会在 publish 时通过共享 helper 自动注入 `SENTRY_RELEASE=<app>@staging-<sha>`；只有需要固定 release 名时才覆写 `STAGING_SENTRY_RELEASE`
@@ -163,11 +163,11 @@ updated: 2026-04-14
   `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - 如果本地希望直接复用 root worktree `.env` 里的共享 Supabase Postgres，可用
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
-  把 `CAMPUS_SHARED_POSTGRES_URL` 与 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  把 `CAMPUS_SHARED_POSTGRES_URL` 与 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
   fan out 到 `apps/app-api/.env` 的
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH` 以及
-  `APP_API_MANAGEMENT_DATABASE_URL`
+  `APP_API_OPERATOR_DATABASE_URL`（同时回写 legacy `APP_API_MANAGEMENT_DATABASE_URL`）
 - 如果本地需要把当前 worktree 从 shared Supabase 切回 `Docker Postgres`，并重建 authenticated-notice accepted current scope，可用
   `uv run --all-packages python -m scripts.restore_local_postgres_dev --execute`
   这条入口会：
@@ -198,9 +198,8 @@ updated: 2026-04-14
   这条入口默认优先消费 `.tmp/local-postgres-recovery/backups/*` 中的 pre-local backups；如备份不存在，也可显式传入 `--shared-root-env`、`--shared-app-api-env`、`--shared-app-api-dev-vars`
 - 这条入口是 `local dev / test path`，不改变 `docs/data/shared-postgres-ownership.md` 与 `ADR-0029` 的 deployed runtime truth
 - 这条入口默认假定本地对象存储仍按 `ADR-0002` 运行，且 `.tmp/historical-intake/.../normalized` 已存在；如果 donor normalized artifacts 尚未准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只用于 repo-local migration / DBA / offline ingestion operator 路径，
-  当共享库由 Supabase 承载时它必须是 `db.<project-ref>.supabase.co:5432` 这类 direct management DSN；
-  不得把 session pooler URL 复制成 management URL
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 是 canonical operator lane；当前 repo-owned 默认要求它指向 IPv4 可达的 session pooler `:5432`
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只保留为 legacy 兼容别名；在当前 posture 下应与 operator lane 保持同值，而不是再默认承载 direct posture
 - `apps/app-api` 还会在 source `.env` 存在 `AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN` 时同步这三个键
 - `SENTRY_API_TOKEN` 只用于 repo-local smoke / artifact collection，不同步到任何 Worker `.dev.vars`，也不构成 deploy-side runtime ownership
 - `AXIOM_ENDPOINT` 应填写 Axiom `Settings -> General -> Edge deployment` 对应的 base domain，例如 `https://us-east-1.aws.edge.axiom.co`
@@ -219,8 +218,9 @@ updated: 2026-04-14
 - `apps/app-api/wrangler.toml` 在 `env.local` 下声明 `APP_API_DB` Hyperdrive binding
 - `apps/app-api/.env` 负责 Wrangler/Drizzle process env：
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
-  - `APP_API_MANAGEMENT_DATABASE_URL`
-- `apps/app-api/.dev.vars` 负责 Worker runtime string env，例如 `BETTER_AUTH_SECRET`、`PUBLIC_CHAT_WEB_ORIGIN`、`SUPERVISOR_API_*`，以及在启用 `official-web-collector -> app-api` live control-plane seam 时才需要的 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
+  - `APP_API_OPERATOR_DATABASE_URL`
+  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
+- `apps/app-api/.dev.vars` 负责 Worker runtime string env，例如 `BETTER_AUTH_SECRET`、`APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`、`PUBLIC_CHAT_WEB_ORIGIN`、`SUPERVISOR_API_*`，以及在启用 `official-web-collector -> app-api` live control-plane seam 时才需要的 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
 - `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane seam，其中
   `OFFICIAL_WEB_SERVICE_TOKEN` 只在 live control-plane smoke / deploy 时需要，且必须与 `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 相同
 - `campus-ingestion-consume-official-web-handoffs` 如需回写 app-owned execution status，

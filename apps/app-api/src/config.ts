@@ -21,6 +21,7 @@ export interface Env {
   SUPERVISOR_API_SHARED_SECRET?: string;
   SUPERVISOR_API_TIMEOUT_MS?: string;
   SUPERVISOR_API_EVAL_TIMEOUT_MS?: string;
+  APP_API_OPERATOR_DATABASE_URL?: string;
   APP_API_MANAGEMENT_DATABASE_URL?: string;
   APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
   APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
@@ -44,7 +45,7 @@ export interface AppApiConfig {
   publicChatOrigin: string;
   databaseConnectionString: string;
   databaseSslMode: DatabaseSslMode;
-  managementDatabaseUrl?: string;
+  operatorDatabaseUrl?: string;
   internalSharedSecret: string;
   endUserEmailDomainAllowlist: string[];
   endUserEmailAllowlist: string[];
@@ -181,7 +182,10 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     databaseConnectionString: env.APP_API_DB!.connectionString!.trim(),
     databaseSslMode: resolveDatabaseSslMode(env),
     internalSharedSecret: env.APP_API_INTERNAL_SHARED_SECRET!.trim(),
-    managementDatabaseUrl: env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || undefined,
+    operatorDatabaseUrl:
+      env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
+      env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
+      undefined,
     endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map((item) =>
       item.toLowerCase(),
     ),

@@ -27,6 +27,16 @@ function parseDatabaseSslMode(value) {
   return value === "disable" || value === "prefer" ? value : "require";
 }
 
+function normalizePostgresConnectionStringForExplicitSsl(connectionString) {
+  const normalized = requireValue(
+    connectionString,
+    "PostgreSQL connection string is required.",
+  );
+  const nextUrl = new URL(normalized);
+  nextUrl.searchParams.delete("sslmode");
+  return nextUrl.toString();
+}
+
 function requireValue(value, message) {
   if (!value?.trim()) {
     throw new Error(message);
@@ -72,9 +82,8 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
       `${email} is not admitted by the configured end-user auth allowlist. Refuse to provision a smoke identity that the deployed surface cannot sign in with.`,
     );
   }
-  const managementDatabaseUrl = requireValue(
-    env.APP_API_MANAGEMENT_DATABASE_URL,
-    "APP_API_MANAGEMENT_DATABASE_URL is required for smoke identity provisioning.",
+  const operatorDatabaseUrl = normalizePostgresConnectionStringForExplicitSsl(
+    env.APP_API_OPERATOR_DATABASE_URL || env.APP_API_MANAGEMENT_DATABASE_URL,
   );
   const passwordEnvKey = readArgValue(argv, "--password-env") || DEFAULT_PASSWORD_ENV_KEY;
   const password = requireValue(
@@ -92,7 +101,7 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
     endUserEmailDomainAllowlist,
     internalSharedSecret:
       env.APP_API_INTERNAL_SHARED_SECRET?.trim() || DEFAULT_INTERNAL_SHARED_SECRET,
-    managementDatabaseUrl,
+    operatorDatabaseUrl,
     name,
     operatorEmailAllowlist:
       env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || DEFAULT_OPERATOR_EMAIL_ALLOWLIST,
@@ -112,15 +121,16 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
     APP_API_ENVIRONMENT: input.appApiEnvironment,
     APP_API_DATABASE_SSLMODE: input.databaseSslMode,
     APP_API_DB: {
-      connectionString: input.managementDatabaseUrl,
+      connectionString: input.operatorDatabaseUrl || input.managementDatabaseUrl,
     },
     APP_API_DB_FRESH: {
-      connectionString: input.managementDatabaseUrl,
+      connectionString: input.operatorDatabaseUrl || input.managementDatabaseUrl,
     },
     APP_API_END_USER_EMAIL_ALLOWLIST: input.endUserEmailAllowlist,
     APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: input.endUserEmailDomainAllowlist,
     APP_API_INTERNAL_SHARED_SECRET: input.internalSharedSecret,
-    APP_API_MANAGEMENT_DATABASE_URL: input.managementDatabaseUrl,
+    APP_API_OPERATOR_DATABASE_URL: input.operatorDatabaseUrl || input.managementDatabaseUrl,
+    APP_API_MANAGEMENT_DATABASE_URL: input.operatorDatabaseUrl || input.managementDatabaseUrl,
     APP_API_OPERATOR_EMAIL_ALLOWLIST: input.operatorEmailAllowlist,
     BETTER_AUTH_SECRET: input.betterAuthSecret,
     PUBLIC_CHAT_WEB_ORIGIN: input.publicChatOrigin,

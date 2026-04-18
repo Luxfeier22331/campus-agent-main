@@ -62,7 +62,7 @@ updated: 2026-04-02
 - `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 非空
 - `apps/app-api/.env` 已提供
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
-  与 `APP_API_MANAGEMENT_DATABASE_URL`
+  与 `APP_API_OPERATOR_DATABASE_URL`（legacy `APP_API_MANAGEMENT_DATABASE_URL` 仍兼容）
 - 如果 root worktree `.env` 已配置共享 Supabase Postgres，可先运行
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
 - `apps/official-web-collector/.env` 已提供

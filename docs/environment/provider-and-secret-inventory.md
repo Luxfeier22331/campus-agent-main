@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Provider And Secret Inventory
@@ -40,7 +40,7 @@ updated: 2026-04-12
 | OpenAI-compatible LLM provider | supervisor / specialist 在线回答，eval 默认 judge/ragas LLM | `LLM_BASE_URL` `LLM_API_KEY` `AGNO_SUPERVISOR_MODEL` `AGNO_SPECIALIST_MODEL` | root `.env` | 真实 query path、live eval | 在所选供应商控制台创建项目级 API key；如果直接用 OpenAI，按 Projects / API keys 流程创建 |
 | Embedding provider | ingestion 向量化、retrieval dense lane、eval 默认 embeddings | `EMBEDDING_PROVIDER` `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY` `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS` | root `.env` | indexing、retrieval、eval embeddings | 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings 服务并拿到 token / endpoint |
 | Qdrant | 向量索引与 hybrid retrieval backend | `QDRANT_URL` `QDRANT_API_KEY` | root `.env` | retrieval / indexing | 在 Qdrant Cloud 创建 cluster 并在 Cluster Detail 的 API Keys 页面创建 key；自托管则自配 URL + API key |
-| Shared Postgres | app-api shared DB、document/raw registry | `CAMPUS_SHARED_POSTGRES_URL` `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` `DOCUMENT_REGISTRY_DATABASE_URL` `RAW_ASSET_REGISTRY_DATABASE_URL` | root `.env`；再 fan out 到 `apps/app-api/.env` | app-api、本地 eval ingress、registry/operator 路径 | 如果用 Supabase，在项目 Connect 面板分别取 session pooler 与 direct DSN；如果本地开发，走 Docker Postgres 恢复入口 |
+| Shared Postgres | app-api shared DB、document/raw registry | `CAMPUS_SHARED_POSTGRES_URL` `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` `DOCUMENT_REGISTRY_DATABASE_URL` `RAW_ASSET_REGISTRY_DATABASE_URL` | root `.env`；再 fan out 到 `apps/app-api/.env` | app-api、本地 eval ingress、registry/operator 路径 | 如果用 Supabase，operator/runtime 默认都取 session pooler `:5432`；legacy `*_MANAGEMENT_*` 只保留兼容别名；如果本地开发，走 Docker Postgres 恢复入口 |
 | S3-compatible object storage | raw source、source truth、derived artifacts | `OBJECT_STORE_ENDPOINT` `OBJECT_STORE_ACCESS_KEY` `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE` `OBJECT_STORE_BUCKET_DERIVED` | root `.env` | ingestion / replay / rebuild | 本地开发默认用 Docker MinIO；云端可用任何 S3-compatible provider，创建 bucket 与 access key 即可 |
 | OCR service | canonical raw ingestion / replay，sidecar compare | `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL` `OCR_MINERU_*` | root `.env` 或 command-scoped env | 只有 ingestion / replay / compare 需要 | canonical primary lane 当前仍要求可达的 Paddle endpoint；`OCR_MINERU_*` 只作为 `process_raw_ingestion_job` source-truth-only 的可选第二 provider |
 | Eval-only provider override | eval 独立预算 / 独立限流 | `EVAL_LLM_*` `EVAL_EMBEDDING_*` `EVAL_LLM_TRANSPORT` `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL` | root `.env` | 只有 eval 不想复用 shared provider 时 | 在对应供应商控制台单独申请；默认不需要 |
@@ -50,10 +50,12 @@ updated: 2026-04-12
 | Provider / system | 作用 | 主要 env keys | 放置位置 | 何时必需 | 获取方式 |
 | --- | --- | --- | --- | --- | --- |
 | Better Auth secret | `app-api` 会话签名与加密 | `BETTER_AUTH_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | `app-api` 必需 | 自行生成高熵 secret，不是第三方平台发放 |
+| Safety identifier HMAC secret | `app-api` 匿名安全标识导出 | `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | 启用 end-user safety traceability 时必需 | 自行生成高熵 secret，不是第三方平台发放 |
 | Sentry | runtime error / trace / release evidence | `SENTRY_DSN` `SENTRY_ENVIRONMENT` `SENTRY_RELEASE` | 各 app `.dev.vars` 或 Cloudflare secret store | staging / prod observability，local smoke 可选 | 在 Sentry 创建项目后，从 Client Keys (DSN) 复制 DSN；需要 repo-local API lookup 时再建 auth token |
 | Axiom | `app-api` runtime logs / metrics ingest | `AXIOM_ENDPOINT` `AXIOM_DATASET` `AXIOM_TOKEN` | `apps/app-api/.dev.vars` 或 Cloudflare secret store | `app-api` observability | 在 Axiom 确认 edge deployment、创建 dataset、生成 API token |
 | Cloudflare Workers / Wrangler | `app-api`、`public-chat-web`、`protected-panel-web` deploy 与 secret store | shell env / secret store，不固定 repo key 名 | local shell、CI secret store、Cloudflare dashboard | 只有 Worker dev/deploy 需要 | 本机 `wrangler login`，或在 CI 下发 Cloudflare API token；Worker secret 用 `wrangler secret put`，deploy 前再用 `scripts.check_worker_secret_presence` 审计 |
 | Cloudflare Access | `protected-panel-web` outer protection envelope | `ACCESS_TEAM_DOMAIN` `ACCESS_POLICY_AUD` | `apps/protected-panel-web/.dev.vars` 或 staging deploy 注入 | panel staging / prod 必需 | 在 Zero Trust 创建 self-hosted Access application，复制 team domain 与 Application Audience (AUD) Tag |
+| Dev-backed staging operator shell | 这台开发机上的 staging named tunnel、自愈任务与 strict health check | `DEV_BACKED_SUPERVISOR_TUNNEL_NAME` `DEV_BACKED_SUPERVISOR_PUBLIC_BASE_URL` `DEV_BACKED_SUPERVISOR_APP_API_BASE_URL` | operator shell / Windows scheduled task action | 只有当前 dev-backed staging host 需要 | repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写 |
 
 ## Provider 详情
 
@@ -181,20 +183,22 @@ updated: 2026-04-12
 相关键：
 
 - `CAMPUS_SHARED_POSTGRES_URL`
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 - `RAW_ASSET_REGISTRY_DATABASE_URL`
 - `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`
-  - `APP_API_MANAGEMENT_DATABASE_URL`
+  - `APP_API_OPERATOR_DATABASE_URL`
+  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 
 如果使用 Supabase：
 
 1. 打开项目 **Connect** 面板。
 2. 复制 session pooler DSN 作为 `CAMPUS_SHARED_POSTGRES_URL`。
-3. 复制 direct connection DSN 作为 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`。
-4. 不要把 transaction pooler DSN 填到 management URL。
+3. 复制 session pooler `:5432` DSN 作为 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
+4. 如需兼容旧脚本，可把同一个值同时写入 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`。
 
 外部参考：
 
@@ -208,7 +212,7 @@ updated: 2026-04-12
 说明：
 
 - 本地 Docker Postgres 是 `local dev / test path`，不是 deployed runtime truth
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只给 migration / DBA / offline operator 路径，不给普通 app 流量复用
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径；legacy `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仅作兼容别名，不再承诺 direct posture
 
 ## 5. S3-compatible object storage
 
@@ -348,6 +352,34 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 - 这不是第三方平台发的 credential
 - 如果未来重新引入 social provider，再额外为对应 provider 增加 client ID / secret；那是未来范围，不是当前 merged truth
+
+## 7A. Safety Identifier HMAC Secret
+
+当前 owner：
+
+- `apps/app-api`
+
+默认放置位置：
+
+- `apps/app-api/.dev.vars`
+- deploy-side secret store
+
+相关键：
+
+- `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
+
+获取方式：
+
+1. 自行生成高熵 secret。
+2. 长度至少 32 个字符。
+3. 推荐直接使用：
+   `openssl rand -base64 32`
+
+说明：
+
+- 这不是第三方平台发的 credential
+- 它只用于导出匿名 `safety_identifier`
+- 不得与 `BETTER_AUTH_SECRET`、`APP_API_INTERNAL_SHARED_SECRET` 复用同一个值
 
 ## 8. Sentry
 
@@ -510,6 +542,7 @@ root convenience keys：
   - local Hyperdrive / management DSN
 - `apps/app-api/.dev.vars`
   - `BETTER_AUTH_SECRET`
+  - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
   - `PUBLIC_CHAT_WEB_ORIGIN`
   - `SUPERVISOR_API_*`
   - `APP_API_INTERNAL_SHARED_SECRET`

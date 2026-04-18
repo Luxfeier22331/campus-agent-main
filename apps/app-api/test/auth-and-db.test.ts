@@ -6,7 +6,7 @@ import { createApp } from "../src/app";
 import { resolveEnvironment } from "../src/config";
 import {
   createRuntimePool,
-  buildManagementDatabaseConfig,
+  buildOperatorDatabaseConfig,
   buildRuntimeDatabaseConfig,
   probeRuntimeDatabase,
 } from "../src/db/runtime";
@@ -105,8 +105,41 @@ describe("app-api database config", () => {
     );
   });
 
-  it("uses direct management connection for migrations", () => {
-    const config = buildManagementDatabaseConfig({
+  it("preserves Hyperdrive sslmode hints for staging runtime bindings", () => {
+    const config = buildRuntimeDatabaseConfig({
+      APP_API_ENVIRONMENT: "staging",
+      APP_API_DATABASE_SSLMODE: "require",
+      APP_API_DB: {
+        connectionString:
+          "postgres://postgres:secret@example.com:5432/campus_agent?sslmode=disable",
+      },
+    });
+
+    expect(config.connectionString).toBe(
+      "postgres://postgres:secret@example.com:5432/campus_agent?sslmode=disable",
+    );
+    expect(config.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+
+  it("uses canonical operator connection for app-api schema management", () => {
+    const config = buildOperatorDatabaseConfig({
+      APP_API_DATABASE_SSLMODE: "require",
+      APP_API_OPERATOR_DATABASE_URL:
+        "postgres://postgres.project-ref:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/campus_agent_admin?sslmode=require",
+    });
+
+    expect(config.connectionString).toBe(
+      "postgres://postgres.project-ref:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/campus_agent_admin",
+    );
+    expect(config.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
+  });
+
+  it("falls back to the legacy management env key for operator config", () => {
+    const config = buildOperatorDatabaseConfig({
       APP_API_DATABASE_SSLMODE: "require",
       APP_API_MANAGEMENT_DATABASE_URL:
         "postgres://postgres:secret@example.com:5432/campus_agent_admin",
@@ -115,9 +148,6 @@ describe("app-api database config", () => {
     expect(config.connectionString).toBe(
       "postgres://postgres:secret@example.com:5432/campus_agent_admin",
     );
-    expect(config.ssl).toEqual({
-      rejectUnauthorized: false,
-    });
   });
 
   it("reuses one runtime pool for repeated calls under the same env", async () => {

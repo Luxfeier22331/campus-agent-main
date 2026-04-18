@@ -96,9 +96,12 @@ _SURFACE_SPECS = {
             "apps/app-api/.env": {
                 "required_keys": (
                     "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB",
+                    "APP_API_OPERATOR_DATABASE_URL",
+                ),
+                "optional_keys": (
+                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",
                     "APP_API_MANAGEMENT_DATABASE_URL",
                 ),
-                "optional_keys": ("CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",),
             },
             "apps/app-api/.dev.vars": {
                 "required_keys": (
@@ -143,7 +146,10 @@ _SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_app_api_operator_database_url": (
+                "STAGING_APP_API_OPERATOR_DATABASE_URL",
+                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
+            ),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},
@@ -155,7 +161,10 @@ _SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_management_database_url": ("STAGING_APP_API_MANAGEMENT_DATABASE_URL",),
+            "staging_app_api_operator_database_url": (
+                "STAGING_APP_API_OPERATOR_DATABASE_URL",
+                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
+            ),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},

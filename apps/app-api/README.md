@@ -98,7 +98,8 @@ Database baseline:
 
 - runtime reads/writes use Hyperdrive-style runtime connection config against the shared repo Postgres
 - runtime now distinguishes `APP_API_DB` for cached/read-mostly access and optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
-- migration / schema management uses `APP_API_MANAGEMENT_DATABASE_URL`
+- migration / schema management uses canonical `APP_API_OPERATOR_DATABASE_URL`
+  with legacy `APP_API_MANAGEMENT_DATABASE_URL` kept as a compatibility alias
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`, `runtime.*`, `operator.*`, and `official_web.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and `official_web.*`
 - Better Auth uses repo-owned `app_auth.*`; `apps/app-api` is now the shared-db bootstrap owner for `app_auth.*` / `chat.*`
@@ -121,6 +122,7 @@ Environment:
 - `APP_API_OFFICIAL_WEB_HANDOFF_TOKEN`
 - `APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS`
 - `BETTER_AUTH_SECRET`
+- `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
 - `PUBLIC_CHAT_WEB_ORIGIN`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
 - `APP_API_END_USER_EMAIL_ALLOWLIST`
@@ -130,7 +132,8 @@ Environment:
 - `SUPERVISOR_API_EVAL_TIMEOUT_MS`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `APP_API_INTERNAL_SHARED_SECRET`
-- `APP_API_MANAGEMENT_DATABASE_URL`
+- `APP_API_OPERATOR_DATABASE_URL`
+- `APP_API_MANAGEMENT_DATABASE_URL` (legacy alias)
 - `APP_API_DATABASE_SSLMODE`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
@@ -146,7 +149,8 @@ Local development:
 - put local Wrangler / Drizzle process env in `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
-  - `APP_API_MANAGEMENT_DATABASE_URL=...`
+  - `APP_API_OPERATOR_DATABASE_URL=...`
+  - `APP_API_MANAGEMENT_DATABASE_URL=...` (legacy alias)
 - if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use
   `uv run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root <current-worktree-root>`
   to generate `apps/app-api/.env`; the sync script will mirror the runtime DSN into both
@@ -162,6 +166,7 @@ Deployment minimum gate:
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths stay fresh
 - `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web` origin because Better Auth keeps origin / CSRF checks enabled for proxied `/api/auth/*`
+- `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` must be present whenever end-user safety traceability is enabled; it must be distinct from `BETTER_AUTH_SECRET` and `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` must contain the admitted campus email suffixes for end-user auth; `APP_API_END_USER_EMAIL_ALLOWLIST` is optional for explicit exceptions
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails expected to use the protected panel bridge
@@ -187,9 +192,9 @@ pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:migrate:staging
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm db:reconcile-shared-drift:staging
-APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm db:migrate:staging
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm db:reconcile-shared-drift:staging
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 pnpm dev
 ```
 
@@ -197,8 +202,8 @@ Deploy note:
 
 - `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
 - 在任何 staging `official_web` / operator surface smoke 之前，先执行
-  `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
-  和需要时的 `STAGING_APP_API_MANAGEMENT_DATABASE_URL=... pnpm db:migrate:staging`
+  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
+  和需要时的 `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:migrate:staging`
 - 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与 `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 
 Testing lanes:
