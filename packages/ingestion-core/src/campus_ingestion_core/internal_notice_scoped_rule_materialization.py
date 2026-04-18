@@ -56,8 +56,12 @@ _TARGET_IMPORT_SOURCE = "internal_notice_scoped_rule_materialization"
 _TARGET_PARSER_VERSION = "internal_notice_scoped_rule_materialization_v1"
 _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice_scoped_rules"
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
+_INSTITUTION_PREFIX = "中央民族大学"
 _SCHOOL_UNIT_RE = re.compile(
     r"(?P<unit>[一-龥]{2,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室))"
+)
+_SCHOOL_UNIT_FULL_RE = re.compile(
+    r"^[一-龥]{2,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室)$"
 )
 _CAMPUS_SITE_RE = re.compile(r"(?P<site>[一-龥A-Za-z0-9]{2,20}校区)")
 
@@ -774,7 +778,14 @@ def _extract_cycle_year(text: str) -> str | None:
 
 def _extract_school_unit_name(text: str) -> str | None:
     match = _SCHOOL_UNIT_RE.search(text)
-    return match.group("unit") if match is not None else None
+    if match is None:
+        return None
+    unit = match.group("unit").strip()
+    if unit.startswith(_INSTITUTION_PREFIX):
+        normalized = unit.removeprefix(_INSTITUTION_PREFIX).strip()
+        if normalized and _SCHOOL_UNIT_FULL_RE.fullmatch(normalized) is not None:
+            return normalized
+    return unit if _SCHOOL_UNIT_FULL_RE.fullmatch(unit) is not None else None
 
 
 def _extract_campus_site(text: str) -> str | None:

@@ -541,6 +541,70 @@ class InternalNoticeScopedRuleMaterializationTest(unittest.TestCase):
             "历史文化学院2021年硕博连读博士研究生 招生实施细则",
         )
         self.assertEqual(candidate.cycle_year, "2021")
+        self.assertEqual(candidate.school_unit_name, "历史文化学院")
+
+    def test_build_scoped_rule_candidate_normalizes_school_unit_name_without_institution_prefix(self) -> None:
+        source_record = _record(
+            notice_id="186957",
+            title_slug="ethnology-rule",
+            content_hash="sha256:ethnology-rule",
+            body_key="campus_notices/documents/internal_notice/186957/canonical.md",
+            units_key="campus_notices/documents/internal_notice/186957/document-units.jsonl",
+            is_current=True,
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", source_record.canonical_markdown_object_key or ""): _canonical_markdown(
+                    "# 中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则\n\n"
+                    "根据教育部有关文件精神，我院开展硕博连读招生。\n"
+                ),
+            }
+        )
+        report = InternalNoticeRegulationPromotionDocumentReport(
+            document_id=source_record.document_id,
+            notice_id="186957",
+            site_id="muc_internal_portal",
+            source_kind="parent_notice",
+            source_title="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+            input_lane="notice_body",
+            revision_track="source-faithful",
+            version_id=source_record.version_id,
+            action="manual_review_required",
+            promotion_class="scoped_rule",
+            document_nature="annual_cycle_rule",
+            semantic_owner_kind="notice_body",
+            target_corpus="regulations",
+            target_collection="scoped_rules",
+            regulation_title_normalized="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+            issuing_org="中央民族大学",
+            effective_date="2021年1月6日",
+            revision_signal=None,
+            source_notice_release_time="2021-01-05 14:59",
+            source_parent_document_id=source_record.document_id,
+            source_attachment_ref_id=None,
+            source_attachment_sha256=None,
+            duplicate_group_key=None,
+            duplicate_primary_document_id=None,
+            quality_gates_passed=("canonical_text_available",),
+            missing_required_metadata=(),
+            reasons=("annual_cycle_or_program_rule_detected",),
+            artifact_key=None,
+        )
+
+        candidate = scoped_materialization._build_scoped_rule_candidate(
+            report=report,
+            source_record=source_record,
+            inventory_entry=_inventory_entry(
+                notice_id="186957",
+                notice_title="中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+                published_date="2021-01-05 14:59",
+            ),
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+            document_nature="annual_cycle_rule",
+        )
+
+        self.assertEqual(candidate.school_unit_name, "民族学与社会学学院")
 
     def test_build_scoped_rule_candidate_prefers_source_title_for_time_bound_rule(self) -> None:
         source_record = _record(
