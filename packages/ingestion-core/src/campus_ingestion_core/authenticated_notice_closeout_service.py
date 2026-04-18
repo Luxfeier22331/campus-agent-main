@@ -417,11 +417,6 @@ class AuthenticatedNoticeCloseoutService:
         ocr_candidate_count = 0
         notice_risk_counts: dict[str, int] = {}
         for parent in tuple(payload.get("parents") or ()):
-            preserve_attachment_content_sha256 = any(
-                "attachment_content_sha256" in item
-                for item in tuple(parent.get("attachment_projection_plans") or ())
-                if isinstance(item, dict)
-            )
             parent_source_truth = _load_parent_source_truth_from_snapshot(
                 parent_snapshot=dict(parent),
                 object_store=self.object_store,
@@ -438,15 +433,6 @@ class AuthenticatedNoticeCloseoutService:
                     parent_record=parent_source_truth.record,
                 )
             ]
-            if not preserve_attachment_content_sha256:
-                attachment_projection_plans = [
-                    {
-                        key: value
-                        for key, value in plan.items()
-                        if key != "attachment_content_sha256"
-                    }
-                    for plan in attachment_projection_plans
-                ]
             required_documents = [
                 dict(plan)
                 for plan in attachment_projection_plans

@@ -44,6 +44,7 @@ from tests.ingestion.test_authenticated_notice_import import (
 from tests.ingestion.test_authenticated_notice_source_projections import (
     _FakeAttachmentOcrClient,
     _FakeAttachmentNoTextOcrClient,
+    _attachment_object_key,
     _build_minimal_docx_bytes,
     _build_minimal_gif_bytes,
     _build_map_like_png_bytes,
@@ -822,10 +823,10 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
 
         attachments = bundle["attachments"]
         assert isinstance(attachments, list) and len(attachments) == 3
-        second_docx_key = "attachments/pilot/355120/application-355120.docx"
-        second_png_key = "attachments/pilot/355120/notice-355120.png"
         second_docx_sha256 = hashlib.sha256(docx_bytes).hexdigest()
         second_png_sha256 = hashlib.sha256(png_bytes).hexdigest()
+        second_docx_key = _attachment_object_key(second_docx_sha256, "application-355120.docx")
+        second_png_key = _attachment_object_key(second_png_sha256, "notice-355120.png")
         attachments[0]["attachment_id"] = 101
         attachments[0]["source_url"] = "https://portal.example.edu/files/application-355120.docx"
         attachments[0]["normalized_source_url"] = (
@@ -1425,6 +1426,7 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(repaired["expected_document_count"], 2)
             self.assertEqual(repaired["expected_attachment_document_count"], 1)
             self.assertEqual(repaired["expected_ocr_candidate_count"], 0)
+            expected_attachment_sha256 = str(bundle[0]["attachments"][0]["sha256"])
             refreshed_payload = json.loads(
                 object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode("utf-8")
             )
@@ -1434,6 +1436,7 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 [
                     {
                         "attachment_ref_id": "attachment-0001",
+                        "attachment_content_sha256": expected_attachment_sha256,
                         "classification": "text_extractable",
                         "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
                         "materialization_policy": "required_document",

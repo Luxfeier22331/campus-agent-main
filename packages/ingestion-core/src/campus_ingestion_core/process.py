@@ -149,7 +149,6 @@ class IndexableChunk:
                 "entitlement_groups": list(self.entitlement_groups),
                 "visibility_scope": self.visibility_scope,
                 "visibility_level": self.visibility_level,
-                "acl_level": self.acl_level,
                 "policy_projection_version": self.policy_projection_version,
                 "acl_groups": list(self.acl_groups),
                 "campus_scope": self.campus_scope,
