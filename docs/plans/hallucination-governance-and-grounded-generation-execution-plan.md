@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Hallucination Governance And Grounded Generation Execution Plan
@@ -45,7 +45,7 @@ updated: 2026-04-12
 - https://arxiv.org/abs/2310.11511
 - https://arxiv.org/abs/2401.15884
 
-## Closeout Status (2026-04-12)
+## Closeout Status (2026-04-19)
 
 Phase 15 的 repo-local code closeout 已完成：
 
@@ -54,11 +54,71 @@ Phase 15 的 repo-local code closeout 已完成：
 - Wave C: eval gating、app-api/runtime/operator observability、schema/contract projection
 - Wave D: focused local verification 与 blocker-aware planning closeout
 
-当前仍未完成的不是 repo-local code work，而是 live artifact refresh follow-up：
+最后一个 live artifact refresh follow-up 现已完成：
 
 - 2026-04-12 已把 supplemental eval provider 从 `https://www.su8.codes/codex/v1` 切换到 `https://codex.gbro.site/v1`
 - 因此当前 phase 不再受原 `su8` `/responses` regression 阻断
-- 但新的 live artifact replacement 仍待单独 rerun；在 rerun 完成前，不宣称已重建新的 live prompt-family artifact
+- 2026-04-19 已完成新的 `student_handbook` live accept rerun，latest artifact 为 `.tmp/evals/student-handbook-formal-benchmark-accept-20260419T031500`
+- 这次 rerun 的 release gate 已整体通过：`3` 轮、每轮 `11/11`、`repair=0`
+- 当前不再存在遗留 soft warning；`ragas.faithfulness` 已回到 soft-gate `pass`
+
+## Live Artifact Refresh Status (2026-04-19)
+
+- fresh runtime fix set 已覆盖：
+  - handbook `missing_target -> policy_object_missing` clarify path 保持 typed adequacy
+  - planner-driven handbook clarify 不再误走 clarify prompt packet
+  - material alias grounding 支持 `补办申请表 -> 补办学生证申请表`
+  - handbook exact-title lookup 现在保留 deterministic completed path，不再被 prompt answer 放大
+  - app-api eval trace 在缺失显式 `retrieved_sources` 时会回退到 `supporting_sources`
+- fresh artifact：
+  - accept dir: `.tmp/evals/student-handbook-formal-benchmark-accept-20260419T031500`
+  - runtime events: `.tmp/evals/student-handbook-runtime-events-20260419T031500.run.run.jsonl`
+- provider runtime summary：
+  - `https://codex.gbro.site/responses` `gpt-5.4`: `114/114` success
+  - `https://ai.gitee.com/embeddings` `Qwen3-Embedding-4B`: `19/19` success
+- final accept verdict：
+  - `deterministic_verdict=pass`
+  - `supplemental_verdict=pass`
+  - `final_overall_verdict=pass`
+- latest `ragas.faithfulness`：
+  - mean `0.9011097368240225`
+  - min run average `0.8716501752216038`
+  - 已满足当前 soft gate threshold
+
+## 当前 Workstream 设计（2026-04-18）
+
+这条线当前固定为一条单独的 product-path safety / prompt / grounding governance workstream：
+
+`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh`
+
+直接含义：
+
+- 不再把 `敏感问题拦截`、`system prompt`、`hallucination governance`、`grounding eval` 拆成多条并发 workstream
+- 这些都只属于同一条 workstream 的顺序子层
+- 它可以与其他独立 workstreams 并行存在；串行约束只限这条 workstream 内部
+- Phase 13 / 14 / 15 的 repo-local code closeout 已经是当前基线；2026-04-19 的 latest live artifact refresh 也已补齐 passing evidence
+- 如果后续发现缺口，优先回到 code-owned `policy gate / scope gate / grounding gate / prompt runtime` 修，不用“把 system prompt 写得更长”替代结构性修复
+
+当前这条 workstream 的单一入口固定就是本文；后续其他会话接手时，不再重新拆出独立的：
+
+- 敏感问题拦截线
+- system prompt 线
+- grounding 线
+- eval artifact refresh 线
+
+当前前向顺序固定为：
+
+1. 稳住 `policy_refusal / out_of_scope / unsupported_by_evidence / freshness_fail_close` 的语义结果真相
+2. 稳住 prompt runtime ownership、prompt metadata sink 与 typed runtime state
+3. 刷新 retrieval adequacy / grounding runtime 的持续 gate
+4. 补 live artifact rerun、eval/operator observability 与 release-gate evidence
+5. 再做 planning closeout
+
+当前 closeout 结论是：
+
+- 这条 workstream 的 live artifact / release-gate evidence 已完成收口
+- 当前 latest artifact 已同时满足 deterministic gate 与 supplemental soft gate
+- 若后续再出现漂移，回到 gate/runtime 修复，而不是单独重开“prompt 文案优化”子线
 
 ## Phase 15 Local Gate Set
 
@@ -198,7 +258,7 @@ operator / eval 投影至少保留：
 
 ## Phase 15 Execution Waves
 
-当前 phase planning 已正式落盘到 `.planning/phases/15-grounded-generation/`，执行入口为 `$gsd-execute-phase 15`。
+Phase 15 的历史 phase planning 已归档到 `.planning/legacy-flat/phases/15-grounded-generation/`；当前前向执行 truth 固定看 `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md` 与对应 `ROADMAP.md`。
 
 ### Wave A: Retrieval Adequacy Contract
 
@@ -225,7 +285,7 @@ operator / eval 投影至少保留：
 
 对应计划文件：
 
-- `.planning/phases/15-grounded-generation/15-01-PLAN.md`
+- `.planning/legacy-flat/phases/15-grounded-generation/15-01-PLAN.md`
 
 ### Wave B: Grounding Runtime And Claim Schema
 
@@ -254,7 +314,7 @@ operator / eval 投影至少保留：
 
 对应计划文件：
 
-- `.planning/phases/15-grounded-generation/15-02-PLAN.md`
+- `.planning/legacy-flat/phases/15-grounded-generation/15-02-PLAN.md`
 
 ### Wave C: Eval, Artifact, And Observability Expansion
 
@@ -282,7 +342,7 @@ operator / eval 投影至少保留：
 
 对应计划文件：
 
-- `.planning/phases/15-grounded-generation/15-03-PLAN.md`
+- `.planning/legacy-flat/phases/15-grounded-generation/15-03-PLAN.md`
 
 ### Wave D: Acceptance And Runtime Closeout
 
@@ -302,7 +362,7 @@ operator / eval 投影至少保留：
 
 对应计划文件：
 
-- `.planning/phases/15-grounded-generation/15-04-PLAN.md`
+- `.planning/legacy-flat/phases/15-grounded-generation/15-04-PLAN.md`
 
 ## Explicit Non-Goals
 

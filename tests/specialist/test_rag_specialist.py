@@ -267,6 +267,9 @@ def _resolved_scope_diagnostics(
         if isinstance(clarification_reason, str) and clarification_reason:
             kwargs["retrieval_adequacy_verdict"] = "ambiguous"
             kwargs["retrieval_adequacy_reason"] = clarification_reason
+        elif semantic_outcome == "grounded_answer":
+            kwargs["retrieval_adequacy_verdict"] = "sufficient"
+            kwargs["retrieval_adequacy_reason"] = "sufficient"
         elif semantic_outcome in {"unsupported_by_evidence", "freshness_fail_close"}:
             kwargs["retrieval_adequacy_verdict"] = "insufficient"
             if no_answer_reason == "resolved_policy_clause_not_found":
@@ -275,6 +278,8 @@ def _resolved_scope_diagnostics(
                 kwargs["retrieval_adequacy_reason"] = "freshness_fail_close"
             else:
                 kwargs["retrieval_adequacy_reason"] = "no_supporting_sources"
+    if semantic_outcome == "grounded_answer" and "grounding_verdict" not in kwargs:
+        kwargs["grounding_verdict"] = "grounded"
     return RagResultDiagnostics(
         resolved_scope_corpus=corpus,
         resolved_scope_collection=collection,
@@ -289,6 +294,13 @@ def _resolved_curriculum_diagnostics_from_response(
     result = response.result
     if not isinstance(result, RagResultPayload):
         raise AssertionError("expected RagResultPayload for curriculum diagnostics assertion")
+    if (
+        response.status == "completed"
+        and "semantic_outcome" not in kwargs
+        and not kwargs.get("no_answer_reason")
+        and not kwargs.get("clarification_reason")
+    ):
+        kwargs["semantic_outcome"] = "grounded_answer"
     return _resolved_scope_diagnostics(
         corpus="curriculum",
         collection="curriculum_plan",
@@ -742,6 +754,91 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertTrue(all(claim.supported for claim in response.result.diagnostics.claim_supports))
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
+    def test_prompt_answer_accepts_supported_material_alias_claims(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证丢了怎么办",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="中央民族大学本科(预科)学生证管理办法",
+                    snippet=(
+                        "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。"
+                    ),
+                    score=0.93,
+                    chunk_id_suffix="student-card-alias-0001",
+                    detail_label="挂失要求",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:student-card",
+                    title="中央民族大学本科(预科)学生证管理办法",
+                    snippet=(
+                        "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。"
+                        "申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。"
+                        "学生证集中补办时间为每周四下午。"
+                    ),
+                    score=0.94,
+                    chunk_id_suffix="student-card-alias-0002",
+                    detail_label="补办手续",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                return RagPromptExecutionResult(
+                    output=RagAnswerPromptOutput(
+                        answer_text=(
+                            "根据《中央民族大学本科(预科)学生证管理办法》，学生证遗失后应先到学院(系)挂失并报学生处备案，"
+                            "再提出书面申请、填写补办申请表，经学院(系)审批后到学生处办理补办手续。"
+                        )
+                    ),
+                    prompt_trace=_rag_prompt_trace("rag_answer_v1"),
+                )
+
+            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("no-answer prompt should not be used")
+
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证丢了怎么办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertFalse(response.result.diagnostics.grounding_downgraded)
+        self.assertEqual(response.result.diagnostics.unsupported_fields, ())
+        self.assertIn(
+            ClaimSupport(
+                claim_type="material_requirement",
+                claim_text="补办申请表",
+                supported=True,
+                support_source_doc_id="handbook:student-card",
+                support_snippet=(
+                    "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。"
+                    "申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。"
+                    "学生证集中补办时间为每周四下午。"
+                ),
+            ),
+            response.result.diagnostics.claim_supports,
+        )
+
     def test_validate_prompt_answer_grounding_detects_unsupported_offering_unit_and_audience_claims(
         self,
     ) -> None:
@@ -1000,8 +1097,10 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.answer_text, expected_answer)
         diagnostics = response.result.diagnostics
         if diagnostics is not None:
-            self.assertEqual(diagnostics.semantic_outcome, "")
-            self.assertEqual(diagnostics.grounding_verdict, "")
+            self.assertEqual(diagnostics.semantic_outcome, "grounded_answer")
+            self.assertEqual(diagnostics.retrieval_adequacy_verdict, "sufficient")
+            self.assertEqual(diagnostics.retrieval_adequacy_reason, "sufficient")
+            self.assertEqual(diagnostics.grounding_verdict, "grounded")
             self.assertIsNone(diagnostics.prompt_trace)
 
     def test_prompt_runtime_failure_projects_typed_runtime_state_while_falling_back(self) -> None:
@@ -1105,7 +1204,11 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.answer_text, expected_answer)
-        self.assertIsNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_handbook_time_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
         evidence = EvidenceBundle(
@@ -1145,7 +1248,55 @@ class RagSpecialistTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.answer_text, expected_answer)
-        self.assertIsNone(response.result.diagnostics)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
+
+    def test_handbook_exact_title_lookup_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="中央民族大学学生公费医疗管理办法",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:medical",
+                    title="中央民族大学学生公费医疗管理办法",
+                    snippet="公费医疗管理办法明确，住院报销按学校相关规定执行。",
+                    score=0.93,
+                    chunk_id_suffix="medical-title-0001",
+                    detail_label="第二条",
+                    content_role="scope_rule",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+
+        class FakePromptExecutor:
+            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError("deterministic handbook title lookup should not use prompt answer")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="中央民族大学学生公费医疗管理办法",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text, expected_answer)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_curriculum_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
         evidence = EvidenceBundle(
@@ -2016,6 +2167,50 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("奖学金", response.follow_up_question)
         self.assertFalse(retriever_called)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
+                retrieval_adequacy_verdict="ambiguous",
+                retrieval_adequacy_reason="policy_object_missing",
+            ),
+        )
+
+    def test_handbook_missing_policy_object_with_prompt_executor_skips_clarify_prompt(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence()
+
+        class FakePromptExecutor:
+            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError("clarify prompt should not be used for handbook planner clarification")
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=fake_retriever,
+            prompt_executor=FakePromptExecutor(),
+        )
+
+        self.assertEqual(response.status, "needs_clarification")
+        self.assertFalse(retriever_called)
+        self.assertEqual(
+            response.result.diagnostics,
+            _resolved_scope_diagnostics(
+                corpus="regulations",
+                collection="student_handbook",
+                clarification_reason="policy_object_missing",
+            ),
+        )
 
     def test_contextual_clarification_mentions_recent_goal_when_available(self) -> None:
         response = delegate_to_rag_agent(
@@ -4853,7 +5048,18 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.confidence, "medium")
         self.assertEqual(
             response.result,
-            RagResultPayload(evidence=_make_evidence(query_text="What are the library hours?")),
+            RagResultPayload(
+                evidence=_make_evidence(query_text="What are the library hours?"),
+                diagnostics=_resolved_scope_diagnostics(
+                    corpus="regulations",
+                    collection="student_handbook",
+                    semantic_outcome="grounded_answer",
+                    retrieved_title_summary=(
+                        "Evidence snippet 1 about library hours and student support.",
+                        "Evidence snippet 2 about library hours and student support.",
+                    ),
+                ),
+            ),
         )
 
     def test_delegate_passes_context_authorization_filter_to_retriever(self) -> None:
@@ -5192,6 +5398,61 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("火车票学生优惠卡", response.answer_text)
         self.assertNotIn("不予发放", response.answer_text)
         self.assertNotIn("不良后果", response.answer_text)
+
+    def test_completed_deterministic_handbook_answer_retains_grounded_diagnostics(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学生证丢了怎么办",
+            corpus="regulations",
+            collection="student_handbook",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    revision_track="source-faithful",
+                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
+                    chunk_id="chunk-0002",
+                    anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
+                    canonical_url="https://campus.example/handbook/student-card",
+                    latest_url="https://campus.example/handbook/student-card",
+                    source_channel="pdf_ocr",
+                    collection="student_handbook",
+                    is_current=True,
+                    snippet=(
+                        "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
+                        "文号：民大学发[2013]8号\n"
+                        "学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。\n"
+                        "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。如遗失不报被他人使用造成不良后果,由本人负责。\n"
+                        "七、学生遗失学生证应及时申请补办。遗失或损坏的学生证,原则上可以申请补办一次。补办后如再次遗失或损坏,根据遗失或损坏的原因决定是否可以补发第二次。\n"
+                        "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
+                    ),
+                    score=0.03306011,
+                    source_title="中央民族大学本科(预科)学生证管理办法",
+                    structural_path=("二、学生证是",),
+                    content_kind="policy_page",
+                    content_role="procedure",
+                    detail_label="二、学生证是",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            SpecialistRequest(
+                target="rag-specialist",
+                user_goal="学生证丢了怎么办",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertFalse(response.result.diagnostics.grounding_downgraded)
+        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ("中央民族大学本科(预科)学生证管理办法",))
 
     def test_completed_response_keeps_only_primary_time_rule_when_it_already_answers_lighting_query(self) -> None:
         evidence = EvidenceBundle(
@@ -6434,6 +6695,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 resolved_policy_document_id=target_doc_id,
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
+                semantic_outcome="grounded_answer",
                 retrieved_title_summary=(target_title,),
             ),
         )

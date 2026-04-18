@@ -548,7 +548,29 @@ def _find_support_candidate(
     for candidate in support_candidates:
         if normalized_claim in candidate.haystack:
             return candidate
+    alias_pattern = _build_material_alias_pattern(
+        claim_text,
+        normalized_claim=normalized_claim,
+    )
+    if alias_pattern is None:
+        return None
+    for candidate in support_candidates:
+        if alias_pattern.search(candidate.haystack):
+            return candidate
     return None
+
+
+def _build_material_alias_pattern(
+    claim_text: str,
+    *,
+    normalized_claim: str,
+) -> re.Pattern[str] | None:
+    if not claim_text.strip().endswith("申请表") or not normalized_claim.endswith("申请表"):
+        return None
+    prefix = normalized_claim[: -len("申请表")].strip()
+    if not prefix:
+        return None
+    return re.compile(f"{re.escape(prefix)}[\\u4e00-\\u9fffA-Za-z0-9]{{0,12}}申请表")
 
 
 def _normalize_material_claim(claim: str) -> str:

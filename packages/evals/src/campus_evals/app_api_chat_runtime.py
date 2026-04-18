@@ -927,6 +927,12 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
             retrieved_sources = tuple(response.observability.retrieved_sources)
         elif response.result.diagnostics is not None and response.result.diagnostics.retrieved_sources:
             retrieved_sources = tuple(response.result.diagnostics.retrieved_sources)
+        elif (
+            response.observability is not None
+            and response.observability.retrieval_attempted is True
+            and supporting_sources
+        ):
+            retrieved_sources = supporting_sources
 
     retrieval_called = (
         response.observability.retrieval_attempted

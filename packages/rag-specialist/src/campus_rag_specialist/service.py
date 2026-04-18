@@ -217,6 +217,13 @@ def delegate_to_rag_agent(
                     curriculum_plan=curriculum_plan,
                     curriculum_course_plan=curriculum_course_plan,
                     curriculum_program_family_plan=curriculum_program_family_plan,
+                    retrieval_adequacy=_clarification_retrieval_adequacy(
+                        resolved_scope=effective_scope,
+                        handbook_plan=handbook_plan,
+                        curriculum_plan=curriculum_plan,
+                        curriculum_program_family_plan=curriculum_program_family_plan,
+                        intent_frame=intent_frame,
+                    ),
                     prompt_runtime_state=prompt_runtime_state,
                     prompt_runtime_detail=prompt_runtime_detail,
                 ),
@@ -759,6 +766,7 @@ def delegate_to_rag_agent(
                 resolved_scope=effective_scope,
                 intent_frame=intent_frame,
                 user_goal=user_goal,
+                evidence=finalized_evidence,
             )
         )
         if should_attempt_prompt_answer:
@@ -842,12 +850,10 @@ def delegate_to_rag_agent(
                 curriculum_course_plan=curriculum_course_plan,
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 allow_session_follow_up=True,
-                semantic_outcome="grounded_answer" if should_use_prompt_answer else "",
-                retrieval_adequacy=(
-                    sufficient_retrieval_adequacy() if should_use_prompt_answer else None
-                ),
+                semantic_outcome="grounded_answer",
+                retrieval_adequacy=sufficient_retrieval_adequacy(),
                 claim_supports=grounding.claim_supports if should_use_prompt_answer else (),
-                grounding_verdict="grounded" if should_use_prompt_answer else "",
+                grounding_verdict="grounded",
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
             ),
@@ -1068,7 +1074,7 @@ def _compose_clarification_response(
     prompt_executor: RagPromptExecutor | None,
     intent_frame: RagIntentFrame,
 ) -> tuple[str, object | None, str, str]:
-    if prompt_executor is None:
+    if prompt_executor is None or intent_frame.response_mode != "clarify":
         return fallback_question, None, "", ""
     try:
         execution = prompt_executor.compose_clarify(
@@ -1202,6 +1208,7 @@ def _should_keep_deterministic_completed_answer(
     resolved_scope: KnowledgeScope,
     intent_frame: RagIntentFrame,
     user_goal: str,
+    evidence: EvidenceBundle,
 ) -> bool:
     if resolved_scope.corpus == "curriculum":
         return True
@@ -1210,7 +1217,9 @@ def _should_keep_deterministic_completed_answer(
     if intent_frame.question_kind in {"procedure", "materials", "deadline"}:
         return True
     normalized_goal = _normalize_text(user_goal).lower()
-    return any(term in normalized_goal for term in _HANDBOOK_TIME_QUERY_TERMS)
+    if any(term in normalized_goal for term in _HANDBOOK_TIME_QUERY_TERMS):
+        return True
+    return _is_handbook_exact_title_lookup(user_goal=user_goal, evidence=evidence)
 
 
 def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:
@@ -1794,6 +1803,36 @@ def _planned_retrieval_adequacy(
     return ambiguous_retrieval_adequacy("multi_candidate_title")
 
 
+def _clarification_retrieval_adequacy(
+    *,
+    resolved_scope: KnowledgeScope,
+    handbook_plan: HandbookQueryPlan | None,
+    curriculum_plan: CurriculumQueryPlan | None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
+    intent_frame: RagIntentFrame,
+) -> RetrievalAdequacyAssessment | None:
+    if (
+        resolved_scope.corpus == "regulations"
+        and resolved_scope.collection == "student_handbook"
+        and intent_frame.ambiguity_reason == "missing_target"
+    ):
+        return ambiguous_retrieval_adequacy("policy_object_missing")
+    if (
+        handbook_plan is None or not handbook_plan.clarification_reason
+    ) and (
+        curriculum_program_family_plan is None
+        or not curriculum_program_family_plan.clarification_reason
+    ) and (
+        curriculum_plan is None or not curriculum_plan.clarification_reason
+    ):
+        return None
+    return _planned_retrieval_adequacy(
+        handbook_plan=handbook_plan,
+        curriculum_plan=curriculum_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+    )
+
+
 def _empty_evidence_retrieval_adequacy(no_answer_reason: str) -> RetrievalAdequacyAssessment:
     if no_answer_reason == "resolved_policy_clause_not_found":
         return insufficient_retrieval_adequacy("resolved_policy_clause_not_found")
@@ -2142,6 +2181,15 @@ def _is_short_title_fragment(query_key: str) -> bool:
         return False
     cjk_length = sum(1 for char in query_key if _is_cjk_char(char))
     return 0 < cjk_length <= 8
+
+
+def _is_handbook_exact_title_lookup(*, user_goal: str, evidence: EvidenceBundle) -> bool:
+    query_key = _match_key(user_goal)
+    if not query_key or any(cue in query_key for cue in _QUERY_ASK_CUES):
+        return False
+    if len({source.doc_id for source in evidence.sources}) != 1:
+        return False
+    return any(_source_title_matches_exact_query(query_key, source) for source in evidence.sources)
 
 
 def _source_title_matches_exact_query(query_key: str, source: EvidenceSource) -> bool:
