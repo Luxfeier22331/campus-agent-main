@@ -24,6 +24,8 @@ updated: 2026-04-19
   - 单条 workstream 的固定顺序与 phase 状态
 - `.planning/workstreams/<slug>/REQUIREMENTS.md`
   - 单条 workstream 的目标、范围、non-goals 与 success criteria
+- `.planning/seeds/`
+  - dormant future follow-up；记录 why / trigger / breadcrumbs，供后续 milestone 或新 workstream 恢复时再拾起
 - `.planning/runtime/`
   - gitignored 的本地 operator 配置、claim lease、claim history 与 session pointer 辅助状态；不承担 tracked planning truth
 - `.planning/legacy-flat/`
@@ -36,8 +38,13 @@ updated: 2026-04-19
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/shared-file-asset-loader-contract.md` | `Phase A` | 先冻结 repo-level file asset contract：`typing -> normalization -> extraction -> terminal outcome -> provenance`，再做 bounded backend evaluation |
-| `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | `Phase E` | fresh live artifact replacement 已完成；当前只剩 `ragas.faithfulness` soft-gate `warn` 的 planning closeout |
 | `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | `Phase D` | Phase A-C baseline 已 fresh 通过；当前进入 browser smoke、integrated acceptance 与 staging closeout 准备 |
+
+## Completed
+
+| Workstream | Slug | Native Dir | Entry | Reopen Rule |
+|------------|------|------------|-------|-------------|
+| `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
 
 ## Deferred
 

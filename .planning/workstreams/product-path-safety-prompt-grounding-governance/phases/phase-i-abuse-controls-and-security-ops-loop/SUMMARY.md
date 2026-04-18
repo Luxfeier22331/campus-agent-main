@@ -26,5 +26,5 @@ updated: 2026-04-19
 
 ## Next State
 
-- `Phase J/K` 继续保持 conditional pending。
-- 没有 repo-tracked trigger artifact 时，这条 workstream 停在 conditional hold，不抢跑 moderation 或 HITL lane。
+- 这条 workstream 在 `Phase I` 正式收口完成，不再为 `Phase J/K` 保持 conditional hold。
+- future moderation lane 与 HITL approval recovery 已迁到 `.planning/seeds/SEED-001-conditional-moderation-lane.md` 和 `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md`，只有未来 scope trigger 命中时才重新规划。

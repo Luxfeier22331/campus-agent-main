@@ -87,33 +87,30 @@ updated: 2026-04-19
 
 ## Follow-up Reopen Status (2026-04-19)
 
-A-E closeout 继续成立，但这条 workstream 已因剩余产品侧安全缺口重新进入前向执行：
+A-E closeout 继续成立，这条 workstream 也已完成本轮 reopen closeout：
 
 - Phase F: `source-trust tier` runtimeization
 - Phase G: remote-content injection hardening
 - Phase H: end-user safety traceability
 - Phase I: abuse controls and security ops loop
-- Phase J: conditional moderation lane
-- Phase K: conditional HITL approval recovery
 
-当前 reopen 的含义不是推翻 A-E 已 passing 的 release-gate baseline，而是把此前停留在 gap review / best-practice analysis 里的剩余任务正式收口成 workstream phases。
+当前 reopen 的含义不是推翻 A-E 已 passing 的 release-gate baseline，而是把此前停留在 gap review / best-practice analysis 里的剩余产品侧 runtime 任务正式收口。
+其中原先占位的 `Phase J/K` 已被提取为 dormant seeds，不再阻塞这条 workstream 的完成态。
 
-## Phase F-K Execution Contract (2026-04-19)
+## Phase F-I Execution Contract And Future Seeds (2026-04-19)
 
-- `Phase F-K` 的当前执行真相不再只看 `CONTEXT.md`；从本轮开始，每个 phase 都必须有自己的 `PLAN.md`
-- 当前 active 入口固定为：
-  - `.planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-f-source-trust-tier-runtimeization/PLAN.md`
-- `Phase J/K` 虽然已经进入 roadmap，但仍属于 conditional phases：
-  - 只有在 repo-tracked trigger artifact 落盘后才允许从 `pending` 切到 active
-  - trigger artifact 必须同步更新 workstream `STATE.md` 的 `Conditional Trigger Registry`
-  - phase 一旦真正进入 active，`Current Slice` 只负责反映当前活跃切片，不再承担 trigger artifact 的唯一真相
-  - 没有 trigger artifact 时，它们只保留 planning truth，不得抢跑实施
+- `Phase F-I` 的执行真相固定以各 phase `PLAN.md` / `SUMMARY.md` 与 workstream `STATE.md` 为准
+- 当前 closeout 后，这条线不再保留 conditional hold phase
+- future follow-up 只保留为两个 dormant seeds：
+  - `.planning/seeds/SEED-001-conditional-moderation-lane.md`
+  - `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md`
+- 只有 future product scope 或 incident trigger 命中这些 seeds 时，才允许重新规划 moderation lane 或 HITL approval recovery
 
 ## 当前 Workstream 设计（2026-04-18）
 
 这条线当前固定为一条单独的 product-path safety / prompt / grounding governance workstream：
 
-`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh -> source-trust runtimeization -> remote-content hardening -> safety traceability -> abuse controls -> conditional moderation / HITL governance`
+`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh -> source-trust runtimeization -> remote-content hardening -> safety traceability -> abuse controls`
 
 直接含义：
 
@@ -140,14 +137,20 @@ A-E closeout 继续成立，但这条 workstream 已因剩余产品侧安全缺�
 6. 为 remote content 增加 prompt-injection hardening 与 regression gate
 7. 为终端用户在线问答补 provider-side safety traceability
 8. 补最小 abuse controls、alerts 与 incident backfill hooks
-9. 在明确触发条件下再引入 app-level moderation lane
-10. 只有在重新引入高风险 action execution 时再恢复 real HITL approval flow
 
 当前 closeout 结论是：
 
 - A-E 的 live artifact / release-gate evidence 已完成收口，并继续作为 reopen baseline
+- F-I 已完成，当前 workstream 正式结束于 bounded product-path abuse controls
 - 当前 latest artifact 已同时满足 deterministic gate 与 supplemental soft gate
 - 若后续再出现漂移，回到 gate/runtime 修复，而不是单独重开“prompt 文案优化”子线
+
+## Dormant Follow-up Seeds
+
+- `SEED-001: Conditional Moderation Lane`
+  - 只在 public scope 扩到 open-ended input，或 repo-tracked incident 证明 `Phase F-I` 不足时再提升为新 planning work
+- `SEED-002: Conditional HITL Approval Recovery`
+  - 只在产品重新引入 state-changing / externally side-effectful action execution 时再提升为新 planning work
 
 ## Baseline Local Gate Set
 

@@ -8,15 +8,15 @@ updated: 2026-04-19
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Hold
-**Current Phase Name:** Awaiting Conditional Trigger Admission
+**Status:** Completed
+**Current Phase:** Complete
+**Current Phase Name:** Closed Out After Phase I
 **Current Plan:** `<none>`
-**Total Phases:** 11
+**Total Phases:** 9
 **Total Plans in Phase:** 0
-**Progress:** 9/11 phases complete
+**Progress:** 9/9 phases complete
 **Last Activity:** 2026-04-19
-**Last Activity Description:** Completed `Phase I`: added app-owned `safety_identifier` abuse throttle, operator safety alerts with incident-backfill hints, and runtime `safety_identifier` lookup indexes without reopening `Phase H` traceability semantics.
+**Last Activity Description:** Completed `Phase I`, then extracted the conditional moderation / HITL follow-ups into dormant seeds so this workstream closes at bounded product-path abuse controls instead of holding on future trigger-only phases.
 
 ## Current Slice
 
@@ -25,25 +25,13 @@ updated: 2026-04-19
 - `Phase G` 已完成：remote content suspicion labels 与 summary 已进入 contracts / prompt packet / grounding / service / app-api / eval parser，官方网页类疑似 prompt injection 内容会在 generation path fail-close 为 `unsupported_by_evidence`
 - `Phase H` 已完成：canonical `safety_identifier` derivation、provider payload 透传、app-owned persistence、telemetry projection 与 contract/runtime validation 已收口；当前 public end-user lane 默认以 `principal:<principal_id>` 生成匿名安全标识，并对 future `session:<session_id>` fallback 保持受限预留
 - `Phase I` 已完成：public/product-path 现在会在第一次 durable accept 之后用 `request_execution.safety_identifier` 做 bounded throttle，命中时固定写 `status=rejected` / `error_code=rate_limit_exceeded`；operator overview `alerts[]` 也已开始派生 `safety.rate_limit_exceeded`、`safety.remote_content_suspicion_spike`、`safety.provider_content_filter_spike`，并对后两者显式标记 `incident_backfill`
-- 当前没有 admitted implementation slice；只有当下方 `Conditional Trigger Registry` 收到 repo-tracked trigger artifact 时，`Phase J/K` 才允许从 `pending` 升成 active
-- `Phase J/K` 继续保留在同一条线内，但只有在 repo-tracked trigger artifact 落盘并写入下方 `Conditional Trigger Registry` 后才允许从 `pending` 升成 active 实施 phase
-
-## Conditional Trigger Registry
-
-- `Phase J`
-  - `status`: `pending`
-  - `trigger_artifact_path`: `<none>`
-  - `admitted_at`: `<not_admitted>`
-  - `admission_reason`: `<not_admitted>`
-- `Phase K`
-  - `status`: `pending`
-  - `trigger_artifact_path`: `<none>`
-  - `admitted_at`: `<not_admitted>`
-  - `admission_reason`: `<not_admitted>`
+- 当前 workstream 在 `Phase I` 收口完成；`Phase J/K` 已迁出为 future seeds，不再作为这条线的 active/completed phase truth
+- moderation follow-up 保留在 `.planning/seeds/SEED-001-conditional-moderation-lane.md`
+- HITL approval recovery follow-up 保留在 `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md`
 
 ## Blockers
 
-- 无当前 blocker；`Phase I` 已完成，`Phase J-K` 继续依赖 conditional trigger admission
+- 无；这条 workstream 已完成，后续只会在新的 product-scope / incident trigger 命中 dormant seed 时另行恢复
 
 ## Verification
 
@@ -57,8 +45,10 @@ updated: 2026-04-19
 - `pnpm --dir apps/app-api run db:generate` (second run: `No schema changes, nothing to migrate`)
 - `pnpm --dir apps/app-api exec vitest run test/chat-command.service.test.ts test/runtime-command.store.test.ts test/operator-query.store.test.ts test/operator-query.route.test.ts`
 - `pnpm --dir apps/app-api run db:generate` (`0017_stormy_vanisher.sql`)
+- `gsd-sdk query workstream.list --raw --cwd /home/reptilian/code/campus-agent`
+- `git -C /home/reptilian/code/campus-agent diff --check -- .planning/WORKSTREAMS.md .planning/seeds/SEED-001-conditional-moderation-lane.md .planning/seeds/SEED-002-conditional-hitl-approval-recovery.md .planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md .planning/workstreams/product-path-safety-prompt-grounding-governance/ROADMAP.md .planning/workstreams/product-path-safety-prompt-grounding-governance/REQUIREMENTS.md .planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-i-abuse-controls-and-security-ops-loop/SUMMARY.md docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
 
 ## Session Continuity
 
-**Stopped At:** `Phase I` 已完成并落盘 app-owned abuse throttle、operator safety alerts 与 `0017_stormy_vanisher.sql` safety-identifier query indexes；下一会话只有在 trigger artifact 入场后才允许切到 `Phase J` 或 `Phase K`
-**Resume File:** `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md`
+**Stopped At:** workstream 已在 `Phase I` 完成收口；后续 moderation / HITL 只作为 dormant seeds 保留，不再在这条已完成 workstream 内等待 admission
+**Resume File:** `<none>`

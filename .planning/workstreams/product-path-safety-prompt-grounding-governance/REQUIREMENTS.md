@@ -1,6 +1,6 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-19
 updated: 2026-04-19
 ---
@@ -9,7 +9,7 @@ updated: 2026-04-19
 
 ## Goal
 
-以已完成的 A-E baseline closeout 与 2026-04-19 latest passing artifact 为前提，继续把 `source-trust runtime -> remote-content hardening -> safety traceability -> abuse controls -> conditional moderation / HITL governance` 收口成产品侧正式 runtime truth，而不是停留在分析结论或 plan-only 语义里。
+以已完成的 A-E baseline closeout 与 2026-04-19 latest passing artifact 为前提，把 `source-trust runtime -> remote-content hardening -> safety traceability -> abuse controls` 收口成产品侧正式 runtime truth，而不是停留在分析结论或 plan-only 语义里。
 
 ## In Scope
 
@@ -22,7 +22,6 @@ updated: 2026-04-19
 - `official_web` 与后续 live/authenticated source 的 remote-content sanitization / prompt-injection hardening
 - 终端用户在线问答的 provider-side safety traceability 与 app-owned observability 对齐
 - public/product-path 最小 abuse controls、alerts 与 incident backfill hooks
-- 条件触发的 app-level moderation lane 与 real HITL approval recovery
 
 ## Non-goals
 
@@ -32,6 +31,7 @@ updated: 2026-04-19
 - 把这条线扩成厂商级完整 LLM safety platform
 - 用关键词黑名单或“敏感词拦截”替代 code-owned `policy / scope / grounding / source-trust` gate
 - 在产品尚未重新引入高风险 action execution 时，提前实现脱离场景的人审执行系统
+- 把 conditional moderation lane 与 HITL approval recovery 继续算作这条已完成 workstream 的必做 phase；它们已改为 dormant seeds，等待未来 scope trigger
 
 ## Success Criteria
 
@@ -40,7 +40,7 @@ updated: 2026-04-19
 3. `official_web` 与其他 remote content 在进入 prompt/runtime 前有明确的 sanitization / prompt-injection hardening 与 regression evidence。
 4. 终端用户在线问答具备 provider-side safety traceability，且不泄漏原始 prompt / answer / auth secrets。
 5. public/product-path 至少具备最小 abuse control、异常信号与 incident backfill hooks，而不是只有质量观测。
-6. moderation 与 HITL 只在明确触发条件下落地，并继续从属于 code-owned `policy / scope / grounding` runtime，而不是替代它。
+6. future moderation 与 HITL follow-up 已明确迁出为 dormant seeds，不再让当前 workstream 因 trigger-only scope 长期停在 hold。
 7. 如果出现漂移，修复回到 gate/runtime，而不是重开 prompt 文案优化子线。
 
 ## Phase Completion Contract
@@ -53,10 +53,11 @@ updated: 2026-04-19
   - 冻结 canonical `safety_identifier` derivation、provider-side projection、app-owned persistence 与 telemetry exposure boundary；匿名 fallback 必须是 session-scoped、固定到 `ResolvedAppPrincipal.session.sessionId`，并固定 HMAC secret env owner/key。
 - `Phase I`
   - 冻结最小 abuse control set：rate limit or throttle key、alert derivation、incident backfill hook 与 operator query consumption path；同时固定 app-owned signal source、initial thresholds、sink non-ownership rule，以及 throttled request 的 canonical `status/error_code`。
-- `Phase J`
-  - 只有在 repo-tracked trigger artifact 落盘并写入 workstream `STATE.md` `Conditional Trigger Registry` 后才允许进入 active implementation；完成态必须冻结 moderation verdict contract 与 precheck placement。
-- `Phase K`
-  - 只有在 repo-tracked trigger artifact 落盘并写入 workstream `STATE.md` `Conditional Trigger Registry` 后才允许进入 active implementation；完成态必须冻结 `approval_request_id` / resumed execution contract 与 revalidation rule。
+
+## Follow-up Seeds
+
+- `SEED-001`：future `Conditional Moderation Lane`
+- `SEED-002`：future `Conditional HITL Approval Recovery`
 
 ## Canonical Entry
 

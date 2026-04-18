@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-19
 updated: 2026-04-19
 ---
@@ -10,7 +10,7 @@ updated: 2026-04-19
 ## Overview
 
 这条 workstream 固定为单线推进：
-`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh -> source-trust runtimeization -> remote-content hardening -> safety traceability -> abuse controls -> conditional moderation / HITL governance`。
+`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh -> source-trust runtimeization -> remote-content hardening -> safety traceability -> abuse controls`。
 
 ## Phases
 
@@ -23,5 +23,8 @@ updated: 2026-04-19
 - [x] **Phase G: Remote-content Injection Hardening** — 已冻结 remote-content suspicion labels、sanitized prompt-visible summary、generation fail-close、app-api observability projection 与 `request_observability_fact.remote_content_suspicion_summary_json` migration。
 - [x] **Phase H: End-user Safety Traceability** — 已冻结 `principal/session -> HMAC-SHA256` canonical `safety_identifier` derivation，把同一匿名标识投影到 provider request traceability、`request_execution` / `request_observability_fact` persistence、telemetry tags / runtime events，并为 runtime tables 落盘 `safety_identifier` migration。
 - [x] **Phase I: Abuse Controls And Security Ops Loop** — 已冻结 `safety_identifier` keyed throttle、operator `alerts[]` safety derivation、incident backfill hint 与 runtime `safety_identifier` query indexes。
-- [ ] **Phase J: Conditional Moderation Lane** — requires repo-tracked trigger artifact plus `STATE.md` `Conditional Trigger Registry` admission；仅当 public open-ended 流量或 incident 证据要求时，引入 app-level moderation precheck/annotation，但不得替代 code-owned `policy / scope / grounding` gate。
-- [ ] **Phase K: Conditional HITL Approval Recovery** — requires repo-tracked trigger artifact plus `STATE.md` `Conditional Trigger Registry` admission；仅当产品重新引入高风险 action execution 时，把 `approval_required` 从 terminal semantic outcome 升级为可恢复的人审执行闭环。
+
+## Future Seeds
+
+- `SEED-001` `Conditional Moderation Lane`：只有在 public scope 扩到 open-ended input，或 repo-tracked incident 证明 `Phase F-I` abuse controls 不足时才重新拿出来规划。
+- `SEED-002` `Conditional HITL Approval Recovery`：只有在产品重新引入 state-changing / externally side-effectful action execution 时才重新拿出来规划。
