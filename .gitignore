@@ -14,6 +14,7 @@ build/
 tmp.md
 .tmp/
 .smoke-evidence/
+.playwright-mcp/
 var/
 .worktrees/
 .cache/
@@ -22,3 +23,23 @@ node_modules/
 .turbo/
 .wrangler-home/
 .tanstack/
+
+# Quick-task local artifacts and env snapshots
+.planning/quick/**/accepted-union/
+.planning/quick/**/closeout-samples*/
+.planning/quick/**/current-scope-samples*/
+.planning/quick/**/prep-samples*/
+.planning/quick/**/env*.before-local-postgres
+.planning/quick/**/devvars*.before-local-postgres
+
+# Quick-task reruns and local scratch outputs
+.planning/quick/**/run-output/
+.planning/quick/**/run-output-*/
+.planning/quick/**/rerun-output/
+.planning/quick/**/materialization-output/
+
+# Local map/screenshot scratch files
+tmp-*.png
+tmp-*.jpg
+tmp-*.jpeg
+tmp-*.webp

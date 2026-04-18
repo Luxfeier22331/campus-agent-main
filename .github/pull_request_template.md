@@ -1,15 +1,25 @@
 ## Summary
 
-- describe the logical change
-- call out user-visible or operator-visible effects
+- 
+
+## Scope
+
+- Affected apps/packages:
+- Affected docs/contracts:
+
+## Source Of Truth Updates
+
+- [ ] No architecture or contract truth changed
+- [ ] Updated `docs/architecture/` or ADRs when boundary changed
+- [ ] Updated `docs/contracts/` or `docs/data/` when seam/schema changed
+- [ ] Updated `docs/runbooks/` when operator steps changed
 
 ## Verification
 
-- [ ] `uv run --all-packages python -m unittest discover -s tests -t .`
-- [ ] `pnpm web:typecheck`
-- [ ] `pnpm web:test`
-- [ ] `pnpm web:build`
+```bash
+# Paste the exact commands you ran here.
+```
 
-## Risks
+## Risks / Open Questions
 
-- list known follow-ups, rollout constraints, or unverified surfaces
+- 

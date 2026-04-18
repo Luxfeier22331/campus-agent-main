@@ -7,8 +7,11 @@ on:
       - develop
       - main
 
+permissions:
+  contents: read
+
 jobs:
-  repo-guard:
+  docs-and-collaboration-guard:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,15 +23,10 @@ jobs:
           python-version: "3.12"
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install Python dependencies
+      - name: Sync workspace
         run: uv sync --all-packages --dev
 
-      - name: Repo structure guard
-        run: uv run --all-packages python -m unittest tests.test_repo_collaboration tests.test_docs_structure tests.test_environment_layout
+      - name: Run repo guard tests
+        run: uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration -q

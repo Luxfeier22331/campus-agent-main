@@ -6,7 +6,7 @@
 
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平 tool
-- 当前仓库仍处于 v2 基线阶段；它是长期架构骨架，不是完整产品实现
+- 当前 accepted merged truth 已具备 `student_handbook` 与 `curriculum_plan` 两条受控 query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前只对 `apps/app-api` 明确冻结为 Worker，其余边界尤其 `apps/supervisor-api` 不要为了实现便利提前绑定到单一 HTTP 框架
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
@@ -23,13 +23,19 @@
 
 - `README.md`
 - `docs/README.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/request-projection-and-runtime-read-model.md`
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/product-positioning.md`
+- `docs/architecture/current-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/navigation-and-wayfinding-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/official-web-source-truth-contract.md`
+- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
@@ -37,9 +43,13 @@
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+- `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
+- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/plans/agentic-rag-foundation.md`
-- `docs/plans/app-api-worker-foundation.md`
+- `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
 - `.planning/ROADMAP.md`
 - `.planning/STATE.md`
@@ -48,9 +58,12 @@
 
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
-- 长期边界、accepted architecture constraint、历史实施基线与术语约束分别以对应 `docs/` 文档为准
+- 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
+- 当前 accepted merged-truth topology 与已开放 serving surface 以 `docs/architecture/current-architecture.md` 为准
+- 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应 `docs/` 文档为准
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准
-- 不要把 `docs/plans/agentic-rag-foundation.md` 中的早期实施叙事直接当作当前执行状态；它是历史实施基线，不是当前 GSD 进度板
+- `docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 不再作为 repo 级默认入口
+- 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD 进度板；当前真相看 `current-architecture.md`，当前执行状态看 `.planning/`
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -192,6 +205,7 @@
 - 不要为了短期通过测试而新增临时兼容层、双路径逻辑、一次性适配层或“以后再删”的过渡代码，除非存在明确外部迁移约束
 - 当实现方案和长期正确方案冲突时，默认选择长期正确方案；若选择兼容层，必须有明确外部依赖理由
 - 不要沿着现有 hack 继续扩建；现有坏边界不是新增坏边界的理由
+- `smoke`、`typecheck`、`build`、截图或 staging 可用性默认只是验证证据，不得反向定义实现策略；对于 donor transplant、产品壳迁移、边界纠偏和架构收口任务，不能因为“先跑通”而接受腐烂设计
 - 这些规则不能作为误解、放大或改写用户原问题的理由
 
 ## Execution Protocol
@@ -200,7 +214,8 @@
 
 - 做结构性改动前，先读 `Source Of Truth` 中对应文档
 - 优先在边界内修改；跨多个 package 改动时，先确认 `packages/contracts` 是否需要先冻结或先调整
-- 仓库仍在地基阶段；优先补最小可验证闭环，不做“未来也许会用到”的泛化设计
+- 仓库当前默认处于验收收口 / 上线前硬化阶段；默认优先正确边界、发布质量、真实部署一致性与验收口径对齐
+- 不做“未来也许会用到”的泛化设计；但除数据面或明确隔离的后置能力外，也不得把“先跑通”或“最小可验证闭环”当作前端 donor parity、产品壳迁移、架构纠偏或 runtime 收口任务的默认策略
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
 - 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
@@ -222,7 +237,7 @@
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
 - 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-specialist` / `supervisor-core`、`evals`
-- 按依赖顺序并行，不要无视 contract 和强耦合关系；`docs/plans/agentic-rag-foundation.md` 里的分批策略可作为默认参考
+- 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan 为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
 - `contracts` 未冻结前，不要并行推进依赖它的接口形状；关键 contract 变更统一由主代理收口
 - 复杂任务可以并行探索或分工实现，但主代理负责最终取舍、集成和验证
