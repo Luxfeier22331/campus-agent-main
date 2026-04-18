@@ -26,6 +26,8 @@ from campus_retrieval_core import RetrievalBackendError, retrieve_sources
 
 RUN_PREFIX = "curriculum-plan-live-gate"
 REPAIR_PREFIX = "curriculum-plan-live-gate-repair"
+LIVE_BENCHMARK_CASE_WORKERS = 2
+LIVE_BENCHMARK_FAITHFULNESS_NLI_BATCH_SIZE = 6
 CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "curriculum_plan_live_gate_policy.json"
 )
@@ -174,13 +176,18 @@ def build_curriculum_live_profile(env: dict[str, str] | None = None) -> Benchmar
         description="Run or repair curriculum_plan live benchmark against the live chain.",
         policy_path=CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH,
         http_settings=http_settings,
+        case_workers=LIVE_BENCHMARK_CASE_WORKERS,
         cases_factory=lambda: (*curriculum_release_gate_cases(), *curriculum_error_gate_cases()),
         executor_factory=lambda: build_curriculum_live_executor(
             env=env,
             default_timeout_seconds=http_settings.read_timeout_seconds,
         ),
         supplemental_adapters_factory=lambda: (
-            build_ragas_supplemental_adapter_from_env(env, http_settings=http_settings),
+            build_ragas_supplemental_adapter_from_env(
+                env,
+                http_settings=http_settings,
+                faithfulness_nli_batch_size=LIVE_BENCHMARK_FAITHFULNESS_NLI_BATCH_SIZE,
+            ),
         ),
     )
 

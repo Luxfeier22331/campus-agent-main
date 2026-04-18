@@ -42,6 +42,7 @@ def run_handbook_formal_benchmark(
     supplemental_adapters: tuple[SupplementalAdapter, ...],
     output_dir: str | Path,
     reruns: int,
+    case_workers: int = 1,
     policy_path: str | Path | None = None,
     benchmark_type: str = "formal_benchmark",
     verbose: bool = False,
@@ -49,6 +50,8 @@ def run_handbook_formal_benchmark(
 ) -> dict[str, object]:
     if reruns <= 0:
         raise ValueError("reruns must be greater than zero")
+    if case_workers <= 0:
+        raise ValueError("case_workers must be greater than zero")
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
     resolved_runtime_events_path = (
@@ -79,6 +82,7 @@ def run_handbook_formal_benchmark(
                     "schema_version": 1,
                     "benchmark_type": benchmark_type,
                     "reruns": reruns,
+                    "case_workers": case_workers,
                     "policy_path": policy.get("path"),
                     "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
                     "supplemental_preflight_path": str(supplemental_preflight_path),
@@ -101,6 +105,7 @@ def run_handbook_formal_benchmark(
                         supplemental_adapters=runnable_supplemental_adapters,
                         run_number=run_number,
                         benchmark_mode="run",
+                        case_workers=case_workers,
                     )
                 run_reports.append(report)
                 _write_run_artifacts(
@@ -269,11 +274,14 @@ def repair_handbook_formal_benchmark(
     supplemental_adapters: tuple[SupplementalAdapter, ...],
     benchmark_dir: str | Path,
     output_dir: str | Path,
+    case_workers: int = 1,
     policy_path: str | Path | None = None,
     benchmark_type: str = "formal_benchmark_repair",
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
+    if case_workers <= 0:
+        raise ValueError("case_workers must be greater than zero")
     resolved_benchmark_dir = Path(benchmark_dir)
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
@@ -312,6 +320,7 @@ def repair_handbook_formal_benchmark(
                     "benchmark_type": benchmark_type,
                     "repair_of": str(resolved_benchmark_dir),
                     "source_benchmark_type": original_config.get("benchmark_type"),
+                    "case_workers": case_workers,
                     "policy_path": policy.get("path"),
                     "supplemental_adapters": [adapter.adapter_id for adapter in supplemental_adapters],
                     "supplemental_preflight_path": str(supplemental_preflight_path),
@@ -386,6 +395,7 @@ def repair_handbook_formal_benchmark(
                             supplemental_adapters=selected_adapters,
                             run_number=run_number,
                             benchmark_mode="repair",
+                            case_workers=case_workers,
                         )
                     rerun_case_result = rerun_report.results[0]
                     replacement_by_metric_key = {

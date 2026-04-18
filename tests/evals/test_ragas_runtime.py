@@ -1778,6 +1778,81 @@ class RagasScorerTest(unittest.TestCase):
         self.assertEqual(observed_stage_settings[1][0], "nli_verdicts")
         self.assertEqual(observed_stage_settings[1][1].read_timeout_seconds, 30.0)
 
+    def test_build_ragas_scorer_uses_configured_faithfulness_nli_batch_size(self) -> None:
+        observed_batches: list[tuple[str, ...]] = []
+
+        class FakeFaithfulnessMetric:
+            name = "faithfulness"
+
+            def __init__(self, llm) -> None:
+                self.llm = llm
+
+            def init(self, run_config) -> None:
+                del run_config
+
+            async def _create_statements(self, row, callbacks=None) -> StatementGeneratorOutput:
+                del row, callbacks
+                return StatementGeneratorOutput(
+                    statements=[f"statement-{index}" for index in range(1, 8)]
+                )
+
+            async def _create_verdicts(self, row, statements, callbacks=None) -> NLIStatementOutput:
+                del row, callbacks
+                observed_batches.append(tuple(statements))
+                return NLIStatementOutput(
+                    statements=[
+                        StatementFaithfulnessAnswer(
+                            statement=statement,
+                            reason="supported by evidence",
+                            verdict=1,
+                        )
+                        for statement in statements
+                    ]
+                )
+
+            def _compute_score(self, answers) -> float:
+                del answers
+                return 1.0
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "gpt-5.4",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            },
+            faithfulness_nli_batch_size=3,
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(AssertionError("faithfulness should bypass ragas.evaluate")),
+            llm_factory=lambda resolved: type("LLM", (), {"http_settings": resolved.http_settings})(),
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=lambda llm, embeddings: (FakeFaithfulnessMetric(llm),),
+            metric_names=("faithfulness",),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-faithfulness-batches",
+                user_input="图书馆开放时间是什么？",
+                response="08:00 到 22:00。",
+                retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
+                reference="图书馆开放时间为 08:00-22:00。",
+            )
+        )
+
+        self.assertEqual(results[0].score, 1.0)
+        self.assertEqual(
+            observed_batches,
+            [
+                ("statement-1", "statement-2", "statement-3"),
+                ("statement-4", "statement-5", "statement-6"),
+                ("statement-7",),
+            ],
+        )
+
     def test_build_ragas_scorer_uses_staged_faithfulness_checkpoint_resume_on_repair(self) -> None:
         class FakeFaithfulnessMetric:
             name = "faithfulness"

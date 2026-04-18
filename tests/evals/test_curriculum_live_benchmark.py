@@ -1081,8 +1081,21 @@ class CurriculumLiveProfileTest(unittest.TestCase):
             }
         )
 
+        with patch(
+            "campus_evals.curriculum_live_benchmark.build_ragas_supplemental_adapter_from_env",
+            return_value="adapter",
+        ) as build_adapter:
+            adapters = profile.supplemental_adapters_factory()
+
+        self.assertEqual(adapters, ("adapter",))
         self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
         self.assertEqual(profile.http_settings.request_min_interval_seconds, 1.0)
+        self.assertEqual(profile.case_workers, 2)
+        self.assertEqual(
+            build_adapter.call_args.kwargs["http_settings"].read_timeout_seconds,
+            180.0,
+        )
+        self.assertEqual(build_adapter.call_args.kwargs["faithfulness_nli_batch_size"], 6)
 
     def test_build_curriculum_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
         profile = build_curriculum_live_profile(

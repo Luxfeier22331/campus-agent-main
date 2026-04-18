@@ -128,7 +128,8 @@ def execute_staged_faithfulness(
 
     metric.init(_run_config_for_metric(metric, run_config))
     sample_hash = _projection_sample_hash(projection)
-    prompt_version = _prompt_version(metric)
+    nli_batch_size = _resolve_faithfulness_nli_batch_size(metric)
+    prompt_version = _prompt_version(metric, nli_batch_size=nli_batch_size)
     checkpoint_context = current_faithfulness_artifact_context()
     checkpoint_path = (
         _checkpoint_path(checkpoint_context.output_dir, checkpoint_context.run_number, getattr(projection, "case_id"))
@@ -156,6 +157,7 @@ def execute_staged_faithfulness(
             case_id=getattr(projection, "case_id"),
             sample_hash=sample_hash,
             prompt_version=prompt_version,
+            nli_batch_size=nli_batch_size,
         )
     if checkpoint_path is not None and loaded_from is not None and loaded_from != checkpoint_path:
         _write_checkpoint(checkpoint_path, state)
@@ -208,7 +210,7 @@ def execute_staged_faithfulness(
         _write_checkpoint(checkpoint_path, state)
 
     verdict_stage = dict(state["stages"]["nli_verdicts"])
-    total_batches = _total_batches(len(statements), FAITHFULNESS_NLI_BATCH_SIZE)
+    total_batches = _total_batches(len(statements), nli_batch_size)
     completed_batches = {
         str(key): [dict(item) for item in value]
         for key, value in dict(verdict_stage.get("batches") or {}).items()
@@ -217,7 +219,7 @@ def execute_staged_faithfulness(
     if not statements:
         state["stages"]["nli_verdicts"] = {
             "status": "completed",
-            "batch_size": FAITHFULNESS_NLI_BATCH_SIZE,
+            "batch_size": nli_batch_size,
             "total_batches": 0,
             "batches": {},
         }
@@ -243,7 +245,7 @@ def execute_staged_faithfulness(
         batch_statements = _statement_batch(
             statements,
             batch_index=batch_index,
-            batch_size=FAITHFULNESS_NLI_BATCH_SIZE,
+            batch_size=nli_batch_size,
         )
         cached_batch = completed_batches.get(batch_key)
         if cached_batch is not None and len(cached_batch) == len(batch_statements):
@@ -272,7 +274,7 @@ def execute_staged_faithfulness(
         except Exception as exc:
             state["stages"]["nli_verdicts"] = {
                 "status": "partial" if completed_batches else "failed",
-                "batch_size": FAITHFULNESS_NLI_BATCH_SIZE,
+                "batch_size": nli_batch_size,
                 "total_batches": total_batches,
                 "batches": completed_batches,
             }
@@ -293,7 +295,7 @@ def execute_staged_faithfulness(
         ]
         state["stages"]["nli_verdicts"] = {
             "status": "partial",
-            "batch_size": FAITHFULNESS_NLI_BATCH_SIZE,
+            "batch_size": nli_batch_size,
             "total_batches": total_batches,
             "batches": completed_batches,
         }
@@ -309,7 +311,7 @@ def execute_staged_faithfulness(
 
     state["stages"]["nli_verdicts"] = {
         "status": "completed",
-        "batch_size": FAITHFULNESS_NLI_BATCH_SIZE,
+        "batch_size": nli_batch_size,
         "total_batches": total_batches,
         "batches": completed_batches,
     }
@@ -331,7 +333,13 @@ def execute_staged_faithfulness(
     )
 
 
-def _build_initial_state(*, case_id: str, sample_hash: str, prompt_version: str) -> dict[str, object]:
+def _build_initial_state(
+    *,
+    case_id: str,
+    sample_hash: str,
+    prompt_version: str,
+    nli_batch_size: int,
+) -> dict[str, object]:
     return {
         "schema_version": FAITHFULNESS_CHECKPOINT_SCHEMA_VERSION,
         "metric_key": FAITHFULNESS_METRIC_KEY,
@@ -347,7 +355,7 @@ def _build_initial_state(*, case_id: str, sample_hash: str, prompt_version: str)
             },
             "nli_verdicts": {
                 "status": "pending",
-                "batch_size": FAITHFULNESS_NLI_BATCH_SIZE,
+                "batch_size": nli_batch_size,
                 "total_batches": 0,
                 "batches": {},
             },
@@ -407,6 +415,13 @@ def _metric_stage_http_settings(metric: object, *, stage_name: str):
     return stage_http_settings.get(stage_name)
 
 
+def _resolve_faithfulness_nli_batch_size(metric: object) -> int:
+    batch_size = getattr(metric, "_campus_faithfulness_nli_batch_size", None)
+    if isinstance(batch_size, int) and batch_size > 0:
+        return batch_size
+    return FAITHFULNESS_NLI_BATCH_SIZE
+
+
 def _projection_sample_hash(projection: object) -> str:
     payload = {
         "case_id": getattr(projection, "case_id"),
@@ -419,12 +434,13 @@ def _projection_sample_hash(projection: object) -> str:
     return sha256(serialized.encode("utf-8")).hexdigest()
 
 
-def _prompt_version(metric: object) -> str:
+def _prompt_version(metric: object, *, nli_batch_size: int) -> str:
     payload = {
         "statement_instruction": getattr(getattr(metric, "statement_generator_prompt", None), "instruction", ""),
         "statement_examples": repr(getattr(getattr(metric, "statement_generator_prompt", None), "examples", ())),
         "nli_instruction": getattr(getattr(metric, "nli_statements_prompt", None), "instruction", ""),
         "nli_examples": repr(getattr(getattr(metric, "nli_statements_prompt", None), "examples", ())),
+        "nli_batch_size": nli_batch_size,
     }
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return sha256(serialized.encode("utf-8")).hexdigest()

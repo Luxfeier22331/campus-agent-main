@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from threading import Lock
+import time
 import unittest
 
 from campus_contracts import (
@@ -448,3 +450,61 @@ class SupplementalRunnerTest(unittest.TestCase):
         self.assertEqual(report.passed, 1)
         self.assertEqual(report.by_supplemental["ragas.faithfulness"].verdict_counts["failed"], 1)
         self.assertTrue(report.results[0].passed)
+
+    def test_run_cases_respects_case_workers_and_preserves_case_order(self) -> None:
+        cases = tuple(
+            GoldenCase(
+                case_id=case_id,
+                split="release_gate",
+                source_type="expert_authored",
+                user_goal=f"library hours {index}",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                expected_status="completed",
+                required_facts=("08:00",),
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                ),
+            )
+            for index, case_id in enumerate(
+                ("supplemental-parallel-1", "supplemental-parallel-2", "supplemental-parallel-3")
+            )
+        )
+        sleep_by_case_id = {
+            "supplemental-parallel-1": 0.08,
+            "supplemental-parallel-2": 0.01,
+            "supplemental-parallel-3": 0.01,
+        }
+        active_count = 0
+        max_active_count = 0
+        lock = Lock()
+
+        def executor(case: GoldenCase) -> ExecutionResult:
+            nonlocal active_count, max_active_count
+            with lock:
+                active_count += 1
+                max_active_count = max(max_active_count, active_count)
+            time.sleep(sleep_by_case_id[case.case_id])
+            with lock:
+                active_count -= 1
+            return ExecutionResult(
+                response=_response(sources=(_source(doc_id=f"handbook:{case.case_id}"),)),
+                observed_trace=ObservedTrace(
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    retrieval_called=True,
+                ),
+            )
+
+        report = run_cases(
+            cases,
+            executor=executor,
+            case_workers=2,
+        )
+
+        self.assertEqual(report.passed, 3)
+        self.assertGreaterEqual(max_active_count, 2)
+        self.assertEqual(
+            tuple(result.case_id for result in report.results),
+            tuple(case.case_id for case in cases),
+        )

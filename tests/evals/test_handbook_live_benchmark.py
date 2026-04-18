@@ -439,10 +439,12 @@ class HandbookLiveProfileTest(unittest.TestCase):
 
         self.assertEqual(adapters, ("adapters",))
         self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
+        self.assertEqual(profile.case_workers, 2)
         self.assertEqual(
             build_adapters.call_args.kwargs["http_settings"].read_timeout_seconds,
             180.0,
         )
+        self.assertEqual(build_adapters.call_args.kwargs["faithfulness_nli_batch_size"], 6)
 
     def test_build_handbook_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
         profile = build_handbook_live_profile(
@@ -487,10 +489,12 @@ class HandbookLiveProfileTest(unittest.TestCase):
 
         self.assertEqual(adapters, ("adapters",))
         self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
+        self.assertEqual(profile.case_workers, 2)
         self.assertEqual(
             build_adapters.call_args.kwargs["http_settings"].read_timeout_seconds,
             180.0,
         )
+        self.assertEqual(build_adapters.call_args.kwargs["faithfulness_nli_batch_size"], 6)
 
 
 class HandbookLiveBenchmarkCliTest(unittest.TestCase):
@@ -526,6 +530,7 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             supplemental_adapters=adapters,
             output_dir=expected_output_dir,
             reruns=3,
+            case_workers=2,
         )
 
     def test_main_loads_repo_env_before_running_profile(self) -> None:
@@ -582,6 +587,7 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             supplemental_adapters=adapters,
             benchmark_dir=benchmark_dir,
             output_dir=expected_output_dir,
+            case_workers=2,
         )
 
     def test_main_runs_acceptance_against_live_chain(self) -> None:

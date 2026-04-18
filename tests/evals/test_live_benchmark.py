@@ -60,6 +60,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             cases_factory=lambda: (_case(),),
             executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
             supplemental_adapters_factory=lambda: (),
+            case_workers=3,
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -73,6 +74,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         self.assertEqual(summary["benchmark_type"], "test_live_gate")
         self.assertEqual(run_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json"))
         self.assertEqual(run_benchmark.call_args.kwargs["benchmark_type"], "test_live_gate")
+        self.assertEqual(run_benchmark.call_args.kwargs["case_workers"], 3)
 
     def test_repair_live_benchmark_profile_passes_explicit_profile_policy_to_core(self) -> None:
         profile = BenchmarkProfile(
@@ -86,6 +88,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             cases_factory=lambda: (_case(),),
             executor_factory=lambda: (lambda case: ExecutionResult(response=object(), observed_trace=None)),
             supplemental_adapters_factory=lambda: (),
+            case_workers=3,
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -104,6 +107,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         self.assertEqual(summary["benchmark_type"], "test_live_gate_repair")
         self.assertEqual(repair_benchmark.call_args.kwargs["policy_path"], Path("/tmp/test-policy.json"))
         self.assertEqual(repair_benchmark.call_args.kwargs["benchmark_type"], "test_live_gate_repair")
+        self.assertEqual(repair_benchmark.call_args.kwargs["case_workers"], 3)
 
     def test_accept_live_benchmark_profile_runs_repair_and_writes_final_summary(self) -> None:
         profile = BenchmarkProfile(

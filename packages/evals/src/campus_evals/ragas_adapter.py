@@ -653,6 +653,11 @@ def _configure_metric_runtime(metric: object, *, settings: RagasSettings) -> Non
             ),
         },
     )
+    setattr(
+        metric,
+        "_campus_faithfulness_nli_batch_size",
+        settings.faithfulness_nli_batch_size,
+    )
 
 
 def build_ragas_supplemental_adapter_from_env(
@@ -660,8 +665,13 @@ def build_ragas_supplemental_adapter_from_env(
     *,
     metric_names: tuple[str, ...] | None = None,
     http_settings: SupplementalHTTPSettings | None = None,
+    faithfulness_nli_batch_size: int = 4,
 ) -> RagasSupplementalAdapter:
-    settings = RagasSettings.from_env(env, http_settings=http_settings)
+    settings = RagasSettings.from_env(
+        env,
+        http_settings=http_settings,
+        faithfulness_nli_batch_size=faithfulness_nli_batch_size,
+    )
     llm = build_http_ragas_llm(settings)
     embeddings = build_http_ragas_embeddings(settings)
     resolved_metric_names = metric_names or build_default_ragas_metric_names()

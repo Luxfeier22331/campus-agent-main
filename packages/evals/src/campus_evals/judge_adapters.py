@@ -224,8 +224,13 @@ def build_default_handbook_supplemental_adapters_from_env(
     *,
     metric_names: tuple[str, ...] | None = None,
     http_settings=None,
+    faithfulness_nli_batch_size: int = 4,
 ) -> tuple[object, ...]:
-    ragas_settings = RagasSettings.from_env(env, http_settings=http_settings)
+    ragas_settings = RagasSettings.from_env(
+        env,
+        http_settings=http_settings,
+        faithfulness_nli_batch_size=faithfulness_nli_batch_size,
+    )
     judge_settings = JudgeLLMSettings.from_env(env, http_settings=http_settings)
     _, judge_fn, judge_preflight = _build_json_judge_runtime(judge_settings)
     return (

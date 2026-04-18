@@ -26,6 +26,8 @@ from campus_retrieval_core import retrieve_sources
 
 RUN_PREFIX = "student-handbook-formal-benchmark"
 REPAIR_PREFIX = "student-handbook-formal-benchmark-repair"
+LIVE_BENCHMARK_CASE_WORKERS = 2
+LIVE_BENCHMARK_FAITHFULNESS_NLI_BATCH_SIZE = 6
 STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "student_handbook_judge_gate_policy.json"
 )
@@ -126,6 +128,7 @@ def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkP
         description="Run or repair student_handbook formal benchmark against the live chain.",
         policy_path=STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH,
         http_settings=http_settings,
+        case_workers=LIVE_BENCHMARK_CASE_WORKERS,
         cases_factory=lambda: handbook_release_gate_cases(),
         executor_factory=lambda: build_handbook_live_executor(
             env=env,
@@ -134,6 +137,7 @@ def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkP
         supplemental_adapters_factory=lambda: build_default_handbook_supplemental_adapters_from_env(
             env,
             http_settings=http_settings,
+            faithfulness_nli_batch_size=LIVE_BENCHMARK_FAITHFULNESS_NLI_BATCH_SIZE,
         ),
         pass_policy_path_to_core=False,
         pass_benchmark_type_to_core=False,

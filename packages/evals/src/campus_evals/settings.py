@@ -20,6 +20,7 @@ DEFAULT_SUPPLEMENTAL_HTTP_MAX_CONNECTIONS = 100
 DEFAULT_SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS = 20
 DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS = 0.0
 DEFAULT_FAITHFULNESS_STATEMENT_GENERATION_READ_TIMEOUT_SECONDS = 180.0
+DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE = 4
 ALLOWED_EVAL_LLM_TRANSPORTS = frozenset({"responses", "chat_completions"})
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
@@ -199,6 +200,7 @@ class RagasSettings:
     max_output_tokens: int | None = None
     target_language: str | None = None
     adapt_instruction: bool = False
+    faithfulness_nli_batch_size: int = DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE
 
     def __post_init__(self) -> None:
         if not self.llm_api_key.strip():
@@ -221,6 +223,8 @@ class RagasSettings:
             raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
+        if self.faithfulness_nli_batch_size <= 0:
+            raise ValueError("faithfulness_nli_batch_size must be greater than zero")
 
     @classmethod
     def from_env(
@@ -228,6 +232,7 @@ class RagasSettings:
         env: dict[str, str] | None = None,
         *,
         http_settings: SupplementalHTTPSettings | None = None,
+        faithfulness_nli_batch_size: int = DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE,
     ) -> "RagasSettings":
         source = env if env is not None else os.environ
         llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
@@ -260,6 +265,7 @@ class RagasSettings:
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
             target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE"),
             adapt_instruction=_read_bool(source.get("RAGAS_ADAPT_INSTRUCTION"), default=False),
+            faithfulness_nli_batch_size=faithfulness_nli_batch_size,
         )
 
     @property

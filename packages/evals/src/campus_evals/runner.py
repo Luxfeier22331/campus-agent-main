@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 from dataclasses import replace
 from statistics import fmean
 from typing import Callable, Protocol
@@ -36,33 +38,80 @@ def run_cases(
     supplemental_adapters: tuple[SupplementalAdapter, ...] = (),
     run_number: int | None = None,
     benchmark_mode: str = "run",
+    case_workers: int = 1,
 ) -> RunReport:
+    if case_workers <= 0:
+        raise ValueError("case_workers must be greater than zero")
     selected_cases = tuple(case for case in cases if split is None or case.split == split)
-    results: list[CaseResult] = []
+    if case_workers == 1 or len(selected_cases) <= 1:
+        return summarize_case_results(
+            selected_cases,
+            tuple(
+                _run_case(
+                    case,
+                    executor=executor,
+                    supplemental_adapters=supplemental_adapters,
+                    run_number=run_number,
+                    benchmark_mode=benchmark_mode,
+                )
+                for case in selected_cases
+            ),
+        )
 
-    for case in selected_cases:
-        with bind_runtime_event_context(
-            run_number=run_number,
-            benchmark_mode=benchmark_mode,
-            case_id=case.case_id,
-            case_split=case.split,
-            expected_status=case.expected_status,
-        ):
-            execution = executor(case)
-            result = evaluate_case(case, execution)
-            if execution.observed_trace is not None:
-                result = replace(result, observed_trace=execution.observed_trace)
-            if execution.request_correlation is not None:
-                result = replace(result, request_correlation=execution.request_correlation)
-            supplemental_results = _evaluate_supplemental_results(
-                case,
-                execution,
-                supplemental_adapters=supplemental_adapters,
+    indexed_results: list[CaseResult | None] = [None] * len(selected_cases)
+    with ThreadPoolExecutor(max_workers=case_workers) as pool:
+        futures = [
+            (
+                index,
+                pool.submit(
+                    copy_context().run,
+                    _run_case,
+                    case,
+                    executor,
+                    supplemental_adapters,
+                    run_number,
+                    benchmark_mode,
+                ),
             )
-            if supplemental_results:
-                result = replace(result, supplemental_results=supplemental_results)
-            results.append(result)
-    return summarize_case_results(selected_cases, tuple(results))
+            for index, case in enumerate(selected_cases)
+        ]
+        for index, future in futures:
+            indexed_results[index] = future.result()
+
+    return summarize_case_results(
+        selected_cases,
+        tuple(result for result in indexed_results if result is not None),
+    )
+
+
+def _run_case(
+    case: GoldenCase,
+    executor: Executor,
+    supplemental_adapters: tuple[SupplementalAdapter, ...],
+    run_number: int | None,
+    benchmark_mode: str,
+) -> CaseResult:
+    with bind_runtime_event_context(
+        run_number=run_number,
+        benchmark_mode=benchmark_mode,
+        case_id=case.case_id,
+        case_split=case.split,
+        expected_status=case.expected_status,
+    ):
+        execution = executor(case)
+        result = evaluate_case(case, execution)
+        if execution.observed_trace is not None:
+            result = replace(result, observed_trace=execution.observed_trace)
+        if execution.request_correlation is not None:
+            result = replace(result, request_correlation=execution.request_correlation)
+        supplemental_results = _evaluate_supplemental_results(
+            case,
+            execution,
+            supplemental_adapters=supplemental_adapters,
+        )
+        if supplemental_results:
+            result = replace(result, supplemental_results=supplemental_results)
+        return result
 
 
 def summarize_case_results(

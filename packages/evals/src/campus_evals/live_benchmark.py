@@ -36,9 +36,14 @@ class BenchmarkProfile:
     executor_factory: Callable[[], Executor]
     supplemental_adapters_factory: SupplementalAdaptersFactory
     http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
+    case_workers: int = 1
     pass_policy_path_to_core: bool = True
     pass_benchmark_type_to_core: bool = True
     pass_repair_benchmark_type_to_core: bool = True
+
+    def __post_init__(self) -> None:
+        if self.case_workers <= 0:
+            raise ValueError("case_workers must be greater than zero")
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +152,7 @@ def run_live_benchmark_profile(
         "supplemental_adapters": profile.supplemental_adapters_factory(),
         "output_dir": Path(output_dir),
         "reruns": reruns,
+        "case_workers": profile.case_workers,
     }
     if profile.pass_policy_path_to_core:
         kwargs["policy_path"] = profile.policy_path
@@ -175,6 +181,7 @@ def repair_live_benchmark_profile(
         "supplemental_adapters": profile.supplemental_adapters_factory(),
         "benchmark_dir": Path(benchmark_dir),
         "output_dir": Path(output_dir),
+        "case_workers": profile.case_workers,
     }
     if profile.pass_policy_path_to_core:
         kwargs["policy_path"] = profile.policy_path

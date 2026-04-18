@@ -6,7 +6,14 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
-from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult, TraceExpectation
+from campus_evals import (
+    ExecutionResult,
+    GoldenCase,
+    ObservedTrace,
+    SupplementalResult,
+    TraceExpectation,
+    expected_source_ref,
+)
 from campus_evals.faithfulness_runtime import current_faithfulness_artifact_context
 from campus_evals.handbook_benchmark import (
     collect_repairable_handbook_benchmark_targets,
@@ -46,7 +53,7 @@ def _completed_case() -> GoldenCase:
         actor=ActorContext(),
         scope=HANDBOOK_SCOPE,
         expected_status="completed",
-        expected_sources=(type("Expected", (), {"doc_id": "handbook:library", "version_id": None, "chunk_id": None})(),),
+        expected_sources=(expected_source_ref("handbook:library"),),
         required_facts=("08:00",),
         trace_expectation=TraceExpectation(selected_scope=HANDBOOK_SCOPE, retrieval_called=True),
     )
@@ -521,6 +528,7 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 supplemental_adapters=(adapter,),
                 output_dir=output_dir,
                 reruns=2,
+                case_workers=2,
                 policy_path=policy_path,
                 benchmark_type="formal_benchmark",
             )
@@ -537,7 +545,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertTrue((output_dir / "supplemental-provider-summary.json").exists())
             self.assertTrue((output_dir / "supplemental-runtime-events.jsonl").exists())
 
+            benchmark_config = json.loads((output_dir / "benchmark-config.json").read_text(encoding="utf-8"))
             summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(benchmark_config["case_workers"], 2)
             self.assertEqual(summary["benchmark_type"], "formal_benchmark")
             self.assertEqual(summary["reruns"], 2)
             self.assertEqual(summary["case_set"]["expected_status_counts"]["completed"], 1)
@@ -841,6 +851,7 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 supplemental_adapters=(repair_adapter,),
                 benchmark_dir=benchmark_dir,
                 output_dir=repair_dir,
+                case_workers=2,
             )
 
             self.assertTrue((repair_dir / "repair-config.json").exists())
@@ -854,6 +865,8 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(repaired_metric["applicable_runs"], 2)
             self.assertAlmostEqual(repaired_metric["mean_average_score"], 0.925)
             self.assertEqual(repaired_summary["gate_report"]["overall_verdict"], "pass")
+            repair_config = json.loads((repair_dir / "repair-config.json").read_text(encoding="utf-8"))
+            self.assertEqual(repair_config["case_workers"], 2)
 
             original_summary_after = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(
