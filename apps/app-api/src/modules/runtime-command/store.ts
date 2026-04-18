@@ -20,6 +20,7 @@ import type { RequestedScope } from "../integration";
 import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
+  RequestRemoteContentSuspicionSummary,
   RequestSourceTrustSummary,
 } from "../request-diagnostics";
 import type { ObservedSourceTraceEntry } from "../source-trace";
@@ -132,6 +133,7 @@ export interface RequestObservabilityFactWrite {
   retrievalAdequacyVerdict: string | null;
   retrievalAdequacyReason: string | null;
   claimSupportSummary: RequestClaimSupportSummary | null;
+  remoteContentSuspicionSummary?: RequestRemoteContentSuspicionSummary | null;
   sourceTrustSummary?: RequestSourceTrustSummary | null;
   traceAvailable: boolean;
   projectionLagMs: number | null;
@@ -434,6 +436,8 @@ export function createPgChatCommandStore(
           cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
           candidateCount: input.requestObservabilityFact.candidateCount,
           claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+          remoteContentSuspicionSummaryJson:
+            input.requestObservabilityFact.remoteContentSuspicionSummary ?? null,
           sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
           retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
           supportingSourcesJson: input.requestObservabilityFact.supportingSources,
@@ -561,6 +565,8 @@ export function createPgChatCommandStore(
             cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
             candidateCount: input.requestObservabilityFact.candidateCount,
             claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+            remoteContentSuspicionSummaryJson:
+              input.requestObservabilityFact.remoteContentSuspicionSummary ?? null,
             sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
             retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
             supportingSourcesJson: input.requestObservabilityFact.supportingSources,
@@ -618,6 +624,8 @@ export function createPgChatCommandStore(
               cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
               candidateCount: input.requestObservabilityFact.candidateCount,
               claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+              remoteContentSuspicionSummaryJson:
+                input.requestObservabilityFact.remoteContentSuspicionSummary ?? null,
               sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
               retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
               supportingSourcesJson: input.requestObservabilityFact.supportingSources,

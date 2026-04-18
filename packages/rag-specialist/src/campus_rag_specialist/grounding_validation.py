@@ -8,6 +8,10 @@ from campus_shared import (
     NormalizedProviderGroundingSupport,
     normalize_provider_grounding_supports,
 )
+from campus_rag_specialist.remote_content_hardening import (
+    assess_provider_grounding_support_suspicion,
+    ensure_remote_content_suspicion_labels,
+)
 
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -255,6 +259,11 @@ def _build_support_candidates(
     default_provider_support_source_trust_tier = _default_source_trust_tier_for_bundle(evidence)
     for support in _normalize_optional_provider_supports(provider_grounding_supports):
         snippet = support.support_snippet.strip() or support.claim_text.strip()
+        if assess_provider_grounding_support_suspicion(
+            claim_text=support.claim_text,
+            support_snippet=snippet,
+        ).is_suspicious:
+            continue
         haystack = _normalize_matching_text(f"{support.claim_text} {snippet}")
         if not haystack:
             continue
@@ -270,6 +279,8 @@ def _build_support_candidates(
 
 
 def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCandidate, ...]:
+    if ensure_remote_content_suspicion_labels(source):
+        return ()
     snippets = [
         source.source_title.strip(),
         source.detail_label.strip(),

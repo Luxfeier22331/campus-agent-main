@@ -14,9 +14,16 @@ export interface RequestSourceTrustSummary {
   authorizationClaimBlocked: boolean;
 }
 
+export interface RequestRemoteContentSuspicionSummary {
+  flaggedSourceCount: number;
+  flagLabels: string[];
+  generationBlocked: boolean;
+}
+
 export interface RequestDiagnosticsSummary {
   claimSupportSummary: RequestClaimSupportSummary | null;
   sourceTrustSummary?: RequestSourceTrustSummary | null;
+  remoteContentSuspicionSummary?: RequestRemoteContentSuspicionSummary | null;
   resolvedPolicyDocumentId: string | null;
   resolvedPolicyTitle: string | null;
   rewrittenQuery: string | null;
@@ -157,6 +164,47 @@ function summarizeSourceTrust(
   };
 }
 
+function summarizeRemoteContentSuspicion(
+  diagnosticsRecord: Record<string, unknown>,
+): RequestRemoteContentSuspicionSummary | null {
+  const rawRemoteContentSuspicionSummary = getRecord(
+    readField(
+      diagnosticsRecord,
+      "remote_content_suspicion_summary",
+      "remoteContentSuspicionSummary",
+    ),
+  );
+  if (!rawRemoteContentSuspicionSummary) {
+    return null;
+  }
+
+  return {
+    flaggedSourceCount:
+      typeof readField(
+        rawRemoteContentSuspicionSummary,
+        "flagged_source_count",
+        "flaggedSourceCount",
+      ) === "number"
+        ? (readField(
+            rawRemoteContentSuspicionSummary,
+            "flagged_source_count",
+            "flaggedSourceCount",
+          ) as number)
+        : 0,
+    flagLabels: normalizeStringList(
+      readField(rawRemoteContentSuspicionSummary, "flag_labels", "flagLabels"),
+    ),
+    generationBlocked:
+      normalizeOptionalBoolean(
+        readField(
+          rawRemoteContentSuspicionSummary,
+          "generation_blocked",
+          "generationBlocked",
+        ),
+      ) ?? false,
+  };
+}
+
 export function extractRequestDiagnosticsSummary(
   result: unknown,
 ): RequestDiagnosticsSummary | null {
@@ -169,6 +217,7 @@ export function extractRequestDiagnosticsSummary(
   const summary: RequestDiagnosticsSummary = {
     claimSupportSummary: summarizeClaimSupports(diagnosticsRecord),
     sourceTrustSummary: summarizeSourceTrust(diagnosticsRecord),
+    remoteContentSuspicionSummary: summarizeRemoteContentSuspicion(diagnosticsRecord),
     clarificationReason: normalizeOptionalString(
       readField(diagnosticsRecord, "clarification_reason", "clarificationReason"),
     ),
@@ -250,6 +299,7 @@ export function extractRequestDiagnosticsSummary(
   if (
     summary.claimSupportSummary === null &&
     summary.sourceTrustSummary === null &&
+    summary.remoteContentSuspicionSummary === null &&
     !summary.resolvedPolicyDocumentId &&
     !summary.resolvedPolicyTitle &&
     !summary.rewrittenQuery &&

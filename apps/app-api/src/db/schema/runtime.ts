@@ -12,6 +12,7 @@ import {
 import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
+  RequestRemoteContentSuspicionSummary,
   RequestSourceTrustSummary,
 } from "../../modules/request-diagnostics";
 import type { ObservedSourceTraceEntry } from "../../modules/source-trace";
@@ -146,6 +147,7 @@ export const requestObservabilityFact = runtime.table(
     retrievalAdequacyVerdict: text("retrieval_adequacy_verdict"),
     retrievalAdequacyReason: text("retrieval_adequacy_reason"),
     claimSupportSummaryJson: jsonb("claim_support_summary_json").$type<RequestClaimSupportSummary | null>(),
+    remoteContentSuspicionSummaryJson: jsonb("remote_content_suspicion_summary_json").$type<RequestRemoteContentSuspicionSummary | null>(),
     sourceTrustSummaryJson: jsonb("source_trust_summary_json").$type<RequestSourceTrustSummary | null>(),
     traceAvailable: boolean("trace_available").notNull().default(false),
     projectionLagMs: integer("projection_lag_ms"),

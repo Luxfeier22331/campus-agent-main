@@ -14,6 +14,7 @@ from campus_contracts import (
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
+    RemoteContentSuspicionSummary,
     SpecialistRequest,
     SpecialistResponse,
     SourceTrustSummary,
@@ -44,6 +45,11 @@ from campus_rag_specialist.prompt_packets import (
     build_rag_answer_prompt_packet,
     build_rag_clarify_prompt_packet,
     build_rag_no_answer_prompt_packet,
+)
+from campus_rag_specialist.remote_content_hardening import (
+    apply_remote_content_suspicion_labels,
+    build_remote_content_suspicion_summary,
+    should_block_remote_content_generation,
 )
 from campus_rag_specialist.retrieval_adequacy import (
     RetrievalAdequacyAssessment,
@@ -487,6 +493,7 @@ def delegate_to_rag_agent(
             if effective_scope.corpus == "curriculum" and effective_scope.collection == "curriculum_plan"
             else user_goal,
         )
+        apply_remote_content_suspicion_labels(evidence)
     except CorpusQueryDisabledError as exc:
         return SpecialistResponse(
             target="rag-specialist",
@@ -627,6 +634,7 @@ def delegate_to_rag_agent(
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
     )
+    apply_remote_content_suspicion_labels(supporting_evidence)
     if not supporting_evidence.sources:
         (
             answer_text,
@@ -742,6 +750,7 @@ def delegate_to_rag_agent(
     prompt_trace = None
     prompt_runtime_state = ""
     prompt_runtime_detail = ""
+    remote_content_suspicion_summary = None
     if curriculum_program_family_plan is not None:
         answer_text = _build_curriculum_program_family_answer(
             evidence=supporting_evidence,
@@ -763,6 +772,54 @@ def delegate_to_rag_agent(
             collection=supporting_evidence.collection,
             sources=answer_draft.supporting_sources,
         )
+        apply_remote_content_suspicion_labels(finalized_evidence)
+        remote_content_generation_blocked = should_block_remote_content_generation(finalized_evidence)
+        remote_content_suspicion_summary = build_remote_content_suspicion_summary(
+            finalized_evidence,
+            generation_blocked=remote_content_generation_blocked,
+        )
+        if remote_content_generation_blocked:
+            (
+                blocked_answer_text,
+                blocked_prompt_trace,
+                blocked_prompt_runtime_state,
+                blocked_prompt_runtime_detail,
+            ) = _compose_no_answer_response(
+                request=request,
+                resolved_scope=effective_scope,
+                evidence=finalized_evidence,
+                no_answer_reason="remote_content_suspicion_blocked",
+                fallback_answer=_build_no_answer_response(
+                    finalized_evidence,
+                    resolved_policy_title=_resolved_policy_title(handbook_plan),
+                ),
+                prompt_executor=prompt_executor,
+                intent_frame=intent_frame,
+            )
+            return SpecialistResponse(
+                target="rag-specialist",
+                status="no_answer",
+                answer_text=blocked_answer_text,
+                confidence="low",
+                result=_with_prompt_trace(
+                    _build_rag_result_payload(
+                        evidence=finalized_evidence,
+                        retrieved_evidence=evidence,
+                        resolved_scope=effective_scope,
+                        handbook_plan=handbook_plan,
+                        curriculum_plan=curriculum_plan,
+                        curriculum_course_plan=curriculum_course_plan,
+                        curriculum_program_family_plan=curriculum_program_family_plan,
+                        no_answer_reason="remote_content_suspicion_blocked",
+                        semantic_outcome="unsupported_by_evidence",
+                        retrieval_adequacy=sufficient_retrieval_adequacy(),
+                        remote_content_suspicion_summary=remote_content_suspicion_summary,
+                        prompt_runtime_state=blocked_prompt_runtime_state,
+                        prompt_runtime_detail=blocked_prompt_runtime_detail,
+                    ),
+                    blocked_prompt_trace,
+                ),
+            )
         answer_text = answer_draft.answer_text
         should_attempt_prompt_answer = (
             prompt_executor is not None
@@ -833,6 +890,7 @@ def delegate_to_rag_agent(
                                 unsupported_fields=grounding.unsupported_fields,
                                 grounding_verdict=grounding.verdict,
                                 grounding_downgraded=True,
+                                remote_content_suspicion_summary=remote_content_suspicion_summary,
                                 source_trust_summary=grounding.source_trust_summary,
                                 prompt_runtime_state=downgraded_prompt_runtime_state,
                                 prompt_runtime_detail=downgraded_prompt_runtime_detail,
@@ -859,6 +917,7 @@ def delegate_to_rag_agent(
                 retrieval_adequacy=sufficient_retrieval_adequacy(),
                 claim_supports=grounding.claim_supports if should_use_prompt_answer else (),
                 grounding_verdict="grounded",
+                remote_content_suspicion_summary=remote_content_suspicion_summary,
                 source_trust_summary=(
                     grounding.source_trust_summary if should_use_prompt_answer else None
                 ),
@@ -1545,6 +1604,7 @@ def _build_rag_result_payload(
     grounding_verdict: str = "",
     grounding_downgraded: bool = False,
     freshness_fail_closed: bool = False,
+    remote_content_suspicion_summary: RemoteContentSuspicionSummary | None = None,
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
@@ -1566,6 +1626,7 @@ def _build_rag_result_payload(
         grounding_verdict=grounding_verdict,
         grounding_downgraded=grounding_downgraded,
         freshness_fail_closed=freshness_fail_closed,
+        remote_content_suspicion_summary=remote_content_suspicion_summary,
         source_trust_summary=source_trust_summary,
         prompt_runtime_state=prompt_runtime_state,
         prompt_runtime_detail=prompt_runtime_detail,
@@ -1594,6 +1655,7 @@ def _build_rag_result_diagnostics(
     grounding_verdict: str = "",
     grounding_downgraded: bool = False,
     freshness_fail_closed: bool = False,
+    remote_content_suspicion_summary: RemoteContentSuspicionSummary | None = None,
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
@@ -1620,10 +1682,16 @@ def _build_rag_result_diagnostics(
             evidence=evidence,
             claim_supports=claim_supports,
         )
+    effective_remote_content_suspicion_summary = remote_content_suspicion_summary
+    if effective_remote_content_suspicion_summary is None:
+        effective_remote_content_suspicion_summary = build_remote_content_suspicion_summary(
+            evidence,
+        )
 
     def _diagnostics(**kwargs: object) -> RagResultDiagnostics:
         return RagResultDiagnostics(
             retrieved_sources=retrieved_sources,
+            remote_content_suspicion_summary=effective_remote_content_suspicion_summary,
             source_trust_summary=effective_source_trust_summary,
             **kwargs,
         )
