@@ -65,7 +65,8 @@ updated: 2026-04-18
 
 - 保持现有 `11` 条 admitted regulation target 的 bounded lane
 - 不做 unfiltered source-wide materialization
-- scoped-rules 继续只做 non-auth metadata / target-side quality hardening；annual rule 缺少 `school_unit_name` 视为 target-side fail-close，`暂行/试行` 继续保留 `force_status=provisional_in_force`
+- scoped-rules 继续只做 non-auth metadata / target-side quality hardening；`school_unit_name` 已收口为 title-first / fail-close metadata：
+  无法从 source-facing title 高置信识别时返回 `None`，不再从 `promotion_body` 全文宽松扫描；`暂行/试行` 继续保留 `force_status=provisional_in_force`
 - 需要认证窗口的 `351119` `file_release` capture 与 owner recovery 不再属于本文，统一转到独立 auth workstream
 
 当前这条 workstream 的固定后续顺序也已经明确：
