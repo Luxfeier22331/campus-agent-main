@@ -137,7 +137,7 @@ class DocsStructureTest(unittest.TestCase):
             decision_ids[decision_id] = path
 
     def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:
-        roadmap = (PLANNING_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+        roadmap = (PLANNING_ROOT / "legacy-flat" / "ROADMAP.md").read_text(encoding="utf-8")
 
         self.assertNotIn("Current roadmap truth still centers", roadmap)
         self.assertNotIn("Current serving truth is profile-driven", roadmap)
