@@ -23,6 +23,13 @@ updated: 2026-04-12
 - 重新定义 strict donor parity 的 smoke / staging evidence
 - 把 upstream donor 根目录里未 vendored 的 meta 文件误记成产品壳 drift
 
+## 当前结论
+
+当前 remaining historical debt 路径数为 `0`。
+
+- 当前 repo-tracked donor diff truth 由本文的 machine-readable inventory、whitelist policy 和 exact compat seam owner 共同固定。
+- 如果本地存在 `.tmp/vercel-ai-chatbot` donor snapshot，可以额外做严格 byte-level 对比；如果该临时目录已按仓库清理策略移除，则 gate 退回到 repo-tracked inventory/doc/seam 校验，不把“缺少本地临时快照”视为回归。
+
 ## 分类基线
 
 当前 donor diff 固定分成三层：

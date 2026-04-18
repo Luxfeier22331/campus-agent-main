@@ -29,8 +29,6 @@ const vendorSourceModules = import.meta.glob<string>(
   },
 );
 
-const hasTrackedDonorSnapshot = Object.keys(donorSourceModules).length > 0;
-
 function normalizeDonorKey(moduleKey: string): string {
   return moduleKey.replace(/^..\/..\/..\/\.tmp\/vercel-ai-chatbot\//, "");
 }
@@ -70,24 +68,29 @@ function collectDonorDiff() {
     }
   }
 
-  return { differ, onlyLeft, onlyRight };
+  return {
+    differ,
+    donorSnapshotAvailable: donorFiles.size > 0,
+    onlyLeft,
+    onlyRight,
+    vendorPaths: [...vendorFiles.keys()].sort(),
+  };
 }
 
 describe("public chat donor diff classification", () => {
   it("classifies every remaining vendor diff into accepted categories and leaves no historical debt", () => {
-    if (!hasTrackedDonorSnapshot) {
-      expect(expectedVendorDiffPaths.length).toBeGreaterThan(0);
-      expect(acceptedProductDiffPaths.length).toBeGreaterThan(0);
-      expect(acceptedRuntimeCompatibilityDiffPaths.length).toBeGreaterThan(0);
-      expect(historicalDebtDiffPaths).toEqual([]);
-      return;
+    const { differ, donorSnapshotAvailable, onlyLeft, onlyRight, vendorPaths } = collectDonorDiff();
+
+    if (donorSnapshotAvailable) {
+      expect(onlyLeft).toEqual([]);
+      expect(onlyRight).toEqual([]);
+      expect(differ).toEqual(expectedVendorDiffPaths.filter((relativePath) => relativePath !== "app/globals.css"));
+    } else {
+      expect(onlyLeft).toEqual([]);
+      for (const relativePath of expectedVendorDiffPaths) {
+        expect(vendorPaths).toContain(relativePath);
+      }
     }
-
-    const { differ, onlyLeft, onlyRight } = collectDonorDiff();
-
-    expect(onlyLeft).toEqual([]);
-    expect(onlyRight).toEqual([]);
-    expect(differ).toEqual(expectedVendorDiffPaths.filter((relativePath) => relativePath !== "app/globals.css"));
 
     expect(acceptedProductDiffPaths.length).toBeGreaterThan(0);
     expect(acceptedRuntimeCompatibilityDiffPaths.length).toBeGreaterThan(0);
