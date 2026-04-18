@@ -16,6 +16,9 @@ export interface Env {
   APP_API_OFFICIAL_WEB_HANDOFF_URL?: string;
   APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
   BETTER_AUTH_SECRET?: string;
+  RESEND_API_KEY?: string;
+  AUTH_RESET_EMAIL_FROM?: string;
+  AUTH_RESET_EMAIL_REPLY_TO?: string;
   PUBLIC_CHAT_WEB_ORIGIN?: string;
   SUPERVISOR_API_BASE_URL?: string;
   SUPERVISOR_API_SHARED_SECRET?: string;
@@ -42,6 +45,9 @@ export interface AppApiConfig {
   appName: string;
   environment: AppApiEnvironment;
   betterAuthSecret: string;
+  resendApiKey: string;
+  authResetEmailFrom: string;
+  authResetEmailReplyTo?: string;
   publicChatOrigin: string;
   databaseConnectionString: string;
   databaseSslMode: DatabaseSslMode;
@@ -60,6 +66,8 @@ const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
   "APP_API_DB.connectionString",
   "BETTER_AUTH_SECRET",
+  "RESEND_API_KEY",
+  "AUTH_RESET_EMAIL_FROM",
   "PUBLIC_CHAT_WEB_ORIGIN",
   "SUPERVISOR_API_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
@@ -137,23 +145,29 @@ export function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.BETTER_AUTH_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[1]);
   }
-  if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
+  if (!env.RESEND_API_KEY?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[2]);
   }
-  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
+  if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[3]);
   }
-  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
+  if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[4]);
   }
-  if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
+  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[5]);
   }
-  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[6]);
   }
-  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+  if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
     missing.push(MISSING_CONFIG_KEYS[7]);
+  }
+  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+    missing.push(MISSING_CONFIG_KEYS[8]);
+  }
+  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+    missing.push(MISSING_CONFIG_KEYS[9]);
   }
 
   return missing;
@@ -178,6 +192,9 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     appName: resolveAppName(env),
     environment: resolveEnvironment(env),
     betterAuthSecret: env.BETTER_AUTH_SECRET!.trim(),
+    resendApiKey: env.RESEND_API_KEY!.trim(),
+    authResetEmailFrom: env.AUTH_RESET_EMAIL_FROM!.trim(),
+    authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
     publicChatOrigin: readPublicChatOrigin(env),
     databaseConnectionString: env.APP_API_DB!.connectionString!.trim(),
     databaseSslMode: resolveDatabaseSslMode(env),

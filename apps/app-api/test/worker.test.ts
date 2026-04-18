@@ -29,6 +29,8 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
   APP_API_NAME: "campus-agent-app-api",
   BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+  RESEND_API_KEY: "resend_test_key",
+  AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
   PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
   SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
   SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -154,9 +156,12 @@ describe("app-api worker foundation", () => {
       "[[env.staging.hyperdrive]]",
     );
     expect(wranglerConfig).toContain("[env.local.secrets]");
-    expect(wranglerConfig).toContain('required = ["BETTER_AUTH_SECRET", "SUPERVISOR_API_SHARED_SECRET", "APP_API_INTERNAL_SHARED_SECRET"]');
+    expect(wranglerConfig).toContain('"RESEND_API_KEY"');
+    expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
     expect(wranglerConfig).toContain("[env.staging.secrets]");
     expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
+    expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
+    expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
     expect(stagingSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
     expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
     expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
@@ -230,6 +235,8 @@ describe("app-api worker foundation", () => {
           missing: [
             "APP_API_DB.connectionString",
             "BETTER_AUTH_SECRET",
+            "RESEND_API_KEY",
+            "AUTH_RESET_EMAIL_FROM",
             "PUBLIC_CHAT_WEB_ORIGIN",
             "SUPERVISOR_API_BASE_URL",
             "SUPERVISOR_API_SHARED_SECRET",

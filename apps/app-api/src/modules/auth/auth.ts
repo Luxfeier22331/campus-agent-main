@@ -13,6 +13,11 @@ import {
 import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
 import { appAuthSchema } from "../../db/schema";
+import {
+  resolvePasswordResetRedirectTarget,
+  sendPasswordChangedEmail,
+  sendPasswordResetEmail,
+} from "./reset-mail";
 
 const AUTH_SESSION_EXPIRES_IN = 60 * 60 * 24 * 7;
 const AUTH_SESSION_UPDATE_AGE = 60 * 60 * 24;
@@ -33,9 +38,13 @@ function shouldCacheAppAuth(env: Env): boolean {
 
 export interface BetterAuthConfigInput {
   appName: string;
+  authResetEmailFrom: string;
+  authResetEmailReplyTo?: string;
   betterAuthSecret: string;
   environment: AppApiEnvironment;
   publicChatOrigin: string;
+  resendApiKey: string;
+  resendFetch?: typeof fetch;
   endUserEmailDomainAllowlist: string[];
   endUserEmailAllowlist: string[];
   database: object;
@@ -50,7 +59,11 @@ export interface EndUserEmailAdmissionPolicy {
   endUserEmailDomainAllowlist: string[];
 }
 
-const END_USER_EMAIL_PASSWORD_AUTH_PATHS = new Set(["/sign-in/email", "/sign-up/email"]);
+const END_USER_EMAIL_PASSWORD_AUTH_PATHS = new Set([
+  "/sign-in/email",
+  "/sign-up/email",
+  "/request-password-reset",
+]);
 
 function normalizeAllowedEmail(value: string | null | undefined): string | null {
   if (typeof value !== "string") {
@@ -93,6 +106,15 @@ function extractAuthRequestEmail(body: unknown): string | null {
 
   const email = body.email;
   return typeof email === "string" ? email : null;
+}
+
+function extractAuthResetRedirect(body: unknown): string | null {
+  if (!body || typeof body !== "object" || !("redirectTo" in body)) {
+    return null;
+  }
+
+  const redirectTo = body.redirectTo;
+  return typeof redirectTo === "string" ? redirectTo : null;
 }
 
 export function buildEndUserEmailAdmissionPolicy(
@@ -149,6 +171,13 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
     endUserEmailAllowlist: input.endUserEmailAllowlist,
     endUserEmailDomainAllowlist: input.endUserEmailDomainAllowlist,
   });
+  const authResetMailConfig = {
+    authResetEmailFrom: input.authResetEmailFrom,
+    authResetEmailReplyTo: input.authResetEmailReplyTo,
+    fetchImplementation: input.resendFetch,
+    publicChatOrigin: appOrigin,
+    resendApiKey: input.resendApiKey,
+  };
 
   return {
     appName: input.appName,
@@ -164,6 +193,19 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
       password: {
         hash: hashAppPassword,
         verify: verifyAppPassword,
+      },
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ token, user }: { token: string; user: { email?: string | null; name?: string | null } }) => {
+        await sendPasswordResetEmail(authResetMailConfig, {
+          token,
+          user,
+        });
+      },
+      onPasswordReset: async ({ user }: { user: { email?: string | null; name?: string | null } }) => {
+        await sendPasswordChangedEmail(authResetMailConfig, {
+          user,
+        });
       },
     },
     database: input.database,
@@ -190,6 +232,15 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
           path: ctx.path,
           policy: endUserEmailAdmissionPolicy,
         });
+        if (ctx.path === "/request-password-reset") {
+          const redirectTo = extractAuthResetRedirect(ctx.body);
+          if (redirectTo) {
+            resolvePasswordResetRedirectTarget({
+              publicChatOrigin: appOrigin,
+              redirectTo,
+            });
+          }
+        }
       }),
     },
   };
@@ -288,11 +339,15 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
   return betterAuth(
     buildBetterAuthConfig({
       appName: config.appName,
+      authResetEmailFrom: config.authResetEmailFrom,
+      authResetEmailReplyTo: config.authResetEmailReplyTo,
       betterAuthSecret: config.betterAuthSecret,
       environment: config.environment,
       publicChatOrigin: config.publicChatOrigin ?? readPublicChatOrigin(env),
+      resendApiKey: config.resendApiKey,
       endUserEmailAllowlist: config.endUserEmailAllowlist,
       endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
+      resendFetch: fetch,
       database: drizzleAdapter(database, {
         camelCase: true,
         provider: "pg",
@@ -301,6 +356,8 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
     }) as never,
   );
 }
+
+export { resolvePasswordResetRedirectTarget } from "./reset-mail";
 
 export type AppAuth = Awaited<ReturnType<typeof createAppAuth>>;
 export type AppAuthGetter = () => Promise<AppAuth>;

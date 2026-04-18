@@ -321,12 +321,16 @@ async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadine
     const config = readAppApiConfig(env);
     buildBetterAuthConfig({
       appName: config.appName,
+      authResetEmailFrom: config.authResetEmailFrom,
+      authResetEmailReplyTo: config.authResetEmailReplyTo,
       betterAuthSecret: config.betterAuthSecret,
       database: {},
       endUserEmailAllowlist: config.endUserEmailAllowlist,
       endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
       environment: config.environment,
       publicChatOrigin: config.publicChatOrigin,
+      resendApiKey: config.resendApiKey,
+      resendFetch: fetch,
     });
   } catch (error) {
     return {

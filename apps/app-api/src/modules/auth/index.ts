@@ -5,6 +5,7 @@ export {
   handleAuthRequest,
   hashAppPassword,
   probeAppAuthRuntime,
+  resolvePasswordResetRedirectTarget,
   verifyAppPassword,
 } from "./auth";
 export type { AppAuth, AppAuthGetter, AppAuthResolutionInput, CreateAppAuthInput } from "./auth";

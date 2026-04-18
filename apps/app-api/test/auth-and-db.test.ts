@@ -18,6 +18,7 @@ import {
   hashAppPassword,
   isEndUserEmailAllowedForAuth,
   probeAppAuthRuntime,
+  resolvePasswordResetRedirectTarget,
   verifyAppPassword,
 } from "../src/modules/auth/auth";
 import { appApiSchema } from "../src/db/schema";
@@ -263,6 +264,8 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      RESEND_API_KEY: "resend_test_key",
+      AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -314,6 +317,8 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      RESEND_API_KEY: "resend_test_key",
+      AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -340,6 +345,8 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "development" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      RESEND_API_KEY: "resend_test_key",
+      AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -366,6 +373,8 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "staging" as never,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      RESEND_API_KEY: "resend_test_key",
+      AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -420,6 +429,8 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      RESEND_API_KEY: "resend_test_key",
+      AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
       SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
       SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -448,11 +459,23 @@ describe("app-api database config", () => {
 
 describe("app-api auth config", () => {
   it("freezes explicit auth/session policy for the shared app boundary", () => {
+    const resendFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "email_01HQ" }), {
+        headers: {
+          "content-type": "application/json",
+        },
+        status: 200,
+      }),
+    );
     const config = buildBetterAuthConfig({
       appName: "campus-agent-app-api",
       betterAuthSecret: "prod-secret-prod-secret-prod-secret",
       environment: "production",
       publicChatOrigin: "https://chat.example.com",
+      authResetEmailFrom: "Campus Agent <auth@example.com>",
+      authResetEmailReplyTo: "support@example.com",
+      resendApiKey: "resend_test_key",
+      resendFetch,
       endUserEmailDomainAllowlist: ["muc.edu.cn"],
       endUserEmailAllowlist: ["help_bot@outlook.com"],
       database: {} as never,
@@ -469,6 +492,8 @@ describe("app-api auth config", () => {
         hash: hashAppPassword,
         verify: verifyAppPassword,
       },
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
     });
     expect(config.session).toMatchObject({
       expiresIn: 60 * 60 * 24 * 7,
@@ -482,6 +507,127 @@ describe("app-api auth config", () => {
       window: 60,
     });
     expect(config.hooks?.before).toBeDefined();
+    expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
+    expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
+  });
+
+  it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
+    const resendFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "email_01HQ" }), {
+        headers: {
+          "content-type": "application/json",
+        },
+        status: 200,
+      }),
+    );
+    const config = buildBetterAuthConfig({
+      appName: "campus-agent-app-api",
+      betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+      environment: "production",
+      publicChatOrigin: "https://chat.example.com",
+      authResetEmailFrom: "Campus Agent <auth@example.com>",
+      authResetEmailReplyTo: "support@example.com",
+      resendApiKey: "resend_test_key",
+      resendFetch,
+      endUserEmailDomainAllowlist: ["muc.edu.cn"],
+      endUserEmailAllowlist: ["help_bot@outlook.com"],
+      database: {} as never,
+    });
+
+    await config.emailAndPassword.sendResetPassword?.(
+      {
+        token: "reset_token_01HQ",
+        url: "https://chat.example.com/api/auth/reset-password/reset_token_01HQ?callbackURL=https%3A%2F%2Fchat.example.com%2Freset-password",
+        user: {
+          email: "jane@muc.edu.cn",
+          id: "user_01HQ",
+          name: "Jane Doe",
+        },
+      },
+      new Request("https://app-api.internal/api/auth/request-password-reset", {
+        method: "POST",
+      }),
+    );
+
+    await config.emailAndPassword.onPasswordReset?.(
+      {
+        user: {
+          email: "jane@muc.edu.cn",
+          id: "user_01HQ",
+          name: "Jane Doe",
+        },
+      },
+      new Request("https://app-api.internal/api/auth/reset-password", {
+        method: "POST",
+      }),
+    );
+
+    expect(resendFetch).toHaveBeenCalledTimes(2);
+    expect(resendFetch).toHaveBeenNthCalledWith(
+      1,
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer resend_test_key",
+        }),
+        method: "POST",
+      }),
+    );
+    const firstPayload = JSON.parse(String(resendFetch.mock.calls[0]?.[1]?.body ?? "{}")) as {
+      from?: string;
+      html?: string;
+      reply_to?: string;
+      subject?: string;
+      text?: string;
+      to?: string[];
+    };
+    expect(firstPayload).toMatchObject({
+      from: "Campus Agent <auth@example.com>",
+      reply_to: "support@example.com",
+      subject: "Reset your Campus Agent password",
+      to: ["jane@muc.edu.cn"],
+    });
+    expect(firstPayload.html).toContain("https://chat.example.com/api/auth/reset-password/reset_token_01HQ");
+    expect(firstPayload.text).toContain("Campus Agent");
+
+    const secondPayload = JSON.parse(String(resendFetch.mock.calls[1]?.[1]?.body ?? "{}")) as {
+      subject?: string;
+      to?: string[];
+    };
+    expect(secondPayload).toMatchObject({
+      subject: "Your Campus Agent password was changed",
+      to: ["jane@muc.edu.cn"],
+    });
+  });
+
+  it("freezes reset redirect targets to /reset-password on the public chat origin", () => {
+    expect(
+      resolvePasswordResetRedirectTarget({
+        publicChatOrigin: "https://chat.example.com",
+        redirectTo: "/reset-password",
+      }),
+    ).toBe("https://chat.example.com/reset-password");
+
+    expect(
+      resolvePasswordResetRedirectTarget({
+        publicChatOrigin: "https://chat.example.com",
+        redirectTo: "https://chat.example.com/reset-password",
+      }),
+    ).toBe("https://chat.example.com/reset-password");
+
+    expect(() =>
+      resolvePasswordResetRedirectTarget({
+        publicChatOrigin: "https://chat.example.com",
+        redirectTo: "https://chat.example.com/chat",
+      }),
+    ).toThrowError(/reset-password/i);
+
+    expect(() =>
+      resolvePasswordResetRedirectTarget({
+        publicChatOrigin: "https://chat.example.com",
+        redirectTo: "https://evil.example.com/reset-password",
+      }),
+    ).toThrowError(/reset-password/i);
   });
 
   it("hashes and verifies passwords with the app-owned PBKDF2 contract", async () => {
@@ -556,7 +702,7 @@ describe("app-api auth config", () => {
     expect(isEndUserEmailAllowedForAuth("student@badmuc.edu.cn", policy)).toBe(false);
   });
 
-  it("rejects non-campus emails on email/password auth routes", () => {
+  it("rejects non-campus emails on email/password auth routes, including password reset requests", () => {
     const policy = buildEndUserEmailAdmissionPolicy({
       endUserEmailDomainAllowlist: ["muc.edu.cn"],
       endUserEmailAllowlist: ["help_bot@outlook.com"],
@@ -573,6 +719,13 @@ describe("app-api auth config", () => {
       enforceEndUserEmailAdmission({
         email: "outsider@example.com",
         path: "/sign-in/email",
+        policy,
+      }),
+    ).toThrowError(/not allowed/i);
+    expect(() =>
+      enforceEndUserEmailAdmission({
+        email: "outsider@example.com",
+        path: "/request-password-reset",
         policy,
       }),
     ).toThrowError(/not allowed/i);
@@ -599,6 +752,8 @@ describe("/api/me", () => {
     APP_API_NAME: "campus-agent-app-api",
     APP_API_ENVIRONMENT: "test" as const,
     BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+    RESEND_API_KEY: "resend_test_key",
+    AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
     PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
     SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
     SUPERVISOR_API_SHARED_SECRET: "shared-secret",
