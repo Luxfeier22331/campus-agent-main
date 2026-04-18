@@ -22,7 +22,13 @@ SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8080"
 SUPERVISOR_API_TIMEOUT_MS = "8000"
 
 [env.local.secrets]
-required = ["BETTER_AUTH_SECRET", "SUPERVISOR_API_SHARED_SECRET", "APP_API_INTERNAL_SHARED_SECRET"]
+required = [
+  "BETTER_AUTH_SECRET",
+  "RESEND_API_KEY",
+  "AUTH_RESET_EMAIL_FROM",
+  "SUPERVISOR_API_SHARED_SECRET",
+  "APP_API_INTERNAL_SHARED_SECRET",
+]
 
 [[env.staging.routes]]
 pattern = "campus-api-staging.ayafeed.com"
@@ -42,6 +48,8 @@ AXIOM_DATASET = "campus-agent-runtime-dev"
 [env.staging.secrets]
 required = [
   "BETTER_AUTH_SECRET",
+  "RESEND_API_KEY",
+  "AUTH_RESET_EMAIL_FROM",
   "SUPERVISOR_API_SHARED_SECRET",
   "APP_API_INTERNAL_SHARED_SECRET",
   "SENTRY_DSN",

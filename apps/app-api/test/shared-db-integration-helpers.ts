@@ -103,6 +103,8 @@ export function buildSharedDbIntegrationEnv(input: {
     APP_API_DB: {
       connectionString: input.runtimeConnectionString,
     },
+    AUTH_RESET_EMAIL_FROM:
+      process.env.AUTH_RESET_EMAIL_FROM?.trim() || "Campus Agent <auth@example.com>",
     APP_API_INTERNAL_SHARED_SECRET:
       process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
     APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:
@@ -114,6 +116,8 @@ export function buildSharedDbIntegrationEnv(input: {
       process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
     PUBLIC_CHAT_WEB_ORIGIN:
       process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
+    RESEND_API_KEY:
+      process.env.RESEND_API_KEY?.trim() || "shared-db-integration-resend-key",
     SUPERVISOR_API_BASE_URL:
       process.env.SUPERVISOR_API_BASE_URL?.trim() || "https://supervisor.internal",
     SUPERVISOR_API_SHARED_SECRET:

@@ -138,10 +138,18 @@ updated: 2026-04-19
 
 ```bash
 wrangler secret put BETTER_AUTH_SECRET --env staging
+wrangler secret put RESEND_API_KEY --env staging
+wrangler secret put AUTH_RESET_EMAIL_FROM --env staging
 wrangler secret put SUPERVISOR_API_SHARED_SECRET --env staging
 wrangler secret put APP_API_INTERNAL_SHARED_SECRET --env staging
 wrangler secret put SENTRY_DSN --env staging
 wrangler secret put AXIOM_TOKEN --env staging
+```
+
+只有当你需要独立 reply-to 地址时，才额外下发：
+
+```bash
+wrangler secret put AUTH_RESET_EMAIL_REPLY_TO --env staging
 ```
 
 只有当当前 staging 同时启用 `official-web-collector -> app-api` live control-plane seam 时，才额外下发：
@@ -170,6 +178,7 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须显式包含当前 panel smoke / operator Access 身份；当前 staging 至少需要 `help_bot@outlook.com`
 - 如果该 allowlist miss，`/api/operator/*` 会返回 `403 operator_identity_not_admitted`，这是 operator admission 配置问题，不是 Access session 失效
+- `AUTH_RESET_EMAIL_FROM` 必须是当前 Resend 项目已验证的 sender identity；否则 password reset mail contract 不能视为 ready
 - `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm deploy:staging` 会在 publish 时自动注入 `app-api@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 - `APP_API_SMOKE_IDENTITY_PASSWORD` 只作为 shell / secret store 输入供 `pnpm --dir apps/app-api smoke-identity:provision:staging` 使用；不要把它写入 repo、runbook 产物或浏览器抓包摘要
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging chat/panel/app-api 闭环的必填项；它只在你准备同时验收 official-web live control-plane 时才应视为当前环境 gate

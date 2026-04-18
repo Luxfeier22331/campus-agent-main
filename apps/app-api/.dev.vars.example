@@ -2,6 +2,10 @@ APP_API_NAME=campus-agent-app-api
 APP_API_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
+RESEND_API_KEY=replace-with-resend-api-key
+AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
+# Optional. Keep empty unless your transactional mail setup needs a distinct reply-to.
+AUTH_RESET_EMAIL_REPLY_TO=
 # Generate a different high-entropy secret for anonymous safety identifier derivation.
 APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
 # Must match the deployed origin of `apps/public-chat-web`.

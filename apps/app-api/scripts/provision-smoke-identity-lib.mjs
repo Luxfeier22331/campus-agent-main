@@ -13,6 +13,8 @@ const DEFAULT_SUPERVISOR_BASE_URL = "https://supervisor.internal";
 const DEFAULT_SUPERVISOR_SHARED_SECRET = "smoke-identity-supervisor-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
+const DEFAULT_RESEND_API_KEY = "smoke-identity-resend-key";
+const DEFAULT_AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>";
 
 function readArgValue(argv, flag) {
   const index = argv.indexOf(flag);
@@ -132,8 +134,11 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
     APP_API_OPERATOR_DATABASE_URL: input.operatorDatabaseUrl || input.managementDatabaseUrl,
     APP_API_MANAGEMENT_DATABASE_URL: input.operatorDatabaseUrl || input.managementDatabaseUrl,
     APP_API_OPERATOR_EMAIL_ALLOWLIST: input.operatorEmailAllowlist,
+    AUTH_RESET_EMAIL_FROM:
+      input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
     BETTER_AUTH_SECRET: input.betterAuthSecret,
     PUBLIC_CHAT_WEB_ORIGIN: input.publicChatOrigin,
+    RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
     SUPERVISOR_API_BASE_URL: input.supervisorApiBaseUrl,
     SUPERVISOR_API_SHARED_SECRET: input.supervisorApiSharedSecret,
   };

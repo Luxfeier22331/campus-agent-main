@@ -50,6 +50,7 @@ updated: 2026-04-19
 | Provider / system | 作用 | 主要 env keys | 放置位置 | 何时必需 | 获取方式 |
 | --- | --- | --- | --- | --- | --- |
 | Better Auth secret | `app-api` 会话签名与加密 | `BETTER_AUTH_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | `app-api` 必需 | 自行生成高熵 secret，不是第三方平台发放 |
+| Resend transactional auth mail | `app-api` password reset / password-changed mail | `RESEND_API_KEY` `AUTH_RESET_EMAIL_FROM` `AUTH_RESET_EMAIL_REPLY_TO` | `apps/app-api/.dev.vars` 或 deploy secret store | end-user password reset 必需 | 在 Resend 创建 API key，并准备已验证 sender identity；`reply-to` 可选 |
 | Safety identifier HMAC secret | `app-api` 匿名安全标识导出 | `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | 启用 end-user safety traceability 时必需 | 自行生成高熵 secret，不是第三方平台发放 |
 | Sentry | runtime error / trace / release evidence | `SENTRY_DSN` `SENTRY_ENVIRONMENT` `SENTRY_RELEASE` | 各 app `.dev.vars` 或 Cloudflare secret store | staging / prod observability，local smoke 可选 | 在 Sentry 创建项目后，从 Client Keys (DSN) 复制 DSN；需要 repo-local API lookup 时再建 auth token |
 | Axiom | `app-api` runtime logs / metrics ingest | `AXIOM_ENDPOINT` `AXIOM_DATASET` `AXIOM_TOKEN` | `apps/app-api/.dev.vars` 或 Cloudflare secret store | `app-api` observability | 在 Axiom 确认 edge deployment、创建 dataset、生成 API token |
@@ -327,6 +328,8 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 `app-api` 当前只启用了：
 
 - `emailAndPassword.enabled = true`
+- `emailAndPassword.sendResetPassword`
+- `emailAndPassword.onPasswordReset`
 
 默认放置位置：
 
@@ -352,6 +355,44 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 - 这不是第三方平台发的 credential
 - 如果未来重新引入 social provider，再额外为对应 provider 增加 client ID / secret；那是未来范围，不是当前 merged truth
+
+## 7B. Resend Transactional Auth Mail
+
+当前 owner：
+
+- `apps/app-api`
+
+当前冻结用途：
+
+- Better Auth password reset email
+- password changed confirmation email
+
+默认放置位置：
+
+- `apps/app-api/.dev.vars`
+- deploy-side secret store
+
+相关键：
+
+- `RESEND_API_KEY`
+- `AUTH_RESET_EMAIL_FROM`
+- `AUTH_RESET_EMAIL_REPLY_TO`（可选）
+
+获取方式：
+
+1. 在 Resend dashboard 创建 API key。
+2. 准备一个已验证的 sender identity，填入 `AUTH_RESET_EMAIL_FROM`。
+3. 只有在需要独立 reply-to 地址时，才填写 `AUTH_RESET_EMAIL_REPLY_TO`。
+
+外部参考：
+
+- <https://resend.com/docs/send-with-cloudflare-workers>
+
+说明：
+
+- 当前 repo 把 end-user auth transactional mail provider 冻结为 `Resend over HTTPS`，因为 `app-api` 的 canonical runtime 是 Cloudflare Worker，而不是 SMTP-only runtime
+- `AUTH_RESET_EMAIL_FROM` 虽然不是高敏感 secret，但当前仍建议和 deploy secret store 一起治理，避免把环境特定 sender identity 冻结进 repo 配置
+- 如果未来要替换 provider，必须同步更新 `apps/app-api` runtime、deploy runbook 与这份 inventory truth
 
 ## 7A. Safety Identifier HMAC Secret
 

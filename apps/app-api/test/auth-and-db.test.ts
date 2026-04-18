@@ -534,33 +534,20 @@ describe("app-api auth config", () => {
       database: {} as never,
     });
 
-    await config.emailAndPassword.sendResetPassword?.(
-      {
-        token: "reset_token_01HQ",
-        url: "https://chat.example.com/api/auth/reset-password/reset_token_01HQ?callbackURL=https%3A%2F%2Fchat.example.com%2Freset-password",
-        user: {
-          email: "jane@muc.edu.cn",
-          id: "user_01HQ",
-          name: "Jane Doe",
-        },
+    await config.emailAndPassword.sendResetPassword?.({
+      token: "reset_token_01HQ",
+      user: {
+        email: "jane@muc.edu.cn",
+        name: "Jane Doe",
       },
-      new Request("https://app-api.internal/api/auth/request-password-reset", {
-        method: "POST",
-      }),
-    );
+    });
 
-    await config.emailAndPassword.onPasswordReset?.(
-      {
-        user: {
-          email: "jane@muc.edu.cn",
-          id: "user_01HQ",
-          name: "Jane Doe",
-        },
+    await config.emailAndPassword.onPasswordReset?.({
+      user: {
+        email: "jane@muc.edu.cn",
+        name: "Jane Doe",
       },
-      new Request("https://app-api.internal/api/auth/reset-password", {
-        method: "POST",
-      }),
-    );
+    });
 
     expect(resendFetch).toHaveBeenCalledTimes(2);
     expect(resendFetch).toHaveBeenNthCalledWith(
