@@ -220,6 +220,7 @@
 - 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
+- 多人并发推进不同 workstream 时，默认使用 repo-owned claim workflow：`uv run --all-packages python -m scripts.workstream_claim session shell <slug>` 或 `session start <slug> -- <cmd...>`；不要把运行时认领状态写回 tracked planning 文档
 
 ### Git Commit Title Rules
 

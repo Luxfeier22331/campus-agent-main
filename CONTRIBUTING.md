@@ -20,6 +20,33 @@
 - 尚未合回 `develop` 的实现只能描述为 worktree-local progress，不能冒充 merged truth
 - 改动长期边界、contract 或 serving surface 时，同时更新对应 `docs/architecture/`、`docs/decisions/`、`docs/contracts/`、`docs/data/`
 
+## Workstream Claim Workflow
+
+多人并发时，不再靠口头约定或把“谁在做什么”写回 tracked planning 文档；默认使用 repo-owned claim workflow。
+
+开始前先在本机配置稳定 operator id：
+
+```bash
+uv run --all-packages python -m scripts.workstream_claim operator set <operator_id>
+```
+
+正常执行入口固定为 wrapper-managed session：
+
+```bash
+uv run --all-packages python -m scripts.workstream_claim session shell <workstream-slug>
+uv run --all-packages python -m scripts.workstream_claim session start <workstream-slug> -- <cmd...>
+```
+
+补充说明：
+
+- `session shell` / `session start` 会自动执行 `claim -> heartbeat -> child process -> release`
+- 当前会话上下文可用 `uv run --all-packages python -m scripts.workstream_claim session current` 查看
+- 交接、接受交接、强制接管与诊断分别使用 `claim handoff`、`claim accept`、`claim takeover`、`claim doctor`
+- tracked planning truth 继续留在 `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`
+- 运行时 claim/operator/session 状态只落到 gitignored 的 `.planning/runtime/`
+
+完整命令与恢复流程见 `docs/runbooks/workstream-claim-workflow.md`。
+
 ## 环境准备
 
 ```bash
@@ -60,6 +87,7 @@ pnpm web:build
 - `.planning/PROJECT.md` 记录当前项目级范围与关键决策
 - `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
 - `.planning/workstreams/<slug>/STATE.md` 记录单条 workstream 的 `now / next / blockers / continuity`
+- `.planning/runtime/` 只保存 gitignored 的本地 operator 配置、claim lease、claim history 与 session pointer 辅助状态
 - `docs/plans/` 记录仍有前向指导价值的计划，不承担 merged truth
 
 如果你在改这些内容：

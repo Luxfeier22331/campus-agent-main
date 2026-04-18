@@ -24,6 +24,8 @@ updated: 2026-04-19
   - 单条 workstream 的固定顺序与 phase 状态
 - `.planning/workstreams/<slug>/REQUIREMENTS.md`
   - 单条 workstream 的目标、范围、non-goals 与 success criteria
+- `.planning/runtime/`
+  - gitignored 的本地 operator 配置、claim lease、claim history 与 session pointer 辅助状态；不承担 tracked planning truth
 - `.planning/legacy-flat/`
   - 迁移前的 flat planning archive；仅保留历史 phase / milestone 参考，不再承载当前执行真相
 - `.planning/quick/`、`.planning/todos/`、`.planning/codebase/`、`.planning/research/`
@@ -71,3 +73,4 @@ updated: 2026-04-19
 - 判断某条 workstream 的固定顺序，进入对应 `.planning/workstreams/<slug>/ROADMAP.md`
 - 判断某条 workstream 的范围、non-goals 与 success criteria，进入对应 `.planning/workstreams/<slug>/REQUIREMENTS.md`
 - 需要历史 phase / milestone 叙事时，进入 `.planning/legacy-flat/`
+- 判断当前谁认领了某条 workstream、handoff 是否 pending、某个本机会话是否仍持有 lease，使用 `uv run --all-packages python -m scripts.workstream_claim ...`；不要把这些运行时状态补写回 tracked planning 文档

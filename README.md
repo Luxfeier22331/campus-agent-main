@@ -83,6 +83,7 @@
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
 - [AGENTS.md](./AGENTS.md)
+- [workstream-claim-workflow](./docs/runbooks/workstream-claim-workflow.md)
 
 ## Development
 
@@ -116,4 +117,12 @@ pnpm web:build
 
 `feature/worktree -> develop -> main`
 
-详细协作与提交流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+并发推进不同 workstream 时，repo 内部的认领与交接统一走 repo-owned claim workflow：
+
+```bash
+uv run --all-packages python -m scripts.workstream_claim operator set <operator_id>
+uv run --all-packages python -m scripts.workstream_claim session shell <workstream-slug>
+uv run --all-packages python -m scripts.workstream_claim session start <workstream-slug> -- <cmd...>
+```
+
+tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`；运行时认领状态、operator 本地配置和 claim history 只写入 gitignored 的 `.planning/runtime/`。详细流程见 [workstream-claim-workflow](./docs/runbooks/workstream-claim-workflow.md) 和 [CONTRIBUTING.md](./CONTRIBUTING.md)。

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Runbooks
@@ -16,6 +16,10 @@ updated: 2026-04-12
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
+
+## Collaboration / Workstream Claims
+
+- `workstream-claim-workflow.md`
 
 ## Environment-Specific Smoke / Evidence
 
