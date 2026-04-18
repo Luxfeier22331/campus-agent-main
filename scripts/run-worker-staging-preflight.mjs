@@ -1,4 +1,18 @@
 import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptDir, "..");
+const repoEnvPath = resolve(repoRoot, ".env");
+
+try {
+  process.loadEnvFile(repoEnvPath);
+} catch (error) {
+  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+    throw error;
+  }
+}
 
 function fail(message) {
   console.error(message);
@@ -8,6 +22,7 @@ function fail(message) {
 function run(command, args) {
   const result = spawnSync(command, args, {
     stdio: "inherit",
+    cwd: repoRoot,
     env: process.env,
   });
 
@@ -17,6 +32,58 @@ function run(command, args) {
 
   if (result.error) {
     fail(`Failed to run ${command}: ${result.error.message}`);
+  }
+}
+
+async function probeUrl(input) {
+  const response = await fetch(input.url, {
+    headers: {
+      accept: "application/json",
+    },
+    signal: AbortSignal.timeout(10_000),
+  });
+
+  if (!response.ok) {
+    const body = (await response.text()).trim();
+    const detail = body ? ` body=${JSON.stringify(body.slice(0, 200))}` : "";
+    fail(`${input.label} returned HTTP ${response.status}.${detail}`);
+  }
+}
+
+async function probeSupervisorApiForStagingAppApi() {
+  const upstream = process.env.STAGING_SUPERVISOR_API_BASE_URL?.trim();
+  if (!upstream) {
+    fail("STAGING_SUPERVISOR_API_BASE_URL is required for apps/app-api staging preflight.");
+  }
+
+  let baseUrl;
+  try {
+    baseUrl = new URL(upstream);
+  } catch {
+    fail("STAGING_SUPERVISOR_API_BASE_URL must be a valid absolute URL.");
+  }
+
+  baseUrl.pathname = "/";
+  baseUrl.search = "";
+  baseUrl.hash = "";
+
+  const healthUrl = new URL("/healthz", baseUrl);
+  const readyUrl = new URL("/readyz", baseUrl);
+
+  try {
+    await probeUrl({
+      label: `STAGING_SUPERVISOR_API_BASE_URL health probe (${healthUrl.toString()})`,
+      url: healthUrl,
+    });
+    await probeUrl({
+      label: `STAGING_SUPERVISOR_API_BASE_URL readiness probe (${readyUrl.toString()})`,
+      url: readyUrl,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      fail(error.message);
+    }
+    fail(String(error));
   }
 }
 
@@ -104,7 +171,7 @@ const APP_PREFLIGHTS = {
   },
 };
 
-function main() {
+async function main() {
   const { appPath } = parseArgs(process.argv.slice(2));
   const preflight = APP_PREFLIGHTS[appPath];
   if (!preflight) {
@@ -121,9 +188,13 @@ function main() {
     "--json",
   ]);
 
+  if (appPath === "apps/app-api") {
+    await probeSupervisorApiForStagingAppApi();
+  }
+
   for (const [command, args] of preflight.commands) {
     run(command, args);
   }
 }
 
-main();
+await main();

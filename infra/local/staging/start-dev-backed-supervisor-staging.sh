@@ -7,6 +7,8 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/dev-backed-supervisor-common.sh"
 
 dev_backed_supervisor_ensure_runtime_dirs
+dev_backed_supervisor_acquire_lock
+dev_backed_supervisor_rotate_logs_if_needed
 dev_backed_supervisor_load_env
 
 uv_bin="$(dev_backed_supervisor_require_command uv)"
@@ -17,8 +19,8 @@ if [[ -z "${SUPERVISOR_API_SHARED_SECRET:-}" ]]; then
   exit 1
 fi
 
-if [[ ! -f "${HOME}/.cloudflared/config.yml" ]]; then
-  echo "Missing ${HOME}/.cloudflared/config.yml. Create the named tunnel config first." >&2
+if [[ ! -f "${dev_backed_supervisor_cloudflared_config_file}" ]]; then
+  echo "Missing ${dev_backed_supervisor_cloudflared_config_file}. Create the named tunnel config first." >&2
   exit 1
 fi
 
@@ -43,6 +45,7 @@ else
     API_WORKER_SHARED_SECRET="${SUPERVISOR_API_SHARED_SECRET}" \
     UV_CACHE_DIR="${UV_CACHE_DIR:-/tmp/uv-cache}" \
     "${uv_bin}" run --all-packages campus-supervisor-api-dev \
+    9>&- \
     >>"${dev_backed_supervisor_supervisor_log_file}" 2>&1
 fi
 
@@ -55,7 +58,20 @@ dev_backed_supervisor_adopt_existing_process \
 if dev_backed_supervisor_pid_is_running "${dev_backed_supervisor_cloudflared_pid_file}"; then
   echo "cloudflared already running (pid $(dev_backed_supervisor_read_pid "${dev_backed_supervisor_cloudflared_pid_file}"))"
 else
-  setsid -f "${cloudflared_bin}" tunnel run "${dev_backed_supervisor_tunnel_name}" \
+  setsid -f env \
+    -u HTTP_PROXY \
+    -u HTTPS_PROXY \
+    -u ALL_PROXY \
+    -u http_proxy \
+    -u https_proxy \
+    -u all_proxy \
+    "${cloudflared_bin}" tunnel \
+    --config "${dev_backed_supervisor_cloudflared_config_file}" \
+    --no-autoupdate \
+    --edge-ip-version "${dev_backed_supervisor_cloudflared_edge_ip_version}" \
+    --metrics "${dev_backed_supervisor_cloudflared_metrics_address}" \
+    run "${dev_backed_supervisor_tunnel_name}" \
+    9>&- \
     >>"${dev_backed_supervisor_cloudflared_log_file}" 2>&1
 fi
 

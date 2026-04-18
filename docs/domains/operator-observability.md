@@ -44,6 +44,7 @@ updated: 2026-04-12
 
 ## Runbooks / smoke
 
+- `../runbooks/dev-backed-supervisor-staging-operations.md`
 - `../runbooks/worker-observability-smoke-runbook.md`
 - `../runbooks/worker-observability-smoke-artifact-template.md`
 - `../runbooks/dev-backed-supervisor-staging-smoke-runbook.md`

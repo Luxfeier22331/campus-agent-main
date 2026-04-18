@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Staging Worker Deploy Runbook
@@ -25,6 +25,11 @@ updated: 2026-04-14
 - 首次 deploy 前后各要执行什么
 
 它不回答长期 production hostname；未来切换到 `muc.wiki` 时，应新增 `production` env，而不是覆写这里的 `staging` truth。
+
+当前补充真相：
+
+- 在真正的 production execution substrate 上线前，`staging` 的 execution upstream accepted posture 就是这台开发机上的 dev-backed supervisor
+- 这条主机级运维姿势、计划任务、自愈与日志规则统一记录在 `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
 
@@ -98,7 +103,7 @@ updated: 2026-04-14
 - 为 `app-api-staging` provision `APP_API_DB_FRESH` Hyperdrive binding，并显式关闭 SQL response caching
 - 把真实 staging Hyperdrive resource id 写入 `apps/app-api/wrangler.toml` 的 `[[env.staging.hyperdrive]]`
 - 确认 staging Postgres 对 Hyperdrive 可达
-- 单独准备 staging shared Postgres 的 direct management 连接串，供 Drizzle migration / drift reconciliation 使用
+- 单独准备 staging shared Postgres 的 operator/session-pooler 连接串，供 Drizzle migration / drift reconciliation 使用
 - `Hyperdrive` 只覆盖 Worker runtime query path，不替代 deploy 前 schema migration
 - `APP_API_DB` 负责 read-mostly/cached query path；`APP_API_DB_FRESH` 负责 auth 与其他 read-after-write-sensitive product path，避免 `sign-up -> immediate sign-in` 被 stale negative lookup 污染
 
@@ -116,11 +121,14 @@ updated: 2026-04-14
 
 - 当前阶段不冻结 `apps/supervisor-api` 的 repo-level staging hostname
 - `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
+- 当前 accepted staging posture 不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel `supervisor-api-staging` 持续承接 `https://exec-staging.ayafeed.com`
+- 只要 production execution substrate 还没有接管，staging operator 就应优先维护这台开发机上的长期常驻链路，而不是每轮重新发一个随机 quick tunnel
 - 这个 upstream 可以来自：
   - 本地 `uv run --all-packages campus-supervisor-api-dev` + tunnel
   - 本地 Docker `supervisor-api` + tunnel
   - 其他临时 dev-backed execution origin
 - `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
+- 当前这台开发机的常驻安装、冷启动恢复与 `status --check` health gate，见 `docs/runbooks/dev-backed-supervisor-staging-operations.md`
 
 ## Secret Matrix
 
@@ -153,7 +161,8 @@ wrangler secret put APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN --env staging
 
 deploy shell 还需要可用的 staging shared DB 管理连接：
 
-- `STAGING_APP_API_MANAGEMENT_DATABASE_URL`
+- `STAGING_APP_API_OPERATOR_DATABASE_URL`
+- `STAGING_APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 - staging smoke identity reset 时，shell 还需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
@@ -220,7 +229,7 @@ wrangler secret put SENTRY_DSN --env staging
 
 ```bash
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
 pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 ```
 
@@ -268,14 +277,14 @@ repo-owned Wrangler 入口默认会剥离继承来的代理 env，再直连 Clou
 先执行 drift 检查：
 
 ```bash
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
 pnpm --dir apps/app-api db:reconcile-shared-drift:staging -- --json
 ```
 
 如果输出显示 shared DB 仍落后于当前 repo schema，再执行：
 
 ```bash
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
 pnpm --dir apps/app-api db:migrate:staging
 ```
 

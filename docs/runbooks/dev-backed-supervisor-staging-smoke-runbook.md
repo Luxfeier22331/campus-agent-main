@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Dev-Backed Supervisor Staging Smoke Runbook
@@ -21,7 +21,12 @@ updated: 2026-04-12
 - 每轮 smoke 最少要验证哪些链路
 - 哪些结果可以算这条 dev-backed staging 链路可用
 
-它不把 dev-backed upstream 写成稳定部署 truth。
+它不把 dev-backed upstream 写成 repo-level production truth。
+
+当前补充真相：
+
+- 在真正的 production execution substrate 上线前，这台开发机就是 accepted staging execution host
+- 这条长期运维姿势与计划任务、自愈检查、日志轮转相关的内容，统一看 `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
 
@@ -78,7 +83,7 @@ curl -sS -i http://127.0.0.1:8081/readyz
 - `healthz = 200`
 - `readyz = 200`
 
-如果当前本地 substrate 没有 `systemd`，优先使用 repo 内的常驻脚本，而不是每次手工开新终端：
+如果当前只是执行本轮 smoke，但不想手工挂住一个 shell，优先使用 repo 内的 staging lifecycle 脚本：
 
 ```bash
 export DEV_BACKED_SUPERVISOR_TUNNEL_NAME=supervisor-api-staging
@@ -88,19 +93,17 @@ infra/local/staging/start-dev-backed-supervisor-staging.sh
 infra/local/staging/status-dev-backed-supervisor-staging.sh
 ```
 
-说明：
+最小通过标准：
 
-- 脚本只读取 `apps/app-api/.dev.vars` 中的 worker bridge secret；shared repo root `.env` 仍由 `campus-supervisor-api-dev` 自身 bootstrap
-- `supervisor-api` 以 `trusted-worker` + `127.0.0.1:8081` 方式启动
-- `cloudflared` 会运行 `DEV_BACKED_SUPERVISOR_TUNNEL_NAME` 指向的 named tunnel
-- pid / log 会写到 `.tmp/dev-backed-supervisor-staging/`
-- 如果之前已经手工拉起过同名进程，脚本会优先接管已有 pid，避免重复拉起
+- `infra/local/staging/status-dev-backed-supervisor-staging.sh --check` 返回 `0`
 
-停止命令：
+如果当前 host 是 WSL 且没有 `systemd`，并且你要让 staging 长时间跑在这台机器上，不要继续依赖手工 shell；安装 Windows 计划任务：
 
 ```bash
-infra/local/staging/stop-dev-backed-supervisor-staging.sh
+infra/local/staging/install-dev-backed-supervisor-staging-task.sh
 ```
+
+后续安装校验、冷启动恢复、日志轮转与故障分流都不再写在这份 smoke runbook，统一进入 `dev-backed-supervisor-staging-operations.md`。
 
 ## Step 2. 暴露临时 upstream
 
@@ -168,7 +171,7 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 
 ```bash
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
-STAGING_APP_API_MANAGEMENT_DATABASE_URL=postgresql://<staging-management-url> \
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
 pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
 ```
 

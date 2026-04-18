@@ -20,7 +20,7 @@ stop_process() {
   fi
 
   pid="$(dev_backed_supervisor_read_pid "${pid_file}")"
-  kill "${pid}"
+  dev_backed_supervisor_kill_managed_process "${pid}" TERM || true
 
   for ((attempt = 1; attempt <= 15; attempt += 1)); do
     if ! kill -0 "${pid}" 2>/dev/null; then
@@ -31,10 +31,24 @@ stop_process() {
     sleep 1
   done
 
-  echo "${label}: still running after SIGTERM (pid ${pid})" >&2
+  echo "${label}: still running after SIGTERM, escalating to SIGKILL (pid ${pid})" >&2
+  dev_backed_supervisor_kill_managed_process "${pid}" KILL || true
+
+  for ((attempt = 1; attempt <= 5; attempt += 1)); do
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      rm -f "${pid_file}"
+      echo "${label}: stopped"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "${label}: still running after SIGKILL (pid ${pid})" >&2
   return 1
 }
 
+dev_backed_supervisor_ensure_runtime_dirs
+dev_backed_supervisor_acquire_lock
 dev_backed_supervisor_adopt_existing_process \
   "cloudflared" \
   "${dev_backed_supervisor_cloudflared_pid_file}" \

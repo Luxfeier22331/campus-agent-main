@@ -23,6 +23,7 @@ updated: 2026-04-19
 
 ## Environment-Specific Smoke / Evidence
 
+- `dev-backed-supervisor-staging-operations.md`
 - `dev-backed-supervisor-staging-smoke-runbook.md`
 - `worker-observability-smoke-runbook.md`
 - `public-chat-staging-smoke-artifact-template.md`

@@ -11,14 +11,17 @@ function fail(message) {
   process.exit(1);
 }
 
-const managementDatabaseUrl = process.env.STAGING_APP_API_MANAGEMENT_DATABASE_URL?.trim();
-if (!managementDatabaseUrl) {
+const operatorDatabaseUrl =
+  process.env.STAGING_APP_API_OPERATOR_DATABASE_URL?.trim() ||
+  process.env.STAGING_APP_API_MANAGEMENT_DATABASE_URL?.trim();
+if (!operatorDatabaseUrl) {
   fail(
-    "STAGING_APP_API_MANAGEMENT_DATABASE_URL is required. Point it at the staging shared Postgres management connection before running staging DB commands.",
+    "STAGING_APP_API_OPERATOR_DATABASE_URL is required. Legacy STAGING_APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias for staging shared Postgres operator access.",
   );
 }
 
-process.env.APP_API_MANAGEMENT_DATABASE_URL = managementDatabaseUrl;
+process.env.APP_API_OPERATOR_DATABASE_URL = operatorDatabaseUrl;
+process.env.APP_API_MANAGEMENT_DATABASE_URL = operatorDatabaseUrl;
 
 const sslMode = process.env.STAGING_APP_API_DATABASE_SSLMODE?.trim();
 if (sslMode) {

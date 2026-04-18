@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import packageManifestRaw from "../package.json?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import stagingPreflightSource from "../../../scripts/run-worker-staging-preflight.mjs?raw";
 import worker, { createWorkerRuntime } from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -138,8 +139,12 @@ describe("app-api worker foundation", () => {
     expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
       "run-with-staging-db-env.mjs",
     );
+    expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
+    expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
     expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
-    expect(runWithStagingDbEnvSource).toContain("APP_API_MANAGEMENT_DATABASE_URL");
+    expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
+    expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
+    expect(stagingPreflightSource).toContain('new URL("/readyz", baseUrl)');
   });
 
   it("declares non-inheritable required secrets for local and staging worker environments", () => {

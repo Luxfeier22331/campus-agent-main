@@ -45,7 +45,7 @@ export function buildWranglerCommandEnv(baseEnv = process.env) {
 }
 
 export function runWranglerCommand(args, options = {}) {
-  return spawnSync("pnpm", ["exec", "wrangler", ...args], {
+  return spawnSync("pnpm", ["wrangler", ...args], {
     env: buildWranglerCommandEnv(options.env ?? process.env),
     stdio: options.stdio ?? "inherit",
     cwd: options.cwd,
