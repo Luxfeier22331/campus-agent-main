@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # App API Schema
@@ -277,6 +277,10 @@ updated: 2026-04-14
 - `requested_scope_json` 表示 accept 时上游显式请求的 scope，可为空
 - `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 specialist 自主解析 surface，这里必须落最终解析结果
 - `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy object、rewritten query、clarification/no-answer reason 与 retrieved title summary；不要写 raw evidence snippet、score 或 backend payload
+- `rejected` 覆盖两类显式 fail-close：
+  - supervisor policy reject
+  - app-api precheck reject，例如 future `Phase I` throttle 命中后的 `error_code=rate_limit_exceeded`
+- 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`
 
 ## `runtime.projection_outbox`
 

@@ -160,6 +160,13 @@ function createCommandStore(input?: {
       return structuredClone(conversation);
     }),
     findIdempotentRequest: vi.fn(async () => null),
+    getAbuseControlState: vi.fn(async () => ({
+      activeThrottleUntil: null,
+      requestCountLastMinute: 0,
+      requestCountLastTenMinutes: 0,
+      shouldThrottle: false,
+      throttleReason: null,
+    })),
   };
 
   return {
@@ -1455,6 +1462,86 @@ describe("chat command service", () => {
       expect.objectContaining({
         requestId: "req_0001",
         selectedTarget: null,
+        status: "rejected",
+      }),
+    );
+  });
+
+  it("rejects after durable accept when the same safety identifier enters the abuse throttle window", async () => {
+    const { store, acceptedWrites, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const telemetry = createTelemetryMock();
+    const safetySecret = "phase-i-safety-secret";
+    const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
+      .update("principal:user_01HQ")
+      .digest("hex");
+    const getAbuseControlState = vi.fn().mockResolvedValue({
+      activeThrottleUntil: "2026-03-28T08:05:00.000Z",
+      requestCountLastMinute: 9,
+      requestCountLastTenMinutes: 9,
+      shouldThrottle: true,
+      throttleReason: "requests_per_minute",
+    });
+    const supervisor: SupervisorExecutionClient = {
+      execute: vi.fn(),
+    };
+    const service = buildChatCommandService({
+      deriveSafetyIdentifier: (principal) => deriveSafetyIdentifier(principal, safetySecret),
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store: {
+        ...store,
+        getAbuseControlState,
+      } as ChatCommandStore,
+      supervisor,
+      telemetry,
+    });
+
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "连续快速提问的第九次请求",
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(acceptedWrites).toHaveLength(1);
+    expect(getAbuseControlState).toHaveBeenCalledWith({
+      now: "2026-03-28T08:00:00.000Z",
+      safetyIdentifier: expectedSafetyIdentifier,
+      surface: "public_chat_web",
+    });
+    expect(supervisor.execute).not.toHaveBeenCalled();
+    expect(response.answer.result).toEqual({
+      errorCode: "rate_limit_exceeded",
+      kind: "error",
+      message: "Too many requests. Please wait a few minutes and try again.",
+      requestId: "req_0001",
+      retryable: false,
+      traceId: "trace_0001",
+    });
+    expect(finalWrites[0]).toMatchObject({
+      outboxEvent: {
+        eventType: "request.rejected",
+      },
+      requestExecution: {
+        errorCode: "rate_limit_exceeded",
+        safetyIdentifier: expectedSafetyIdentifier,
+        status: "rejected",
+      },
+      requestObservabilityFact: {
+        errorCode: "rate_limit_exceeded",
+        failClosed: true,
+        safetyIdentifier: expectedSafetyIdentifier,
+        status: "rejected",
+      },
+    });
+    expect(telemetry.recordRequestFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "rate_limit_exceeded",
+        requestId: "req_0001",
+        safetyIdentifier: expectedSafetyIdentifier,
         status: "rejected",
       }),
     );

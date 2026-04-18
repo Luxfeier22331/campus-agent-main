@@ -247,16 +247,33 @@ list endpoints 额外支持：
   "alerts": [
     {
       "alertId": "opalert_01HQ",
-      "domain": "quality",
+      "domain": "safety",
       "severity": "high",
-      "code": "citation_miss_rate_spike",
+      "code": "safety.remote_content_suspicion_spike",
       "status": "open",
-      "startedAt": "2026-04-02T12:00:00.000Z"
+      "startedAt": "2026-04-02T12:00:00.000Z",
+      "requestCount": 3,
+      "incidentBackfill": {
+        "required": true,
+        "mode": "incident_backfill"
+      }
     }
   ],
   "asOf": "2026-04-03T00:00:10.000Z"
 }
 ```
+
+`alerts[]` 当前固定支持的最小 `safety` codes：
+
+- `safety.rate_limit_exceeded`
+- `safety.remote_content_suspicion_spike`
+- `safety.provider_content_filter_spike`
+
+规则：
+
+- `requestCount` 表示同一 `safety_identifier` 在告警窗口内的命中请求数
+- `incidentBackfill.required=true` 表示 operator closeout 不能停在 dashboard annotation，必须回灌 golden governance 的 `incident_backfill`
+- `incidentBackfill.mode=null` 表示这是纯产品侧 abuse control 告警，不自动要求 eval backfill
 
 规则：
 

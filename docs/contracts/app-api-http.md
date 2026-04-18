@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-19
 ---
 
 # App API HTTP Contract
@@ -257,8 +257,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 规则：
 
 - 已登录 end-user 默认投影为 `campus_member`
+- `session.sessionId` 是当前 end-user path 的 canonical app-owned session identifier；它来自 typed auth projection，不来自 browser 自造 conversation id
 - `operator` 使用 protected surface trusted identity bridge
 - v1 不要求单独的 operator 用户系统或 operator session 表
+- 当前 chat routes 继续要求 resolved principal；无 principal 请求返回 `session_required`，不会创建 anonymous chat conversation
 
 ## Chat Endpoints
 

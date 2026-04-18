@@ -66,6 +66,9 @@ export const requestExecution = runtime.table(
       table.status,
       table.startedAt,
     ),
+    safetyIdentifierStartedAtIndex: index(
+      "runtime_request_execution_safety_identifier_started_at_idx",
+    ).on(table.safetyIdentifier, table.startedAt),
     actorIdempotencyUnique: uniqueIndex("runtime_request_execution_actor_idempotency_idx").on(
       table.actorUserId,
       table.idempotencyKey,
@@ -180,5 +183,8 @@ export const requestObservabilityFact = runtime.table(
       table.collection,
       table.startedAt,
     ),
+    safetyIdentifierStartedAtIndex: index(
+      "runtime_request_observability_safety_identifier_started_at_idx",
+    ).on(table.safetyIdentifier, table.startedAt),
   }),
 );

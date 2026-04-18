@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -23,6 +23,14 @@ import type {
   RequestRemoteContentSuspicionSummary,
   RequestSourceTrustSummary,
 } from "../request-diagnostics";
+import {
+  ABUSE_THROTTLE_ACTIVE_WINDOW_MS,
+  ABUSE_THROTTLE_ONE_MINUTE_WINDOW_MS,
+  ABUSE_THROTTLE_REQUESTS_PER_MINUTE,
+  ABUSE_THROTTLE_REQUESTS_PER_TEN_MINUTES,
+  ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS,
+  type AbuseThrottleReason,
+} from "../safety-ops-policy";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
 
@@ -175,17 +183,40 @@ export interface StoredIdempotentRequest {
   status: RequestExecutionStatus;
 }
 
+export interface AbuseControlState {
+  activeThrottleUntil: string | null;
+  requestCountLastMinute: number;
+  requestCountLastTenMinutes: number;
+  shouldThrottle: boolean;
+  throttleReason: AbuseThrottleReason;
+}
+
 export interface ChatCommandStore {
   findIdempotentRequest(input: {
     actorUserId: string;
     idempotencyKey: string;
   }): Promise<StoredIdempotentRequest | null>;
+  getAbuseControlState(input: {
+    now: string;
+    safetyIdentifier: string;
+    surface: string;
+  }): Promise<AbuseControlState>;
   acceptRequest(input: AcceptRequestWrite): Promise<void>;
   finalizeRequest(input: FinalizeRequestWrite): Promise<ChatConversation>;
 }
 
 function toIsoString(value: Date): string {
   return value.toISOString();
+}
+
+function createEmptyAbuseControlState(): AbuseControlState {
+  return {
+    activeThrottleUntil: null,
+    requestCountLastMinute: 0,
+    requestCountLastTenMinutes: 0,
+    shouldThrottle: false,
+    throttleReason: null,
+  };
 }
 
 function toChatMessage(row: typeof messages.$inferSelect): ChatMessage {
@@ -348,6 +379,75 @@ export function createPgChatCommandStore(
           traceId: executionRow.traceId,
         },
         status: executionRow.status as RequestExecutionStatus,
+      };
+    },
+
+    async getAbuseControlState(input) {
+      const safetyIdentifier = input.safetyIdentifier.trim();
+      const surface = input.surface.trim();
+      if (!safetyIdentifier || !surface) {
+        return createEmptyAbuseControlState();
+      }
+
+      const db = await getDb();
+      const nowValue = new Date(input.now);
+      const oneMinuteAgo = new Date(
+        nowValue.valueOf() - ABUSE_THROTTLE_ONE_MINUTE_WINDOW_MS,
+      );
+      const tenMinutesAgo = new Date(
+        nowValue.valueOf() - ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS,
+      );
+      const rows = await db
+        .select({
+          errorCode: requestExecution.errorCode,
+          startedAt: requestExecution.startedAt,
+        })
+        .from(requestExecution)
+        .where(
+          and(
+            eq(requestExecution.safetyIdentifier, safetyIdentifier),
+            eq(requestExecution.surface, surface),
+            gte(requestExecution.startedAt, tenMinutesAgo),
+          ),
+        );
+
+      const requestCountLastMinute = rows.filter(
+        (row) => row.startedAt.valueOf() >= oneMinuteAgo.valueOf(),
+      ).length;
+      const requestCountLastTenMinutes = rows.length;
+      const activeThrottleUntilMs = rows.reduce((latestUntilMs, row) => {
+        if (row.errorCode !== "rate_limit_exceeded") {
+          return latestUntilMs;
+        }
+
+        const untilMs = row.startedAt.valueOf() + ABUSE_THROTTLE_ACTIVE_WINDOW_MS;
+        if (untilMs <= nowValue.valueOf()) {
+          return latestUntilMs;
+        }
+
+        return Math.max(latestUntilMs, untilMs);
+      }, 0);
+
+      let throttleReason: AbuseThrottleReason = null;
+      if (activeThrottleUntilMs > 0) {
+        throttleReason = "active_throttle_window";
+      } else if (requestCountLastMinute > ABUSE_THROTTLE_REQUESTS_PER_MINUTE) {
+        throttleReason = "requests_per_minute";
+      } else if (
+        requestCountLastTenMinutes > ABUSE_THROTTLE_REQUESTS_PER_TEN_MINUTES
+      ) {
+        throttleReason = "requests_per_ten_minutes";
+      }
+
+      return {
+        activeThrottleUntil:
+          activeThrottleUntilMs > 0
+            ? new Date(activeThrottleUntilMs).toISOString()
+            : null,
+        requestCountLastMinute,
+        requestCountLastTenMinutes,
+        shouldThrottle: throttleReason !== null,
+        throttleReason,
       };
     },
 

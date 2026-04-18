@@ -885,7 +885,21 @@ describe("GET /api/operator/overview", () => {
       getAuditById: vi.fn(),
       getObservabilityById: vi.fn(),
       getOverview: vi.fn().mockResolvedValue({
-        alerts: [],
+        alerts: [
+          {
+            alertId: "opalert_safety_remote_01HQ",
+            code: "safety.remote_content_suspicion_spike",
+            domain: "safety",
+            incidentBackfill: {
+              mode: "incident_backfill",
+              required: true,
+            },
+            requestCount: 3,
+            severity: "high",
+            startedAt: "2026-03-28T07:55:00.000Z",
+            status: "open",
+          },
+        ],
         asOf: "2026-03-28T08:00:10.000Z",
         overview: {
           aclAnomalyRate: {
@@ -957,7 +971,21 @@ describe("GET /api/operator/overview", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
-      alerts: [],
+      alerts: [
+        {
+          alertId: "opalert_safety_remote_01HQ",
+          code: "safety.remote_content_suspicion_spike",
+          domain: "safety",
+          incidentBackfill: {
+            mode: "incident_backfill",
+            required: true,
+          },
+          requestCount: 3,
+          severity: "high",
+          startedAt: "2026-03-28T07:55:00.000Z",
+          status: "open",
+        },
+      ],
       asOf: "2026-03-28T08:00:10.000Z",
       overview: {
         aclAnomalyRate: {

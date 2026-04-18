@@ -2,7 +2,7 @@
 doc_type: phase_plan
 phase: "G"
 phase_name: "Remote-content Injection Hardening"
-status: planned
+status: completed
 created: 2026-04-19
 updated: 2026-04-19
 ---

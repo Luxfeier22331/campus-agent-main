@@ -13,6 +13,7 @@ export {
   type NormalizedOperatorOverviewFilters,
   type NormalizedOperatorQualityBadcaseListFilters,
   type NormalizedOperatorRequestListFilters,
+  type OperatorOverviewAlert,
   type OperatorOverviewFilters,
   type OperatorOverviewResult,
   type OperatorOverviewWindow,

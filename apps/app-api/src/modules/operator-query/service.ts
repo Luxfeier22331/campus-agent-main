@@ -220,15 +220,22 @@ export interface OperatorOverviewResult {
       projectionFailureCount: number;
     };
   };
-  alerts: Array<{
-    alertId: string;
-    domain: string;
-    severity: string;
-    code: string;
-    status: string;
-    startedAt: string;
-  }>;
+  alerts: OperatorOverviewAlert[];
   asOf: string;
+}
+
+export interface OperatorOverviewAlert {
+  alertId: string;
+  domain: string;
+  severity: string;
+  code: string;
+  status: string;
+  startedAt: string;
+  requestCount: number;
+  incidentBackfill: {
+    mode: "incident_backfill" | null;
+    required: boolean;
+  };
 }
 
 export interface OperatorAuditEventListItem {

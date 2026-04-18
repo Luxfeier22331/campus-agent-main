@@ -15,6 +15,7 @@ export {
 export {
   createPgChatCommandStore,
   type AcceptRequestWrite,
+  type AbuseControlState,
   type ChatCommandStore,
   type FinalizeRequestWrite,
   type ProjectionOutboxWrite,

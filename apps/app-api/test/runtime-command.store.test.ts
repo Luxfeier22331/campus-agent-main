@@ -51,4 +51,75 @@ describe("pg chat command store", () => {
     expect(createRuntimeDbGetter).toHaveBeenCalledTimes(1);
     expect(createRuntimeDatabase).toHaveBeenCalledTimes(2);
   });
+
+  it("derives abuse throttle state from durable request execution truth", async () => {
+    const where = vi.fn().mockResolvedValue([
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:50.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:40.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:30.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:20.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:05.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:00.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:01.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:02.000Z"),
+      },
+      {
+        errorCode: null,
+        startedAt: new Date("2026-03-28T08:05:03.000Z"),
+      },
+      {
+        errorCode: "rate_limit_exceeded",
+        startedAt: new Date("2026-03-28T08:03:00.000Z"),
+      },
+    ]);
+    const from = vi.fn(() => ({
+      where,
+    }));
+    const select = vi.fn(() => ({
+      from,
+    }));
+
+    createRuntimeDatabase.mockResolvedValue({
+      select,
+    });
+
+    const store = createPgChatCommandStore({} as never);
+
+    const state = await store.getAbuseControlState({
+      now: "2026-03-28T08:06:00.000Z",
+      safetyIdentifier: "safe_01HQ",
+      surface: "public_chat_web",
+    });
+
+    expect(state).toEqual({
+      activeThrottleUntil: "2026-03-28T08:08:00.000Z",
+      requestCountLastMinute: 9,
+      requestCountLastTenMinutes: 10,
+      shouldThrottle: true,
+      throttleReason: "active_throttle_window",
+    });
+  });
 });

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { and, desc, eq, gte, ilike, inArray, lt, lte, or } from "drizzle-orm";
 
 import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
@@ -20,6 +22,7 @@ import type {
   OperatorAuditEventListItem,
   OperatorAuditListResult,
   NormalizedOperatorOverviewFilters,
+  OperatorOverviewAlert,
   NormalizedOperatorQualityBadcaseListFilters,
   NormalizedOperatorRequestListFilters,
   OperatorOverviewResult,
@@ -33,6 +36,12 @@ import type {
   OperatorSafetySummaryResult,
   RequestProjectionRecord,
 } from "./service";
+import {
+  buildIncidentBackfillHint,
+  SAFETY_ALERT_LOOKBACK_MS,
+  SAFETY_ALERT_THRESHOLD,
+  type SafetyAlertCode,
+} from "../safety-ops-policy";
 
 interface RequestProjectionCursor {
   requestId: string;
@@ -194,6 +203,120 @@ function toRatio(count: number, eligibleCount: number | null): MetricRatio {
     eligibleCount,
     value: eligibleCount && eligibleCount > 0 ? Number((count / eligibleCount).toFixed(4)) : 0,
   };
+}
+
+function buildSafetyAlertId(input: {
+  code: SafetyAlertCode;
+  safetyIdentifier: string;
+  startedAt: string;
+}): string {
+  return `opalert_${createHash("sha256")
+    .update(`${input.code}:${input.safetyIdentifier}:${input.startedAt}`)
+    .digest("hex")
+    .slice(0, 16)}`;
+}
+
+function hasRemoteContentSuspicionSignal(row: RequestObservabilityFactRow): boolean {
+  const summary = row.remoteContentSuspicionSummaryJson;
+  if (!summary) {
+    return false;
+  }
+
+  return summary.generationBlocked === true || summary.flagLabels.length > 0;
+}
+
+function hasProviderContentFilterSignal(row: RequestObservabilityFactRow): boolean {
+  return (
+    row.promptRuntimeState === "content_filter" ||
+    row.promptRuntimeDetail === "content_filter"
+  );
+}
+
+function buildSafetyAlerts(input: {
+  asOf: Date;
+  rows: RequestObservabilityFactRow[];
+}): OperatorOverviewAlert[] {
+  const alertWindowStart = input.asOf.valueOf() - SAFETY_ALERT_LOOKBACK_MS;
+  const alerts: OperatorOverviewAlert[] = [];
+  const definitions: Array<{
+    code: SafetyAlertCode;
+    severity: "high" | "medium";
+    signal: (row: RequestObservabilityFactRow) => boolean;
+  }> = [
+    {
+      code: "safety.rate_limit_exceeded",
+      severity: "medium",
+      signal: (row) => row.errorCode === "rate_limit_exceeded",
+    },
+    {
+      code: "safety.remote_content_suspicion_spike",
+      severity: "high",
+      signal: hasRemoteContentSuspicionSignal,
+    },
+    {
+      code: "safety.provider_content_filter_spike",
+      severity: "high",
+      signal: hasProviderContentFilterSignal,
+    },
+  ];
+
+  for (const definition of definitions) {
+    const rowsBySafetyIdentifier = new Map<string, RequestObservabilityFactRow[]>();
+    for (const row of input.rows) {
+      if (!row.safetyIdentifier) {
+        continue;
+      }
+      if (row.startedAt.valueOf() < alertWindowStart) {
+        continue;
+      }
+      if (!definition.signal(row)) {
+        continue;
+      }
+
+      const bucket = rowsBySafetyIdentifier.get(row.safetyIdentifier) ?? [];
+      bucket.push(row);
+      rowsBySafetyIdentifier.set(row.safetyIdentifier, bucket);
+    }
+
+    for (const [safetyIdentifier, matchingRows] of rowsBySafetyIdentifier.entries()) {
+      if (matchingRows.length < SAFETY_ALERT_THRESHOLD) {
+        continue;
+      }
+
+      const earliestStartedAt = matchingRows.reduce(
+        (earliest, row) =>
+          row.startedAt.valueOf() < earliest.valueOf() ? row.startedAt : earliest,
+        matchingRows[0]!.startedAt,
+      );
+      alerts.push({
+        alertId: buildSafetyAlertId({
+          code: definition.code,
+          safetyIdentifier,
+          startedAt: earliestStartedAt.toISOString(),
+        }),
+        code: definition.code,
+        domain: "safety",
+        incidentBackfill: buildIncidentBackfillHint(definition.code),
+        requestCount: matchingRows.length,
+        severity: definition.severity,
+        startedAt: earliestStartedAt.toISOString(),
+        status: "open",
+      });
+    }
+  }
+
+  const severityRank = {
+    high: 2,
+    medium: 1,
+  } as const;
+
+  return alerts.sort(
+    (left, right) =>
+      severityRank[right.severity as keyof typeof severityRank] -
+        severityRank[left.severity as keyof typeof severityRank] ||
+      right.startedAt.localeCompare(left.startedAt) ||
+      left.code.localeCompare(right.code),
+  );
 }
 
 function percentile(values: number[], percentileValue: number): number | null {
@@ -692,7 +815,10 @@ export function createPgOperatorQueryStore(
       );
 
       return {
-        alerts: [],
+        alerts: buildSafetyAlerts({
+          asOf: bounds.to,
+          rows,
+        }),
         asOf: bounds.to.toISOString(),
         overview: {
           aclAnomalyRate: toRatio(

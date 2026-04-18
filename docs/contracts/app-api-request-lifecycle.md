@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-03
+updated: 2026-04-19
 ---
 
 # App API Request Lifecycle
@@ -61,7 +61,7 @@ updated: 2026-04-03
 | `no_answer` | 安全地无法给出 grounded answer | `no_answer` |
 | `error` | 请求被接受，但执行或依赖失败 | `error` |
 | `approval_required` | supervisor policy 要求先人工审批 | `error` |
-| `rejected` | supervisor policy 明确拒绝本次请求 | `error` |
+| `rejected` | code-owned gate 明确拒绝本次请求；包括 supervisor policy reject 与 app-api precheck fail-close reject | `error` |
 
 第一版不强制单独暴露 `running` 状态。
 
@@ -83,6 +83,12 @@ updated: 2026-04-03
 
 - 直接返回 HTTP error envelope
 - 不创建 `runtime.request_execution`
+
+当前冻结说明：
+
+- public chat request path 继续要求 resolved end-user principal
+- 如果没有 principal，直接返回 `session_required`
+- 当前不会因为缺少 principal 而创建 anonymous conversation 或 anonymous request truth
 
 ### Step 2: Durable Request Record
 
@@ -108,6 +114,24 @@ updated: 2026-04-03
 
 ### Step 3: Execute
 
+在真正调用 `apps/supervisor-api` 之前，`app-api` 允许运行 repo-owned pre-execution fail-close checks。
+
+当前 contract 冻结为：
+
+- 这类 precheck 发生在第一次 durable accept 之后，因此 request truth 仍然可审计
+- 如果 precheck 直接拦截请求，最终状态写成 `rejected`
+- `Phase I` 的 abuse throttle key 固定为 `runtime.request_execution.safety_identifier`
+- throttle truth 只允许从 app-owned durable request truth 计算，不走 in-memory only shortcut
+- 初始阈值固定为：
+  - same `safety_identifier` `> 8 requests / 60s`
+  - same `safety_identifier` `> 30 requests / 10m`
+  - 任一 `rate_limit_exceeded` 命中后追加 `5m` temporary throttle window
+- `Phase I` 的 abuse throttle 命中后固定写：
+  - `status=rejected`
+  - `error_code=rate_limit_exceeded`
+  - chat-visible result 继续走既有 `error` kind
+- 这类 precheck reject 不调用 `apps/supervisor-api`
+
 `app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。
 
 该调用：
@@ -132,7 +156,7 @@ updated: 2026-04-03
 - `no_answer` 写 safe no-answer 摘要
 - `error` 写 error code / retryable
 - `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
-- `rejected` 写拒绝原因与最终 supervisor 状态，不把它折叠成 command-side `error`
+- `rejected` 写拒绝原因与最终 gate 状态；既可来自 supervisor policy，也可来自 app-api precheck fail-close（例如 `rate_limit_exceeded`），但都不折叠成 command-side `error`
 
 ### Session Slot Finalize Rule
 

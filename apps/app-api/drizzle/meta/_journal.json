@@ -120,6 +120,13 @@
       "when": 1776553634773,
       "tag": "0016_chunky_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1776554617122,
+      "tag": "0017_stormy_vanisher",
+      "breakpoints": true
     }
   ]
 }

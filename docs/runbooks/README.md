@@ -20,6 +20,7 @@ updated: 2026-04-19
 ## Collaboration / Workstream Claims
 
 - `workstream-claim-workflow.md`
+- `public-product-path-safety-ops-runbook.md`
 
 ## Environment-Specific Smoke / Evidence
 

@@ -527,6 +527,45 @@ function toHandledErrorTransportOutcome(
   };
 }
 
+function buildAbuseThrottleRejectedResponse(input: {
+  traceId: string;
+}): SupervisorExecutionResponse {
+  return {
+    answerText: "Too many requests. Please wait a few minutes and try again.",
+    error: {
+      code: "rate_limit_exceeded",
+      message: "Too many requests. Please wait a few minutes and try again.",
+      retryable: false,
+    },
+    followUpQuestion: "",
+    observability: {
+      aclAnomalyCode: null,
+      aclDecision: "denied",
+      cachedInputTokens: null,
+      candidateCount: null,
+      citationCount: null,
+      citationExpected: null,
+      citationMissing: null,
+      estimatedCostMicrousd: null,
+      failClosed: true,
+      inputTokens: null,
+      modelName: null,
+      modelProvider: null,
+      outputTokens: null,
+      policyReason: "rate_limit_exceeded",
+      refusalClass: "rejected",
+      retrievedSourceCount: null,
+      retrievalAttempted: false,
+      scopeClass: null,
+      semanticOutcome: "policy_refusal",
+    },
+    result: null,
+    selectedTarget: null,
+    status: "rejected",
+    traceId: input.traceId,
+  };
+}
+
 function buildFinalizedWrite(input: {
   assistantMessageId: string;
   conversation: ChatConversation;
@@ -943,6 +982,14 @@ export function buildChatCommandService(
         traceId,
       });
 
+      const abuseControlState =
+        safetyIdentifier
+          ? await dependencies.store.getAbuseControlState({
+              now: acceptedAt,
+              safetyIdentifier,
+              surface,
+            })
+          : null;
       let transportError:
         | {
             code: string;
@@ -951,31 +998,37 @@ export function buildChatCommandService(
         | null = null;
       let executionResponse: SupervisorExecutionResponse;
 
-      try {
-        executionResponse = await dependencies.supervisor.execute({
-          context: buildSupervisorContextProjection({
-            actor: input.principal.actor,
-            authorization: input.principal.authorization,
-            sessionSlots: conversation.sessionSlots,
-            turnCount: conversation.messages.length,
-          }),
-          conversationId: conversation.id,
-          requestId,
-          requestedCapability: validatedPayload.requestedCapability,
-          requestedScope: validatedPayload.requestedScope,
-          safetyIdentifier,
-          surface,
-          traceHeaders: telemetry?.getTraceHeaders(),
+      if (abuseControlState?.shouldThrottle) {
+        executionResponse = buildAbuseThrottleRejectedResponse({
           traceId,
-          userGoal: validatedPayload.prompt,
         });
-      } catch (error) {
-        const handled = toHandledErrorTransportOutcome(error);
-        transportError = {
-          code: handled.error.code,
-          retryable: handled.error.retryable ?? true,
-        };
-        executionResponse = handled;
+      } else {
+        try {
+          executionResponse = await dependencies.supervisor.execute({
+            context: buildSupervisorContextProjection({
+              actor: input.principal.actor,
+              authorization: input.principal.authorization,
+              sessionSlots: conversation.sessionSlots,
+              turnCount: conversation.messages.length,
+            }),
+            conversationId: conversation.id,
+            requestId,
+            requestedCapability: validatedPayload.requestedCapability,
+            requestedScope: validatedPayload.requestedScope,
+            safetyIdentifier,
+            surface,
+            traceHeaders: telemetry?.getTraceHeaders(),
+            traceId,
+            userGoal: validatedPayload.prompt,
+          });
+        } catch (error) {
+          const handled = toHandledErrorTransportOutcome(error);
+          transportError = {
+            code: handled.error.code,
+            retryable: handled.error.retryable ?? true,
+          };
+          executionResponse = handled;
+        }
       }
 
       if (transportError) {
