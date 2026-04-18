@@ -264,7 +264,7 @@ describe("official-web-collector dynamic shell crawl", () => {
       promotedUrls: string[];
       sourceUrl: string;
     }>;
-      expect(auditLines).toEqual([
+    expect(auditLines).toEqual([
         expect.objectContaining({
           sourceUrl: "https://www.example.edu/",
           promotedUrls: [promotedDetailUrl],

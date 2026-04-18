@@ -296,7 +296,7 @@ describe("official-web-collector incremental crawl", () => {
         urlsFetched: 0,
       },
     });
-      expect(finalizeInput?.pageObservations).toEqual([
+    expect(finalizeInput?.pageObservations).toEqual([
         expect.objectContaining({
           disposition: "not_modified",
           mainContentHash: "main-v1",
