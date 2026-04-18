@@ -21,7 +21,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     build_raw_asset_id,
     utc_now,
 )
-from campus_ingestion_core.raw_asset_typing import infer_raw_asset_typed_metadata
+from campus_ingestion_core.file_asset_routing import infer_raw_asset_typed_metadata
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env

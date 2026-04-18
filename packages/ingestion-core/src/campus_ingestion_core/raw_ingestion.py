@@ -64,17 +64,16 @@ from campus_ingestion_core.online_ocr_evidence import (
     extract_online_ocr_text,
     extract_provider_plain_text,
 )
-from campus_ingestion_core.online_ocr_routing import (
+from campus_ingestion_core.file_asset_routing import (
     MINERU_ADAPTED_PARSER_VERSION,
+    OnlineOcrRoutingDecision,
     PADDLE_PARSER_VERSION,
     RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
+    RawAssetTypedMetadata,
     adapt_mineru_archive_to_canonical_provider_payload,
+    refine_raw_asset_typed_metadata_with_ocr_evidence,
     select_adjudicated_image_routing,
     select_online_ocr_routing,
-)
-from campus_ingestion_core.raw_asset_typing import (
-    RawAssetTypedMetadata,
-    refine_raw_asset_typed_metadata_with_ocr_evidence,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -1167,7 +1166,8 @@ def _execute_source_truth_only_routed_online_ocr(
         )
 
     route_decision = select_online_ocr_routing(
-        raw_asset_record=raw_asset_record,
+        asset_kind=raw_asset_record.asset_kind,
+        asset_subkind=raw_asset_record.asset_subkind,
         mineru_available=settings.mineru_online_ocr is not None,
     )
     if not route_decision.canonical_allowed or route_decision.canonical_provider is None:

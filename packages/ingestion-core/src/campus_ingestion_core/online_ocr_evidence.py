@@ -8,7 +8,7 @@ import re
 from typing import Any
 import zipfile
 
-from campus_ingestion_core.online_ocr_routing import MINERU_PROVIDER
+from campus_ingestion_core.file_asset_routing import MINERU_PROVIDER
 
 
 def extract_online_ocr_text(result_payload: dict[str, object]) -> str:
