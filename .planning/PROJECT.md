@@ -78,7 +78,7 @@
 ### Active
 
 - [ ] Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已完成 closeout；curriculum 线当前不再是 active implementation lane，若后续触碰旧 planning/docs，只允许把 historical artifact pointer 收敛到 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000`
-- [ ] authenticated-notice 当前 active 数据面 follow-up 是 unpublished `internal_notice` release 之后的 downstream consumption：post-release retrieval-prep、`regulations/institutional_regulations` / `regulations/scoped_rules` 承接与 promotion target collection 收口；但这条线当前仍受 source current-scope 持续采集/修整影响，live portal scheduling 与 authenticated control-plane 继续后置
+- [ ] authenticated-notice 当前 active 数据面 follow-up 已拆成两条 workstream：非认证的 downstream consumption 继续负责 unpublished `internal_notice` release 之后的 post-release retrieval-prep、`regulations/institutional_regulations` / `regulations/scoped_rules` 承接与 target-side quality hardening；需要认证窗口的 `file_release` capture / owner recovery 已迁移到独立 auth workstream，不再混入本线
 - [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
 - [ ] 校内导航当前不在 active rollout；现阶段只保留 `place_catalog` / `navigation-specialist` foundation，地图实际上线后再从 backlog 恢复 `place_lookup` 产品路径与 `place_card` / map consumption

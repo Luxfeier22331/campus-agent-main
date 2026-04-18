@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-10
-updated: 2026-04-11
+updated: 2026-04-18
 ---
 
 # Internal Notice 规章制度消费实施文档
@@ -25,6 +25,7 @@ updated: 2026-04-11
 
 - `docs/architecture/authenticated-notice-source-architecture.md` 的 source-channel 边界
 - `docs/architecture/authenticated-notice-source-truth-contract.md` 的 source-truth contract
+- `docs/plans/authenticated-notice-file-release-owner-recovery.md` 的 auth-window `file_release` capture / owner recovery workstream
 - `docs/reference/internal-notice-offline-preparation-strategy.md` 的当前 collection-specific lane strategy
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 operator runbook
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
@@ -33,6 +34,45 @@ updated: 2026-04-11
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+
+## 当前 Workstream 设计（2026-04-18）
+
+这条线当前固定为一条单独的 non-auth downstream workstream：
+
+`source-triage -> regulation promotion -> target collection -> target-side quality gate`
+
+直接含义：
+
+- 当前只消费已经捕获好的 `internal_notice` current-scope / admitted target truth，不再把 auth-window `file_release` capture 混进本线
+- `351119` 的 `file_release` targeted capture、owner body recovery 与回接 promotion/materialization 已迁移到 `docs/plans/authenticated-notice-file-release-owner-recovery.md`
+- promotion materialization、`regulations/institutional_regulations` / `regulations/scoped_rules` target hardening，以及 target-side chunk acceptance 继续只属于同一条 `authenticated-notice -> regulation downstream consumption` workstream 的顺序子层
+- 它可以与其他独立 workstreams 并行存在；串行约束只限这条 workstream 内部
+- 当前 stop point 继续固定在 `offline_preparation`
+- 在用户未明确授权前，不进入 embedding、Qdrant、release、alias publish
+
+当前这条 workstream 的单一入口固定就是本文；后续其他会话接手时，不再重新讨论“是否要先单独开 replay 线 / promotion 线 / target chunk acceptance 线”。
+
+当前前向顺序固定为：
+
+1. 稳住 `internal_notice` source current scope 与 admitted regulation inventory
+2. 跑 promotion routing，稳定 `candidate / hold / manual_review_required`
+3. 导出 local-only candidate artifacts
+4. materialize 到 `regulations/institutional_regulations` / `regulations/scoped_rules`
+5. 做 target-side chunk prep / quality acceptance
+6. 继续只收口已捕获 corpus 的 metadata / quality truth，不扩成 source-wide replay
+
+当前明确的下一条前向切片仍是：
+
+- 保持现有 `11` 条 admitted regulation target 的 bounded lane
+- 不做 unfiltered source-wide materialization
+- scoped-rules 继续只做 non-auth metadata / target-side quality hardening；annual rule 缺少 `school_unit_name` 视为 target-side fail-close，`暂行/试行` 继续保留 `force_status=provisional_in_force`
+- 需要认证窗口的 `351119` `file_release` capture 与 owner recovery 不再属于本文，统一转到独立 auth workstream
+
+后续其他会话接手时，应直接按本文推进，不再为以下事项单独重开并发 lane：
+
+- historical donor / current-scope replay
+- regulation target materialization
+- scoped-rules target-side quality hardening
 
 ## 当前 Merged Truth
 

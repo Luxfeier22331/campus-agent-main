@@ -19,6 +19,9 @@ updated: 2026-04-12
 ### Data plane / quality / source channels
 
 - `internal-notice-policy-regulation-consumption-implementation.md`
+  - `authenticated-notice -> regulation downstream consumption` 的单一 non-auth 入口；后续接手时不再拆成 replay / promotion / target hardening 多条并发线
+- `authenticated-notice-file-release-owner-recovery.md`
+  - `authenticated-notice file_release owner recovery` 的单一 auth 入口；后续接手时固定按 `auth-window targeted capture -> owner recovery -> bounded validation` 顺序推进
 
 ## Deferred
 

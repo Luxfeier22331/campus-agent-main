@@ -49,8 +49,10 @@ See: `.planning/PROJECT.md` (updated 2026-04-14)
 ## Current Position
 
 Phase: No active roadmap phase; 当前 worktree 的 active quick lane 为 regulation import closeout
-Plan: 当前 regulation lane 已完成 `internal_notice -> regulations/institutional_regulations` 的受控 formal local materialization 收口：accepted current target 为 `11` 条，`355282` 已正式并入 target，剩余 frontier 仅 `351119` 的 auth-blocked `file_release` owner recovery。
-Next active workstream: 在无认证态下，继续围绕当前 `11` 条 regulation 做离线消费与验收真相维护；不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release。下一个需要认证窗口的前向切片仍是 `351119`。
+Plan: 当前 regulation lane 已完成 `internal_notice -> regulations/institutional_regulations` 的受控 formal local materialization 收口：accepted current target 为 `11` 条，`355282` 已正式并入 target；auth-dependent 的 `351119` `file_release` owner recovery 现已拆到独立 workstream。
+Next active workstreams:
+- 在无认证态下，继续围绕当前 `11` 条 regulation 与 `scoped_rules` 做离线消费和 target-side 质量真相维护；不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release。
+- 需要认证窗口的前向切片统一迁移到 `docs/plans/authenticated-notice-file-release-owner-recovery.md`：当前固定为 `351119` 的 targeted `file_release` capture -> owner body recovery -> promotion/materialization re-entry。
 
 ## Performance Metrics
 
@@ -217,6 +219,8 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 ### Pending Todos
 
 - 当首个 staging 发布窗口可用时，按新的 `deploy:preflight:staging` / release-scoped evidence contract 执行真实 deploy closeout
+- 推进 `authenticated-notice -> regulation downstream consumption` 的会话，统一以 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` 为唯一入口；当前只处理已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening，不再混入 auth-window `file_release` capture
+- 推进 `authenticated-notice file_release owner recovery` 的会话，统一以 `docs/plans/authenticated-notice-file-release-owner-recovery.md` 为唯一入口；固定顺序保持 `auth-window targeted capture -> source-byte verification -> owner body recovery -> promotion/materialization re-entry -> bounded validation`
 - 等待地图实际上线后，再从 backlog `999.2` promote 导航产品路径、`place_card` / map consumption 与 staging/manual acceptance
 
 ### Blockers/Concerns
