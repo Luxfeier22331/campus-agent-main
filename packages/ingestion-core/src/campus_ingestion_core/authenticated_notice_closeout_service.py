@@ -144,21 +144,21 @@ class AuthenticatedNoticeCloseoutService:
         return cls(
             closeout_store=build_authenticated_notice_closeout_store_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             object_store=CloseoutS3ObjectStore(settings),
             object_store_settings=settings,
             document_registry=build_document_registry_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             raw_asset_registry=build_raw_asset_registry_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             source_truth_inventory_store=build_authenticated_notice_source_truth_inventory_store_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             ),
             planner=planner,
         )

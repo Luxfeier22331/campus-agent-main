@@ -90,7 +90,7 @@ def release_registry_scope(
         runtime_object_store = object_store
     runtime_registry = registry or build_document_registry_from_env(
         source,
-        prefer_management=True,
+        prefer_operator=True,
     )
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(
         RetrievalSettings.from_env(source),

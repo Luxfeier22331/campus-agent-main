@@ -320,10 +320,9 @@ projection replay 之后，parent 与 child document 都进入 repo-owned cleanu
 - `campus_notices/internal_notice` 现在要求 release 显式提供成功的 `preparation_run_id`；不能再直接跳过 chunk admission 进入 embedding
 - pilot 当前仍以 verified chunk preparation 为停点；没有显式批准前，不继续 release
 - local Postgres dev path 是当前已验证通过的 current-scope replay / preparation operator substrate；这条路径按 `docs/runbooks/local-postgres-dev-recovery-runbook.md` 提供本地 DSN 即可
-- 如果改回 shared Supabase path，再要求 offline operator shell 显式提供 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
-- 当共享库由 Supabase 承载时，这个 management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；如果仍是 `*.pooler.supabase.com`，当前 helper 会 fast-fail
-- shared-path readiness 判定是 management direct DSN 能完成实际 `psycopg.connect(...)` + `select 1`；只有 TCP `:5432` 可达或 session pooler 可连都不算 ready
-- 如果 shared-path `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
+- 如果改回 shared Supabase path，再要求 offline operator shell 显式提供 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+- 当前 shared-path readiness 判定是 operator/session-pooler DSN 能完成实际连接与 `select 1`；legacy `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只作为兼容别名接受
+- 如果 shared-path `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 在 connect 阶段返回 `PoolTimeout` / `ConnectionTimeout` / `MaxClientsInSessionMode`，本轮 stop，不写 current scope
 - 如果当前 shell 继承了宿主机代理值，`release_registry_scope`、`curl "$QDRANT_URL/collections"` 与 `QdrantClient.get_aliases()` 都可能对 Qdrant Cloud 超时；此时必须显式把 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` 及其小写形式置空，并把 `NO_PROXY` / `no_proxy` 设为 `*`
 
 因此 chunking / embedding / index release 仍然可以发生，但必须分阶段发生，而且不代表该 collection 已经进入 query-serving。

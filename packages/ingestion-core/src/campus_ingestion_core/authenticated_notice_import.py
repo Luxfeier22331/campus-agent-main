@@ -28,6 +28,9 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     read_authenticated_notice_source_projections_config_path,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
+    DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
+    DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
@@ -49,6 +52,15 @@ from campus_ingestion_core.object_store import (
     is_source_object_key,
 )
 from campus_ingestion_core.registry import (
+    DOCUMENT_REGISTRY_ENV_KEY,
+    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
+    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
+    RAW_ASSET_REGISTRY_ENV_KEY,
+    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
+    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
+    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     DocumentRegistry,
     RawAssetRegistry,
     build_document_registry_from_env,
@@ -171,16 +183,8 @@ def import_authenticated_notice_export(
     registry = document_registry or build_document_registry_from_env(source)
     raw_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
     inventory_store = source_truth_inventory_store
-    if inventory_store is None and any(
-        source.get(key)
-        for key in (
-            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL",
-            "CAMPUS_SHARED_POSTGRES_URL",
-            "DOCUMENT_REGISTRY_DATABASE_URL",
-            "RAW_ASSET_REGISTRY_DATABASE_URL",
-        )
-    ):
-        inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(source)
+    if inventory_store is None:
+        inventory_store = _build_inventory_store_from_env_if_configured(source)
     export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
     bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
     _assert_attachment_blob_root_precondition(
@@ -300,6 +304,35 @@ def import_authenticated_notice_export(
     if attachment_object_backfill_summary is not None:
         result["attachment_object_backfill"] = attachment_object_backfill_summary
     return result
+
+
+def _build_inventory_store_from_env_if_configured(
+    env: dict[str, str],
+) -> AuthenticatedNoticeSourceTruthInventoryStore | None:
+    management_env_keys = (
+        DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
+        DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
+        SHARED_POSTGRES_OPERATOR_ENV_KEY,
+        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+        DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
+        DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
+        RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
+        RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
+    )
+    if any(env.get(key) for key in management_env_keys):
+        return build_authenticated_notice_source_truth_inventory_store_from_env(
+            env,
+            prefer_operator=True,
+        )
+    runtime_env_keys = (
+        DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
+        SHARED_POSTGRES_ENV_KEY,
+        DOCUMENT_REGISTRY_ENV_KEY,
+        RAW_ASSET_REGISTRY_ENV_KEY,
+    )
+    if any(env.get(key) for key in runtime_env_keys):
+        return build_authenticated_notice_source_truth_inventory_store_from_env(env)
+    return None
 
 
 def _assert_attachment_blob_root_precondition(

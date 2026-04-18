@@ -470,7 +470,7 @@ def _build_validation_inputs(
     elif closeout_run_id:
         runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
             source,
-            prefer_management=True,
+            prefer_operator=True,
         )
         selected_records = tuple(
             pair.staged_record
@@ -488,7 +488,7 @@ def _build_validation_inputs(
     else:
         runtime_registry = runtime_registry or build_document_registry_from_env(
             source,
-            prefer_management=True,
+            prefer_operator=True,
         )
         records = tuple(runtime_registry.list_by_scope(corpus, collection))
         selected_records = _select_current_source_faithful_records(records)
@@ -551,7 +551,7 @@ def _select_manifest_records(
             )
         runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
             source,
-            prefer_management=True,
+            prefer_operator=True,
         )
         pairs = load_verified_closeout_run_document_record_pairs(
             run_id=manifest.closeout_run_id,
@@ -581,7 +581,7 @@ def _select_manifest_records(
     missing_manifest_records: list[str] = []
     runtime_registry = registry or build_document_registry_from_env(
         source,
-        prefer_management=True,
+        prefer_operator=True,
     )
     for document in manifest.documents:
         record = runtime_registry.get(document.document_id, document.revision_track, document.version_id)
@@ -895,7 +895,7 @@ def _resolve_notice_risk_context(
     if closeout_run_id:
         runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
             source,
-            prefer_management=True,
+            prefer_operator=True,
         )
         run = runtime_closeout_store.get_run(closeout_run_id)
         if run is not None and str(getattr(run, "source_truth_inventory_object_key", "") or "").strip():
@@ -913,7 +913,7 @@ def _resolve_notice_risk_context(
         try:
             runtime_inventory_store = build_authenticated_notice_source_truth_inventory_store_from_env(
                 source,
-                prefer_management=True,
+                prefer_operator=True,
             )
         except ValueError:
             runtime_inventory_store = None

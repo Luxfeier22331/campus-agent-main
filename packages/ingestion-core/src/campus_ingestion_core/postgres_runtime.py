@@ -22,13 +22,16 @@ SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE = 0
 SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE = 1
 POSTGRES_CONNECTION_MODE_QUERY_KEY = "__campus_connection_mode"
 PERSISTENT_RUNTIME_CONNECTION_MODE = "persistent_runtime"
+OPERATOR_SESSION_CONNECTION_MODE = "operator_session"
 MANAGEMENT_DIRECT_CONNECTION_MODE = "management_direct"
 
 
 @dataclass(frozen=True, slots=True)
 class ResolvedPostgresConnection:
     database_url: str
-    connection_mode: Literal["persistent_runtime", "management_direct"]
+    connection_mode: Literal[
+        "persistent_runtime", "operator_session", "management_direct"
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +79,17 @@ def validate_management_postgres_url(database_url: str) -> str:
     return normalized
 
 
+def validate_operator_postgres_url(database_url: str) -> str:
+    return validate_persistent_postgres_runtime_url(database_url)
+
+
+def build_operator_postgres_connection_url(database_url: str) -> str:
+    return _with_connection_mode(
+        validate_operator_postgres_url(database_url),
+        OPERATOR_SESSION_CONNECTION_MODE,
+    )
+
+
 def build_management_postgres_connection_url(database_url: str) -> str:
     return _with_connection_mode(
         validate_management_postgres_url(database_url),
@@ -87,6 +101,8 @@ def normalize_postgres_connection_url(database_url: str) -> str:
     resolved = resolve_postgres_connection(database_url)
     if resolved.connection_mode == MANAGEMENT_DIRECT_CONNECTION_MODE:
         return build_management_postgres_connection_url(resolved.database_url)
+    if resolved.connection_mode == OPERATOR_SESSION_CONNECTION_MODE:
+        return build_operator_postgres_connection_url(resolved.database_url)
     return resolved.database_url
 
 
@@ -108,6 +124,11 @@ def resolve_postgres_connection(database_url: str) -> ResolvedPostgresConnection
         return ResolvedPostgresConnection(
             database_url=validate_management_postgres_url(stripped_url),
             connection_mode=MANAGEMENT_DIRECT_CONNECTION_MODE,
+        )
+    if connection_mode == OPERATOR_SESSION_CONNECTION_MODE:
+        return ResolvedPostgresConnection(
+            database_url=validate_operator_postgres_url(stripped_url),
+            connection_mode=OPERATOR_SESSION_CONNECTION_MODE,
         )
     if connection_mode != PERSISTENT_RUNTIME_CONNECTION_MODE:
         raise ValueError(f"unsupported postgres connection mode: {connection_mode}")
@@ -283,18 +304,21 @@ __all__ = [
     "DEFAULT_PERSISTENT_POSTGRES_POOL_MIN_SIZE",
     "DEFAULT_PERSISTENT_POSTGRES_POOL_TIMEOUT_SECONDS",
     "MANAGEMENT_DIRECT_CONNECTION_MODE",
+    "OPERATOR_SESSION_CONNECTION_MODE",
     "POSTGRES_CONNECTION_MODE_QUERY_KEY",
     "PERSISTENT_RUNTIME_CONNECTION_MODE",
     "ResolvedPostgresConnection",
     "SUPABASE_SESSION_POOLER_PORT",
     "SUPABASE_SESSION_POOLER_RUNTIME_POOL_MAX_SIZE",
     "SUPABASE_SESSION_POOLER_RUNTIME_POOL_MIN_SIZE",
+    "build_operator_postgres_connection_url",
     "build_management_postgres_connection_url",
     "close_persistent_postgres_pools",
     "direct_postgres_connection",
     "normalize_postgres_connection_url",
     "open_postgres_connection",
     "resolve_postgres_connection",
+    "validate_operator_postgres_url",
     "validate_management_postgres_url",
     "pooled_postgres_connection",
     "validate_persistent_postgres_runtime_url",

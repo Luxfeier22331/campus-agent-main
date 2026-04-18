@@ -95,8 +95,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.promo
 
 - `OBJECT_STORE_*` 已配置
 - `DOCUMENT_REGISTRY_DATABASE_URL` / `RAW_ASSET_REGISTRY_DATABASE_URL` 已配置
-- offline operator shell 必须显式提供 management direct DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` 或 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
-- 当共享库由 Supabase 承载时，management URL 必须是 `db.<project-ref>.supabase.co:5432` 这类 direct DSN；helper 不再在 `prefer_management=True` 时回退到 `CAMPUS_SHARED_POSTGRES_URL`
+- offline operator shell 必须显式提供 operator lane DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL` 或 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+- legacy `AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` / `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仍作为兼容别名接受，但当前默认语义已经收口为同一条 IPv4 session-pooler `:5432` operator lane
 - 目标 collection 是 `campus_notices/internal_notice`
 - collection posture 是 `restricted + offline_preparation`
 

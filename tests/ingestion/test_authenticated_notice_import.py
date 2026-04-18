@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.authenticated_notice_import import (
@@ -768,6 +769,48 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertEqual(owner_expectation["relation_type"], "file_release_ref")
         self.assertEqual(owner_expectation["owner_title_hint"], "中央民族大学差旅费管理办法")
         self.assertIn("信息门户-文件发布", owner_expectation["evidence_text"])
+
+    def test_import_authenticated_notice_export_builds_inventory_store_from_management_env(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL": "postgresql://example.test/management",
+            }
+
+            with patch(
+                "campus_ingestion_core.authenticated_notice_import.build_authenticated_notice_source_truth_inventory_store_from_env",
+                return_value=inventory_store,
+            ) as build_inventory_store:
+                report = import_authenticated_notice_export(
+                    request=AuthenticatedNoticeImportRequest(
+                        bundle_path=bundle_path,
+                        export_manifest_path=manifest_path,
+                        site_id="muc_internal_portal",
+                        source_home_url="https://portal.example.edu/home",
+                    ),
+                    env=env,
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                )
+
+        self.assertEqual(report["errors"], [])
+        build_inventory_store.assert_called_once_with(env, prefer_operator=True)
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].notice_id, "355119")
 
     def test_import_authenticated_notice_bundle_prefers_collector_export_contract_version(self) -> None:
         manifest = _sample_export_manifest()

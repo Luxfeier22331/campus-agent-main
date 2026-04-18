@@ -767,35 +767,35 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
-    def test_build_document_registry_from_env_prefers_management_database_url_when_requested(self) -> None:
+    def test_build_document_registry_from_env_prefers_operator_database_url_when_requested(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
             instance = registry_cls.return_value
 
             registry = build_document_registry_from_env(
                 {
                     "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
-                    "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with(
-                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+                "postgresql://operator.example/postgres?__campus_connection_mode=operator_session"
             )
 
-    def test_build_document_registry_from_env_requires_management_database_url_when_requested(
+    def test_build_document_registry_from_env_requires_operator_database_url_when_requested(
         self,
     ) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL.*prefer_operator=True",
         ):
             build_document_registry_from_env(
                 {
                     "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
     def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
@@ -846,35 +846,35 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
-    def test_build_raw_asset_registry_from_env_prefers_management_database_url_when_requested(self) -> None:
+    def test_build_raw_asset_registry_from_env_prefers_operator_database_url_when_requested(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
 
             registry = build_raw_asset_registry_from_env(
                 {
                     "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
-                    "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with(
-                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+                "postgresql://operator.example/postgres?__campus_connection_mode=operator_session"
             )
 
-    def test_build_raw_asset_registry_from_env_requires_management_database_url_when_requested(
+    def test_build_raw_asset_registry_from_env_requires_operator_database_url_when_requested(
         self,
     ) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL.*prefer_operator=True",
         ):
             build_raw_asset_registry_from_env(
                 {
                     "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
     def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
@@ -916,7 +916,7 @@ class RegistryModelsTest(unittest.TestCase):
                     }
                 )
 
-    def test_build_closeout_store_from_env_prefers_management_database_url_when_requested(self) -> None:
+    def test_build_closeout_store_from_env_prefers_operator_database_url_when_requested(self) -> None:
         with patch(
             "campus_ingestion_core.authenticated_notice_closeout_store.PostgresAuthenticatedNoticeCloseoutStore"
         ) as store_cls:
@@ -925,31 +925,31 @@ class RegistryModelsTest(unittest.TestCase):
             store = build_authenticated_notice_closeout_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": "postgresql://runtime.example/postgres",
-                    "AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                    "AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
             self.assertIs(store, instance)
             store_cls.assert_called_once_with(
-                "postgresql://management.example/postgres?__campus_connection_mode=management_direct"
+                "postgresql://operator.example/postgres?__campus_connection_mode=operator_session"
             )
 
-    def test_build_closeout_store_from_env_requires_management_database_url_when_requested(
+    def test_build_closeout_store_from_env_requires_operator_database_url_when_requested(
         self,
     ) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL.*prefer_operator=True",
         ):
             build_authenticated_notice_closeout_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": "postgresql://runtime.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
-    def test_build_source_truth_inventory_store_from_env_prefers_management_database_url_when_requested(
+    def test_build_source_truth_inventory_store_from_env_prefers_operator_database_url_when_requested(
         self,
     ) -> None:
         with patch(
@@ -960,31 +960,31 @@ class RegistryModelsTest(unittest.TestCase):
             store = build_authenticated_notice_source_truth_inventory_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
-                    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_MANAGEMENT_DATABASE_URL": "postgresql://management.example/postgres",
+                    "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
             self.assertIs(store, instance)
             store_cls.assert_called_once_with(
                 database_url=(
-                    "postgresql://management.example/postgres"
-                    "?__campus_connection_mode=management_direct"
+                    "postgresql://operator.example/postgres"
+                    "?__campus_connection_mode=operator_session"
                 )
             )
 
-    def test_build_source_truth_inventory_store_from_env_requires_management_database_url_when_requested(
+    def test_build_source_truth_inventory_store_from_env_requires_operator_database_url_when_requested(
         self,
     ) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL.*prefer_management=True",
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL.*prefer_operator=True",
         ):
             build_authenticated_notice_source_truth_inventory_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
                 },
-                prefer_management=True,
+                prefer_operator=True,
             )
 
     def test_postgres_document_registry_delete_document_targets_document_id(self) -> None:

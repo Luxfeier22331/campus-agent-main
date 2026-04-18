@@ -53,6 +53,34 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
                 SESSION_POOLER_URL.replace("?sslmode=require", "")
             )
 
+    def test_validate_operator_url_accepts_supabase_session_pooler(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        self.assertEqual(
+            runtime.validate_operator_postgres_url(SESSION_POOLER_URL),
+            SESSION_POOLER_URL,
+        )
+
+    def test_validate_operator_url_rejects_supabase_direct_connection(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        with self.assertRaisesRegex(ValueError, "session pooler"):
+            runtime.validate_operator_postgres_url(DIRECT_SUPABASE_URL)
+
+    def test_validate_operator_url_rejects_supabase_transaction_pooler(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        with self.assertRaisesRegex(ValueError, "session pooler"):
+            runtime.validate_operator_postgres_url(TRANSACTION_POOLER_URL)
+
+    def test_build_operator_connection_url_marks_operator_session_mode(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        self.assertEqual(
+            runtime.build_operator_postgres_connection_url(SESSION_POOLER_URL),
+            SESSION_POOLER_URL + "&__campus_connection_mode=operator_session",
+        )
+
     def test_validate_management_url_rejects_supabase_session_pooler(self) -> None:
         runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
 

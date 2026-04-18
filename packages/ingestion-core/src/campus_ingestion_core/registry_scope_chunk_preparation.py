@@ -397,7 +397,7 @@ def _select_preparation_records(
     if closeout_run_id:
         runtime_closeout_store = closeout_store or build_authenticated_notice_closeout_store_from_env(
             source,
-            prefer_management=True,
+            prefer_operator=True,
         )
         pairs = load_verified_closeout_run_document_record_pairs(
             run_id=closeout_run_id,
@@ -420,7 +420,7 @@ def _select_preparation_records(
     records = select_releasable_registry_records(
         records=(
             runtime_registry
-            or build_document_registry_from_env(source, prefer_management=True)
+            or build_document_registry_from_env(source, prefer_operator=True)
         ).list_by_scope(corpus, collection),
         runtime_profile=runtime_profile,
     )
