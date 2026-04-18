@@ -139,6 +139,7 @@ class PromptRuntimeProviderConfig:
     api_key: str
     base_url: str = DEFAULT_PROMPT_RUNTIME_BASE_URL
     transport: PromptRuntimeTransport = "responses"
+    supports_safety_identifier: bool = True
     reasoning_effort: str | None = None
     max_output_tokens: int | None = None
     http_settings: PromptRuntimeHTTPSettings = PromptRuntimeHTTPSettings()
@@ -171,6 +172,7 @@ class ResponsesStructuredOutputExecutor:
         stack: PromptStackLike,
         *,
         response_model: type[StructuredOutputModel],
+        safety_identifier: str | None = None,
     ) -> StructuredOutputModel:
         if stack.model_provider != self._provider_config.provider:
             raise PromptRuntimeValidationError(
@@ -185,13 +187,24 @@ class ResponsesStructuredOutputExecutor:
                 prompt_id=stack.prompt_id,
                 reason="stack model_name must be non-empty",
             )
-        payload = _build_responses_structured_payload(
-            model=stack.model_name,
-            messages=stack.messages,
-            response_model=response_model,
-            reasoning_effort=self._provider_config.reasoning_effort,
-            max_output_tokens=self._provider_config.max_output_tokens,
-        )
+        try:
+            payload = _build_responses_structured_payload(
+                model=stack.model_name,
+                messages=stack.messages,
+                response_model=response_model,
+                reasoning_effort=self._provider_config.reasoning_effort,
+                max_output_tokens=self._provider_config.max_output_tokens,
+                safety_identifier=(
+                    _normalize_optional_safety_identifier(safety_identifier)
+                    if self._provider_config.supports_safety_identifier
+                    else None
+                ),
+            )
+        except ValueError as exc:
+            raise PromptRuntimeValidationError(
+                prompt_id=stack.prompt_id,
+                reason=str(exc),
+            ) from exc
         try:
             response_json = _decode_json_response(
                 self._get_http_client().post(
@@ -500,6 +513,7 @@ def _build_responses_structured_payload(
     response_model: type[BaseModel],
     reasoning_effort: str | None,
     max_output_tokens: int | None,
+    safety_identifier: str | None,
 ) -> dict[str, object]:
     schema = _close_json_schema_objects(response_model.model_json_schema())
     payload: dict[str, object] = {
@@ -526,7 +540,22 @@ def _build_responses_structured_payload(
         payload["reasoning"] = {"effort": reasoning_effort}
     if max_output_tokens is not None:
         payload["max_output_tokens"] = max_output_tokens
+    if safety_identifier is not None:
+        payload["safety_identifier"] = safety_identifier
     return payload
+
+
+def _normalize_optional_safety_identifier(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if not _SHA256_RE.fullmatch(normalized):
+        raise ValueError(
+            "safety_identifier must be a 64-character lowercase hex string"
+        )
+    return normalized
 
 
 def _close_json_schema_objects(schema: object) -> object:

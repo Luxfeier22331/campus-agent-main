@@ -42,6 +42,7 @@ def _build_supervisor_packet():
     request = SupervisorRequest(
         user_goal="法学民族实验班培养方案里大二下有什么课",
         request_id="req-supervisor-provider-exec",
+        safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         trace=TraceContext(trace_id="trace-supervisor-provider-exec"),
         actor=ActorContext(user_id="student-001"),
         requested_capability="knowledge",
@@ -74,6 +75,7 @@ def _build_rag_packet():
         target="rag-specialist",
         user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
         request_id="req-rag-provider-exec",
+        safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         trace=TraceContext(trace_id="trace-rag-provider-exec"),
         actor=ActorContext(user_id="student-001"),
         context=ContextProjection(actor=ActorContext(user_id="student-001")),
@@ -153,9 +155,16 @@ class ProviderBackedPromptExecutorTest(unittest.TestCase):
             [item["role"] for item in captured_payloads[0]["input"]],
             ["developer", "developer", "developer", "user"],
         )
+        self.assertEqual(
+            captured_payloads[0]["safety_identifier"],
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
 
     def test_rag_executor_returns_typed_output_and_prompt_trace(self) -> None:
+        captured_payloads: list[dict[str, object]] = []
+
         def handler(request: httpx.Request) -> httpx.Response:
+            captured_payloads.append(json.loads(request.content.decode("utf-8")))
             return httpx.Response(
                 200,
                 json={
@@ -184,6 +193,10 @@ class ProviderBackedPromptExecutorTest(unittest.TestCase):
         self.assertEqual(execution.prompt_trace.prompt_id, "rag_answer_v1")
         self.assertEqual(execution.prompt_trace.model_provider, "openai-responses")
         self.assertEqual(execution.prompt_trace.model_name, "gpt-5.2-mini")
+        self.assertEqual(
+            captured_payloads[0]["safety_identifier"],
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
 
     def test_supervisor_executor_fail_closes_on_provider_refusal(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:

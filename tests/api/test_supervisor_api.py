@@ -82,6 +82,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "conversation_id": "conv-001",
                 "request_id": "req-001",
+                "safety_identifier": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "student_handbook",
@@ -101,6 +102,10 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].user_goal, "library hours")
         self.assertEqual(captured_requests[0].conversation_id, "conv-001")
         self.assertEqual(captured_requests[0].request_id, "req-001")
+        self.assertEqual(
+            captured_requests[0].safety_identifier,
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
         self.assertEqual(captured_requests[0].trace, TraceContext(trace_id="trace-001"))
         self.assertEqual(captured_requests[0].actor.user_id, "api-bearer-user")
         self.assertEqual(captured_requests[0].actor.roles, ("student",))

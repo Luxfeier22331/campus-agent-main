@@ -49,6 +49,7 @@ class ContractModelsTest(unittest.TestCase):
 
         self.assertEqual(request.conversation_id, "")
         self.assertEqual(request.request_id, "")
+        self.assertIsNone(request.safety_identifier)
         self.assertIsNone(request.requested_capability)
         self.assertIsNone(request.requested_scope)
         self.assertIsNone(request.availability_target_id)
@@ -163,6 +164,13 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(request.context.authorization.retrieval_filter.visibility_level, "public")
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
+
+    def test_supervisor_request_rejects_non_hex_safety_identifier(self) -> None:
+        with self.assertRaises(ValueError):
+            SupervisorRequest(
+                user_goal="保研政策怎么准备？",
+                safety_identifier="student-001",
+            )
 
     def test_session_summary_exposes_curriculum_follow_up_slots_with_last_confirmed_precedence(self) -> None:
         summary = SessionSummary(

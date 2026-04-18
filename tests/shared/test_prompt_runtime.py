@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+import json
 import unittest
+
+import httpx
+from pydantic import BaseModel
 
 from campus_contracts import PromptTrace
 from campus_shared import (
     NormalizedProviderGroundingSupport,
+    PromptRuntimeHTTPSettings,
+    PromptRuntimeProviderConfig,
     PromptRuntimeValidationError,
+    ResponsesStructuredOutputExecutor,
     normalize_provider_grounding_supports,
     validate_prompt_trace_contract,
 )
@@ -60,6 +68,124 @@ class PromptRuntimeValidationTest(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_responses_executor_includes_safety_identifier_when_supported(self) -> None:
+        captured_payloads: list[str] = []
+
+        class ResponseModel(BaseModel):
+            answer_text: str
+
+        @dataclass(frozen=True, slots=True)
+        class Message:
+            role: str
+            content: str
+
+        @dataclass(frozen=True, slots=True)
+        class Stack:
+            prompt_id: str
+            model_provider: str
+            model_name: str
+            messages: tuple[Message, ...]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured_payloads.append(request.read().decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "output_parsed": {
+                        "answer_text": "ok",
+                    },
+                },
+            )
+
+        executor = ResponsesStructuredOutputExecutor(
+            PromptRuntimeProviderConfig(
+                provider="openai-responses",
+                transport="responses",
+                base_url="https://prompt-runtime.example/v1",
+                api_key="test-api-key",
+                http_settings=PromptRuntimeHTTPSettings(),
+            ),
+            http_client=httpx.Client(
+                transport=httpx.MockTransport(handler),
+                base_url="https://prompt-runtime.example/v1",
+            ),
+        )
+
+        executor.execute(
+            Stack(
+                prompt_id="prompt_v1",
+                model_provider="openai-responses",
+                model_name="gpt-5.2-mini",
+                messages=(Message(role="developer", content="{}"),),
+            ),
+            response_model=ResponseModel,
+            safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+
+        self.assertEqual(
+            json.loads(captured_payloads[0])["safety_identifier"],
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+
+    def test_responses_executor_omits_safety_identifier_when_provider_config_disables_it(self) -> None:
+        captured_payloads: list[str] = []
+
+        class ResponseModel(BaseModel):
+            answer_text: str
+
+        @dataclass(frozen=True, slots=True)
+        class Message:
+            role: str
+            content: str
+
+        @dataclass(frozen=True, slots=True)
+        class Stack:
+            prompt_id: str
+            model_provider: str
+            model_name: str
+            messages: tuple[Message, ...]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured_payloads.append(request.read().decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "output_parsed": {
+                        "answer_text": "ok",
+                    },
+                },
+            )
+
+        executor = ResponsesStructuredOutputExecutor(
+            PromptRuntimeProviderConfig(
+                provider="openai-responses",
+                transport="responses",
+                base_url="https://prompt-runtime.example/v1",
+                api_key="test-api-key",
+                http_settings=PromptRuntimeHTTPSettings(),
+                supports_safety_identifier=False,
+            ),
+            http_client=httpx.Client(
+                transport=httpx.MockTransport(handler),
+                base_url="https://prompt-runtime.example/v1",
+            ),
+        )
+
+        executor.execute(
+            Stack(
+                prompt_id="prompt_v1",
+                model_provider="openai-responses",
+                model_name="gpt-5.2-mini",
+                messages=(Message(role="developer", content="{}"),),
+            ),
+            response_model=ResponseModel,
+            safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+
+        self.assertNotIn('"safety_identifier"', captured_payloads[0])
 
 
 if __name__ == "__main__":
