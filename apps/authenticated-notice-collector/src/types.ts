@@ -330,6 +330,7 @@ export interface FileReleaseExportManifest {
     page_size: number;
     max_pages: number | null;
     max_file_releases: number | null;
+    target_file_release_id: number | null;
   };
   observed_file_types: Array<{
     id: number;

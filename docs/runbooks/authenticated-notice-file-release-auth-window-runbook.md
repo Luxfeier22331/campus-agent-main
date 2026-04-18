@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-18
 ---
 
 # Authenticated Notice File-Release Auth-Window Runbook
@@ -25,7 +25,7 @@ updated: 2026-04-12
 
 - `authenticated_notice_portal/file_release`
 - collector side capture / export
-- next auth window 的 smoke + full export
+- next auth window 的 bounded capture，以及必要时的 full export
 
 当前明确不做：
 
@@ -98,7 +98,39 @@ pnpm --dir apps/authenticated-notice-collector auth:check
 
 ### 3. 先做 bounded smoke
 
-拿到通过的预检后，先做一个最小 bounded export：
+如果当前 auth window 的目标是 `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`，这里默认走 targeted export，不再用“随便抓 1 条”的数量 smoke 代替。
+
+前提：
+
+- operator 已经从 portal 侧确认这次要抓的精确 `file_release_id`
+- 如果还没有这个 id，本 runbook 不授权直接回退到 full export 代替 targeted capture
+
+执行命令：
+
+```bash
+AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<351119对应file_release_id> \
+pnpm --dir apps/authenticated-notice-collector file-release:export
+```
+
+如需同时验证源文件 materialization，可在对象存储凭据已配置的前提下直接复用同一条命令；不需要额外放大抓取范围。
+
+目标：
+
+- 只导出目标 `file_release_id` 对应的一条记录
+- 确认 `pageFile -> getFile -> getFileUrl` 链路可用
+- 确认 bundle / manifest 能成功落盘
+- 如果对象存储已配置，确认目标 released file 可写入 source bucket
+
+固定判定：
+
+- manifest `filters.target_file_release_id` 必须等于目标 id
+- manifest `run.items_inserted` 必须为 `1`
+- bundle 首行的 `file_release_id` 必须等于目标 id
+- 如果 collector 报 `target file_release_id <id> was not found in file_release export scope`，按 fail-close 处理，本轮不接受空成功产物
+
+### 4. 可选的通用 bounded smoke
+
+如果这次 auth window 不是为 `351119` 做定向抓取，而只是验证 collector 链路，可继续使用最小数量 smoke：
 
 ```bash
 AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
@@ -120,9 +152,9 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - 确认 bundle / manifest 能成功落盘
 - 如果对象存储已配置，确认 released file 可写入 source bucket
 
-### 4. 再做 full export
+### 5. 再做 full export
 
-bounded smoke 通过后，再执行 full export：
+只有在明确需要 broader file-release inventory 时，才在 targeted export / bounded smoke 通过后继续 full export：
 
 ```bash
 pnpm --dir apps/authenticated-notice-collector file-release:export
@@ -136,7 +168,8 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 固定规则：
 
-- 先 smoke，再 full
+- `351119` 的下一次 auth-window 准备默认停在 targeted export，不默认升级成 full export
+- 只有明确需要 broader inventory 时，才从 targeted / smoke 升级到 full
 - 不要在认证窗口里一边改代码一边试导出
 - 不要在 full export 前跳过 `auth:check`
 
@@ -150,6 +183,11 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 - `file-releases-bundle-<timestamp>.json`
 - `file-releases-manifest-<timestamp>.json`
+
+如果当前执行的是 `351119` targeted export，还应看到 manifest 中：
+
+- `export_scope=file-release-target-<file_release_id>-<timestamp>`
+- `filters.target_file_release_id=<file_release_id>`
 
 如果对象存储凭据齐全且源文件 materialization 成功，还应看到 manifest / bundle 中：
 
@@ -168,9 +206,9 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 - 使用日期
 - `auth:check` 输出
-- smoke 产物文件名
-- full export 产物文件名
-- full export item count
+- targeted / smoke 产物文件名
+- targeted / smoke 的目标 `file_release_id` 与 `items_inserted`
+- 如果执行了 full export，再额外记录 full export 产物文件名与 item count
 - 如果启用了 source bucket 上传，保留 object key 样例和 uploaded file count
 
 建议本地证据目录：
@@ -187,8 +225,10 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
    - 看 `run.items_inserted`
    - 看 `run.file_urls_resolved`
    - 看 `collector.file_storage_mode`
+   - targeted export 时再看 `filters.target_file_release_id`
 3. bundle 首行
    - 确认 `source_surface=file_release`
+   - targeted export 时确认 `file_release_id` 与目标一致
    - 确认 `released_file` 是 `reference_only` 还是 `object_store`
 4. source bucket
    - 若预期 materialized，但没有对象，直接视为本轮未完成 capture

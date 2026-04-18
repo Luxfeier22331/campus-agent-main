@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-18
 ---
 
 # Authenticated Notice File-Release Export Contract
@@ -62,9 +62,10 @@ updated: 2026-04-12
 
 - `20260412T003000Z`
 
-对应 `export_scope` 固定为：
+对应 `export_scope` 分两种：
 
-- `file-release-<timestamp>`
+- full export：`file-release-<timestamp>`
+- targeted export：`file-release-target-<file_release_id>-<timestamp>`
 
 ## Schema Version
 
@@ -187,12 +188,26 @@ collector metadata 固定包括：
 - `page_size`
 - `max_pages`
 - `max_file_releases`
+- `target_file_release_id`
 
 它们分别对应以下 env：
 
 - `AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE`
 - `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES`
 - `AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS`
+- `AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID`
+
+其中 `target_file_release_id` 固定代表：
+
+- 单个精确 `file_release_id`
+- 为下一次 auth window 的 bounded capture 提供“只抓这一条”的 selector
+- 不是模糊搜索，也不是 collector 侧的通用查询语义
+
+collector 当前固定行为：
+
+- 未设置 `target_file_release_id` 时，继续按现有 full export / quantity-bounded export 语义执行
+- 设置 `target_file_release_id` 时，只允许导出该 `file_release_id` 对应的 bundle row
+- 如果 traversed export scope 内没有命中目标 `file_release_id`，collector 必须 fail-close，不能写出空 bundle 的伪成功结果
 
 ## Storage Semantics
 
@@ -256,6 +271,8 @@ released file 的 capture 结果只允许两种解释：
 - 不把 `reference_only` 误写成“已完成源文件捕获”
 - 不把 bundle / manifest 直接当成 canonical source-truth
 - 不在这条导出线上继续 replay、OCR、promotion、chunk、index
+- 不把 `target_file_release_id` 扩成标题模糊匹配、notice 关联搜索或多条件 query surface
+- targeted export 未命中目标 `file_release_id` 时，不静默落空成功结果
 
 ## Verification Anchor
 

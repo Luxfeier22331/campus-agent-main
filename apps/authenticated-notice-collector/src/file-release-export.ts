@@ -64,6 +64,7 @@ export interface CollectFileReleaseBundleInput {
   requestMaxRetries: number;
   siteId: string;
   sourceHomeUrl: string;
+  targetFileReleaseId?: number | null;
 }
 
 export interface CollectFileReleaseBundleResult {
@@ -206,6 +207,7 @@ export async function collectFileReleaseBundle(
 
   const bundleMap = new Map<number, BundleFileReleaseRecord>();
   const observedDepartments = new Set<string>();
+  const targetFileReleaseId = input.targetFileReleaseId ?? null;
   let detailFetched = 0;
   let fileUrlsResolved = 0;
   let itemsSeen = 0;
@@ -218,6 +220,9 @@ export async function collectFileReleaseBundle(
 
     for (let currentPage = 1; ; currentPage += 1) {
       if (input.maxPages !== null && input.maxPages !== undefined && currentPage > input.maxPages) {
+        break;
+      }
+      if (targetFileReleaseId !== null && bundleMap.has(targetFileReleaseId)) {
         break;
       }
       if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
@@ -243,6 +248,9 @@ export async function collectFileReleaseBundle(
       for (const item of pageItems) {
         const fileReleaseId = normalizeOptionalId(item.id);
         if (fileReleaseId === null || bundleMap.has(fileReleaseId)) {
+          continue;
+        }
+        if (targetFileReleaseId !== null && fileReleaseId !== targetFileReleaseId) {
           continue;
         }
         if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
@@ -271,6 +279,9 @@ export async function collectFileReleaseBundle(
         );
       }
 
+      if (targetFileReleaseId !== null && bundleMap.has(targetFileReleaseId)) {
+        break;
+      }
       if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
         break;
       }
@@ -284,6 +295,9 @@ export async function collectFileReleaseBundle(
     }
 
     const bundleRecords = [...bundleMap.values()];
+    if (targetFileReleaseId !== null && !bundleMap.has(targetFileReleaseId)) {
+      throw new Error(`target file_release_id ${targetFileReleaseId} was not found in file_release export scope`);
+    }
     const materialized =
       input.attachmentArtifactStore === undefined
         ? {
@@ -313,6 +327,7 @@ export async function collectFileReleaseBundle(
         pagesFetched,
         siteId: input.siteId,
         sourceHomeUrl: input.sourceHomeUrl,
+        targetFileReleaseId,
         fileStorageMode:
           input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
       }),
@@ -478,6 +493,7 @@ function buildExportManifest(input: {
   pagesFetched: number;
   siteId: string;
   sourceHomeUrl: string;
+  targetFileReleaseId: number | null;
   fileStorageMode: CollectorFileReleaseExportMetadata["file_storage_mode"];
 }): FileReleaseExportManifest {
   const timestamp = toTimestampLabel(input.exportedAt);
@@ -485,7 +501,10 @@ function buildExportManifest(input: {
     schema_version: FILE_RELEASE_EXPORT_SCHEMA_VERSION,
     exported_at: input.exportedAt,
     export_date: timestamp.slice(0, 8),
-    export_scope: `file-release-${timestamp}`,
+    export_scope:
+      input.targetFileReleaseId === null
+        ? `file-release-${timestamp}`
+        : `file-release-target-${input.targetFileReleaseId}-${timestamp}`,
     source_channel: AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
     source_surface: "file_release",
     site_id: input.siteId,
@@ -503,6 +522,7 @@ function buildExportManifest(input: {
       page_size: input.pageSize,
       max_pages: input.maxPages,
       max_file_releases: input.maxFileReleases,
+      target_file_release_id: input.targetFileReleaseId,
     },
     observed_file_types: input.observedFileTypes,
     observed_departments: input.observedDepartments,
@@ -731,15 +751,32 @@ function parsePositiveInteger(raw: string | undefined, fallback: number | null):
   return Math.floor(parsed);
 }
 
+export function resolveFileReleaseExportFiltersFromEnv(env: NodeJS.ProcessEnv): {
+  maxFileReleases: number | null;
+  maxPages: number | null;
+  pageSize: number;
+  targetFileReleaseId: number | null;
+} {
+  return {
+    pageSize: parsePositiveInteger(env.AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE, 100) ?? 100,
+    maxPages: parsePositiveInteger(env.AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES, null),
+    maxFileReleases: parsePositiveInteger(env.AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS, null),
+    targetFileReleaseId: parsePositiveInteger(env.AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID, null),
+  };
+}
+
 export async function main(): Promise<void> {
   loadCollectorEnv();
   const config = resolveCollectorConfig(process.env);
   ensureRuntimeDirs(config);
   const exportedAt = new Date().toISOString();
   const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
-  const pageSize = parsePositiveInteger(process.env.AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE, 100) ?? 100;
-  const maxPages = parsePositiveInteger(process.env.AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES, null);
-  const maxFileReleases = parsePositiveInteger(process.env.AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS, null);
+  const {
+    pageSize,
+    maxPages,
+    maxFileReleases,
+    targetFileReleaseId,
+  } = resolveFileReleaseExportFiltersFromEnv(process.env);
   const result = await collectFileReleaseBundle({
     attachmentArtifactStore,
     exportedAt,
@@ -750,6 +787,7 @@ export async function main(): Promise<void> {
     requestMaxRetries: config.requestMaxRetries,
     siteId: config.siteId,
     sourceHomeUrl: config.sourceHomeUrl,
+    targetFileReleaseId,
   });
   const written = writeFileReleaseArtifacts({
     bundleRecords: result.bundleRecords,

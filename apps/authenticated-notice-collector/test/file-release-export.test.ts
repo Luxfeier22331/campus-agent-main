@@ -8,6 +8,7 @@ import {
   buildAuthenticatedNoticeFileReleaseCaptureKey,
   buildFileReleaseRecord,
   collectFileReleaseBundle,
+  resolveFileReleaseExportFiltersFromEnv,
   writeFileReleaseArtifacts,
 } from "../src/file-release-export";
 
@@ -231,6 +232,186 @@ describe("authenticated notice collector file release export", () => {
     expect(result.bundleRecords.map((item) => item.file_release_id)).toEqual([646, 647]);
   });
 
+  it("collects only the targeted file release when a target id is provided", async () => {
+    const detailCalls: number[] = [];
+    const urlCalls: number[] = [];
+
+    const result = await collectFileReleaseBundle({
+      createApiContext: async () => ({
+        dispose: async () => {},
+        get: async () => ({
+          body: async () => Buffer.from(""),
+          json: async () => ({}),
+          ok: () => true,
+          status: () => 200,
+          statusText: () => "OK",
+        }),
+        post: async () => {
+          throw new Error("unexpected post");
+        },
+      }),
+      exportedAt: "2026-04-12T00:30:00.000Z",
+      fetchFileReleaseDetail: async ({ fileReleaseId }) => {
+        detailCalls.push(fileReleaseId);
+        return {
+          filecode: `民大校发〔2026〕${fileReleaseId}号`,
+          filedepartment: "教务处",
+          filename: `制度 ${fileReleaseId}`,
+          filetime: "2026-03-31 13:51:11",
+          filetypeid: 18,
+          fileurl: `/comsys/20181214/webapps/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
+          id: fileReleaseId,
+          state: 1,
+          upfilename: `制度-${fileReleaseId}.pdf`,
+        };
+      },
+      fetchFileReleaseDownloadUrl: async ({ fileReleaseId }) => {
+        urlCalls.push(fileReleaseId);
+        return {
+          state: true,
+          url: `/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
+        };
+      },
+      fetchFileReleasePage: async ({ currentPage }) => {
+        if (currentPage === 1) {
+          return {
+            data: [
+              {
+                filecode: "民大校发〔2026〕646号",
+                filedepartment: "教务处",
+                filename: "制度 646",
+                filetime: "2026-03-31 13:51:11",
+                id: 646,
+                typename: "教学管理",
+                user_name: "张老师",
+              },
+              {
+                filecode: "民大校发〔2026〕647号",
+                filedepartment: "教务处",
+                filename: "制度 647",
+                filetime: "2026-03-31 13:56:42",
+                id: 647,
+                typename: "教学管理",
+                user_name: "张老师",
+              },
+            ],
+            dws: [{ filedepartment: "教务处" }],
+            size: 3,
+            state: true,
+            sync: false,
+          };
+        }
+
+        throw new Error("unexpected extra page fetch");
+      },
+      fetchFileReleaseTypes: async () => ({
+        data: [
+          {
+            id: 18,
+            sort: 3,
+            typename: "教学管理",
+          },
+        ],
+        state: true,
+      }),
+      maxFileReleases: null,
+      pageSize: 10,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      siteId: "muc_internal_portal",
+      sourceHomeUrl: "https://portal.example.edu",
+      targetFileReleaseId: 647,
+    });
+
+    expect(detailCalls).toEqual([647]);
+    expect(urlCalls).toEqual([647]);
+    expect(result.bundleRecords.map((item) => item.file_release_id)).toEqual([647]);
+    expect(result.exportManifest.export_scope).toBe("file-release-target-647-20260412T003000Z");
+    expect(result.exportManifest.filters).toEqual({
+      max_file_releases: null,
+      max_pages: null,
+      page_size: 10,
+      target_file_release_id: 647,
+    });
+  });
+
+  it("fails closed when a targeted file release id is not present in the traversed export scope", async () => {
+    await expect(
+      collectFileReleaseBundle({
+        createApiContext: async () => ({
+          dispose: async () => {},
+          get: async () => ({
+            body: async () => Buffer.from(""),
+            json: async () => ({}),
+            ok: () => true,
+            status: () => 200,
+            statusText: () => "OK",
+          }),
+          post: async () => {
+            throw new Error("unexpected post");
+          },
+        }),
+        exportedAt: "2026-04-12T00:30:00.000Z",
+        fetchFileReleaseDetail: async () => {
+          throw new Error("unexpected detail fetch");
+        },
+        fetchFileReleaseDownloadUrl: async () => {
+          throw new Error("unexpected url fetch");
+        },
+        fetchFileReleasePage: async () => ({
+          data: [
+            {
+              filecode: "民大校发〔2026〕646号",
+              filedepartment: "教务处",
+              filename: "制度 646",
+              filetime: "2026-03-31 13:51:11",
+              id: 646,
+              typename: "教学管理",
+              user_name: "张老师",
+            },
+          ],
+          dws: [{ filedepartment: "教务处" }],
+          size: 1,
+          state: true,
+          sync: false,
+        }),
+        fetchFileReleaseTypes: async () => ({
+          data: [
+            {
+              id: 18,
+              sort: 3,
+              typename: "教学管理",
+            },
+          ],
+          state: true,
+        }),
+        maxFileReleases: null,
+        pageSize: 10,
+        requestBackoffBaseMs: 1,
+        requestMaxRetries: 1,
+        siteId: "muc_internal_portal",
+        sourceHomeUrl: "https://portal.example.edu",
+        targetFileReleaseId: 351119,
+      }),
+    ).rejects.toThrow("target file_release_id 351119 was not found in file_release export scope");
+  });
+
+  it("parses targeted file release export filters from env", () => {
+    expect(
+      resolveFileReleaseExportFiltersFromEnv({
+        AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS: "5",
+        AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES: "2",
+        AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE: "20",
+        AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID: "351119",
+      }),
+    ).toEqual({
+      maxFileReleases: 5,
+      maxPages: 2,
+      pageSize: 20,
+      targetFileReleaseId: 351119,
+    });
+  });
+
   it("materializes released files into object-backed rows when an artifact store is configured", async () => {
     const storedObjects: Array<{
       contentType: string;
@@ -400,6 +581,7 @@ describe("authenticated notice collector file release export", () => {
           max_file_releases: null,
           max_pages: null,
           page_size: 10,
+          target_file_release_id: null,
         },
         observed_departments: ["教务处"],
         observed_file_types: [
