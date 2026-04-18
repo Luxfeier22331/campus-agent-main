@@ -1,6 +1,6 @@
 ---
 doc_type: runbook
-status: completed
+status: historical
 created: 2026-04-04
 updated: 2026-04-12
 ---

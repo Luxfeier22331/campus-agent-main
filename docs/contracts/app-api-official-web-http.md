@@ -15,7 +15,7 @@ updated: 2026-04-12
 
 - `official_web` control-plane 形态：`docs/architecture/official-web-architecture.md`
 - source-channel 总边界：`docs/architecture/official-web-architecture.md`
-- 领域导航：`docs/reference/official-web-reading-guide.md`
+- 领域导航：`docs/domains/official-web.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 - logical schema：`docs/data/app-api-official-web-schema.md`
 - browser/product HTTP contract：`docs/contracts/app-api-http.md`
@@ -34,7 +34,7 @@ updated: 2026-04-12
 
 判断当前已实现子集时：
 
-- 当前已落地能力以 `docs/architecture/current-architecture.md`、`docs/reference/official-web-reading-guide.md` 和代码为准
+- 当前已落地能力以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 和代码为准
 - 当前 accepted direction 与长期边界以本文、supporting architecture、schema 与相关 ADR 为准
 
 ## 适用范围

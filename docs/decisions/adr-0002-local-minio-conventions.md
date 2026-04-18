@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-03-31
+updated: 2026-04-03
 ---
 
 # ADR-0002 本地 MinIO 约束与迁移不变量
@@ -123,8 +123,10 @@ updated: 2026-03-31
 - `content_hash`
 - `corpus`
 - `collection`
-- `acl_groups`
-- `campus_scope`
+- `visibility_level`
+- `visibility_scope`
+- `entitlement_groups`
+- `policy_projection_version`
 - `status`
 - `ingestion_timestamp`
 - `parser_version`
@@ -140,9 +142,9 @@ updated: 2026-03-31
 
 补充说明：
 
-- 当前 phase-1 实现里，document registry 仍显式保存 `acl_groups` / `campus_scope`
+- 当前 document registry 显式保存 `visibility_level` / `visibility_scope` / `entitlement_groups` / `policy_projection_version`
 - 这组字段的语义是 retrieval pre-filter projection carrier，不是长期 canonical authorization truth
-- 长期授权词汇与后续迁移方向以 `ADR-0016` 和 `docs/architecture/authorization-and-access-control-architecture.md` 为准
+- 长期授权词汇与 projection vocabulary 以 `ADR-0022` 和 `docs/architecture/identity-and-authorization-architecture.md` 为准
 
 以下字段必须在 raw asset registry 中显式存在：
 

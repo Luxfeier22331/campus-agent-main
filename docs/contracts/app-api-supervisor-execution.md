@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-14
 ---
 
 # App API Supervisor Execution Contract
@@ -13,9 +13,9 @@ updated: 2026-03-29
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `app-api` runtime 边界：`docs/architecture/app-api-architecture.md`
-- supervisor execution engine 边界：`docs/architecture/supervisor-architecture.md`
+- shared product topology：`docs/architecture/product-runtime-architecture.md`
+- `app-api` runtime 边界：`docs/architecture/product-runtime-architecture.md`
+- supervisor execution engine 边界：`docs/architecture/execution-and-specialists-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - execution admission ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
@@ -80,22 +80,23 @@ JSON 命名保持 `snake_case`，原因如下：
   "request_id": "req_01HQ...",
   "conversation_id": "conv_01HQ...",
   "user_goal": "图书馆开放到几点？",
-  "actor": {
-    "user_id": "user_01HQ...",
-    "principal_id": "principal_01HQ...",
-    "roles": ["student"],
-    "departments": [],
-    "groups": ["students"],
-    "campus_scope": "main"
-  },
   "context": {
     "actor": {
       "user_id": "user_01HQ...",
       "principal_id": "principal_01HQ...",
       "roles": ["student"],
-      "departments": [],
-      "groups": ["students"],
-      "campus_scope": "main"
+      "departments": []
+    },
+    "authorization": {
+      "principal_id": "principal_01HQ...",
+      "entitlement_groups": ["students"],
+      "visibility_scope": "main",
+      "retrieval_filter": {
+        "entitlement_groups": ["students"],
+        "visibility_level": "public",
+        "visibility_scope": "main",
+        "policy_projection_version": "phase1-authorization-projection-v1"
+      }
     },
     "profile_memory": {
       "items": []
@@ -105,11 +106,7 @@ JSON 命名保持 `snake_case`，原因如下：
       "turn_count": 0
     }
   },
-  "requested_capability": "knowledge",
-  "requested_scope": {
-    "corpus": "regulations",
-    "collection": "student_handbook"
-  }
+  "requested_capability": "knowledge"
 }
 ```
 
@@ -121,14 +118,17 @@ JSON 命名保持 `snake_case`，原因如下：
   来自 chat domain truth
 - `user_goal`
   来自产品层 prompt
-- `actor`
-  由 `app-api` 从 session / trusted operator identity 映射而来，对齐 `packages/contracts.ActorContext`
 - `context`
-  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
+  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
 - `requested_capability`
-  当前允许 `knowledge` 或 `availability`
+  当前允许 `knowledge`、`availability` 或 `place_lookup`
 - `requested_scope`
-  当前用于知识问答范围约束
+  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-specialist` 消费的 internal spatial truth，而不是默认公开 query-serving surface
+
+补充说明：
+
+- `place_lookup` contract 仍保留在 internal execution seam
+- 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
 - `availability_target_id` / `follow_redirects`
   仅在 availability execution 时出现
 
@@ -145,6 +145,38 @@ JSON 命名保持 `snake_case`，原因如下：
   "confidence": "high",
   "result": null,
   "error": null,
+  "observability": {
+    "retrieval_attempted": true,
+    "candidate_count": 2,
+    "retrieved_source_count": 2,
+    "retrieved_sources": [
+      {
+        "doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+        "chunk_id": "chunk-0007",
+        "score": 0.94,
+        "source_title": "法学（民族实验班）本科人才培养方案"
+      }
+    ],
+    "citation_expected": true,
+    "citation_count": 2,
+    "citation_missing": false,
+    "resolved_scope_corpus": "regulations",
+    "resolved_scope_collection": "student_handbook",
+    "refusal_class": "",
+    "acl_decision": "allowed",
+    "fail_closed": false,
+    "prompt_runtime_state": "",
+    "prompt_runtime_detail": "",
+    "prompt_trace": {
+      "prompt_id": "rag_answer_v1",
+      "prompt_version": "v1",
+      "template_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "variables_schema_version": "v1",
+      "output_schema_version": "v1",
+      "model_provider": "openai-responses",
+      "model_name": "gpt-5.2-mini"
+    }
+  },
   "trace_id": "trace_01HQ..."
 }
 ```
@@ -167,11 +199,35 @@ JSON 命名保持 `snake_case`，原因如下：
 - `follow_up_question`
 - `error`
 - `result`
+- `observability` optional
 
 其中：
 
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
+- 当 `selected_target = navigation-specialist` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
+  - `query_text`
+  - `matched_alias`
+  - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
+  - `place_card.{place, location_description, landmark_hint, access_note, opening_note, service_tags, point_geometry, coordinate_reference_system, source_refs}`
+  - `candidate_places[].{place, clarification_hint}`
+- 当 `selected_target = rag-specialist` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的 summary truth：
+  - `retrieval_adequacy_verdict`
+  - `retrieval_adequacy_reason`
+  - `grounding_verdict`
+  - `claim_supports`
+  - `unsupported_fields`
+- 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser 的 raw specialist dump contract
 - `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
+- 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于 supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
+- `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
+- `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate trace；它与最终 `result.evidence.sources` 不是同一层 truth
+- 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
+- `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw prompt text
+- `observability.prompt_runtime_state` / `observability.prompt_runtime_detail` 用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close branch
+- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload、raw provider citation blob 或 raw auth material
+- `app-api` 必须把 `observability.retrieved_sources` 归一化成 operator-safe、bounded source trace，再与最终 supporting evidence 分开持久化；不得把 raw `EvidenceSource` snippet dump 直接暴露给 panel
+- `result.diagnostics` 也不应携带 provider-native citation blob、raw support snippet dump 或其他 operator 不可见的 vendor payload；operator-facing query path 只保留 compact summary
+- token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
 
 ## HTTP Status Rule
 
@@ -190,18 +246,12 @@ JSON 命名保持 `snake_case`，原因如下：
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍主要通过 bearer / trusted-worker header 来构造 `SupervisorRequest.actor`。
+当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` admission mode，但 shared product path 已收口为：
 
-shared `app-api` 落地时，需要把 execution-side caller contract 收口为：
-
-- internal caller admission 仍由 runtime header 保证
-- `actor` 与最小 `context` 由 `app-api` 显式提供
-- `supervisor-api` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
-
-因此：
-
-- `bearer` / `trusted-worker` 是当前实现与本地调试的 compatibility ingress
-- 它们不是 forward product identity ownership 的长期依据
+- internal caller admission 继续由 runtime header 保证
+- `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
+- `trusted-worker` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
+- top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker 请求里，只能作为与 `context.actor` 一致的冗余投影
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

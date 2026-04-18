@@ -154,7 +154,7 @@ panel 长期功能域固定为：
 
 ## 相关文档
 
-- `docs/architecture/protected-panel-boundary.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
-- `docs/architecture/protected-panel-operator-access.md`
-- `docs/architecture/cloudflare-runtime-topology.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`

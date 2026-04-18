@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: completed
+status: historical
 created: 2026-04-04
 updated: 2026-04-12
 ---
@@ -27,7 +27,7 @@ updated: 2026-04-12
 
 ## 当前状态
 
-本文 front matter 固定为 `completed`；正文仍保留历史 closeout 的语义、证据和对照价值。
+本文状态固定为 `historical`。
 
 当前前向执行以：
 

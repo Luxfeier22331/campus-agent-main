@@ -1,13 +1,11 @@
 ---
 doc_type: plan
-status: active
+status: historical
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-04-12
 ---
 
 # Supervisor 当期设计架构实施方案
-
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** 在不扩大 supervisor 边界的前提下，将当前 `packages/supervisor-core` 从薄透传升级为单 specialist 的最小协调层，并保持 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core` 主链路稳定可测。
 
@@ -16,6 +14,18 @@ updated: 2026-03-28
 **Tech Stack:** Python 3.12, uv workspace, dataclasses, Agno runtime boundary, unittest/pytest
 
 ---
+
+## 当前状态
+
+本文状态固定为 `historical`。
+
+它保留的是早期 supervisor implementation baseline；当前应优先引用：
+
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/current-architecture.md`
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+
+而不是把本文继续当作当前 merged truth 或 active execution 入口。
 
 ## 摘要
 
@@ -39,9 +49,9 @@ updated: 2026-03-28
 
 关系固定如下：
 
-- `docs/architecture/long-term-architecture.md`
+- `docs/architecture/target-architecture.md`
   定义整个仓库的长期架构边界
-- `docs/architecture/supervisor-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
   定义 supervisor 的长期架构与当期设计架构，以及当前 execution engine runtime / Agno 集成边界
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
   定义长期编排模式、specialist 准入与安全边界

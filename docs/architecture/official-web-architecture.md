@@ -19,7 +19,7 @@ updated: 2026-04-14
 
 补充约束：
 
-- 当前 merged truth 与 runtime opening posture 以 `docs/architecture/current-architecture.md`、`docs/reference/official-web-reading-guide.md` 与 `.planning/` 为准
+- 当前 merged truth 与 runtime opening posture 以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 与 `.planning/` 为准
 - 本文不维护 `fresh_news` / `news_archive` 的当前开放状态、独立 worktree 执行进度或 closeout 证据
 - `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与 freshness gate 统一看 `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - 独立 worktree 的 opening acceptance / handoff contract 统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
@@ -100,7 +100,7 @@ updated: 2026-04-14
 ## 相关稳定文档
 
 - `docs/architecture/current-architecture.md`
-- `docs/reference/official-web-reading-guide.md`
+- `docs/domains/official-web.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
 - `docs/data/app-api-official-web-schema.md`

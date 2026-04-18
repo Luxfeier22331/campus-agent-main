@@ -14,10 +14,10 @@ Accepted on 2026-03-28.
 
 ## 背景
 
-`ADR-0012`、`ADR-0013`、`ADR-0015` 与 `ADR-0016` 已经冻结了以下方向：
+`ADR-0012`、`ADR-0013`、`ADR-0015`、`ADR-0016` 与 `ADR-0034` 已经冻结了以下方向：
 
 - `public-chat-web` 与 `protected-panel-web` 是两个 Worker web surface
-- `apps/app-api` 是 shared product backend
+- `apps/app-api` 是 shared application/control-plane backend
 - `apps/app-api` 拥有 canonical identity / memory projection
 - `apps/supervisor-api` 是 execution engine
 - request projection 由 `apps/app-api` 拥有
@@ -76,7 +76,7 @@ Accepted on 2026-03-28.
 而不应再被解释为：
 
 - forward product identity ownership
-- `supervisor-api` 继续负责 public user / operator user auth 的长期依据
+- `supervisor-api` 继续负责 campus end-user / operator auth 的长期依据
 
 ## Complements
 

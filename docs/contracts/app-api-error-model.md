@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-06
 ---
 
 # App API Error Model
@@ -65,6 +65,8 @@ updated: 2026-03-28
 - `unauthorized`
 - `session_required`
 - `session_expired`
+- `internal_auth_required`
+- `service_credential_required`
 
 ### `403 Forbidden`
 
@@ -72,6 +74,7 @@ updated: 2026-03-28
 
 - `forbidden`
 - `operator_access_required`
+- `operator_identity_not_admitted`
 
 ### `404 Not Found`
 
@@ -142,7 +145,7 @@ updated: 2026-03-28
 
 - prompt 为空
   `422 validation_failed`
-- conversation 不属于当前 user
+- `GET /api/chat/conversations/:conversationId` 命中不存在或非当前 user 所有的 conversation
   `404 conversation_not_found`
 - 幂等键冲突
   `409 idempotency_conflict`
@@ -156,8 +159,11 @@ updated: 2026-03-28
 - `unauthorized`
 - `session_required`
 - `session_expired`
+- `internal_auth_required`
+- `service_credential_required`
 - `forbidden`
 - `operator_access_required`
+- `operator_identity_not_admitted`
 
 ### Request Validation
 

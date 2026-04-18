@@ -125,7 +125,7 @@ updated: 2026-03-31
 
 这项决策 complements：
 
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/index-release-runbook.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`

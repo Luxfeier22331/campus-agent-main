@@ -1,8 +1,8 @@
 ---
 doc_type: plan
-status: active
+status: completed
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-12
 ---
 
 # Intent / Memory / Authorization Foundation
@@ -19,14 +19,24 @@ updated: 2026-03-29
 
 对应 source of truth：
 
-- 长期边界：`docs/architecture/long-term-architecture.md`
-- 授权长期边界：`docs/architecture/authorization-and-access-control-architecture.md`
-- supervisor 长期职责：`docs/architecture/supervisor-architecture.md`
-- rag specialist 长期职责：`docs/architecture/rag-specialist-architecture.md`
-- app-layer identity / memory ownership：`docs/architecture/app-api-architecture.md`
+- 长期边界：`docs/architecture/target-architecture.md`
+- 授权长期边界：`docs/architecture/identity-and-authorization-architecture.md`
+- supervisor 长期职责：`docs/architecture/execution-and-specialists-architecture.md`
+- rag specialist 长期职责：`docs/architecture/execution-and-specialists-architecture.md`
+- app-layer identity / memory ownership：`docs/architecture/product-runtime-architecture.md`
 - 编排与安全边界：`docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - identity / memory / personalization 决策：`docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- authorization model / retrieval filter projection：`docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- authorization model / retrieval filter projection：`docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+
+## 当前状态
+
+本文状态固定为 `completed`。
+
+原因：
+
+- `.planning/ROADMAP.md` 已把 Phase 11 记为完成，identity / authorization / memory foundation 不再是当前 active execution gap
+- `app-api` canonical owner split、typed projection seam、restricted retrieval fail-close 与 non-authorizing memory 基线都已经进入 merged truth
+- 当前如果继续推进 memory productization 或更完整的长期记忆能力，应在 `.planning/PROJECT.md` 中显式重开新的 follow-up execution lane，而不是继续把本文当默认实施入口
 
 ## 目标
 
@@ -50,6 +60,8 @@ updated: 2026-03-29
 6. telemetry / audit 可以追踪 identity / memory projection 的最小治理字段，而不落 raw sensitive data。
 
 ## 当前过渡态记录
+
+以下内容记录的是本文成文时的过渡态背景，用于解释当时的 foundation 拆解方式；它不再代表当前默认执行入口。
 
 截至 2026-03-29，shared contract、`supervisor-api`、`retrieval-core` 与 `rag-specialist` 已经接上长期 authz projection 的主干，但仓库仍处于“迁移中”而不是“完全收口”。
 
@@ -97,13 +109,13 @@ updated: 2026-03-29
 
 文件落点：
 
-- `docs/architecture/authorization-and-access-control-architecture.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/rag-specialist-architecture.md`
-- `docs/architecture/app-api-architecture.md`
+- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
 
 验收：
 

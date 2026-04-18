@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-29
+updated: 2026-04-03
 ---
 
 # App API Request Lifecycle
@@ -17,7 +17,7 @@ updated: 2026-03-29
 - `app-api -> supervisor-api` 契约：`docs/contracts/app-api-supervisor-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
-- request projection ownership：`docs/architecture/request-projection-and-runtime-read-model.md`
+- request projection ownership：`docs/architecture/product-runtime-architecture.md`
 
 ## Lifecycle Conclusion
 
@@ -102,7 +102,8 @@ updated: 2026-03-29
 ### Conversation Resolution Rule
 
 - `POST /api/chat/conversations` 是显式 draft create API，不是 `POST /api/chat/requests` 的前置依赖
-- `POST /api/chat/requests` 如果携带 `conversationId`，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果携带 `conversationId` 且该 conversation 已属于当前 user，按 owned conversation 继续追加消息
+- `POST /api/chat/requests` 如果携带 `conversationId` 但当前 user 还没有这个 conversation，则第一次 durable commit 直接用这个 id 建立新的 canonical conversation
 - `POST /api/chat/requests` 如果未携带 `conversationId`，必须在第一次 durable commit 内创建 canonical conversation，并把同一次请求绑定到新 conversation
 
 ### Step 3: Execute
@@ -122,6 +123,7 @@ updated: 2026-03-29
 - assistant message 或 safe failure message
 - `runtime.request_execution` 最终状态
 - 对应最终状态的 `runtime.projection_outbox` 事件
+- conversation-scoped `chat.session_slots` 当前快照（仅在存在 typed confirmed session truth 时）
 
 最终状态写回规则：
 
@@ -131,6 +133,35 @@ updated: 2026-03-29
 - `error` 写 error code / retryable
 - `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
 - `rejected` 写拒绝原因与最终 supervisor 状态，不把它折叠成 command-side `error`
+
+### Session Slot Finalize Rule
+
+`chat.session_slots` 的第一版只承载 conversation-scoped typed session truth，不承载 transcript 恢复、展示 alias 或自由文本总结。
+
+冻结规则：
+
+- `app-api` 只能根据 typed diagnostics 写 session truth，不能解析 assistant 文本、clarification 文本或历史 transcript 反推 slot
+- 第一版仅 curriculum follow-up lane 可以在 finalized `completed` 时写 slot
+- 当前允许写入的 truth 仅限：
+  - `curriculum_program_family`
+  - `curriculum_program`
+  - `curriculum_semester`
+- 写入语义是 replace-write 当前快照，不是追加历史 slot
+- 如果本轮 diagnostics 只产出部分 slot，可以与已有 confirmed slot 合并后写回，但结果仍表现为当前快照
+- `app-api` 在下一轮请求里只回放这些 confirmed typed slots 到 `context.session.confirmed_slots`
+
+明确不写 slot 的 finalized lane：
+
+- `needs_clarification`
+- `no_answer`
+- `error`
+- `approval_required`
+- `rejected`
+- curriculum completed 但没有 typed follow-up truth
+- curriculum `program_family_membership` completed
+- curriculum `course_family` completed
+
+因此，`chat.session_slots` 不是通用 conversation summary，也不是 `runtime.request_execution` 的派生缓存；它只保存后续 specialist 安全可消费的 typed confirmed state。
 
 ## Projection Rule
 
@@ -147,6 +178,7 @@ projection 的长期规则固定为：
 实现说明：
 
 - 第一版优先采用 scheduled projector 或 Worker 内异步消费者直接消费数据库 outbox
+- 当前 `app-api` merged truth 采用 `request success -> Worker waitUntil bounded drain` 与 `scheduled projector` 并存；前者负责收敛常规请求写后延迟，后者负责补偿/恢复与 deploy-side observability
 - queue 只可以在 outbox commit 之后作为 fan-out / 加速手段引入
 - 不接受 queue-first 再反补数据库 truth 的形态
 - 但它必须仍属于 `app-api` boundary

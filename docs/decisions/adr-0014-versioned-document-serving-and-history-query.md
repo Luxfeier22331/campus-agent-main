@@ -66,6 +66,6 @@ Accepted on 2026-03-28.
 
 这项决策 complements：
 
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
-- `docs/architecture/retrieval-query-strategy.md`
+- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`

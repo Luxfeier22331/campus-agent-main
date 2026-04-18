@@ -129,9 +129,9 @@ updated: 2026-03-29
 
 ## 相关文档
 
-- `docs/architecture/official-web-source-channel.md`
-- `docs/architecture/official-web-control-plane-on-app-api.md`
+- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/official-web-architecture.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
 - `docs/data/app-api-official-web-schema.md`
-- `docs/plans/official-web-app-api-control-plane-foundation.md`
+- `docs/architecture/official-web-architecture.md`

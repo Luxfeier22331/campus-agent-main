@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-03
 ---
 
 # App API HTTP Contract
@@ -13,9 +13,10 @@ updated: 2026-03-30
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `app-api` runtime 与内部边界：`docs/architecture/app-api-architecture.md`
+- shared product topology：`docs/architecture/product-runtime-architecture.md`
+- `app-api` runtime 与内部边界：`docs/architecture/product-runtime-architecture.md`
 - `app-api -> supervisor-api` 内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- operator observability query contract：`docs/contracts/app-api-operator-observability-http.md`
 - `official_web` collector/control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
@@ -71,12 +72,22 @@ updated: 2026-03-30
 - `GET /api/chat/conversations`
 - `POST /api/chat/conversations`
 - `GET /api/chat/conversations/:conversationId`
+- `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
 
 ### Operator
 
+- `GET /api/operator/overview`
+- `GET /api/operator/quality/summary`
+- `GET /api/operator/safety/summary`
+- `GET /api/operator/cost/summary`
+- `GET /api/operator/audit`
+- `GET /api/operator/audit/:auditEventId`
 - `GET /api/operator/requests`
 - `GET /api/operator/requests/:requestId`
+- `GET /api/operator/requests/:requestId/observability`
+
+expanded observability / quality / safety / cost / audit query surfaces 另见 `docs/contracts/app-api-operator-observability-http.md`
 
 第一版不冻结：
 
@@ -145,6 +156,10 @@ updated: 2026-03-30
     "corpus": "regulations",
     "collection": "student_handbook"
   },
+  "resolvedScope": {
+    "corpus": "regulations",
+    "collection": "student_handbook"
+  },
   "selectedTarget": "rag-specialist",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
@@ -172,14 +187,38 @@ updated: 2026-03-30
 
 ### `GET /readyz`
 
-返回最小 readiness 信息。
+返回 runtime dependency readiness 信息。
 
 ```json
 {
   "status": "ready",
   "dependencies": {
-    "database": "configured",
-    "supervisorApi": "configured"
+    "auth": "ready",
+    "database": "ready",
+    "officialWebHandoff": "not_configured",
+    "operatorBridge": "configured",
+    "publicChatOrigin": "configured",
+    "supervisorApi": "ready"
+  }
+}
+```
+
+当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
+
+当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed` 中列出失败 probe，例如：
+
+```json
+{
+  "error": {
+    "code": "dependency_not_ready",
+    "message": "Runtime dependencies are not ready.",
+    "retryable": true,
+    "details": {
+      "failed": {
+        "auth": "better-auth session runtime failed probe",
+        "supervisorApi": "supervisor /readyz returned 503"
+      }
+    }
   }
 }
 ```
@@ -199,7 +238,7 @@ updated: 2026-03-30
 ```json
 {
   "principal": {
-    "type": "public_user",
+    "type": "campus_member",
     "principalId": "user_01HQ...",
     "displayName": "Jane Doe",
     "email": "jane@example.edu"
@@ -217,7 +256,7 @@ updated: 2026-03-30
 
 规则：
 
-- `public_user` 使用 Better Auth session
+- 已登录 end-user 默认投影为 `campus_member`
 - `operator` 使用 protected surface trusted identity bridge
 - v1 不要求单独的 operator 用户系统或 operator session 表
 
@@ -281,6 +320,22 @@ updated: 2026-03-30
 }
 ```
 
+### `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
+
+删除指定 message 起始的 trailing message 段，用于 donor-style message edit。
+
+响应：
+
+- `204 No Content`
+
+规则：
+
+- `conversationId` 必须属于当前登录用户
+- `messageId` 必须属于该 conversation
+- 服务端删除范围是 `createdAt >= 目标 message.createdAt`
+- 这个接口只负责截断现有对话尾部，不负责写入编辑后的新 user message
+- 编辑后的新 user message 仍由后续 `POST /api/chat/requests` 在 canonical command path 中生成新 answer
+
 ### `POST /api/chat/requests`
 
 这是 public chat 的同步命令入口。
@@ -305,10 +360,12 @@ updated: 2026-03-30
 
 字段规则：
 
-- `conversationId` 可选；如果提供，必须属于当前 user
-- 如果未提供 `conversationId`，`app-api` 必须在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
+- `conversationId` 可选；如果提供且已属于当前 user，则继续向该 conversation 追加消息
+- `conversationId` 可选；如果提供但当前 user 还没有这个 conversation，`app-api` 会在同一条 command path 内用这个 id 建立首轮 conversation
+- 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestedCapability` / `requestedScope` 可选；未提供时由 `app-api` runtime policy 决定默认值
+- `requestedCapability` 可选；当前 public chat 只接受 `knowledge`
+- `requestedScope` 可选；未提供时 `app-api` 不得伪造默认 serving surface，最终 scope 由 downstream specialist 解析，并在 finalized projection / observability 中回填 `resolvedScope`
 
 成功响应：
 
@@ -398,6 +455,10 @@ updated: 2026-03-30
       "corpus": "regulations",
       "collection": "student_handbook"
     },
+    "resolvedScope": {
+      "corpus": "regulations",
+      "collection": "student_handbook"
+    },
     "selectedTarget": "rag-specialist",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
@@ -414,6 +475,8 @@ updated: 2026-03-30
 规则：
 
 - 这是 projection detail，不是 raw execution dump
+- `requestedScope` 表示调用方显式请求的 scope，可为 `null`
+- `resolvedScope` 表示 specialist 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
 - v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 specialist-internal payload
 

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-03-30
+updated: 2026-04-10
 ---
 
 # ADR-0016 App API Request Projection And Panel Query Ownership
@@ -15,7 +15,7 @@ updated: 2026-03-30
 当前仓库已经具备以下事实：
 
 - `apps/supervisor-api` 是 execution engine boundary
-- `apps/app-api` 已被接受并实现为 shared application backend
+- `apps/app-api` 已被接受并实现为 shared application/control-plane backend
 - `packages/supervisor-core` 已能产出最小 audit record
 - `apps/supervisor-api` 当前仍会把该 audit record 持久化到 JSONL
 - chat conversation history 会记录 `request_id`
@@ -57,7 +57,7 @@ updated: 2026-03-30
 
 原因：
 
-- `apps/app-api` 是 public chat 与 protected panel 的 shared product backend
+- `apps/app-api` 是 public chat 与 protected panel 的 shared application/control-plane backend
 - 它负责 chat ingress，并且是最适合收口 request ledger / query surface 的边界
 - 该决策不要求把 request projection host 下沉到 `packages/*`
 
@@ -136,9 +136,7 @@ updated: 2026-03-30
 
 ## 相关文档
 
-- `docs/architecture/request-projection-and-runtime-read-model.md`
-- `docs/architecture/shared-app-api-and-worker-web-surfaces.md`
-- `docs/architecture/app-api-architecture.md`
-- `docs/architecture/long-term-architecture.md`
-- `docs/architecture/supervisor-architecture.md`
-- `docs/architecture/protected-panel-runtime-shell.md`
+- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/target-architecture.md`
+- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/operator-observability-architecture.md`

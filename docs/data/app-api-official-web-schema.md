@@ -15,7 +15,7 @@ updated: 2026-04-12
 
 - `app-api` 基础 schema：`docs/data/app-api-schema.md`
 - `official_web` control-plane 架构：`docs/architecture/official-web-architecture.md`
-- 领域导航：`docs/reference/official-web-reading-guide.md`
+- 领域导航：`docs/domains/official-web.md`
 - `official_web` HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 
@@ -33,7 +33,7 @@ updated: 2026-04-12
 
 判断当前已实现子集时：
 
-- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与 `docs/reference/official-web-reading-guide.md` 为准
+- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与 `docs/domains/official-web.md` 为准
 - 当前项目执行状态、独立 worktree 进度与 closeout 证据不在本文维护
 
 ## Storage Conclusion

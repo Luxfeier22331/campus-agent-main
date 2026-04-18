@@ -28,7 +28,7 @@ updated: 2026-04-04
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-source-channel.md`
+- source channel 边界：`docs/architecture/official-web-architecture.md`
 - serving / news retrieval 语义：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - projection replay 流程：`docs/runbooks/official-web-source-truth-projection-replay.md`
 

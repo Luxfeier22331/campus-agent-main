@@ -2,24 +2,29 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-03-31
+updated: 2026-04-12
 ---
 
 # Curriculum Plan Eval Metrics
 
 ## 目的
 
-本文负责记录 `curriculum/curriculum_plan` 当前 repo-tracked release-gate 基线、自动化覆盖面与 live gate artifact contract。
+本文记录 `curriculum/curriculum_plan` 的稳定评估基线：
+
+- repo-tracked automated denominator 是什么
+- live gate artifact contract 是什么
+- 哪些 curriculum retrieval / workflow 主题已经被锁进长期回归面
+- 当前应如何理解历史 live acceptance 与后续 rerun
 
 边界：
 
-- live rebuild 与线上 collection 验收步骤以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
-- 本文只记录当前已落盘的 live / acceptance 指标快照，以及 live gate artifact contract
-- 本文不把当前 snapshot 上升为长期稳定 KPI
+- live rebuild 与线上 collection 验收步骤仍以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
+- 本文不承担当前执行状态板
+- 本文不把单次 `.tmp` 目录提升为默认 canonical 入口
 
 ## Gate Topology
 
-当前 `curriculum_plan` gate 分成两层：
+`curriculum_plan` gate 固定分成两层：
 
 - repo-tracked automated baseline
   - retrieval qrels
@@ -28,62 +33,95 @@ updated: 2026-03-31
   - deterministic error gate cases
 - fresh live release gate
   - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate 样本
-  - 输出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
+  - 产出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
 
-当前长期实现约束：
+长期实现约束：
 
-- `campus_evals.curriculum_live_benchmark` 现在通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行，不再复制 handbook runner 逻辑
-- curriculum live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
-- 该 policy 当前只消费 `ragas.faithfulness`、`ragas.answer_relevancy`、`ragas.context_precision`、`ragas.context_recall`
-- curriculum live gate 不再默认回退到 `student_handbook_judge_gate_policy.json`
-
-设计原因：
-
-- `curriculum_plan` 已进入 query-serving，当前 release-gate follow-up 主要是补充指标 `warn` 与 artifact/doc 归一，而不是继续补 fresh rerun
-- live gate 和 deterministic gate 要分离；`error` 终态不依赖偶发基础设施故障取样
+- `campus_evals.curriculum_live_benchmark` 通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行
+- live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
+- 该 policy 只消费：
+  - `ragas.faithfulness`
+  - `ragas.answer_relevancy`
+  - `ragas.context_precision`
+  - `ragas.context_recall`
+- curriculum live gate 不再回退到 handbook judge policy
 
 ## Repo-Tracked Automated Baseline
 
-当前已落盘的 curriculum 基线包括：
+当前已冻结的自动化基线包括：
 
 - retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
-  - total cases：`17`
-  - split：
-    - `smoke = 13`
-    - `regression_locked = 4`
+  - total cases：`25`
+  - `smoke = 16`
+  - `regression_locked = 9`
 - hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
-  - total cases：`9`
+  - total cases：`12`
   - categories：
     - `policy_title_exact_match`
+    - `fixed_phrase_sparse_win`
     - `short_fact_section`
     - `table_retrieval`
     - `semantic_dense_win`
     - `needs_clarification`
     - `no_hit`
 - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
-  - release gate：`6`
+  - release gate：`14`
+  - smoke：`10`
+  - regression_locked：`35`
   - error gate：`3`
 
-当前 automated gate 覆盖的 release-gate 终态：
+自动化 gate 覆盖的 release-gate 终态：
 
-- `completed = 4`
+- `completed = 12`
 - `no_answer = 1`
 - `needs_clarification = 1`
 - deterministic `error = 3`
 
-当前已锁定的高风险 curriculum retrieval 主题：
+## 高风险主题清单
+
+当前已锁定的高风险 curriculum retrieval / answer 主题：
 
 - 标题 exact-match
 - 同专业不同方案区分
 - 第二学士学位短事实
-- table / 课程地图 retrieval
+- table / 课程设置 retrieval
+- uniquely grounded sparse fixed-phrase retrieval
+- program-family membership / doc-fragment split
+- program-family full alias / name-pattern completed answer
+- semester-grounded course retrieval
+- 国际学生版本与普通版本区分
+- 同专业强基计划与普通培养路径区分
 - selected `doc_id + version_id` regression locks
+- course / course-family schedule answer
 - no-hit fail-close
+- retrieval-informed ambiguity clarification
 
-补充说明：
+仍作为未来扩样方向，但未并入更大 denominator 的主题：
 
-- `packages/evals` 现在已经能同时评估 `SpecialistResponse` 与 `SupervisorResponse`
-- supervisor-only 终态指标 `approval_required_accuracy` / `rejection_accuracy` 已进入 deterministic metric surface，但当前 curriculum repo-tracked case 仍主要覆盖 RAG 主路径
+- 长尾 program-family / course alias 扩表
+- family-aware completed answer 的 citation/context truth 扩样
+- 更多 uniquely grounded sparse fixed-phrase retrieval case
+
+## Active Baseline Interpretation
+
+当前对 curriculum baseline 的 repo-tracked 解释固定为：
+
+- automated baseline 已具备，并由测试覆盖
+- live gate artifact contract 已稳定
+- `course_facts` 相关 deterministic truth 修复已经落地：
+  - `reference_context_ids` 改到 internal `course_facts:*` doc ids
+  - resolved `course_facts` query 使用 exact `target_document_ids`
+  - family/member/audience/schedule answer 改为直接事实句
+  - 原始 `curriculum_plan` 短事实问句优先走 direct fact shaping
+- 历史 live acceptance snapshot 仍有参考价值，但不再通过 repo-tracked `.tmp` 链接长期暴露
+- 若后续 fresh rerun 遇到 supplemental provider contract regression，应先标记为运行面阻塞，而不是 curriculum truth gap
+
+补充约束：
+
+- `基地班` 一类 family alias 不允许再通过伪 top1 canonical truth 维持通过
+- `强基有哪些专业`、`二学位有哪些专业`、`实验班有哪些` 这类 membership query 可以进入 `program_family_facts` completed truth
+- `verified identity` 只在 query 自身带 deictic 语义且候选唯一时进入 completed truth
+- `profile memory` 只进入 ranking/clarification 语义，不进入 canonical qrels collapse
 
 ## Live Gate Artifact Contract
 
@@ -99,36 +137,25 @@ updated: 2026-03-31
 - `run/supplemental-provider-summary.json`
 - 可选 `SUMMARY.md`
 
-如果使用 `accept`：
+如果使用 `accept`，还应产出：
 
-- acceptance 根目录还应保留 `accept-config.json` 与 `final-summary.json`
-- 若触发 repair rerun，还应保留 `repair/supplemental-runtime-events.jsonl` 与 `repair/supplemental-provider-summary.json`
-- 当前实现里 `accept --log-jsonl` 的 runtime logs 会由 `accept-config.json` 指向外部 `<base>.run.jsonl` / `<base>.repair.jsonl`，不再要求它们必须以内嵌文件形式存在于 acceptance root
+- `accept-config.json`
+- `final-summary.json`
+- 若显式启用 operator publish：
+  - `operator-observability-publish-summary.json`
+- 若触发 repair rerun：
+  - `repair/supplemental-runtime-events.jsonl`
+  - `repair/supplemental-provider-summary.json`
 
-建议目录：
+维护规则：
 
-- `.tmp/evals/curriculum-plan-live-gate-<timestamp>/`
-
-配套 repair 入口：
-
-- `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`
-- repair 只回补 transient supplemental infra failure；当前依赖 ragas adapter 显式暴露四个 metric key，才能从 `supplemental-preflight.json` 回推 backfill target
-
-最低必须记录的证据字段：
-
-- rerun 日期
-- git commit / branch
-- serving alias 与 physical collection
-- collection schema 摘要
-- points count
-- 通过与失败的 hybrid query case
-- retrieval benchmark aggregate / by_split
-- workflow/status distribution
-- deterministic release gate 与 error gate 汇总
+- 文件名 contract 保留在本文
+- 具体某一轮 artifact 路径不再作为默认 repo-tracked 链接长期保存
+- 新一轮 rerun 需要更新的是结论、分母和字段 contract，而不是把 `.tmp` 路径堆回本文
 
 ## Verification Commands
 
-repo-tracked自动化基线：
+repo-tracked 自动化基线：
 
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
@@ -137,37 +164,17 @@ retrieval benchmark scorer：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results <run-results.json>`
 
-## Current Status
+case-level context diagnostics：
 
-截至 2026-03-30：
+- `uv run --all-packages python -m campus_evals.context_diagnostics --case-results <run-XX-case-results.json> --scenario-set curriculum_live_gate --format json`
 
-- curriculum 的 repo-tracked qrels / hybrid / golden / error-gate baseline 已存在并由测试覆盖
-- root worktree 已完成一轮 fresh curriculum live verification；当前可引用 artifact 分两类：
-  - contract-shaped live gate evidence：
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-live-collection-baseline.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-retrieval-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-workflow-status-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-20260330T045116/curriculum-error-gate-summary.json)
-  - acceptance verdict evidence：
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/final-summary.json)
-    - [`.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json`](/home/reptilian/code/campus-agent/.tmp/evals/curriculum-plan-live-gate-accept-20260330T210958/run/gate-report.json)
-- 2026-03-30 acceptance 当前最终结论：
-  - `deterministic_verdict = pass`
-  - `supplemental_verdict = warn`
-  - `final_overall_verdict = warn`
-- 当前 `warn` 不再来自“缺 fresh rerun”，而是来自 supplemental soft-gate：
-  - `ragas.context_precision`
-    - `mean_average_score = 0.8263888888392361`
-    - `min_run_average_score = 0.7916666666104166`
-  - `ragas.context_recall`
-    - `mean_average_score = 0.75`
-    - `min_run_average_score = 0.75`
-- 当前 acceptance supplemental runtime 可用：
-  - `status_counts.available = 4`
+## 维护规则
 
-因此当前 closeout 语义是：
-
-- automated baseline：已具备
-- live artifact contract：已具备
-- fresh live evidence：已具备
-- 当前 follow-up：补充指标 `warn` 与 artifact/doc 归一，不再是重新声明“待 fresh rerun”
+- 这份文档只保存稳定分母、主题清单、artifact contract 和解释边界
+- 一次性 acceptance/rerun 历史、补救过程和 `.tmp` 目录不再长期挂在本文
+- 只有在以下情况才更新这里：
+  - qrels denominator 改变
+  - hybrid fixture denominator 改变
+  - release-gate / error-gate 分母改变
+  - curriculum baseline 的 accepted interpretation 改变
+  - live gate artifact contract 改变

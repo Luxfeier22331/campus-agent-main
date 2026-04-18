@@ -11,8 +11,8 @@ updated: 2026-03-31
 
 这份文档只固定当前仓库的验证入口语义，不重复：
 
-- 长期架构边界：`docs/architecture/long-term-architecture.md`
-- `app-api` Worker 形态：`docs/plans/app-api-worker-foundation.md`
+- 长期架构边界：`docs/architecture/target-architecture.md`
+- `app-api` Worker 形态：`docs/architecture/product-runtime-architecture.md`
 - 当前 phase 状态：`.planning/PROJECT.md`、`.planning/STATE.md`
 
 ## 仓库级 lane

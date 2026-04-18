@@ -149,7 +149,7 @@ ADR-0019 已冻结一条删除门禁：
 
 - `docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md` 承担 operator 流程
 - `docs/decisions/adr-0002-local-minio-conventions.md` 需要补充对象存储中的 snapshot bundle 前缀
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md` 需要明确“snapshot bundle 只是备份材料，不是新的 chunk truth”
+- `docs/architecture/data-plane-architecture.md` 需要明确“snapshot bundle 只是备份材料，不是新的 chunk truth”
 - `docs/reference/runtime-serving-and-index-terms.md` 需要补充 managed backup 与 snapshot bundle 术语
 - `docs/runbooks/index-release-runbook.md` 的清理门禁需要引用本 ADR
 
@@ -172,6 +172,6 @@ ADR-0019 已冻结一条删除门禁：
 
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
-- `docs/architecture/phase1-ingestion-and-storage-architecture.md`
+- `docs/architecture/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/index-release-runbook.md`

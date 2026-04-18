@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-30
-updated: 2026-03-30
+updated: 2026-04-12
 ---
 
 # Shared Postgres Ownership
@@ -15,7 +15,7 @@ updated: 2026-03-30
 
 - `app-api` 逻辑 schema：`docs/data/app-api-schema.md`
 - `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
-- `app-api` runtime/ownership：`docs/architecture/app-api-architecture.md`
+- `app-api` runtime/ownership：`docs/architecture/product-runtime-architecture.md`
 - env ownership：`docs/environment/README.md`
 
 这份文档不冻结：
@@ -24,20 +24,51 @@ updated: 2026-03-30
 - connection pooler host
 - 对象存储与 Qdrant 细节
 - ingestion collection 级别的 raw/chunk/index policy
+- staging / production 的当前部署状态
+
+## Ownership 与连接姿态说明
+
+这份文档冻结的是 repo 共享 Postgres 的 ownership、env 命名与 connectivity posture。
+
+它不承担：
+
+- 当前环境是否已经部署完成
+- 某个 worktree 的数据库迁移执行现场
+- 某条 feature/wave 的 closeout 状态说明
+
+判断当前环境执行状态时，应以 `.planning/PROJECT.md`、`.planning/STATE.md`、相关 runbook 与实际代码为准。
 
 ## 核心结论
 
 repo 当前接受一份共享 Supabase Postgres，作为多个 runtime/data-plane owner 共用的关系型存储底座。
 
-repo root `.env` 的 canonical key 固定为：
+repo root `.env` 的 canonical runtime key 固定为：
 
 - `CAMPUS_SHARED_POSTGRES_URL`
+
+同时允许一个只服务于 offline operator / migration / DBA 路径的 companion key：
+
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
 
 这表示：
 
 - 它是 repo 共享 Postgres truth，不是某个 app 的专属数据库
 - app-local env 可以从它 fan out，但不得反向把 app-local DSN 重新写成 repo shared truth
 - domain-specific database env 名称只保留为显式 override，不再承载“共享库 canonical name”语义
+
+## Connectivity Posture
+
+共享 Postgres 的长期连接规则见 `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`。
+
+当前 accepted posture 固定为：
+
+- repo-owned persistent runtime 默认按 `IPv4-only` 处理
+- `CAMPUS_SHARED_POSTGRES_URL` 在 Supabase-backed runtime 下默认指向 `session pooler`
+- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 在需要 direct management posture 的 one-off/operator 环境下指向真实 direct DSN
+- runtime 主链路不在 `direct connection` 与 `session pooler` 之间做自动切换
+- 长驻 Python / Node runtime 必须使用 application-side pooling，而不是每次数据库操作新建连接
+
+因此这份文档冻结的是 shared Postgres ownership，不再把“连接方式由各命令临时选择”视为允许形态。
 
 ## 逻辑 Schema Ownership
 
@@ -59,7 +90,7 @@ repo root `.env` 的 canonical key 固定为：
 ## Env Ownership Rules
 
 - repo root `.env` / `.env.example`
-  持有 `CAMPUS_SHARED_POSTGRES_URL`
+  持有 `CAMPUS_SHARED_POSTGRES_URL`，以及需要本地 migration / offline operator 时的 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
 - app-local env
   只持有当前 app runtime 直接消费的 database URL，例如：
   - `apps/app-api/.env` -> `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` / `APP_API_MANAGEMENT_DATABASE_URL`
@@ -71,11 +102,15 @@ repo root `.env` 的 canonical key 固定为：
 - Supabase platform-managed `auth.*`
   保留给 Supabase Auth；repo 不接管，也不把它当成 Better Auth 的物理 schema
 - `app_auth.*` on Supabase session pooler
-  通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠
+  shared-product bootstrap 仍通过数据库角色默认 `search_path=app_auth, public, extensions` 收敛；仅靠连接字符串 `options=-c search_path=...` 在当前 shared DB 上不可靠，而 `apps/app-api` runtime 现已改为通过 Drizzle adapter + schema-qualified metadata 访问 `app_auth.*`
+- deployed Worker runtimes
+  远端 Worker 环境会重新缓存静态 Worker/app assembly，但不会跨请求复用 repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
+- deployed `app-api` runtime Hyperdrive lanes
+  `APP_API_DB` 继续承接 cached/read-mostly queries；`APP_API_DB_FRESH` 承接 auth 与其他 read-after-write-sensitive product paths，并要求在 Cloudflare 侧关闭 SQL response caching，避免 `sign-up` / command write 后立刻读回时命中 stale negative cache
 - `apps/app-api`
   负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有 `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`
 - `packages/ingestion-core`
-  不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure
+  不接管 `app-api` 的 Drizzle migration journal；registry table 仍由自身代码路径负责 schema ensure。需要 full current-scope replay / chunk-prep / release 这类 offline operator 操作时，显式消费 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`，并 fast-fail 拒绝把 session pooler 冒充为 management direct DSN
 
 ## Journal Ownership
 
