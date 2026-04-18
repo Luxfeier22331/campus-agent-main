@@ -65,9 +65,19 @@ export function RegisterPage() {
 
   return (
     <AuthLayout>
+      <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
+        Campus Agent
+      </p>
       <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-      <p className="text-sm text-muted-foreground">Get started for free</p>
+      <p className="text-sm text-muted-foreground text-pretty">
+        Create your campus account to keep chat history, signed-in access, and
+        request tracking in one place.
+      </p>
       <AuthForm action={handleSubmit} defaultEmail={email}>
+        <p className="rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
+          Use the same campus email you expect to use for protected answers and
+          future recovery.
+        </p>
         <SubmitButton isSuccessful={isSuccessful}>Sign up</SubmitButton>
         <p className="text-center text-[13px] text-muted-foreground">
           {"Have an account? "}

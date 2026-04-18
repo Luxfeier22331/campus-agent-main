@@ -59,11 +59,24 @@ export function LoginPage() {
 
   return (
     <AuthLayout>
+      <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
+        Campus Agent
+      </p>
       <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-      <p className="text-sm text-muted-foreground">
-        Sign in to your account to continue
+      <p className="text-sm text-muted-foreground text-pretty">
+        Sign in with your campus email to continue your conversations, saved
+        history, and verified campus guidance.
       </p>
       <AuthForm action={handleSubmit} defaultEmail={email}>
+        <div
+          className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[13px]"
+          data-slot="auth-recovery-cta"
+        >
+          <span className="text-muted-foreground">Need password help?</span>
+          <span className="font-medium text-foreground/80">
+            Recovery opens here next
+          </span>
+        </div>
         <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
         <p className="text-center text-[13px] text-muted-foreground">
           {"No account? "}

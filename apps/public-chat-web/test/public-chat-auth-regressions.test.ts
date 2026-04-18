@@ -38,6 +38,13 @@ describe("public chat auth regressions", () => {
     expect(appRouterSource).toContain('path: "/register"');
   });
 
+  it("freezes recovery CTA placement on login without opening recovery routes early", () => {
+    expect(loginPageSource).toContain('data-slot="auth-recovery-cta"');
+    expect(loginPageSource).toContain("Need password help?");
+    expect(appRouterSource).not.toContain('path: "/forgot-password"');
+    expect(appRouterSource).not.toContain('path: "/reset-password"');
+  });
+
   it("owns next/form through an exact compat alias for donor auth components", () => {
     expect(viteConfigSource).toContain('find: /^next\\/form$/');
     expect(tsconfigSource).toContain('"next/form"');

@@ -26,7 +26,8 @@ updated: 2026-04-18
 ## 当前生命周期状态
 
 - 当前状态是 `active`
-- 这是一条当前可接手的 product workstream；它可以与其他独立 workstreams 并行存在
+- 这条 workstream 已在 2026-04-19 完成原始 `A-E` staging closeout 后 reopen
+- 当前 reopen scope 固定为 public auth follow-up：`/login` `/register` 产品化、forgot/reset password、auth mailer contract 与 smoke evidence
 - 同一 workstream 内不再并发；并行只发生在不同 workstreams 之间
 
 ## 直接结论
@@ -40,6 +41,10 @@ updated: 2026-04-18
 3. `protected-panel-web` acceptance
 4. integrated acceptance
 5. staging preflight and planning closeout
+6. public auth shell productization
+7. password reset backend / mail contract
+8. public recovery UX
+9. auth hardening / smoke
 
 原因固定为：
 
@@ -71,6 +76,7 @@ updated: 2026-04-18
 - 如果 chat 或 panel 的失败根因属于 shared backend seam，修复必须回到 `apps/app-api`
 - `protected-panel-web` 只验证已开放域：`Overview`、`Requests`、`Official Web`
 - `Jobs`、`Operations`、`Audit` 继续视为未开放域，不纳入本轮验收
+- `protected-panel-web` 的 `/login` 继续只视为 Cloudflare Access reentry，不纳入 end-user password product
 - 验收关注的是 accepted topology 上的 product acceptance / hardening，不是重新设计 topology
 
 ## Phase A: `app-api` Acceptance Baseline
@@ -178,6 +184,53 @@ updated: 2026-04-18
 - 三端 staging preflight 都通过
 - `.planning` 真相明确记录本轮验收结果、剩余缺口与下一条 follow-up
 - 不把 preflight 成功误写成真实 staging smoke 已完成
+
+## Phase F: Public Auth Shell Productization
+
+目标：
+
+- 把 `public-chat-web` 的 `/login` `/register` 从“可用但 out-of-scope 的 donor wrapper”提升为正式 public auth surface
+- 冻结 visible owner、允许差异、redirect contract 与 future recovery CTA 位置
+
+退出条件：
+
+- `/login` `/register` 的产品可见 owner、route contract 与 acceptance matrix 已冻结
+- 不再把 public auth shell 留在长期灰区
+
+## Phase G: Password Reset Backend And Mail Contract
+
+目标：
+
+- 在 `app-api` 内补齐 Better Auth password reset backend
+- 冻结 auth mail provider / secret / callback / runbook truth
+
+退出条件：
+
+- reset request / token consumption backend 可用
+- mail provider / env inventory / staging secret ownership 落盘
+
+## Phase H: Public Recovery UX
+
+目标：
+
+- 在 `public-chat-web` 增加 `/forgot-password` 与 `/reset-password`
+- 收口 request-sent、token invalid、token expired、reset success 与 post-reset sign-in 路径
+
+退出条件：
+
+- end-user 可以从登录页进入恢复流程并完成真实账户恢复
+
+## Phase I: Auth Hardening And Smoke
+
+目标：
+
+- 补齐 node / worker / browser / staging recovery verification
+- 显式验证枚举防护、same-site origin / referer 保持与 reset 后重新登录闭环
+
+退出条件：
+
+- public auth shell 与 recovery flow 有 fresh local / staging evidence
+- 没有把 reset token、账户存在性或 raw auth material 泄漏到错误 surface
 
 ## 接手标准
 

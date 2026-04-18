@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-08
-updated: 2026-04-11
+updated: 2026-04-19
 ---
 
 # Public Chat Web Route State Parity Inventory
@@ -39,7 +39,7 @@ updated: 2026-04-11
 - composer submit / navigate / edit flows
 - empty / loading / error states inside or directly in front of the chat shell
 
-不进入 donor parity gate，但必须保持边界正确的范围：
+不进入 donor parity gate、但现在已经是正式受管 surface 的范围：
 
 - `/login`
 - `/register`
@@ -47,13 +47,17 @@ updated: 2026-04-11
 - same-site `/api/*`
 - auth/session bootstrap truth as a data boundary
 
+其中：
+
+- `auth-surface` 表示它不是 strict chat parity gate 的计分项，但必须作为正式 public auth surface 单独 smoke 和验收
+
 ## Route Inventory
 
 | Route / State | 当前 owner | 当前运行职责 | donor parity 级别 | 必须保留的本地边界 |
 |---|---|---|---|---|
 | `/` | `src/routes/app-router.tsx` | redirect 到 `/chat` | `none` | Worker/browser route bootstrap |
-| `/login` | `src/routes/app-router.tsx` + `src/login/page.tsx` + donor auth shell | donor sign-in shell、same-site Better Auth action adapter、成功后跳 `/chat` | `out-of-scope` | app-api auth/session truth、repo-owned route bootstrap |
-| `/register` | `src/routes/app-router.tsx` + `src/login/register-page.tsx` + donor auth shell | donor register shell、same-site Better Auth action adapter、成功后跳 `/chat` | `out-of-scope` | app-api auth/session truth、repo-owned route bootstrap |
+| `/login` | `src/routes/app-router.tsx` + `src/login/page.tsx` + donor auth shell | donor sign-in shell、same-site Better Auth action adapter、成功后跳 `/chat` | `auth-surface` | app-api auth/session truth、repo-owned route bootstrap |
+| `/register` | `src/routes/app-router.tsx` + `src/login/register-page.tsx` + donor auth shell | donor register shell、same-site Better Auth action adapter、成功后跳 `/chat` | `auth-surface` | app-api auth/session truth、repo-owned route bootstrap |
 | `/chat` | `src/routes/app-router.tsx` -> `src/platform/chat/app-shell.tsx` | 默认 chat 主壳、empty thread、首轮发送 | `critical` | same-site `/api/*`、platform seam |
 | `/chat/:conversationId` | `src/routes/app-router.tsx` -> `src/platform/chat/app-shell.tsx` | 已有会话、thread detail、继续追问 | `critical` | same-site `/api/*`、platform seam |
 | wildcard `*` | `src/routes/app-router.tsx` | redirect 到 `/chat` | `none` | route canonicalization |
@@ -67,6 +71,7 @@ updated: 2026-04-11
 - `sign-in`
 - `pending`
 - `toast error`
+- `recovery CTA placeholder`
 - `authenticated redirect to /chat`
 
 当前 owner：
@@ -80,7 +85,8 @@ updated: 2026-04-11
 Parity 规则：
 
 - 不进入 strict donor parity gate
-- 但当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
+- 但它现在是正式 public auth surface；后续 `/forgot-password` 必须挂在同一 auth family
+- 当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
 
 ### `/register`
 
@@ -89,6 +95,7 @@ Parity 规则：
 - `sign-up`
 - `pending`
 - `toast error`
+- `campus email helper copy`
 - `authenticated redirect to /chat`
 
 当前 owner：
@@ -102,7 +109,8 @@ Parity 规则：
 Parity 规则：
 
 - 不进入 strict donor parity gate
-- 但当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
+- 但它现在是正式 public auth surface；后续 `/reset-password` 不得另起新壳
+- 当前可见 auth shell 已切回 donor 结构；repo-owned 部分只允许停留在 action adapter、route bootstrap 与 compat seam
 
 ### `/chat`
 

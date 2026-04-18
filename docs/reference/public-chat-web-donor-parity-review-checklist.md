@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Public Chat Web Donor Parity Review Checklist
@@ -28,6 +28,7 @@ updated: 2026-04-12
 - `PASS`：样式与组件行为都已经满足当前 gate
 - `FAIL`：当前明确存在 strict parity blocker
 - `OUT-OF-SCOPE`：必须 smoke，但不进入 donor parity 本身
+- `AUTH-SURFACE`：正式 public auth surface；不计入 strict chat parity 结论，但必须单独记录 auth shell 验收
 
 ## Review Checklist
 
@@ -44,7 +45,7 @@ updated: 2026-04-12
 | sharing / visibility off-path | `private-only` 模式下，launch path 不得继续暴露 share / public affordance | [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts) |
 | strict parity smoke / evidence pack | donor diff whitelist、desktop/mobile smoke、same-site network evidence 与本地 gate 必须同时闭合 | 浏览器 smoke 产物、[public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) |
 | same-site `/api/*` seam | `/api/me`、`/api/history`、`/api/models`、`/api/chat/conversations`、`/api/chat/requests` 都仍走 same-site 且未退化 | network summary、worker smoke |
-| `/login` | `/login` 可用、退出登录后可回到登录页 | `OUT-OF-SCOPE`；单独记录 auth shell 验收，不混入 donor parity 结论 |
+| `/login` `/register` | `/login` 与 `/register` 可用，退出登录后可回到登录页，且 register 不脱离 donor auth family | `AUTH-SURFACE`；单独记录 auth shell 验收，不混入 strict chat parity 结论 |
 
 ## Recommended Review Order
 
