@@ -56,6 +56,9 @@ def _scoped_rule_rows(
     source_notice_ids: tuple[str, ...],
     source_notice_release_time: str,
     cycle_year: str | None,
+    school_unit_name: str | None = None,
+    campus_site: str | None = None,
+    force_status: str | None = None,
     body_blocks: tuple[str, ...],
 ) -> bytes:
     base_metadata: dict[str, object] = {
@@ -67,6 +70,9 @@ def _scoped_rule_rows(
         "source_notice_release_time": source_notice_release_time,
         "regulation_title_normalized": title,
         "cycle_year": cycle_year,
+        "school_unit_name": school_unit_name,
+        "campus_site": campus_site,
+        "force_status": force_status,
     }
     root_unit_id = f"{document_id}:root"
     rows = [
@@ -170,6 +176,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                     source_notice_ids=("351907",),
                     source_notice_release_time="2026-04-01 12:00",
                     cycle_year="2026",
+                    school_unit_name="新闻与传播学院",
                     body_blocks=(
                         "## 第一条",
                         "为规范推荐2026届本科生免试攻读研究生工作，制定本细则。",
@@ -188,6 +195,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                     source_notice_ids=("191176", "191177"),
                     source_notice_release_time="2021-07-01 08:00",
                     cycle_year="2021",
+                    school_unit_name="生命与环境科学学院",
                     body_blocks=(
                         "## 第一条",
                         "为加强暑假期间实验室安全管理，制定本规定。",
@@ -217,6 +225,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
             self.assertTrue(validation["passed"])
             self.assertEqual(validation["missing_cycle_year_count"], 0)
+            self.assertEqual(validation["missing_school_unit_name_count"], 0)
             self.assertEqual(validation["wrapper_notice_leak_chunk_count"], 0)
             self.assertEqual(validation["front_matter_leak_chunk_count"], 0)
 
@@ -233,6 +242,7 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             )
             self.assertTrue(annual_report["passed"])
             self.assertEqual(annual_report["missing_cycle_year_count"], 0)
+            self.assertEqual(annual_report["missing_school_unit_name_count"], 0)
             self.assertEqual(annual_report["missing_projection_metadata_count"], 0)
 
             annual_chunks_path = Path(temp_dir) / annual_report["chunk_catalog_path"]
@@ -293,6 +303,50 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
             self.assertFalse(validation["passed"])
             self.assertEqual(validation["missing_cycle_year_count"], 1)
+            self.assertEqual(
+                validation["failed_document_ids"],
+                [annual_record.document_id],
+            )
+
+    def test_prepare_scoped_rule_chunks_flags_missing_school_unit_name_for_annual_cycle_rule(self) -> None:
+        annual_record = _record(
+            document_id="institutional_regulation:muc:推免工作实施细则:missing-school-unit",
+            version_id="sha256:annual:missing-school-unit",
+            units_key="regulations/documents/scoped_rules/missing-school-unit/document-units.jsonl",
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    annual_record.document_units_object_key or "",
+                ): _scoped_rule_rows(
+                    document_id=annual_record.document_id,
+                    version_id=annual_record.version_id,
+                    title="中央民族大学2026届推荐本科生免试攻读研究生工作实施细则",
+                    document_nature="annual_cycle_rule",
+                    source_notice_ids=("351907",),
+                    source_notice_release_time="2026-04-01 12:00",
+                    cycle_year="2026",
+                    school_unit_name=None,
+                    body_blocks=(
+                        "## 第一条",
+                        "为规范推荐本科生免试攻读研究生工作，制定本细则。",
+                    ),
+                )
+            }
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_scoped_rule_chunks(
+                records=(annual_record,),
+                object_store=object_store,
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertFalse(report.passed)
+            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            self.assertFalse(validation["passed"])
+            self.assertEqual(validation["missing_school_unit_name_count"], 1)
             self.assertEqual(
                 validation["failed_document_ids"],
                 [annual_record.document_id],

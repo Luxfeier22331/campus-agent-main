@@ -64,6 +64,7 @@ _SCHOOL_UNIT_FULL_RE = re.compile(
     r"^[一-龥]{2,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室)$"
 )
 _CAMPUS_SITE_RE = re.compile(r"(?P<site>[一-龥A-Za-z0-9]{2,20}校区)")
+_PROVISIONAL_IN_FORCE_RE = re.compile(r"(暂行|试行)")
 
 
 class ScopedRuleMaterializationObjectStore(Protocol):
@@ -108,6 +109,7 @@ class InternalNoticeScopedRuleCandidate:
     cycle_year: str | None
     school_unit_name: str | None
     campus_site: str | None
+    force_status: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -396,6 +398,7 @@ def _build_scoped_rule_candidate(
         # source-facing title itself carries a clear unit-like discriminator.
         school_unit_name=_extract_school_unit_name(title),
         campus_site=_extract_campus_site(combined_text),
+        force_status=_extract_force_status(combined_text),
     )
 
 
@@ -575,6 +578,7 @@ def _build_scoped_rule_projection_metadata(
         "cycle_year": candidate.cycle_year,
         "school_unit_name": candidate.school_unit_name,
         "campus_site": candidate.campus_site,
+        "force_status": candidate.force_status,
         "duplicate_source_document_ids": [report.document_id for report in duplicate_reports],
         "promotion_reasons": list(candidate.reasons),
         "source_page_start": source_page_start,
@@ -791,6 +795,12 @@ def _extract_school_unit_name(text: str) -> str | None:
 def _extract_campus_site(text: str) -> str | None:
     match = _CAMPUS_SITE_RE.search(text)
     return match.group("site") if match is not None else None
+
+
+def _extract_force_status(text: str) -> str | None:
+    if _PROVISIONAL_IN_FORCE_RE.search(text):
+        return "provisional_in_force"
+    return None
 
 
 def _infer_year_label(candidate: InternalNoticeScopedRuleCandidate) -> str | None:

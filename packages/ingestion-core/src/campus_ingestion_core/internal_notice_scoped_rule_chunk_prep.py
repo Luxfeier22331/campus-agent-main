@@ -57,6 +57,7 @@ class ScopedRuleChunkPrepDocumentReport:
     missing_contextualization_count: int
     missing_projection_metadata_count: int
     missing_cycle_year_count: int
+    missing_school_unit_name_count: int
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
@@ -102,6 +103,7 @@ class ScopedRuleChunkPrepValidationReport:
     missing_contextualization_count: int
     missing_projection_metadata_count: int
     missing_cycle_year_count: int
+    missing_school_unit_name_count: int
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
@@ -210,6 +212,7 @@ def build_scoped_rule_chunk_prep_validation_report(
     missing_contextualization_count = 0
     missing_projection_metadata_count = 0
     missing_cycle_year_count = 0
+    missing_school_unit_name_count = 0
     wrapper_notice_leak_chunk_count = 0
     front_matter_leak_chunk_count = 0
     short_body_chunk_count = 0
@@ -224,6 +227,7 @@ def build_scoped_rule_chunk_prep_validation_report(
         missing_contextualization_count += item.report.missing_contextualization_count
         missing_projection_metadata_count += item.report.missing_projection_metadata_count
         missing_cycle_year_count += item.report.missing_cycle_year_count
+        missing_school_unit_name_count += item.report.missing_school_unit_name_count
         wrapper_notice_leak_chunk_count += item.report.wrapper_notice_leak_chunk_count
         front_matter_leak_chunk_count += item.report.front_matter_leak_chunk_count
         short_body_chunk_count += item.report.short_body_chunk_count
@@ -241,6 +245,7 @@ def build_scoped_rule_chunk_prep_validation_report(
         missing_contextualization_count=missing_contextualization_count,
         missing_projection_metadata_count=missing_projection_metadata_count,
         missing_cycle_year_count=missing_cycle_year_count,
+        missing_school_unit_name_count=missing_school_unit_name_count,
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,
@@ -375,6 +380,11 @@ def _build_document_report(
         first_metadata.get("cycle_year")
     ):
         missing_cycle_year_count = 1
+    missing_school_unit_name_count = 0
+    if document_nature == "annual_cycle_rule" and _is_missing_metadata_field(
+        first_metadata.get("school_unit_name")
+    ):
+        missing_school_unit_name_count = 1
     wrapper_notice_leak_chunk_count = sum(
         1 for chunk in chunks if _contains_marker(chunk.text, _HIGH_CONFIDENCE_WRAPPER_LEAK_MARKERS)
     )
@@ -398,6 +408,8 @@ def _build_document_report(
         issues.append("missing_projection_metadata")
     if missing_cycle_year_count:
         issues.append("missing_cycle_year")
+    if missing_school_unit_name_count:
+        issues.append("missing_school_unit_name")
     if wrapper_notice_leak_chunk_count:
         issues.append("wrapper_notice_leak")
     if front_matter_leak_chunk_count:
@@ -409,6 +421,7 @@ def _build_document_report(
             "missing_contextualization",
             "missing_projection_metadata",
             "missing_cycle_year",
+            "missing_school_unit_name",
             "wrapper_notice_leak",
             "front_matter_leak",
         }
@@ -429,6 +442,7 @@ def _build_document_report(
         missing_contextualization_count=missing_contextualization_count,
         missing_projection_metadata_count=missing_projection_metadata_count,
         missing_cycle_year_count=missing_cycle_year_count,
+        missing_school_unit_name_count=missing_school_unit_name_count,
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,

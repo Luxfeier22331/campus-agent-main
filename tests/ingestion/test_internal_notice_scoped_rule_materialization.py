@@ -672,6 +672,7 @@ class InternalNoticeScopedRuleMaterializationTest(unittest.TestCase):
             "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
         )
         self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
+        self.assertEqual(candidate.force_status, "provisional_in_force")
 
     def test_build_scoped_rule_candidate_fails_closed_for_body_phrase_in_annual_rule(self) -> None:
         source_record = _record(
@@ -802,6 +803,7 @@ class InternalNoticeScopedRuleMaterializationTest(unittest.TestCase):
 
         self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
         self.assertIsNone(candidate.school_unit_name)
+        self.assertEqual(candidate.force_status, "provisional_in_force")
 
 
 if __name__ == "__main__":
