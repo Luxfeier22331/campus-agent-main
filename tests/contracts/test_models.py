@@ -33,6 +33,7 @@ from campus_contracts import (
     SessionSummary,
     RagRequestPayload,
     RagResultPayload,
+    SourceTrustSummary,
     SpecialistRequest,
     SpecialistResponse,
     SupervisorResponse,
@@ -296,13 +297,16 @@ class ContractModelsTest(unittest.TestCase):
                 "session_program_family": "",
                 "session_program": "",
                 "session_semester": "",
+                "source_trust_summary": None,
                 "claim_supports": (
                     {
                         "claim_type": "offering_unit_or_owning_school",
                         "claim_text": "马克思主义学院",
+                        "required_source_trust_tier": "",
                         "supported": False,
                         "support_source_doc_id": "",
                         "support_snippet": "",
+                        "support_source_trust_tier": "",
                     },
                 ),
                 "unsupported_fields": ("offering_unit",),
@@ -333,6 +337,75 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIn("freshness_fail_closed", field_names)
         self.assertIn("prompt_runtime_state", field_names)
         self.assertIn("prompt_runtime_detail", field_names)
+        self.assertIn("source_trust_summary", field_names)
+
+    def test_evidence_bundle_infers_canonical_source_trust_tier_from_collection(self) -> None:
+        source = EvidenceSource(
+            doc_id="curriculum:law-ethnic-experimental",
+            revision_track="source-faithful",
+            version_id="v1:semester-4",
+            chunk_id="curriculum:law-ethnic-experimental:semester-4:chunk-0001",
+            anchor={"page_start": 1, "page_end": 1},
+            canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+            latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+            source_channel="pdf_ocr",
+            collection="curriculum_plan",
+            is_current=False,
+            snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+            score=0.94,
+            source_title="法学（民族实验班）本科人才培养方案",
+            is_answer_bearing=True,
+        )
+
+        EvidenceBundle(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            query_text="法学民族班大二下有什么课",
+            sources=(source,),
+        )
+
+        self.assertEqual(source.source_trust_tier, "T0")
+
+    def test_evidence_source_rejects_t0_derived_as_contract_enum_value(self) -> None:
+        with self.assertRaises(ValueError):
+            EvidenceSource(
+                doc_id="curriculum:law-ethnic-experimental",
+                revision_track="source-faithful",
+                version_id="v1:semester-4",
+                chunk_id="curriculum:law-ethnic-experimental:semester-4:chunk-0001",
+                anchor={"page_start": 1, "page_end": 1},
+                canonical_url="https://campus.example/curriculum/law-ethnic-experimental",
+                latest_url="https://campus.example/curriculum/law-ethnic-experimental",
+                source_channel="pdf_ocr",
+                collection="curriculum_plan",
+                is_current=False,
+                snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+                score=0.94,
+                source_title="法学（民族实验班）本科人才培养方案",
+                source_trust_tier="T0-derived",
+            )
+
+    def test_source_trust_summary_serializes_as_contract_field(self) -> None:
+        diagnostics = RagResultDiagnostics(
+            source_trust_summary=SourceTrustSummary(
+                observed_tiers=("T0", "T1"),
+                answer_bearing_tiers=("T0",),
+                blocked_claim_types=("freshness_sensitive_status",),
+                freshness_claim_blocked=True,
+                authorization_claim_blocked=False,
+            )
+        )
+
+        self.assertEqual(
+            asdict(diagnostics)["source_trust_summary"],
+            {
+                "observed_tiers": ("T0", "T1"),
+                "answer_bearing_tiers": ("T0",),
+                "blocked_claim_types": ("freshness_sensitive_status",),
+                "freshness_claim_blocked": True,
+                "authorization_claim_blocked": False,
+            },
+        )
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
             target="rag-specialist",

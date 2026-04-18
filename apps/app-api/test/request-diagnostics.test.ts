@@ -74,7 +74,53 @@ describe("request diagnostics", () => {
       sessionProgram: null,
       sessionProgramFamily: null,
       sessionSemester: null,
+      sourceTrustSummary: null,
       unsupportedFields: ["offering_unit_claims", "audience_claims"],
+    });
+  });
+
+  it("extracts source trust summary from rag diagnostics", () => {
+    const summary = extractRequestDiagnosticsSummary({
+      diagnostics: {
+        source_trust_summary: {
+          answer_bearing_tiers: ["T0"],
+          authorization_claim_blocked: false,
+          blocked_claim_types: ["freshness_sensitive_status"],
+          freshness_claim_blocked: true,
+          observed_tiers: ["T0", "T1"],
+        },
+      },
+    });
+
+    expect(summary).toEqual({
+      claimSupportSummary: null,
+      clarificationReason: null,
+      freshnessFailClosed: null,
+      groundingDowngraded: null,
+      groundingVerdict: null,
+      noAnswerReason: null,
+      policyReason: null,
+      retrievalAdequacyReason: null,
+      retrievalAdequacyVerdict: null,
+      resolvedEntityType: null,
+      resolvedPolicyDocumentId: null,
+      resolvedPolicyTitle: null,
+      resolvedProgramFamilyTitle: null,
+      retrievedTitleSummary: [],
+      rewrittenQuery: null,
+      scopeClass: null,
+      semanticOutcome: null,
+      sessionProgram: null,
+      sessionProgramFamily: null,
+      sessionSemester: null,
+      sourceTrustSummary: {
+        answerBearingTiers: ["T0"],
+        authorizationClaimBlocked: false,
+        blockedClaimTypes: ["freshness_sensitive_status"],
+        freshnessClaimBlocked: true,
+        observedTiers: ["T0", "T1"],
+      },
+      unsupportedFields: [],
     });
   });
 });

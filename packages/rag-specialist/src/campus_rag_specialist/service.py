@@ -16,6 +16,7 @@ from campus_contracts import (
     RagResultPayload,
     SpecialistRequest,
     SpecialistResponse,
+    SourceTrustSummary,
 )
 from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_profile
@@ -33,7 +34,10 @@ from campus_retrieval_core.evidence_ranking import query_targets_source_title, s
 
 from campus_rag_specialist.agent import DEFAULT_MAX_ANSWER_SOURCES, RagSpecialistAgent
 from campus_rag_specialist.confidence import derive_confidence
-from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
+from campus_rag_specialist.grounding_validation import (
+    build_source_trust_summary,
+    validate_prompt_answer_grounding,
+)
 from campus_rag_specialist.intent import build_personalization_hint, frame_rag_intent
 from campus_rag_specialist.prompt_execution import RagPromptExecutor, wrap_rag_prompt_executor
 from campus_rag_specialist.prompt_packets import (
@@ -829,6 +833,7 @@ def delegate_to_rag_agent(
                                 unsupported_fields=grounding.unsupported_fields,
                                 grounding_verdict=grounding.verdict,
                                 grounding_downgraded=True,
+                                source_trust_summary=grounding.source_trust_summary,
                                 prompt_runtime_state=downgraded_prompt_runtime_state,
                                 prompt_runtime_detail=downgraded_prompt_runtime_detail,
                             ),
@@ -854,6 +859,9 @@ def delegate_to_rag_agent(
                 retrieval_adequacy=sufficient_retrieval_adequacy(),
                 claim_supports=grounding.claim_supports if should_use_prompt_answer else (),
                 grounding_verdict="grounded",
+                source_trust_summary=(
+                    grounding.source_trust_summary if should_use_prompt_answer else None
+                ),
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
             ),
@@ -1537,6 +1545,7 @@ def _build_rag_result_payload(
     grounding_verdict: str = "",
     grounding_downgraded: bool = False,
     freshness_fail_closed: bool = False,
+    source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
@@ -1557,6 +1566,7 @@ def _build_rag_result_payload(
         grounding_verdict=grounding_verdict,
         grounding_downgraded=grounding_downgraded,
         freshness_fail_closed=freshness_fail_closed,
+        source_trust_summary=source_trust_summary,
         prompt_runtime_state=prompt_runtime_state,
         prompt_runtime_detail=prompt_runtime_detail,
         retrieved_evidence=retrieved_evidence,
@@ -1584,6 +1594,7 @@ def _build_rag_result_diagnostics(
     grounding_verdict: str = "",
     grounding_downgraded: bool = False,
     freshness_fail_closed: bool = False,
+    source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
@@ -1603,8 +1614,19 @@ def _build_rag_result_diagnostics(
         return None
     retrieved_sources = raw_retrieved_sources if preserve_retrieved_sources else ()
 
+    effective_source_trust_summary = source_trust_summary
+    if effective_source_trust_summary is None:
+        effective_source_trust_summary = build_source_trust_summary(
+            evidence=evidence,
+            claim_supports=claim_supports,
+        )
+
     def _diagnostics(**kwargs: object) -> RagResultDiagnostics:
-        return RagResultDiagnostics(retrieved_sources=retrieved_sources, **kwargs)
+        return RagResultDiagnostics(
+            retrieved_sources=retrieved_sources,
+            source_trust_summary=effective_source_trust_summary,
+            **kwargs,
+        )
     if (
         handbook_plan is None
         and curriculum_plan is None

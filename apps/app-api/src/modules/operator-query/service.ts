@@ -2,6 +2,7 @@ import { AppApiRouteError } from "../../http";
 import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
+  RequestSourceTrustSummary,
 } from "../request-diagnostics";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ResolvedAppPrincipal } from "../auth";
@@ -152,6 +153,7 @@ export interface OperatorRequestObservabilityRecord {
     retrievalAdequacyVerdict: string | null;
     retrievalAdequacyReason: string | null;
     claimSupportSummary: RequestClaimSupportSummary | null;
+    sourceTrustSummary?: RequestSourceTrustSummary | null;
     model: {
       provider: string | null;
       name: string | null;

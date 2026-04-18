@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
-from campus_contracts import ClaimSupport, EvidenceBundle, EvidenceSource
+from campus_contracts import ClaimSupport, EvidenceBundle, EvidenceSource, SourceTrustSummary
 from campus_shared import (
     NormalizedProviderGroundingSupport,
     normalize_provider_grounding_supports,
@@ -105,6 +105,23 @@ _LOW_SIGNAL_REQUIREMENT_PHRASES = frozenset(
     }
 )
 _AUDIENCE_SPLIT_RE = re.compile(r"(?:、|，|,|/|以及|及|和)")
+_SOURCE_TRUST_TIER_ORDER = {"T0": 0, "T1": 1, "T2": 2, "T3": 3}
+_CURRICULUM_T0_CLAIM_TYPES = frozenset(
+    {
+        "quantity_or_credit_or_score_requirement",
+        "semester_or_grade_or_term_placement",
+        "audience_or_major_or_program_or_class_family",
+        "offering_unit_or_owning_school",
+    }
+)
+_HANDBOOK_T1_CLAIM_TYPES = frozenset(
+    {
+        "procedure_step",
+        "material_requirement",
+        "eligibility_requirement",
+        "time_or_deadline",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +136,7 @@ class SupportCandidate:
     support_source_doc_id: str
     support_snippet: str
     haystack: str
+    support_source_trust_tier: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +144,7 @@ class GroundingValidationResult:
     verdict: str
     unsupported_fields: tuple[str, ...] = ()
     claim_supports: tuple[ClaimSupport, ...] = ()
+    source_trust_summary: SourceTrustSummary | None = None
 
 
 def validate_prompt_answer_grounding(
@@ -154,10 +173,74 @@ def validate_prompt_answer_grounding(
     )
     deduped_unsupported_fields = tuple(dict.fromkeys(unsupported_fields))
     verdict = "grounded" if not deduped_unsupported_fields else "unsupported"
+    source_trust_summary = build_source_trust_summary(
+        evidence=evidence,
+        claim_supports=claim_supports,
+    )
     return GroundingValidationResult(
         verdict=verdict,
         unsupported_fields=deduped_unsupported_fields,
         claim_supports=claim_supports,
+        source_trust_summary=source_trust_summary,
+    )
+
+
+def build_source_trust_summary(
+    *,
+    evidence: EvidenceBundle,
+    claim_supports: tuple[ClaimSupport, ...] = (),
+) -> SourceTrustSummary | None:
+    observed_tiers = {
+        source.source_trust_tier
+        for source in evidence.sources
+        if source.source_trust_tier
+    }
+    observed_tiers.update(
+        claim.support_source_trust_tier
+        for claim in claim_supports
+        if claim.support_source_trust_tier
+    )
+    answer_bearing_tiers = {
+        source.source_trust_tier
+        for source in evidence.sources
+        if source.is_answer_bearing and source.source_trust_tier
+    }
+    answer_bearing_tiers.update(
+        claim.support_source_trust_tier
+        for claim in claim_supports
+        if claim.supported and claim.support_source_trust_tier
+    )
+
+    blocked_claim_types: list[str] = []
+    freshness_claim_blocked = False
+    authorization_claim_blocked = False
+    for claim in claim_supports:
+        if claim.claim_type == "authorization_sensitive_claim" and not claim.supported:
+            authorization_claim_blocked = True
+            blocked_claim_types.append(claim.claim_type)
+            continue
+        if (
+            not claim.supported
+            and claim.required_source_trust_tier
+            and claim.support_source_trust_tier
+            and not _is_claim_source_trust_tier_compatible(
+                claim.claim_type,
+                support_source_trust_tier=claim.support_source_trust_tier,
+            )
+        ):
+            blocked_claim_types.append(claim.claim_type)
+            if claim.claim_type == "freshness_sensitive_status":
+                freshness_claim_blocked = True
+
+    if not observed_tiers and not blocked_claim_types and not authorization_claim_blocked:
+        return None
+
+    return SourceTrustSummary(
+        observed_tiers=_sorted_source_trust_tiers(observed_tiers),
+        answer_bearing_tiers=_sorted_source_trust_tiers(answer_bearing_tiers),
+        blocked_claim_types=tuple(dict.fromkeys(blocked_claim_types)),
+        freshness_claim_blocked=freshness_claim_blocked,
+        authorization_claim_blocked=authorization_claim_blocked,
     )
 
 
@@ -169,6 +252,7 @@ def _build_support_candidates(
     candidates: list[SupportCandidate] = []
     for source in evidence.sources:
         candidates.extend(_build_source_support_candidates(source))
+    default_provider_support_source_trust_tier = _default_source_trust_tier_for_bundle(evidence)
     for support in _normalize_optional_provider_supports(provider_grounding_supports):
         snippet = support.support_snippet.strip() or support.claim_text.strip()
         haystack = _normalize_matching_text(f"{support.claim_text} {snippet}")
@@ -179,6 +263,7 @@ def _build_support_candidates(
                 support_source_doc_id=support.support_source_doc_id,
                 support_snippet=snippet,
                 haystack=haystack,
+                support_source_trust_tier=default_provider_support_source_trust_tier,
             )
         )
     return tuple(_dedupe_support_candidates(candidates))
@@ -201,6 +286,7 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
                 support_source_doc_id=source.doc_id,
                 support_snippet=snippet,
                 haystack=haystack,
+                support_source_trust_tier=source.source_trust_tier,
             )
         )
     combined_text = " ".join(snippet for snippet in snippets if snippet)
@@ -211,6 +297,7 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
                 support_source_doc_id=source.doc_id,
                 support_snippet=source.snippet.strip() or source.source_title.strip(),
                 haystack=combined_haystack,
+                support_source_trust_tier=source.source_trust_tier,
             )
         )
     return tuple(_dedupe_support_candidates(candidates))
@@ -226,6 +313,7 @@ def _dedupe_support_candidates(
             candidate.support_source_doc_id,
             candidate.support_snippet,
             candidate.haystack,
+            candidate.support_source_trust_tier,
         )
         if key in seen:
             continue
@@ -521,12 +609,39 @@ def _build_claim_support(
     *,
     support_candidates: tuple[SupportCandidate, ...],
 ) -> ClaimSupport:
+    required_source_trust_tier = _required_source_trust_tier_for_claim_type(claim.claim_type)
     candidate = _find_support_candidate(claim.claim_text, support_candidates=support_candidates)
+    if claim.claim_type == "authorization_sensitive_claim":
+        return ClaimSupport(
+            claim_type=claim.claim_type,
+            claim_text=claim.claim_text,
+            supported=False,
+            support_source_doc_id=candidate.support_source_doc_id if candidate is not None else "",
+            support_snippet=candidate.support_snippet if candidate is not None else "",
+            required_source_trust_tier=required_source_trust_tier,
+            support_source_trust_tier=(
+                candidate.support_source_trust_tier if candidate is not None else ""
+            ),
+        )
     if candidate is None:
         return ClaimSupport(
             claim_type=claim.claim_type,
             claim_text=claim.claim_text,
             supported=False,
+            required_source_trust_tier=required_source_trust_tier,
+        )
+    if not _is_claim_source_trust_tier_compatible(
+        claim.claim_type,
+        support_source_trust_tier=candidate.support_source_trust_tier,
+    ):
+        return ClaimSupport(
+            claim_type=claim.claim_type,
+            claim_text=claim.claim_text,
+            supported=False,
+            support_source_doc_id=candidate.support_source_doc_id,
+            support_snippet=candidate.support_snippet,
+            required_source_trust_tier=required_source_trust_tier,
+            support_source_trust_tier=candidate.support_source_trust_tier,
         )
     return ClaimSupport(
         claim_type=claim.claim_type,
@@ -534,7 +649,62 @@ def _build_claim_support(
         supported=True,
         support_source_doc_id=candidate.support_source_doc_id,
         support_snippet=candidate.support_snippet,
+        required_source_trust_tier=required_source_trust_tier,
+        support_source_trust_tier=candidate.support_source_trust_tier,
     )
+
+
+def _required_source_trust_tier_for_claim_type(claim_type: str) -> str:
+    if claim_type == "freshness_sensitive_status":
+        return "T3"
+    if claim_type in _CURRICULUM_T0_CLAIM_TYPES:
+        return "T0"
+    if claim_type in _HANDBOOK_T1_CLAIM_TYPES:
+        return "T1"
+    return ""
+
+
+def _is_claim_source_trust_tier_compatible(
+    claim_type: str,
+    *,
+    support_source_trust_tier: str,
+) -> bool:
+    if not support_source_trust_tier:
+        return False
+    if claim_type == "authorization_sensitive_claim":
+        return False
+    if claim_type == "freshness_sensitive_status":
+        return support_source_trust_tier == "T3"
+    if claim_type in _CURRICULUM_T0_CLAIM_TYPES:
+        return support_source_trust_tier == "T0"
+    if claim_type in _HANDBOOK_T1_CLAIM_TYPES:
+        return support_source_trust_tier in {"T0", "T1"}
+    return True
+
+
+def _sorted_source_trust_tiers(tiers: set[str]) -> tuple[str, ...]:
+    return tuple(sorted(tiers, key=lambda tier: _SOURCE_TRUST_TIER_ORDER.get(tier, 99)))
+
+
+def _default_source_trust_tier_for_bundle(evidence: EvidenceBundle) -> str:
+    if evidence.sources:
+        return evidence.sources[0].source_trust_tier
+    if evidence.collection in {
+        "curriculum_plan",
+        "program_semester_facts",
+        "program_family_facts",
+        "course_facts",
+    }:
+        return "T0"
+    if evidence.collection == "student_handbook":
+        return "T1"
+    if evidence.collection == "stable_reference":
+        return "T2"
+    if evidence.collection == "fresh_news":
+        return "T3"
+    if evidence.corpus == "official_web":
+        return "T2"
+    return "T1"
 
 
 def _find_support_candidate(

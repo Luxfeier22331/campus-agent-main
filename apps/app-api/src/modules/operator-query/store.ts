@@ -617,6 +617,7 @@ export function createPgOperatorQueryStore(
           cachedInputTokens: fact?.cachedInputTokens ?? null,
           candidateCount: fact?.candidateCount ?? null,
           claimSupportSummary: fact?.claimSupportSummaryJson ?? null,
+          sourceTrustSummary: fact?.sourceTrustSummaryJson ?? null,
           citationCount: fact?.citationCount ?? supportingSources.length,
           citationExpected: fact?.citationExpected ?? null,
           citationMissing: fact?.citationMissing ?? null,

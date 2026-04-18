@@ -20,6 +20,7 @@ import type { RequestedScope } from "../integration";
 import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
+  RequestSourceTrustSummary,
 } from "../request-diagnostics";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { ChatCommandResponse } from "./service";
@@ -131,6 +132,7 @@ export interface RequestObservabilityFactWrite {
   retrievalAdequacyVerdict: string | null;
   retrievalAdequacyReason: string | null;
   claimSupportSummary: RequestClaimSupportSummary | null;
+  sourceTrustSummary?: RequestSourceTrustSummary | null;
   traceAvailable: boolean;
   projectionLagMs: number | null;
   measuredAt: string;
@@ -432,6 +434,7 @@ export function createPgChatCommandStore(
           cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
           candidateCount: input.requestObservabilityFact.candidateCount,
           claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+          sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
           retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
           supportingSourcesJson: input.requestObservabilityFact.supportingSources,
           citationCount: input.requestObservabilityFact.citationCount,
@@ -558,6 +561,7 @@ export function createPgChatCommandStore(
             cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
             candidateCount: input.requestObservabilityFact.candidateCount,
             claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+            sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
             retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
             supportingSourcesJson: input.requestObservabilityFact.supportingSources,
             citationCount: input.requestObservabilityFact.citationCount,
@@ -614,6 +618,7 @@ export function createPgChatCommandStore(
               cachedInputTokens: input.requestObservabilityFact.cachedInputTokens,
               candidateCount: input.requestObservabilityFact.candidateCount,
               claimSupportSummaryJson: input.requestObservabilityFact.claimSupportSummary,
+              sourceTrustSummaryJson: input.requestObservabilityFact.sourceTrustSummary ?? null,
               retrievedSourcesJson: input.requestObservabilityFact.retrievedSources,
               supportingSourcesJson: input.requestObservabilityFact.supportingSources,
               citationCount: input.requestObservabilityFact.citationCount,

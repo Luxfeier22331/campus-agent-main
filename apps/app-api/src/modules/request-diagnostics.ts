@@ -6,8 +6,17 @@ export interface RequestClaimSupportSummary {
   unsupportedFields: string[];
 }
 
+export interface RequestSourceTrustSummary {
+  observedTiers: string[];
+  answerBearingTiers: string[];
+  blockedClaimTypes: string[];
+  freshnessClaimBlocked: boolean;
+  authorizationClaimBlocked: boolean;
+}
+
 export interface RequestDiagnosticsSummary {
   claimSupportSummary: RequestClaimSupportSummary | null;
+  sourceTrustSummary?: RequestSourceTrustSummary | null;
   resolvedPolicyDocumentId: string | null;
   resolvedPolicyTitle: string | null;
   rewrittenQuery: string | null;
@@ -109,6 +118,45 @@ function summarizeClaimSupports(
   };
 }
 
+function summarizeSourceTrust(
+  diagnosticsRecord: Record<string, unknown>,
+): RequestSourceTrustSummary | null {
+  const rawSourceTrustSummary = getRecord(
+    readField(diagnosticsRecord, "source_trust_summary", "sourceTrustSummary"),
+  );
+  if (!rawSourceTrustSummary) {
+    return null;
+  }
+
+  return {
+    observedTiers: normalizeStringList(
+      readField(rawSourceTrustSummary, "observed_tiers", "observedTiers"),
+    ),
+    answerBearingTiers: normalizeStringList(
+      readField(rawSourceTrustSummary, "answer_bearing_tiers", "answerBearingTiers"),
+    ),
+    blockedClaimTypes: normalizeStringList(
+      readField(rawSourceTrustSummary, "blocked_claim_types", "blockedClaimTypes"),
+    ),
+    freshnessClaimBlocked:
+      normalizeOptionalBoolean(
+        readField(
+          rawSourceTrustSummary,
+          "freshness_claim_blocked",
+          "freshnessClaimBlocked",
+        ),
+      ) ?? false,
+    authorizationClaimBlocked:
+      normalizeOptionalBoolean(
+        readField(
+          rawSourceTrustSummary,
+          "authorization_claim_blocked",
+          "authorizationClaimBlocked",
+        ),
+      ) ?? false,
+  };
+}
+
 export function extractRequestDiagnosticsSummary(
   result: unknown,
 ): RequestDiagnosticsSummary | null {
@@ -120,6 +168,7 @@ export function extractRequestDiagnosticsSummary(
 
   const summary: RequestDiagnosticsSummary = {
     claimSupportSummary: summarizeClaimSupports(diagnosticsRecord),
+    sourceTrustSummary: summarizeSourceTrust(diagnosticsRecord),
     clarificationReason: normalizeOptionalString(
       readField(diagnosticsRecord, "clarification_reason", "clarificationReason"),
     ),
@@ -200,6 +249,7 @@ export function extractRequestDiagnosticsSummary(
 
   if (
     summary.claimSupportSummary === null &&
+    summary.sourceTrustSummary === null &&
     !summary.resolvedPolicyDocumentId &&
     !summary.resolvedPolicyTitle &&
     !summary.rewrittenQuery &&

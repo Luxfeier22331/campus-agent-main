@@ -3,6 +3,7 @@ import type { RequestedScope, SupervisorExecutionResponse } from "./integration"
 import type {
   RequestClaimSupportSummary,
   RequestDiagnosticsSummary,
+  RequestSourceTrustSummary,
 } from "./request-diagnostics";
 import {
   extractObservedSourcesFromResult,
@@ -213,6 +214,12 @@ function normalizeClaimSupportSummary(
   return diagnostics?.claimSupportSummary ?? null;
 }
 
+function normalizeSourceTrustSummary(
+  diagnostics: RequestDiagnosticsSummary | null,
+): RequestSourceTrustSummary | null {
+  return diagnostics?.sourceTrustSummary ?? null;
+}
+
 export function buildAcceptedRequestObservabilityFact(input: {
   conversationId: string;
   principal: ResolvedAppPrincipal;
@@ -230,6 +237,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
     cachedInputTokens: null,
     candidateCount: null,
     claimSupportSummary: null,
+    sourceTrustSummary: null,
     retrievedSources: [],
     supportingSources: [],
     citationCount: null,
@@ -325,6 +333,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
     cachedInputTokens: observability?.cachedInputTokens ?? null,
     candidateCount: observability?.candidateCount ?? null,
     claimSupportSummary: normalizeClaimSupportSummary(input.diagnostics),
+    sourceTrustSummary: normalizeSourceTrustSummary(input.diagnostics),
     retrievedSources,
     supportingSources,
     citationCount,

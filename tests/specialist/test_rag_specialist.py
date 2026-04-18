@@ -26,6 +26,7 @@ from campus_contracts import (
     SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
+    SourceTrustSummary,
 )
 from campus_retrieval_core import (
     CorpusQueryDisabledError,
@@ -952,6 +953,91 @@ class RagSpecialistTest(unittest.TestCase):
                 support_snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
             ),
             result.claim_supports,
+        )
+
+    def test_validate_prompt_answer_grounding_blocks_t2_freshness_claims(self) -> None:
+        evidence = _make_official_web_evidence(
+            query_text="报名现在开放了吗",
+            collection="stable_reference",
+            sources=(
+                _make_official_web_source(
+                    doc_id="official_web:muc_public:article_detail:signup",
+                    title="报名说明",
+                    snippet="该报名系统目前开放申请。",
+                    score=0.91,
+                    chunk_id_suffix="signup-0001",
+                    collection="stable_reference",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="根据学校官网，该报名系统目前开放申请。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "unsupported")
+        self.assertIn("freshness_sensitive_status_claims", result.unsupported_fields)
+        freshness_claim = next(
+            claim
+            for claim in result.claim_supports
+            if claim.claim_type == "freshness_sensitive_status"
+        )
+        self.assertFalse(freshness_claim.supported)
+        self.assertEqual(freshness_claim.required_source_trust_tier, "T3")
+        self.assertEqual(freshness_claim.support_source_trust_tier, "T2")
+        self.assertEqual(
+            result.source_trust_summary,
+            SourceTrustSummary(
+                observed_tiers=("T2",),
+                answer_bearing_tiers=("T2",),
+                blocked_claim_types=("freshness_sensitive_status",),
+                freshness_claim_blocked=True,
+                authorization_claim_blocked=False,
+            ),
+        )
+
+    def test_validate_prompt_answer_grounding_projects_t0_curriculum_support_tiers(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族班大二下有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:law-ethnic-experimental",
+                    chunk_id="curriculum:law-ethnic-experimental:chunk-0001",
+                    snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+                    score=0.94,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="培养方案把这门课安排在第四学期。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "grounded")
+        semester_claim = next(
+            claim
+            for claim in result.claim_supports
+            if claim.claim_type == "semester_or_grade_or_term_placement"
+        )
+        self.assertTrue(semester_claim.supported)
+        self.assertEqual(semester_claim.required_source_trust_tier, "T0")
+        self.assertEqual(semester_claim.support_source_trust_tier, "T0")
+        self.assertEqual(
+            result.source_trust_summary,
+            SourceTrustSummary(
+                observed_tiers=("T0",),
+                answer_bearing_tiers=("T0",),
+                blocked_claim_types=(),
+                freshness_claim_blocked=False,
+                authorization_claim_blocked=False,
+            ),
         )
 
     def test_prompt_answer_with_unsupported_offering_unit_and_audience_downgrades_to_no_answer(

@@ -7,6 +7,7 @@ from typing import Literal, TypeAlias
 AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
 SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
+SourceTrustTier = Literal["T0", "T1", "T2", "T3"]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 SpecialistTarget = Literal["rag-specialist", "availability-specialist", "navigation-specialist"]
@@ -26,6 +27,7 @@ CoordinateReferenceSystem = Literal["EPSG:4326"]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
+ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
 DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
@@ -235,11 +237,19 @@ class EvidenceSource:
     canonical_source_title: str = ""
     source_unit_kind: str = ""
     source_unit_key: str = ""
+    source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)
         _validate_source_channel(self.source_channel)
         _validate_collection(self.collection)
+        normalized_source_trust_tier = _normalize_source_trust_tier(
+            self.source_trust_tier,
+            collection=self.collection,
+            source_channel=self.source_channel,
+        )
+        if normalized_source_trust_tier != self.source_trust_tier:
+            object.__setattr__(self, "source_trust_tier", normalized_source_trust_tier)
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,6 +263,14 @@ class EvidenceBundle:
         _validate_corpus(self.corpus)
         _validate_collection(self.collection)
         _validate_collection_scope(self.corpus, self.collection)
+        for source in self.sources:
+            normalized_source_trust_tier = _normalize_source_trust_tier(
+                source.source_trust_tier,
+                collection=source.collection or self.collection,
+                source_channel=source.source_channel,
+            )
+            if normalized_source_trust_tier != source.source_trust_tier:
+                object.__setattr__(source, "source_trust_tier", normalized_source_trust_tier)
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,12 +292,33 @@ class ClaimSupport:
     supported: bool
     support_source_doc_id: str = ""
     support_snippet: str = ""
+    required_source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+    support_source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
         if not self.claim_type.strip():
             raise ValueError("claim_type must not be empty")
         if not self.claim_text.strip():
             raise ValueError("claim_text must not be empty")
+        if self.required_source_trust_tier:
+            _validate_source_trust_tier(self.required_source_trust_tier)
+        if self.support_source_trust_tier:
+            _validate_source_trust_tier(self.support_source_trust_tier)
+
+
+@dataclass(frozen=True, slots=True)
+class SourceTrustSummary:
+    observed_tiers: tuple[SourceTrustTier, ...] = field(default_factory=tuple)
+    answer_bearing_tiers: tuple[SourceTrustTier, ...] = field(default_factory=tuple)
+    blocked_claim_types: tuple[str, ...] = field(default_factory=tuple)
+    freshness_claim_blocked: bool = False
+    authorization_claim_blocked: bool = False
+
+    def __post_init__(self) -> None:
+        for tier in self.observed_tiers:
+            _validate_source_trust_tier(tier)
+        for tier in self.answer_bearing_tiers:
+            _validate_source_trust_tier(tier)
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +353,7 @@ class RagResultDiagnostics:
     session_program_family: str = ""
     session_program: str = ""
     session_semester: str = ""
+    source_trust_summary: SourceTrustSummary | None = field(default=None, compare=False)
     claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
@@ -626,3 +666,42 @@ def _validate_revision_track(revision_track: str) -> None:
 def _validate_source_channel(source_channel: str) -> None:
     if source_channel not in ALLOWED_SOURCE_CHANNELS:
         raise ValueError(f"unsupported source channel: {source_channel}")
+
+
+def _validate_source_trust_tier(source_trust_tier: str) -> None:
+    if source_trust_tier not in ALLOWED_SOURCE_TRUST_TIERS:
+        raise ValueError(f"unsupported source trust tier: {source_trust_tier}")
+
+
+def _normalize_source_trust_tier(
+    source_trust_tier: str,
+    *,
+    collection: str,
+    source_channel: str,
+) -> SourceTrustTier:
+    if source_trust_tier:
+        _validate_source_trust_tier(source_trust_tier)
+        return source_trust_tier
+
+    normalized_collection = collection.strip().lower()
+    if normalized_collection in {
+        "curriculum_plan",
+        "program_semester_facts",
+        "program_family_facts",
+        "course_facts",
+    }:
+        return "T0"
+    if normalized_collection == "student_handbook":
+        return "T1"
+    if normalized_collection == "stable_reference":
+        return "T2"
+    if normalized_collection == "fresh_news":
+        return "T3"
+
+    if source_channel == "official_web":
+        return "T2"
+    if source_channel == "authenticated_notice_portal":
+        return "T1"
+    if source_channel == "manual_curated":
+        return "T0"
+    return "T1"

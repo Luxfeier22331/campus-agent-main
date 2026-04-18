@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: completed
+status: active
 created: 2026-04-12
 updated: 2026-04-19
 ---
@@ -47,7 +47,7 @@ updated: 2026-04-19
 
 ## Closeout Status (2026-04-19)
 
-Phase 15 的 repo-local code closeout 已完成：
+继承自 legacy grounded-generation baseline 的 repo-local code closeout 已完成：
 
 - Wave A: retrieval adequacy contract
 - Wave B: provider-agnostic grounding runtime 与 canonical claim-support schema
@@ -85,18 +85,42 @@ Phase 15 的 repo-local code closeout 已完成：
   - min run average `0.8716501752216038`
   - 已满足当前 soft gate threshold
 
+## Follow-up Reopen Status (2026-04-19)
+
+A-E closeout 继续成立，但这条 workstream 已因剩余产品侧安全缺口重新进入前向执行：
+
+- Phase F: `source-trust tier` runtimeization
+- Phase G: remote-content injection hardening
+- Phase H: end-user safety traceability
+- Phase I: abuse controls and security ops loop
+- Phase J: conditional moderation lane
+- Phase K: conditional HITL approval recovery
+
+当前 reopen 的含义不是推翻 A-E 已 passing 的 release-gate baseline，而是把此前停留在 gap review / best-practice analysis 里的剩余任务正式收口成 workstream phases。
+
+## Phase F-K Execution Contract (2026-04-19)
+
+- `Phase F-K` 的当前执行真相不再只看 `CONTEXT.md`；从本轮开始，每个 phase 都必须有自己的 `PLAN.md`
+- 当前 active 入口固定为：
+  - `.planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-f-source-trust-tier-runtimeization/PLAN.md`
+- `Phase J/K` 虽然已经进入 roadmap，但仍属于 conditional phases：
+  - 只有在 repo-tracked trigger artifact 落盘后才允许从 `pending` 切到 active
+  - trigger artifact 必须同步更新 workstream `STATE.md` 的 `Conditional Trigger Registry`
+  - phase 一旦真正进入 active，`Current Slice` 只负责反映当前活跃切片，不再承担 trigger artifact 的唯一真相
+  - 没有 trigger artifact 时，它们只保留 planning truth，不得抢跑实施
+
 ## 当前 Workstream 设计（2026-04-18）
 
 这条线当前固定为一条单独的 product-path safety / prompt / grounding governance workstream：
 
-`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh`
+`semantic gate -> prompt runtime ownership -> grounded generation -> eval / observability artifact refresh -> source-trust runtimeization -> remote-content hardening -> safety traceability -> abuse controls -> conditional moderation / HITL governance`
 
 直接含义：
 
 - 不再把 `敏感问题拦截`、`system prompt`、`hallucination governance`、`grounding eval` 拆成多条并发 workstream
 - 这些都只属于同一条 workstream 的顺序子层
 - 它可以与其他独立 workstreams 并行存在；串行约束只限这条 workstream 内部
-- Phase 13 / 14 / 15 的 repo-local code closeout 已经是当前基线；2026-04-19 的 latest live artifact refresh 也已补齐 passing evidence
+- legacy grounded-generation baseline closeout 已经是当前基线；2026-04-19 的 latest live artifact refresh 也已补齐 passing evidence
 - 如果后续发现缺口，优先回到 code-owned `policy gate / scope gate / grounding gate / prompt runtime` 修，不用“把 system prompt 写得更长”替代结构性修复
 
 当前这条 workstream 的单一入口固定就是本文；后续其他会话接手时，不再重新拆出独立的：
@@ -112,17 +136,22 @@ Phase 15 的 repo-local code closeout 已完成：
 2. 稳住 prompt runtime ownership、prompt metadata sink 与 typed runtime state
 3. 刷新 retrieval adequacy / grounding runtime 的持续 gate
 4. 补 live artifact rerun、eval/operator observability 与 release-gate evidence
-5. 再做 planning closeout
+5. 把 `source-trust tier` 从 plan 术语收口到 contracts / evidence / release gate
+6. 为 remote content 增加 prompt-injection hardening 与 regression gate
+7. 为终端用户在线问答补 provider-side safety traceability
+8. 补最小 abuse controls、alerts 与 incident backfill hooks
+9. 在明确触发条件下再引入 app-level moderation lane
+10. 只有在重新引入高风险 action execution 时再恢复 real HITL approval flow
 
 当前 closeout 结论是：
 
-- 这条 workstream 的 live artifact / release-gate evidence 已完成收口
+- A-E 的 live artifact / release-gate evidence 已完成收口，并继续作为 reopen baseline
 - 当前 latest artifact 已同时满足 deterministic gate 与 supplemental soft gate
 - 若后续再出现漂移，回到 gate/runtime 修复，而不是单独重开“prompt 文案优化”子线
 
-## Phase 15 Local Gate Set
+## Baseline Local Gate Set
 
-Phase 15 当前冻结的 repo-local verification contract 为：
+当前继承的 repo-local verification contract 为：
 
 ```bash
 uv run --all-packages --no-sync python -m unittest \
@@ -181,7 +210,7 @@ pnpm --dir apps/app-api exec tsc -p tsconfig.json --noEmit
 ### 3. Answer Mode Selection By Truth Tier
 
 - `deterministic_first`
-  - curriculum 高结构答案
+  - curriculum `T0` 高结构答案
   - handbook `procedure / materials / deadline / time`
   - restricted deny final semantics
 - `grounded_generation`
@@ -228,11 +257,21 @@ grounding 必须同时看 claim 与 source tier 是否匹配：
 - `T2 stable reference web truth`
 - `T3 freshness-capable live truth`
 
+当前 current-surface mapping 固定为：
+
+- `curriculum/curriculum_plan` 与现有 `program_semester_facts` / `program_family_facts` / `course_facts` internal derived surfaces：`T0/T0-derived`
+- `regulations/student_handbook`：`T1`
+- `official_web/stable_reference`：`T2`
+- `official_web/fresh_news` 与 future authenticated live/export surfaces that are explicitly admitted as freshness-capable：`T3`
+
 例如：
 
 - `T2` 不可支撑 freshness claim
-- `T0/T1` 可优先支撑 curriculum / handbook canonical claims
+- `T0` 可支撑 curriculum canonical claims；现有 internal curriculum derived surfaces 不因此打开新的 public serving surface
+- `T0-derived` 只是 provenance shorthand，不是新的 `source_trust_tier` enum；canonical contract 仍只允许 `T0-T3`
+- `T1` 可支撑 handbook canonical claims；来自同一 handbook truth 的 deterministic protected-path backing facts 允许以 `T0` 参与同类 claim
 - restricted truth 即使命中也不能越权出站
+- `source_trust_tier` 只描述证据强度与 freshness suitability，不授予 ACL、serving-surface 或 restricted truth 的 override
 
 ### 7. Eval / Observability As Release Gate
 
@@ -256,9 +295,9 @@ operator / eval 投影至少保留：
 - retrieval adequacy summary
 - claim-support summary
 
-## Phase 15 Execution Waves
+## Archived Grounded-generation Waves
 
-Phase 15 的历史 phase planning 已归档到 `.planning/legacy-flat/phases/15-grounded-generation/`；当前前向执行 truth 固定看 `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md` 与对应 `ROADMAP.md`。
+legacy grounded-generation baseline 的历史 planning 已归档到 `.planning/legacy-flat/phases/15-grounded-generation/`；当前前向执行 truth 固定看 `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md`、对应 `ROADMAP.md`，以及 `Phase F-K` 各自的 `PLAN.md`。
 
 ### Wave A: Retrieval Adequacy Contract
 
@@ -348,7 +387,7 @@ Phase 15 的历史 phase planning 已归档到 `.planning/legacy-flat/phases/15-
 
 目标：
 
-- 用真实 artifact 收口 Phase 15，而不是停留在 repo-local unit tests
+- 用真实 artifact 收口 legacy grounded-generation baseline，而不是停留在 repo-local unit tests
 
 交付：
 

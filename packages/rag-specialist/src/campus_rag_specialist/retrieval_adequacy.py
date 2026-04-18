@@ -9,8 +9,9 @@ class RetrievalAdequacyAssessment:
     reason: str = ""
 
 
-def sufficient_retrieval_adequacy(reason: str = "") -> RetrievalAdequacyAssessment:
-    return RetrievalAdequacyAssessment(verdict="sufficient", reason=reason)
+def sufficient_retrieval_adequacy(reason: str = "sufficient") -> RetrievalAdequacyAssessment:
+    normalized_reason = reason.strip() or "sufficient"
+    return RetrievalAdequacyAssessment(verdict="sufficient", reason=normalized_reason)
 
 
 def ambiguous_retrieval_adequacy(reason: str) -> RetrievalAdequacyAssessment:
