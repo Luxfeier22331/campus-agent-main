@@ -5,34 +5,10 @@ import json
 import unittest
 import zipfile
 
-from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.online_ocr_routing import (
+from campus_ingestion_core.file_asset_routing import (
     adapt_mineru_archive_to_canonical_provider_payload,
     select_online_ocr_routing,
 )
-
-
-def _build_raw_asset_record(
-    *,
-    source_filename: str,
-    asset_kind: str,
-    asset_subkind: str,
-) -> RawAssetRecord:
-    return RawAssetRecord(
-        raw_asset_id="asset:test",
-        raw_version_id="sha256:test",
-        corpus="curriculum",
-        collection="curriculum_plan",
-        raw_source_uri=f"file:///{source_filename}",
-        content_hash="deadbeef",
-        source_filename=source_filename,
-        object_key=f"official_pdf/test/undated/sha256/deadbeef/capture/{source_filename}",
-        ingestion_timestamp="2026-04-12T00:00:00+08:00",
-        import_source="seed",
-        asset_kind=asset_kind,
-        asset_subkind=asset_subkind,
-        classification_confidence=1.0,
-    )
 
 
 def _build_mineru_archive_bytes() -> bytes:
@@ -64,11 +40,8 @@ def _build_mineru_archive_bytes() -> bytes:
 class OnlineOcrRoutingTest(unittest.TestCase):
     def test_select_online_ocr_routing_prefers_mineru_for_pdf_when_available(self) -> None:
         decision = select_online_ocr_routing(
-            raw_asset_record=_build_raw_asset_record(
-                source_filename="sample.pdf",
-                asset_kind="document",
-                asset_subkind="pdf",
-            ),
+            asset_kind="document",
+            asset_subkind="pdf",
             mineru_available=True,
         )
 
@@ -81,11 +54,8 @@ class OnlineOcrRoutingTest(unittest.TestCase):
 
     def test_select_online_ocr_routing_keeps_paddle_for_generic_image(self) -> None:
         decision = select_online_ocr_routing(
-            raw_asset_record=_build_raw_asset_record(
-                source_filename="sample.png",
-                asset_kind="image",
-                asset_subkind="generic_image",
-            ),
+            asset_kind="image",
+            asset_subkind="generic_image",
             mineru_available=True,
         )
 
@@ -97,11 +67,8 @@ class OnlineOcrRoutingTest(unittest.TestCase):
 
     def test_select_online_ocr_routing_defers_office_documents(self) -> None:
         decision = select_online_ocr_routing(
-            raw_asset_record=_build_raw_asset_record(
-                source_filename="sample.docx",
-                asset_kind="document",
-                asset_subkind="office_document",
-            ),
+            asset_kind="document",
+            asset_subkind="office_document",
             mineru_available=True,
         )
 
@@ -111,11 +78,8 @@ class OnlineOcrRoutingTest(unittest.TestCase):
 
     def test_select_online_ocr_routing_defers_semantic_images_from_canonical_ocr(self) -> None:
         decision = select_online_ocr_routing(
-            raw_asset_record=_build_raw_asset_record(
-                source_filename="orientation-hero.png",
-                asset_kind="image",
-                asset_subkind="semantic_image",
-            ),
+            asset_kind="image",
+            asset_subkind="semantic_image",
             mineru_available=True,
         )
 
