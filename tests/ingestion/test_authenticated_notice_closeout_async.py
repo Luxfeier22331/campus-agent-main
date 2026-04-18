@@ -1446,6 +1446,123 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(refreshed_parent["attachment_document_count"], 1)
             self.assertEqual(refreshed_parent["ocr_required_count"], 0)
 
+    def test_repair_source_truth_replay_refreshes_frozen_batch_inputs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            service, object_store = self._build_service(
+                root=root,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+            docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            gif_bytes = _build_minimal_gif_bytes()
+            bundle = _sample_notice_bundle_with_decorative_gif(
+                docx_bytes=docx_bytes,
+                gif_bytes=gif_bytes,
+            )
+            attachment_payloads = {
+                str(bundle[0]["attachments"][0]["object_key"]): (
+                    docx_bytes,
+                    str(bundle[0]["attachments"][0]["mime_type"]),
+                ),
+                str(bundle[0]["attachments"][1]["object_key"]): (
+                    gif_bytes,
+                    str(bundle[0]["attachments"][1]["mime_type"]),
+                ),
+            }
+            self._bootstrap_source_truth_scope(
+                root=root,
+                object_store=object_store,
+                document_registry=service.document_registry,
+                raw_asset_registry=service.raw_asset_registry,
+                source_truth_inventory_store=service.source_truth_inventory_store,
+                bundle=bundle,
+                attachment_payloads=attachment_payloads,
+            )
+
+            service.plan_source_truth_replay_run(
+                request=AuthenticatedNoticeSourceTruthReplayRequest(),
+                run_id="source-truth-run-1",
+                max_concurrency=2,
+                notice_concurrency=4,
+                object_store_concurrency=16,
+                lease_seconds=120,
+            )
+            batch_input_key = build_operations_artifact_key(
+                corpus="campus_notices",
+                operation="authenticated-notice-closeout",
+                run_id="source-truth-run-1",
+                filename="input.json",
+                segments=("batches", "000001"),
+            )
+            poisoned_batch_input = json.loads(
+                object_store.get_bytes(
+                    bucket=service.object_store_settings.bucket_derived,
+                    key=batch_input_key,
+                ).decode("utf-8")
+            )
+            parent = dict(poisoned_batch_input["source_truth_parents"][0])
+            parent["attachment_projection_plans"] = [
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "classification": "text_extractable",
+                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "materialization_policy": "required_document",
+                },
+                {
+                    "attachment_ref_id": "attachment-0002",
+                    "classification": "ocr_required",
+                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0002",
+                    "materialization_policy": "conditional_on_extracted_text",
+                },
+            ]
+            parent["expected_attachment_documents"] = [
+                {
+                    "attachment_ref_id": "attachment-0001",
+                    "classification": "text_extractable",
+                    "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                    "materialization_policy": "required_document",
+                }
+            ]
+            parent["text_extractable_count"] = 1
+            parent["ocr_required_count"] = 1
+            parent["attachment_document_count"] = 1
+            poisoned_batch_input["source_truth_parents"] = [parent]
+            object_store.put_bytes(
+                bucket="campus-rag-derived",
+                key=batch_input_key,
+                data=json.dumps(
+                    poisoned_batch_input,
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                ).encode("utf-8"),
+                content_type="application/json",
+            )
+
+            repaired = service.repair_run("source-truth-run-1")
+
+            self.assertEqual(repaired["expected_ocr_candidate_count"], 0)
+            batch_input = json.loads(
+                object_store.get_bytes(
+                    bucket=service.object_store_settings.bucket_derived,
+                    key=batch_input_key,
+                ).decode("utf-8")
+            )
+            refreshed_parent = batch_input["source_truth_parents"][0]
+            self.assertEqual(
+                refreshed_parent["attachment_projection_plans"],
+                [
+                    {
+                        "attachment_ref_id": "attachment-0001",
+                        "attachment_content_sha256": str(bundle[0]["attachments"][0]["sha256"]),
+                        "classification": "text_extractable",
+                        "document_id": "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                        "materialization_policy": "required_document",
+                    }
+                ],
+            )
+            self.assertEqual(refreshed_parent["ocr_required_count"], 0)
+
     def test_repair_source_truth_replay_reopens_completed_batches_with_stale_attachment_outcomes(
         self,
     ) -> None:

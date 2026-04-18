@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -60,6 +62,7 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -551,7 +554,15 @@ class AuthenticatedNoticeCloseoutService:
             expected_ocr_candidate_count=ocr_candidate_count,
             expected_raw_asset_count=int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
         )
+        refreshed_batches = self._refresh_source_truth_replay_batch_inputs(
+            run=refreshed_run,
+            parents=parents,
+        )
         self.closeout_store.save_run(refreshed_run)
+        self._write_refreshed_source_truth_replay_artifacts(
+            run=refreshed_run,
+            batches=refreshed_batches,
+        )
         self.closeout_store.record_milestone(
             run.run_id,
             "inventory_refreshed",
@@ -568,6 +579,128 @@ class AuthenticatedNoticeCloseoutService:
             },
         )
         return refreshed_run
+
+    def _refresh_source_truth_replay_batch_inputs(
+        self,
+        *,
+        run,
+        parents: list[dict[str, Any]],
+    ) -> tuple[Any, ...]:
+        parent_by_notice_id = {
+            str(parent["notice_id"]): dict(parent) for parent in parents
+        }
+        refreshed_batches = []
+        for batch in self.closeout_store.list_batches(run.run_id):
+            input_key = str(batch.input_object_key or "").strip() or build_operations_artifact_key(
+                corpus=run.corpus,
+                operation="authenticated-notice-closeout",
+                run_id=run.run_id,
+                filename="input.json",
+                segments=("batches", f"{int(batch.batch_id):06d}"),
+            )
+            batch_payload = {
+                "run_id": run.run_id,
+                "batch_id": batch.batch_id,
+                "shard_id": batch.shard_id,
+                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "notice_ids": list(batch.notice_ids),
+                "source_truth_parents": [
+                    parent_by_notice_id[notice_id] for notice_id in batch.notice_ids
+                ],
+            }
+            batch_bytes = json.dumps(
+                batch_payload,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ).encode("utf-8")
+            batch_sha256 = hashlib.sha256(batch_bytes).hexdigest()
+            self.object_store.put_bytes(
+                bucket=self.object_store_settings.bucket_derived,
+                key=input_key,
+                data=batch_bytes,
+                content_type="application/json",
+                metadata={"sha256": batch_sha256},
+            )
+            refreshed_batch = replace(
+                batch,
+                input_object_key=input_key,
+                input_sha256=batch_sha256,
+            )
+            self.closeout_store.save_batch(run.run_id, refreshed_batch)
+            refreshed_batches.append(refreshed_batch)
+        return tuple(refreshed_batches)
+
+    def _write_refreshed_source_truth_replay_artifacts(
+        self,
+        *,
+        run,
+        batches: tuple[Any, ...],
+    ) -> None:
+        request = self._request_from_run(run)
+        self.artifacts.write_json_artifact(
+            request=request,
+            run_id=run.run_id,
+            filename="run-manifest.json",
+            payload={
+                "run_id": run.run_id,
+                "bundle_path": None,
+                "manifest_path": None,
+                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
+                "selected_notice_ids": list(run.selected_notice_ids),
+                "notice_risk_counts": dict(run.notice_risk_counts),
+                "high_risk_notice_count": run.high_risk_notice_count,
+                "source_truth_inventory_object_key": run.source_truth_inventory_object_key,
+                "expected_notice_count": run.expected_notice_count,
+                "expected_document_count": run.expected_document_count,
+                "expected_attachment_document_count": run.expected_attachment_document_count,
+                "expected_ocr_candidate_count": run.expected_ocr_candidate_count,
+                "expected_raw_asset_count": run.expected_raw_asset_count,
+                "shard_size": run.shard_size,
+                "batch_size": run.batch_size,
+                "max_shards": self.planner.max_shards,
+                "max_concurrency": run.max_concurrency,
+                "notice_concurrency": run.notice_concurrency,
+                "object_store_concurrency": run.object_store_concurrency,
+                "lease_seconds": run.lease_seconds,
+                "operations_prefix": run.operations_prefix,
+                "corpus": run.corpus,
+                "collection": run.collection,
+                "site_id": run.site_id,
+                "source_home_url": run.source_home_url,
+                "visibility_scope": run.visibility_scope,
+                "parser_version": run.parser_version,
+                "embedding_model": run.embedding_model,
+                "import_source": run.import_source,
+                "source_projections_path": run.source_projections_path,
+            },
+        )
+        self.artifacts.write_json_artifact(
+            request=request,
+            run_id=run.run_id,
+            filename="batch-plan.json",
+            payload={
+                "run_id": run.run_id,
+                "batches": [
+                    {
+                        "batch_id": batch.batch_id,
+                        "shard_id": batch.shard_id,
+                        "notice_ids": list(batch.notice_ids),
+                        "input_object_key": batch.input_object_key,
+                        "input_sha256": batch.input_sha256,
+                    }
+                    for batch in batches
+                ],
+            },
+        )
+        for batch in batches:
+            self.artifacts.write_json_artifact(
+                request=request,
+                run_id=run.run_id,
+                filename="manifest.json",
+                payload=asdict(batch),
+                segments=("batches", f"{int(batch.batch_id):06d}"),
+            )
 
 
 __all__ = [
