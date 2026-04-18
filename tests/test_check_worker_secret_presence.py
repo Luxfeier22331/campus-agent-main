@@ -201,6 +201,37 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             self.assertIn("api.cloudflare.com", seen_env["NO_PROXY"])
             self.assertIn("api.cloudflare.com", seen_env["no_proxy"])
 
+    def test_collect_worker_secret_presence_reports_timeout_as_classified_error(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                "\n".join(
+                    [
+                        'name = "public-chat-web"',
+                        "",
+                        "[env.staging.secrets]",
+                        'required = ["SENTRY_DSN"]',
+                    ]
+                )
+                + "\n",
+            )
+
+            def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+                raise subprocess.TimeoutExpired(command, timeout=15)
+
+            status = collect_worker_secret_presence(
+                repo_root=repo_root,
+                env_name="staging",
+                app_paths=("apps/public-chat-web",),
+                run_command=fake_run,
+            )
+
+            app_status = status["apps"]["apps/public-chat-web"]
+            self.assertFalse(app_status["ready"])
+            self.assertIn("timed out", app_status["error"])
+            self.assertIn("15s", app_status["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

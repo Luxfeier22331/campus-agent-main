@@ -33,6 +33,7 @@ _CLOUDFLARE_NO_PROXY_HOSTS = (
     "127.0.0.1",
     "::1",
 )
+DEFAULT_WRANGLER_TIMEOUT_SECONDS = 15
 
 
 def _normalize_required_secret_names(raw_value: object) -> list[str]:
@@ -147,14 +148,23 @@ def list_configured_worker_secrets(
     run_command: Callable[..., subprocess.CompletedProcess[str]],
 ) -> tuple[list[str], list[str], str]:
     command = build_secret_list_command(repo_root=repo_root, app_path=app_path, env_name=env_name)
-
-    result = run_command(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=build_cloudflare_cli_env(),
+    timeout_seconds = int(
+        str(os.environ.get("WORKER_SECRET_AUDIT_TIMEOUT_SECONDS", DEFAULT_WRANGLER_TIMEOUT_SECONDS))
     )
+
+    try:
+        result = run_command(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=build_cloudflare_cli_env(),
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"wrangler secret list timed out for {app_path} after {timeout_seconds}s"
+        ) from exc
     if result.returncode != 0:
         error_parts = []
         stdout = _sanitize_cli_output(result.stdout)
