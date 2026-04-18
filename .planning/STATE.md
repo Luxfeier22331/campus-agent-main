@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: in_progress
 stopped_at: 2026-04-14 已按产品决策暂停导航产品路径：校内导航暂不支持，`place_card` / map consumption 延后到地图上线后再恢复
-last_updated: "2026-04-14T09:05:08+08:00"
+last_updated: "2026-04-19T00:22:44+08:00"
 progress:
   total_phases: 32
   completed_phases: 29
@@ -19,16 +19,17 @@ progress:
 - `PROJECT.md`
   - 项目级真相：范围、关键决策、validated/active/out-of-scope 与当前 truth
 - `STATE.md`
-  - 当前 worktree 的 `now / next / blockers / recent verification / continuity`
+  - 当前 worktree 的 active / paused / backlog workstreams、per-workstream current slice、共享 blockers、recent verification 与 continuity；不再假定 repo 只有一条全局 active lane
 - `ROADMAP.md`
   - phase 顺序、插入记录与执行历史
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-14)
+See: `.planning/PROJECT.md` (updated 2026-04-19)
 
 **Core value:** 以已冻结的 supervisor-led multi-agent 架构和已落盘 serving/eval truth 为基础，完成验收收口、上线前硬化与真实产品面一致性，而不是继续把仓库当作地基期实验场
 **Now:**
+- repo 当前按 workstream 组织多线开发：不同会话可并行接手不同模块，但同一 workstream 内仍严格按既定顺序和边界推进
 - Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已在当前 worktree 完成：`1000-01` 到 `1000-04` 全部关闭，fresh accept artifact 位于 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
 - `retrieved_sources` 与 `supporting_sources` 现已在 supervisor / eval / app-api / operator trace 上稳定拆分；`课程地图` unsupported 分支继续 fail-close，不再伪造 retrieval trace
 - `program_semester_facts` 已按定向 rematerialization 修复稀疏表格丢行问题，并已发布 fresh release `r20260413_042533`
@@ -40,19 +41,52 @@ See: `.planning/PROJECT.md` (updated 2026-04-14)
 - Phase 14 `Prompt Stack / System Prompt Runtime` closeout 已在当前 worktree 完成；staging closeout、`public-chat-web` strict donor parity 与导航 foundation 都已退出当前主动实现主线
 - Phase 1002 `Worker 部署与发布硬化收口` 已在当前 worktree 落地：三端 staging release identity 已统一为 deploy-time 注入，canonical per-app `deploy:preflight:staging` 与 release-scoped observability artifact contract 已写回 repo-owned scripts / tests / runbooks
 - Phase 1003 `Official Web 新闻面 opening policy 与 runtime gate 收口` 已在当前 worktree 落地：`fresh_news` / `news_archive` 的 repo-level opening policy、runtime-profile contract、default-off query boundary 与独立 worktree opening checklist 已写回 docs / configs / tests；后续 opening execution / acceptance 已下调到 backlog `999.4`
-- authenticated-notice Wave D 已完成 local Postgres current-scope refresh、preparation、promote 与 unpublished release；当前剩余是 post-release downstream consumption 和后置的 live portal / authenticated control-plane，但这条线当前仍受 source current-scope 持续采集/修整影响，不作为本轮 active execution lane
+- authenticated-notice Wave D 已完成 local Postgres current-scope refresh、preparation、promote 与 unpublished release；当前剩余是 post-release downstream consumption 和后置的 live portal / authenticated control-plane；前者继续留在当前 active downstream / owner-recovery lanes，后者已登记为单独 deferred workstream，不再被写成 repo 唯一 active lane
 - `internal_notice -> regulations/institutional_regulations` 的 regulation import 已完成当前一轮 formal local current-scope materialization：当前固定按 vetted notice-id 白名单执行，结果为 `promotion_candidate_count=11`、`promotion_manual_review_count=0`、`materialized_document_count=11`、`current_target_count=11`；`191177` 当前作为 duplicate hold 保留在 source scope，`355282` 已通过 attachment owner repair + targeted projection rebuild 正式进入 target
+- `shared product surfaces acceptance / hardening` 当前也作为一条并行 product workstream 保持 active：本地 Phase A-C baseline 已 fresh 通过，后续仍按 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout` 推进
 **External blockers / adjacent lanes:**
 - curriculum supplemental provider blocker 与旧 artifact pointer replacement 都已关闭；curriculum 线当前不再有 repo-level follow-up blocker
 - `official_web/fresh_news` / `official_web/news_archive` 的真实 opening execution / acceptance 已下调为 backlog `999.4`，当前不再作为 adjacent lane
 
 ## Current Position
 
-Phase: No active roadmap phase; 当前 worktree 的 active quick lane 为 regulation import closeout
-Plan: 当前 regulation lane 已完成 `internal_notice -> regulations/institutional_regulations` 的受控 formal local materialization 收口：accepted current target 为 `11` 条，`355282` 已正式并入 target；auth-dependent 的 `351119` `file_release` owner recovery 现已拆到独立 workstream。
-Next active workstreams:
-- 在无认证态下，继续围绕当前 `11` 条 regulation 与 `scoped_rules` 做离线消费和 target-side 质量真相维护；不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release。
-- 需要认证窗口的前向切片统一迁移到 `docs/plans/authenticated-notice-file-release-owner-recovery.md`：当前固定为 `351119` 的 targeted `file_release` capture -> owner body recovery -> promotion/materialization re-entry。
+Roadmap phase: no single active roadmap phase；当前执行面采用 workstream-first 的多线开发
+Execution rule: repo 可以同时存在多条 active workstream；每条 workstream 的串行约束只在该 workstream 内部生效。各会话默认只更新自己推进的 workstream 条目，以及共享 blocker / verification delta。
+
+### Active Workstreams
+
+| Workstream | Status | Entry | Current Slice |
+|------------|--------|-------|---------------|
+| `authenticated-notice -> regulation downstream consumption` | active | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | 当前固定维持 `11` 条 admitted regulation target + `scoped_rules` holding collection 的 non-auth bounded lane；继续收口 target-side metadata/quality gate，不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release，也不再混入 auth-window `file_release` owner recovery |
+| `authenticated-notice file_release owner recovery` | active | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 当前前向切片固定为 `351119` 的 targeted `file_release` capture -> bounded owner body recovery -> promotion/materialization re-entry；不扩成 full export、source-wide replay 或 collector foundation 重写 |
+| `product-path safety / prompt / grounding governance` | active | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | 当前前向切片是 live artifact rerun replacement 与持续 release-gate 治理；敏感问题拦截 / system prompt / grounding runtime / eval artifact refresh 继续只作为同一条线的顺序子层 |
+| `shared product surfaces acceptance / hardening` | active | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | 当前本地 Phase A-C baseline 已 fresh 通过：`app-api` type/test/worker/shared-db integration、`public-chat-web` type/test/build、`protected-panel-web` type/test/build；下一步是 browser smoke 和 Phase D integrated acceptance，固定顺序仍是 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout` |
+
+### Paused / Backlog Workstreams
+
+| Workstream | Status | Reopen Rule |
+|------------|--------|-------------|
+| `authenticated-notice live portal / authenticated control-plane` | deferred | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
+| `operator observability / control-plane` | deferred | 只有在产品范围决定把 panel 从当前 operator shell 扩成完整 observability control-plane 时才恢复 |
+| `restricted document rollout / verification` | deferred | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
+| `official-web source channel / news opening` | backlog `999.4` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
+| `campus navigation rollout / place_card / map consumption` | backlog `999.2` | 等待校园地图实际上线后再恢复 |
+
+- `authenticated-notice live portal / authenticated control-plane` 的唯一入口是 `docs/plans/authenticated-notice-live-portal-control-plane.md`
+- 这条 deferred lane 覆盖 repo-native authenticated collector、live `notice` / `file_release` capture、scheduler/incremental sync、run ledger、artifact refs 与 source-channel control-plane
+- 它恢复后仍保持单一 workstream，内部固定顺序为 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout`
+- `operator observability / control-plane` 的唯一入口是 `docs/plans/operator-observability-control-plane-foundation.md`
+- 这条 deferred lane 覆盖 app-owned request observability fact、audit/quality/safety/cost read model、panel 新域与 sink participation
+- 它恢复后仍保持单一 workstream，内部固定顺序为 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout`
+- `restricted document rollout / verification` 的唯一入口是 `docs/plans/restricted-document-rollout-and-verification.md`
+- 这条 deferred lane 覆盖 restricted collection / release posture、public/operator/service surface behavior、allow/deny matrix 与泄露防护验证
+- 它恢复后仍保持单一 workstream，内部固定顺序为 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout`
+- `official-web source channel / news opening` 的唯一入口是 `docs/plans/official-web-source-channel-news-opening.md`
+- 这条 backlog lane 覆盖 `official_web` source/control-plane follow-up、`stable_reference` maintenance，以及 `fresh_news` / `news_archive` opening execution / acceptance
+- 它恢复后仍保持单一 workstream，内部固定顺序为 `source/control-plane -> stable_reference maintenance -> fresh_news opening -> news_archive opening -> acceptance closeout`
+- `campus navigation rollout / place_card / map consumption` 的唯一入口是 `docs/plans/campus-navigation-rollout-map-consumption.md`
+- 这条 backlog lane 覆盖地图上线后的 `place_lookup` 产品路径恢复、`place_card` / map consumption，以及 staging/manual acceptance
+- 它恢复后仍保持单一 workstream，内部固定顺序为 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout`
 
 ## Performance Metrics
 
@@ -214,23 +248,42 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 - `official_web/fresh_news` / `official_web/news_archive` opening policy 继续留在独立 official-web worktree，不在当前执行面混入
 - 2026-04-14 已关闭 Phase 1002 `Worker 部署与发布硬化收口` 的 repo-level implementation：shared `staging-release.mjs`、`run-worker-staging-preflight.mjs`、三端 deploy/test 更新，以及 staging deploy / observability runbook 已全部对齐
 - 2026-04-14 已关闭 Phase 1003 `Official Web 新闻面 opening policy 与 runtime gate 收口` 的 repo-level implementation：news opening policy docs、runtime-profile contract、query-boundary tests 与 independent-worktree opening checklist 已全部对齐
-- 2026-04-14 已新增 backlog `999.4`：`official_web/fresh_news` / `official_web/news_archive` 的 opening execution / acceptance 明确降级为 deferred lane，恢复前不再视为当前主执行线
+- 2026-04-14 已新增 backlog `999.4`：`official_web/fresh_news` / `official_web/news_archive` 的 opening execution / acceptance 明确降级为 deferred lane，恢复前不再视为当前 active workstream 集合的一部分
+- 2026-04-18 已把 planning 执行面改为 workstream-first 多线模型：`.planning/STATE.md` 不再假定 repo 只有一条全局 active lane；各会话默认只更新自己推进的 workstream 条目
+- 2026-04-18 已将 shared product surfaces acceptance / hardening 注册为当前 active product workstream：`apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 必须按 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout` 顺序推进，同一 workstream 内不再并发
+- 2026-04-18 已将 authenticated-notice 数据面 follow-up 拆成两条 workstream：非认证的 `authenticated-notice -> regulation downstream consumption` 只负责已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening；需要认证窗口的 `authenticated-notice file_release owner recovery` 单独承接 `351119` 的 targeted capture、owner body recovery 与回接 promotion/materialization
+- 2026-04-19 已冻结 `authenticated-notice live portal / authenticated control-plane` 为单条 deferred workstream：repo-native authenticated collector、live `notice` / `file_release` capture、scheduler/incremental sync、run ledger 与 source-channel control-plane 都只作为顺序子层推进；恢复前继续保持 deferred
+- 2026-04-18 已冻结 `product-path safety / prompt / grounding governance` 为单条 active workstream：`敏感问题拦截`、`system prompt`、`grounding runtime`、`eval/operator artifact refresh` 都只作为顺序子层推进；当前前向切片是 live artifact rerun replacement 与持续 release-gate 治理
+- 2026-04-19 已冻结 `operator observability / control-plane` 为单条 deferred workstream：request-scoped observability fact、audit/quality/safety/cost read model、panel 新域与 sink participation 都只作为顺序子层推进；恢复前继续保持 deferred
+- 2026-04-18 已冻结 `restricted document rollout / verification` 为单条 deferred workstream：restricted collection rollout、public/operator/service surface behavior、allow/deny matrix 与 leakage-hardening evidence 都只作为顺序子层推进；恢复前继续保持 deferred
+- 2026-04-18 已冻结 `campus navigation rollout / place_card / map consumption` 为单条 deferred workstream：地图上线后的 `place_lookup` 恢复、`place_card` / map consumption 与 staging/manual acceptance 都只作为顺序子层推进；恢复前继续停在 backlog `999.2`
+- 2026-04-18 已冻结 `official-web source channel / news opening` 为单条 deferred workstream：`source/control-plane follow-up`、`stable_reference` maintenance、`fresh_news` opening、`news_archive` opening 与 acceptance closeout 都只作为顺序子层推进；恢复前继续停在 backlog `999.4`
 
 ### Pending Todos
 
-- 当首个 staging 发布窗口可用时，按新的 `deploy:preflight:staging` / release-scoped evidence contract 执行真实 deploy closeout
 - 推进 `authenticated-notice -> regulation downstream consumption` 的会话，统一以 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` 为唯一入口；当前只处理已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening，不再混入 auth-window `file_release` capture
+- 上述 non-auth regulation downstream workstream 的近端 follow-up 已登记为 `.planning/todos/pending/2026-04-18-internal-notice-legacy-office-downstream-metadata-truth.md`；固定顺序是 `文档真相刷新 -> legacy Office normalization contract -> worker-owned normalizer/provenance -> 可盘点 fail-close/backlog 语义`，不扩到 auth owner recovery 或 query-serving reopen
 - 推进 `authenticated-notice file_release owner recovery` 的会话，统一以 `docs/plans/authenticated-notice-file-release-owner-recovery.md` 为唯一入口；固定顺序保持 `auth-window targeted capture -> source-byte verification -> owner body recovery -> promotion/materialization re-entry -> bounded validation`
+- 如果认证窗口恢复或产品决定重开 authenticated source-channel live portal / control-plane，统一以 `docs/plans/authenticated-notice-live-portal-control-plane.md` 为唯一入口；恢复后固定顺序保持 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout`
+- 推进 `product-path safety / prompt / grounding governance` 的会话，统一以 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` 为唯一入口；不再拆成敏感问题拦截 / system prompt / grounding / eval artifact 多条并发线
+- 推进 `shared product surfaces acceptance / hardening` 的会话，统一以 `docs/plans/shared-product-surfaces-acceptance-hardening.md` 为唯一入口；固定顺序保持 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout`
+- 当 `shared product surfaces` workstream 进入 Phase E 时，按新的 `deploy:preflight:staging` / release-scoped evidence contract 执行真实 deploy closeout
+- 如果产品范围决定恢复 operator observability / control-plane，统一以 `docs/plans/operator-observability-control-plane-foundation.md` 为唯一入口；恢复后固定顺序保持 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout`
+- 如果产品范围决定恢复 restricted rollout，统一以 `docs/plans/restricted-document-rollout-and-verification.md` 为唯一入口；恢复后固定顺序保持 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout`
+- 如果校园地图实际上线、导航产品路径需要恢复，统一以 `docs/plans/campus-navigation-rollout-map-consumption.md` 为唯一入口；恢复后固定顺序保持 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout`
+- 如果 `official_web` 新闻面后续重新进入产品优先级，统一以 `docs/plans/official-web-source-channel-news-opening.md` 为唯一入口；恢复后固定顺序保持 `source/control-plane -> stable_reference maintenance -> fresh_news opening -> news_archive opening -> acceptance closeout`
 - 等待地图实际上线后，再从 backlog `999.2` promote 导航产品路径、`place_card` / map consumption 与 staging/manual acceptance
 
 ### Blockers/Concerns
 
-- 当前 follow-up 分支已无 repo-internal mainline blocker
+- 当前 active workstreams 已无共享 repo-internal blocker
+- authenticated-notice 的 live portal / authenticated control-plane 当前不是 blocker，而是明确保持 `deferred` 的 source-channel 后续线；恢复前不再默认占用 active workstream 优先级
 - 校内导航当前不是 blocker，而是显式关闭的产品能力；重新开启以地图上线为前提，不再按“尚未补证据”处理
-- `official_web` 新闻面 opening execution 当前不是 blocker，而是 backlog `999.4` 中的 deferred lane；恢复前不再默认占用主链路优先级
+- operator observability 扩面当前不是 blocker，而是明确保持 `deferred` 的 operator/product 后续线；恢复前不再默认占用 active workstream 优先级
+- restricted rollout 当前不是 blocker，而是明确保持 `deferred` 的产品/授权后续线；恢复前不再默认占用 active workstream 优先级
+- `official_web` 新闻面 opening execution 当前不是 blocker，而是 backlog `999.4` 中的 deferred lane；恢复前不再默认占用 active workstream 优先级
 - MinerU 仍不是全局 canonical OCR provider；当前冻结结论只允许它在 typed PDF 与 refined complex-table image 上担任 canonical primary
 - curriculum historical artifact replacement 当前只剩归档 / pointer 整理，不再有 provider contract blocker
-- deferred blocker 仍是 authenticated-notice 的 live portal scheduling 与 authenticated control-plane，需要后续执行窗口和外部数据面配合
 - panel 后续工作必须继续经由 `apps/app-api` owned surfaces，不能回退到 panel-side synthesis、audit log 直读或基础设施直读
 - `Jobs` / `Operations` / `Audit` 继续不进入默认 rollout，除非产品范围重新开启
 
@@ -274,6 +327,17 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 
 ## Recent Verification
 
+- 2026-04-18 `shared product surfaces` local baseline:
+  - `pnpm --dir apps/app-api typecheck`
+  - `pnpm --dir apps/app-api test`
+  - `pnpm --dir apps/app-api test:worker`
+  - `pnpm --dir apps/app-api test:shared-db-integration`
+  - `pnpm --dir apps/public-chat-web typecheck`
+  - `pnpm --dir apps/public-chat-web test:worker`
+  - `pnpm --dir apps/public-chat-web build`
+  - `pnpm --dir apps/protected-panel-web typecheck`
+  - `pnpm --dir apps/protected-panel-web test:worker`
+  - `pnpm --dir apps/protected-panel-web build`
 - `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_notice_id_filter_keeps_unselected_scope_rows tests.ingestion.test_rebuild_authenticated_notice_source_projections_worker`
 - `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_replaces_scope_and_materializes_attachment_children tests.ingestion.test_authenticated_notice_source_projections.AuthenticatedNoticeSourceProjectionsTest.test_rebuild_authenticated_notice_source_projections_reuses_ocr_result_for_shared_pdf_payloads`
 - `uv run --all-packages python .planning/quick/260414-bsz-regulation-355282-formal-local-target/formalize_355282_local.py`
