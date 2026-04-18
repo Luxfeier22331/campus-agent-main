@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { writeTestConfigRoot } from "./test-support";
 
-const CRAWL_TEST_TIMEOUT_MS = 30_000;
+const CRAWL_TEST_TIMEOUT_MS = 15_000;
 
 describe("official-web-collector multi-host crawl", () => {
   afterEach(() => {

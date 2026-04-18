@@ -50,6 +50,17 @@ describe("official-web artifact store", () => {
         OBJECT_STORE_ENDPOINT: "http://localhost:9000",
         OBJECT_STORE_ACCESS_KEY: "minioadmin",
       }),
-    ).toThrowError(/OBJECT_STORE_ENDPOINT.*OBJECT_STORE_ACCESS_KEY.*OBJECT_STORE_SECRET_KEY/);
+    ).toThrowError(/OBJECT_STORE_ENDPOINT.*credential pair/i);
+  });
+
+  it("accepts source-bucket scoped credentials when shared credentials are absent", () => {
+    expect(() =>
+      createS3ArtifactStoreFromEnv({
+        OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
+        OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
+        OBJECT_STORE_SOURCE_SECRET_KEY: "source-sk",
+        OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
+      } as never),
+    ).not.toThrow();
   });
 });
