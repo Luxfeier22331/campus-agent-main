@@ -220,6 +220,31 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 - 校内规章制度不能因为“发布时间老”就默认降权成仅参考文本
 - `暂行/试行` 也不能单独当作“失效”或“草案”判断；只有在正文出现明确的临时/过渡/失效语义时，才应排除出长期制度 collection
 
+### 2.6 legacy Office 更适合作为 normalization 问题，而不是 parser 扩写问题
+
+外部官方/成熟工具链的共识更接近：
+
+- `.doc` 先转成 `.docx`，再进入现有结构化解析链路
+- `.xlsx` 使用成熟的 OOXML-aware reader
+- `.xls` 继续使用历史格式专用 reader
+
+参考：
+
+- Unstructured 官方文档明确说明 `partition_doc` 会先用 `libreoffice` 把 `.doc` 转成 `.docx`，然后再调用 `partition_docx`
+  - https://docs.unstructured.io/open-source/core-functionality/partitioning
+- LibreOffice 官方文档提供 `--convert-to` 命令行转换能力，适合 headless 批量 normalization
+  - https://help.libreoffice.org/latest/en-US/text/shared/guide/start_parameters.html
+- openpyxl 官方文档把 `read_only=True` 作为大文件 `.xlsx` 的优化读取路径
+  - https://openpyxl.readthedocs.io/en/3.1/optimized.html
+- `xlrd` 官方 changelog 明确从 `2.0.0` 起只支持 `.xls`
+  - https://xlrd.readthedocs.io/en/latest/changes.html
+
+对本项目的直接含义是：
+
+- `.doc` 的前向补齐应被建模成 worker-owned normalization lane，而不是在 `packages/ingestion-core` 里手写 legacy Word binary parser
+- normalization 之后仍应回到现有 `source projection -> canonical document -> promotion/materialization` 路径
+- `xls/xlsx` 已经进入 repo 当前 canonical path；Phase F 重点不再是“重新发明 spreadsheet parser”，而是把 docs truth、provenance contract 与 worker boundary 说清楚
+
 ### 3. PaddleOCR 官方同时提供同步 layout parsing 和异步 jobs，两者应分工而不是互相替代
 
 百度智能云 OCR / 文档解析官方文档与 AI Studio 官方用法同时覆盖了：
