@@ -2,7 +2,7 @@
 doc_type: phase_plan
 phase: "A"
 phase_name: "Shared Contract And Boundary Freeze"
-status: planned
+status: completed
 created: 2026-04-19
 updated: 2026-04-19
 ---
@@ -15,28 +15,27 @@ updated: 2026-04-19
 
 ## Why This Phase Exists
 
-当前 repo 真正的问题不是缺某个单点 parser，而是 file asset handling contract 没有 shared owner：
+当前 repo 真正的问题不是缺某个单点 parser，而是 file asset handling contract 没有 shared owner，而且 planning truth 还残留旧的 backend 假设：
 
 - `authenticated_notice_source_projections.py` 把 attachment classification、native extraction、terminal outcome 和 source-specific projection 混在一起
 - `.doc` normalizer 只在 worker app 壳中存在，不是 package-level capability
 - `official_web` page-level source-truth 与 file asset extraction 属于不同抽象层，但当前“统一 loader”这个提法容易把两层混掉
+- workstream state 里仍残留 `Docling spike` 一类已被当前架构判断否定的默认方向
 
-因此第一阶段必须先冻结边界，再决定 backend。
+因此第一阶段必须先同步架构真相、冻结边界，再把剩余未知项交给下一阶段 research。
 
 ## External References
 
-- Unstructured partitioning:
-  - https://docs.unstructured.io/open-source/core-functionality/partitioning
-- Docling supported formats:
-  - https://docling-project.github.io/docling/usage/supported_formats/
-- Apache Tika supported formats:
-  - https://tika.apache.org/3.2.1/formats.html
-- LibreOffice CLI conversion:
-  - https://help.libreoffice.org/latest/zh-CN/text/shared/guide/start_parameters.html
-- openpyxl optimized mode:
-  - https://openpyxl.readthedocs.io/en/3.1/optimized.html
-- xlrd changes:
-  - https://xlrd.readthedocs.io/en/latest/changes.html
+- MinerU docs:
+  - https://mineru.net/doc/docs/index_en/
+- PaddleOCR-VL:
+  - https://www.paddleocr.ai/v3.3.1/en/version3.x/algorithm/PaddleOCR-VL/PaddleOCR-VL.html
+- Collabora document conversion:
+  - https://www.collaboraonline.com/document-conversion/
+- JODConverter:
+  - https://jodconverter.github.io/jodconverter/latest/
+- OpenDataLoader docs:
+  - https://opendataloader.org/docs
 
 ## Decisions To Freeze
 
@@ -48,13 +47,27 @@ updated: 2026-04-19
    - `ExtractionOutcome`
    - `TerminalOutcome`
    - `ArtifactProvenance`
-4. legacy Office 只允许通过 explicit normalizer 接入，不在 `ingestion-core` 内手写二进制 parser。
-5. OCR、manual review、reference-only、unsupported-binary 继续是 repo-owned semantics，不交给第三方 parser 黑盒决定。
-6. `official_web` page-level projection、`authenticated_notice` notice-level source-truth、以及 downstream promotion/materialization 继续留在各自 source-specific boundary。
+4. legacy binary Office（`.doc/.xls`）只允许通过 explicit normalizer 或显式 terminal contract 接入，不在 `ingestion-core` 内手写二进制 parser。
+5. modern OOXML（`.docx/.xlsx`）在同一 tranche 内处理，不按 word / spreadsheet 再拆成独立 reopen lane。
+6. 现有 source-specific `.xlsx` 提取路径不构成 forward contract；forward choice 由 modern OOXML tranche benchmark 决定。
+7. 复杂 PDF 主 lane 倾向 `MinerU`；普通图片 / 简单 OCR 主 lane 倾向 `Paddle`；多模态只作为 `semantic image` enrichment。
+8. legacy binary Office 默认 production posture 是 self-hosted LibreOffice-family conversion service；第一实现优先 `JODConverter + LibreOffice`，后续可演进到 `Collabora Online REST`。
+9. OCR、manual review、reference-only、unsupported-binary 继续是 repo-owned semantics，不交给第三方 parser 黑盒决定。
+10. `official_web` page-level projection、`authenticated_notice` notice-level source-truth、以及 downstream promotion/materialization 继续留在各自 source-specific boundary。
+11. `Docling`、`OpenDataLoader`、`Apache OpenOffice` 当前都不进入 repo 默认主干。
 
 ## Execution Slices
 
-### Slice 1: Freeze Canonical Vocabulary
+### Slice 1: Sync Planning Truth To Architecture Truth
+
+- 把 `STATE.md`、`CONTEXT.md`、`PLAN.md` 与新的 supporting architecture 对齐
+- 去掉已过时的默认方向：
+  - `Docling spike`
+  - “单一 parser 统一全部 PDF/image”
+  - “外部 conversion SaaS 可作为 legacy Office 默认姿态”
+- 补上 Phase A 的 `SPEC.md`
+
+### Slice 2: Freeze Canonical Vocabulary
 
 - 定义 shared loader 的 canonical nouns：
   - `asset_family`
@@ -64,30 +77,36 @@ updated: 2026-04-19
   - `provenance_ref`
 - 明确哪些字段属于 shared contract，哪些仍属于 source-specific projection
 
-### Slice 2: Freeze Asset Family Matrix
+### Slice 3: Freeze Asset Family Matrix
 
 - 给出 repo 当前 first-class file families：
-  - legacy Office binary
-  - OOXML Office
+  - legacy binary Office（`.doc` / `.xls`）
+  - modern OOXML document family（`.docx` / `.xlsx`）
   - PDF
   - image
   - text-like file
   - HTML file asset
 - 明确每类默认去向：
-  - native extraction
+  - deterministic native extraction
   - explicit normalization then extraction
-  - OCR/manual-review lane
+  - document parsing / OCR lane
+  - semantic-image multimodal enrichment
   - fail-close
 
-### Slice 3: Freeze Backend Selection Rules
+### Slice 4: Freeze Backend And Deployment Rules
 
 - 先冻结 backend 选择原则，而不是先绑定具体库：
-  - legacy Office normalizer 优先显式转换
-  - modern structured formats 优先保持结构保真
-  - OCR families 优先保留当前 lane semantics
+  - legacy binary Office 优先 self-hosted LibreOffice-family conversion service，再进入 OOXML deterministic extraction
+  - modern admitted structured formats 优先保持结构保真
+  - 复杂 PDF 优先 `MinerU`
+  - 普通图片 / 简单 OCR 优先 `Paddle`
+  - semantic image 只补 multimodal enrichment
+  - `.xls` 与 `.doc` 同 phase benchmark / decision，不单独后移
+  - `.xlsx` 与 `.docx` 同 phase benchmark / decision，不单独后移
   - source-specific page builder 不纳入 shared backend
+  - `Docling` / `OpenDataLoader` 不作为默认 trunk backend
 
-### Slice 4: Freeze Migration Boundary
+### Slice 5: Freeze Migration Boundary
 
 - 首个迁移目标固定为 `authenticated_notice` attachment path
 - `official_web` 当前只评估 file-like subpaths，不改 page-level source-truth
@@ -95,12 +114,12 @@ updated: 2026-04-19
   - shared substrate 先落
   - source-specific code path 后迁
 
-### Slice 5: Freeze Sample And Verification Matrix
+### Slice 6: Freeze Sample And Verification Matrix
 
 - 样本矩阵至少覆盖：
   - `.doc`
-  - `.docx`
   - `.xls`
+  - `.docx`
   - `.xlsx`
   - text PDF
   - scanned PDF
@@ -111,6 +130,13 @@ updated: 2026-04-19
   - provenance completeness
   - terminal outcome correctness
   - object-store artifact refs
+
+## Proposed Write Set For Phase A
+
+- `.planning/workstreams/shared-file-asset-loader-contract/STATE.md`
+- `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-a-shared-contract-and-boundary-freeze/SPEC.md`
+- `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-a-shared-contract-and-boundary-freeze/CONTEXT.md`
+- `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-a-shared-contract-and-boundary-freeze/PLAN.md`
 
 ## Proposed Write Set For Later Phases
 
@@ -127,5 +153,6 @@ Phase A 完成后，repo 应达到：
 
 - “统一 loader” 的目标和边界不再含糊
 - 已明确 shared loader 统一什么、不统一什么
-- 已明确 legacy / modern / OCR families 的 canonical 路径
+- 已明确 admitted family tranches 与 legacy binary Office / modern OOXML / PDF / image families 的 canonical 路径
+- 已明确 remote API / self-hosted / multimodal enrichment 只是 shared contract 下的具体 posture，不再属于开放 gray area
 - 下一阶段可以直接进入 bounded backend evaluation，而不是继续反复讨论 scope

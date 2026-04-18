@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Official Web Architecture
@@ -41,12 +41,14 @@ updated: 2026-04-14
 - crawl scope 的长期规则留在 policy 文档
 - page-level source-truth schema 留在 contract 文档
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
+- downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果 downstream 要消费它们，必须进入 shared file asset loader contract
 
 ## Policy And Contract Split
 
 - crawl policy：`docs/policies/official-web-crawl-policy.md`
 - source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
 - repo-level data-plane contract：`docs/architecture/data-plane-architecture.md`
+- shared file asset loader：`docs/architecture/file-asset-loader-architecture.md`
 - serving split / news retrieval strategy：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - freshness / incremental crawling strategy：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 

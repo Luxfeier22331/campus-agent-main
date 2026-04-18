@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-15
+updated: 2026-04-19
 ---
 
 # Authenticated Notice Source Architecture
@@ -95,6 +95,7 @@ updated: 2026-04-15
 
 - source-channel 运行边界：本文
 - source-truth schema：`docs/architecture/authenticated-notice-source-truth-contract.md`
+- shared file asset loader：`docs/architecture/file-asset-loader-architecture.md`
 - `file_release` collector-owned export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared data-plane 不变量：`docs/architecture/data-plane-architecture.md`
 - `internal_notice` collection-specific offline preparation strategy：`docs/reference/internal-notice-offline-preparation-strategy.md`
@@ -126,6 +127,23 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - retrieval serving truth
 - restricted authorization projection 解释
 
+## Attachment Handling Boundary
+
+对 authenticated notice source channel，附件对象的长期 owner split 固定如下：
+
+- collector / source-truth layer
+  - 负责附件发现、对象上传、attachment refs 与 source-level relation truth
+- shared file asset loader
+  - 负责 admitted file-like attachment 的 normalization / extraction / terminal outcome
+- collection-specific downstream
+  - 决定哪些 extracted attachment child document 继续进入 cleanup / chunk / promotion
+
+固定规则：
+
+- attachment relation truth 不因为 shared loader 接入而离开 `notice` source-truth
+- `doc/xls -> docx/xlsx` 的 conversion service、OOXML deterministic parse、PDF/image parsing lane 都不属于 collector 私有 contract
+- 如果 attachment 最终只落到 `reference_only`、`manual_review_required` 或 `unsupported_binary`，collector 仍只持有 source relation truth，不伪造 child document
+
 ## Bootstrap Import Ownership
 
 在 collector 正式迁入 monorepo 并直接输出 repo-native artifacts 之前，允许存在一条 bootstrap import seam：
@@ -140,6 +158,11 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - `apps/ingestion-worker`
 
 它不应反向把外部 collector 的 SQLite / JSON schema 提升成 repo 级长期 contract。
+
+同样固定补充：
+
+- bootstrap import 可以调用 shared file asset loader，但不能把 worker 壳里的局部 parser / converter 反向提升成 source channel truth
+- source-truth replay、attachment materialization 与 legacy Office normalization 必须继续复用 repo-owned shared contract，而不是在 collector/import seam 各自复制一套规则
 
 ## Runtime Connectivity Posture
 

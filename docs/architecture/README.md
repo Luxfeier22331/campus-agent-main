@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Architecture
@@ -35,6 +35,8 @@ updated: 2026-04-12
   - query-serving、version mode 与 evidence-oriented retrieval 形态
 - `data-plane-architecture.md`
   - source truth、document truth、chunk/index 与 replay/rebuild 分层
+- `file-asset-loader-architecture.md`
+  - file-like asset 的 shared contract、family matrix 与 provider/deployment posture
 - `operator-observability-architecture.md`
   - panel observability domain、read-model family 与 sink participation
 

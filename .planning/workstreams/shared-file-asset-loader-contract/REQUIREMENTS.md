@@ -14,8 +14,9 @@ updated: 2026-04-19
 ## In Scope
 
 - `packages/ingestion-core` 内的 shared file asset contract
-- legacy Office normalization contract
-- modern Office / PDF / image family extraction contract
+- legacy binary Office normalization / terminal contract（`.doc` 与 `.xls` 同 phase 处理）
+- modern OOXML family extraction contract（`.docx` 与 `.xlsx` 同 phase 处理）
+- PDF / image family extraction contract
 - shared provenance / diagnostics / object-store artifact refs
 - `authenticated_notice` attachment path 迁移到 shared substrate
 - bounded backend benchmark 与 verification matrix
@@ -31,7 +32,7 @@ updated: 2026-04-19
 ## Success Criteria
 
 1. repo 有清晰的 shared file asset loader contract，owner 固定在 `packages/ingestion-core`。
-2. legacy Office、modern Office、PDF、image 的 handling boundary 清晰，不再散落在 source-specific code path 中。
+2. legacy binary Office（`.doc/.xls`）、modern OOXML（`.docx/.xlsx`）、PDF、image 的 handling boundary 清晰，不再散落在 source-specific code path 中。
 3. shared normalization / extraction 结果能显式表达 `manual_review_required`、`reference_only`、`ocr_required`、`unsupported_binary` 等 terminal semantics。
 4. provenance 与 diagnostics 成为 canonical artifact refs，而不是 app-local 临时输出。
 5. `authenticated_notice` 成为首个迁移到 shared substrate 的 source channel，但这次迁移不改写其 source-truth unit 或 regulation downstream boundary。

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Data Plane Architecture
@@ -54,6 +54,20 @@ source truth 的长期硬约束：
   notice-level source truth，详见 `docs/architecture/authenticated-notice-source-truth-contract.md`
 
 这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
+
+## Shared File-Asset Loader Boundary
+
+对 file-like asset，repo 级 data plane 固定允许插入一条 shared subchain：
+
+`source-truth relation or file descriptor -> optional normalization -> extraction/provider artifacts -> terminal outcome or canonical child document artifacts`
+
+固定规则：
+
+- 这条 subchain 不改变 repo 的 canonical chain，只是把 file-like asset handling 从 source-specific path 收口成 shared contract
+- source unit 继续由 source channel 定义；`official_web` 仍是 page-level source-truth，`authenticated_notice_portal` 仍是 notice-level source-truth
+- shared file asset loader 的 canonical owner 固定为 `packages/ingestion-core`
+- legacy binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment posture 固定看 `docs/architecture/file-asset-loader-architecture.md`
+- remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的 data-plane layer
 
 ## Derived Collection Rebuild
 
@@ -135,6 +149,7 @@ registry / control-plane database 与对象存储长期分层。
 - curriculum-specific chunking / serving nuances
 - official web page-level source-truth schema 细节
 - authenticated notice notice-level source-truth schema 细节
+- shared file asset family matrix、normalization / extraction / terminal outcome 细节
 
 这些分别以：
 
@@ -142,6 +157,7 @@ registry / control-plane database 与对象存储长期分层。
 - `configs/ingestion/*`
 - `docs/architecture/official-web-source-truth-contract.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/file-asset-loader-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 
 为准。
@@ -193,4 +209,5 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/file-asset-loader-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`

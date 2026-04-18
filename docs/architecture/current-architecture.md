@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # 当前架构
@@ -129,6 +129,7 @@ updated: 2026-04-12
 - identity / authorization supporting architecture：`docs/architecture/identity-and-authorization-architecture.md`
 - retrieval / serving supporting architecture：`docs/architecture/retrieval-serving-architecture.md`
 - data plane supporting architecture：`docs/architecture/data-plane-architecture.md`
+- shared file asset supporting architecture：`docs/architecture/file-asset-loader-architecture.md`
 - `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
 - authenticated notice source supporting architecture：`docs/architecture/authenticated-notice-source-architecture.md`
 - operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`

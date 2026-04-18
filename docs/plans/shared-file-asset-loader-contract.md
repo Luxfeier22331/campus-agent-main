@@ -16,7 +16,7 @@ updated: 2026-04-19
 它负责：
 
 - 统一 repo 内“文件型资产”的 package-level 处理契约
-- 为 legacy Office、modern Office、PDF、图片等文件资产定义统一的 normalization / extraction / provenance 语义
+- 为 initial admitted families 定义统一的 normalization / extraction / provenance 语义；当前非平凡 backend 评估范围固定为 legacy binary Office（`.doc/.xls`）、modern OOXML（`.docx/.xlsx`）、PDF、图片
 - 把当前散落在 source-specific path 内的文件提取逻辑收口成 shared substrate
 
 它不负责：
@@ -72,7 +72,10 @@ repo 需要一条单独的 `shared file asset loader` workstream。
 - shared loader 的 canonical owner 固定为 `packages/ingestion-core`
 - `apps/*` 只允许承接 runtime shell / worker entry，不反向拥有 shared parser truth
 - page-level web content projection 继续保留 source-specific path；shared loader 只处理 file-like assets
-- legacy binary Office 不允许在 `ingestion-core` 内手写二进制 parser；只允许显式 normalizer 接入
+- legacy binary Office（`.doc/.xls`）不允许在 `ingestion-core` 内手写二进制 parser；只允许显式 normalizer 或明确 terminal contract 接入
+- `.xls` 与 `.doc` 在同一 tranche 内处理，不单独挂到 spreadsheet reopen lane
+- modern OOXML（`.docx/.xlsx`）在同一 tranche 内处理，不按 word / spreadsheet 再拆 lane
+- 现有 source-specific `.xlsx` 解析路径不反向定义 forward contract
 - OCR lane、`manual_review_required`、`reference_only`、`unsupported_binary` 继续是 repo-owned terminal semantics，不交给第三方 parser 自行决定
 - 对象 bytes 的长期语义仍是 `S3-compatible object storage`
 
@@ -92,11 +95,11 @@ repo 需要一条单独的 `shared file asset loader` workstream。
 
 目标：
 
-- 用真实样本比较 bounded backend 组合，决定 shared substrate 的 family adapters
+- 用真实样本比较 admitted families 的 bounded backend 组合，决定 shared substrate 的 family adapters；其中 `.xls` 与 `.doc` 同属 legacy binary Office tranche，`.xlsx` 与 `.docx` 同属 modern OOXML tranche
 
 退出条件：
 
-- 已完成 modern Office / PDF / image / legacy Office 的 bounded benchmark
+- 已完成 modern OOXML（`.docx/.xlsx`）/ PDF / image / legacy binary Office（`.doc/.xls`）的 bounded benchmark
 - 已给出 backend 取舍，不再停留在“可能用 Docling / Unstructured / Tika / native parser”的并列状态
 
 ## Phase C: Shared Normalization And Extraction Substrate
@@ -115,12 +118,12 @@ repo 需要一条单独的 `shared file asset loader` workstream。
 
 目标：
 
-- 先把 `authenticated_notice` 的 file asset path 迁到 shared substrate
+- 先把 `authenticated_notice` 的 admitted file asset families 迁到 shared substrate，并分别收口 legacy binary Office（`.doc/.xls`）与 modern OOXML（`.docx/.xlsx`）路径
 
 退出条件：
 
 - attachment classification 与 file extraction 不再耦合在单个 source projection module 内
-- `.doc`、`docx/xls/xlsx`、OCR families 都走 shared contract
+- `.doc`、`.xls`、`.docx`、`.xlsx`、PDF / image OCR families 都按 Phase B 决策进入 shared contract 或 explicit terminal contract
 
 ## Phase E: Cross-Scope Adoption Matrix And Hardening
 
