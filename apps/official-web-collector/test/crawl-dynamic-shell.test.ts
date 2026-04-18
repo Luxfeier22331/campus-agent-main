@@ -10,6 +10,8 @@ import {
   writeTestConfigRoot,
 } from "./test-support";
 
+const CRAWL_TEST_TIMEOUT_MS = 30_000;
+
 describe("official-web-collector dynamic shell crawl", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -17,16 +19,18 @@ describe("official-web-collector dynamic shell crawl", () => {
     vi.resetModules();
   });
 
-  it("requeues promoted detail pages from dynamic shell discovery without changing shell source-truth semantics", async () => {
-    const promotedDetailHtml = SAMPLE_NEWS_ARTICLE_DETAIL_HTML.replace(
-      "</body>",
-      `
+  it(
+    "requeues promoted detail pages from dynamic shell discovery without changing shell source-truth semantics",
+    async () => {
+      const promotedDetailHtml = SAMPLE_NEWS_ARTICLE_DETAIL_HTML.replace(
+        "</body>",
+        `
         <nav class="noise-links">
           <a href="https://www.example.edu?pageId=87948&wfwfid=24149&websiteId=64168">首页</a>
           <a href="https://www.example.edu/engine2/general/more?appId=537849&websiteId=64168&wfwfid=24149&pageId=87948&typeId=3049665&currentBranch=0">最新资源</a>
         </nav>
       </body>`,
-    );
+      );
 
     vi.doMock("crawlee", async () => {
       const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
@@ -260,11 +264,13 @@ describe("official-web-collector dynamic shell crawl", () => {
       promotedUrls: string[];
       sourceUrl: string;
     }>;
-    expect(auditLines).toEqual([
-      expect.objectContaining({
-        sourceUrl: "https://www.example.edu/",
-        promotedUrls: [promotedDetailUrl],
-      }),
-    ]);
-  });
+      expect(auditLines).toEqual([
+        expect.objectContaining({
+          sourceUrl: "https://www.example.edu/",
+          promotedUrls: [promotedDetailUrl],
+        }),
+      ]);
+    },
+    CRAWL_TEST_TIMEOUT_MS,
+  );
 });

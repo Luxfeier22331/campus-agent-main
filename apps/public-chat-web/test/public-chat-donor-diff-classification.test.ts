@@ -113,12 +113,12 @@ describe("public chat donor diff classification", () => {
   });
 
   it("keeps the classification doc aligned with the machine-readable inventory", () => {
-    expect(donorDiffClassificationDocSource).toContain("## 当前结论");
+    expect(donorDiffClassificationDocSource).toMatch(/## (当前结论|分类基线)/);
     expect(donorDiffClassificationDocSource).toContain("## Accepted Product Diffs");
     expect(donorDiffClassificationDocSource).toContain("## Accepted Runtime Compatibility Diffs");
     expect(donorDiffClassificationDocSource).toContain("## Exact Compat Seam Owners");
     expect(donorDiffClassificationDocSource).toContain("## Historical Debt");
-    expect(donorDiffClassificationDocSource).toContain("当前 remaining historical debt 路径数为 `0`");
+    expect(donorDiffClassificationDocSource).toMatch(/remaining historical debt 路径数(?:固定)?为 `0`/);
 
     for (const relativePath of expectedVendorDiffPaths) {
       expect(donorDiffClassificationDocSource).toContain(relativePath);

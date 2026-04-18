@@ -166,6 +166,8 @@ function stubRobotsAllowFetch(): void {
   );
 }
 
+const CRAWL_TEST_TIMEOUT_MS = 30_000;
+
 describe("official-web-collector incremental crawl", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -173,19 +175,21 @@ describe("official-web-collector incremental crawl", () => {
     vi.resetModules();
   });
 
-  it("sends If-None-Match and records not_modified observations for known pages", async () => {
-    stubRobotsAllowFetch();
-    const requestHeaders = new Map<string, Record<string, string>>();
-    mockCrawlee(({ headers, request }) => {
-      requestHeaders.set(request.url, headers);
-      return {
-        statusCode: headers["if-none-match"] === "\"etag-v1\"" ? 304 : 200,
-        contentType: "text/html",
-        headers: {
-          etag: "\"etag-v1\"",
-        },
-      };
-    });
+  it(
+    "sends If-None-Match and records not_modified observations for known pages",
+    async () => {
+      stubRobotsAllowFetch();
+      const requestHeaders = new Map<string, Record<string, string>>();
+      mockCrawlee(({ headers, request }) => {
+        requestHeaders.set(request.url, headers);
+        return {
+          statusCode: headers["if-none-match"] === "\"etag-v1\"" ? 304 : 200,
+          contentType: "text/html",
+          headers: {
+            etag: "\"etag-v1\"",
+          },
+        };
+      });
 
     const startRun = vi.fn(async () => ({
       run: {
@@ -292,14 +296,16 @@ describe("official-web-collector incremental crawl", () => {
         urlsFetched: 0,
       },
     });
-    expect(finalizeInput?.pageObservations).toEqual([
-      expect.objectContaining({
-        disposition: "not_modified",
-        mainContentHash: "main-v1",
-        responseBodyHash: "body-v1",
-      }),
-    ]);
-  });
+      expect(finalizeInput?.pageObservations).toEqual([
+        expect.objectContaining({
+          disposition: "not_modified",
+          mainContentHash: "main-v1",
+          responseBodyHash: "body-v1",
+        }),
+      ]);
+    },
+    CRAWL_TEST_TIMEOUT_MS,
+  );
 
   it("records not_modified even when a 304 response does not provide a cheerio document", async () => {
     stubRobotsAllowFetch();

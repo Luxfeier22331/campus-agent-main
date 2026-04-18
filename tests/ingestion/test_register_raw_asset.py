@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from io import BytesIO
 
 from PIL import Image
 from campus_ingestion_worker.register_raw_asset import build_parser
