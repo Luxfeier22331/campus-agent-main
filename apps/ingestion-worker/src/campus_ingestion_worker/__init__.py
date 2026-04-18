@@ -35,6 +35,11 @@ from campus_ingestion_worker.official_web_historical_backfill import (
     inventory_historical_handoff_record,
     main as official_web_historical_backfill_main,
 )
+from campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment import (
+    LegacyOfficeNormalizationResult,
+    normalize_authenticated_notice_legacy_office_attachment,
+    main as normalize_authenticated_notice_legacy_office_attachment_main,
+)
 from campus_ingestion_worker.process_raw_ingestion_job import (
     ImportReport,
     OnlineOcrClient,
@@ -81,6 +86,7 @@ __all__ = [
     "AuthenticatedNoticeImportRequest",
     "AuthenticatedNoticeSourceProjectionRequest",
     "AuthenticatedNoticeSourceTruthReplayRequest",
+    "LegacyOfficeNormalizationResult",
     "RawAssetRegistrationResult",
     "StudentHandbookChunkingValidationReport",
     "StudentHandbookMigrationReport",
@@ -97,6 +103,8 @@ __all__ = [
     "rebuild_authenticated_notice_source_projections",
     "rebuild_authenticated_notice_source_truth_inventory",
     "migrate_student_handbook_source_faithful",
+    "normalize_authenticated_notice_legacy_office_attachment",
+    "normalize_authenticated_notice_legacy_office_attachment_main",
     "official_web_handoff_consumer_main",
     "official_web_historical_backfill_main",
     "official_web_handoff_receiver_main",

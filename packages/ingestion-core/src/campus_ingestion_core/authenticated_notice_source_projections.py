@@ -33,6 +33,10 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.collection_config import resolve_collection_truth_config
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.file_asset_ooxml import (
+    extract_docx_text_blocks as extract_shared_docx_text_blocks,
+    extract_xlsx_text_blocks as extract_shared_xlsx_text_blocks,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import is_source_object_key
 from campus_ingestion_core.raw_ingestion import (
@@ -1631,75 +1635,11 @@ def _extract_text_extractable_blocks(
 
 
 def _extract_docx_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
-    try:
-        with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
-            document_xml = archive.read(_DOCX_DOCUMENT_PATH)
-    except KeyError as exc:
-        raise ValueError("docx document.xml is required") from exc
-    root = ElementTree.fromstring(document_xml)
-    body = root.find(f".//{_WORDPROCESSINGML_NS}body")
-    if body is None:
-        raise ValueError("docx body is required")
-    blocks: list[str] = []
-    for child in list(body):
-        if child.tag == f"{_WORDPROCESSINGML_NS}p":
-            text = "".join(text_node.text or "" for text_node in child.iter(f"{_WORDPROCESSINGML_NS}t")).strip()
-            if text:
-                blocks.append(text)
-            continue
-        if child.tag != f"{_WORDPROCESSINGML_NS}tbl":
-            continue
-        table_rows: list[str] = []
-        for table_row in child.findall(f"{_WORDPROCESSINGML_NS}tr"):
-            cells: list[str] = []
-            for table_cell in table_row.findall(f"{_WORDPROCESSINGML_NS}tc"):
-                cell_text = "".join(
-                    text_node.text or "" for text_node in table_cell.iter(f"{_WORDPROCESSINGML_NS}t")
-                ).strip()
-                if cell_text:
-                    cells.append(cell_text)
-            if cells:
-                table_rows.append(" | ".join(cells))
-        if table_rows:
-            blocks.append("\n".join(table_rows))
-    if not blocks:
-        raise ValueError("docx attachment produced no extractable text")
-    return tuple(blocks)
+    return extract_shared_docx_text_blocks(file_bytes).text_blocks
 
 
 def _extract_xlsx_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
-    try:
-        with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
-            workbook_xml = archive.read(_XLSX_WORKBOOK_PATH)
-            workbook_root = ElementTree.fromstring(workbook_xml)
-            workbook_relationship_targets = _load_xlsx_workbook_relationship_targets(archive)
-            shared_strings = _load_xlsx_shared_strings(archive)
-            blocks: list[str] = []
-            for sheet in workbook_root.findall(f".//{_SPREADSHEETML_NS}sheet"):
-                rel_id = sheet.attrib.get(_OFFICE_DOC_REL_ID_ATTR)
-                if not rel_id:
-                    continue
-                worksheet_target = workbook_relationship_targets.get(rel_id)
-                if worksheet_target is None:
-                    continue
-                worksheet_path = _resolve_xlsx_zip_member_path(
-                    base_path=_XLSX_WORKBOOK_PATH,
-                    target=worksheet_target,
-                )
-                sheet_xml = archive.read(worksheet_path)
-                sheet_rows = _load_xlsx_sheet_rows(
-                    sheet_xml=sheet_xml,
-                    shared_strings=shared_strings,
-                )
-                if not sheet_rows:
-                    continue
-                sheet_name = (sheet.attrib.get("name") or "").strip()
-                blocks.append(_serialize_spreadsheet_sheet_block(sheet_name, sheet_rows))
-    except KeyError as exc:
-        raise ValueError("xlsx workbook.xml is required") from exc
-    if not blocks:
-        raise ValueError("xlsx attachment produced no extractable text")
-    return tuple(blocks)
+    return extract_shared_xlsx_text_blocks(file_bytes).text_blocks
 
 
 def _load_xlsx_workbook_relationship_targets(archive: zipfile.ZipFile) -> dict[str, str]:
