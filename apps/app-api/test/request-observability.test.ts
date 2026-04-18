@@ -89,6 +89,11 @@ describe("request observability", () => {
         resolvedPolicyDocumentId: "handbook:scholarship",
         resolvedPolicyTitle: "中央民族大学本科学生国家奖学金评审办法",
         resolvedProgramFamilyTitle: null,
+        remoteContentSuspicionSummary: {
+          flagLabels: ["instructional_imperative"],
+          flaggedSourceCount: 1,
+          generationBlocked: false,
+        },
         retrievedTitleSummary: ["中央民族大学本科学生国家奖学金评审办法"],
         rewrittenQuery: "中央民族大学本科学生国家奖学金评审办法 国奖看第一作者单位吗？",
         scopeClass: null,
@@ -133,6 +138,11 @@ describe("request observability", () => {
         unsupportedClaimTypes: ["material_requirement", "time_or_deadline"],
         unsupportedClaims: 2,
         unsupportedFields: ["requirement_claims", "time_claims"],
+      },
+      remoteContentSuspicionSummary: {
+        flagLabels: ["instructional_imperative"],
+        flaggedSourceCount: 1,
+        generationBlocked: false,
       },
       sourceTrustSummary: {
         answerBearingTiers: ["T1"],

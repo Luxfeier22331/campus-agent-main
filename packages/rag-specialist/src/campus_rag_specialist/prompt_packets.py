@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from typing import Literal
 
 from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope, SpecialistRequest
 
 from campus_rag_specialist.intent import RagIntentFrame, frame_rag_intent
+from campus_rag_specialist.remote_content_hardening import (
+    apply_remote_content_suspicion_labels,
+    build_remote_content_safe_summary,
+)
 
 
 RagPromptMode = Literal["answer", "clarify", "no_answer"]
-_WHITESPACE_RE = re.compile(r"\s+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +100,7 @@ def build_rag_no_answer_prompt_packet(
     intent_frame: RagIntentFrame | None = None,
 ) -> RagPromptPacket:
     frame = intent_frame or frame_rag_intent(request)
+    apply_remote_content_suspicion_labels(evidence)
     prompt_id = _resolve_no_answer_prompt_id(no_answer_reason)
     task = RagTaskPacket(
         request_id=request.request_id,
@@ -137,6 +140,7 @@ def build_rag_answer_prompt_packet(
     intent_frame: RagIntentFrame | None = None,
 ) -> RagPromptPacket:
     frame = intent_frame or frame_rag_intent(request)
+    apply_remote_content_suspicion_labels(evidence)
     task = RagTaskPacket(
         request_id=request.request_id,
         mode="answer",
@@ -174,25 +178,9 @@ def _serialize_evidence_entry(source: EvidenceSource) -> RagEvidencePacketEntry:
         detail_label=source.detail_label,
         structural_path=source.structural_path,
         snippet=source.snippet,
-        safe_summary=_safe_summary(source),
+        safe_summary=build_remote_content_safe_summary(source),
         score=source.score,
     )
-
-
-def _safe_summary(source: EvidenceSource) -> str:
-    candidate_parts = [
-        source.source_title.strip(),
-        source.detail_label.strip(),
-        _normalize_text(source.snippet)[:120],
-    ]
-    summary = " | ".join(part for part in candidate_parts if part)
-    return summary[:160]
-
-
-def _normalize_text(text: str) -> str:
-    return _WHITESPACE_RE.sub(" ", text).strip()
-
-
 def _resolve_no_answer_prompt_id(no_answer_reason: str) -> str:
     if no_answer_reason == "restricted_access_denied":
         return "rag_no_answer_v1"

@@ -74,6 +74,7 @@ describe("request diagnostics", () => {
       sessionProgram: null,
       sessionProgramFamily: null,
       sessionSemester: null,
+      remoteContentSuspicionSummary: null,
       sourceTrustSummary: null,
       unsupportedFields: ["offering_unit_claims", "audience_claims"],
     });
@@ -120,6 +121,55 @@ describe("request diagnostics", () => {
         freshnessClaimBlocked: true,
         observedTiers: ["T0", "T1"],
       },
+      remoteContentSuspicionSummary: null,
+      unsupportedFields: [],
+    });
+  });
+
+  it("extracts remote content suspicion summary from rag diagnostics", () => {
+    const summary = extractRequestDiagnosticsSummary({
+      diagnostics: {
+        remote_content_suspicion_summary: {
+          flag_labels: [
+            "prompt_override_signal",
+            "tool_or_browser_action_request",
+          ],
+          flagged_source_count: 1,
+          generation_blocked: true,
+        },
+      },
+    });
+
+    expect(summary).toEqual({
+      claimSupportSummary: null,
+      clarificationReason: null,
+      freshnessFailClosed: null,
+      groundingDowngraded: null,
+      groundingVerdict: null,
+      noAnswerReason: null,
+      policyReason: null,
+      remoteContentSuspicionSummary: {
+        flagLabels: [
+          "prompt_override_signal",
+          "tool_or_browser_action_request",
+        ],
+        flaggedSourceCount: 1,
+        generationBlocked: true,
+      },
+      retrievalAdequacyReason: null,
+      retrievalAdequacyVerdict: null,
+      resolvedEntityType: null,
+      resolvedPolicyDocumentId: null,
+      resolvedPolicyTitle: null,
+      resolvedProgramFamilyTitle: null,
+      retrievedTitleSummary: [],
+      rewrittenQuery: null,
+      scopeClass: null,
+      semanticOutcome: null,
+      sessionProgram: null,
+      sessionProgramFamily: null,
+      sessionSemester: null,
+      sourceTrustSummary: null,
       unsupportedFields: [],
     });
   });

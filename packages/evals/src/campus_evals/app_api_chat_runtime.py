@@ -16,6 +16,8 @@ from campus_contracts import (
     PromptTrace,
     RagResultDiagnostics,
     RagResultPayload,
+    RemoteContentSuspicionSummary,
+    SourceTrustSummary,
     SupervisorObservability,
     SupervisorResponse,
 )
@@ -451,6 +453,17 @@ def _parse_evidence_source(value: object, *, field: str) -> EvidenceSource:
         canonical_source_title=_optional_string(record.get("canonical_source_title")) or "",
         source_unit_kind=_optional_string(record.get("source_unit_kind")) or "",
         source_unit_key=_optional_string(record.get("source_unit_key")) or "",
+        remote_content_suspicion_labels=_string_tuple(
+            record.get("remote_content_suspicion_labels")
+            if "remote_content_suspicion_labels" in record
+            else record.get("remoteContentSuspicionLabels")
+        ),
+        source_trust_tier=_optional_string(
+            record.get("source_trust_tier")
+            if "source_trust_tier" in record
+            else record.get("sourceTrustTier")
+        )
+        or "",
     )
 
 
@@ -517,6 +530,17 @@ def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
             record.get("source_unit_key")
             if "source_unit_key" in record
             else record.get("sourceUnitKey")
+        )
+        or "",
+        remote_content_suspicion_labels=_string_tuple(
+            record.get("remote_content_suspicion_labels")
+            if "remote_content_suspicion_labels" in record
+            else record.get("remoteContentSuspicionLabels")
+        ),
+        source_trust_tier=_optional_string(
+            record.get("source_trust_tier")
+            if "source_trust_tier" in record
+            else record.get("sourceTrustTier")
         )
         or "",
     )
@@ -800,6 +824,16 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             else record.get("sessionSemester")
         )
         or "",
+        remote_content_suspicion_summary=_parse_remote_content_suspicion_summary(
+            record.get("remote_content_suspicion_summary")
+            if "remote_content_suspicion_summary" in record
+            else record.get("remoteContentSuspicionSummary")
+        ),
+        source_trust_summary=_parse_source_trust_summary(
+            record.get("source_trust_summary")
+            if "source_trust_summary" in record
+            else record.get("sourceTrustSummary")
+        ),
         claim_supports=tuple(
             _parse_claim_support(
                 item,
@@ -915,6 +949,80 @@ def _parse_claim_support(value: object, *, field: str) -> ClaimSupport:
             else record.get("supportSnippet")
         )
         or "",
+        required_source_trust_tier=_optional_string(
+            record.get("required_source_trust_tier")
+            if "required_source_trust_tier" in record
+            else record.get("requiredSourceTrustTier")
+        )
+        or "",
+        support_source_trust_tier=_optional_string(
+            record.get("support_source_trust_tier")
+            if "support_source_trust_tier" in record
+            else record.get("supportSourceTrustTier")
+        )
+        or "",
+    )
+
+
+def _parse_source_trust_summary(value: object) -> SourceTrustSummary | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return SourceTrustSummary(
+        observed_tiers=_string_tuple(
+            record.get("observed_tiers")
+            if "observed_tiers" in record
+            else record.get("observedTiers")
+        ),
+        answer_bearing_tiers=_string_tuple(
+            record.get("answer_bearing_tiers")
+            if "answer_bearing_tiers" in record
+            else record.get("answerBearingTiers")
+        ),
+        blocked_claim_types=_string_tuple(
+            record.get("blocked_claim_types")
+            if "blocked_claim_types" in record
+            else record.get("blockedClaimTypes")
+        ),
+        freshness_claim_blocked=_optional_bool(
+            record.get("freshness_claim_blocked")
+            if "freshness_claim_blocked" in record
+            else record.get("freshnessClaimBlocked")
+        )
+        or False,
+        authorization_claim_blocked=_optional_bool(
+            record.get("authorization_claim_blocked")
+            if "authorization_claim_blocked" in record
+            else record.get("authorizationClaimBlocked")
+        )
+        or False,
+    )
+
+
+def _parse_remote_content_suspicion_summary(
+    value: object,
+) -> RemoteContentSuspicionSummary | None:
+    record = _optional_record(value)
+    if record is None:
+        return None
+    return RemoteContentSuspicionSummary(
+        flagged_source_count=_optional_int(
+            record.get("flagged_source_count")
+            if "flagged_source_count" in record
+            else record.get("flaggedSourceCount")
+        )
+        or 0,
+        flag_labels=_string_tuple(
+            record.get("flag_labels")
+            if "flag_labels" in record
+            else record.get("flagLabels")
+        ),
+        generation_blocked=_optional_bool(
+            record.get("generation_blocked")
+            if "generation_blocked" in record
+            else record.get("generationBlocked")
+        )
+        or False,
     )
 
 

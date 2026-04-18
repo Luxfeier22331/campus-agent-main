@@ -13,6 +13,8 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
+    RemoteContentSuspicionSummary,
+    SourceTrustSummary,
 )
 from campus_evals import (
     ExecutionResult,
@@ -834,13 +836,27 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                                 "retrieval_adequacy_verdict": "sufficient",
                                 "retrieval_adequacy_reason": "sufficient",
                                 "grounding_verdict": "unsupported",
+                                "remote_content_suspicion_summary": {
+                                    "flagged_source_count": 1,
+                                    "flag_labels": ["instructional_imperative"],
+                                    "generation_blocked": True,
+                                },
+                                "source_trust_summary": {
+                                    "observed_tiers": ["T0"],
+                                    "answer_bearing_tiers": ["T0"],
+                                    "blocked_claim_types": ["offering_unit_or_owning_school"],
+                                    "freshness_claim_blocked": False,
+                                    "authorization_claim_blocked": False,
+                                },
                                 "claim_supports": [
                                     {
                                         "claim_type": "offering_unit_or_owning_school",
                                         "claim_text": "马克思主义学院",
+                                        "required_source_trust_tier": "T0",
                                         "supported": False,
                                         "support_source_doc_id": "",
                                         "support_snippet": "",
+                                        "support_source_trust_tier": "",
                                     }
                                 ],
                                 "unsupported_fields": ["offering_unit_claims"],
@@ -925,14 +941,34 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.response.result.diagnostics.grounding_verdict, "unsupported")
         self.assertEqual(result.response.result.diagnostics.unsupported_fields, ("offering_unit_claims",))
         self.assertEqual(
+            result.response.result.diagnostics.remote_content_suspicion_summary,
+            RemoteContentSuspicionSummary(
+                flagged_source_count=1,
+                flag_labels=("instructional_imperative",),
+                generation_blocked=True,
+            ),
+        )
+        self.assertEqual(
+            result.response.result.diagnostics.source_trust_summary,
+            SourceTrustSummary(
+                observed_tiers=("T0",),
+                answer_bearing_tiers=("T0",),
+                blocked_claim_types=("offering_unit_or_owning_school",),
+                freshness_claim_blocked=False,
+                authorization_claim_blocked=False,
+            ),
+        )
+        self.assertEqual(
             result.response.result.diagnostics.claim_supports,
             (
                 ClaimSupport(
                     claim_type="offering_unit_or_owning_school",
                     claim_text="马克思主义学院",
+                    required_source_trust_tier="T0",
                     supported=False,
                     support_source_doc_id="",
                     support_snippet="",
+                    support_source_trust_tier="",
                 ),
             ),
         )

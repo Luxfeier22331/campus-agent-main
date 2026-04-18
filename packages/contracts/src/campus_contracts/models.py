@@ -8,6 +8,13 @@ AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
 SourceChannel = Literal["pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal"]
 SourceTrustTier = Literal["T0", "T1", "T2", "T3"]
+RemoteContentSuspicionLabel = Literal[
+    "prompt_override_signal",
+    "instructional_imperative",
+    "secret_or_credential_request",
+    "tool_or_browser_action_request",
+    "hidden_or_embedded_text_marker",
+]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
 SpecialistTarget = Literal["rag-specialist", "availability-specialist", "navigation-specialist"]
@@ -28,6 +35,13 @@ CoordinateReferenceSystem = Literal["EPSG:4326"]
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
 ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
+ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS = (
+    "prompt_override_signal",
+    "instructional_imperative",
+    "secret_or_credential_request",
+    "tool_or_browser_action_request",
+    "hidden_or_embedded_text_marker",
+)
 DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
@@ -238,6 +252,10 @@ class EvidenceSource:
     source_unit_kind: str = ""
     source_unit_key: str = ""
     source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+    remote_content_suspicion_labels: tuple[RemoteContentSuspicionLabel | str, ...] = field(
+        default_factory=tuple,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         _validate_revision_track(self.revision_track)
@@ -250,6 +268,8 @@ class EvidenceSource:
         )
         if normalized_source_trust_tier != self.source_trust_tier:
             object.__setattr__(self, "source_trust_tier", normalized_source_trust_tier)
+        for label in self.remote_content_suspicion_labels:
+            _validate_remote_content_suspicion_label(label)
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,6 +342,19 @@ class SourceTrustSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RemoteContentSuspicionSummary:
+    flagged_source_count: int = 0
+    flag_labels: tuple[RemoteContentSuspicionLabel, ...] = field(default_factory=tuple)
+    generation_blocked: bool = False
+
+    def __post_init__(self) -> None:
+        if self.flagged_source_count < 0:
+            raise ValueError("flagged_source_count must not be negative")
+        for label in self.flag_labels:
+            _validate_remote_content_suspicion_label(label)
+
+
+@dataclass(frozen=True, slots=True)
 class RagResultDiagnostics:
     resolved_scope_corpus: AllowedCorpus | None = None
     resolved_scope_collection: str = ""
@@ -353,6 +386,10 @@ class RagResultDiagnostics:
     session_program_family: str = ""
     session_program: str = ""
     session_semester: str = ""
+    remote_content_suspicion_summary: RemoteContentSuspicionSummary | None = field(
+        default=None,
+        compare=False,
+    )
     source_trust_summary: SourceTrustSummary | None = field(default=None, compare=False)
     claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
@@ -671,6 +708,14 @@ def _validate_source_channel(source_channel: str) -> None:
 def _validate_source_trust_tier(source_trust_tier: str) -> None:
     if source_trust_tier not in ALLOWED_SOURCE_TRUST_TIERS:
         raise ValueError(f"unsupported source trust tier: {source_trust_tier}")
+
+
+def _validate_remote_content_suspicion_label(remote_content_suspicion_label: str) -> None:
+    if remote_content_suspicion_label not in ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS:
+        raise ValueError(
+            "unsupported remote content suspicion label: "
+            f"{remote_content_suspicion_label}"
+        )
 
 
 def _normalize_source_trust_tier(
