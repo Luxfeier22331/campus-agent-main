@@ -609,6 +609,136 @@ class InternalNoticeScopedRuleMaterializationTest(unittest.TestCase):
         )
         self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
 
+    def test_build_scoped_rule_candidate_fails_closed_for_body_phrase_in_annual_rule(self) -> None:
+        source_record = _record(
+            notice_id="351907",
+            title_slug="annual-rule-body-false-positive",
+            content_hash="sha256:annual-rule-body-false-positive",
+            body_key="campus_notices/documents/internal_notice/351907/canonical.md",
+            units_key="campus_notices/documents/internal_notice/351907/document-units.jsonl",
+            is_current=True,
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", source_record.canonical_markdown_object_key or ""): _canonical_markdown(
+                    "# 中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法\n\n"
+                    "严格按照《中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法》执行。\n"
+                    "其中，综合成绩按百分制计算，由学业成绩和综合素质成绩两部分组成。\n"
+                ),
+            }
+        )
+        report = InternalNoticeRegulationPromotionDocumentReport(
+            document_id=source_record.document_id,
+            notice_id="351907",
+            site_id="muc_internal_portal",
+            source_kind="parent_notice",
+            source_title="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+            input_lane="notice_body",
+            revision_track="source-faithful",
+            version_id=source_record.version_id,
+            action="manual_review_required",
+            promotion_class="scoped_rule",
+            document_nature="annual_cycle_rule",
+            semantic_owner_kind="notice_body",
+            target_corpus="regulations",
+            target_collection="scoped_rules",
+            regulation_title_normalized="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+            issuing_org="中央民族大学",
+            effective_date=None,
+            revision_signal=None,
+            source_notice_release_time="2025-09-06 11:52",
+            source_parent_document_id=source_record.document_id,
+            source_attachment_ref_id=None,
+            source_attachment_sha256=None,
+            duplicate_group_key=None,
+            duplicate_primary_document_id=None,
+            quality_gates_passed=("canonical_text_available",),
+            missing_required_metadata=(),
+            reasons=("annual_cycle_or_program_rule_detected",),
+            artifact_key=None,
+        )
+
+        candidate = scoped_materialization._build_scoped_rule_candidate(
+            report=report,
+            source_record=source_record,
+            inventory_entry=_inventory_entry(
+                notice_id="351907",
+                notice_title="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+                published_date="2025-09-06 11:52",
+            ),
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+            document_nature="annual_cycle_rule",
+        )
+
+        self.assertEqual(candidate.cycle_year, "2026")
+        self.assertIsNone(candidate.school_unit_name)
+
+    def test_build_scoped_rule_candidate_fails_closed_for_body_phrase_in_time_bound_rule(self) -> None:
+        source_record = _record(
+            notice_id="191706",
+            title_slug="time-bound-rule-body-false-positive",
+            content_hash="sha256:time-bound-rule-body-false-positive",
+            body_key="campus_notices/documents/internal_notice/191706/canonical.md",
+            units_key="campus_notices/documents/internal_notice/191706/document-units.jsonl",
+            is_current=True,
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", source_record.canonical_markdown_object_key or ""): _canonical_markdown(
+                    "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                    "校医院正式运营前，由临时医疗点承担校区基础门诊服务。\n"
+                    "学校增设丰台区王佐镇社区卫生服务中心，为丰台校区师生提供医保转诊服务。\n"
+                ),
+            }
+        )
+        report = InternalNoticeRegulationPromotionDocumentReport(
+            document_id=source_record.document_id,
+            notice_id="191706",
+            site_id="muc_internal_portal",
+            source_kind="parent_notice",
+            source_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+            input_lane="notice_body",
+            revision_track="source-faithful",
+            version_id=source_record.version_id,
+            action="manual_review_required",
+            promotion_class="scoped_rule",
+            document_nature="time_bound_operational_rule",
+            semantic_owner_kind="notice_body",
+            target_corpus="regulations",
+            target_collection="scoped_rules",
+            regulation_title_normalized="中央民族大学丰台校区就医管理办法（暂行）",
+            issuing_org="中央民族大学",
+            effective_date=None,
+            revision_signal=None,
+            source_notice_release_time="2021-09-10 16:32",
+            source_parent_document_id=source_record.document_id,
+            source_attachment_ref_id=None,
+            source_attachment_sha256=None,
+            duplicate_group_key=None,
+            duplicate_primary_document_id=None,
+            quality_gates_passed=("canonical_text_available",),
+            missing_required_metadata=(),
+            reasons=("time_bound_operational_rule_detected",),
+            artifact_key=None,
+        )
+
+        candidate = scoped_materialization._build_scoped_rule_candidate(
+            report=report,
+            source_record=source_record,
+            inventory_entry=_inventory_entry(
+                notice_id="191706",
+                notice_title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+                published_date="2021-09-10 16:32",
+            ),
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+            document_nature="time_bound_operational_rule",
+        )
+
+        self.assertEqual(candidate.campus_site, "中央民族大学丰台校区")
+        self.assertIsNone(candidate.school_unit_name)
+
 
 if __name__ == "__main__":
     unittest.main()

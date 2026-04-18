@@ -388,7 +388,9 @@ def _build_scoped_rule_candidate(
         reasons=report.reasons,
         promotion_body=promotion_body,
         cycle_year=_extract_cycle_year(combined_text),
-        school_unit_name=_extract_school_unit_name(combined_text),
+        # school_unit_name is future filter metadata. Fail closed unless the
+        # source-facing title itself carries a clear unit-like discriminator.
+        school_unit_name=_extract_school_unit_name(title),
         campus_site=_extract_campus_site(combined_text),
     )
 
