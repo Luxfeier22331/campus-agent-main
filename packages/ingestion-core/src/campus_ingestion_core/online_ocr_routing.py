@@ -29,6 +29,7 @@ _PADDLE_PRIMARY_IMAGE_SUBKINDS = {
 }
 _DEFERRED_SUBKINDS = {
     "office_document",
+    "semantic_image",
     "text_document",
     "spatial_image",
     "map_image",
@@ -96,17 +97,6 @@ def select_online_ocr_routing(
             persist_raw_provider_artifact=False,
         )
 
-    if asset_subkind in _PADDLE_PRIMARY_IMAGE_SUBKINDS or asset_kind == "image":
-        return OnlineOcrRoutingDecision(
-            route_id="generic_image_paddle_primary",
-            canonical_allowed=True,
-            canonical_provider=PADDLE_ASYNC_PROVIDER,
-            fallback_provider=None,
-            parser_version=PADDLE_PARSER_VERSION,
-            reason_codes=("generic_or_simple_image",),
-            persist_raw_provider_artifact=False,
-        )
-
     if asset_subkind in _DEFERRED_SUBKINDS:
         return OnlineOcrRoutingDecision(
             route_id=f"{asset_subkind}_deferred",
@@ -115,6 +105,17 @@ def select_online_ocr_routing(
             fallback_provider=None,
             parser_version=None,
             reason_codes=(f"{asset_subkind}_deferred",),
+            persist_raw_provider_artifact=False,
+        )
+
+    if asset_subkind in _PADDLE_PRIMARY_IMAGE_SUBKINDS or asset_kind == "image":
+        return OnlineOcrRoutingDecision(
+            route_id="generic_image_paddle_primary",
+            canonical_allowed=True,
+            canonical_provider=PADDLE_ASYNC_PROVIDER,
+            fallback_provider=None,
+            parser_version=PADDLE_PARSER_VERSION,
+            reason_codes=("generic_or_simple_image",),
             persist_raw_provider_artifact=False,
         )
 

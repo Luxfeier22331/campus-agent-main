@@ -109,6 +109,22 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.canonical_provider)
         self.assertIn("office_document_deferred", decision.reason_codes)
 
+    def test_select_online_ocr_routing_defers_semantic_images_from_canonical_ocr(self) -> None:
+        decision = select_online_ocr_routing(
+            raw_asset_record=_build_raw_asset_record(
+                source_filename="orientation-hero.png",
+                asset_kind="image",
+                asset_subkind="semantic_image",
+            ),
+            mineru_available=True,
+        )
+
+        self.assertFalse(decision.canonical_allowed)
+        self.assertEqual(decision.route_id, "semantic_image_deferred")
+        self.assertIsNone(decision.canonical_provider)
+        self.assertIsNone(decision.fallback_provider)
+        self.assertIn("semantic_image_deferred", decision.reason_codes)
+
     def test_adapt_mineru_archive_to_canonical_provider_payload_builds_paddle_shaped_jsonl(self) -> None:
         payload = adapt_mineru_archive_to_canonical_provider_payload(_build_mineru_archive_bytes())
         lines = [line for line in payload.decode("utf-8").splitlines() if line.strip()]
