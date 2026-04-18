@@ -68,6 +68,24 @@ updated: 2026-04-18
 - scoped-rules 继续只做 non-auth metadata / target-side quality hardening；annual rule 缺少 `school_unit_name` 视为 target-side fail-close，`暂行/试行` 继续保留 `force_status=provisional_in_force`
 - 需要认证窗口的 `351119` `file_release` capture 与 owner recovery 不再属于本文，统一转到独立 auth workstream
 
+当前这条 workstream 的固定后续顺序也已经明确：
+
+1. 先完成当前 target-side chunk / metadata / quality acceptance
+2. 再收口 `legacy Office normalization + bounded metadata truth`
+
+其中第二段固定只包括：
+
+- 修正文档真相：明确 `xls/xlsx` 已支持、`.doc` 仍未支持
+- 冻结 `.doc` 的 legacy Office normalization contract，不在 repo 内手写二进制 parser
+- 增加 worker-owned normalizer / provenance contract
+- 评估把 `.doc` 的当前 replay-time exception fail-close 收口成可盘点的 terminal outcome / backlog semantics
+
+固定不包括：
+
+- auth owner recovery
+- query-serving reopen
+- embedding、Qdrant、release、alias publish
+
 后续其他会话接手时，应直接按本文推进，不再为以下事项单独重开并发 lane：
 
 - historical donor / current-scope replay
@@ -120,6 +138,9 @@ updated: 2026-04-18
 ### 当前缺口
 
 - 当前 repo 仍不接受把 `.doc` 静默当成已支持 Office 文本附件；它必须继续显式 fail-close 为 `unsupported_binary`
+- `xls/xlsx` 当前已进入 canonical source projection path，但计划文档里仍残留“未完成支持”表述；这属于 planning truth 漂移，必须收口
+- 当前 `.doc` 仍缺 canonical 的 legacy Office normalization lane；如果后续支持，必须以 worker-owned normalization/provenance contract 进入现有 source projection path
+- 当前 `.doc` 的 fail-close 主要表现为 replay-time exception；是否要收口成 inventory-friendly terminal outcome，需要在同一条 non-auth downstream workstream 内单独裁决
 - 当前后续实施重点不再是“有没有 target collection scaffold”，而是继续围绕 per-document `target_collection` 收口 downstream materialization / chunk acceptance / inventory truth
 
 ### 已新增的 repo-native 辅助能力
@@ -455,20 +476,19 @@ Azure AI Search 官方文档把 freshness 建模为 scoring profile 中的可选
 ### 当前必须显式标成“未完成支持”的输入
 
 - `.doc`
-- `.xls`
-- `.xlsx`
 
 当前建议不要做的错误动作：
 
 - 不把 `.doc` 静默当成 `.docx`
-- 不把 `.xls/.xlsx` 直接降级成“先转文本再说”
-- 不因为它们暂时未支持，就反向把整个 `policy_regulation` promotion 搁置
+- 不在 repo 内手写 `.doc` 二进制 parser
+- 不因为 `.doc` 当前未支持，就反向把整个 `policy_regulation` promotion 搁置
+- 不把已经支持的 `xls/xlsx` 再写回“未完成支持”口径
 
 正确做法是：
 
-- 第一阶段 promotion 先只纳入 `docx/pdf`
-- 把 `.doc` / `.xls` / `.xlsx` 单独列为 `office_binary_gap`
-- 在第二阶段新增 `office_binary_extractable` 能力，再扩大 promotion 面
+- 当前 canonical promotion 输入继续按已落地路径消费 `docx/pdf/xls/xlsx`
+- `.doc` 单独保持为 legacy Office gap
+- 后续在同一条 workstream 内新增 worker-owned normalization/provenance 能力，再决定是否扩大 `.doc` promotion 面
 
 这样做的原因是：
 
