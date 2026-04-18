@@ -11,6 +11,8 @@ Current indexing truth has also moved beyond the original fixed-collection wordi
 
 Requirements inherited from the initial phase-1 release baseline. They remain the current roadmap contract, but current serving/index truth should be read from the notes above plus `.planning/PROJECT.md` and `.planning/STATE.md`.
 
+Worktree-local archive note: Phase 9 restored the missing worktree audit artifacts on 2026-04-02. The checked boxes below describe implemented capability truth; `.planning/v1.0-MILESTONE-AUDIT.md` now tracks only milestone archive bootstrap as process tech debt, not as missing requirement evidence.
+
 ### Ingestion
 
 - [x] **ING-01**: System can ingest `student_handbook` source documents into raw storage with stable document identity and version metadata
@@ -112,4 +114,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-23*
-*Last updated: 2026-03-28 after runtime-profile serving truth and operator-query boundary refresh*
+*Last updated: 2026-04-02 after closing the worktree-local evidence blocker and downgrading remaining archive bootstrap work to process tech debt*
