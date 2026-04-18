@@ -122,11 +122,16 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         source_truth_inventory_store=runtime_inventory,
         object_store=runtime_object_store,
     )
+    candidate_documents = tuple(
+        candidate_document
+        for candidate_document in candidate_documents
+        if candidate_document.target_collection == _TARGET_SCOPE[1]
+    )
 
     if not candidate_documents:
         runtime_registry.replace_scope(_TARGET_SCOPE[0], _TARGET_SCOPE[1], ())
         return InstitutionalRegulationMaterializationReport(
-            promotion_candidate_count=promotion_report.candidate_count,
+            promotion_candidate_count=0,
             materialized_document_count=0,
             created_document_ids=(),
             updated_document_ids=(),
@@ -191,7 +196,7 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         scope_refresh=_TARGET_SCOPE,
     )
     return InstitutionalRegulationMaterializationReport(
-        promotion_candidate_count=promotion_report.candidate_count,
+        promotion_candidate_count=len(candidate_documents),
         materialized_document_count=len(documents),
         created_document_ids=stats.created_document_ids,
         updated_document_ids=stats.updated_document_ids,

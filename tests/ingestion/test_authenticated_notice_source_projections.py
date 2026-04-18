@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 import zipfile
 
 from campus_ingestion_core.authenticated_notice_import import (
@@ -236,6 +237,52 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
 
         self.assertEqual(result.classification, "text_extractable")
 
+    def test_classify_attachment_ref_routes_xlsx_to_text_extractable(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0001",
+                "final_url": "https://portal.example.edu/files/course-plan.xlsx",
+                "source_url": "https://portal.example.edu/files/course-plan.xlsx",
+                "normalized_source_url": "https://portal.example.edu/files/course-plan.xlsx",
+                "anchor_text": "培养方案明细.xlsx",
+                "object_key": (
+                    "attachments/aa/" "aabbccddeeff00112233445566778899/course-plan.xlsx"
+                ),
+                "content_sha256": "aabbccddeeff00112233445566778899",
+                "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "byte_size": 2048,
+            },
+            config=config,
+        )
+
+        self.assertEqual(result.classification, "text_extractable")
+
+    def test_classify_attachment_ref_routes_xls_to_text_extractable(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0001",
+                "final_url": "https://portal.example.edu/files/course-plan.xls",
+                "source_url": "https://portal.example.edu/files/course-plan.xls",
+                "normalized_source_url": "https://portal.example.edu/files/course-plan.xls",
+                "anchor_text": "培养方案明细.xls",
+                "object_key": "attachments/bb/bbccddeeff00112233445566778899/course-plan.xls",
+                "content_sha256": "bbccddeeff00112233445566778899",
+                "mime_type": "application/vnd.ms-excel",
+                "byte_size": 2048,
+            },
+            config=config,
+        )
+
+        self.assertEqual(result.classification, "text_extractable")
+
     def test_attachment_projection_plan_carries_attachment_content_sha256(self) -> None:
         config = load_authenticated_notice_source_projections_config(
             Path(__file__).resolve().parents[2]
@@ -276,6 +323,36 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             plans[0]["attachment_content_sha256"],
             "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
         )
+
+    def test_attachment_projection_plan_rejects_downloaded_doc_without_explicit_extractor(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "requires an explicit extractor before replay",
+        ):
+            build_authenticated_notice_attachment_projection_plans(
+                parent_document_id="notice:muc_internal_portal:355282",
+                attachment_refs=(
+                    {
+                        "attachment_ref_id": "attachment-0009",
+                        "final_url": "https://portal.example.edu/files/legacy-rule.doc",
+                        "source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                        "normalized_source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                        "anchor_text": "历史制度正文.doc",
+                        "object_key": (
+                            "attachments/cc/ccddeeff00112233445566778899aa/legacy-rule.doc"
+                        ),
+                        "content_sha256": "ccddeeff00112233445566778899aa",
+                        "mime_type": "application/msword",
+                        "byte_size": 8192,
+                    },
+                ),
+                config=config,
+            )
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -337,6 +414,67 @@ def _build_minimal_docx_bytes(*, paragraphs: tuple[str, ...]) -> bytes:
         archive.writestr("[Content_Types].xml", content_types)
         archive.writestr("_rels/.rels", root_rels)
         archive.writestr("word/document.xml", "\n".join(document_xml))
+    return buffer.getvalue()
+
+
+def _build_minimal_xlsx_bytes() -> bytes:
+    content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+</Types>
+"""
+    root_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+"""
+    workbook = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="报名表" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>
+"""
+    workbook_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>
+"""
+    shared_strings = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="4" uniqueCount="4">
+  <si><t>姓名</t></si>
+  <si><t>学号</t></si>
+  <si><t>张三</t></si>
+  <si><t>2026001</t></si>
+</sst>
+"""
+    worksheet = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+      <c r="B1" t="s"><v>1</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>2</v></c>
+      <c r="B2" t="s"><v>3</v></c>
+    </row>
+  </sheetData>
+</worksheet>
+"""
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types)
+        archive.writestr("_rels/.rels", root_rels)
+        archive.writestr("xl/workbook.xml", workbook)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        archive.writestr("xl/sharedStrings.xml", shared_strings)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
     return buffer.getvalue()
 
 
@@ -1018,6 +1156,64 @@ def _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
     return [first, second]
 
 
+def _sample_notice_bundle_with_downloaded_spreadsheet_attachment(
+    *,
+    spreadsheet_bytes: bytes,
+    filename: str,
+    mime_type: str,
+) -> list[dict[str, object]]:
+    bundle = json.loads(
+        json.dumps(
+            _sample_notice_bundle(
+                docx_bytes=_build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段")),
+                png_bytes=_build_minimal_png_bytes(),
+            ),
+            ensure_ascii=False,
+        )
+    )
+    spreadsheet_sha256 = hashlib.sha256(spreadsheet_bytes).hexdigest()
+    spreadsheet_key = _attachment_object_key(spreadsheet_sha256, filename)
+    spreadsheet_url = f"https://portal.example.edu/files/{filename}"
+
+    notice = bundle[0]["notice"]
+    assert isinstance(notice, dict)
+    notice["notice_content"] = (
+        "<h1>关于开放2025年度拔尖创新人才“证书项目”第二轮报名的通知</h1>"
+        "<p>请同学们于4月10日前完成报名。</p>"
+        f"<p>附件1：{filename}</p>"
+        "<p>附件2：通知配图.png</p>"
+        "<p>附件3：补充材料.pdf</p>"
+    )
+
+    link = bundle[0]["links"][0]
+    assert isinstance(link, dict)
+    link["url"] = spreadsheet_url
+    link["final_url"] = spreadsheet_url
+    link["link_text"] = filename
+    link["content_type"] = mime_type
+    link["file_size"] = len(spreadsheet_bytes)
+
+    notice_attachment = bundle[0]["notice_attachments"][0]
+    assert isinstance(notice_attachment, dict)
+    notice_attachment["anchor_text"] = filename
+
+    attachment = bundle[0]["attachments"][0]
+    assert isinstance(attachment, dict)
+    attachment["source_url"] = spreadsheet_url
+    attachment["normalized_source_url"] = spreadsheet_url
+    attachment["final_url"] = spreadsheet_url
+    attachment["original_filename"] = filename
+    attachment["mime_type"] = mime_type
+    attachment["byte_size"] = len(spreadsheet_bytes)
+    attachment["sha256"] = spreadsheet_sha256
+    attachment["object_key"] = spreadsheet_key
+    attachment["provenance_status"] = "collected_internal"
+    attachment["ingest_status"] = "downloaded"
+    attachment["downloaded_at"] = "2026-04-02T23:58:26.053Z"
+
+    return bundle
+
+
 def _env() -> dict[str, str]:
     return {
         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -1027,6 +1223,162 @@ def _env() -> dict[str, str]:
 
 
 class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
+    def test_rebuild_authenticated_notice_source_projections_materializes_downloaded_xlsx_attachment(
+        self,
+    ) -> None:
+        xlsx_bytes = _build_minimal_xlsx_bytes()
+        bundle = _sample_notice_bundle_with_downloaded_spreadsheet_attachment(
+            spreadsheet_bytes=xlsx_bytes,
+            filename="course-plan.xlsx",
+            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=xlsx_bytes,
+                content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=_build_minimal_png_bytes(),
+                content_type="image/png",
+            )
+
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 1)
+        self.assertEqual(report.errors, ())
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        spreadsheet_child = next(
+            record
+            for record in records
+            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0001"
+        )
+        spreadsheet_markdown = object_store.get_bytes(
+            bucket=DERIVED_BUCKET,
+            key=str(spreadsheet_child.canonical_markdown_object_key),
+        ).decode("utf-8")
+        self.assertIn("姓名", spreadsheet_markdown)
+        self.assertIn("张三", spreadsheet_markdown)
+        self.assertIn("2026001", spreadsheet_markdown)
+
+    def test_rebuild_authenticated_notice_source_projections_materializes_downloaded_xls_attachment(
+        self,
+    ) -> None:
+        xls_bytes = b"placeholder-xls-binary"
+        bundle = _sample_notice_bundle_with_downloaded_spreadsheet_attachment(
+            spreadsheet_bytes=xls_bytes,
+            filename="course-plan.xls",
+            mime_type="application/vnd.ms-excel",
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=xls_bytes,
+                content_type="application/vnd.ms-excel",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=_build_minimal_png_bytes(),
+                content_type="image/png",
+            )
+
+            with patch(
+                "campus_ingestion_core.authenticated_notice_source_projections._extract_xls_text_blocks",
+                return_value=("工作表：Sheet1\n姓名 | 张三",),
+                create=True,
+            ):
+                report = rebuild_authenticated_notice_source_projections(
+                    request=AuthenticatedNoticeSourceProjectionRequest(
+                        corpus="campus_notices",
+                        collection="internal_notice",
+                    ),
+                    env=_env(),
+                    object_store=object_store,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    ocr_client=_FakeAttachmentOcrClient(),
+                )
+
+        self.assertEqual(report.text_extractable_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 1)
+        self.assertEqual(report.errors, ())
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        spreadsheet_child = next(
+            record
+            for record in records
+            if record.document_id == "notice_attachment:muc_internal_portal:355119:attachment-0001"
+        )
+        spreadsheet_markdown = object_store.get_bytes(
+            bucket=DERIVED_BUCKET,
+            key=str(spreadsheet_child.canonical_markdown_object_key),
+        ).decode("utf-8")
+        self.assertIn("工作表：Sheet1", spreadsheet_markdown)
+        self.assertIn("姓名 | 张三", spreadsheet_markdown)
+
     def test_rebuild_authenticated_notice_source_projections_replaces_scope_and_materializes_attachment_children(self) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()

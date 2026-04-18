@@ -107,22 +107,20 @@ updated: 2026-04-18
 ### 已有能力
 
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py`
-  - 已支持 `attachment_ref` 分类、`reference_only` 过滤、`docx` 原生提取和 `pdf/image` OCR 候选分流
+  - 已支持 `attachment_ref` 分类、`reference_only` 过滤、`docx/xls/xlsx` 原生提取和 `pdf/image` OCR 候选分流
 - `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`
   - 已同时具备 `paddleocr_async_jobs` 和 `paddleocr_vl_service` 两种 provider mode
   - 默认 provider 已是 `paddleocr_async_jobs`
 - `configs/ingestion/campus_notices/internal_notice/source-projections.v1.json`
-  - 当前 `text_extractable_extensions` 只有 `docx`
+  - 当前 `text_extractable_extensions` 已包含 `docx/xls/xlsx`
   - 当前 `ocr_required_extensions` 已包含 `pdf/png/jpg/jpeg/bmp/gif`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
   - 已明确 historical replay 当前应停在 pilot/verified，不继续 embedding / Qdrant
 
 ### 当前缺口
 
-- 当前 repo 还没有 notice-derived formal regulations 的目标 collection config
-- 当前 repo 还没有“从 `internal_notice` canonical documents 提升到 `regulations/*`”的跨 collection promotion contract
-- 当前 repo 对 Office 文本附件的稳定原生支持只冻结到 `docx`
-- 当前 repo 还没有把 `.doc` / `.xls` / `.xlsx` 这类在 `policy_regulation` 样本里真实存在的附件类型纳入稳定消费契约
+- 当前 repo 仍不接受把 `.doc` 静默当成已支持 Office 文本附件；它必须继续显式 fail-close 为 `unsupported_binary`
+- 当前后续实施重点不再是“有没有 target collection scaffold”，而是继续围绕 per-document `target_collection` 收口 downstream materialization / chunk acceptance / inventory truth
 
 ### 已新增的 repo-native 辅助能力
 
@@ -141,7 +139,7 @@ updated: 2026-04-18
 这几个缺口决定了：
 
 - 下一步不能假装“`policy_regulation` replay 完就等于 regulation corpus 已经成立”
-- 也不能把 `.doc` / `.xls` / `.xlsx` 静默当成“已经支持”
+- 也不能把 `.doc` 静默当成“已经支持”
 
 ## 现有样本事实
 

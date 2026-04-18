@@ -542,7 +542,7 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertNotIn("特此通知", regulation_markdown)
         self.assertIn("第一条 为加强实验室安全管理", regulation_markdown)
 
-    def test_materialize_from_internal_notice_scope_preserves_document_nature_for_contextual_regulations(self) -> None:
+    def test_materialize_from_internal_notice_scope_excludes_contextual_rules_routed_to_scoped_rules(self) -> None:
         materialize = getattr(
             regulation_materialization,
             "materialize_institutional_regulations_from_internal_notice_scope",
@@ -653,28 +653,10 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             source_truth_inventory_store=inventory_store,
         )
 
-        self.assertEqual(report.promotion_candidate_count, 2)
-        self.assertEqual(report.materialized_document_count, 2)
+        self.assertEqual(report.promotion_candidate_count, 0)
+        self.assertEqual(report.materialized_document_count, 0)
         target_records = registry.list_by_scope("regulations", "institutional_regulations")
-        self.assertEqual(len(target_records), 2)
-
-        uploads_by_key = {
-            str(upload["key"]): upload for upload in object_store.uploads if str(upload["key"]).endswith(".jsonl")
-        }
-        metadata_by_title = {}
-        for record in target_records:
-            rows = _document_rows(uploads_by_key[record.document_units_object_key or ""])
-            metadata_by_title[rows[0]["metadata"]["title"]] = rows[0]["metadata"]
-
-        annual_metadata = metadata_by_title["中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"]
-        self.assertEqual(annual_metadata["document_nature"], "annual_cycle_rule")
-        self.assertEqual(annual_metadata["promotion_class"], "formal_regulation")
-        self.assertEqual(annual_metadata["source_notice_ids"], ["200005"])
-
-        temporary_metadata = metadata_by_title["中央民族大学丰台校区就医管理办法（暂行）"]
-        self.assertEqual(temporary_metadata["document_nature"], "time_bound_operational_rule")
-        self.assertEqual(temporary_metadata["promotion_class"], "formal_regulation")
-        self.assertEqual(temporary_metadata["source_notice_ids"], ["200003"])
+        self.assertEqual(target_records, ())
 
 
 if __name__ == "__main__":

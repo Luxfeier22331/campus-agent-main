@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Institutional Regulations Offline Inventory
@@ -30,18 +30,11 @@ machine-readable 对应文件：
 
 ## 当前 formal local current target
 
-当前已进入 `regulations/institutional_regulations` formal local current target 的 `11` 条 regulation 为：
+自 2026-04-19 起，当前 repo 真相已明确把 `annual_cycle_rule` / `time_bound_operational_rule` 从 `regulations/institutional_regulations` 中移出，统一下沉到 `regulations/scoped_rules` holding collection。
 
-- `中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
-- `药学院2021年硕博连读博士研究生招生实施细则`
-- `历史文化学院2021年硕博连读博士研究生 招生实施细则`
+因此，当前 captured corpus 中仍应视为 `regulations/institutional_regulations` formal local current target 的，只剩 institution-wide stable regulation：
+
 - `中央民族大学采购工作管理办法`
-- `生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
-- `中央民族大学丰台校区就医管理办法（暂行）`
-- `中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则`
-- `新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
-- `中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
-- `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
 - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
 
 `355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知` 当前已不再是 isolated sample：
@@ -49,6 +42,20 @@ machine-readable 对应文件：
 - 当前语义：attachment owner recovered 并已 formal current-target materialized
 - 当前状态：`accepted_current_target`
 - 当前 owner kind：`attachment_document`
+
+## 当前已转入 `scoped_rules` holding 的 captured items
+
+以下已采集 title 虽然仍属于 regulation downstream consumption，但当前 target 已改为 `regulations/scoped_rules`，而不是 `regulations/institutional_regulations`：
+
+- `中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
+- `药学院2021年硕博连读博士研究生招生实施细则`
+- `历史文化学院2021年硕博连读博士研究生 招生实施细则`
+- `生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
+- `中央民族大学丰台校区就医管理办法（暂行）`
+- `中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则`
+- `新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
+- `中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
+- `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
 
 ## 当前 source hold / blocked frontier
 
@@ -79,7 +86,8 @@ machine-readable 对应文件：
 
 在没有认证态的前提下，当前只建议围绕这份 inventory 做：
 
-- 继续消费已进入 formal local current target 的 `11` 条 regulation
+- 继续消费已进入 formal local current target 的 institution-wide regulation
+- 继续消费已转入 `regulations/scoped_rules` 的 annual/time-bound scoped rules，但不要把它们重新写回 `institutional_regulations`
 - 保持 `355282` 作为 attachment-backed regulation current truth，不再回退成 isolated sample
 - 保持 `351119` 为 auth-blocked frontier，不再误推进
 - 保持 `351699 / 351704 / 177880` 不进入当前 regulation target

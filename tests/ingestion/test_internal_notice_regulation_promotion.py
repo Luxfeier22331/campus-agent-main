@@ -1232,6 +1232,7 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(temporary_report.action, "promote_candidate")
         self.assertEqual(temporary_report.promotion_class, "formal_regulation")
         self.assertEqual(temporary_report.document_nature, "time_bound_operational_rule")
+        self.assertEqual(temporary_report.target_collection, "scoped_rules")
         self.assertIn("time_bound_operational_rule_detected", temporary_report.reasons)
         self.assertNotIn("draft_signal_detected", temporary_report.reasons)
 
@@ -1239,12 +1240,14 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(seasonal_report.action, "promote_candidate")
         self.assertEqual(seasonal_report.promotion_class, "formal_regulation")
         self.assertEqual(seasonal_report.document_nature, "time_bound_operational_rule")
+        self.assertEqual(seasonal_report.target_collection, "scoped_rules")
         self.assertIn("time_bound_operational_rule_detected", seasonal_report.reasons)
 
         admission_report = reports_by_id[admission_parent.document_id]
         self.assertEqual(admission_report.action, "promote_candidate")
         self.assertEqual(admission_report.promotion_class, "formal_regulation")
         self.assertEqual(admission_report.document_nature, "annual_cycle_rule")
+        self.assertEqual(admission_report.target_collection, "scoped_rules")
         self.assertIn("annual_cycle_or_program_rule_detected", admission_report.reasons)
 
     def test_build_manifest_prefers_standalone_source_title_over_body_reference_title(self) -> None:

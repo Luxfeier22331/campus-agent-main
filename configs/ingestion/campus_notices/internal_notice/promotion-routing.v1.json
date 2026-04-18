@@ -4,6 +4,11 @@
   "source_collection": "internal_notice",
   "target_corpus": "regulations",
   "target_collection": "institutional_regulations",
+  "document_nature_target_collections": {
+    "institutional_regulation": "institutional_regulations",
+    "annual_cycle_rule": "scoped_rules",
+    "time_bound_operational_rule": "scoped_rules"
+  },
   "default_action": "hold_in_internal_notice",
   "accepted_input_lanes": [
     "notice_body",
@@ -51,10 +56,10 @@
       "description": "Stable institutional regulation or normative handbook text that can stand on its own in regulations/institutional_regulations."
     },
     "annual_cycle_rule": {
-      "description": "Year-scoped, batch-scoped, or program-scoped regulation text such as admissions, recommendation, or selection procedures. These still import into regulations/institutional_regulations for the current batch, but must keep document_nature metadata for downstream handling."
+      "description": "Year-scoped, batch-scoped, or program-scoped regulation text such as admissions, recommendation, or selection procedures. These import into regulations/scoped_rules and must keep document_nature metadata for downstream handling."
     },
     "time_bound_operational_rule": {
-      "description": "Operational rules tied to seasonal, transitional, or explicitly temporary operating conditions. These still import into regulations/institutional_regulations for the current batch, but must keep document_nature metadata for downstream handling. Provisional wording alone is insufficient; the body must carry temporary or sunset semantics."
+      "description": "Operational rules tied to seasonal, transitional, or explicitly temporary operating conditions. These import into regulations/scoped_rules and must keep document_nature metadata for downstream handling. Provisional wording alone is insufficient; the body must carry temporary or sunset semantics."
     },
     "wrapper_notice": {
       "description": "Publication wrapper or forwarding notice that points at a regulation body but is not itself the canonical regulation text."
@@ -104,6 +109,6 @@
     "Document age is not a standalone exclusion or downgrade signal for campus regulations.",
     "暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
     "Exclude from institutional_regulations only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
-    "Annual-cycle and time-bound operational documents currently import into the same institutional_regulations collection and are distinguished by document_nature metadata rather than a separate main collection."
+    "Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_regulations."
   ]
 }

@@ -8,7 +8,7 @@ This directory holds the repo-tracked config scaffolding for the
 - `chunk-profile.json`: current generic runtime defaults for chunk preparation admission
 - `source-projections.v1.json`: offline source-truth replay contract for clean parent notices and derived attachment documents
 - `notice-family-classification.v1.json`: read-only notice-family admission config for policy-first stratification
-- `promotion-routing.v1.json`: source-side scaffold for deciding which canonical documents may be promoted into `regulations/institutional_regulations`
+- `promotion-routing.v1.json`: source-side scaffold for deciding which canonical documents may be promoted into `regulations/institutional_regulations` or `regulations/scoped_rules`
 - `historical-batches/run14-policy-regulation-core.v1.json`: first curated donor intake batch for stable regulation/policy notices
 - `historical-batches/run14-policy-regulation-expanded.v1.json`: broader policy_regulation donor batch with body-shape stratification for policy-text handling
 - `historical-batches/run14-attachment-routing-probe.v1.json`: second curated donor intake batch for attachment route coverage (`text_extractable` / `ocr_required` / `reference_only`)
@@ -80,22 +80,23 @@ Current chunk-preparation truth:
 
 Accepted attachment-consumption design:
 
-- `docx` default lane: `text_extractable`
+- `docx` / `xls` / `xlsx` default lane: `text_extractable`
 - `pdf` default lane: `ocr_required`
 - policy / handbook `pdf` should trust cloud async OCR as the canonical extraction path
 - native PDF extraction is only a diagnostics / quality-probe path, not the default success path
+- legacy binary `.doc` remains an explicit extractor gap and must fail closed as `unsupported_binary`
 
 Current promotion-manifest guardrails:
 
 - `notice_body` parent rows may only become promotion candidates when the body itself has standalone regulation structure; wrapper summaries stay in `internal_notice`
 - document age is not a standalone exclusion signal for campus regulations
 - `暂行/试行` does not by itself degrade a document to `manual_review_required`
-- annual-cycle/program-specific rules such as 招生/推免/硕博连读/英才计划实施细则 currently still route to `manual_review_required` in the read-only manifest path
-- body text with explicit temporary or sunset semantics such as 假期期间规定、正式运营前、临时医疗点 currently still route to `manual_review_required` in the read-only manifest path
+- annual-cycle/program-specific rules such as 招生/推免/硕博连读/英才计划实施细则 may still become `promote_candidate` when the canonical body and provenance gates pass, but their `target_collection` is now `regulations/scoped_rules`
+- body text with explicit temporary or sunset semantics such as 假期期间规定、正式运营前、临时医疗点 may still become `promote_candidate` when the canonical body and provenance gates pass, but their `target_collection` is now `regulations/scoped_rules`
 - if inventory expects attachment child docs but the current snapshot does not contain them, the manifest must emit `manual_review_required` rather than a business hold/candidate result
 - attachment provenance fields remain mandatory for attachment-derived candidates, but stay nullable for parent-body candidates
 - repo-level downstream target for these adjudicated scoped rules is now `regulations/scoped_rules`, governed by `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
-- source-side read-only manifest output still remains `manual_review_required` for these scoped-rule classes; downstream consumption now happens through the dedicated `materialize_internal_notice_scoped_rules` worker instead of rewriting `campus_notices/internal_notice`
+- downstream consumers must treat per-document `target_collection` as authoritative; the dedicated `materialize_internal_notice_scoped_rules` worker consumes only `scoped_rules` candidates instead of rewriting `campus_notices/internal_notice`
 
 Current post-release consumption truth:
 

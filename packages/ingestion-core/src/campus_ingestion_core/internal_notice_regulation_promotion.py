@@ -139,6 +139,7 @@ class InternalNoticePromotionRoutingConfig:
     source_collection: str
     target_corpus: str
     target_collection: str
+    document_nature_target_collections: dict[str, str]
     default_action: str
     accepted_input_lanes: tuple[str, ...]
     terminal_outcomes_excluded_from_promotion: tuple[str, ...]
@@ -555,6 +556,11 @@ def load_internal_notice_promotion_routing_config(
         source_collection=str(payload.get("source_collection") or ""),
         target_corpus=str(payload.get("target_corpus") or ""),
         target_collection=str(payload.get("target_collection") or ""),
+        document_nature_target_collections={
+            str(key).strip(): str(value).strip()
+            for key, value in dict(payload.get("document_nature_target_collections") or {}).items()
+            if str(key).strip() and str(value).strip()
+        },
         default_action=str(payload.get("default_action") or "hold_in_internal_notice"),
         accepted_input_lanes=tuple(
             str(item) for item in payload.get("accepted_input_lanes") or ()
@@ -701,6 +707,10 @@ def _scan_document(
         body=promotion_body,
         inventory_entry=inventory_entry,
     )
+    target_collection = _resolve_target_collection(
+        routing=routing,
+        document_nature=document_nature,
+    )
 
     if _has_substantive_text(promotion_body):
         quality_gates.append("canonical_text_available")
@@ -822,7 +832,7 @@ def _scan_document(
         document_nature=document_nature,
         semantic_owner_kind=semantic_owner_kind,
         target_corpus=routing.target_corpus,
-        target_collection=routing.target_collection,
+        target_collection=target_collection,
         regulation_title_normalized=regulation_title_normalized,
         issuing_org=issuing_org,
         effective_date=effective_date,
@@ -1851,6 +1861,17 @@ def _normalize_text_match(value: str | None) -> str:
 
 def _looks_like_draft_document(text: str) -> bool:
     return any(keyword in text for keyword in _DRAFT_KEYWORDS)
+
+
+def _resolve_target_collection(
+    *,
+    routing: InternalNoticePromotionRoutingConfig,
+    document_nature: str,
+) -> str:
+    return (
+        routing.document_nature_target_collections.get(document_nature)
+        or routing.target_collection
+    )
 
 
 def _detect_document_nature(

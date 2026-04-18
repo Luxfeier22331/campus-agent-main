@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Institutional Regulations Promotion Quality Acceptance
@@ -35,7 +35,7 @@ updated: 2026-04-14
 - 本文只记录当前 execution / materialization 已成立的 acceptance truth
 - 已批准但尚未落代码的 contract 变更，不得伪装成当前 truth
 
-截至 2026-04-14：
+截至 2026-04-19：
 
 - 当前 target `document_id` 已由 `regulation_work_title + issuing_org + semantic scope` 派生
 - 当前 projected/materialized `title` 已默认切到 `regulation_display_title`
@@ -127,33 +127,22 @@ updated: 2026-04-14
 - `institutional_regulations` 单独做 target scope refresh
 - 不能把 source row 直接“改名”成 target row
 
-## 当前 local-only acceptance truth（2026-04-12）
+## 当前 local-only acceptance truth（2026-04-19）
 
-当前已通过隔离 snapshot root 的 local-only materialization acceptance、并实际进入 `institutional_regulations` 输出的标题为：
+2026-04-12 的 mixed acceptance list 只代表当时尚未完全收口 `scoped_rules` target boundary 的中间 snapshot。当前 repo 真相已经变更为：
 
-- `中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
-- `药学院2021年硕博连读博士研究生招生实施细则`
-- `历史文化学院2021年硕博连读博士研究生 招生实施细则`
-- `中央民族大学采购工作管理办法`
-- `生命与环境科学学院关于2021年暑假期间实验室安全管理规定`
-- `中央民族大学丰台校区就医管理办法（暂行）`
-- `中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则`
-- `新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
-- `中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
-- `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
+- `annual_cycle_rule` / `time_bound_operational_rule` 不再计入 `institutional_regulations` acceptance scope
+- 这些文档当前统一进入 `regulations/scoped_rules` 的独立 materialization / chunk-acceptance lane
+- `institutional_regulations` acceptance scope 只保留 institution-wide stable regulation，例如：
+  - `中央民族大学采购工作管理办法`
+  - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
 
 当前 Cohort A 已不再存在 residual `manual_review_required` notice。
 
-其中：
+## 当前 formal local current-scope truth（2026-04-19）
 
-- `191176 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 已 promotion 并 materialize
-- `191177 / 生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 当前保留为 `hold_in_internal_notice` duplicate，指向 `191176`
-
-## 当前 formal local current-scope truth（2026-04-14）
-
-- 上述 Cohort A `10` 条仍按 vetted notice-id 白名单保留在 formal local current target 中，不再只是 isolated snapshot acceptance
-- `355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知` 已通过 bounded source-truth repair + targeted source projection rebuild + filtered materialization，正式并入当前 target
-- `regulations/institutional_regulations` 的 local current target count 现已由 `10` 刷新为 `11`
+- `355282 / 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知` 已通过 bounded source-truth repair + targeted source projection rebuild + filtered materialization，正式并入当前 institution-wide target
+- `regulations/institutional_regulations` 当前应只理解为 stable institution-wide target，不再混入 annual/time-bound scoped rules
 - formal import 仍固定停在 target canonical/document-units/object-store + target registry scope refresh；不包含 chunk preparation、embedding、Qdrant write、release 或 alias publish
 - 当前 formal current source scope 仍宽于 accepted batch；因此 target materialization 只能对白名单 notice 执行，不能对未过滤的 `internal_notice` current scope 直接全量推进
 

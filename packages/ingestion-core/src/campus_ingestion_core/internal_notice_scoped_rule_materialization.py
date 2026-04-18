@@ -714,11 +714,10 @@ def _build_raw_source_uri(source_document_id: str) -> str:
 def _detect_scoped_rule_nature(
     report: InternalNoticeRegulationPromotionDocumentReport,
 ) -> str | None:
-    reasons = set(report.reasons)
-    if "annual_cycle_or_program_rule_detected" in reasons:
-        return "annual_cycle_rule"
-    if "time_bound_operational_rule_detected" in reasons:
-        return "time_bound_operational_rule"
+    if report.target_collection != _TARGET_SCOPE[1]:
+        return None
+    if report.document_nature in {"annual_cycle_rule", "time_bound_operational_rule"}:
+        return report.document_nature
     return None
 
 
