@@ -353,6 +353,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope -
   - artifact: `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
   - 该轮在新的 `program_semester_facts` publish release 与 trace split closeout 之后执行
   - `run-01` / `run-02` / `run-03` 全部 `19/19 passed`
+  - 当前 `19` 的组成固定为 `16` 条 `curriculum release_gate` case 加 `3` 条 deterministic `curriculum error_gate` case；repo 中曾短暂出现过的重复 release-gate 定义属于 historical eval drift，不代表 accepted curriculum truth
   - `final-summary.json`:
     - `deterministic_verdict=pass`
     - `supplemental_verdict=pass`

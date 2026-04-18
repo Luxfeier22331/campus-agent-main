@@ -19,6 +19,8 @@ from campus_evals import (
     GoldenCase,
     TraceExpectation,
     build_default_ragas_metric_names,
+    curriculum_error_gate_cases,
+    curriculum_release_gate_cases,
     expected_source_ref,
 )
 from campus_evals.curriculum_live_benchmark import (
@@ -1032,6 +1034,21 @@ class AppApiEvalClientSettingsTest(unittest.TestCase):
 
 
 class CurriculumLiveProfileTest(unittest.TestCase):
+    def test_build_curriculum_live_profile_keeps_phase1000_case_inventory_shape(self) -> None:
+        profile = build_curriculum_live_profile()
+        release_cases = curriculum_release_gate_cases()
+        error_cases = curriculum_error_gate_cases()
+        cases = profile.cases_factory()
+
+        self.assertEqual(len(release_cases), 16)
+        self.assertEqual(len(error_cases), 3)
+        self.assertEqual(len(cases), 19)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            tuple(case.case_id for case in (*release_cases, *error_cases)),
+        )
+        self.assertEqual(len({case.case_id for case in cases}), len(cases))
+
     def test_build_curriculum_live_profile_uses_curriculum_policy_and_metric_named_ragas_adapter(self) -> None:
         profile = build_curriculum_live_profile(
             env={
