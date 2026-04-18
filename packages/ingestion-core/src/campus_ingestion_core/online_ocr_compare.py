@@ -17,16 +17,14 @@ from campus_ingestion_core.online_ocr_evidence import (
     build_provider_summary,
     extract_paddle_plain_text,
 )
-from campus_ingestion_core.online_ocr_routing import (
+from campus_ingestion_core.file_asset_routing import (
     PADDLE_ASYNC_PROVIDER,
-    select_adjudicated_image_routing,
-    select_online_ocr_routing,
-)
-from campus_ingestion_core.raw_asset_typing import (
     RawAssetTypeRefinement,
     RawAssetTypedMetadata,
     infer_raw_asset_typed_metadata,
     refine_raw_asset_typed_metadata_with_ocr_evidence,
+    select_adjudicated_image_routing,
+    select_online_ocr_routing,
 )
 from campus_ingestion_core.raw_ingestion import (
     DEFAULT_ONLINE_OCR_MODEL,
@@ -332,29 +330,9 @@ def _build_compare_routing_decision(
             candidate_summary=candidate_summary,
             baseline_summary=baseline_summary,
         )
-    synthetic_record = RawAssetRecord(
-        raw_asset_id="asset:compare-preview",
-        raw_version_id="sha256:compare-preview",
-        corpus="regulations",
-        collection="student_handbook",
-        raw_source_uri=f"file:///{source_file_name}",
-        content_hash="compare-preview",
-        source_filename=source_file_name,
-        object_key=source_file_name,
-        ingestion_timestamp="2026-04-12T00:00:00+08:00",
-        import_source="compare",
-        content_type=initial_typed_metadata.content_type,
-        file_extension=initial_typed_metadata.file_extension,
-        byte_size=initial_typed_metadata.byte_size,
-        page_count=initial_typed_metadata.page_count,
-        image_width=initial_typed_metadata.image_width,
-        image_height=initial_typed_metadata.image_height,
+    return select_online_ocr_routing(
         asset_kind=refined_typing.asset_kind,
         asset_subkind=refined_typing.asset_subkind,
-        classification_confidence=refined_typing.classification_confidence,
-    )
-    return select_online_ocr_routing(
-        raw_asset_record=synthetic_record,
         mineru_available=True,
     )
 
