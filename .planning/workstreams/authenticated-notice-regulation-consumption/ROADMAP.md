@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: deferred
 created: 2026-04-19
 updated: 2026-04-19
 ---

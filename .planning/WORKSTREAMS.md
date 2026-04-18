@@ -33,9 +33,7 @@ updated: 2026-04-19
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | `Phase E` | 固定维持 `11` 条 admitted regulation target + `scoped_rules` holding collection 的 bounded lane，继续做 target-side chunk / metadata / quality hardening |
 | `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/shared-file-asset-loader-contract.md` | `Phase A` | 先冻结 repo-level file asset contract：`typing -> normalization -> extraction -> terminal outcome -> provenance`，再做 bounded backend evaluation |
-| `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | `Phase A` | 首条切片固定为 `351119` 的 `auth:check -> targeted export -> bounded owner recovery -> promotion/materialization re-entry` |
 | `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | `Phase E` | fresh live artifact replacement 已完成；当前只剩 `ragas.faithfulness` soft-gate `warn` 的 planning closeout |
 | `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | `Phase D` | Phase A-C baseline 已 fresh 通过；当前进入 browser smoke、integrated acceptance 与 staging closeout 准备 |
 
@@ -43,6 +41,8 @@ updated: 2026-04-19
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | 只有在产品范围重新提升 authenticated-notice regulation downstream consumption 优先级时才恢复；恢复后从现有 `11` 条 admitted target 的 target-side quality closeout 继续 |
+| `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 只有在下一次 auth window 真正进入执行窗口，或产品范围重新提升 auth-dependent owner recovery 优先级时才恢复 |
 | `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `docs/plans/authenticated-notice-live-portal-control-plane.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
 | `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/operator-observability-control-plane-foundation.md` | 只有在产品范围决定把 panel 从当前 operator shell 扩成完整 observability control-plane 时才恢复 |
 | `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `docs/plans/restricted-document-rollout-and-verification.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |

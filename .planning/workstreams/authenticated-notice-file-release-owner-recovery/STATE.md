@@ -8,15 +8,15 @@ updated: 2026-04-19
 
 ## Current Position
 
-**Status:** In Progress
+**Status:** Deferred
 **Current Phase:** A
 **Current Phase Name:** Auth Check And Targeted Export
-**Current Plan:** first bounded slice is `351119 / 中央民族大学差旅费管理办法（民大校发〔2025〕104号）`
+**Current Plan:** paused; keep `351119 / 中央民族大学差旅费管理办法（民大校发〔2025〕104号）` as the first bounded slice when this workstream is reopened
 **Total Phases:** 5
 **Total Plans in Phase:** N/A
 **Progress:** 0/5 phases complete
 **Last Activity:** 2026-04-19
-**Last Activity Description:** Created a dedicated native workstream so auth-window work no longer rides inside the non-auth regulation lane.
+**Last Activity Description:** Deferred by repo-level workstream prioritization; auth-dependent recovery remains parked at the pre-execution planning stop point.
 
 ## Current Slice
 
@@ -37,5 +37,5 @@ updated: 2026-04-19
 
 ## Session Continuity
 
-**Stopped At:** awaiting auth-window execution for `351119`
+**Stopped At:** workstream deferred while still awaiting auth-window execution for `351119`
 **Resume File:** docs/plans/authenticated-notice-file-release-owner-recovery.md
