@@ -23,7 +23,7 @@ updated: 2026-04-12
 
 原因：
 
-- `authenticated_notice_portal` 的 source foundation 已在 `.planning/ROADMAP.md` Phase 12 收口
+- `authenticated_notice_portal` 的 source foundation 已在 `.planning/legacy-flat/ROADMAP.md` Phase 12 收口
 - 当前 repo 已完成 restricted `internal_notice` foundation、bounded historical replay 证据与 source-channel owner split 冻结
 - 后续若继续推进 `internal_notice` downstream consumption，应优先看 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
 - 后续若重开 live portal scheduling、collector repo migration 或 authenticated control plane，应在 `.planning/PROJECT.md` 中显式新建执行面，而不是继续把本文当 active phase 入口

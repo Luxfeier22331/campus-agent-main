@@ -23,7 +23,7 @@ updated: 2026-04-12
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/legacy-flat/STATE.md`
 
 ## 目标
 

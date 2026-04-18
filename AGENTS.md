@@ -51,8 +51,8 @@
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
-- `.planning/ROADMAP.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`
+- `.planning/legacy-flat/ROADMAP.md`
 
 工作规则：
 
@@ -61,9 +61,9 @@
 - 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
 - 当前 accepted merged-truth topology 与已开放 serving surface 以 `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应 `docs/` 文档为准
-- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/` 为准
+- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 `.planning/workstreams/<slug>/` 为准
 - `docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 不再作为 repo 级默认入口
-- 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD 进度板；当前真相看 `current-architecture.md`，当前执行状态看 `.planning/`
+- 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD 进度板；当前真相看 `current-architecture.md`，当前执行状态看 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 

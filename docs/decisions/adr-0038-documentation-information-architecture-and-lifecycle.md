@@ -42,7 +42,7 @@ Accepted on 2026-04-12.
 - 目标架构
 - 分区 landing pages
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`
 
 具体子类内容通过各分区 `README.md` 导航，而不是继续在根入口堆长列表。
 
@@ -142,4 +142,4 @@ Accepted on 2026-04-12.
 - `docs/architecture/current-architecture.md`
 - `docs/plans/README.md`
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`

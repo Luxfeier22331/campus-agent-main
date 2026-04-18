@@ -13,6 +13,7 @@ updated: 2026-04-12
 - 产品/runtime owner split：`../architecture/product-runtime-architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 当前项目执行真相：`../../.planning/PROJECT.md`
+- 当前 workstream registry：`../../.planning/WORKSTREAMS.md`
 
 ## 长期边界与决策
 
@@ -32,7 +33,7 @@ updated: 2026-04-12
 - 当前 merged truth 已明确 `apps/app-api` 是 canonical identity / authz / profile memory / session memory owner
 - execution path 只消费 typed projection；retrieval path 只消费 authz filter projection，不恢复最终授权真相
 - Phase 11 foundation 已关闭；restricted rollout、memory productization、legacy ACL sunset 仍有后续工作，但这些是 productization gap，不是 owner 未定
-- 判断当前 pending work 时优先看 `.planning/PROJECT.md` / `.planning/STATE.md`，不要把旧 foundation plan 误读成当前 merged truth
+- 判断当前 pending work 时优先看 `../../.planning/PROJECT.md`、`../../.planning/WORKSTREAMS.md` 与 `../../.planning/workstreams/restricted-document-rollout-verification/STATE.md`，不要把旧 foundation plan 误读成当前 merged truth
 
 ## Completed Foundation Plans
 

@@ -42,7 +42,7 @@ authenticated notice historical replay 的 canonical 执行模型固定为：
 - operator 环境必须显式设置 `OCR_PROVIDER_MODE=paddleocr_async_jobs`，不依赖 `OCR_BASE_URL` 推断 provider
 - 如果操作环境会把坏代理值重新注入进程，release / collection / alias 检查都必须显式清空大小写代理变量；单纯 `env -u HTTP_PROXY ...` 不足以阻止 repo env bootstrap 把坏代理值重新注回进程
 
-本文下面只描述 repo-supported execution path；是否在当前项目阶段继续 release，由 `.planning/PROJECT.md` 与 `.planning/STATE.md` 决定。
+本文下面只描述 repo-supported execution path；是否在当前项目阶段继续 release，由 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 决定。
 
 ## OCR 失败判定顺序
 

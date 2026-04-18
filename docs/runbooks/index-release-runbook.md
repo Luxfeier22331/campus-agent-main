@@ -24,7 +24,7 @@ updated: 2026-04-11
 - 旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
 - Qdrant Cloud 备份 / 恢复操作：`docs/runbooks/qdrant-cloud-backup-and-restore-runbook.md`
-- 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前优先级和执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 ## 前置检查
 

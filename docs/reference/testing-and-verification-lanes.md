@@ -13,7 +13,7 @@ updated: 2026-03-31
 
 - 长期架构边界：`docs/architecture/target-architecture.md`
 - `app-api` Worker 形态：`docs/architecture/product-runtime-architecture.md`
-- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 ## 仓库级 lane
 

@@ -36,7 +36,7 @@ updated: 2026-04-12
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`
 - `packages/evals/fixtures/student_handbook_hybrid_queries.json`
 
 补充边界：

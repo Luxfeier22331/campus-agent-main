@@ -32,7 +32,7 @@ updated: 2026-04-12
 - grounding validator 仍是首版覆盖范围，尚未覆盖更广的 claim 类型与 provider-agnostic grounded-generation runtime
 - prompt-family live gate artifact 尚未完成新的 rerun replacement；2026-04-12 已把 supplemental eval provider 切到 `https://codex.gbro.site/v1`
 
-**Execution Vehicle (2026-04-12):** 后续实现现已提升为独立 Phase 15；repo-level 目标设计见 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`，当前 phase context 见 `.planning/phases/15-grounded-generation/15-CONTEXT.md`。
+**Execution Vehicle (2026-04-12):** 后续实现现已提升为独立 Phase 15；repo-level 目标设计见 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`，历史 phase context 见 `.planning/legacy-flat/phases/15-grounded-generation/15-CONTEXT.md`。
 
 **External Alignment Snapshot (2026-04-12):** 当前 repo 的 prompt runtime 形态继续对齐 OpenAI 官方建议的四条主线：Responses API 作为新的文本主链路、developer/instructions 持有应用规则、strict structured outputs 作为跨节点 contract、prompt rollout 绑定持续 eval。
 
@@ -40,7 +40,7 @@ updated: 2026-04-12
 
 - 本文对应的 prompt stack 与 grounding baseline 已在 Phase 14 及 Phase 15 前两波完成收口，不再作为默认 active execution 入口
 - 当前 repo 的默认 active lane 已切到 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
-- 如需判断当前 pending work，以 `.planning/PROJECT.md`、`.planning/STATE.md` 与 `.planning/phases/15-grounded-generation/` 为准，而不是继续把本文视为未完成计划
+- 如需判断当前 pending work，以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、`.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md` 与 `.planning/legacy-flat/phases/15-grounded-generation/` 为准，而不是继续把本文视为未完成计划
 - 截至 2026-04-12，Phase 15 已完成 repo-local closeout；剩余 live artifact replacement 继续视为 deferred follow-up rerun，而不是本文对应的未完成功能实现
 
 ## Repo-Local Closeout Note (2026-04-12)
@@ -55,7 +55,7 @@ updated: 2026-04-12
 当前仍未完成且不得被误写成“代码未做完”的内容：
 
 - 在新的 gbro supplemental eval rerun 完成前，新的 live prompt-family artifact 仍不能宣称已刷新
-- 因此 live artifact replacement 继续 deferred，并在 `.planning/STATE.md` 作为待执行 rerun 记录
+- 因此 live artifact replacement 继续保留在 `product-path-safety-prompt-grounding-governance` workstream 中，作为待执行 rerun 记录
 
 ## Desired End State
 
@@ -105,11 +105,11 @@ updated: 2026-04-12
 
 当前执行入口：
 
-- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-CONTEXT.md`
-- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-RESEARCH.md`
-- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-01-PLAN.md`
-- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-02-PLAN.md`
-- `.planning/phases/14-prompt-stack-system-prompt-runtime/14-03-PLAN.md`
+- `.planning/legacy-flat/phases/14-prompt-stack-system-prompt-runtime/14-CONTEXT.md`
+- `.planning/legacy-flat/phases/14-prompt-stack-system-prompt-runtime/14-RESEARCH.md`
+- `.planning/legacy-flat/phases/14-prompt-stack-system-prompt-runtime/14-01-PLAN.md`
+- `.planning/legacy-flat/phases/14-prompt-stack-system-prompt-runtime/14-02-PLAN.md`
+- `.planning/legacy-flat/phases/14-prompt-stack-system-prompt-runtime/14-03-PLAN.md`
 
 ## Workstream 1: Strict Structured Output Runtime
 

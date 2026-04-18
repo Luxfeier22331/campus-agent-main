@@ -33,7 +33,7 @@ updated: 2026-04-12
 - `packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
 - `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
 - `.planning/PROJECT.md`
-- `.planning/STATE.md`
+- `.planning/WORKSTREAMS.md`
 
 ## Live Rebuild 前检查
 

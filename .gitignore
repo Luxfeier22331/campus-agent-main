@@ -37,6 +37,7 @@ node_modules/
 .planning/quick/**/run-output-*/
 .planning/quick/**/rerun-output/
 .planning/quick/**/materialization-output/
+.planning/active-workstream
 
 # Local map/screenshot scratch files
 tmp-*.png

@@ -2,19 +2,25 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Plans
 
 `plans/` 只保留仍对前向实施有指导价值的计划文档。
-当前 active execution order 仍以 `.planning/PROJECT.md` 和 `.planning/STATE.md` 为准；这里负责说明哪些计划还应被继续引用。
+当前 active/deferred/backlog workstreams 与其状态以 `.planning/PROJECT.md` 和 `.planning/WORKSTREAMS.md` 为准；单条 workstream 的 execution truth 固定在 `.planning/workstreams/<slug>/`。这里负责说明哪些计划仍是当前 workstream 的入口文档。
 
 ## Active
 
-### Current implementation lane
+### Product-path safety / prompt / grounding
 
 - `hallucination-governance-and-grounded-generation-execution-plan.md`
+  - `product-path safety / prompt / grounding governance` 的单一入口；后续接手时不再拆成敏感问题拦截 / system prompt / grounding / eval artifact 多条并发线
+
+### Product surfaces
+
+- `shared-product-surfaces-acceptance-hardening.md`
+  - `app-api`、`public-chat-web`、`protected-panel-web` 的联合验收 / 硬化入口；它与其他独立 workstreams 可并行，但其内部顺序固定为 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout`
 
 ### Data plane / quality / source channels
 
@@ -25,14 +31,16 @@ updated: 2026-04-12
 
 ## Deferred
 
+- `authenticated-notice-live-portal-control-plane.md`
+  - `authenticated-notice live portal / authenticated control-plane` 的单一 deferred 入口；覆盖 repo-native authenticated collector、live `notice` / `file_release` capture、scheduler/incremental sync、run ledger 与 source-channel control-plane，但当前不表示认证窗口已恢复执行
 - `operator-observability-control-plane-foundation.md`
-  - operator observability control plane 的长期方向已接受，但当前没有独立 active execution wave；与 observability expansion 相关的当前工作以 Phase 15 与项目级 planning 为准
+  - `operator observability / control-plane` 的单一 deferred 入口；覆盖 app-owned observability fact、audit/quality/safety/cost read model、panel 新域与 sink participation，但当前不表示 control-plane 已恢复扩面执行
 - `protected-panel-requests-triage-table-redesign.md`
-  - panel `Requests` 分诊台重构仍保留为 follow-up 计划，但当前未进入默认 active lane
+  - panel `Requests` 分诊台重构仍保留为 follow-up 计划，但当前未进入 active workstreams 集合
 - `golden-dataset-execution-plan.md`
   - eval / golden dataset 的后续扩样与治理仍有价值，但当前没有独立 active execution wave
 - `restricted-document-rollout-and-verification.md`
-  - restricted rollout 方向仍被接受，但当前 restricted collections 默认仍处于 `offline_preparation`，没有独立 active execution wave
+  - `restricted document rollout / verification` 的单一 deferred 入口；覆盖 restricted collection rollout、surface behavior、allow/deny matrix 与泄露防护验证，但当前不表示 restricted surface 已恢复执行
 - `legacy-acl-carrier-compatibility-sunset.md`
   - canonical vocabulary 主路径已收口，但 shared contract / persisted payload canonicalization / fixture vocabulary 仍有 residue；当前没有单独 active wave 持续清债
 - `post-closeout-follow-up-execution-plan.md`
@@ -40,10 +48,17 @@ updated: 2026-04-12
 - `versioned-history-query-foundation.md`
   - 能力仍在 target architecture 内，但当前没有 active execution wave
 
+## Backlog
+
+- `campus-navigation-rollout-map-consumption.md`
+  - `campus navigation rollout / place_card / map consumption` 的 backlog 入口；当前只保留 repo 级 registry 条目，直到地图实际上线
+- `official-web-source-channel-news-opening.md`
+  - `official-web source channel / news opening` 的 backlog 入口；当前只保留 repo 级 registry 条目，直到新闻面 opening 被重新提升优先级
+
 ## Completed
 
 - `prompt-grounding-and-hallucination-hardening-plan.md`
-  - prompt stack / grounding baseline 已收口完成；当前默认 active lane 已切到 Phase 15 grounded-generation follow-up
+  - prompt stack / grounding baseline 已收口完成；后续前向 workstream 已转到 `hallucination-governance-and-grounded-generation-execution-plan.md`
 - `intent-memory-acl-foundation.md`
   - identity / memory / authz foundation 已在 Phase 11 收口；后续如果重开 memory productization，应新建 follow-up lane
 - `campus-identity-and-restricted-document-foundation.md`
@@ -53,7 +68,7 @@ updated: 2026-04-12
 - `public-chat-web-vendor-tech-debt-convergence.md`
   - closeout 已完成，保留完成态记录
 - `campus-place-finding-foundation.md`
-  - Wave E foundation code truth 已关闭；后续 follow-up 转向 seed 扩面与 staging 验收
+  - Wave E foundation code truth 已关闭；后续导航产品恢复已转到 `campus-navigation-rollout-map-consumption.md`
 
 ## Historical
 
@@ -66,6 +81,7 @@ updated: 2026-04-12
 
 ## 使用规则
 
-- `active` 才能继续作为默认实施入口
+- `active` 表示当前可接手的 workstream 入口；多个 `active` 文档可以并行存在，由不同会话分别推进
 - `deferred` 表示能力仍被接受，但当前没有活跃执行面
+- `backlog` 表示能力仍被接受，但当前只保留 repo 级 registry 条目，不预建 native workstream 目录
 - `completed` 与 `historical` 必须退出 `docs/README.md` 的默认入口

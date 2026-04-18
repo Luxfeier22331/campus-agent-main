@@ -15,7 +15,7 @@ updated: 2026-04-12
 
 - 重复 async staged closeout 的操作步骤
 - 宣布 `internal_notice` 已开放 query-serving
-- 取代 `.planning/STATE.md` 的执行顺序
+- 取代当前 active workstream `STATE.md` 的执行顺序
 
 ## Final Run
 

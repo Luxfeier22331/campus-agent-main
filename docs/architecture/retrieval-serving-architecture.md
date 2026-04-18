@@ -112,7 +112,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - as-of query
 - compare query
 
-这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以 `.planning/PROJECT.md`、`.planning/STATE.md` 与相关 plan 为准。
+这些属于目标架构的一部分，而不是当前默认 surface；当前 active/deferred execution 仍以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与相关 plan 为准。
 
 ## Course Facts Internal Surface
 

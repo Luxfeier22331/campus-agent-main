@@ -19,8 +19,8 @@ updated: 2026-04-12
   - 长期目标架构与不可退回约束
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
-- [../.planning/STATE.md](../.planning/STATE.md)
-  - 当前 worktree continuity、recent verification 与 now/next
+- [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
+  - 当前 active / deferred / backlog workstreams 与 native planning 目录索引
 
 ## Documentation Areas
 
@@ -59,4 +59,4 @@ updated: 2026-04-12
 - `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
 - `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature branch 进度
 - `plans/` 只保留仍有前向指导价值的计划；`completed`、`historical` 与 `superseded` plan 不进入默认入口
-- `.planning/PROJECT.md` 与 `.planning/STATE.md` 负责当前执行状态、phase context 与 worktree continuity
+- `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级 workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`

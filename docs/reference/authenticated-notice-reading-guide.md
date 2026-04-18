@@ -13,6 +13,7 @@ updated: 2026-04-18
 - source-truth contract：`../architecture/authenticated-notice-source-truth-contract.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 当前项目执行真相：`../../.planning/PROJECT.md`
+- 当前 workstream registry：`../../.planning/WORKSTREAMS.md`
 
 ## 长期边界与决策
 
@@ -30,7 +31,7 @@ updated: 2026-04-18
 - `authenticated_notice_portal` foundation 已关闭；默认不要再把 donor foundation 文档当当前 active 入口
 - 当前前向工作从 `internal_notice` triage、promotion、downstream consumption 的 active plan、runbook 与 quality reference 进入
 - `campus_notices/internal_notice`、`regulations/institutional_regulations`、`regulations/scoped_rules` 当前都仍是 `offline_preparation`，不得写成已开放 query-serving
-- live portal scheduling、authenticated control plane、collector repo migration 如需重开，应以 `.planning/PROJECT.md` / `.planning/STATE.md` 建新执行面，而不是复用 historical closeout 计划
+- live portal scheduling、authenticated control plane、collector repo migration 如需重开，应以 `.planning/PROJECT.md` / `.planning/WORKSTREAMS.md` 建新执行面，而不是复用 historical closeout 计划
 
 ## Active Plan
 

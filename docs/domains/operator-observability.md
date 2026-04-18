@@ -13,6 +13,7 @@ updated: 2026-04-12
 - product/runtime ownership：`../architecture/product-runtime-architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 当前项目执行真相：`../../.planning/PROJECT.md`
+- 当前 workstream registry：`../../.planning/WORKSTREAMS.md`
 
 ## 长期边界与决策
 
@@ -56,4 +57,4 @@ updated: 2026-04-12
 
 - panel 只能读 `app-api` owned projections / rollups
 - `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 panel query backend
-- 如需判断当前 pending work，优先看 `.planning/PROJECT.md` / `.planning/STATE.md`，不要把 deferred follow-up 文档误读成当前 active lane
+- 如需判断当前 pending work，优先看 `../../.planning/PROJECT.md`、`../../.planning/WORKSTREAMS.md` 与 `../../.planning/workstreams/operator-observability-control-plane/STATE.md`，不要把 deferred follow-up 文档误读成当前 active lane

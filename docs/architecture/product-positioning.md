@@ -148,7 +148,7 @@ updated: 2026-04-06
 - 长期系统形态与硬约束：`docs/architecture/target-architecture.md`
 - 产品/runtime supporting architecture：`docs/architecture/product-runtime-architecture.md`
 - 导航 / wayfinding 长期能力边界：`docs/architecture/navigation-and-wayfinding-architecture.md`
-- 当前 phase、pending work 与执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前 phase、pending work 与执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 因此：
 

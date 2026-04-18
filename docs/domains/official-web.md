@@ -12,6 +12,7 @@ updated: 2026-04-14
 - 架构总边界：`../architecture/official-web-architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 当前项目执行真相：`../../.planning/PROJECT.md`
+- 当前 workstream registry：`../../.planning/WORKSTREAMS.md`
 - 长期方向：`../architecture/target-architecture.md`
 
 ## 长期边界与决策
@@ -31,7 +32,7 @@ updated: 2026-04-14
 ## 当前阅读顺序
 
 - 当前 merged truth 仍以 `../architecture/current-architecture.md` 为准；不要把 `fresh_news` / `news_archive` 的开放状态直接写成已合入真相
-- 当前项目级执行状态与独立 worktree 进度统一看 `../../.planning/PROJECT.md`、`../../.planning/STATE.md`
+- 当前项目级执行状态与独立 worktree 进度统一看 `../../.planning/PROJECT.md` 与 `../../.planning/WORKSTREAMS.md`
 - 进入本域时，默认先读已冻结的 architecture / policy / contract / active reference，再决定是否需要查看独立 worktree 或后续 plan
 
 ## Runbooks

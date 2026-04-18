@@ -45,7 +45,7 @@ updated: 2026-04-12
 - provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_version`、`template_sha256`、`prompt_runtime_state`、`prompt_runtime_detail`
 - curriculum / handbook 的 deterministic-first protected paths 继续保持 deterministic-first，不因 prompt rollout 回退成 prompt-first
-- 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以 `.planning/PROJECT.md` 与 `.planning/STATE.md` 为准
+- 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 为准
 
 ## 外部最佳实践对齐（2026-04-12）
 
@@ -800,7 +800,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - 更广的 claim taxonomy 与 specialist-side unsupported diagnostics
 - prompt-family live gate artifact 的持续更新
 
-这些工作属于当前项目级 active lane，执行顺序与完成状态以 `.planning/PROJECT.md`、`.planning/STATE.md` 与对应 active plan 为准。
+这些工作属于当前项目级 active lane，执行顺序与完成状态以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与对应 active plan 为准。
 
 ## 外部参考
 

@@ -24,7 +24,7 @@
 项目级当前真相与 pending work 见：
 
 - [.planning/PROJECT.md](./.planning/PROJECT.md)
-- [.planning/STATE.md](./.planning/STATE.md)
+- [.planning/WORKSTREAMS.md](./.planning/WORKSTREAMS.md)
 
 当前接受的产品定位、merged truth 与长期架构分别见：
 
@@ -45,7 +45,7 @@
 - [`docs/`](./docs/)
   - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 active plan 文档
 - [`.planning/`](./.planning/)
-  - 当前项目级 planning truth、worktree continuity、phase 计划和执行总结
+  - 当前项目级 planning truth、workstream registry、native workstream 状态，以及 shared quick/todo/research 资产
 - [`tests/`](./tests/)
   - 仓库级 Python 回归；JS/TS surface 的测试在各 app 下配合 root `pnpm` 入口运行
 
@@ -73,9 +73,11 @@
 - `docs/architecture/current-architecture.md`
   - 当前 accepted merged truth
 - `.planning/PROJECT.md`
-  - 当前项目级范围、active lane 与 pending work
-- `.planning/STATE.md`
-  - 当前 worktree 的 now / next / blockers / recent verification
+  - 当前项目级范围、关键决策与 merged/worktree truth
+- `.planning/WORKSTREAMS.md`
+  - 当前有哪些 active / deferred / backlog workstreams，以及各自对应的 native planning 目录
+- `.planning/workstreams/<slug>/STATE.md`
+  - 单条 workstream 的 now / next / blockers / recent verification
 
 仓库协作规则见：
 

@@ -11,7 +11,7 @@
 - `docs/architecture/current-architecture.md`
 - `.planning/PROJECT.md`
 
-只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/STATE.md`。
+只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/WORKSTREAMS.md` 和对应 `.planning/workstreams/<slug>/STATE.md`。
 
 ## 分支与合流
 
@@ -58,7 +58,8 @@ pnpm web:build
 
 - `docs/` 记录共享、可长期引用的真相
 - `.planning/PROJECT.md` 记录当前项目级范围与关键决策
-- `.planning/STATE.md` 只记录当前 worktree 的 `now / next / blockers / continuity`
+- `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
+- `.planning/workstreams/<slug>/STATE.md` 记录单条 workstream 的 `now / next / blockers / continuity`
 - `docs/plans/` 记录仍有前向指导价值的计划，不承担 merged truth
 
 如果你在改这些内容：

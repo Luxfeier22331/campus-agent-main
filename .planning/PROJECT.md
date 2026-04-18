@@ -8,10 +8,16 @@
 
 - `PROJECT.md`
   - 项目级真相：产品范围、validated/active/out-of-scope、关键决策，以及会影响执行优先级的当前 truth
-- `STATE.md`
-  - 当前 worktree 的 `now / next / blockers / recent verification`；只做摘要，不重复完整决策史
-- `ROADMAP.md`
-  - phase 顺序、插入记录与完成历史
+- `WORKSTREAMS.md`
+  - repo 级 workstream registry：active / deferred / backlog / legacy 的唯一总览，以及 slug / native-dir / reopen rule
+- `.planning/workstreams/<slug>/STATE.md`
+  - 单条 workstream 的 current slice、blockers、recent verification 与 continuity
+- `.planning/workstreams/<slug>/ROADMAP.md`
+  - 单条 workstream 的 phase 顺序与完成状态
+- `.planning/workstreams/<slug>/REQUIREMENTS.md`
+  - 单条 workstream 的目标、范围、non-goals 与 success criteria
+- `.planning/legacy-flat/`
+  - 原 flat planning archive；保留历史 phase / milestone 叙事，不再承载当前执行真相
 
 ## Current Truth
 
@@ -20,6 +26,7 @@
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
+- planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
 - `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
@@ -40,6 +47,7 @@
 - `official_web/fresh_news` 当前也已补齐 repo-tracked split manifest、retrieval qrels 与 deterministic live-gate seed baseline；2026-04-05 本地 `8` 文档 seed import/release 生成 `official_web_fresh_news__r20260404_222909`，retrieval `8/8 hit@1`、live gate `8/8 pass`，但 runtime truth 仍保持 `offline_preparation`
 - Phase 1003 已把 `official_web/fresh_news` / `official_web/news_archive` 的 repo-level opening policy、runtime-profile contract 与独立 worktree opening checklist 冻结为长期真相；后续真实 opening execution / acceptance 已下调到 backlog `999.4`，当前不再作为 adjacent lane 或 active implementation lane
 - `campus_notices/internal_notice` 已在 local Postgres + local MinIO + cloud Qdrant 路径上完成 current-scope replay -> verified preparation -> single promote -> unpublished release：`promotion_id=promotion-0001`、`release_id=r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`，且 serving alias `internal_notice` 仍未发布；runtime truth 继续保持 `restricted + offline_preparation`
+- authenticated-notice 的后续工作当前明确拆成三层：已捕获 corpus 的 downstream consumption、`351119` 为首的 bounded `file_release owner recovery`，以及后置的 `live portal / authenticated control-plane` deferred line；三者不再互相冒充对方的执行入口
 - 当前 worktree 已完成 Wave E place-finding foundation 的 repo-internal 资产：repo-owned `campus_navigation/place_catalog` seed/runtime-profile、`packages/navigation-specialist` 与 `place_lookup` / `place_card` contract 仍保留在仓库中；但按 2026-04-14 产品决策，当前 supervisor 产品路径已对校内导航 fail-close，`place_card` / map consumption 延后到地图实际上线后再恢复。在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 Phase 14 `产品主链路 Prompt Stack 与 System Prompt Runtime 收口`：`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist`、`apps/app-api` 与 `packages/evals` 现已统一收口 prompt metadata sink、typed prompt runtime state 与 deterministic-path regression coverage；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 Phase 16 `OCR 资产分类与双渠道择优路由` closeout：compare lane 现已输出 `asset_typing` / `routing_recommendation`，`source_truth_only` 对 `generic_image` 现已支持 Paddle + MinerU 双跑判型、`ocr-routing-decision.json` evidence 与 raw-asset refined type 回写；当前冻结的 canonical scope 是 `pdf -> MinerU primary`、`simple_table_image -> Paddle primary`、`complex_table_image -> MinerU primary`、`spatial/office -> deferred`，而不是把 MinerU 升格成全局 canonical OCR provider
@@ -140,6 +148,13 @@
 | `apps/app-api` runtime 冻结为 Worker，而不是继续保持 runtime-agnostic | 这能避免 shared product backend 再次滑回 Docker-first / 双后端裂缝，并保持与 Worker web surfaces 的 internal-only seam 一致 | — Accepted on 2026-03-28 |
 | canonical request projection 由 shared `apps/app-api` command path 一次产出，并由 `app-api` 暴露 panel `Requests` query surface | 这能避免把 panel、consumer chat、telemetry sink 或 `apps/supervisor-api` 错当成 request list/detail truth | — Accepted on 2026-03-28 |
 | `apps/app-api` 是唯一的 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution caller admission | 这能避免 execution engine 继续从 edge/header 恢复最终业务 actor，并把 product identity 明确收口在 shared app boundary | — Accepted on 2026-03-28 |
+| repo 级执行面采用原生 GSD workstream-first 多线开发；repo 总览固定写入 `.planning/WORKSTREAMS.md`，单条线状态写入 `.planning/workstreams/<slug>/STATE.md` | 当前会话已按模块边界并行推进不同工作；继续维持共享根 `STATE.md` 会让 planning 入口真相失真，也会诱导会话互相改写不相关 workstream 状态 | — Accepted on 2026-04-19 |
+| `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的后续验收 / 硬化必须作为单条 `shared product surfaces` workstream 推进，固定顺序为 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance` | 三者共享同一 product backend seam 与 request projection ownership；如果拆成三个并发 workstream，容易把 backend seam defect 错判成 surface 局部问题，并继续积累局部 patch | — Accepted on 2026-04-18 |
+| `authenticated_notice_portal` 的 live portal scheduling、repo-native collector runtime 与 authenticated control-plane 必须作为单条 deferred workstream 推进，恢复后固定顺序为 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout` | 这些层共享同一 authenticated source-channel truth；如果拆成 collector、auth-window、control-plane、`file_release` live capture 多条 lane，容易把 source-channel 欠账误塞回 downstream regulation 线，或让 live capture 与 historical replay 长期维持两套 truth | — Accepted on 2026-04-19 |
+| operator observability 的 app-owned read model、panel 新域与 sink participation 必须作为单条 deferred workstream 推进，恢复后固定顺序为 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout` | 这些层共享同一 app-owned operator truth；如果拆成 `app-api observability`、`panel domain`、`Sentry/Axiom` 多条 lane，容易让 panel 回退成 sink viewer，或让 read model 长期停在半开状态 | — Accepted on 2026-04-19 |
+| restricted collection rollout、public/operator/service surface behavior 与 allow/deny leakage verification 必须作为单条 deferred workstream 推进，恢复后固定顺序为 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout` | 这些层共享同一 canonical authz truth、retrieval pre-filter 与 deny-path contract；如果拆成多条 lane，容易出现 release posture 半开、surface 口径漂移或 leakage regression 无人收口 | — Accepted on 2026-04-18 |
+| 校内导航的产品恢复、`place_card` / map consumption 与 staging/manual acceptance 必须作为单条 deferred workstream 推进，恢复后固定顺序为 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout` | 这些层共享同一 navigation-specialist / app-api / product runtime contract；如果拆成 specialist、地图 UI、staging 多条 lane，容易在地图未真正上线或 runtime 仍 fail-close 时提前堆消费层 patch | — Accepted on 2026-04-18 |
+| `official_web` 的 source-channel follow-up、`stable_reference` maintenance 与 `fresh_news` / `news_archive` opening 必须作为单条 deferred workstream 推进，恢复后固定顺序为 `source/control-plane -> stable_reference maintenance -> fresh_news -> news_archive -> acceptance closeout` | 这几层共享同一 source-truth、control-plane owner 与 runtime opening contract；如果拆成多条 lane，容易提前重开新闻面、混淆默认 surface，或把 control-plane 欠账误转成 retrieval/panel 局部 patch | — Accepted on 2026-04-18 |
 | canonical user context 固定拆为 `verified identity`、`profile memory`、`session memory`、`institutional knowledge` 四层真相 | 这样可以引入长期记忆与个性化，同时避免 memory 提权、污染机构知识真相或绕过 retrieval ACL | — Accepted on 2026-03-28 |
 | personalization 可以影响 intent framing、retrieval planning 与 answer wording，但 memory 不能授权或扩大 retrieval ACL | 这样可以引入长期记忆而不破坏 retrieval fail-close 与 runtime-profile-driven serving policy | — Accepted on 2026-03-28 |
 | canonical request projection 采用 same-database outbox-first：`runtime.request_execution` + `runtime.projection_outbox` 是第一 durable truth | 这能避免 queue-first、日志重算或 panel 侧事后拼装造成的多真相源与时序漂移 | — Accepted on 2026-03-28 |
@@ -176,4 +191,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state (users, feedback, metrics)
 
 ---
-*Last updated: 2026-04-14 after pausing the current campus-navigation product path, recording map-launch backlog recovery, and refreshing project truth for the retained navigation foundation*
+*Last updated: 2026-04-19 after migrating planning truth to native GSD workstreams, introducing `.planning/WORKSTREAMS.md`, and archiving the old flat planning files under `.planning/legacy-flat/`*

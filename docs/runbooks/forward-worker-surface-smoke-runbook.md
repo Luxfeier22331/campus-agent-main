@@ -26,7 +26,7 @@ updated: 2026-04-11
 - 长期拓扑边界：`docs/architecture/product-runtime-architecture.md`
 - `app-api` 内部边界：`docs/architecture/product-runtime-architecture.md`
 - protected panel operator access：`docs/architecture/product-runtime-architecture.md`
-- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 ## 当前 smoke 形态
 

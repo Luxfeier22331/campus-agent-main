@@ -207,4 +207,4 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
 ## 后续动作
 
 - smoke 通过后，如果目标是继续做 preview rebuild / chunk / index，下一步转到 `docs/runbooks/index-release-runbook.md`
-- 如果目标是重开 collector repo migration 或 authenticated control plane，先在 `.planning/PROJECT.md` / `.planning/STATE.md` 里显式创建新的执行面，再以 `docs/architecture/authenticated-notice-source-architecture.md` 作为边界约束
+- 如果目标是重开 collector repo migration 或 authenticated control plane，先在 `.planning/PROJECT.md` / `.planning/WORKSTREAMS.md` 里显式创建新的执行面，再以 `docs/architecture/authenticated-notice-source-architecture.md` 作为边界约束

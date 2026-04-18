@@ -21,7 +21,7 @@ updated: 2026-04-12
 
 - 本文仍是受控 panel `Requests` 分诊台重构的 accepted follow-up 方向，但当前没有独立 active execution wave
 - 当前 repo 的默认 active lane 仍是 Phase 15 grounded-generation hardening；该 redesign 不应被误写成当前项目主线
-- 如需恢复该重构，应在 `.planning/PROJECT.md` / `.planning/STATE.md` 中显式建新执行面，而不是继续把本文保留在默认 active 入口
+- 如需恢复该重构，应在 `.planning/PROJECT.md` / `.planning/WORKSTREAMS.md` 中显式建新执行面，而不是继续把本文保留在默认 active 入口
 
 ## 现状问题
 

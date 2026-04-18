@@ -132,7 +132,7 @@ updated: 2026-04-12
 - `official_web` supporting architecture：`docs/architecture/official-web-architecture.md`
 - authenticated notice source supporting architecture：`docs/architecture/authenticated-notice-source-architecture.md`
 - operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
-- 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前 phase / pending work：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 ## 不在本文维护的真相
 

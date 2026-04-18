@@ -53,7 +53,7 @@ updated: 2026-04-12
 
 - 本文仍代表 golden dataset 的 accepted follow-up 执行方向，但当前没有独立 active execution wave 按本文持续推进
 - 当前 repo 的默认 active lane 已切到 Phase 15 grounded-generation hardening；golden dataset 后续工作应在项目级 planning 中显式重开，而不是继续把本文列作默认 active 入口
-- `.planning/phases/07-verification-and-release-gate/` 中对本文的引用只代表历史 phase 上下文，不代表当前 worktree 正在执行本文
+- `.planning/legacy-flat/phases/07-verification-and-release-gate/` 中对本文的引用只代表历史 phase 上下文，不代表当前 worktree 正在执行本文
 
 ## Current Post-Closeout Follow-Up Priorities
 

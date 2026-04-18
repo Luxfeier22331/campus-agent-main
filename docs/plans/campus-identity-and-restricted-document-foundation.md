@@ -33,7 +33,7 @@ updated: 2026-04-12
 
 原因：
 
-- `.planning/ROADMAP.md` Phase 11 已完成，principal taxonomy、authorization projection、restricted retrieval fail-close 与基础 allow/deny 闭环已经进入 repo truth
+- `.planning/legacy-flat/ROADMAP.md` Phase 11 已完成，principal taxonomy、authorization projection、restricted retrieval fail-close 与基础 allow/deny 闭环已经进入 repo truth
 - 当前 remaining gap 不再是 identity / restricted foundation 本身，而是后续 restricted rollout 与 legacy ACL compatibility sunset
 - 因此本文保留为 foundation closeout 记录，不再作为默认 active plan 入口
 

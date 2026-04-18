@@ -41,12 +41,12 @@ Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
 - `docs/plans/protected-panel-requests-triage-table-redesign.md`
-- `.planning/protected-panel-worker-implementation-plan.md`
-- `.planning/protected-panel-runtime-api-inventory.md`
+- `.planning/legacy-flat/protected-panel-worker-implementation-plan.md`
+- `.planning/workstreams/shared-product-surfaces-acceptance-hardening/protected-panel-runtime-api-inventory.md`
 
 Historical handoff:
 
-- `.planning/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`
+- `.planning/legacy-flat/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`
 
 Long-term operator access assumptions:
 

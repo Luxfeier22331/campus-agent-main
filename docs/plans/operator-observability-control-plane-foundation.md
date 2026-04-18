@@ -2,45 +2,74 @@
 doc_type: plan
 status: deferred
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Operator Observability Control-Plane Foundation
 
 ## 文档边界
 
-本文只负责 operator observability control plane 的前向实施 handoff。
+本文固定 `operator observability / control-plane` 这条单一 workstream 的前向范围：
+
+- `apps/app-api` owned request-scoped observability fact
+- app-owned audit projection、quality/safety/cost rollup 与 operator APIs
+- `protected-panel-web` 的 `Overview / Requests / Quality / Safety/Authz / Cost / Audit` 扩面
+- `Sentry` / `Axiom` / sampled grading 的 sink participation 与 app-owned 回流
+- planning closeout 与 operator control-plane 当前真相更新
 
 本文不负责：
 
 - 替代 `docs/architecture/operator-observability-architecture.md` 的长期边界
 - 替代 `ADR-0023` 的 ownership / sink participation 决策
 - 固定某个 dashboard 的视觉细节
+- 把 panel 变成 raw sink explorer、trace console 或数据库查询台
+- 把 `shared product surfaces acceptance / hardening` 的现有三端验收，和这条 control-plane 扩面混成同一条 workstream
 
 ## 当前生命周期状态
 
-- 本文仍代表被接受的 operator observability productization 方向，但当前没有独立 active execution wave 按本文整包推进
-- 当前 repo 的默认 active lane 是 Phase 15；其中与 observability expansion 直接相关的工作，应以 `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` 与 `.planning/phases/15-grounded-generation/` 为准
-- 如需恢复完整 control-plane 扩面，应在 `.planning/PROJECT.md` / `.planning/STATE.md` 中显式重开执行面，而不是把本文误读成当前 handoff
+- 当前状态是 `deferred`
+- 当前只是明确入口，不表示 operator control-plane 已恢复扩面执行
+- 它可以与其他独立 workstreams 并行存在；但这条线内部保持固定顺序，不再拆成并发 lane
+- 当前 repo 的默认 active lane 不包含这条 control-plane 扩面；其中仅与已开放 surface 验收直接相关的 observability 维护，继续留在对应 active workstream 内
 
-## 目标
+## 直接结论
 
-把 protected panel 从“只有 request list/detail 的 operator shell”推进到具备 audit、quality、safety、cost 基础控制面的长期正确形态，同时保持：
+operator observability expansion 不应拆成多条并发 workstream。
 
-- panel 继续只读 runtime APIs
-- `apps/app-api` 继续是 operator read-model owner
-- `Sentry` / `Axiom` 继续只是 sink，不反向变成 panel truth
+它必须作为一条 `operator observability / control-plane` workstream 推进，固定顺序如下：
 
-## 实施问题
+1. request-scoped observability foundation
+2. audit projection
+3. metric rollup and aggregate APIs
+4. panel domain expansion
+5. sink participation and grading backflow
+6. planning closeout
 
-这份文档只回答六个问题：
+原因固定为：
 
-- app-owned observability read model 要补哪几类
-- 哪些字段属于 request-scoped observability foundation
-- 哪些 operator APIs 应先落地
-- panel 页面应按什么顺序扩展
-- `Sentry` / `Axiom` / grading 如何参与
-- 需要什么验证证据
+- request observability fact、aggregate API、panel 新域与 sink participation 共享同一 app-owned operator truth
+- 如果把 `app-api` observability fact、panel 扩面、sink participation 拆成多条 lane，容易让 panel 回退成 sink viewer，或让 app-owned read model 永远停在半开状态
+- 这条线的目标不是“修当前已开放 surface”，而是新增一整条 operator product/control-plane 扩面，验收口径与 `shared product surfaces` 不同
+
+## 前置真相
+
+接手这条线之前，先以以下文档为准：
+
+- `docs/architecture/operator-observability-architecture.md`
+- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `.planning/PROJECT.md`
+- `.planning/WORKSTREAMS.md`
+- `.planning/workstreams/operator-observability-control-plane/STATE.md`
+
+## 固定执行规则
+
+- `apps/app-api` 持续是 operator-facing observability read-model owner；panel 不得绕回 raw audit log、telemetry sink 或 `apps/supervisor-api`
+- `Sentry`、`Axiom`、grading/eval 只作为 sink 或回流输入，不得直接成为 panel canonical truth
+- `Requests` 当前已开放 surface 的稳定化，仍属于 `shared product surfaces`；只有当目标扩成 `Overview / Quality / Safety/Authz / Cost / Audit` 时，才属于这条 workstream
+- 同一条 workstream 内禁止把 `app-api` observability fact、aggregate API、panel domain、sink participation 拆成并发 lane
+- 如果扩面过程中发现某个问题只是当前 product surface 验收 defect，应回到 `shared product surfaces` 或当前 owner seam 修复，而不是在 control-plane 线内堆兼容层
 
 ## 已冻结默认值
 

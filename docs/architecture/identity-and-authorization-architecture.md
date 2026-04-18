@@ -52,7 +52,7 @@ identity / authz / memory supporting architecture 当前已经明确：
 
 - identity / restricted foundation 本身已在 Phase 11 收口
 - 当前若继续推进这条域，默认应把 rollout / sunset 看作 deferred follow-up，而不是重新打开 foundation ownership 讨论
-- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-memory.md`、`.planning/PROJECT.md` 与 `.planning/STATE.md`
+- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-memory.md`、`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 
 ## Ownership Model
 

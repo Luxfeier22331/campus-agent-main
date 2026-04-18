@@ -13,7 +13,7 @@ updated: 2026-04-13
 
 **Current Scope:** `official-web` / Phase 10 由其他 worktree 处理，不进入本计划。
 
-**Lifecycle:** 截至 2026-04-13，Wave A/B/D/E 的主体 closeout 与 Phase 1000 curriculum 修复已完成。本文转为 `deferred` reference，只保留仍未重开的后置 follow-up 与历史执行背景。同日，Wave E 剩余的 seed 扩面与验收证据工作已正式提升为 `.planning/ROADMAP.md` 中的 Phase 1001 `Campus Navigation Place Catalog Expansion And Acceptance Evidence`，因此本文不再承载该导航后续线的 active planning truth。
+**Lifecycle:** 截至 2026-04-13，Wave A/B/D/E 的主体 closeout 与 Phase 1000 curriculum 修复已完成。本文转为 `deferred` reference，只保留仍未重开的后置 follow-up 与历史执行背景。同日，Wave E 剩余的 seed 扩面与验收证据工作已正式提升为 `.planning/legacy-flat/ROADMAP.md` 中的 Phase 1001 `Campus Navigation Place Catalog Expansion And Acceptance Evidence`，因此本文不再承载该导航后续线的 active planning truth。
 
 ---
 
@@ -54,7 +54,7 @@ updated: 2026-04-13
 
 ## Current Execution Status
 
-- Wave A 已于 2026-04-06 收口完成：repo-level follow-up order 已落盘，`.planning/PROJECT.md` / `.planning/STATE.md` 已切到 acceptance-closeout / launch-hardening 叙述；authenticated-notice 历史 closeout 的最终 evidence 现已固定到 `docs/reference/authenticated-notice-historical-closeout-evidence.md`
+- Wave A 已于 2026-04-06 收口完成：repo-level follow-up order 已落盘，`.planning/PROJECT.md` / `.planning/WORKSTREAMS.md` 已切到 acceptance-closeout / launch-hardening 叙述；authenticated-notice 历史 closeout 的最终 evidence 现已固定到 `docs/reference/authenticated-notice-historical-closeout-evidence.md`
 - Wave A 针对性验证当前通过：`tests.ingestion.test_authenticated_notice_import`、`tests.ingestion.test_import_authenticated_notice_export_worker`、`tests.ingestion.test_authenticated_notice_closeout_async`、`tests.ingestion.test_rebuild_authenticated_notice_source_truth_inventory_worker` 合计 `29/29` 通过
 - Wave B1 已完成当前 worktree 的 Wave 1 最小实现：`retrieval-core` 已对已解析到唯一 `target_document_ids` 的 handbook / curriculum 请求启用 targeted overfetch，并通过 `tests/ingestion/test_corpus_runtime_profile.py` 与 `tests/retrieval/test_backend_qdrant.py`
 - Wave B2 已完成当前 worktree 的结构性收口：新增仅供内部检索使用的 `curriculum/program_semester_facts` projection surface，把“已解析到唯一培养方案 + 唯一学期 + course_list intent”的课表问句从 raw `curriculum_plan` table chunk 热路径迁到 answer-shaped semester facts，并通过投影 / specialist / rebuild 定向验证
@@ -82,14 +82,14 @@ updated: 2026-04-13
 
 执行边界：
 
-- `.planning/PROJECT.md`、`.planning/STATE.md`、`docs/README.md` 必须同步最新后续优先级
+- `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、`docs/README.md` 必须同步最新后续优先级
 - 当前 worktree 的 authenticated-notice 变更要么进入 active todo 并验证，要么显式 park；不能继续无状态漂浮
 - 不在这一波里虚构已完成的 staging 或 place-finding 进度
 
 交付物：
 
 - 一份 repo-tracked follow-up plan
-- 更新后的 `.planning/PROJECT.md` / `.planning/STATE.md`
+- 更新后的 `.planning/PROJECT.md` / `.planning/WORKSTREAMS.md`
 - 一条明确的 authenticated-notice pending todo
 - 针对当前 authenticated-notice dirty diff 的验证结果
 
@@ -132,7 +132,7 @@ updated: 2026-04-13
 
 - 更新后的 donor parity checklist / donor baseline / gap inventory / README
 - Wave 1-5 code-closeout 的 repo verification evidence
-- Wave 6 donor diff whitelist、desktop/mobile browser smoke、staging parity evidence，以及 `.planning/phases/999.1-smoke-evidence-deferred-backlog/README.md` 的 closeout
+- Wave 6 donor diff whitelist、desktop/mobile browser smoke、staging parity evidence，以及 `.planning/legacy-flat/phases/999.1-smoke-evidence-deferred-backlog/README.md` 的 closeout
 
 当前结果：
 

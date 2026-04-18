@@ -16,7 +16,7 @@ updated: 2026-04-10
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
 - 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
-- 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 - 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
 
 ## 术语
@@ -67,7 +67,7 @@ updated: 2026-04-10
 
 - `configs/ingestion/<corpus>/<collection>/runtime-profile.json`
 - `.planning/PROJECT.md`
-- `.planning/REQUIREMENTS.md`
+- `.planning/legacy-flat/REQUIREMENTS.md`
 
 说明：
 

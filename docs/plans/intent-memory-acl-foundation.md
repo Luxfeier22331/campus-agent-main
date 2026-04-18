@@ -34,7 +34,7 @@ updated: 2026-04-12
 
 原因：
 
-- `.planning/ROADMAP.md` 已把 Phase 11 记为完成，identity / authorization / memory foundation 不再是当前 active execution gap
+- `.planning/legacy-flat/ROADMAP.md` 已把 Phase 11 记为完成，identity / authorization / memory foundation 不再是当前 active execution gap
 - `app-api` canonical owner split、typed projection seam、restricted retrieval fail-close 与 non-authorizing memory 基线都已经进入 merged truth
 - 当前如果继续推进 memory productization 或更完整的长期记忆能力，应在 `.planning/PROJECT.md` 中显式重开新的 follow-up execution lane，而不是继续把本文当默认实施入口
 

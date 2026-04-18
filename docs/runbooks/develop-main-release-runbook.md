@@ -19,7 +19,7 @@ updated: 2026-03-29
 它不替代：
 
 - 长期分支模型定义：`README.md`、`AGENTS.md`
-- 当前 phase 执行状态：`.planning/PROJECT.md`、`.planning/STATE.md`
+- 当前 phase 执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
 - 具体验证命令与 smoke 边界：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
 
 ## 当前分支职责
@@ -123,4 +123,3 @@ updated: 2026-03-29
 - worktree 负责隔离开发
 - `develop` 负责集成真相
 - `main` 负责稳定发布
-
