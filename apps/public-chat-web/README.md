@@ -6,7 +6,7 @@ This app is the forward canonical public browser surface in front of shared `app
 
 Implementation status:
 
-- `/login` and `/register` now run from the repo-owned route tree in `src/routes/app-router.tsx`, but the visible auth shell is the vendored donor auth shell with repo-owned Better Auth action adapters in `src/login/`
+- `/login` and `/register` now run from the repo-owned route tree in `src/routes/app-router.tsx`, but the visible auth shell is the vendored donor auth shell with repo-owned Better Auth action adapters and campus product copy in `src/login/`
 - the default `/chat` + `/chat/:conversationId` routes now render the vendor chat runtime through `src/platform/chat/app-shell.tsx`
 - the vendored donor source of truth now lives in `vendor/vercel-ai-chatbot/`
 - the runtime chat shell now resolves `@/*` into the vendored donor tree; vendor-owned `ChatShell` and `AppSidebar` are the active chat UI source of truth
@@ -63,8 +63,8 @@ Current chat contract assumptions:
 
 UI behavior:
 
-- `/login` renders the donor sign-in shell against shared Better Auth endpoints
-- `/register` renders the donor register shell against shared Better Auth endpoints
+- `/login` renders the donor sign-in shell against shared Better Auth endpoints, keeps campus-specific product copy, and reserves the future recovery CTA slot without opening `/forgot-password` early
+- `/register` renders the donor register shell against shared Better Auth endpoints and keeps the campus-email helper copy inside the same auth family shell
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
 - the left rail uses donor-style paginated history from `GET /api/history`

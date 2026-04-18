@@ -45,7 +45,7 @@ updated: 2026-04-19
 | sharing / visibility off-path | `private-only` 模式下，launch path 不得继续暴露 share / public affordance | [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts) |
 | strict parity smoke / evidence pack | donor diff whitelist、desktop/mobile smoke、same-site network evidence 与本地 gate 必须同时闭合 | 浏览器 smoke 产物、[public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) |
 | same-site `/api/*` seam | `/api/me`、`/api/history`、`/api/models`、`/api/chat/conversations`、`/api/chat/requests` 都仍走 same-site 且未退化 | network summary、worker smoke |
-| `/login` `/register` | `/login` 与 `/register` 可用，退出登录后可回到登录页，且 register 不脱离 donor auth family | `AUTH-SURFACE`；单独记录 auth shell 验收，不混入 strict chat parity 结论 |
+| `/login` `/register` | `/login` 与 `/register` 可用，退出登录后可回到登录页；`/login` 保留 future recovery CTA slot；`/register` 不脱离 donor auth family | `AUTH-SURFACE`；单独记录 auth shell 验收，不混入 strict chat parity 结论 |
 
 ## Recommended Review Order
 
