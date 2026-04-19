@@ -8,13 +8,9 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
-import posixpath
 import re
-from tempfile import TemporaryDirectory
 from typing import Any, Protocol, Sequence
 from urllib.parse import urlparse, urlunparse
-import zipfile
-from xml.etree import ElementTree
 
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -33,9 +29,13 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.collection_config import resolve_collection_truth_config
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.file_asset_ooxml import (
-    extract_docx_text_blocks as extract_shared_docx_text_blocks,
-    extract_xlsx_text_blocks as extract_shared_xlsx_text_blocks,
+from campus_ingestion_core.file_asset_contract import (
+    ExtractionOutcome,
+    FileAssetExtractionRecord,
+    serialize_file_asset_extraction_record,
+)
+from campus_ingestion_core.file_asset_text_extractable import (
+    extract_text_extractable_file_asset,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import is_source_object_key
@@ -45,6 +45,7 @@ from campus_ingestion_core.raw_ingestion import (
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     S3ObjectStoreClient,
     build_online_ocr_client,
+    parse_online_ocr_bytes,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -67,16 +68,6 @@ AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED = "manual_review_
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_SPATIAL_VISUAL_ASSET = "spatial_visual_asset"
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE = (
     "operational_schedule_guide_image"
-)
-_DOCX_DOCUMENT_PATH = "word/document.xml"
-_WORDPROCESSINGML_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-_XLSX_WORKBOOK_PATH = "xl/workbook.xml"
-_XLSX_WORKBOOK_RELS_PATH = "xl/_rels/workbook.xml.rels"
-_XLSX_SHARED_STRINGS_PATH = "xl/sharedStrings.xml"
-_SPREADSHEETML_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-_PACKAGE_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
-_OFFICE_DOC_REL_ID_ATTR = (
-    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 )
 _VISUAL_CLASSIFIER_SAMPLE_EDGE = 128
 _VISUAL_CLASSIFIER_AVERAGE_SATURATION_THRESHOLD = 0.15
@@ -707,15 +698,17 @@ def _build_attachment_projection_result(
     )
     layout_elements_bytes: bytes | None = None
     if classification == "text_extractable":
-        text_blocks = _extract_text_extractable_blocks(
+        extraction_outcome = extract_text_extractable_file_asset(
             attachment_bytes,
             filename=filename,
+            media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+            source_object_key=object_key,
         )
+        text_blocks = extraction_outcome.text_blocks
         provider_response_bytes = _build_text_extractable_provider_payload(
             attachment_ref=attachment_ref,
-            filename=filename,
-            text_blocks=text_blocks,
             extraction_policy_version=config.extraction_policy_version,
+            extraction_outcome=extraction_outcome,
         )
     elif classification == "ocr_required":
         if ocr_client is None:
@@ -724,15 +717,17 @@ def _build_attachment_projection_result(
         if ocr_provider_response_cache is not None:
             provider_response_bytes = ocr_provider_response_cache.get(actual_attachment_sha256)
         if provider_response_bytes is None:
-            with TemporaryDirectory() as temp_dir:
-                attachment_path = Path(temp_dir) / filename
-                attachment_path.write_bytes(attachment_bytes)
-                try:
-                    provider_result = ocr_client.parse_file(attachment_path)
-                except Exception as exc:
-                    raise RuntimeError(
-                        f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
-                    ) from exc
+            try:
+                provider_result = parse_online_ocr_bytes(
+                    ocr_client=ocr_client,
+                    file_bytes=attachment_bytes,
+                    filename=filename,
+                    media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
+                ) from exc
             provider_response_bytes = provider_result.provider_result_bytes
             if ocr_provider_response_cache is not None:
                 ocr_provider_response_cache[actual_attachment_sha256] = provider_response_bytes
@@ -1603,193 +1598,21 @@ def _build_attachment_document_units_bytes(
 def _build_text_extractable_provider_payload(
     *,
     attachment_ref: dict[str, Any],
-    filename: str,
-    text_blocks: tuple[str, ...],
     extraction_policy_version: str,
+    extraction_outcome: ExtractionOutcome,
 ) -> bytes:
-    payload = {
-        "schema_version": "authenticated_notice_attachment_text_extract_v1",
-        "attachment_ref_id": attachment_ref.get("attachment_ref_id"),
-        "filename": filename,
-        "mime_type": attachment_ref.get("mime_type"),
-        "extraction_class": "text_extractable",
-        "extraction_policy_version": extraction_policy_version,
-        "text_blocks": list(text_blocks),
-    }
+    payload = serialize_file_asset_extraction_record(
+        FileAssetExtractionRecord(
+            outcome=extraction_outcome,
+            metadata={
+                "attachment_ref_id": attachment_ref.get("attachment_ref_id"),
+                "extraction_class": "text_extractable",
+                "extraction_policy_version": extraction_policy_version,
+            },
+        )
+    )
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
-
-def _extract_text_extractable_blocks(
-    file_bytes: bytes,
-    *,
-    filename: str,
-) -> tuple[str, ...]:
-    extension = _normalize_extension(filename)
-    if extension == "docx":
-        return _extract_docx_text_blocks(file_bytes)
-    if extension == "xlsx":
-        return _extract_xlsx_text_blocks(file_bytes)
-    if extension == "xls":
-        return _extract_xls_text_blocks(file_bytes)
-    raise ValueError(f"unsupported text_extractable attachment extension: {filename}")
-
-
-def _extract_docx_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
-    return extract_shared_docx_text_blocks(file_bytes).text_blocks
-
-
-def _extract_xlsx_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
-    return extract_shared_xlsx_text_blocks(file_bytes).text_blocks
-
-
-def _load_xlsx_workbook_relationship_targets(archive: zipfile.ZipFile) -> dict[str, str]:
-    try:
-        relationships_root = ElementTree.fromstring(archive.read(_XLSX_WORKBOOK_RELS_PATH))
-    except KeyError:
-        return {}
-    return {
-        str(node.attrib.get("Id") or "").strip(): str(node.attrib.get("Target") or "").strip()
-        for node in relationships_root.findall(f"{_PACKAGE_REL_NS}Relationship")
-        if str(node.attrib.get("Id") or "").strip() and str(node.attrib.get("Target") or "").strip()
-    }
-
-
-def _load_xlsx_shared_strings(archive: zipfile.ZipFile) -> tuple[str, ...]:
-    try:
-        shared_strings_root = ElementTree.fromstring(archive.read(_XLSX_SHARED_STRINGS_PATH))
-    except KeyError:
-        return ()
-    values: list[str] = []
-    for node in shared_strings_root.findall(f"{_SPREADSHEETML_NS}si"):
-        values.append(
-            "".join(text_node.text or "" for text_node in node.iter(f"{_SPREADSHEETML_NS}t")).strip()
-        )
-    return tuple(values)
-
-
-def _resolve_xlsx_zip_member_path(*, base_path: str, target: str) -> str:
-    if target.startswith("/"):
-        return target.lstrip("/")
-    return posixpath.normpath(posixpath.join(posixpath.dirname(base_path), target))
-
-
-def _load_xlsx_sheet_rows(
-    *,
-    sheet_xml: bytes,
-    shared_strings: tuple[str, ...],
-) -> tuple[str, ...]:
-    root = ElementTree.fromstring(sheet_xml)
-    rows: list[str] = []
-    for row in root.findall(f".//{_SPREADSHEETML_NS}row"):
-        cells: dict[int, str] = {}
-        for cell in row.findall(f"{_SPREADSHEETML_NS}c"):
-            value = _load_xlsx_cell_value(cell=cell, shared_strings=shared_strings)
-            if value is None:
-                continue
-            column_index = _xlsx_column_index(cell.attrib.get("r"))
-            cells[column_index] = value
-        serialized = _serialize_spreadsheet_row(cells)
-        if serialized is not None:
-            rows.append(serialized)
-    return tuple(rows)
-
-
-def _load_xlsx_cell_value(
-    *,
-    cell,
-    shared_strings: tuple[str, ...],
-) -> str | None:
-    cell_type = str(cell.attrib.get("t") or "").strip()
-    if cell_type == "inlineStr":
-        value = "".join(text_node.text or "" for text_node in cell.iter(f"{_SPREADSHEETML_NS}t")).strip()
-        return value or None
-    value_node = cell.find(f"{_SPREADSHEETML_NS}v")
-    if value_node is None or value_node.text is None:
-        return None
-    raw_value = value_node.text.strip()
-    if not raw_value:
-        return None
-    if cell_type == "s":
-        try:
-            shared_string = shared_strings[int(raw_value)]
-        except (IndexError, ValueError):
-            return raw_value
-        return shared_string or None
-    if cell_type == "b":
-        return "TRUE" if raw_value == "1" else "FALSE"
-    return raw_value
-
-
-def _xlsx_column_index(cell_ref: str | None) -> int:
-    if cell_ref is None:
-        return 0
-    letters = "".join(character for character in cell_ref if character.isalpha()).upper()
-    if not letters:
-        return 0
-    value = 0
-    for character in letters:
-        value = value * 26 + (ord(character) - ord("A") + 1)
-    return value - 1
-
-
-def _extract_xls_text_blocks(file_bytes: bytes) -> tuple[str, ...]:
-    try:
-        import xlrd
-    except ImportError as exc:  # pragma: no cover - dependency wiring is verified elsewhere.
-        raise RuntimeError("xlrd is required for xls attachment extraction") from exc
-
-    workbook = xlrd.open_workbook(file_contents=file_bytes)
-    blocks: list[str] = []
-    for sheet in workbook.sheets():
-        rows: list[str] = []
-        for row_index in range(sheet.nrows):
-            cells: dict[int, str] = {}
-            for col_index in range(sheet.ncols):
-                value = _load_xls_cell_value(
-                    cell=sheet.cell(row_index, col_index),
-                    datemode=workbook.datemode,
-                    xlrd_module=xlrd,
-                )
-                if value is not None:
-                    cells[col_index] = value
-            serialized = _serialize_spreadsheet_row(cells)
-            if serialized is not None:
-                rows.append(serialized)
-        if rows:
-            blocks.append(_serialize_spreadsheet_sheet_block(sheet.name.strip(), rows))
-    if not blocks:
-        raise ValueError("xls attachment produced no extractable text")
-    return tuple(blocks)
-
-
-def _load_xls_cell_value(*, cell, datemode: int, xlrd_module) -> str | None:
-    cell_type = cell.ctype
-    value = cell.value
-    if cell_type == xlrd_module.XL_CELL_EMPTY:
-        return None
-    if cell_type == xlrd_module.XL_CELL_BOOLEAN:
-        return "TRUE" if bool(value) else "FALSE"
-    if cell_type == xlrd_module.XL_CELL_NUMBER:
-        number = float(value)
-        return str(int(number)) if number.is_integer() else format(number, "g")
-    if cell_type == xlrd_module.XL_CELL_DATE:
-        datetime_value = xlrd_module.xldate.xldate_as_datetime(value, datemode)
-        return datetime_value.isoformat(sep=" ", timespec="seconds")
-    text = str(value).strip()
-    return text or None
-
-
-def _serialize_spreadsheet_sheet_block(sheet_name: str, rows: Sequence[str]) -> str:
-    prefix = [f"工作表：{sheet_name}"] if sheet_name else []
-    return "\n".join((*prefix, *rows))
-
-
-def _serialize_spreadsheet_row(cells: dict[int, str]) -> str | None:
-    if not cells:
-        return None
-    max_index = max(cells)
-    serialized = " | ".join(cells.get(index, "") for index in range(max_index + 1)).strip()
-    return serialized or None
 
 def _parse_notice_document_id(document_id: str) -> tuple[str, str]:
     parts = [part.strip() for part in document_id.split(":")]
@@ -1901,8 +1724,6 @@ def _guess_attachment_filename(attachment_ref: dict[str, Any]) -> str:
         return fallback_candidate
     attachment_ref_id = _normalize_optional_text(attachment_ref.get("attachment_ref_id")) or "attachment"
     return f"{attachment_ref_id}.bin"
-
-
 def _normalize_extension(value: object) -> str | None:
     if not isinstance(value, str):
         return None

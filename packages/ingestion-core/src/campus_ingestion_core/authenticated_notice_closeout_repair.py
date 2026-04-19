@@ -24,9 +24,6 @@ from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutSt
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
-from campus_ingestion_core.authenticated_notice_closeout_verification import (
-    _attachment_projection_plans_from_parent,
-)
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
@@ -37,6 +34,7 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    _attachment_projection_plans_from_parent,
 )
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings

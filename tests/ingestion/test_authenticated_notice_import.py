@@ -417,8 +417,19 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
         self.assertNotIn("attachment_ref", [row["unit_type"] for row in document_units])
         canonical_markdown = document.canonical_markdown_bytes.decode("utf-8")
         self.assertNotIn("## 附件", canonical_markdown)
-        self.assertIn("document-units.jsonl", document.additional_processed_object_keys)
-        self.assertIn("source-truth/notice-manifest.json", document.additional_processed_object_keys)
+        self.assertTrue(
+            any(
+                key.endswith("/source-truth/notice-manifest.json")
+                for key in document.additional_processed_object_keys
+            )
+        )
+        self.assertTrue(
+            str(document.provider_response_object_key).endswith(
+                "/provider/bundle-import-v1/normalized-notice.json"
+            )
+        )
+        self.assertNotIn("document-units.jsonl", document.additional_processed_object_keys)
+        self.assertNotIn("provider/normalized-notice.json", document.additional_processed_object_keys)
 
     def test_import_authenticated_notice_export_persists_source_artifacts_and_restricted_registry_records(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -471,6 +482,14 @@ class AuthenticatedNoticeImportTest(unittest.TestCase):
                 for key in document_records[0].processed_object_keys
             )
         )
+        self.assertTrue(
+            any(
+                key.endswith("/provider/bundle-import-v1/normalized-notice.json")
+                for key in document_records[0].processed_object_keys
+            )
+        )
+        self.assertNotIn("document-units.jsonl", document_records[0].processed_object_keys)
+        self.assertNotIn("provider/normalized-notice.json", document_records[0].processed_object_keys)
 
         uploaded_keys = {entry["key"] for entry in object_store.uploads}
         self.assertTrue(any(key.endswith("/capture/detail-response.json") for key in uploaded_keys))

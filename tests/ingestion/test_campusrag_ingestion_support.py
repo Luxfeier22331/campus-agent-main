@@ -8,12 +8,18 @@ from unittest.mock import Mock, patch
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
+    ResolvedDocumentArtifactKeys,
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
+    build_registry_record_from_stage_payload,
+    build_document_processed_object_keys,
     collect_import_document_stats,
     persist_import_documents,
     load_metadata_from_bytes,
+    parse_document_import_stub,
     persist_import_documents,
+    resolve_document_artifact_keys,
+    serialize_document_import_stub,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.settings import ObjectStoreSettings
@@ -240,6 +246,248 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             endpoint="http://localhost:9000",
             access_key="minioadmin",
             secret_key="minioadmin",
+        )
+
+    def test_document_import_stub_round_trips_shared_shape(self) -> None:
+        document = DocumentImportInput(
+            source_label="notice-1",
+            document_units_bytes=b"units",
+            provider_response_bytes=b'{"ok":true}\n',
+            canonical_markdown_bytes=b"# Title\n",
+            metadata=_metadata("notice:1", "sha256:1"),
+            import_source="authenticated_notice_source_projection",
+            revision_track="source-faithful",
+            source_channel="pdf_ocr",
+            is_current=True,
+            corpus="campus_notices",
+            collection="internal_notice",
+            visibility_scope="authenticated",
+            status="active",
+            raw_source_uri="https://portal.example.edu/notice/1",
+            raw_asset_id="raw-1",
+            raw_version_id="sha256:raw-1",
+            provider_response_object_key="derived/provider.json",
+            layout_elements_bytes=b'{"layout":true}\n',
+            layout_elements_object_key="derived/layout.jsonl",
+            additional_processed_object_keys=("source-truth/notice.json", "derived/provider.json"),
+            title="测试通知",
+            year="2026",
+        )
+
+        payload = serialize_document_import_stub(document)
+        parsed = parse_document_import_stub(payload)
+
+        self.assertEqual(parsed.source_label, document.source_label)
+        self.assertEqual(parsed.metadata, document.metadata)
+        self.assertEqual(parsed.import_source, document.import_source)
+        self.assertEqual(parsed.provider_response_object_key, "derived/provider.json")
+        self.assertEqual(parsed.layout_elements_object_key, "derived/layout.jsonl")
+        self.assertEqual(
+            parsed.additional_processed_object_keys,
+            ("source-truth/notice.json", "derived/provider.json"),
+        )
+        self.assertEqual(parsed.title, "测试通知")
+        self.assertEqual(parsed.year, "2026")
+        self.assertEqual(parsed.document_units_bytes, b"")
+        self.assertIsNone(parsed.provider_response_bytes)
+        self.assertIsNone(parsed.canonical_markdown_bytes)
+
+    def test_build_document_processed_object_keys_dedupes_in_repo_owned_order(self) -> None:
+        result = build_document_processed_object_keys(
+            document_units_key="derived/document-units.jsonl",
+            provider_response_key="derived/provider.json",
+            layout_elements_key="derived/layout.jsonl",
+            canonical_markdown_key="derived/canonical.md",
+            additional_keys=(
+                "derived/provider.json",
+                "source-truth/notice.json",
+                None,
+                "derived/document-units.jsonl",
+            ),
+        )
+
+        self.assertEqual(
+            result,
+            (
+                "derived/provider.json",
+                "derived/layout.jsonl",
+                "derived/canonical.md",
+                "derived/document-units.jsonl",
+                "source-truth/notice.json",
+            ),
+        )
+
+    def test_resolve_document_artifact_keys_reuses_explicit_keys_and_builds_missing_derived_keys(self) -> None:
+        document = DocumentImportInput(
+            source_label="notice-2",
+            document_units_bytes=b"units",
+            provider_response_bytes=b'{"ok":true}\n',
+            canonical_markdown_bytes=b"# Title\n",
+            metadata=_metadata("notice:2", "sha256:2"),
+            import_source="provider_response_replay",
+            revision_track="source-faithful",
+            source_channel="pdf_ocr",
+            corpus="regulations",
+            collection="student_handbook",
+            provider_response_object_key="source/provider.json",
+            layout_elements_bytes=b'{"layout":true}\n',
+            layout_elements_object_key=None,
+            title="测试手册",
+            year="2026",
+        )
+
+        result = resolve_document_artifact_keys(
+            document=document,
+            document_id="notice:2",
+            version_id="sha256:2",
+            title="测试手册",
+            year="2026",
+        )
+
+        self.assertIsInstance(result, ResolvedDocumentArtifactKeys)
+        self.assertEqual(result.provider_response_key, "source/provider.json")
+        self.assertIsNotNone(result.layout_elements_key)
+        self.assertIn("layout-elements.jsonl", str(result.layout_elements_key))
+        self.assertIsNotNone(result.canonical_markdown_key)
+        self.assertIn("canonical.md", str(result.canonical_markdown_key))
+        self.assertIn("document-units.jsonl", result.document_units_key)
+
+    def test_build_registry_record_from_stage_payload_prefers_staged_artifact_keys(self) -> None:
+        document = DocumentImportInput(
+            source_label="notice-3",
+            document_units_bytes=b"units",
+            provider_response_bytes=None,
+            canonical_markdown_bytes=None,
+            metadata={
+                **_metadata("notice:3", "sha256:3"),
+                "source_url": "https://portal.example.edu/notice/3",
+            },
+            import_source="authenticated_notice_source_projection",
+            revision_track="source-faithful",
+            source_channel="authenticated_notice_portal",
+            corpus="campus_notices",
+            collection="internal_notice",
+            visibility_scope="campus",
+            provider_response_object_key="source/provider.json",
+            layout_elements_object_key="source/layout.jsonl",
+            additional_processed_object_keys=("source/notice-manifest.json",),
+            title="测试通知",
+            year="2026",
+        )
+        payload = serialize_document_import_stub(document)
+        payload.update(
+            {
+                "document_id": "notice:3",
+                "version_id": "sha256:3",
+                "parser_version": "parser-v1",
+                "embedding_model": "Qwen3-Embedding-4B",
+                "cleaning_policy_version": "clean-v1",
+            }
+        )
+        stage_payload = {
+            "document": payload,
+            "staged_object_keys": {
+                "document_units": "stage/document-units.jsonl",
+                "provider_response": "stage/provider.json",
+                "layout_elements": "stage/layout.jsonl",
+                "canonical_markdown": "stage/canonical.md",
+            },
+            "final_object_keys": {
+                "document_units": "final/document-units.jsonl",
+            },
+            "content_hash": "content-sha",
+        }
+
+        record = build_registry_record_from_stage_payload(
+            stage_payload,
+            artifact_source="staged",
+            timestamp="2026-04-19T00:00:00+00:00",
+        )
+
+        self.assertEqual(record.document_units_object_key, "stage/document-units.jsonl")
+        self.assertEqual(record.provider_response_object_key, "stage/provider.json")
+        self.assertEqual(record.layout_elements_object_key, "stage/layout.jsonl")
+        self.assertEqual(record.canonical_markdown_object_key, "stage/canonical.md")
+        self.assertEqual(
+            record.processed_object_keys,
+            (
+                "stage/provider.json",
+                "stage/layout.jsonl",
+                "stage/canonical.md",
+                "stage/document-units.jsonl",
+                "source/notice-manifest.json",
+            ),
+        )
+
+    def test_build_registry_record_from_stage_payload_prefers_frozen_final_processed_keys(self) -> None:
+        document = DocumentImportInput(
+            source_label="notice-4",
+            document_units_bytes=b"units",
+            provider_response_bytes=None,
+            canonical_markdown_bytes=None,
+            metadata={
+                **_metadata("notice:4", "sha256:4"),
+                "source_url": "https://portal.example.edu/notice/4",
+            },
+            import_source="authenticated_notice_source_projection",
+            revision_track="source-faithful",
+            source_channel="authenticated_notice_portal",
+            corpus="campus_notices",
+            collection="internal_notice",
+            visibility_scope="campus",
+            provider_response_object_key="final/provider.json",
+            layout_elements_object_key="final/layout.jsonl",
+            additional_processed_object_keys=("source/notice-manifest.json",),
+            title="测试通知",
+            year="2026",
+        )
+        payload = serialize_document_import_stub(document)
+        payload.update(
+            {
+                "document_id": "notice:4",
+                "version_id": "sha256:4",
+                "parser_version": "parser-v1",
+                "embedding_model": "Qwen3-Embedding-4B",
+                "cleaning_policy_version": "clean-v1",
+                "processed_object_keys": [
+                    "final/provider.json",
+                    "final/layout.jsonl",
+                    "final/canonical.md",
+                    "final/document-units.jsonl",
+                ],
+            }
+        )
+        stage_payload = {
+            "document": payload,
+            "staged_object_keys": {
+                "document_units": "stage/document-units.jsonl",
+            },
+            "final_object_keys": {
+                "document_units": "final/document-units.jsonl",
+                "canonical_markdown": "final/canonical.md",
+            },
+            "content_hash": "content-sha",
+        }
+
+        record = build_registry_record_from_stage_payload(
+            stage_payload,
+            artifact_source="final",
+            timestamp="2026-04-19T00:00:00+00:00",
+        )
+
+        self.assertEqual(record.document_units_object_key, "final/document-units.jsonl")
+        self.assertEqual(record.provider_response_object_key, "final/provider.json")
+        self.assertEqual(record.layout_elements_object_key, "final/layout.jsonl")
+        self.assertEqual(record.canonical_markdown_object_key, "final/canonical.md")
+        self.assertEqual(
+            record.processed_object_keys,
+            (
+                "final/provider.json",
+                "final/layout.jsonl",
+                "final/canonical.md",
+                "final/document-units.jsonl",
+                "source/notice-manifest.json",
+            ),
         )
 
     def test_s3_object_store_writer_uses_one_shot_client_for_zero_byte_payloads(self) -> None:

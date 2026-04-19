@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass, field
 import json
 import os
 from threading import RLock
-from typing import Any, Protocol, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 from urllib.parse import urlsplit
 
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
@@ -981,15 +981,17 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
 def inventory_entry_from_parent_snapshot(
     parent_snapshot: dict[str, Any],
 ) -> AuthenticatedNoticeSourceTruthInventoryEntry:
-    record_payload = dict(parent_snapshot["record"])
+    record = document_record_from_authenticated_notice_source_truth_parent_snapshot(
+        parent_snapshot
+    )
     return AuthenticatedNoticeSourceTruthInventoryEntry(
-        corpus=str(record_payload["corpus"]),
-        collection=str(record_payload["collection"]),
+        corpus=record.corpus,
+        collection=record.collection,
         notice_id=str(parent_snapshot["notice_id"]),
         site_id=str(parent_snapshot["site_id"]),
         document_id=str(parent_snapshot["document_id"]),
-        revision_track=str(record_payload["revision_track"]),
-        version_id=str(record_payload["version_id"]),
+        revision_track=record.revision_track,
+        version_id=record.version_id,
         raw_asset_id=str(parent_snapshot["raw_record"]["raw_asset_id"]),
         raw_version_id=str(parent_snapshot["raw_record"]["raw_version_id"]),
         source_home_url=str(parent_snapshot["source_home_url"]),
@@ -1014,6 +1016,64 @@ def inventory_entry_from_parent_snapshot(
         ),
         planning_weight=int(parent_snapshot["planning_weight"]),
         parent_snapshot=dict(parent_snapshot),
+    )
+
+
+def document_record_from_authenticated_notice_source_truth_parent_snapshot(
+    parent_snapshot: Mapping[str, Any],
+) -> DocumentRegistryRecord:
+    record_payload = dict(parent_snapshot["record"])
+    processed_object_keys = tuple(
+        str(item).strip()
+        for item in record_payload.get("processed_object_keys") or ()
+        if str(item).strip()
+    ) or tuple(
+        str(item).strip()
+        for item in parent_snapshot.get("source_artifact_keys") or ()
+        if str(item).strip()
+    )
+    return _document_record_from_authenticated_notice_source_truth_snapshot_payload(
+        record_payload,
+        processed_object_keys=processed_object_keys,
+    )
+
+
+def _document_record_from_authenticated_notice_source_truth_snapshot_payload(
+    payload: Mapping[str, Any],
+    *,
+    processed_object_keys: Sequence[str],
+) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=str(payload["document_id"]),
+        revision_track=str(payload["revision_track"]),
+        version_id=str(payload["version_id"]),
+        source_uri=str(payload["source_uri"]),
+        content_hash=str(payload["content_hash"]),
+        corpus=str(payload["corpus"]),
+        collection=str(payload["collection"]),
+        cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
+        entitlement_groups=tuple(str(item) for item in payload.get("entitlement_groups") or ()),
+        visibility_scope=payload.get("visibility_scope"),
+        visibility_level=str(payload.get("visibility_level") or ""),
+        policy_projection_version=str(payload.get("policy_projection_version") or ""),
+        status=str(payload.get("status") or "active"),
+        ingestion_timestamp=str(payload.get("ingestion_timestamp") or ""),
+        parser_version=str(payload.get("parser_version") or ""),
+        embedding_model=str(payload.get("embedding_model") or ""),
+        source_channel=str(payload.get("source_channel") or ""),
+        is_current=bool(payload.get("is_current", False)),
+        effective_date=payload.get("effective_date"),
+        published_date=payload.get("published_date"),
+        supersedes_version_id=payload.get("supersedes_version_id"),
+        provenance_status=str(payload.get("provenance_status") or ""),
+        raw_asset=None,
+        source_observations=(),
+        document_units_object_key=payload.get("document_units_object_key"),
+        provider_response_object_key=payload.get("provider_response_object_key"),
+        layout_elements_object_key=payload.get("layout_elements_object_key"),
+        canonical_markdown_object_key=payload.get("canonical_markdown_object_key"),
+        processed_object_keys=tuple(processed_object_keys),
+        import_source=str(payload.get("import_source") or ""),
     )
 
 
@@ -1145,6 +1205,7 @@ __all__ = [
     "build_authenticated_notice_source_truth_inventory_store_from_env",
     "build_authenticated_notice_source_truth_parent_snapshot",
     "build_authenticated_notice_source_truth_parent_snapshot_from_payloads",
+    "document_record_from_authenticated_notice_source_truth_parent_snapshot",
     "inventory_entry_from_parent_snapshot",
     "rebuild_authenticated_notice_source_truth_inventory",
 ]

@@ -40,8 +40,12 @@ from campus_ingestion_core.authenticated_notice_import import (
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    AuthenticatedNoticeSourceTruthReplayInventory,
     AuthenticatedNoticeSourceTruthReplayRequest,
     _load_parent_source_truth_from_snapshot,
+    build_authenticated_notice_source_truth_replay_batch_input_payload,
+    build_authenticated_notice_source_truth_replay_inventory_payload,
+    load_authenticated_notice_source_truth_replay_inventory_from_payload,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     build_authenticated_notice_attachment_projection_plans,
@@ -405,10 +409,10 @@ class AuthenticatedNoticeCloseoutService:
                 key=inventory_key,
             ).decode("utf-8")
         )
-        if str(payload.get("run_id") or "") != run.run_id:
-            raise ValueError(
-                f"source-truth replay frozen inventory run mismatch: {run.run_id}"
-            )
+        frozen_inventory = load_authenticated_notice_source_truth_replay_inventory_from_payload(
+            payload,
+            expected_run_id=run.run_id,
+        )
         config_path = (
             Path(run.source_projections_path)
             if run.source_projections_path
@@ -419,7 +423,7 @@ class AuthenticatedNoticeCloseoutService:
         required_attachment_document_count = 0
         ocr_candidate_count = 0
         notice_risk_counts: dict[str, int] = {}
-        for parent in tuple(payload.get("parents") or ()):
+        for parent in frozen_inventory.parents:
             parent_source_truth = _load_parent_source_truth_from_snapshot(
                 parent_snapshot=dict(parent),
                 object_store=self.object_store,
@@ -516,29 +520,30 @@ class AuthenticatedNoticeCloseoutService:
             for label, count in aggregated_notice_risk_counts.items()
             if label in HIGH_RISK_NOTICE_LABELS
         )
+        refreshed_inventory = AuthenticatedNoticeSourceTruthReplayInventory(
+            site_id=frozen_inventory.site_id,
+            source_home_url=frozen_inventory.source_home_url,
+            embedding_model=frozen_inventory.embedding_model,
+            selected_notice_ids=frozen_inventory.selected_notice_ids,
+            notice_risk_counts=aggregated_notice_risk_counts,
+            high_risk_notice_count=high_risk_notice_count,
+            expected_notice_count=notice_count,
+            expected_document_count=notice_count + required_attachment_document_count,
+            expected_attachment_document_count=required_attachment_document_count,
+            expected_ocr_candidate_count=ocr_candidate_count,
+            expected_raw_asset_count=(
+                frozen_inventory.expected_raw_asset_count or run.expected_raw_asset_count
+            ),
+            parents=tuple(parents),
+        )
         self.object_store.put_bytes(
             bucket=self.object_store_settings.bucket_derived,
             key=inventory_key,
             data=json.dumps(
-                {
-                    "run_id": run.run_id,
-                    "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
-                    "selected_notice_ids": list(
-                        payload.get("selected_notice_ids")
-                        or [str(parent["notice_id"]) for parent in parents]
-                    ),
-                    "notice_risk_counts": aggregated_notice_risk_counts,
-                    "high_risk_notice_count": high_risk_notice_count,
-                    "site_id": payload["site_id"],
-                    "source_home_url": payload["source_home_url"],
-                    "embedding_model": payload["embedding_model"],
-                    "expected_notice_count": notice_count,
-                    "expected_document_count": notice_count + required_attachment_document_count,
-                    "expected_attachment_document_count": required_attachment_document_count,
-                    "expected_ocr_candidate_count": ocr_candidate_count,
-                    "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
-                    "parents": parents,
-                },
+                build_authenticated_notice_source_truth_replay_inventory_payload(
+                    run_id=run.run_id,
+                    inventory=refreshed_inventory,
+                ),
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
@@ -552,7 +557,7 @@ class AuthenticatedNoticeCloseoutService:
             expected_document_count=notice_count + required_attachment_document_count,
             expected_attachment_document_count=required_attachment_document_count,
             expected_ocr_candidate_count=ocr_candidate_count,
-            expected_raw_asset_count=int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+            expected_raw_asset_count=refreshed_inventory.expected_raw_asset_count,
         )
         refreshed_batches = self._refresh_source_truth_replay_batch_inputs(
             run=refreshed_run,
@@ -575,7 +580,7 @@ class AuthenticatedNoticeCloseoutService:
                 "expected_document_count": notice_count + required_attachment_document_count,
                 "expected_attachment_document_count": required_attachment_document_count,
                 "expected_ocr_candidate_count": ocr_candidate_count,
-                "expected_raw_asset_count": int(payload.get("expected_raw_asset_count") or run.expected_raw_asset_count),
+                "expected_raw_asset_count": refreshed_inventory.expected_raw_asset_count,
             },
         )
         return refreshed_run
@@ -598,16 +603,13 @@ class AuthenticatedNoticeCloseoutService:
                 filename="input.json",
                 segments=("batches", f"{int(batch.batch_id):06d}"),
             )
-            batch_payload = {
-                "run_id": run.run_id,
-                "batch_id": batch.batch_id,
-                "shard_id": batch.shard_id,
-                "input_kind": SOURCE_TRUTH_REPLAY_INPUT_KIND,
-                "notice_ids": list(batch.notice_ids),
-                "source_truth_parents": [
-                    parent_by_notice_id[notice_id] for notice_id in batch.notice_ids
-                ],
-            }
+            batch_payload = build_authenticated_notice_source_truth_replay_batch_input_payload(
+                run_id=run.run_id,
+                batch_id=batch.batch_id,
+                shard_id=batch.shard_id,
+                notice_ids=batch.notice_ids,
+                parent_by_notice_id=parent_by_notice_id,
+            )
             batch_bytes = json.dumps(
                 batch_payload,
                 ensure_ascii=False,

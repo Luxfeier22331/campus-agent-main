@@ -17,6 +17,8 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    build_authenticated_notice_source_truth_replay_expected_scope,
+    load_authenticated_notice_source_truth_replay_inventory_from_payload,
 )
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_raw_asset_id,
@@ -387,49 +389,13 @@ class CloseoutRunVerifier:
                     key=inventory_key,
                 ).decode("utf-8")
             )
-            expected_notice_ids: set[str] = set()
-            expected_document_ids: set[str] = set()
-            expected_raw_asset_ids: set[str] = set()
-            parent_document_ids_by_notice: dict[str, str] = {}
-            attachment_document_count = 0
-            ocr_candidate_count = 0
-            manual_review_required_count = 0
-            attachment_projection_plans: dict[tuple[str, str], dict[str, str]] = {}
-            for parent in tuple(payload.get("parents") or ()):
-                notice_id = str(parent["notice_id"])
-                expected_notice_ids.add(notice_id)
-                parent_document_id = str(parent["document_id"])
-                expected_document_ids.add(parent_document_id)
-                parent_document_ids_by_notice[notice_id] = parent_document_id
-                expected_raw_asset_ids.add(str(parent["raw_record"]["raw_asset_id"]))
-                for plan in _attachment_projection_plans_from_parent(parent):
-                    attachment_projection_plans[(notice_id, str(plan["attachment_ref_id"]))] = plan
-                    if (
-                        str(plan["materialization_policy"])
-                        == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
-                    ):
-                        attachment_document_count += 1
-                        expected_document_ids.add(str(plan["document_id"]))
-                    elif (
-                        str(plan["materialization_policy"])
-                        == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
-                    ):
-                        ocr_candidate_count += 1
-                    elif (
-                        str(plan["materialization_policy"])
-                        == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW
-                    ):
-                        manual_review_required_count += 1
-            return {
-                "notice_ids": expected_notice_ids,
-                "document_ids": expected_document_ids,
-                "raw_asset_ids": expected_raw_asset_ids,
-                "parent_document_ids_by_notice": parent_document_ids_by_notice,
-                "attachment_document_count": attachment_document_count,
-                "ocr_candidate_count": ocr_candidate_count,
-                "manual_review_required_count": manual_review_required_count,
-                "attachment_projection_plans": attachment_projection_plans,
-            }
+            frozen_inventory = load_authenticated_notice_source_truth_replay_inventory_from_payload(
+                payload,
+                expected_run_id=run_id,
+            )
+            return build_authenticated_notice_source_truth_replay_expected_scope(
+                frozen_inventory.parents
+            )
 
         expected_notice_ids: set[str] = set()
         expected_document_ids: set[str] = set()
@@ -467,40 +433,6 @@ class CloseoutRunVerifier:
             "manual_review_required_count": 0,
             "attachment_projection_plans": {},
         }
-
-
-def _attachment_projection_plans_from_parent(
-    parent: dict[str, Any],
-) -> tuple[dict[str, str], ...]:
-    plans = tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
-    if plans:
-        return plans
-    fallback: list[dict[str, str]] = []
-    for item in tuple(parent.get("expected_attachment_documents") or ()):
-        payload = dict(item)
-        classification = str(payload.get("classification") or "")
-        materialization_policy = str(payload.get("materialization_policy") or "")
-        if not materialization_policy:
-            if classification == "ocr_required":
-                materialization_policy = (
-                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
-                )
-            elif classification == "manual_review_required":
-                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW
-            else:
-                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
-        plan = {
-            "attachment_ref_id": str(payload["attachment_ref_id"]),
-            "classification": classification,
-            "document_id": str(payload["document_id"]),
-            "materialization_policy": materialization_policy,
-        }
-        review_reason = str(payload.get("review_reason") or "").strip()
-        if review_reason:
-            plan["review_reason"] = review_reason
-        fallback.append(plan)
-    return tuple(fallback)
-
 
 __all__ = [
     "CloseoutRunVerifier",

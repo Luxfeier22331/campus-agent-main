@@ -264,6 +264,29 @@ class ObjectStoreReader(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
+def parse_online_ocr_bytes(
+    *,
+    ocr_client: OnlineOcrClient,
+    file_bytes: bytes,
+    filename: str,
+    media_type: str | None = None,
+    asset_subkind: str | None = None,
+) -> OnlineOcrProviderResult:
+    with TemporaryDirectory() as temp_dir:
+        file_path = Path(temp_dir) / filename
+        file_path.write_bytes(file_bytes)
+        normalized_asset_subkind = str(asset_subkind or "").strip().lower()
+        normalized_media_type = str(media_type or "").strip().lower()
+        parse_pdf = getattr(ocr_client, "parse_pdf", None)
+        if (
+            normalized_asset_subkind == "pdf"
+            or file_path.suffix.strip().lower() == ".pdf"
+            or normalized_media_type == "application/pdf"
+        ) and callable(parse_pdf):
+            return parse_pdf(file_path)
+        return ocr_client.parse_file(file_path)
+
+
 class PaddleOcrAsyncClient:
     def __init__(self, settings: OnlineOcrSettings) -> None:
         self._settings = settings
@@ -1962,13 +1985,13 @@ def _parse_registered_raw_asset(
     ocr_client: OnlineOcrClient,
 ) -> OnlineOcrProviderResult:
     file_bytes = reader.get_bytes(bucket=bucket, key=raw_asset_record.object_key)
-    with TemporaryDirectory() as temp_dir:
-        file_path = Path(temp_dir) / raw_asset_record.source_filename
-        file_path.write_bytes(file_bytes)
-        asset_subkind = raw_asset_record.asset_subkind.strip().lower()
-        if asset_subkind == "pdf" or file_path.suffix.strip().lower() == ".pdf":
-            return ocr_client.parse_pdf(file_path)
-        return ocr_client.parse_file(file_path)
+    return parse_online_ocr_bytes(
+        ocr_client=ocr_client,
+        file_bytes=file_bytes,
+        filename=raw_asset_record.source_filename,
+        media_type=raw_asset_record.content_type,
+        asset_subkind=raw_asset_record.asset_subkind,
+    )
 
 
 class S3ObjectStoreClient(S3ObjectStoreWriter):

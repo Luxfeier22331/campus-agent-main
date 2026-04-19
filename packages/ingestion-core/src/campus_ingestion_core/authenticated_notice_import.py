@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -233,7 +233,7 @@ def import_authenticated_notice_export(
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
     stats = collect_import_document_stats(
         documents=[
-            _materialize_document_import_for_persistence(notice_import.document_import, notice_import.source_artifact_keys)
+            notice_import.document_import
             for notice_import in prepared.notice_imports
         ],
         registry=registry,
@@ -251,10 +251,7 @@ def import_authenticated_notice_export(
         config = load_authenticated_notice_source_projections_config(config_path)
         inventory_entries = []
         for notice_import in prepared.notice_imports:
-            translated = _materialize_document_import_for_persistence(
-                notice_import.document_import,
-                notice_import.source_artifact_keys,
-            )
+            translated = notice_import.document_import
             parent_record = registry.get(
                 str(translated.metadata["document_id"]),
                 translated.revision_track,
@@ -495,16 +492,6 @@ def _prepare_notice_import(
             year=material.year,
         ),
     }
-    document_units_key = build_document_artifact_key(
-        corpus=request.corpus,
-        collection=request.collection,
-        document_id=document_id,
-        revision_track="source-faithful",
-        version_id=version_id,
-        filename="document-units.jsonl",
-        title=material.title,
-        year=material.year,
-    )
     metadata: dict[str, Any] = {
         "document_id": document_id,
         "version_id": version_id,
@@ -538,16 +525,14 @@ def _prepare_notice_import(
         raw_version_id=material.raw_version_id,
         provider_response_object_key=source_artifact_keys["provider/normalized-notice.json"],
         additional_processed_object_keys=(
-            "document-units.jsonl",
-            "capture/list-response.json",
-            "capture/detail-response.json",
-            "capture/fetch-metadata.json",
-            "provider/normalized-notice.json",
-            "provider/discovered-links.jsonl",
-            "provider/attachment-observations.jsonl",
-            "source-truth/notice-manifest.json",
-            "source-truth/content-blocks.jsonl",
-            "source-truth/attachment-refs.jsonl",
+            source_artifact_keys["capture/list-response.json"],
+            source_artifact_keys["capture/detail-response.json"],
+            source_artifact_keys["capture/fetch-metadata.json"],
+            source_artifact_keys["provider/discovered-links.jsonl"],
+            source_artifact_keys["provider/attachment-observations.jsonl"],
+            source_artifact_keys["source-truth/notice-manifest.json"],
+            source_artifact_keys["source-truth/content-blocks.jsonl"],
+            source_artifact_keys["source-truth/attachment-refs.jsonl"],
         ),
         title=material.title,
         year=material.year,
@@ -605,27 +590,6 @@ def _content_type_for_artifact(path: str) -> str:
     if path.endswith(".md"):
         return "text/markdown; charset=utf-8"
     return "application/octet-stream"
-
-
-def _materialize_document_import_for_persistence(
-    document: DocumentImportInput,
-    source_artifact_keys: dict[str, str],
-) -> DocumentImportInput:
-    translated_keys = tuple(
-        source_artifact_keys.get(key, key)
-        for key in document.additional_processed_object_keys
-    )
-    provider_response_object_key = document.provider_response_object_key
-    if provider_response_object_key is not None:
-        provider_response_object_key = source_artifact_keys.get(
-            "provider/normalized-notice.json",
-            provider_response_object_key,
-        )
-    return replace(
-        document,
-        provider_response_object_key=provider_response_object_key,
-        additional_processed_object_keys=translated_keys,
-    )
 
 
 __all__ = [

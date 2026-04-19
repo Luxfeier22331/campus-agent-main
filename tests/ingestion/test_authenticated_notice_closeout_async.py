@@ -1729,6 +1729,27 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertTrue(verified["verification"]["ok"])
 
             staged_notice = service.closeout_store.get_staged_notices("source-truth-run-1")[0]
+            staged_raw_asset = service.closeout_store.get_staged_raw_assets("source-truth-run-1")[0]
+            self.assertEqual(
+                staged_raw_asset["source_artifact_keys"],
+                {
+                    "source-truth/notice-manifest.json": next(
+                        key
+                        for key in staged_notice["artifact_keys"]
+                        if str(key).endswith("/source-truth/notice-manifest.json")
+                    ),
+                    "source-truth/content-blocks.jsonl": next(
+                        key
+                        for key in staged_notice["artifact_keys"]
+                        if str(key).endswith("/source-truth/content-blocks.jsonl")
+                    ),
+                    "source-truth/attachment-refs.jsonl": next(
+                        key
+                        for key in staged_notice["artifact_keys"]
+                        if str(key).endswith("/source-truth/attachment-refs.jsonl")
+                    ),
+                },
+            )
             self.assertEqual(len(staged_notice["attachment_outcomes"]), 2)
             self.assertEqual(
                 [item["outcome"] for item in staged_notice["attachment_outcomes"]],

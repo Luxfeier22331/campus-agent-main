@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
 import re
-from typing import Protocol
+from typing import Literal, Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.artifacts import (
@@ -99,6 +100,255 @@ class ResolvedRawAsset:
     raw_source_uri: str
     content_hash: str
     object_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedDocumentArtifactKeys:
+    document_units_key: str
+    provider_response_key: str | None = None
+    layout_elements_key: str | None = None
+    canonical_markdown_key: str | None = None
+
+
+def serialize_document_import_stub(document: DocumentImportInput) -> dict[str, object]:
+    return {
+        "source_label": document.source_label,
+        "metadata": dict(document.metadata),
+        "import_source": document.import_source,
+        "revision_track": document.revision_track,
+        "source_channel": document.source_channel,
+        "is_current": document.is_current,
+        "corpus": document.corpus,
+        "collection": document.collection,
+        "visibility_scope": document.visibility_scope,
+        "status": document.status,
+        "raw_source_uri": document.raw_source_uri,
+        "raw_asset_id": document.raw_asset_id,
+        "raw_version_id": document.raw_version_id,
+        "provider_response_object_key": document.provider_response_object_key,
+        "layout_elements_object_key": document.layout_elements_object_key,
+        "additional_processed_object_keys": list(document.additional_processed_object_keys),
+        "title": document.title,
+        "year": document.year,
+    }
+
+
+def parse_document_import_stub(payload: Mapping[str, object]) -> DocumentImportInput:
+    return DocumentImportInput(
+        source_label=str(payload["source_label"]),
+        document_units_bytes=b"",
+        provider_response_bytes=None,
+        canonical_markdown_bytes=None,
+        metadata=dict(payload["metadata"]),
+        import_source=str(payload["import_source"]),
+        revision_track=str(payload["revision_track"]),
+        source_channel=str(payload["source_channel"]),
+        is_current=bool(payload.get("is_current", False)),
+        corpus=str(payload["corpus"]),
+        collection=str(payload["collection"]),
+        visibility_scope=(
+            None if payload.get("visibility_scope") is None else str(payload["visibility_scope"])
+        ),
+        status=str(payload.get("status") or "active"),
+        raw_source_uri=(
+            None if payload.get("raw_source_uri") is None else str(payload["raw_source_uri"])
+        ),
+        raw_asset_id=(
+            None if payload.get("raw_asset_id") is None else str(payload["raw_asset_id"])
+        ),
+        raw_version_id=(
+            None if payload.get("raw_version_id") is None else str(payload["raw_version_id"])
+        ),
+        provider_response_object_key=(
+            None
+            if payload.get("provider_response_object_key") is None
+            else str(payload["provider_response_object_key"])
+        ),
+        layout_elements_object_key=(
+            None
+            if payload.get("layout_elements_object_key") is None
+            else str(payload["layout_elements_object_key"])
+        ),
+        additional_processed_object_keys=tuple(
+            str(item) for item in payload.get("additional_processed_object_keys") or ()
+        ),
+        title=None if payload.get("title") is None else str(payload["title"]),
+        year=None if payload.get("year") is None else str(payload["year"]),
+    )
+
+
+def build_document_processed_object_keys(
+    *,
+    document_units_key: str | None = None,
+    provider_response_key: str | None = None,
+    layout_elements_key: str | None = None,
+    canonical_markdown_key: str | None = None,
+    additional_keys: Iterable[str | None] = (),
+) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            key
+            for key in (
+                provider_response_key,
+                layout_elements_key,
+                canonical_markdown_key,
+                document_units_key,
+                *additional_keys,
+            )
+            if key is not None
+        )
+    )
+
+
+def resolve_document_artifact_keys(
+    *,
+    document: DocumentImportInput,
+    document_id: str,
+    version_id: str,
+    title: str | None,
+    year: str | None,
+    corpus: str | None = None,
+    collection: str | None = None,
+) -> ResolvedDocumentArtifactKeys:
+    resolved_corpus = corpus or document.corpus
+    resolved_collection = collection or document.collection
+    provider_response_key = document.provider_response_object_key
+    if document.provider_response_bytes is not None and provider_response_key is None:
+        provider_response_key = build_document_artifact_key(
+            corpus=resolved_corpus,
+            collection=resolved_collection,
+            document_id=document_id,
+            revision_track=document.revision_track,
+            version_id=version_id,
+            filename=PROVIDER_RESPONSE_FILENAME,
+            title=title,
+            year=year,
+        )
+    layout_elements_key = document.layout_elements_object_key
+    if document.layout_elements_bytes is not None and layout_elements_key is None:
+        layout_elements_key = build_document_artifact_key(
+            corpus=resolved_corpus,
+            collection=resolved_collection,
+            document_id=document_id,
+            revision_track=document.revision_track,
+            version_id=version_id,
+            filename=LAYOUT_ELEMENTS_FILENAME,
+            title=title,
+            year=year,
+        )
+    canonical_markdown_key = None
+    if document.canonical_markdown_bytes is not None:
+        canonical_markdown_key = build_document_artifact_key(
+            corpus=resolved_corpus,
+            collection=resolved_collection,
+            document_id=document_id,
+            revision_track=document.revision_track,
+            version_id=version_id,
+            filename=CANONICAL_MARKDOWN_FILENAME,
+            title=title,
+            year=year,
+        )
+    document_units_key = build_document_artifact_key(
+        corpus=resolved_corpus,
+        collection=resolved_collection,
+        document_id=document_id,
+        revision_track=document.revision_track,
+        version_id=version_id,
+        filename=DOCUMENT_UNITS_FILENAME,
+        title=title,
+        year=year,
+    )
+    return ResolvedDocumentArtifactKeys(
+        document_units_key=document_units_key,
+        provider_response_key=provider_response_key,
+        layout_elements_key=layout_elements_key,
+        canonical_markdown_key=canonical_markdown_key,
+    )
+
+
+def build_registry_record_from_stage_payload(
+    stage_payload: Mapping[str, object],
+    *,
+    artifact_source: Literal["staged", "final"] = "final",
+    timestamp: str | None = None,
+) -> DocumentRegistryRecord:
+    document_payload = dict(stage_payload["document"])
+    staged_object_keys = {
+        str(key): str(value)
+        for key, value in dict(stage_payload.get("staged_object_keys") or {}).items()
+        if value is not None
+    }
+    final_object_keys = {
+        str(key): str(value)
+        for key, value in dict(stage_payload.get("final_object_keys") or {}).items()
+        if value is not None
+    }
+    artifact_keys = staged_object_keys if artifact_source == "staged" else final_object_keys
+    if "document_units" not in artifact_keys:
+        raise ValueError(
+            f"staged document is missing {artifact_source} document_units key: "
+            f"{document_payload.get('document_id')!r}"
+        )
+    document_stub = parse_document_import_stub(document_payload)
+    provider_response_key = artifact_keys.get("provider_response") or document_stub.provider_response_object_key
+    layout_elements_key = artifact_keys.get("layout_elements") or document_stub.layout_elements_object_key
+    canonical_markdown_key = artifact_keys.get("canonical_markdown")
+    return _build_registry_record(
+        document_id=str(document_payload["document_id"]),
+        version_id=str(document_payload["version_id"]),
+        metadata=dict(document_stub.metadata),
+        content_hash=str(stage_payload["content_hash"]),
+        document=document_stub,
+        default_visibility_scope=document_stub.visibility_scope,
+        parser_version=str(document_payload["parser_version"]),
+        embedding_model=str(document_payload["embedding_model"]),
+        cleaning_policy_version=str(document_payload["cleaning_policy_version"]),
+        raw_asset=None,
+        document_units_key=str(artifact_keys["document_units"]),
+        provider_response_key=provider_response_key,
+        layout_elements_key=layout_elements_key,
+        canonical_markdown_key=canonical_markdown_key,
+        processed_object_keys=_resolve_stage_payload_processed_object_keys(
+            artifact_source=artifact_source,
+            artifact_keys=artifact_keys,
+            document_payload=document_payload,
+        ),
+        timestamp=timestamp or utc_now(),
+    )
+
+
+def _resolve_stage_payload_processed_object_keys(
+    *,
+    artifact_source: Literal["staged", "final"],
+    artifact_keys: Mapping[str, str],
+    document_payload: Mapping[str, object],
+) -> tuple[str, ...]:
+    if artifact_source == "staged":
+        return build_document_processed_object_keys(
+            document_units_key=artifact_keys.get("document_units"),
+            provider_response_key=artifact_keys.get("provider_response"),
+            layout_elements_key=artifact_keys.get("layout_elements"),
+            canonical_markdown_key=artifact_keys.get("canonical_markdown"),
+            additional_keys=(
+                str(item)
+                for item in document_payload.get("additional_processed_object_keys") or ()
+            ),
+        )
+    values = [
+        *[str(item) for item in document_payload.get("processed_object_keys") or ()],
+        *[
+            str(item)
+            for item in document_payload.get("additional_processed_object_keys") or ()
+        ],
+    ]
+    if values:
+        return build_document_processed_object_keys(additional_keys=values)
+    return build_document_processed_object_keys(
+        document_units_key=artifact_keys.get("document_units"),
+        provider_response_key=artifact_keys.get("provider_response"),
+        layout_elements_key=artifact_keys.get("layout_elements"),
+        canonical_markdown_key=artifact_keys.get("canonical_markdown"),
+    )
 
 
 DEFAULT_SOURCE_PREFERENCE = {
@@ -621,30 +871,15 @@ def collect_import_document_stats(
                 )
             effective_version_id = matching_content_record.version_id if matching_content_record is not None else version_id
             incoming_source_uri = derive_source_uri(metadata)
-            provider_response_key = document.provider_response_object_key
-            layout_elements_key = document.layout_elements_object_key
-            if document.provider_response_bytes is not None and provider_response_key is None:
-                provider_response_key = build_document_artifact_key(
-                    corpus=document.corpus,
-                    collection=document.collection,
-                    document_id=document_id,
-                    revision_track=document.revision_track,
-                    version_id=effective_version_id,
-                    filename=PROVIDER_RESPONSE_FILENAME,
-                    title=title,
-                    year=year,
-                )
-            if document.layout_elements_bytes is not None and layout_elements_key is None:
-                layout_elements_key = build_document_artifact_key(
-                    corpus=document.corpus,
-                    collection=document.collection,
-                    document_id=document_id,
-                    revision_track=document.revision_track,
-                    version_id=effective_version_id,
-                    filename=LAYOUT_ELEMENTS_FILENAME,
-                    title=title,
-                    year=year,
-                )
+            artifact_keys = resolve_document_artifact_keys(
+                document=document,
+                document_id=document_id,
+                version_id=effective_version_id,
+                title=title,
+                year=year,
+            )
+            provider_response_key = artifact_keys.provider_response_key
+            layout_elements_key = artifact_keys.layout_elements_key
             if (
                 document.provider_response_bytes is not None
                 and provider_response_key is not None
@@ -668,40 +903,14 @@ def collect_import_document_stats(
                     content_type="application/x-ndjson",
                 )
 
-            document_units_key = build_document_artifact_key(
-                corpus=document.corpus,
-                collection=document.collection,
-                document_id=document_id,
-                revision_track=document.revision_track,
-                version_id=effective_version_id,
-                filename=DOCUMENT_UNITS_FILENAME,
-                title=title,
-                year=year,
-            )
-            canonical_markdown_key = None
-            if document.canonical_markdown_bytes is not None:
-                canonical_markdown_key = build_document_artifact_key(
-                    corpus=document.corpus,
-                    collection=document.collection,
-                    document_id=document_id,
-                    revision_track=document.revision_track,
-                    version_id=effective_version_id,
-                    filename=CANONICAL_MARKDOWN_FILENAME,
-                    title=title,
-                    year=year,
-                )
-            processed_object_keys = tuple(
-                dict.fromkeys(
-                    key
-                    for key in (
-                        provider_response_key,
-                        layout_elements_key,
-                        canonical_markdown_key,
-                        document_units_key,
-                        *document.additional_processed_object_keys,
-                    )
-                    if key is not None
-                )
+            document_units_key = artifact_keys.document_units_key
+            canonical_markdown_key = artifact_keys.canonical_markdown_key
+            processed_object_keys = build_document_processed_object_keys(
+                document_units_key=document_units_key,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                canonical_markdown_key=canonical_markdown_key,
+                additional_keys=document.additional_processed_object_keys,
             )
             if matching_content_record is not None:
                 merged_equivalent_record = _merge_equivalent_source_record(
