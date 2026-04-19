@@ -25,6 +25,8 @@ _PACKAGE_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships
 _OFFICE_DOC_REL_ID_ATTR = (
     "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 )
+_DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +40,13 @@ class _XlsxCellValue:
     formula: str | None = None
 
 
-def extract_docx_text_blocks(file_bytes: bytes) -> OoxmlTextExtractionResult:
+def extract_docx_text_blocks(
+    file_bytes: bytes,
+    *,
+    filename: str = "attachment.docx",
+    source_object_key: str | None = None,
+    media_type: str = _DOCX_MEDIA_TYPE,
+) -> OoxmlTextExtractionResult:
     try:
         from docx import Document
     except ImportError as exc:  # pragma: no cover
@@ -63,8 +71,9 @@ def extract_docx_text_blocks(file_bytes: bytes) -> OoxmlTextExtractionResult:
     return OoxmlTextExtractionResult(
         descriptor=FileAssetDescriptor(
             asset_family="modern_ooxml",
-            filename="attachment.docx",
-            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=filename,
+            media_type=media_type,
+            source_object_key=source_object_key,
             source_sha256=hashlib.sha256(file_bytes).hexdigest(),
         ),
         provenance=ArtifactProvenance(
@@ -76,7 +85,13 @@ def extract_docx_text_blocks(file_bytes: bytes) -> OoxmlTextExtractionResult:
     )
 
 
-def extract_xlsx_text_blocks(file_bytes: bytes) -> OoxmlTextExtractionResult:
+def extract_xlsx_text_blocks(
+    file_bytes: bytes,
+    *,
+    filename: str = "attachment.xlsx",
+    source_object_key: str | None = None,
+    media_type: str = _XLSX_MEDIA_TYPE,
+) -> OoxmlTextExtractionResult:
     try:
         with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
             workbook_xml = archive.read(_XLSX_WORKBOOK_PATH)
@@ -111,8 +126,9 @@ def extract_xlsx_text_blocks(file_bytes: bytes) -> OoxmlTextExtractionResult:
     return OoxmlTextExtractionResult(
         descriptor=FileAssetDescriptor(
             asset_family="modern_ooxml",
-            filename="attachment.xlsx",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename=filename,
+            media_type=media_type,
+            source_object_key=source_object_key,
             source_sha256=hashlib.sha256(file_bytes).hexdigest(),
         ),
         provenance=ArtifactProvenance(

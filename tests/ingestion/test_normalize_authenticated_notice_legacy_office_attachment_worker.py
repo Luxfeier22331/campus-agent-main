@@ -10,6 +10,12 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from campus_ingestion_core.file_asset_contract import (
+    ArtifactProvenance,
+    FileAssetArtifactRef,
+    FileAssetDescriptor,
+)
+
 
 worker = importlib.import_module(
     "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment"
@@ -28,16 +34,29 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             normalize.return_value = worker.LegacyOfficeNormalizationResult(
+                descriptor=FileAssetDescriptor(
+                    asset_family="legacy_binary_office",
+                    filename="legacy.doc",
+                    media_type="application/msword",
+                    source_object_key="attachments/example/legacy.doc",
+                    source_sha256="abc123",
+                ),
+                provenance=ArtifactProvenance(
+                    engine_name="libreoffice-soffice",
+                    engine_version="LibreOffice 25.2.1.2",
+                ),
+                normalized_extension=".docx",
+                normalized_sha256="def456",
+                artifact_refs=(
+                    FileAssetArtifactRef(
+                        role="normalized_object",
+                        object_key="campus_notices/operations/normalized/legacy.docx",
+                        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    ),
+                ),
                 input_path="/tmp/legacy.doc",
                 output_path="/tmp/out/legacy.docx",
                 source_extension=".doc",
-                source_mime_type="application/msword",
-                source_object_key="attachments/example/legacy.doc",
-                source_sha256="abc123",
-                normalized_extension=".docx",
-                normalized_sha256="def456",
-                normalizer_name="libreoffice-soffice",
-                normalizer_version="LibreOffice 25.2.1.2",
             )
             worker.main(
                 [
@@ -51,6 +70,8 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
                     "abc123",
                     "--source-mime-type",
                     "application/msword",
+                    "--normalized-object-key",
+                    "campus_notices/operations/normalized/legacy.docx",
                 ]
             )
 
@@ -71,8 +92,19 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             normalize.call_args.kwargs["source_mime_type"],
             "application/msword",
         )
+        self.assertEqual(
+            normalize.call_args.kwargs["normalized_object_key"],
+            "campus_notices/operations/normalized/legacy.docx",
+        )
         payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["outcome_type"], "normalization")
         self.assertEqual(payload["normalized_extension"], ".docx")
+        self.assertEqual(payload["descriptor"]["source_object_key"], "attachments/example/legacy.doc")
+        self.assertEqual(payload["provenance"]["engine_name"], "libreoffice-soffice")
+        self.assertEqual(
+            payload["artifact_refs"][0]["object_key"],
+            "campus_notices/operations/normalized/legacy.docx",
+        )
 
     def test_normalize_invokes_soffice_and_returns_provenance_summary(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -121,11 +153,18 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
                     output_dir=output_dir,
                     source_object_key="attachments/example/legacy-rule.doc",
                     source_mime_type="application/msword",
+                    normalized_object_key="campus_notices/operations/normalized/legacy-rule.docx",
                 )
 
         self.assertEqual(result.source_extension, ".doc")
         self.assertEqual(result.normalized_extension, ".docx")
         self.assertEqual(result.output_path, str(output_path))
+        self.assertEqual(result.descriptor.filename, "legacy-rule.doc")
+        self.assertEqual(result.descriptor.source_object_key, "attachments/example/legacy-rule.doc")
+        self.assertEqual(
+            result.artifact_refs[0].object_key,
+            "campus_notices/operations/normalized/legacy-rule.docx",
+        )
         self.assertEqual(
             result.source_sha256,
             hashlib.sha256(input_bytes).hexdigest(),
@@ -134,8 +173,8 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             result.normalized_sha256,
             hashlib.sha256(normalized_bytes).hexdigest(),
         )
-        self.assertEqual(result.normalizer_name, "libreoffice-soffice")
-        self.assertEqual(result.normalizer_version, "LibreOffice 25.2.1.2")
+        self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
+        self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
 
     def test_normalize_requires_soffice(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -204,11 +243,21 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
                     output_dir=output_dir,
                     source_object_key="attachments/example/legacy-score-sheet.xls",
                     source_mime_type="application/vnd.ms-excel",
+                    normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
                 )
 
         self.assertEqual(result.source_extension, ".xls")
         self.assertEqual(result.normalized_extension, ".xlsx")
         self.assertEqual(result.output_path, str(output_path))
+        self.assertEqual(result.descriptor.filename, "legacy-score-sheet.xls")
+        self.assertEqual(
+            result.descriptor.source_object_key,
+            "attachments/example/legacy-score-sheet.xls",
+        )
+        self.assertEqual(
+            result.artifact_refs[0].object_key,
+            "campus_notices/operations/normalized/legacy-score-sheet.xlsx",
+        )
         self.assertEqual(
             result.source_sha256,
             hashlib.sha256(input_bytes).hexdigest(),
@@ -217,8 +266,8 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             result.normalized_sha256,
             hashlib.sha256(normalized_bytes).hexdigest(),
         )
-        self.assertEqual(result.normalizer_name, "libreoffice-soffice")
-        self.assertEqual(result.normalizer_version, "LibreOffice 25.2.1.2")
+        self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
+        self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
 
 
 if __name__ == "__main__":

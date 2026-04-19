@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from io import BytesIO
+import tomllib
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
@@ -10,11 +11,27 @@ from unittest.mock import patch
 import zipfile
 
 from campus_ingestion_core.file_asset_legacy_office import (
+    extract_legacy_office_text_blocks,
     normalize_legacy_office_asset,
 )
 from campus_ingestion_core.file_asset_ooxml import (
     extract_docx_text_blocks,
     extract_xlsx_text_blocks,
+)
+from campus_ingestion_core.file_asset_text_extractable import (
+    extract_text_extractable_file_asset,
+)
+from campus_ingestion_core.file_asset_contract import (
+    ArtifactProvenance,
+    ExtractionOutcome,
+    FileAssetDescriptor,
+    FileAssetExtractionRecord,
+    FileAssetArtifactRef,
+    NormalizationOutcome,
+    parse_file_asset_extraction_record,
+    parse_file_asset_outcome,
+    serialize_file_asset_extraction_record,
+    serialize_file_asset_outcome,
 )
 from campus_ingestion_core.file_asset_routing import (
     RawAssetTypedMetadata,
@@ -121,18 +138,149 @@ def _build_formula_xlsx_bytes() -> bytes:
 class FileAssetOoxmlExtractionTest(unittest.TestCase):
     def test_extract_docx_text_blocks_preserves_paragraph_blocks(self) -> None:
         result = extract_docx_text_blocks(
-            _build_minimal_docx_bytes(paragraphs=("第一段", "第二段"))
+            _build_minimal_docx_bytes(paragraphs=("第一段", "第二段")),
+            filename="通知附件.docx",
+            source_object_key="campus_notices/source/authenticated/attachments/notice-001.docx",
         )
 
         self.assertEqual(result.text_blocks, ("第一段", "第二段"))
         self.assertEqual(result.provenance.engine_name, "python-docx")
+        self.assertEqual(result.descriptor.filename, "通知附件.docx")
+        self.assertEqual(
+            result.descriptor.source_object_key,
+            "campus_notices/source/authenticated/attachments/notice-001.docx",
+        )
 
     def test_extract_xlsx_text_blocks_preserves_shared_strings_and_formula_cache(self) -> None:
-        result = extract_xlsx_text_blocks(_build_formula_xlsx_bytes())
+        result = extract_xlsx_text_blocks(
+            _build_formula_xlsx_bytes(),
+            filename="报名汇总.xlsx",
+            source_object_key="campus_notices/source/authenticated/attachments/notice-002.xlsx",
+        )
 
         self.assertEqual(result.provenance.engine_name, "spreadsheetml-zip-xml")
+        self.assertEqual(result.descriptor.filename, "报名汇总.xlsx")
+        self.assertEqual(
+            result.descriptor.source_object_key,
+            "campus_notices/source/authenticated/attachments/notice-002.xlsx",
+        )
         self.assertIn("项目 | 数量 | 总计", result.text_blocks[0])
         self.assertIn("报名人数 | 2 | 2 [formula=SUM(B2:B2)]", result.text_blocks[0])
+
+    def test_serialize_file_asset_outcome_emits_repo_owned_extraction_shape(self) -> None:
+        result = extract_docx_text_blocks(
+            _build_minimal_docx_bytes(paragraphs=("第一段",)),
+            filename="通知附件.docx",
+            source_object_key="campus_notices/source/authenticated/attachments/notice-003.docx",
+        )
+
+        payload = serialize_file_asset_outcome(result)
+
+        self.assertEqual(payload["outcome_type"], "extraction")
+        self.assertEqual(payload["descriptor"]["asset_family"], "modern_ooxml")
+        self.assertEqual(payload["descriptor"]["filename"], "通知附件.docx")
+        self.assertEqual(
+            payload["descriptor"]["source_object_key"],
+            "campus_notices/source/authenticated/attachments/notice-003.docx",
+        )
+        self.assertEqual(payload["provenance"]["engine_name"], "python-docx")
+        self.assertEqual(payload["provenance"]["warnings"], [])
+        self.assertEqual(payload["text_blocks"], ["第一段"])
+        self.assertEqual(payload["artifact_refs"], [])
+        parsed = parse_file_asset_outcome(payload)
+        self.assertEqual(parsed.descriptor, result.descriptor)
+        self.assertEqual(parsed.provenance, result.provenance)
+        self.assertEqual(parsed.text_blocks, result.text_blocks)
+        self.assertEqual(parsed.extraction_strategy, result.extraction_strategy)
+        self.assertEqual(parsed.artifact_refs, result.artifact_refs)
+
+    def test_serialize_file_asset_extraction_record_emits_shared_payload_shape(self) -> None:
+        outcome = extract_docx_text_blocks(
+            _build_minimal_docx_bytes(paragraphs=("第一段",)),
+            filename="通知附件.docx",
+            source_object_key="campus_notices/source/authenticated/attachments/notice-004.docx",
+        )
+
+        payload = serialize_file_asset_extraction_record(
+            FileAssetExtractionRecord(
+                outcome=outcome,
+                metadata={
+                    "attachment_ref_id": "attachment-0001",
+                    "extraction_class": "text_extractable",
+                    "extraction_policy_version": "policy-v1",
+                },
+            )
+        )
+
+        self.assertEqual(payload["schema_version"], "file_asset_extraction_record_v1")
+        self.assertEqual(payload["metadata"]["attachment_ref_id"], "attachment-0001")
+        self.assertEqual(payload["metadata"]["extraction_class"], "text_extractable")
+        self.assertEqual(payload["metadata"]["extraction_policy_version"], "policy-v1")
+        self.assertEqual(payload["outcome"]["outcome_type"], "extraction")
+        parsed = parse_file_asset_extraction_record(payload)
+        self.assertEqual(parsed.metadata, payload["metadata"])
+        self.assertEqual(parsed.outcome.descriptor, outcome.descriptor)
+        self.assertEqual(parsed.outcome.provenance, outcome.provenance)
+        self.assertEqual(parsed.outcome.text_blocks, outcome.text_blocks)
+        self.assertEqual(parsed.outcome.extraction_strategy, outcome.extraction_strategy)
+        self.assertEqual(parsed.outcome.artifact_refs, outcome.artifact_refs)
+
+
+class FileAssetTextExtractableDispatcherTest(unittest.TestCase):
+    def test_extract_text_extractable_file_asset_routes_xls_to_shared_legacy_seam(self) -> None:
+        expected = ExtractionOutcome(
+            descriptor=FileAssetDescriptor(
+                asset_family="legacy_binary_office",
+                filename="报名表.xls",
+                media_type="application/vnd.ms-excel",
+                source_object_key="source/notice-001.xls",
+                source_sha256="hash",
+            ),
+            provenance=ArtifactProvenance(
+                engine_name="libreoffice-soffice+spreadsheetml-zip-xml",
+                engine_version="LibreOffice 25.2.1.2;spreadsheetml-zip-xml-v1",
+            ),
+            text_blocks=("Sheet1\n姓名 | 张三",),
+            extraction_strategy="legacy_office_conversion_then_xlsx_structured_blocks",
+        )
+
+        with patch(
+            "campus_ingestion_core.file_asset_text_extractable.extract_legacy_office_text_blocks",
+            return_value=expected,
+        ) as extract_legacy_office:
+            result = extract_text_extractable_file_asset(
+                b"legacy-xls",
+                filename="报名表.xls",
+                media_type="application/vnd.ms-excel",
+                source_object_key="source/notice-001.xls",
+            )
+
+        self.assertIs(result, expected)
+        extract_legacy_office.assert_called_once_with(
+            b"legacy-xls",
+            filename="报名表.xls",
+            media_type="application/vnd.ms-excel",
+            source_object_key="source/notice-001.xls",
+        )
+
+
+class FileAssetHardeningContractTest(unittest.TestCase):
+    def test_ingestion_core_dependencies_do_not_reintroduce_xlrd(self) -> None:
+        pyproject_path = Path(__file__).resolve().parents[2] / "packages/ingestion-core/pyproject.toml"
+        payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+        dependencies = tuple(str(item) for item in payload["project"]["dependencies"])
+        self.assertFalse(any(dep.startswith("xlrd") for dep in dependencies))
+
+    def test_forward_substrate_does_not_keep_retired_compatibility_shims(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+
+        self.assertFalse(
+            (root / "packages/ingestion-core/src/campus_ingestion_core/raw_asset_typing.py").exists()
+        )
+        self.assertFalse(
+            (root / "packages/ingestion-core/src/campus_ingestion_core/online_ocr_routing.py").exists()
+        )
 
 
 class FileAssetRoutingSubstrateTest(unittest.TestCase):
@@ -257,10 +405,28 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
                     output_dir=output_dir,
                     source_object_key="attachments/example/legacy-score-sheet.xls",
                     source_mime_type="application/vnd.ms-excel",
+                    normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
                 )
 
         self.assertEqual(result.source_extension, ".xls")
+        self.assertIsInstance(result, NormalizationOutcome)
         self.assertEqual(result.normalized_extension, ".xlsx")
+        self.assertEqual(result.descriptor.asset_family, "legacy_binary_office")
+        self.assertEqual(result.descriptor.filename, "legacy-score-sheet.xls")
+        self.assertEqual(
+            result.descriptor.source_object_key,
+            "attachments/example/legacy-score-sheet.xls",
+        )
+        self.assertEqual(
+            result.artifact_refs,
+            (
+                FileAssetArtifactRef(
+                    role="normalized_object",
+                    object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            ),
+        )
         self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
         self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
         self.assertEqual(
@@ -271,6 +437,65 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
             result.normalized_sha256,
             hashlib.sha256(normalized_bytes).hexdigest(),
         )
+
+    def test_extract_legacy_office_text_blocks_converts_xls_via_shared_normalization(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            normalized_bytes = _build_formula_xlsx_bytes()
+
+            def fake_run(
+                argv: list[str],
+                *,
+                capture_output: bool,
+                text: bool,
+                check: bool,
+            ) -> subprocess.CompletedProcess[str]:
+                self.assertTrue(capture_output)
+                self.assertTrue(text)
+                self.assertFalse(check)
+                if "--version" in argv:
+                    return subprocess.CompletedProcess(
+                        argv,
+                        0,
+                        stdout="LibreOffice 25.2.1.2\n",
+                        stderr="",
+                    )
+                output_dir = Path(argv[argv.index("--outdir") + 1])
+                source_path = Path(argv[-1])
+                output_dir.mkdir(parents=True, exist_ok=True)
+                (output_dir / f"{source_path.stem}.xlsx").write_bytes(normalized_bytes)
+                return subprocess.CompletedProcess(argv, 0, stdout="convert ok\n", stderr="")
+
+            with (
+                patch(
+                    "campus_ingestion_core.file_asset_legacy_office.shutil.which",
+                    return_value="/usr/bin/soffice",
+                ),
+                patch(
+                    "campus_ingestion_core.file_asset_legacy_office.subprocess.run",
+                    side_effect=fake_run,
+                ),
+            ):
+                result = extract_legacy_office_text_blocks(
+                    b"legacy-xls-binary",
+                    filename="legacy-score-sheet.xls",
+                    media_type="application/vnd.ms-excel",
+                    source_object_key="attachments/example/legacy-score-sheet.xls",
+                )
+
+        self.assertEqual(result.descriptor.asset_family, "legacy_binary_office")
+        self.assertEqual(result.descriptor.filename, "legacy-score-sheet.xls")
+        self.assertEqual(
+            result.descriptor.source_object_key,
+            "attachments/example/legacy-score-sheet.xls",
+        )
+        self.assertEqual(
+            result.provenance.engine_name,
+            "libreoffice-soffice+spreadsheetml-zip-xml",
+        )
+        self.assertIn("normalized_via_legacy_office_conversion", result.provenance.warnings)
+        self.assertIn("项目 | 数量 | 总计", result.text_blocks[0])
+        self.assertIn("报名人数 | 2 | 2 [formula=SUM(B2:B2)]", result.text_blocks[0])
 
 
 if __name__ == "__main__":
