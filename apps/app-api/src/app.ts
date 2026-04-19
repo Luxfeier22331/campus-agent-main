@@ -323,6 +323,7 @@ async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadine
       appName: config.appName,
       authResetEmailFrom: config.authResetEmailFrom,
       authResetEmailReplyTo: config.authResetEmailReplyTo,
+      authTurnstileSecretKey: config.authTurnstileSecretKey,
       betterAuthSecret: config.betterAuthSecret,
       database: {},
       endUserEmailAllowlist: config.endUserEmailAllowlist,

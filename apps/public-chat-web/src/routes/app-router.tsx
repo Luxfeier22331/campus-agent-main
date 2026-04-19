@@ -8,8 +8,10 @@ import {
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 
+import { ForgotPasswordPage } from "../login/forgot-password-page";
 import { LoginPage } from "../login/page";
 import { RegisterPage } from "../login/register-page";
+import { ResetPasswordPage } from "../login/reset-password-page";
 import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
 
 const ChatAppShell = lazy(async () => {
@@ -85,6 +87,18 @@ const registerRoute = createRoute({
   path: "/register",
 });
 
+const forgotPasswordRoute = createRoute({
+  component: ForgotPasswordPage,
+  getParentRoute: () => rootRoute,
+  path: "/forgot-password",
+});
+
+const resetPasswordRoute = createRoute({
+  component: ResetPasswordPage,
+  getParentRoute: () => rootRoute,
+  path: "/reset-password",
+});
+
 const authenticatedRoute = createRoute({
   component: AuthenticatedChatRoute,
   getParentRoute: () => rootRoute,
@@ -107,6 +121,8 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   registerRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
   authenticatedRoute.addChildren([chatIndexRoute, chatConversationRoute]),
 ]);
 

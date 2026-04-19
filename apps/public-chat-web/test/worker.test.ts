@@ -28,6 +28,7 @@ describe("public chat web worker shell", () => {
     expect(wranglerConfig).toContain(
       'APP_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
     );
+    expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
     expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
     expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
@@ -42,25 +43,16 @@ describe("public chat web worker shell", () => {
       "check_worker_secret_presence.py",
     );
     expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+    expect(deployStagingSource).toContain("loadRepoEnvFile");
     expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+    expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
+    expect(deployStagingSource).toContain("AUTH_TURNSTILE_SITE_KEY:");
     expect(deployStagingSource).toContain("SENTRY_RELEASE:");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
     expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "verify-worker-deploy-config.mjs",
-    );
-    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "dist/public_chat_web/wrangler.json",
-    );
-    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "SERVICE:APP_API=app-api-staging",
-    );
-    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "VAR_ABSENT:SENTRY_RELEASE",
-    );
-    expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-      "ROUTE:campus-chat-staging.ayafeed.com",
+      "verify-staging-config.mjs",
     );
   });
 
@@ -263,6 +255,7 @@ describe("public chat web worker shell", () => {
             }),
         },
         APP_API_BASE_URL: "https://app-api.internal",
+        AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
         PUBLIC_CHAT_HOSTNAME: "chat.example.com",
       },
     );
@@ -270,7 +263,10 @@ describe("public chat web worker shell", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    await expect(response.text()).resolves.toContain("<div id=\"root\"></div>");
+    const html = await response.text();
+    expect(html).toContain("<div id=\"root\"></div>");
+    expect(html).toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
+    expect(html).toContain('"turnstileSiteKey":"1x00000000000000000000AA"');
   });
 
   it("fails closed when app-api binding is not configured for the public shell", async () => {
@@ -542,6 +538,7 @@ describe("public chat web worker shell", () => {
 
   it("forwards origin and referer for same-site auth requests", async () => {
     let forwardedCookie: string | null = null;
+    let forwardedCaptchaResponse: string | null = null;
     let forwardedOrigin: string | null = null;
     let forwardedReferer: string | null = null;
     let forwardedUrl: string | null = null;
@@ -555,6 +552,7 @@ describe("public chat web worker shell", () => {
           "content-type": "application/json",
           origin: "https://chat.example.com",
           referer: "https://chat.example.com/login",
+          "x-captcha-response": "captcha-token-01",
         },
         body: JSON.stringify({
           email: "jane@example.edu",
@@ -565,6 +563,7 @@ describe("public chat web worker shell", () => {
         APP_API: {
           fetch: async (request: Request) => {
             forwardedCookie = request.headers.get("cookie");
+            forwardedCaptchaResponse = request.headers.get("x-captcha-response");
             forwardedOrigin = request.headers.get("origin");
             forwardedReferer = request.headers.get("referer");
             forwardedUrl = request.url;
@@ -585,6 +584,7 @@ describe("public chat web worker shell", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(forwardedUrl).toBe("https://app-api.internal/api/auth/sign-in/email");
     expect(forwardedCookie).toBe("better-auth.session_token=test");
+    expect(forwardedCaptchaResponse).toBe("captcha-token-01");
     expect(forwardedOrigin).toBe("https://chat.example.com");
     expect(forwardedReferer).toBe("https://chat.example.com/login");
   });

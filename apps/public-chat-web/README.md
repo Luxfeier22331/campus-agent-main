@@ -48,6 +48,8 @@ Current route scope:
 - `GET /readyz`
 - `GET /login`
 - `GET /register`
+- `GET /forgot-password`
+- `GET /reset-password`
 - `GET /chat`
 - `GET /chat/:conversationId`
 - `ALL /api/*`
@@ -63,8 +65,11 @@ Current chat contract assumptions:
 
 UI behavior:
 
-- `/login` renders the donor sign-in shell against shared Better Auth endpoints, keeps campus-specific product copy, and reserves the future recovery CTA slot without opening `/forgot-password` early
+- `/login` renders the donor sign-in shell against shared Better Auth endpoints, keeps campus-specific product copy, and routes password recovery into `/forgot-password`
 - `/register` renders the donor register shell against shared Better Auth endpoints and keeps the campus-email helper copy inside the same auth family shell
+- `/login`, `/register`, and `/forgot-password` require a Turnstile challenge before their same-site Better Auth submission is sent
+- `/forgot-password` stays enumeration-safe and only confirms that a reset link will be sent if the account is eligible
+- `/reset-password` finishes the same-site recovery flow without adding a second captcha step
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
 - the left rail uses donor-style paginated history from `GET /api/history`
@@ -92,6 +97,7 @@ Environment:
 
 - `PUBLIC_CHAT_APP_NAME`
 - `PUBLIC_CHAT_HOSTNAME`
+- `AUTH_TURNSTILE_SITE_KEY`
 - `APP_API_BASE_URL`
 
 The Worker also requires an internal `APP_API` service binding at runtime.
@@ -102,6 +108,7 @@ Readiness expectations:
 - public chat shell routes such as `/login` and `/chat` also stay fail-closed when the `APP_API` bridge is missing, so a bad deploy does not expose a broken SPA
 - `pnpm deploy` now fails before publish if the generated Worker deploy config loses the required `APP_API` service binding
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
+- missing `AUTH_TURNSTILE_SITE_KEY` does not take Worker readiness down, but it leaves the public auth family unable to complete its captcha-gated submit path
 
 Observability:
 
@@ -134,3 +141,4 @@ Local dev notes:
 - `pnpm dev` keeps the SPA shell isolated to `public-chat-web`; it is useful for frontend-only iteration, but it is not the canonical browser smoke path for the `APP_API` service binding.
 - `pnpm dev:live-smoke` is the canonical local browser smoke entry. It boots `public-chat-web` on `http://127.0.0.1:5173` and brings up `apps/app-api` as a Cloudflare Vite auxiliary Worker from `../app-api/wrangler.local-smoke.toml`, so same-site `/api/*` requests resolve through the real Worker service binding instead of depending on two separate `pnpm dev` sessions finding each other.
 - before `pnpm dev:live-smoke`, run `pnpm --dir apps/app-api db:bootstrap` whenever local Postgres may lag `apps/app-api/db/shared-product-migrations/*` after a pull or schema change. The local `chat.*` bootstrap migrations are not covered by `db:reconcile-shared-drift`; if they lag, `POST /api/chat/requests` can fail even when the chat shell itself is healthy.
+- local auth smoke should use Cloudflare Turnstile testing sitekeys; staging must use the real sitekey admitted for `campus-chat-staging.ayafeed.com`

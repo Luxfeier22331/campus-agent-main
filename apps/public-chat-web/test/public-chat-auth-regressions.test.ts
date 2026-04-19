@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import forgotPasswordPageSource from "../src/login/forgot-password-page.tsx?raw";
 import loginPageSource from "../src/login/page.tsx?raw";
+import recoveryFormSource from "../src/login/recovery-form.tsx?raw";
 import registerPageSource from "../src/login/register-page.tsx?raw";
+import resetPasswordPageSource from "../src/login/reset-password-page.tsx?raw";
 import appRouterSource from "../src/routes/app-router.tsx?raw";
 import nextAuthCompatSource from "../src/platform/vendor-compat/next-auth/react.tsx?raw";
 import sidebarUserNavSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-user-nav.tsx?raw";
@@ -38,11 +41,30 @@ describe("public chat auth regressions", () => {
     expect(appRouterSource).toContain('path: "/register"');
   });
 
-  it("freezes recovery CTA placement on login without opening recovery routes early", () => {
+  it("turns the login recovery CTA into a real recovery route entry", () => {
     expect(loginPageSource).toContain('data-slot="auth-recovery-cta"');
     expect(loginPageSource).toContain("Need password help?");
-    expect(appRouterSource).not.toContain('path: "/forgot-password"');
-    expect(appRouterSource).not.toContain('path: "/reset-password"');
+    expect(loginPageSource).toContain('href="/forgot-password"');
+    expect(appRouterSource).toContain('path: "/forgot-password"');
+    expect(appRouterSource).toContain('path: "/reset-password"');
+  });
+
+  it("keeps forgot/reset password inside the same public auth family", () => {
+    expect(forgotPasswordPageSource).toContain("useActionState");
+    expect(forgotPasswordPageSource).toContain("AuthLayout");
+    expect(forgotPasswordPageSource).toContain('from "@/components/chat/submit-button"');
+    expect(forgotPasswordPageSource).toContain("AuthTurnstileField");
+    expect(resetPasswordPageSource).toContain("useActionState");
+    expect(resetPasswordPageSource).toContain("AuthLayout");
+    expect(resetPasswordPageSource).toContain("PasswordRecoveryResetForm");
+    expect(resetPasswordPageSource).not.toContain("AuthTurnstileField");
+    expect(recoveryFormSource).toContain("confirmPassword");
+  });
+
+  it("keeps Turnstile inside the login/register/recovery auth pages only", () => {
+    expect(loginPageSource).toContain("AuthTurnstileField");
+    expect(registerPageSource).toContain("AuthTurnstileField");
+    expect(forgotPasswordPageSource).toContain("AuthTurnstileField");
   });
 
   it("owns next/form through an exact compat alias for donor auth components", () => {

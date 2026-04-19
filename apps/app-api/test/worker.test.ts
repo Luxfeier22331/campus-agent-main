@@ -29,6 +29,7 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
   APP_API_NAME: "campus-agent-app-api",
   BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+  AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
   RESEND_API_KEY: "resend_test_key",
   AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
   PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -130,6 +131,7 @@ describe("app-api worker foundation", () => {
       "check_worker_secret_presence.py",
     );
     expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+    expect(deployStagingSource).toContain("loadRepoEnvFile");
     expect(deployStagingSource).toContain("resolveStagingSentryRelease");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
@@ -141,6 +143,7 @@ describe("app-api worker foundation", () => {
     expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
       "run-with-staging-db-env.mjs",
     );
+    expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
     expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
     expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
     expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
@@ -158,8 +161,10 @@ describe("app-api worker foundation", () => {
     expect(wranglerConfig).toContain("[env.local.secrets]");
     expect(wranglerConfig).toContain('"RESEND_API_KEY"');
     expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
+    expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
     expect(wranglerConfig).toContain("[env.staging.secrets]");
     expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
+    expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
     expect(stagingSecretsBlock).toContain('"RESEND_API_KEY"');
     expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
     expect(stagingSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
@@ -235,6 +240,7 @@ describe("app-api worker foundation", () => {
           missing: [
             "APP_API_DB.connectionString",
             "BETTER_AUTH_SECRET",
+            "AUTH_TURNSTILE_SECRET_KEY",
             "RESEND_API_KEY",
             "AUTH_RESET_EMAIL_FROM",
             "PUBLIC_CHAT_WEB_ORIGIN",

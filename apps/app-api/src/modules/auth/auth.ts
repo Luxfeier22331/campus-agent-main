@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
+import { captcha } from "better-auth/plugins";
 
 import {
   isDeployedEnvironment,
@@ -40,6 +41,7 @@ export interface BetterAuthConfigInput {
   appName: string;
   authResetEmailFrom: string;
   authResetEmailReplyTo?: string;
+  authTurnstileSecretKey: string;
   betterAuthSecret: string;
   environment: AppApiEnvironment;
   publicChatOrigin: string;
@@ -209,6 +211,12 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
       },
     },
     database: input.database,
+    plugins: [
+      captcha({
+        provider: "cloudflare-turnstile",
+        secretKey: input.authTurnstileSecretKey,
+      }),
+    ],
     rateLimit: {
       enabled: isDeployedEnvironment(input.environment),
       max: AUTH_RATE_LIMIT_MAX,
@@ -341,6 +349,7 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
       appName: config.appName,
       authResetEmailFrom: config.authResetEmailFrom,
       authResetEmailReplyTo: config.authResetEmailReplyTo,
+      authTurnstileSecretKey: config.authTurnstileSecretKey,
       betterAuthSecret: config.betterAuthSecret,
       environment: config.environment,
       publicChatOrigin: config.publicChatOrigin ?? readPublicChatOrigin(env),

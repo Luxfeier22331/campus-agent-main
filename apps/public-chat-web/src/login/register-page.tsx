@@ -9,6 +9,7 @@ import AuthLayout from "@/app/(auth)/layout";
 import { AuthForm } from "@/components/chat/auth-form";
 import { SubmitButton } from "@/components/chat/submit-button";
 import { toast } from "@/components/chat/toast";
+import { AuthTurnstileField } from "@platform/auth/turnstile";
 
 import { type RegisterActionState, register } from "./actions";
 
@@ -47,6 +48,14 @@ export function RegisterPage() {
       return;
     }
 
+    if (state.status === "captcha_required") {
+      toast({
+        type: "error",
+        description: "Complete the security verification and try again.",
+      });
+      return;
+    }
+
     if (state.status === "success") {
       setIsSuccessful(true);
       toast({ type: "success", description: "Account created!" });
@@ -74,6 +83,7 @@ export function RegisterPage() {
         request tracking in one place.
       </p>
       <AuthForm action={handleSubmit} defaultEmail={email}>
+        <AuthTurnstileField action="sign-up" />
         <p className="rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
           Use the same campus email you expect to use for protected answers and
           future recovery.

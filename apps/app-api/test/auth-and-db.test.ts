@@ -264,6 +264,7 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
       RESEND_API_KEY: "resend_test_key",
       AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -317,6 +318,7 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
       RESEND_API_KEY: "resend_test_key",
       AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -345,6 +347,7 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "development" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
       RESEND_API_KEY: "resend_test_key",
       AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -373,6 +376,7 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "staging" as never,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
       RESEND_API_KEY: "resend_test_key",
       AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -429,6 +433,7 @@ describe("app-api database config", () => {
     const env = {
       APP_API_ENVIRONMENT: "test" as const,
       BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+      AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
       RESEND_API_KEY: "resend_test_key",
       AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
       PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
@@ -474,12 +479,13 @@ describe("app-api auth config", () => {
       publicChatOrigin: "https://chat.example.com",
       authResetEmailFrom: "Campus Agent <auth@example.com>",
       authResetEmailReplyTo: "support@example.com",
+      authTurnstileSecretKey: "turnstile_secret_key",
       resendApiKey: "resend_test_key",
       resendFetch,
       endUserEmailDomainAllowlist: ["muc.edu.cn"],
       endUserEmailAllowlist: ["help_bot@outlook.com"],
       database: {} as never,
-    });
+    } as never);
 
     expect(config.baseURL).toBe("https://chat.example.com");
     expect(config.basePath).toBe("/api/auth");
@@ -506,6 +512,9 @@ describe("app-api auth config", () => {
       storage: "memory",
       window: 60,
     });
+    expect(config.plugins).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "captcha" })]),
+    );
     expect(config.hooks?.before).toBeDefined();
     expect(config.emailAndPassword.sendResetPassword).toEqual(expect.any(Function));
     expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
@@ -527,12 +536,13 @@ describe("app-api auth config", () => {
       publicChatOrigin: "https://chat.example.com",
       authResetEmailFrom: "Campus Agent <auth@example.com>",
       authResetEmailReplyTo: "support@example.com",
+      authTurnstileSecretKey: "turnstile_secret_key",
       resendApiKey: "resend_test_key",
       resendFetch,
       endUserEmailDomainAllowlist: ["muc.edu.cn"],
       endUserEmailAllowlist: ["help_bot@outlook.com"],
       database: {} as never,
-    });
+    } as never);
 
     await config.emailAndPassword.sendResetPassword?.({
       token: "reset_token_01HQ",
@@ -739,6 +749,7 @@ describe("/api/me", () => {
     APP_API_NAME: "campus-agent-app-api",
     APP_API_ENVIRONMENT: "test" as const,
     BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+    AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
     RESEND_API_KEY: "resend_test_key",
     AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
     PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",

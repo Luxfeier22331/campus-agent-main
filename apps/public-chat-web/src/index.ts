@@ -15,6 +15,7 @@ export interface Env {
     fetch(request: Request): Promise<Response> | Response;
   };
   APP_API_BASE_URL?: string;
+  AUTH_TURNSTILE_SITE_KEY?: string;
   PUBLIC_CHAT_APP_NAME?: string;
   PUBLIC_CHAT_HOSTNAME?: string;
   SENTRY_DSN?: string;
@@ -29,13 +30,19 @@ const BASE_FORWARDED_HEADERS = [
   "idempotency-key",
   "x-trace-id",
 ] as const;
-const AUTH_FORWARDED_HEADERS = [...BASE_FORWARDED_HEADERS, "origin", "referer"] as const;
+const AUTH_FORWARDED_HEADERS = [
+  ...BASE_FORWARDED_HEADERS,
+  "origin",
+  "referer",
+  "x-captcha-response",
+] as const;
 
 const JSON_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
 } as const;
 
+const AUTH_RUNTIME_CONFIG_SCRIPT_ID = "__PUBLIC_CHAT_AUTH_CONFIG__";
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
@@ -297,6 +304,23 @@ async function serveModelsCatalog(): Promise<Response> {
   return Response.json(curatedCapabilities, { headers });
 }
 
+function injectAuthRuntimeConfig(html: string, env: Env): string {
+  const serializedConfig = JSON.stringify({
+    turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY?.trim() || null,
+  }).replace(/</g, "\\u003c");
+  const scriptTag = `<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script>`;
+
+  if (html.includes(`id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}"`)) {
+    return html;
+  }
+
+  if (html.includes("</body>")) {
+    return html.replace("</body>", `${scriptTag}</body>`);
+  }
+
+  return `${html}${scriptTag}`;
+}
+
 async function servePublicShell(request: Request, env: Env): Promise<Response> {
   if (!env.APP_API || !env.APP_API_BASE_URL) {
     return appApiBridgeNotConfiguredResponse();
@@ -317,9 +341,10 @@ async function servePublicShell(request: Request, env: Env): Promise<Response> {
     return response;
   }
 
+  const html = await response.text();
   const headers = new Headers(response.headers);
   headers.set("cache-control", "no-store");
-  return new Response(response.body, {
+  return new Response(injectAuthRuntimeConfig(html, env), {
     headers,
     status: response.status,
     statusText: response.statusText,

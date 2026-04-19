@@ -123,6 +123,7 @@ Environment:
 - `APP_API_OFFICIAL_WEB_HANDOFF_TOKEN`
 - `APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS`
 - `BETTER_AUTH_SECRET`
+- `AUTH_TURNSTILE_SECRET_KEY`
 - `RESEND_API_KEY`
 - `AUTH_RESET_EMAIL_FROM`
 - `AUTH_RESET_EMAIL_REPLY_TO`
@@ -170,6 +171,7 @@ Deployment minimum gate:
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker `APP_API_DB` binding or `GET /readyz` remains `503`
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths stay fresh
 - `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web` origin because Better Auth keeps origin / CSRF checks enabled for proxied `/api/auth/*`
+- `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in / sign-up / request-password-reset surface remains not ready
 - `RESEND_API_KEY` and `AUTH_RESET_EMAIL_FROM` must both be present or password reset remains fail-closed at config/readiness level
 - `AUTH_RESET_EMAIL_FROM` must be a sender identity admitted by the currently selected transactional mail provider; `AUTH_RESET_EMAIL_REPLY_TO` is optional
 - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` must be present whenever end-user safety traceability is enabled; it must be distinct from `BETTER_AUTH_SECRET` and `APP_API_INTERNAL_SHARED_SECRET`

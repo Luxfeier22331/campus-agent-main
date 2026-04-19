@@ -16,6 +16,7 @@ export interface Env {
   APP_API_OFFICIAL_WEB_HANDOFF_URL?: string;
   APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
   BETTER_AUTH_SECRET?: string;
+  AUTH_TURNSTILE_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
   AUTH_RESET_EMAIL_FROM?: string;
   AUTH_RESET_EMAIL_REPLY_TO?: string;
@@ -46,6 +47,7 @@ export interface AppApiConfig {
   appName: string;
   environment: AppApiEnvironment;
   betterAuthSecret: string;
+  authTurnstileSecretKey: string;
   resendApiKey: string;
   authResetEmailFrom: string;
   authResetEmailReplyTo?: string;
@@ -67,6 +69,7 @@ const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
   "APP_API_DB.connectionString",
   "BETTER_AUTH_SECRET",
+  "AUTH_TURNSTILE_SECRET_KEY",
   "RESEND_API_KEY",
   "AUTH_RESET_EMAIL_FROM",
   "PUBLIC_CHAT_WEB_ORIGIN",
@@ -146,29 +149,32 @@ export function getMissingRuntimeConfig(env: Env): string[] {
   if (!env.BETTER_AUTH_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[1]);
   }
-  if (!env.RESEND_API_KEY?.trim()) {
+  if (!env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[2]);
   }
-  if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
+  if (!env.RESEND_API_KEY?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[3]);
   }
-  if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
+  if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[4]);
   }
-  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
+  if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[5]);
   }
-  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
+  if (!env.SUPERVISOR_API_BASE_URL?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[6]);
   }
-  if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
+  if (!env.SUPERVISOR_API_SHARED_SECRET?.trim()) {
     missing.push(MISSING_CONFIG_KEYS[7]);
   }
-  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
+  if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
     missing.push(MISSING_CONFIG_KEYS[8]);
   }
-  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+  if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
     missing.push(MISSING_CONFIG_KEYS[9]);
+  }
+  if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
+    missing.push(MISSING_CONFIG_KEYS[10]);
   }
 
   return missing;
@@ -193,6 +199,7 @@ export function readAppApiConfig(env: Env): AppApiConfig {
     appName: resolveAppName(env),
     environment: resolveEnvironment(env),
     betterAuthSecret: env.BETTER_AUTH_SECRET!.trim(),
+    authTurnstileSecretKey: env.AUTH_TURNSTILE_SECRET_KEY!.trim(),
     resendApiKey: env.RESEND_API_KEY!.trim(),
     authResetEmailFrom: env.AUTH_RESET_EMAIL_FROM!.trim(),
     authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,

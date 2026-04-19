@@ -2,6 +2,7 @@ APP_API_NAME=campus-agent-app-api
 APP_API_ENVIRONMENT=development
 # Generate a high-entropy secret with at least 32 characters.
 BETTER_AUTH_SECRET=replace-with-dev-secret
+AUTH_TURNSTILE_SECRET_KEY=replace-with-turnstile-secret-key
 RESEND_API_KEY=replace-with-resend-api-key
 AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
 # Optional. Keep empty unless your transactional mail setup needs a distinct reply-to.

@@ -9,6 +9,7 @@ import AuthLayout from "@/app/(auth)/layout";
 import { AuthForm } from "@/components/chat/auth-form";
 import { SubmitButton } from "@/components/chat/submit-button";
 import { toast } from "@/components/chat/toast";
+import { AuthTurnstileField } from "@platform/auth/turnstile";
 
 import { type LoginActionState, login } from "./actions";
 
@@ -42,6 +43,14 @@ export function LoginPage() {
       return;
     }
 
+    if (state.status === "captcha_required") {
+      toast({
+        type: "error",
+        description: "Complete the security verification and try again.",
+      });
+      return;
+    }
+
     if (state.status === "success") {
       setIsSuccessful(true);
       void (async () => {
@@ -68,14 +77,18 @@ export function LoginPage() {
         history, and verified campus guidance.
       </p>
       <AuthForm action={handleSubmit} defaultEmail={email}>
+        <AuthTurnstileField action="sign-in" />
         <div
           className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[13px]"
           data-slot="auth-recovery-cta"
         >
           <span className="text-muted-foreground">Need password help?</span>
-          <span className="font-medium text-foreground/80">
-            Recovery opens here next
-          </span>
+          <Link
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+            href="/forgot-password"
+          >
+            Reset password
+          </Link>
         </div>
         <SubmitButton isSuccessful={isSuccessful}>Sign in</SubmitButton>
         <p className="text-center text-[13px] text-muted-foreground">
