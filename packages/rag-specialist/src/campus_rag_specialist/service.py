@@ -850,6 +850,7 @@ def delegate_to_rag_agent(
                 grounding = validate_prompt_answer_grounding(
                     answer_text=answer_text,
                     evidence=finalized_evidence,
+                    provider_grounding_supports=execution.provider_grounding_supports,
                 )
                 if grounding.verdict != "grounded":
                     (
@@ -1662,9 +1663,9 @@ def _build_rag_result_diagnostics(
     retrieved_evidence: EvidenceBundle | None = None,
 ) -> RagResultDiagnostics | None:
     raw_retrieved_sources = tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
-    preserve_retrieved_sources = bool(raw_retrieved_sources) and (
-        raw_retrieved_sources != tuple(evidence.sources) or evidence.corpus == "curriculum"
-    )
+    # Raw retrieval trace remains an execution-side truth even when the final supporting
+    # evidence happens to be identical, because downstream observability counts depend on it.
+    preserve_retrieved_sources = bool(raw_retrieved_sources)
     if (
         resolved_scope is None
         and handbook_plan is None

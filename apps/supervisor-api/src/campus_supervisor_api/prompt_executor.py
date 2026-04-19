@@ -187,18 +187,19 @@ class ProviderBackedRagPromptExecutor:
             provider=self._provider_config.provider,
             model_name=self._model_name,
         )
-        parsed = self._structured_executor.execute(
+        execution = self._structured_executor.execute_with_metadata(
             stack,
             response_model=_AnswerTextModel,
             safety_identifier=packet.safety_identifier,
         )
         return RagPromptExecutionResult(
-            output=RagAnswerPromptOutput(answer_text=parsed.answer_text),
+            output=RagAnswerPromptOutput(answer_text=execution.output.answer_text),
             prompt_trace=build_prompt_trace(
                 spec=spec,
                 model_provider=stack.model_provider,
                 model_name=stack.model_name,
             ),
+            provider_grounding_supports=execution.provider_grounding_supports,
         )
 
 

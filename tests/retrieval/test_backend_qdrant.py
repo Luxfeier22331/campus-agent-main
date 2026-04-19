@@ -520,6 +520,50 @@ class BackendQdrantTest(unittest.TestCase):
                 )
             )
 
+    def test_backend_raises_access_denied_when_any_targeted_document_is_restricted_without_authorization(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        allowed = _make_registry_record(
+            document_id="handbook:allowed-notice",
+            version_id="v1:allowed-notice",
+            entitlement_groups=(),
+        )
+        restricted = replace(
+            _make_registry_record(
+                document_id="handbook:restricted-notice",
+                version_id="v1:restricted-notice",
+                entitlement_groups=("students",),
+            ),
+            visibility_level="restricted",
+        )
+        registry.upsert(allowed)
+        registry.upsert(restricted)
+
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=QdrantClient(location=":memory:"),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        with self.assertRaises(RestrictedDocumentAccessDeniedError):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="这条通知写了什么？",
+                    corpus="regulations",
+                    collection="student_handbook",
+                    target_document_ids=(allowed.document_id, restricted.document_id),
+                    authorized_filter=AuthorizedRetrievalFilter(
+                        entitlement_groups=(),
+                        visibility_level="public",
+                        visibility_scope=None,
+                    ),
+                )
+            )
+
     def test_build_qdrant_filter_adds_target_document_constraint_when_present(self) -> None:
         qdrant_filter = _build_qdrant_filter(
             RetrievalRequest(

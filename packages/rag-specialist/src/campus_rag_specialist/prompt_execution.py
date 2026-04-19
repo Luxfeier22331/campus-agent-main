@@ -5,6 +5,7 @@ from typing import Callable, Generic, Protocol, TypeVar
 
 from campus_contracts import PromptTrace
 from campus_shared import (
+    NormalizedProviderGroundingSupport,
     PromptRuntimeValidationError,
     require_non_empty_output_text,
     validate_prompt_packet_contract,
@@ -32,6 +33,7 @@ PromptOutputT = TypeVar("PromptOutputT")
 class RagPromptExecutionResult(Generic[PromptOutputT]):
     output: PromptOutputT
     prompt_trace: PromptTrace
+    provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = ()
 
 
 class RagPromptExecutor(Protocol):

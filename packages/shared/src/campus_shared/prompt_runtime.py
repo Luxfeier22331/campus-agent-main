@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import json
 import re
 from dataclasses import asdict, is_dataclass
-from typing import Literal, Protocol, TypeVar
+from typing import Generic, Literal, Protocol, TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -82,6 +82,12 @@ class NormalizedProviderGroundingSupport:
     def __post_init__(self) -> None:
         if not self.claim_text.strip():
             raise ValueError("claim_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class StructuredOutputExecutionResult(Generic[StructuredOutputModel]):
+    output: StructuredOutputModel
+    provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = ()
 
 
 def classify_prompt_runtime_failure(
@@ -174,6 +180,19 @@ class ResponsesStructuredOutputExecutor:
         response_model: type[StructuredOutputModel],
         safety_identifier: str | None = None,
     ) -> StructuredOutputModel:
+        return self.execute_with_metadata(
+            stack,
+            response_model=response_model,
+            safety_identifier=safety_identifier,
+        ).output
+
+    def execute_with_metadata(
+        self,
+        stack: PromptStackLike,
+        *,
+        response_model: type[StructuredOutputModel],
+        safety_identifier: str | None = None,
+    ) -> StructuredOutputExecutionResult[StructuredOutputModel]:
         if stack.model_provider != self._provider_config.provider:
             raise PromptRuntimeValidationError(
                 prompt_id=stack.prompt_id,
@@ -229,7 +248,7 @@ class ResponsesStructuredOutputExecutor:
                 reason=f"provider_refusal: {refusal_text}",
             )
         try:
-            return _extract_structured_output_model(
+            parsed_output = _extract_structured_output_model(
                 response_json,
                 response_model=response_model,
             )
@@ -238,6 +257,10 @@ class ResponsesStructuredOutputExecutor:
                 prompt_id=stack.prompt_id,
                 reason=f"structured_output_parse_failed: {exc}",
             ) from exc
+        return StructuredOutputExecutionResult(
+            output=parsed_output,
+            provider_grounding_supports=normalize_provider_grounding_supports(response_json),
+        )
 
     def _get_http_client(self) -> httpx.Client:
         if self._http_client is not None:
@@ -679,6 +702,7 @@ __all__ = [
     "ResponsesStructuredOutputExecutor",
     "REPO_GLOBAL_DEVELOPER_INVARIANTS_ID",
     "REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION",
+    "StructuredOutputExecutionResult",
     "build_prompt_trace",
     "get_repo_global_developer_invariants_text",
     "normalize_provider_grounding_supports",

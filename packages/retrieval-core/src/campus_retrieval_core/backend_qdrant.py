@@ -461,7 +461,7 @@ class QdrantRetrievalBackend:
                 entitlement_groups=record.entitlement_groups,
                 visibility_scope=record.visibility_scope,
             ):
-                return
+                continue
             if _record_has_restricted_visibility(record):
                 denied_target_found = True
 

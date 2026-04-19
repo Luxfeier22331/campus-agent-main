@@ -187,6 +187,76 @@ class PromptRuntimeValidationTest(unittest.TestCase):
 
         self.assertNotIn('"safety_identifier"', captured_payloads[0])
 
+    def test_responses_executor_execute_with_metadata_extracts_provider_grounding_supports(self) -> None:
+        class ResponseModel(BaseModel):
+            answer_text: str
+
+        @dataclass(frozen=True, slots=True)
+        class Message:
+            role: str
+            content: str
+
+        @dataclass(frozen=True, slots=True)
+        class Stack:
+            prompt_id: str
+            model_provider: str
+            model_name: str
+            messages: tuple[Message, ...]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "output_parsed": {
+                        "answer_text": "ok",
+                    },
+                    "supports": [
+                        {
+                            "claimText": "第四学期",
+                            "docId": "curriculum:law-ethnic-experimental",
+                            "snippet": "第四学期开设习近平新时代中国特色社会主义思想概论。",
+                        }
+                    ],
+                },
+            )
+
+        executor = ResponsesStructuredOutputExecutor(
+            PromptRuntimeProviderConfig(
+                provider="openai-responses",
+                transport="responses",
+                base_url="https://prompt-runtime.example/v1",
+                api_key="test-api-key",
+                http_settings=PromptRuntimeHTTPSettings(),
+            ),
+            http_client=httpx.Client(
+                transport=httpx.MockTransport(handler),
+                base_url="https://prompt-runtime.example/v1",
+            ),
+        )
+
+        execution = executor.execute_with_metadata(
+            Stack(
+                prompt_id="prompt_v1",
+                model_provider="openai-responses",
+                model_name="gpt-5.2-mini",
+                messages=(Message(role="developer", content="{}"),),
+            ),
+            response_model=ResponseModel,
+        )
+
+        self.assertEqual(execution.output.answer_text, "ok")
+        self.assertEqual(
+            execution.provider_grounding_supports,
+            (
+                NormalizedProviderGroundingSupport(
+                    claim_text="第四学期",
+                    support_source_doc_id="curriculum:law-ethnic-experimental",
+                    support_snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+                ),
+            ),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

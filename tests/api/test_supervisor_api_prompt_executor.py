@@ -16,7 +16,11 @@ from campus_contracts import (
     SupervisorRequest,
     TraceContext,
 )
-from campus_shared import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
+from campus_shared import (
+    NormalizedProviderGroundingSupport,
+    PromptRuntimeHTTPSettings,
+    PromptRuntimeProviderConfig,
+)
 from campus_supervisor_api.prompt_executor import (
     ProviderBackedRagPromptExecutor,
     ProviderBackedSupervisorPromptExecutor,
@@ -196,6 +200,47 @@ class ProviderBackedPromptExecutorTest(unittest.TestCase):
         self.assertEqual(
             captured_payloads[0]["safety_identifier"],
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+
+    def test_rag_executor_returns_provider_grounding_supports_when_present(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "output_parsed": {
+                        "answer_text": "证据显示，法学民族实验班第四学期开设习近平新时代中国特色社会主义思想概论。",
+                    },
+                    "supports": [
+                        {
+                            "claimText": "第四学期",
+                            "docId": "curriculum:law-001",
+                            "snippet": "第四学期开设习近平新时代中国特色社会主义思想概论。",
+                        }
+                    ],
+                },
+            )
+
+        executor = ProviderBackedRagPromptExecutor(
+            provider_config=_provider_config(),
+            model_name="gpt-5.2-mini",
+            http_client=httpx.Client(
+                transport=httpx.MockTransport(handler),
+                base_url="https://prompt-runtime.example/v1",
+            ),
+        )
+
+        execution = executor.compose_answer(_build_rag_packet())
+
+        self.assertEqual(
+            execution.provider_grounding_supports,
+            (
+                NormalizedProviderGroundingSupport(
+                    claim_text="第四学期",
+                    support_source_doc_id="curriculum:law-001",
+                    support_snippet="第四学期开设习近平新时代中国特色社会主义思想概论。",
+                ),
+            ),
         )
 
     def test_supervisor_executor_fail_closes_on_provider_refusal(self) -> None:
