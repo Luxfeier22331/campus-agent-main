@@ -1,6 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
+
+loadRepoEnvFile(import.meta.url, "../../..");
 
 function fail(message) {
   console.error(message);

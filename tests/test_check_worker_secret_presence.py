@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from scripts.check_worker_secret_presence import collect_worker_secret_presence, main
 
@@ -218,7 +220,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             )
 
             def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-                raise subprocess.TimeoutExpired(command, timeout=15)
+                raise subprocess.TimeoutExpired(command, timeout=30)
 
             status = collect_worker_secret_presence(
                 repo_root=repo_root,
@@ -230,7 +232,142 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             app_status = status["apps"]["apps/public-chat-web"]
             self.assertFalse(app_status["ready"])
             self.assertIn("timed out", app_status["error"])
-            self.assertIn("15s", app_status["error"])
+            self.assertIn("30s", app_status["error"])
+
+    def test_collect_worker_secret_presence_retries_timeout_then_succeeds(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / "apps" / "app-api" / "wrangler.toml",
+                "\n".join(
+                    [
+                        'name = "app-api"',
+                        "",
+                        "[env.staging.secrets]",
+                        'required = ["BETTER_AUTH_SECRET"]',
+                    ]
+                )
+                + "\n",
+            )
+
+            calls = 0
+
+            def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    raise subprocess.TimeoutExpired(command, timeout=30)
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    stdout=json.dumps([{"name": "BETTER_AUTH_SECRET"}]),
+                    stderr="",
+                )
+
+            with patch.dict(os.environ, {"WORKER_SECRET_AUDIT_MAX_ATTEMPTS": "2"}, clear=False):
+                status = collect_worker_secret_presence(
+                    repo_root=repo_root,
+                    env_name="staging",
+                    app_paths=("apps/app-api",),
+                    run_command=fake_run,
+                )
+
+            app_status = status["apps"]["apps/app-api"]
+            self.assertEqual(calls, 2)
+            self.assertTrue(app_status["ready"])
+            self.assertIsNone(app_status["error"])
+            self.assertEqual(app_status["configured_secrets"], ["BETTER_AUTH_SECRET"])
+
+    def test_collect_worker_secret_presence_reports_retry_exhaustion(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / "apps" / "app-api" / "wrangler.toml",
+                "\n".join(
+                    [
+                        'name = "app-api"',
+                        "",
+                        "[env.staging.secrets]",
+                        'required = ["BETTER_AUTH_SECRET"]',
+                    ]
+                )
+                + "\n",
+            )
+
+            calls = 0
+
+            def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+                nonlocal calls
+                calls += 1
+                raise subprocess.TimeoutExpired(command, timeout=30)
+
+            with patch.dict(os.environ, {"WORKER_SECRET_AUDIT_MAX_ATTEMPTS": "3"}, clear=False):
+                status = collect_worker_secret_presence(
+                    repo_root=repo_root,
+                    env_name="staging",
+                    app_paths=("apps/app-api",),
+                    run_command=fake_run,
+                )
+
+            app_status = status["apps"]["apps/app-api"]
+            self.assertEqual(calls, 3)
+            self.assertFalse(app_status["ready"])
+            self.assertIn("after 3 attempts", app_status["error"])
+
+    def test_collect_worker_secret_presence_surfaces_expired_wrangler_oauth_guidance(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            fake_home = Path(temp_dir) / "fake-home"
+            _write(
+                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                "\n".join(
+                    [
+                        'name = "public-chat-web"',
+                        "",
+                        "[env.staging.secrets]",
+                        'required = ["SENTRY_DSN"]',
+                    ]
+                )
+                + "\n",
+            )
+            _write(
+                fake_home / ".config" / ".wrangler" / "config" / "default.toml",
+                "\n".join(
+                    [
+                        'oauth_token = "masked-access-token"',
+                        'expiration_time = "2026-04-18T20:14:50.499Z"',
+                        'refresh_token = "masked-refresh-token"',
+                    ]
+                )
+                + "\n",
+            )
+
+            def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+                return subprocess.CompletedProcess(
+                    command,
+                    1,
+                    stdout="",
+                    stderr=(
+                        "Failed to fetch auth token: 400 Bad Request\n"
+                        "Not logged in.\n"
+                        "In a non-interactive environment, it's necessary to set a "
+                        "CLOUDFLARE_API_TOKEN environment variable for wrangler to work."
+                    ),
+                )
+
+            with patch("scripts.check_worker_secret_presence.Path.home", return_value=fake_home):
+                status = collect_worker_secret_presence(
+                    repo_root=repo_root,
+                    env_name="staging",
+                    app_paths=("apps/public-chat-web",),
+                    run_command=fake_run,
+                )
+
+            app_status = status["apps"]["apps/public-chat-web"]
+            self.assertFalse(app_status["ready"])
+            self.assertIn("expired at 2026-04-18T20:14:50.499Z", app_status["error"])
+            self.assertIn("pnpm --dir apps/public-chat-web exec wrangler login", app_status["error"])
+            self.assertIn("CLOUDFLARE_API_TOKEN", app_status["error"])
 
 
 if __name__ == "__main__":

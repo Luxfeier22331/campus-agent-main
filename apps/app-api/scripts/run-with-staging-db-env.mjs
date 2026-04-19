@@ -3,8 +3,12 @@ import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
+
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
+
+loadRepoEnvFile(import.meta.url, "../../..");
 
 function fail(message) {
   console.error(message);

@@ -15,7 +15,7 @@
     "deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/public-chat-web",
     "deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/public_chat_web/wrangler.json APP_API=app-api",
     "deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
-    "deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/public_chat_web/wrangler.json SERVICE:APP_API=app-api-staging VAR:APP_API_BASE_URL=https://campus-api-staging.ayafeed.com VAR:PUBLIC_CHAT_HOSTNAME=campus-chat-staging.ayafeed.com VAR:SENTRY_ENVIRONMENT=staging VAR_ABSENT:SENTRY_RELEASE ROUTE:campus-chat-staging.ayafeed.com",
+    "deploy:verify-config:staging": "node ./scripts/verify-staging-config.mjs",
     "preview": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home vite preview",
     "test": "pnpm run test:worker",
     "test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run",

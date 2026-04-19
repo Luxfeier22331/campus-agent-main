@@ -138,6 +138,7 @@ updated: 2026-04-19
 
 ```bash
 wrangler secret put BETTER_AUTH_SECRET --env staging
+wrangler secret put AUTH_TURNSTILE_SECRET_KEY --env staging
 wrangler secret put RESEND_API_KEY --env staging
 wrangler secret put AUTH_RESET_EMAIL_FROM --env staging
 wrangler secret put SUPERVISOR_API_SHARED_SECRET --env staging
@@ -194,6 +195,7 @@ wrangler secret put SENTRY_DSN --env staging
 并补齐：
 
 - `SENTRY_ENVIRONMENT=staging`
+- deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY=<real admitted sitekey for campus-chat-staging.ayafeed.com>`
 - `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/public-chat-web deploy:staging` 会在 publish 时自动注入 `public-chat-web@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 
 ### `apps/protected-panel-web`
@@ -218,6 +220,7 @@ wrangler secret put SENTRY_DSN --env staging
 ## Cross-App Invariants
 
 - `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://campus-chat-staging.ayafeed.com`
+- `AUTH_TURNSTILE_SITE_KEY` 必须是 `campus-chat-staging.ayafeed.com` admitted widget 的真实 sitekey；testing sitekey 只允许 local smoke
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为 `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时 `panel-staging` Overview 可能正常，但 `Requests` / `official-web` 会在 `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
@@ -229,6 +232,25 @@ wrangler secret put SENTRY_DSN --env staging
 - `public-chat-web /readyz` 与 `protected-panel-web /readyz` 会继续探测 shared `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
 - `protected-panel-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy 完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
 - `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 对齐；`official_web` 相关列表如果在 staging 同时返回 `internal_error`，优先先检查 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
+
+## Wrangler Auth Recovery
+
+- `pnpm --dir <app> deploy:preflight:staging` 如果在 `scripts.check_worker_secret_presence` 处报：
+  - `Failed to fetch auth token`
+  - `Not logged in`
+  - `CLOUDFLARE_API_TOKEN`
+  先不要误判为 Worker secret 缺失。
+- 这类错误优先表示本机 `wrangler` 登录态失效或当前 shell 没有 Cloudflare API token。
+- 手工环境的恢复命令：
+
+```bash
+pnpm --dir apps/app-api exec wrangler login
+pnpm --dir apps/public-chat-web exec wrangler login
+pnpm --dir apps/protected-panel-web exec wrangler login
+```
+
+- CI / automation 不走交互式 OAuth，直接下发 `CLOUDFLARE_API_TOKEN`。
+- `scripts.check_worker_secret_presence` 现在会在本机 OAuth metadata 已过期时，把过期时间和上述恢复动作一并写进错误信息。
 
 ## Smoke Identity Contract
 

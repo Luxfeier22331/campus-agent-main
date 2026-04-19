@@ -50,6 +50,7 @@ updated: 2026-04-19
 | Provider / system | 作用 | 主要 env keys | 放置位置 | 何时必需 | 获取方式 |
 | --- | --- | --- | --- | --- | --- |
 | Better Auth secret | `app-api` 会话签名与加密 | `BETTER_AUTH_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | `app-api` 必需 | 自行生成高熵 secret，不是第三方平台发放 |
+| Cloudflare Turnstile | public auth family captcha hardening | `AUTH_TURNSTILE_SECRET_KEY` `AUTH_TURNSTILE_SITE_KEY` | `apps/app-api/.dev.vars` / deploy secret store；`apps/public-chat-web/.dev.vars` / Worker vars | public auth family (`sign-in` / `sign-up` / `request-password-reset`) 必需 | 在 Cloudflare Turnstile 创建 widget；server secret 放 `app-api`，public sitekey 放 `public-chat-web` |
 | Resend transactional auth mail | `app-api` password reset / password-changed mail | `RESEND_API_KEY` `AUTH_RESET_EMAIL_FROM` `AUTH_RESET_EMAIL_REPLY_TO` | `apps/app-api/.dev.vars` 或 deploy secret store | end-user password reset 必需 | 在 Resend 创建 API key，并准备已验证 sender identity；`reply-to` 可选 |
 | Safety identifier HMAC secret | `app-api` 匿名安全标识导出 | `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | 启用 end-user safety traceability 时必需 | 自行生成高熵 secret，不是第三方平台发放 |
 | Sentry | runtime error / trace / release evidence | `SENTRY_DSN` `SENTRY_ENVIRONMENT` `SENTRY_RELEASE` | 各 app `.dev.vars` 或 Cloudflare secret store | staging / prod observability，local smoke 可选 | 在 Sentry 创建项目后，从 Client Keys (DSN) 复制 DSN；需要 repo-local API lookup 时再建 auth token |
@@ -258,6 +259,35 @@ updated: 2026-04-19
 - source-only collector（例如 `official-web-collector`、`authenticated-notice-collector`）可以只配置 `OBJECT_STORE_SOURCE_*`
 - ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；可以是 shared pair，也可以是 source+derived 两组分桶凭据
 - `OBJECT_STORE_REGION` 在当前 repo 里是 SDK/signing 参数；如果 provider 没有公开 region 概念，保持默认 `us-east-1` 即可，除非该 provider 文档明确要求其他值
+
+## 6. Cloudflare Turnstile
+
+默认放置位置：
+
+- `apps/app-api/.dev.vars` 或 Cloudflare Worker secret store：
+  - `AUTH_TURNSTILE_SECRET_KEY`
+- `apps/public-chat-web/.dev.vars` 或 `apps/public-chat-web/wrangler.toml` `env.<name>.vars`：
+  - `AUTH_TURNSTILE_SITE_KEY`
+
+当前 repo 约束：
+
+- `AUTH_TURNSTILE_SECRET_KEY` 只供 `apps/app-api` Better Auth captcha plugin 使用，不能下沉到浏览器
+- `AUTH_TURNSTILE_SITE_KEY` 是公开 runtime string，由 `public-chat-web` Worker 注入 public auth shell
+- staging deploy 不再把 `AUTH_TURNSTILE_SITE_KEY` 固定在 repo；当前 operator posture 通过 deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY` 注入真实 admitted sitekey
+- captcha 只保护 `sign-in`、`sign-up`、`request-password-reset`
+- local smoke 可使用 Cloudflare 官方 testing credentials；staging / production 必须换成目标 hostname admitted 的真实 widget 配置
+
+获取方式：
+
+1. 在 Cloudflare Dashboard 打开 `Turnstile`，为目标环境创建 widget。
+2. 记录 widget 的 sitekey，填到 `AUTH_TURNSTILE_SITE_KEY`。
+3. 记录 widget 的 secret key，填到 `AUTH_TURNSTILE_SECRET_KEY`。
+4. staging / prod 分环境独立建 widget，不要复用本地 testing credentials。
+
+外部参考：
+
+- <https://developers.cloudflare.com/turnstile/get-started/>
+- <https://developers.cloudflare.com/turnstile/troubleshooting/testing/>
 
 说明：
 
@@ -531,6 +561,7 @@ root convenience keys：
 - repo-tracked `.dev.vars.example` 只是本地模板，不是 staging / prod secret source
 - deploy environment 的 secret truth 仍在 Cloudflare secret store
 - 当前 repo 还把 Worker secret contract 显式写进各 app 的 `wrangler.toml` `secrets.required`
+- 如果 `scripts.check_worker_secret_presence` 输出 `Failed to fetch auth token` / `Not logged in`，先恢复本机 `wrangler` 身份态：手工环境重新执行 `pnpm --dir <app> exec wrangler login`，CI / automation 则改用 `CLOUDFLARE_API_TOKEN`
 - Cloudflare 官方把 `secrets` 归类为 non-inheritable config，因此命名环境必须各自声明自己的 required secret 集，不能假定从 top-level 自动继承
 - `scripts.check_worker_secret_presence` 会按这个 non-inheritable contract 只审计当前环境自己的 required secret 集，不会把 top-level required 集误算成命名环境必需项
 - 当前仓库的 deploy / whoami / secret-audit 入口默认会剥离继承来的代理 env，再直连 Cloudflare API；这是 repo-local execution rule，不改变 Cloudflare 平台本身的 secret ownership

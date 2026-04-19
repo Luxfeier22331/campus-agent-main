@@ -2,17 +2,12 @@ import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { loadRepoEnvFile } from "./load-repo-env.mjs";
+
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
-const repoEnvPath = resolve(repoRoot, ".env");
 
-try {
-  process.loadEnvFile(repoEnvPath);
-} catch (error) {
-  if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-    throw error;
-  }
-}
+loadRepoEnvFile(import.meta.url, "..");
 
 function fail(message) {
   console.error(message);

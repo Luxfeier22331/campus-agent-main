@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
 import re
@@ -33,7 +34,17 @@ _CLOUDFLARE_NO_PROXY_HOSTS = (
     "127.0.0.1",
     "::1",
 )
-DEFAULT_WRANGLER_TIMEOUT_SECONDS = 15
+DEFAULT_WRANGLER_TIMEOUT_SECONDS = 30
+DEFAULT_WRANGLER_MAX_ATTEMPTS = 3
+_WRANGLER_AUTH_ERROR_MARKERS = (
+    "failed to fetch auth token",
+    "not logged in",
+    "cloudflare_api_token",
+)
+_WRANGLER_CONFIG_RELATIVE_PATHS = (
+    Path(".config/.wrangler/config/default.toml"),
+    Path(".wrangler/config/default.toml"),
+)
 
 
 def _normalize_required_secret_names(raw_value: object) -> list[str]:
@@ -140,6 +151,105 @@ def _sanitize_cli_output(value: str) -> str:
     return "\n".join(line.rstrip() for line in sanitized.splitlines()).strip()
 
 
+def _read_positive_int_env(name: str, default: int) -> int:
+    raw_value = str(os.environ.get(name, default)).strip()
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _parse_iso_timestamp(raw_value: object) -> datetime | None:
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None
+
+    normalized = raw_value.strip()
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _load_local_wrangler_oauth_metadata() -> dict[str, object] | None:
+    home_dir = Path.home()
+
+    for relative_path in _WRANGLER_CONFIG_RELATIVE_PATHS:
+        config_path = home_dir / relative_path
+        if not config_path.exists():
+            continue
+
+        try:
+            payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            return {
+                "path": str(config_path),
+                "parse_error": True,
+            }
+
+        expiration_raw = payload.get("expiration_time")
+        expiration_time = _parse_iso_timestamp(expiration_raw)
+        return {
+            "path": str(config_path),
+            "expiration_time": expiration_raw if isinstance(expiration_raw, str) else None,
+            "expiration_dt": expiration_time,
+            "has_oauth_token": isinstance(payload.get("oauth_token"), str)
+            and bool(payload.get("oauth_token").strip()),
+            "has_refresh_token": isinstance(payload.get("refresh_token"), str)
+            and bool(payload.get("refresh_token").strip()),
+        }
+
+    return None
+
+
+def _build_wrangler_auth_failure_guidance(*, app_path: str, stdout: str, stderr: str) -> str | None:
+    combined_output = f"{stdout}\n{stderr}".lower()
+    if not any(marker in combined_output for marker in _WRANGLER_AUTH_ERROR_MARKERS):
+        return None
+
+    guidance_parts = []
+    metadata = _load_local_wrangler_oauth_metadata()
+
+    if metadata is None:
+        guidance_parts.append("No local Wrangler OAuth config was found.")
+    elif metadata.get("parse_error"):
+        guidance_parts.append(
+            f"Local Wrangler OAuth config at {metadata['path']} could not be parsed."
+        )
+    else:
+        expiration_dt = metadata.get("expiration_dt")
+        expiration_raw = metadata.get("expiration_time")
+        if isinstance(expiration_dt, datetime) and isinstance(expiration_raw, str):
+            if expiration_dt <= datetime.now(timezone.utc):
+                guidance_parts.append(
+                    f"Local Wrangler OAuth at {metadata['path']} expired at {expiration_raw}."
+                )
+            else:
+                guidance_parts.append(
+                    f"Local Wrangler OAuth metadata was found at {metadata['path']} and currently expires at {expiration_raw}."
+                )
+        elif metadata.get("has_oauth_token"):
+            guidance_parts.append(
+                f"Local Wrangler OAuth metadata was found at {metadata['path']}, but the current auth refresh failed."
+            )
+        else:
+            guidance_parts.append(
+                f"Local Wrangler OAuth config exists at {metadata['path']}, but it does not contain a usable access token."
+            )
+
+    guidance_parts.append(
+        f"Run `pnpm --dir {app_path} exec wrangler login` to refresh the local OAuth session, or export `CLOUDFLARE_API_TOKEN` for non-interactive staging preflight."
+    )
+    return " ".join(guidance_parts)
+
+
 def list_configured_worker_secrets(
     *,
     repo_root: Path,
@@ -148,23 +258,42 @@ def list_configured_worker_secrets(
     run_command: Callable[..., subprocess.CompletedProcess[str]],
 ) -> tuple[list[str], list[str], str]:
     command = build_secret_list_command(repo_root=repo_root, app_path=app_path, env_name=env_name)
-    timeout_seconds = int(
-        str(os.environ.get("WORKER_SECRET_AUDIT_TIMEOUT_SECONDS", DEFAULT_WRANGLER_TIMEOUT_SECONDS))
+    timeout_seconds = _read_positive_int_env(
+        "WORKER_SECRET_AUDIT_TIMEOUT_SECONDS",
+        DEFAULT_WRANGLER_TIMEOUT_SECONDS,
+    )
+    max_attempts = _read_positive_int_env(
+        "WORKER_SECRET_AUDIT_MAX_ATTEMPTS",
+        DEFAULT_WRANGLER_MAX_ATTEMPTS,
     )
 
-    try:
-        result = run_command(
-            command,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=build_cloudflare_cli_env(),
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"wrangler secret list timed out for {app_path} after {timeout_seconds}s"
-        ) from exc
+    result: subprocess.CompletedProcess[str] | None = None
+    last_timeout: subprocess.TimeoutExpired | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = run_command(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=build_cloudflare_cli_env(),
+                timeout=timeout_seconds,
+            )
+            break
+        except subprocess.TimeoutExpired as exc:
+            last_timeout = exc
+            if attempt == max_attempts:
+                attempt_detail = f" after {max_attempts} attempts" if max_attempts > 1 else ""
+                raise RuntimeError(
+                    f"wrangler secret list timed out for {app_path} after {timeout_seconds}s{attempt_detail}"
+                ) from exc
+    if result is None:
+        if last_timeout is not None:
+            raise RuntimeError(
+                f"wrangler secret list timed out for {app_path} after {timeout_seconds}s"
+            ) from last_timeout
+        raise RuntimeError(f"wrangler secret list failed to start for {app_path}")
+
     if result.returncode != 0:
         error_parts = []
         stdout = _sanitize_cli_output(result.stdout)
@@ -173,6 +302,13 @@ def list_configured_worker_secrets(
             error_parts.append(stdout)
         if stderr:
             error_parts.append(stderr)
+        guidance = _build_wrangler_auth_failure_guidance(
+            app_path=app_path,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        if guidance:
+            error_parts.append(guidance)
         raise RuntimeError(
             f"wrangler secret list failed for {app_path}: "
             + (" | ".join(error_parts) if error_parts else f"exit_code={result.returncode}")
