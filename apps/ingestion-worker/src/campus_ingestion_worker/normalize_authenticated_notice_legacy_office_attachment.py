@@ -3,14 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import shutil
-import subprocess
 from typing import Sequence
 
 from campus_ingestion_core.file_asset_contract import serialize_file_asset_outcome
 from campus_ingestion_core.file_asset_legacy_office import (
     LegacyOfficeNormalizationResult,
     normalize_legacy_office_asset,
+)
+from campus_ingestion_core.legacy_office_conversion_client import (
+    LegacyOfficeConversionClientProtocol,
 )
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -36,6 +37,7 @@ def normalize_authenticated_notice_legacy_office_attachment(
     source_sha256: str | None = None,
     source_mime_type: str | None = None,
     normalized_object_key: str | None = None,
+    conversion_client: LegacyOfficeConversionClientProtocol | None = None,
 ) -> LegacyOfficeNormalizationResult:
     return normalize_legacy_office_asset(
         input_path=input_path,
@@ -44,8 +46,7 @@ def normalize_authenticated_notice_legacy_office_attachment(
         source_sha256=source_sha256,
         source_mime_type=source_mime_type,
         normalized_object_key=normalized_object_key,
-        which=shutil.which,
-        run=subprocess.run,
+        conversion_client=conversion_client,
     )
 
 

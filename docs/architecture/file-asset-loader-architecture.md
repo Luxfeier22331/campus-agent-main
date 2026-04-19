@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Shared File Asset Loader Architecture
@@ -190,6 +190,16 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 - `JODConverter + LibreOffice` 作为首个自部署实现
 - 后续可替换为 `Collabora Online REST` 等更强产品化后端
 
+当前 repo-owned runtime contract：
+
+- worker/core caller 只消费 `LEGACY_OFFICE_CONVERSION_BASE_URL`、`LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET` 与 optional `LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`
+- admitted service routes 固定为：
+  - `POST /api/internal/legacy-office/conversions`
+  - `GET /healthz`
+  - `GET /readyz`
+- internal admission 固定使用 `x-app-internal-auth`
+- 当前 engine truth 固定为 `jodconverter+libreoffice`
+
 固定禁止：
 
 - 在业务 worker 里每次直接拉起 `soffice --convert-to` 作为长期生产形态
@@ -230,15 +240,14 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 - attachment objects 的 normalization / extraction / terminal outcome 不再属于 collector 私有逻辑
 - `authenticated_notice` attachment migration 是 shared loader 的首个优先接入面，但不反向改写 notice source unit
 - 当前已落盘的 authenticated notice admitted attachment default lane 只覆盖：
+  - `doc`
   - `docx`
   - `xls`
   - `xlsx`
   - `pdf`
   - image OCR / terminal-outcome families
-- 这不等于 legacy binary Office tranche 已在 authenticated notice lane 全量 admitted：
-  - `.doc` 仍是 explicit fail-close gap
-  - family tranche truth 与当前 source-path admitted truth 必须分开表达
-- `file_asset_routing.py` 已是 PDF / image typed routing 的 canonical owner；历史 `raw_asset_typing.py` / `online_ocr_routing.py` compatibility shim 已退出 forward code path，不再冒充 owner
+- `doc` / `xls` 先走 service-backed legacy Office normalization，再进入 deterministic OOXML extraction；生成的 `.docx/.xlsx` 继续只是 normalization artifact，不改写 source truth
+- `file_asset_routing.py` 已是 PDF / image typed routing 的 canonical owner；历史 `raw_asset_typing.py` / `online_ocr_routing.py` shim 已删除，不再保留 forward import surface
 
 ## 非默认主干
 

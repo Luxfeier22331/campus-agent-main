@@ -679,6 +679,42 @@ Behavior:
 - Writes `notices-bundle.normalized.json`, `export-manifest.normalized.json`, and `normalization-summary.json` under the target output dir.
 - Does not write object store, Postgres, embedding, or Qdrant state.
 
+### `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment`
+
+Thin worker shell for service-backed authenticated notice legacy Office normalization.
+
+Required CLI args:
+
+- `--input-path`
+- `--output-dir`
+
+Optional CLI args:
+
+- `--source-object-key`
+- `--source-sha256`
+- `--source-mime-type`
+- `--normalized-object-key`
+
+Required env:
+
+- `LEGACY_OFFICE_CONVERSION_BASE_URL`
+- `LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET`
+
+Optional env:
+
+- `LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`
+
+Command override example:
+
+- `env/commands/legacy-office-conversion-service.env.example`
+
+Behavior:
+
+- Accepts `.doc` or `.xls` attachment input and delegates normalization to `POST /api/internal/legacy-office/conversions`.
+- Uses `x-app-internal-auth` shared-secret admission and fails closed when the service is unreachable, misconfigured, or returns an invalid payload.
+- Writes the normalized `.docx` or `.xlsx` artifact under `--output-dir` and prints the canonical normalization outcome JSON.
+- Does not shell out to local `soffice` and does not own LibreOffice process lifecycle.
+
 ### `smoke_authenticated_notice_bootstrap_local`
 
 Local-only bootstrap smoke shell for one normalized authenticated notice donor batch.

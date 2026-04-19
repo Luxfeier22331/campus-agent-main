@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Workstreams
@@ -37,13 +37,13 @@ updated: 2026-04-19
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/shared-file-asset-loader-contract.md` | `Phase A` | 先冻结 repo-level file asset contract：`typing -> normalization -> extraction -> terminal outcome -> provenance`，再做 bounded backend evaluation |
-| `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | `Phase D` | Phase A-C baseline 已 fresh 通过；当前进入 browser smoke、integrated acceptance 与 staging closeout 准备 |
+| `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | `Phase J` | `Phase K` 已完成 repo-owned mature auth shell local cutover 与 smoke 落盘；当前剩余 blocker 仍是 `Phase J` 真实 staging 浏览器 closeout，因为 Cloudflare live Turnstile 不接受 Playwright automation 作为最终验收依据 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/shared-file-asset-loader-contract.md` | 只有在 repo-level file-like asset adoption demand 再次被提升为 active、legacy Office runtime contract/deployment posture 发生结构性变化，或 shared file asset architecture truth 被重新改写时才恢复 |
 | `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
 
 ## Deferred
@@ -79,5 +79,5 @@ updated: 2026-04-19
 - 判断某条 workstream 的当前切片、blockers、verification，进入对应 `.planning/workstreams/<slug>/STATE.md`
 - 判断某条 workstream 的固定顺序，进入对应 `.planning/workstreams/<slug>/ROADMAP.md`
 - 判断某条 workstream 的范围、non-goals 与 success criteria，进入对应 `.planning/workstreams/<slug>/REQUIREMENTS.md`
-- 需要历史 phase / milestone 叙事时，进入 `.planning/legacy-flat/`
 - 判断当前谁认领了某条 workstream、handoff 是否 pending、某个本机会话是否仍持有 lease，使用 `uv run --all-packages python -m scripts.workstream_claim ...`；不要把这些运行时状态补写回 tracked planning 文档
+- 需要历史 phase / milestone 叙事时，进入 `.planning/legacy-flat/`

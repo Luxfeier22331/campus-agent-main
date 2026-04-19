@@ -61,11 +61,20 @@ _SURFACE_SPECS = {
                 "DOCUMENT_REGISTRY_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
+            "legacy_office_conversion_base_url": (
+                "LEGACY_OFFICE_CONVERSION_BASE_URL",
+            ),
+            "legacy_office_conversion_internal_shared_secret": (
+                "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
+            ),
         },
         "optional_settings": {
             "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
             "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
             "ocr_model": ("OCR_MODEL",),
+            "legacy_office_conversion_timeout_seconds": (
+                "LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS",
+            ),
         },
         "files": {},
     },

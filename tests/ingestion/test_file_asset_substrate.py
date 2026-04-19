@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 from io import BytesIO
 import tomllib
+from types import SimpleNamespace
 from pathlib import Path
-import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -367,50 +367,29 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
             output_path = output_dir / "legacy-score-sheet.xlsx"
             normalized_bytes = b"normalized-xlsx-binary"
 
-            def fake_run(
-                argv: list[str],
-                *,
-                capture_output: bool,
-                text: bool,
-                check: bool,
-            ) -> subprocess.CompletedProcess[str]:
-                self.assertTrue(capture_output)
-                self.assertTrue(text)
-                self.assertFalse(check)
-                if "--version" in argv:
-                    return subprocess.CompletedProcess(
-                        argv,
-                        0,
-                        stdout="LibreOffice 25.2.1.2\n",
-                        stderr="",
+            result = normalize_legacy_office_asset(
+                input_path=input_path,
+                output_dir=output_dir,
+                source_object_key="attachments/example/legacy-score-sheet.xls",
+                source_mime_type="application/vnd.ms-excel",
+                normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
+                conversion_client=SimpleNamespace(
+                    convert=lambda request: SimpleNamespace(
+                        target_format="xlsx",
+                        normalized_media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        normalized_sha256=hashlib.sha256(normalized_bytes).hexdigest(),
+                        normalized_bytes=normalized_bytes,
+                        engine_name="jodconverter+libreoffice",
+                        engine_version="7.6.7",
+                        warnings=(),
                     )
-                self.assertIn("--convert-to", argv)
-                self.assertIn("xlsx", argv)
-                output_dir.mkdir(parents=True, exist_ok=True)
-                output_path.write_bytes(normalized_bytes)
-                return subprocess.CompletedProcess(argv, 0, stdout="convert ok\n", stderr="")
-
-            with (
-                patch(
-                    "campus_ingestion_core.file_asset_legacy_office.shutil.which",
-                    return_value="/usr/bin/soffice",
                 ),
-                patch(
-                    "campus_ingestion_core.file_asset_legacy_office.subprocess.run",
-                    side_effect=fake_run,
-                ),
-            ):
-                result = normalize_legacy_office_asset(
-                    input_path=input_path,
-                    output_dir=output_dir,
-                    source_object_key="attachments/example/legacy-score-sheet.xls",
-                    source_mime_type="application/vnd.ms-excel",
-                    normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
-                )
+            )
 
         self.assertEqual(result.source_extension, ".xls")
         self.assertIsInstance(result, NormalizationOutcome)
         self.assertEqual(result.normalized_extension, ".xlsx")
+        self.assertEqual(result.output_path, str(output_path))
         self.assertEqual(result.descriptor.asset_family, "legacy_binary_office")
         self.assertEqual(result.descriptor.filename, "legacy-score-sheet.xls")
         self.assertEqual(
@@ -427,8 +406,8 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
                 ),
             ),
         )
-        self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
-        self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
+        self.assertEqual(result.provenance.engine_name, "jodconverter+libreoffice")
+        self.assertEqual(result.provenance.engine_version, "7.6.7")
         self.assertEqual(
             result.source_sha256,
             hashlib.sha256(input_bytes).hexdigest(),
@@ -439,49 +418,25 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
         )
 
     def test_extract_legacy_office_text_blocks_converts_xls_via_shared_normalization(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            temp_root = Path(temp_dir)
-            normalized_bytes = _build_formula_xlsx_bytes()
+        normalized_bytes = _build_formula_xlsx_bytes()
 
-            def fake_run(
-                argv: list[str],
-                *,
-                capture_output: bool,
-                text: bool,
-                check: bool,
-            ) -> subprocess.CompletedProcess[str]:
-                self.assertTrue(capture_output)
-                self.assertTrue(text)
-                self.assertFalse(check)
-                if "--version" in argv:
-                    return subprocess.CompletedProcess(
-                        argv,
-                        0,
-                        stdout="LibreOffice 25.2.1.2\n",
-                        stderr="",
-                    )
-                output_dir = Path(argv[argv.index("--outdir") + 1])
-                source_path = Path(argv[-1])
-                output_dir.mkdir(parents=True, exist_ok=True)
-                (output_dir / f"{source_path.stem}.xlsx").write_bytes(normalized_bytes)
-                return subprocess.CompletedProcess(argv, 0, stdout="convert ok\n", stderr="")
-
-            with (
-                patch(
-                    "campus_ingestion_core.file_asset_legacy_office.shutil.which",
-                    return_value="/usr/bin/soffice",
-                ),
-                patch(
-                    "campus_ingestion_core.file_asset_legacy_office.subprocess.run",
-                    side_effect=fake_run,
-                ),
-            ):
-                result = extract_legacy_office_text_blocks(
-                    b"legacy-xls-binary",
-                    filename="legacy-score-sheet.xls",
-                    media_type="application/vnd.ms-excel",
-                    source_object_key="attachments/example/legacy-score-sheet.xls",
+        result = extract_legacy_office_text_blocks(
+            b"legacy-xls-binary",
+            filename="legacy-score-sheet.xls",
+            media_type="application/vnd.ms-excel",
+            source_object_key="attachments/example/legacy-score-sheet.xls",
+            conversion_client=SimpleNamespace(
+                convert=lambda request: SimpleNamespace(
+                    target_format="xlsx",
+                    normalized_media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    normalized_sha256=hashlib.sha256(normalized_bytes).hexdigest(),
+                    normalized_bytes=normalized_bytes,
+                    engine_name="jodconverter+libreoffice",
+                    engine_version="7.6.7",
+                    warnings=(),
                 )
+            ),
+        )
 
         self.assertEqual(result.descriptor.asset_family, "legacy_binary_office")
         self.assertEqual(result.descriptor.filename, "legacy-score-sheet.xls")
@@ -491,11 +446,27 @@ class LegacyOfficeNormalizationSubstrateTest(unittest.TestCase):
         )
         self.assertEqual(
             result.provenance.engine_name,
-            "libreoffice-soffice+spreadsheetml-zip-xml",
+            "jodconverter+libreoffice+spreadsheetml-zip-xml",
         )
         self.assertIn("normalized_via_legacy_office_conversion", result.provenance.warnings)
         self.assertIn("项目 | 数量 | 总计", result.text_blocks[0])
         self.assertIn("报名人数 | 2 | 2 [formula=SUM(B2:B2)]", result.text_blocks[0])
+
+    def test_normalize_legacy_office_asset_fails_close_when_service_is_not_configured(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            input_path = temp_root / "legacy-score-sheet.xls"
+            input_path.write_bytes(b"legacy-xls-binary")
+            output_dir = temp_root / "normalized"
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "legacy Office conversion service is not configured",
+            ):
+                normalize_legacy_office_asset(
+                    input_path=input_path,
+                    output_dir=output_dir,
+                )
 
 
 if __name__ == "__main__":

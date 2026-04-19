@@ -5,10 +5,10 @@ import importlib
 import io
 import json
 from pathlib import Path
-import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from campus_ingestion_core.file_asset_contract import (
     ArtifactProvenance,
@@ -42,8 +42,8 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
                     source_sha256="abc123",
                 ),
                 provenance=ArtifactProvenance(
-                    engine_name="libreoffice-soffice",
-                    engine_version="LibreOffice 25.2.1.2",
+                    engine_name="jodconverter+libreoffice",
+                    engine_version="7.6.7",
                 ),
                 normalized_extension=".docx",
                 normalized_sha256="def456",
@@ -100,13 +100,13 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
         self.assertEqual(payload["outcome_type"], "normalization")
         self.assertEqual(payload["normalized_extension"], ".docx")
         self.assertEqual(payload["descriptor"]["source_object_key"], "attachments/example/legacy.doc")
-        self.assertEqual(payload["provenance"]["engine_name"], "libreoffice-soffice")
+        self.assertEqual(payload["provenance"]["engine_name"], "jodconverter+libreoffice")
         self.assertEqual(
             payload["artifact_refs"][0]["object_key"],
             "campus_notices/operations/normalized/legacy.docx",
         )
 
-    def test_normalize_invokes_soffice_and_returns_provenance_summary(self) -> None:
+    def test_normalize_uses_service_client_and_returns_provenance_summary(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
             input_path = temp_root / "legacy-rule.doc"
@@ -116,45 +116,24 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             output_path = output_dir / "legacy-rule.docx"
             normalized_bytes = b"normalized-docx-binary"
 
-            def fake_run(
-                argv: list[str],
-                *,
-                capture_output: bool,
-                text: bool,
-                check: bool,
-            ) -> subprocess.CompletedProcess[str]:
-                self.assertTrue(capture_output)
-                self.assertTrue(text)
-                self.assertFalse(check)
-                if "--version" in argv:
-                    return subprocess.CompletedProcess(
-                        argv,
-                        0,
-                        stdout="LibreOffice 25.2.1.2\n",
-                        stderr="",
+            result = worker.normalize_authenticated_notice_legacy_office_attachment(
+                input_path=input_path,
+                output_dir=output_dir,
+                source_object_key="attachments/example/legacy-rule.doc",
+                source_mime_type="application/msword",
+                normalized_object_key="campus_notices/operations/normalized/legacy-rule.docx",
+                conversion_client=SimpleNamespace(
+                    convert=lambda request: SimpleNamespace(
+                        target_format="docx",
+                        normalized_media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        normalized_sha256=hashlib.sha256(normalized_bytes).hexdigest(),
+                        normalized_bytes=normalized_bytes,
+                        engine_name="jodconverter+libreoffice",
+                        engine_version="7.6.7",
+                        warnings=(),
                     )
-                self.assertIn("--convert-to", argv)
-                output_dir.mkdir(parents=True, exist_ok=True)
-                output_path.write_bytes(normalized_bytes)
-                return subprocess.CompletedProcess(argv, 0, stdout="convert ok\n", stderr="")
-
-            with (
-                patch(
-                    "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment.shutil.which",
-                    return_value="/usr/bin/soffice",
                 ),
-                patch(
-                    "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment.subprocess.run",
-                    side_effect=fake_run,
-                ),
-            ):
-                result = worker.normalize_authenticated_notice_legacy_office_attachment(
-                    input_path=input_path,
-                    output_dir=output_dir,
-                    source_object_key="attachments/example/legacy-rule.doc",
-                    source_mime_type="application/msword",
-                    normalized_object_key="campus_notices/operations/normalized/legacy-rule.docx",
-                )
+            )
 
         self.assertEqual(result.source_extension, ".doc")
         self.assertEqual(result.normalized_extension, ".docx")
@@ -173,29 +152,25 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             result.normalized_sha256,
             hashlib.sha256(normalized_bytes).hexdigest(),
         )
-        self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
-        self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
+        self.assertEqual(result.provenance.engine_name, "jodconverter+libreoffice")
+        self.assertEqual(result.provenance.engine_version, "7.6.7")
 
-    def test_normalize_requires_soffice(self) -> None:
+    def test_normalize_fails_close_when_service_is_not_configured(self) -> None:
         with TemporaryDirectory() as temp_dir:
             input_path = Path(temp_dir) / "legacy-rule.doc"
             input_path.write_bytes(b"legacy-doc-binary")
             output_dir = Path(temp_dir) / "normalized"
 
-            with patch(
-                "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment.shutil.which",
-                return_value=None,
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "legacy Office conversion service is not configured",
             ):
-                with self.assertRaisesRegex(
-                    RuntimeError,
-                    "LibreOffice soffice is required",
-                ):
-                    worker.normalize_authenticated_notice_legacy_office_attachment(
-                        input_path=input_path,
-                        output_dir=output_dir,
-                    )
+                worker.normalize_authenticated_notice_legacy_office_attachment(
+                    input_path=input_path,
+                    output_dir=output_dir,
+                )
 
-    def test_normalize_xls_invokes_soffice_and_returns_provenance_summary(self) -> None:
+    def test_normalize_xls_uses_service_client_and_returns_provenance_summary(self) -> None:
         with TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
             input_path = temp_root / "legacy-score-sheet.xls"
@@ -205,46 +180,24 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             output_path = output_dir / "legacy-score-sheet.xlsx"
             normalized_bytes = b"normalized-xlsx-binary"
 
-            def fake_run(
-                argv: list[str],
-                *,
-                capture_output: bool,
-                text: bool,
-                check: bool,
-            ) -> subprocess.CompletedProcess[str]:
-                self.assertTrue(capture_output)
-                self.assertTrue(text)
-                self.assertFalse(check)
-                if "--version" in argv:
-                    return subprocess.CompletedProcess(
-                        argv,
-                        0,
-                        stdout="LibreOffice 25.2.1.2\n",
-                        stderr="",
+            result = worker.normalize_authenticated_notice_legacy_office_attachment(
+                input_path=input_path,
+                output_dir=output_dir,
+                source_object_key="attachments/example/legacy-score-sheet.xls",
+                source_mime_type="application/vnd.ms-excel",
+                normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
+                conversion_client=SimpleNamespace(
+                    convert=lambda request: SimpleNamespace(
+                        target_format="xlsx",
+                        normalized_media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        normalized_sha256=hashlib.sha256(normalized_bytes).hexdigest(),
+                        normalized_bytes=normalized_bytes,
+                        engine_name="jodconverter+libreoffice",
+                        engine_version="7.6.7",
+                        warnings=(),
                     )
-                self.assertIn("--convert-to", argv)
-                self.assertIn("xlsx", argv)
-                output_dir.mkdir(parents=True, exist_ok=True)
-                output_path.write_bytes(normalized_bytes)
-                return subprocess.CompletedProcess(argv, 0, stdout="convert ok\n", stderr="")
-
-            with (
-                patch(
-                    "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment.shutil.which",
-                    return_value="/usr/bin/soffice",
                 ),
-                patch(
-                    "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment.subprocess.run",
-                    side_effect=fake_run,
-                ),
-            ):
-                result = worker.normalize_authenticated_notice_legacy_office_attachment(
-                    input_path=input_path,
-                    output_dir=output_dir,
-                    source_object_key="attachments/example/legacy-score-sheet.xls",
-                    source_mime_type="application/vnd.ms-excel",
-                    normalized_object_key="campus_notices/operations/normalized/legacy-score-sheet.xlsx",
-                )
+            )
 
         self.assertEqual(result.source_extension, ".xls")
         self.assertEqual(result.normalized_extension, ".xlsx")
@@ -266,8 +219,8 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
             result.normalized_sha256,
             hashlib.sha256(normalized_bytes).hexdigest(),
         )
-        self.assertEqual(result.provenance.engine_name, "libreoffice-soffice")
-        self.assertEqual(result.provenance.engine_version, "LibreOffice 25.2.1.2")
+        self.assertEqual(result.provenance.engine_name, "jodconverter+libreoffice")
+        self.assertEqual(result.provenance.engine_version, "7.6.7")
 
 
 if __name__ == "__main__":

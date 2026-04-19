@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-29
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Environment
@@ -32,7 +32,7 @@ updated: 2026-04-19
   - `worker-staging-public-chat-web`
   - `worker-staging-protected-panel-web`
 - `query` 会同时检查 root `.env`、`apps/app-api/.env`、`apps/app-api/.dev.vars` 与 `apps/public-chat-web/.dev.vars`
-- `ingestion` 会检查 canonical OCR / object store / registry / embedding / Qdrant 要件
+- `ingestion` 会检查 canonical OCR / object store / registry / embedding / Qdrant 要件，以及 legacy Office conversion service seam（`LEGACY_OFFICE_CONVERSION_BASE_URL` / `LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET`）
 - `worker-staging` 只检查 deploy shell 里必须显式注入的 staging 值，例如 `STAGING_SUPERVISOR_API_BASE_URL`、`STAGING_ACCESS_TEAM_DOMAIN`、`STAGING_ACCESS_POLICY_AUD`
 - `worker-staging-app-api` / `worker-staging-public-chat-web` / `worker-staging-protected-panel-web` 是 canonical per-app preflight surface；它们分别对应三端 `pnpm deploy:preflight:staging`
 - `scripts.check_worker_secret_presence` 会读取各 app `wrangler.toml` 的 `secrets.required` / `env.<name>.secrets.required`，再通过 `wrangler secret list --env <name>` 审计 Cloudflare secret store
@@ -72,9 +72,9 @@ updated: 2026-04-19
 - app-local [`apps/protected-panel-web/.dev.vars.example`](../../apps/protected-panel-web/.dev.vars.example)
   `protected-panel-web` 的本地 admission string env、panel-to-app-api bridge secret 与 `SENTRY_*`；protected hostname 由 `wrangler.toml` Custom Domain deploy config 持有，staging `ACCESS_TEAM_DOMAIN` / `ACCESS_POLICY_AUD` 不再作为 repo-tracked 默认值硬编码
 - command-scoped [`env/commands/process-raw-ingestion-job.env.example`](../../env/commands/process-raw-ingestion-job.env.example)
-  `process_raw_ingestion_job` 的一次性 override；主 `OCR_*` 继续绑定 Paddle canonical lane，`OCR_MINERU_*` 只作为可选第二 provider 参与 source-truth-only 条件式路由与 `generic_image` 双跑判型
+  `process_raw_ingestion_job` 的一次性 override；`OCR_*` 表示本次运行实际使用的 active provider，`OCR_MINERU_*` 当前只作为 source-truth-only lane 的附加 MinerU 配置参与 typed-PDF 条件路由与 `generic_image` 双跑判型
 - command-scoped [`env/commands/compare-online-ocr.env.example`](../../env/commands/compare-online-ocr.env.example)
-  `campus-ingestion-compare-online-ocr` 的一次性 override；当前用于 MinerU sidecar compare lane，不改变 canonical Paddle replay / raw-ingestion truth
+  `campus-ingestion-compare-online-ocr` 的一次性 override；当前用于 OCR lane 对照，不反向定义 replay / raw-ingestion 的 canonical lane
 - command-scoped [`env/commands/rebuild-local-data.env.example`](../../env/commands/rebuild-local-data.env.example)
   `rebuild_local_data` 的一次性 override
 - command-scoped [`env/commands/official-web-handoff-receiver.env.example`](../../env/commands/official-web-handoff-receiver.env.example)
@@ -83,6 +83,8 @@ updated: 2026-04-19
   本地 `official_web` handoff consumer 的一次性 override
 - command-scoped [`env/commands/release-registry-scope.env.example`](../../env/commands/release-registry-scope.env.example)
   registry-backed index release 的命令级 override
+- command-scoped [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
+  本地 `JODConverter + LibreOffice` conversion service 与 caller seam 的 canonical example；用于 `docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build`、worker-side legacy Office normalization smoke，以及把 `LEGACY_OFFICE_CONVERSION_*` 导入当前 worktree root `.env`
 
 ## 历史 / 窄用途保留模板
 
@@ -231,9 +233,9 @@ updated: 2026-04-19
 
 - `env/commands/*.env.example` 只放当前默认 operator override，不重复 shared runtime secrets
 - `env/commands/historical/*.env.example` 只承接保留中的 closeout / recovery 模板；这些文件不再代表当前默认协作入口
-- authenticated-notice replay / canonical raw-ingestion 仍应显式写成 `OCR_PROVIDER_MODE=paddleocr_async_jobs` 或对应 Paddle provider，不依赖 `OCR_BASE_URL` 推断 provider
-- `OCR_PROVIDER_MODE=mineru_api` 仍不得作为 primary canonical raw-ingestion provider
-- `OCR_MINERU_*` 现在允许作为 `process_raw_ingestion_job` 的可选第二 provider；当前 repo 级真相是：typed PDF 走 `MinerU primary -> Paddle fallback`，`generic_image` 在 `source_truth_only` 下会双跑 Paddle + MinerU 后再精化成 `simple_table_image` / `complex_table_image` / `spatial_image`，其中 simple table 保持 Paddle、complex table 可提升为 MinerU、spatial / office 继续 deferred
+- authenticated-notice replay / raw-ingestion 仍应显式设置 `OCR_PROVIDER_MODE`，不要依赖 `OCR_BASE_URL` 推断 provider
+- `OCR_PROVIDER_MODE` 可以按当前 lane 选择 Paddle 或 MinerU；repo 级真相以 routing owner 为准，而不是“primary provider 永远是谁”
+- `OCR_MINERU_*` 当前仍是 `process_raw_ingestion_job` 在 `source_truth_only` 下的附加 MinerU 配置入口，不再代表 repo 级 “second provider canonical truth”；当前 repo 级真相是：typed PDF 走 `MinerU primary -> Paddle fallback`，`generic_image` 在 `source_truth_only` 下会双跑 Paddle + MinerU 后再精化成 `simple_table_image` / `complex_table_image` / `spatial_image`，其中 simple table 保持 Paddle、complex table 可提升为 MinerU、spatial / office 继续 deferred
 - `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection` 这类任务输入优先走 CLI args
 - `INGESTION_SPLIT_MANIFEST_PATH`、`HANDBOOK_SOURCE_PROJECTIONS_PATH` 只在偏离 repo-tracked truth 时作为显式 override 使用
 - `QDRANT_UPSERT_BATCH_SIZE`、`IMPORT_REPORT_DIR`、`HF_*`、`INGESTION_EMBEDDING_MODEL` 一类局部运行参数不再放回 root `.env.example`

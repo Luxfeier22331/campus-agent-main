@@ -3,10 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
-import shutil
-import subprocess
 from tempfile import TemporaryDirectory
-from typing import Callable
 
 from campus_ingestion_core.file_asset_contract import (
     ArtifactProvenance,
@@ -15,14 +12,15 @@ from campus_ingestion_core.file_asset_contract import (
     FileAssetDescriptor,
     NormalizationOutcome,
 )
+from campus_ingestion_core.legacy_office_conversion_client import (
+    LegacyOfficeConversionClientProtocol,
+    LegacyOfficeConversionRequest,
+    build_legacy_office_conversion_client_from_env,
+)
 from campus_ingestion_core.file_asset_ooxml import (
     extract_docx_text_blocks,
     extract_xlsx_text_blocks,
 )
-
-
-SubprocessRun = Callable[..., subprocess.CompletedProcess[str]]
-WhichResolver = Callable[[str], str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,8 +65,7 @@ def normalize_legacy_office_asset(
     source_sha256: str | None = None,
     source_mime_type: str | None = None,
     normalized_object_key: str | None = None,
-    which: WhichResolver | None = None,
-    run: SubprocessRun | None = None,
+    conversion_client: LegacyOfficeConversionClientProtocol | None = None,
 ) -> LegacyOfficeNormalizationResult:
     source_extension = input_path.suffix.lower()
     normalized_extension = {
@@ -88,40 +85,35 @@ def normalize_legacy_office_asset(
             f"expected {source_sha256}, got {actual_source_sha256}"
         )
 
-    which_resolver = which or shutil.which
-    run_command = run or subprocess.run
-
-    soffice = which_resolver("soffice")
-    if soffice is None:
-        raise RuntimeError("LibreOffice soffice is required for legacy Office normalization")
-
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{input_path.stem}{normalized_extension}"
-    completed = run_command(
-        [
-            soffice,
-            "--headless",
-            "--convert-to",
-            normalized_extension.lstrip("."),
-            "--outdir",
-            str(output_dir),
-            str(input_path),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+    conversion_client_instance = (
+        conversion_client if conversion_client is not None else build_legacy_office_conversion_client_from_env()
     )
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip() or "unknown error"
-        raise RuntimeError(f"legacy Office normalization failed: {detail}")
-    if not output_path.is_file():
-        raise RuntimeError(
-            "legacy Office normalization did not produce expected output: "
-            f"{output_path}"
+    normalized_media_type = {
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }[normalized_extension]
+    source_media_type = source_mime_type or {
+        ".doc": "application/msword",
+        ".xls": "application/vnd.ms-excel",
+    }[source_extension]
+    conversion_result = conversion_client_instance.convert(
+        LegacyOfficeConversionRequest(
+            source_media_type=source_media_type,
+            target_format=normalized_extension.lstrip("."),
+            source_sha256=actual_source_sha256,
+            filename=input_path.name,
+            source_bytes=input_bytes,
         )
-
-    normalized_bytes = output_path.read_bytes()
-    engine_version = _read_soffice_version(soffice, run=run_command)
+    )
+    if conversion_result.normalized_media_type != normalized_media_type:
+        raise RuntimeError(
+            "legacy Office conversion service returned unexpected media type: "
+            f"{conversion_result.normalized_media_type}"
+        )
+    output_path.write_bytes(conversion_result.normalized_bytes)
+    normalized_bytes = conversion_result.normalized_bytes
     normalized_media_type = {
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -135,8 +127,9 @@ def normalize_legacy_office_asset(
             source_sha256=actual_source_sha256,
         ),
         provenance=ArtifactProvenance(
-            engine_name="libreoffice-soffice",
-            engine_version=engine_version,
+            engine_name=conversion_result.engine_name,
+            engine_version=conversion_result.engine_version,
+            warnings=conversion_result.warnings,
         ),
         normalized_extension=normalized_extension,
         normalized_sha256=hashlib.sha256(normalized_bytes).hexdigest(),
@@ -163,8 +156,7 @@ def extract_legacy_office_text_blocks(
     filename: str,
     media_type: str | None = None,
     source_object_key: str | None = None,
-    which: WhichResolver | None = None,
-    run: SubprocessRun | None = None,
+    conversion_client: LegacyOfficeConversionClientProtocol | None = None,
 ) -> LegacyOfficeExtractionResult:
     source_sha256 = hashlib.sha256(file_bytes).hexdigest()
     with TemporaryDirectory() as temp_dir:
@@ -177,8 +169,7 @@ def extract_legacy_office_text_blocks(
             source_object_key=source_object_key,
             source_sha256=source_sha256,
             source_mime_type=media_type,
-            which=which,
-            run=run,
+            conversion_client=conversion_client,
         )
         normalized_bytes = Path(normalized_result.output_path).read_bytes()
 
@@ -245,21 +236,6 @@ def extract_legacy_office_text_blocks(
         normalized_extension=normalized_result.normalized_extension,
         normalized_sha256=normalized_result.normalized_sha256,
     )
-
-
-def _read_soffice_version(soffice: str, *, run: SubprocessRun) -> str:
-    completed = run(
-        [soffice, "--version"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return "unknown"
-    version = completed.stdout.strip() or completed.stderr.strip()
-    return version or "unknown"
-
-
 __all__ = [
     "LegacyOfficeExtractionResult",
     "LegacyOfficeNormalizationResult",

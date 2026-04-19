@@ -183,6 +183,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "OCR_API_KEY=ocr-secret",
                         "OCR_PROVIDER_MODE=paddleocr_async_jobs",
                         "DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
+                        "LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091",
+                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=test-secret",
                     ]
                 )
                 + "\n",
@@ -194,6 +196,51 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertTrue(status["providers"]["embedding"]["present"])
             self.assertTrue(status["settings"]["required"]["registry_database_url"]["present"])
+            self.assertTrue(
+                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+            )
+            self.assertTrue(
+                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                    "present"
+                ]
+            )
+
+    def test_collect_env_doctor_status_reports_ingestion_surface_missing_legacy_office_service_contract(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "EMBEDDING_API_KEY=shared-embed-secret",
+                        "EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                        "QDRANT_URL=https://qdrant.example.com",
+                        "OBJECT_STORE_ENDPOINT=http://localhost:9000",
+                        "OBJECT_STORE_ACCESS_KEY=minioadmin",
+                        "OBJECT_STORE_SECRET_KEY=minioadmin",
+                        "OCR_BASE_URL=https://ocr.example.com/api/v2/ocr/jobs",
+                        "OCR_API_KEY=ocr-secret",
+                        "OCR_PROVIDER_MODE=paddleocr_async_jobs",
+                        "DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
+
+            self.assertFalse(status["overall_ready"])
+            self.assertFalse(
+                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+            )
+            self.assertFalse(
+                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                    "present"
+                ]
+            )
 
     def test_collect_env_doctor_status_accepts_bucket_scoped_object_store_credentials(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -214,6 +261,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "OCR_API_KEY=ocr-secret",
                         "OCR_PROVIDER_MODE=paddleocr_async_jobs",
                         "DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry.example/postgres",
+                        "LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091",
+                        "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=test-secret",
                     ]
                 )
                 + "\n",

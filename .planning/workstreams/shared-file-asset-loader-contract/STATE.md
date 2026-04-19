@@ -1,66 +1,62 @@
 ---
 workstream: shared-file-asset-loader-contract
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** In Progress
-**Current Phase:** B
-**Current Phase Name:** Bounded Backend Evaluation
-**Current Plan:** `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/PLAN.md`
-**Total Phases:** 6
-**Total Plans in Phase:** N/A
-**Progress:** 1/6 phases complete
-**Last Activity:** 2026-04-19
-**Last Activity Description:** Executed the first Phase B benchmark-evidence pass by running targeted ingestion tests and recording the results into `BENCHMARK-EVIDENCE.md` and the draft `DECISION-PACKAGE.md`.
+**Status:** Completed
+**Current Phase:** Completed
+**Current Phase Name:** Phase H Closeout
+**Current Plan:** None
+**Total Phases:** 8
+**Total Plans in Phase:** 3
+**Progress:** 8/8 phases complete
+**Last Activity:** 2026-04-20
+**Last Activity Description:** Completed `Phase H` closeout: service-backed caller seam、standalone conversion runtime、env/docs/runbook truth 与真实 `.doc/.xls` evidence 全部落盘。
 
 ## Current Slice
 
-- Phase A 已完成：shared owner、contract vocabulary、asset family tranches、provider/deployment posture 与 source-specific guardrails 已冻结
-- 当前 focus 切到 Phase B：Phase B research 与 planning artifacts 已落盘，且第一批 synthetic benchmark evidence 已写入 canonical phase docs
-- `official_web` page-level projection 继续留在 source-specific path，不并入 generic file loader
-- `authenticated_notice` attachment path 仍是首个迁移目标，但 Phase B 只做 backend evaluation，不做 source migration
-- Phase B 必须收口的 open items：
-  - 补 semantic-image 的 direct repo evidence
-  - 补 future `.xls` conversion-first route 的 stronger end-to-end evidence
-  - 在剩余缺口关闭后，把 draft `DECISION-PACKAGE.md` 提升成 final closeout truth
+- Phase A-G 的 shared owner、family adapters、authenticated-notice attachment migration、cross-scope adoption、planning closeout 与 OCR lane-first provider realignment 历史继续保留。
+- `Phase H` 已完成并把 reopen gap 全部收口：
+  - `legacy_office_conversion_client.py` 已冻结 repo-owned caller seam；缺少 env、transport 失败、hash mismatch 与非法响应都会 fail-close。
+  - `file_asset_legacy_office.py` 与 `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment` 已完全切到 service-backed path，不再直接调用 `soffice --convert-to`。
+  - repo 已拥有独立 `apps/legacy-office-conversion-service` runtime、local compose bootstrap、`GET /healthz` / `GET /readyz` readiness gate 与 `x-app-internal-auth` admission。
+  - `docs/architecture/file-asset-loader-architecture.md`、`docs/environment/README.md`、`docs/runbooks/legacy-office-conversion-runtime.md`、`apps/ingestion-worker/README.md` 与 `env/commands/legacy-office-conversion-service.env.example` 现已统一到同一条 operator/runtime contract。
+  - `.tmp/phase-h-libreoffice-runtime-productization/` 已通过真实 authenticated notice source-bucket `.doc/.xls` 样本生成 evidence bundle。
+- 当前 workstream 现已回到 completed 状态；`official_web` linked-file adoption、`authenticated_notice file_release`、semantic-image enrichment 与 regulation downstream 继续保持 deferred / out-of-scope，不由本线继续承接。
 
 ## Blockers
 
-- 目前没有 repo-level blocker
-- 真正待裁决的是：
-  - final benchmark-backed semantic-image trigger
-  - final benchmark-backed future `.xls` conversion-first route
-  而不是继续回到“是否还要保留 Docling/OpenDataLoader 为默认方向”这种已关闭问题
+- None.
 
 ## Verification
 
-- 已确认本地代码真相：
-  - `authenticated_notice_source_projections.py` 当前仍混合 attachment classification、native extraction 与 terminal outcomes
-  - `.doc` normalizer 目前只存在于 worker app 壳，不是 package-level shared capability
-  - `.xls` 当前仍直接依赖 `xlrd`，`.xlsx` 当前仍走 source-specific 自写 XML 解析；这是 current code truth，不反向定义 future tranche adapter
-  - 当前 repo 没有运行时 `openpyxl` 依赖路径
-  - `official_web` 已有独立 page-level projection path，不应被 generic file loader 吃掉
-- 已核对外部官方资料：
-  - MinerU official docs
-  - PaddleOCR / PaddleOCR-VL official docs
-  - OmniDocBench public benchmark
-  - OpenDataLoader official docs
-  - LibreOffice / Collabora / JODConverter official docs
-  - Microsoft Learn WordprocessingML / SpreadsheetML / shared strings / formulas docs
-  - python-docx official docs
-- 已确认本机环境：
-  - `java` absent
-  - `soffice` absent
-  - `docker` present
-  - `uv` present
-  - `pnpm` present
+- `uv run --all-packages python -m unittest tests.ingestion.test_legacy_office_conversion_client tests.ingestion.test_file_asset_substrate tests.ingestion.test_normalize_authenticated_notice_legacy_office_attachment_worker`
+  - `24 tests OK`
+- `docker build -f apps/legacy-office-conversion-service/Dockerfile --target unit-tests -t campus-legacy-office-conversion:test /home/reptilian/code/campus-agent`
+  - `exit 0`
+- `docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build`
+  - runtime booted successfully
+- `curl -sS http://127.0.0.1:8091/healthz`
+  - `{"status":"ok","engine_name":"jodconverter+libreoffice","engine_version":"LibreOffice 7.3.7.2 30(Build:2)"}`
+- `curl -sS http://127.0.0.1:8091/readyz`
+  - `{"engine_name":"jodconverter+libreoffice","engine_version":"LibreOffice 7.3.7.2 30(Build:2)","status":"ready"}`
+- `LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091 LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=change-me uv run --all-packages python -m scripts.doctor_env ingestion --json`
+  - `overall_ready=true`
+- `uv run --all-packages campus-ingestion-normalize-authenticated-notice-legacy-office-attachment --help`
+  - `exit 0`
+- `LEGACY_OFFICE_CONVERSION_BASE_URL=http://127.0.0.1:8091 LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET=change-me uv run --all-packages python -m scripts.verify_legacy_office_conversion_runtime --output-dir .tmp/phase-h-libreoffice-runtime-productization --json`
+  - real `.doc` + `.xls` evidence generated successfully
+- `uv run --all-packages python -m unittest tests.ingestion.test_legacy_office_conversion_client tests.ingestion.test_file_asset_substrate tests.ingestion.test_normalize_authenticated_notice_legacy_office_attachment_worker tests.test_doctor_env tests.test_verify_legacy_office_conversion_runtime`
+  - `38 tests OK`
+- `docker compose -f infra/local/docker-compose.legacy-office-conversion.yml down`
+  - service shutdown succeeded
 
 ## Session Continuity
 
-**Stopped At:** First-wave synthetic benchmark evidence is recorded. Next session should close the two remaining evidence gaps, then finalize `DECISION-PACKAGE.md` and decide whether Phase B can be closed.
-**Resume File:** `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/DECISION-PACKAGE.md`
+**Stopped At:** `Phase H` 已完成；如未来 reopen，只在 repo-level file-like asset adoption、legacy Office runtime contract 或 deployment posture 再次发生结构性变化时恢复。
+**Resume File:** `.planning/workstreams/shared-file-asset-loader-contract/ROADMAP.md`
