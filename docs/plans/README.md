@@ -20,7 +20,7 @@ updated: 2026-04-19
 ### Product surfaces
 
 - `shared-product-surfaces-acceptance-hardening.md`
-  - `app-api`、`public-chat-web`、`protected-panel-web` 的联合验收 / 硬化入口；它与其他独立 workstreams 可并行，但其内部顺序固定为 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout`
+  - `app-api`、`public-chat-web`、`protected-panel-web` 的联合验收 / 硬化入口；当前 reopen 后同时承接 public auth shell productization、forgot/reset password 与 auth mailer contract，内部顺序继续由 workstream roadmap 固定
 
 ### Data plane / quality / source channels
 

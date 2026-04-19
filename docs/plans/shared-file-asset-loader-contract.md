@@ -78,6 +78,8 @@ repo 需要一条单独的 `shared file asset loader` workstream。
 - 现有 source-specific `.xlsx` 解析路径不反向定义 forward contract
 - OCR lane、`manual_review_required`、`reference_only`、`unsupported_binary` 继续是 repo-owned terminal semantics，不交给第三方 parser 自行决定
 - 对象 bytes 的长期语义仍是 `S3-compatible object storage`
+- legacy binary Office tranche 包含 `.doc/.xls`，但这不自动等于每个 source path 都已 admitted 全部 extension
+- 当前 repo code truth 下，`authenticated_notice` admitted default lane 只覆盖 `docx/xls/xlsx`；`.doc` 仍是 explicit fail-close gap，直到单独 reopen admission
 
 ## Phase A: Shared Contract And Boundary Freeze
 

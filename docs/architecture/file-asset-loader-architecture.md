@@ -229,6 +229,16 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 - notice-level source-truth 与 attachment relation truth 继续留在 `authenticated_notice_portal`
 - attachment objects 的 normalization / extraction / terminal outcome 不再属于 collector 私有逻辑
 - `authenticated_notice` attachment migration 是 shared loader 的首个优先接入面，但不反向改写 notice source unit
+- 当前已落盘的 authenticated notice admitted attachment default lane 只覆盖：
+  - `docx`
+  - `xls`
+  - `xlsx`
+  - `pdf`
+  - image OCR / terminal-outcome families
+- 这不等于 legacy binary Office tranche 已在 authenticated notice lane 全量 admitted：
+  - `.doc` 仍是 explicit fail-close gap
+  - family tranche truth 与当前 source-path admitted truth 必须分开表达
+- `file_asset_routing.py` 已是 PDF / image typed routing 的 canonical owner；历史 `raw_asset_typing.py` / `online_ocr_routing.py` compatibility shim 已退出 forward code path，不再冒充 owner
 
 ## 非默认主干
 
