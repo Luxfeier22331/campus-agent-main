@@ -188,6 +188,12 @@ class _CurriculumSemesterTableLayout:
     distribution_semester_indexes: tuple[tuple[str, int], ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class _CurriculumCourseTitleCandidate:
+    title: str
+    partial_boundary: bool = False
+
+
 def _normalize_snippet(snippet: str) -> str:
     return _WHITESPACE_RE.sub(" ", snippet).strip()
 
@@ -455,6 +461,130 @@ def _extract_curriculum_semester_course_titles_from_statement(
     )
 
 
+def _extract_program_semester_course_title_candidates_from_statement(
+    statement: str,
+    *,
+    semester_labels: tuple[str, ...],
+) -> tuple[_CurriculumCourseTitleCandidate, ...]:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return ()
+    cleaned = re.sub(r"^根据培养方案相关内容[，,]?\s*", "", normalized)
+    cleaned = re.sub(r"^按当前已采集的《[^》]+》[，,]?\s*", "", cleaned)
+    has_list_start_boundary = any(
+        token in normalized
+        for token in (
+            "按当前已采集的《",
+            "根据培养方案相关内容",
+            *(f"{label}有" for label in semester_labels),
+            *(f"{label}课程有" for label in semester_labels),
+            *(f"{label}课程包括" for label in semester_labels),
+            *(f"{label}课程为" for label in semester_labels),
+        )
+    )
+    has_list_end_boundary = normalized.endswith(("。", "；", ";", "，", ",", "、"))
+    for label in semester_labels:
+        cleaned = cleaned.replace(label, "")
+    cleaned = re.sub(r"^(?:有|包括|课程有|课程包括|课程为|主要有)\s*", "", cleaned)
+    cleaned = cleaned.strip("：:，,；;。 ")
+    if not cleaned:
+        return ()
+
+    fragments = tuple(
+        fragment.strip("：:，,；;。 ")
+        for fragment in re.split(r"[、，,；;。]", cleaned)
+        if fragment.strip("：:，,；;。 ")
+    )
+    if not fragments:
+        return ()
+
+    candidates: list[_CurriculumCourseTitleCandidate] = []
+    last_index = len(fragments) - 1
+    for index, fragment in enumerate(fragments):
+        if any(token in fragment for token in ("当前已采集", "培养方案", "课程事实")):
+            continue
+        candidates.append(
+            _CurriculumCourseTitleCandidate(
+                title=fragment,
+                partial_boundary=(
+                    (index == 0 and not has_list_start_boundary)
+                    or (index == last_index and not has_list_end_boundary)
+                ),
+            )
+        )
+    return tuple(candidates)
+
+
+def _has_unbalanced_course_title_brackets(title: str) -> bool:
+    return any(
+        title.count(open_bracket) != title.count(close_bracket)
+        for open_bracket, close_bracket in (("(", ")"), ("（", "）"), ("[", "]"), ("【", "】"))
+    )
+
+
+def _is_partial_curriculum_course_title_fragment(
+    candidate: _CurriculumCourseTitleCandidate,
+    other: _CurriculumCourseTitleCandidate,
+) -> bool:
+    candidate_title = _normalize_snippet(candidate.title)
+    other_title = _normalize_snippet(other.title)
+    if not candidate_title or not other_title or candidate_title == other_title:
+        return False
+    if len(other_title) <= len(candidate_title):
+        return False
+    if not (other_title.startswith(candidate_title) or other_title.endswith(candidate_title)):
+        return False
+    if _has_unbalanced_course_title_brackets(candidate_title):
+        return True
+    return candidate.partial_boundary and len(candidate_title) <= 4
+
+
+def _collapse_curriculum_course_title_candidates(
+    candidates: tuple[_CurriculumCourseTitleCandidate, ...],
+) -> tuple[str, ...]:
+    filtered: list[str] = []
+    seen_titles: set[str] = set()
+    for candidate in candidates:
+        normalized = _normalize_snippet(candidate.title)
+        if not normalized:
+            continue
+        if any(
+            _is_partial_curriculum_course_title_fragment(candidate, other)
+            for other in candidates
+        ):
+            continue
+        lowered = normalized.lower()
+        if lowered in seen_titles:
+            continue
+        seen_titles.add(lowered)
+        filtered.append(normalized)
+    return tuple(filtered)
+
+
+def _extract_program_semester_course_titles(
+    *,
+    query_text: str,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    semester_labels = _curriculum_semester_labels(query_text)
+    if not semester_labels:
+        return ()
+    candidates: list[_CurriculumCourseTitleCandidate] = []
+    for source, statements in selected_rows:
+        if source.collection != "program_semester_facts":
+            continue
+        if source.source_unit_kind != "semester_course_list" and source.content_role != "semester_course_list":
+            continue
+        for statement in statements:
+            candidates.extend(
+                _extract_program_semester_course_title_candidates_from_statement(
+                    statement,
+                    semester_labels=semester_labels,
+                )
+            )
+    return _collapse_curriculum_course_title_candidates(tuple(candidates))
+
+
 def _extract_curriculum_semester_course_titles(
     *,
     query_text: str,
@@ -463,7 +593,9 @@ def _extract_curriculum_semester_course_titles(
 ) -> tuple[str, ...]:
     semester_labels = _curriculum_semester_labels(query_text)
     target_semesters = _curriculum_target_semesters(query_text)
-    if not semester_labels or not target_semesters or source.collection != "curriculum_plan":
+    if not semester_labels or not target_semesters:
+        return ()
+    if source.collection not in {"curriculum_plan", "program_semester_facts"}:
         return ()
 
     if "|" in source.snippet and source.content_role == "table_fact":
@@ -776,11 +908,22 @@ def _compose_curriculum_semester_course_list_answer(
     evidence: EvidenceBundle,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
 ) -> str:
-    if evidence.collection != "curriculum_plan":
+    if evidence.collection not in {"curriculum_plan", "program_semester_facts"}:
         return ""
     semester_labels = _curriculum_semester_labels(evidence.query_text)
     if len(semester_labels) != 1:
         return ""
+
+    if evidence.collection == "program_semester_facts":
+        course_titles = list(
+            _extract_program_semester_course_titles(
+                query_text=evidence.query_text,
+                selected_rows=selected_rows,
+            )
+        )
+        if not course_titles:
+            return ""
+        return f"{_answer_prefix(evidence)}，{semester_labels[0]}有{'、'.join(course_titles)}。"
 
     course_titles: list[str] = []
     seen_titles: set[str] = set()

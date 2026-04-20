@@ -6426,6 +6426,94 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             },
         )
 
+    def test_curriculum_semester_answer_merges_program_semester_fact_partial_chunks_without_leaking_broken_course_fragments(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="program_semester_facts",
+            sources=(
+                EvidenceSource(
+                    doc_id=build_curriculum_program_semester_fact_document_id(
+                        "curriculum:法学（民族实验班）本科人才培养方案",
+                        "第四学期",
+                    ),
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4-partial-1",
+                    chunk_id="program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:chunk-0001",
+                    anchor={"fact_type": "semester_course_list"},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="program_semester_facts",
+                    is_current=False,
+                    snippet=(
+                        "按当前已采集的《法学（民族实验班）本科人才培养方案》，第四学期有"
+                        "经济学说史、可持续发展经济学、马克思主义哲学原著选读、语言学概论、中国民族史概要(一"
+                    ),
+                    score=0.98,
+                    source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期课程",
+                    content_kind="program_semester_fact",
+                    content_role="semester_course_list",
+                    is_answer_bearing=True,
+                    canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    canonical_source_title="法学（民族实验班）本科人才培养方案",
+                    source_unit_kind="semester_course_list",
+                    source_unit_key="semester-4",
+                ),
+                EvidenceSource(
+                    doc_id=build_curriculum_program_semester_fact_document_id(
+                        "curriculum:法学（民族实验班）本科人才培养方案",
+                        "第四学期",
+                    ),
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4-partial-2",
+                    chunk_id="program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:chunk-0002",
+                    anchor={"fact_type": "semester_course_list"},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="program_semester_facts",
+                    is_current=False,
+                    snippet=(
+                        "展经济学、马克思主义哲学原著选读、语言学概论、中国民族史概要(一)、"
+                        "中国少数民族民间文学概论、中国民族史。"
+                    ),
+                    score=0.97,
+                    source_title="法学（民族实验班）本科人才培养方案 第四学期课程事实",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    detail_label="第四学期课程",
+                    content_kind="program_semester_fact",
+                    content_role="semester_course_list",
+                    is_answer_bearing=True,
+                    canonical_source_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    canonical_source_title="法学（民族实验班）本科人才培养方案",
+                    source_unit_kind="semester_course_list",
+                    source_unit_key="semester-4",
+                ),
+            ),
+        )
+
+        draft = RagSpecialistAgent().build_answer(evidence)
+
+        self.assertEqual(
+            draft.answer_text,
+            (
+                "根据培养方案相关内容，第四学期有经济学说史、可持续发展经济学、马克思主义哲学原著选读、"
+                "语言学概论、中国民族史概要(一)、中国少数民族民间文学概论、中国民族史。"
+            ),
+        )
+        self.assertNotIn("；展经济学", draft.answer_text)
+        self.assertNotIn("中国民族史概要(一；", draft.answer_text)
+        self.assertEqual(
+            {source.chunk_id for source in draft.supporting_sources},
+            {
+                "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:chunk-0001",
+                "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:chunk-0002",
+            },
+        )
+
 class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
     def test_curriculum_semester_answer_keeps_general_and_core_sections_ahead_of_elective_duplicates(self) -> None:
         evidence = EvidenceBundle(

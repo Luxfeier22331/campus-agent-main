@@ -499,8 +499,9 @@ describe("chat command service", () => {
       },
       principal: createPrincipal(),
     });
+    const finalizedWrite = finalWrites[0] as FinalizeRequestWrite;
 
-    expect(finalWrites[0]).toMatchObject({
+    expect(finalizedWrite).toMatchObject({
       assistantMessage: {
         kind: "answer",
       },
@@ -508,13 +509,14 @@ describe("chat command service", () => {
         status: "completed",
       },
     });
-    expectNoInternalLocators(finalWrites[0].assistantMessage.text);
-    expect(finalWrites[0].assistantMessage.text).toContain("第四学期有合同法、人格权法、侵权责任法。");
+    expectNoInternalLocators(finalizedWrite.assistantMessage.text);
+    expect(finalizedWrite.assistantMessage.text).toContain("第四学期有合同法、人格权法、侵权责任法。");
+    expect(response.answer.result.kind).toBe("answer");
+    if (response.answer.result.kind !== "answer") {
+      throw new Error("expected completed answer result");
+    }
     expectNoInternalLocators(response.answer.result.text);
-    expect(response.answer.result).toMatchObject({
-      kind: "answer",
-      text: "第四学期有合同法、人格权法、侵权责任法。",
-    });
+    expect(response.answer.result.text).toBe("第四学期有合同法、人格权法、侵权责任法。");
   });
 
   it("persists navigation place cards into assistant structured parts", async () => {
