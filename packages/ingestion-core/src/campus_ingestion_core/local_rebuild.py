@@ -986,6 +986,7 @@ def replay_provider_response_rebuild(
     provider_response_key = source_artifacts["provider_response_key"]
     structured_rows = source_artifacts["structured_rows"]
     layout_elements_key = source_artifacts["layout_elements_key"]
+    replay_raw_asset_record = runtime_raw_asset_registry.get(raw_asset_id, raw_version_id)
 
     documents = _run_traced_stage(
         trace_recorder,
@@ -1002,6 +1003,9 @@ def replay_provider_response_rebuild(
             provider_response_key=provider_response_key,
             layout_elements_key=layout_elements_key,
             structured_rows=structured_rows,
+            reader=runtime_object_store,
+            source_bucket=object_store_settings.bucket_source,
+            replay_raw_asset_record=replay_raw_asset_record,
         ),
         fields={
             "corpus": corpus,
@@ -1177,6 +1181,9 @@ def _build_replay_documents(
     provider_response_key: str,
     layout_elements_key: str,
     structured_rows: list[dict[str, object]],
+    reader: ReplayObjectStore | None = None,
+    source_bucket: str | None = None,
+    replay_raw_asset_record: RawAssetRecord | None = None,
 ) -> list[DocumentImportInput]:
     if collection == "student_handbook":
         documents = [
@@ -1238,10 +1245,14 @@ def _build_replay_documents(
                 source=source,
                 config_path=collection_config.source_projections_path,
                 raw_asset_record=raw_asset_ref,
+                hybrid_raw_asset_record=replay_raw_asset_record,
                 provider_response_key=provider_response_key,
                 layout_elements_key=layout_elements_key,
                 structured_rows=structured_rows,
                 split_manifest_documents=split_manifest.documents,
+                reader=reader,
+                source_bucket=source_bucket,
+                import_source="provider_response_replay",
             )
         )
     if collection == "curriculum_plan":

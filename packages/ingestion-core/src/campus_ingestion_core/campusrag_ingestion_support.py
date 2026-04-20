@@ -87,8 +87,22 @@ class DocumentImportInput:
     layout_elements_bytes: bytes | None = None
     layout_elements_object_key: str | None = None
     additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
+    additional_processed_artifacts: tuple["ProcessedArtifactInput", ...] = field(default_factory=tuple)
     title: str | None = None
     year: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessedArtifactInput:
+    object_key: str
+    data: bytes
+    content_type: str
+
+    def __post_init__(self) -> None:
+        if not self.object_key.strip():
+            raise ValueError("object_key is required")
+        if not self.content_type.strip():
+            raise ValueError("content_type is required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +186,7 @@ def parse_document_import_stub(payload: Mapping[str, object]) -> DocumentImportI
         additional_processed_object_keys=tuple(
             str(item) for item in payload.get("additional_processed_object_keys") or ()
         ),
+        additional_processed_artifacts=(),
         title=None if payload.get("title") is None else str(payload["title"]),
         year=None if payload.get("year") is None else str(payload["year"]),
     )
@@ -901,6 +916,13 @@ def collect_import_document_stats(
                     key=layout_elements_key,
                     data=document.layout_elements_bytes,
                     content_type="application/x-ndjson",
+                )
+            for artifact in document.additional_processed_artifacts:
+                writer.put_bytes(
+                    bucket=_artifact_bucket_for_key(object_store=object_store, key=artifact.object_key),
+                    key=artifact.object_key,
+                    data=artifact.data,
+                    content_type=artifact.content_type,
                 )
 
             document_units_key = artifact_keys.document_units_key

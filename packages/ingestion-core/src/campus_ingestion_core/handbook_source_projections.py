@@ -11,8 +11,13 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units, validate_handbook_manifest_title
+from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
+    FLOW_GRAPH_FILENAME,
+    build_handbook_service_navigation_hybrid_document,
+    is_handbook_service_navigation_projection,
+)
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_processed_artifact_key
+from campus_ingestion_core.object_store import build_document_artifact_key, build_processed_artifact_key
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
@@ -94,10 +99,14 @@ def build_handbook_projection_import_documents(
     source: dict[str, str],
     config_path: Path | None = None,
     raw_asset_record: RawAssetRecord,
+    hybrid_raw_asset_record: RawAssetRecord | None = None,
     provider_response_key: str,
     layout_elements_key: str,
     structured_rows: list[dict[str, object]],
     split_manifest_documents: tuple[SplitManifestDocument, ...],
+    reader: object | None = None,
+    source_bucket: str | None = None,
+    import_source: str = "provider_response_replay",
 ) -> list[DocumentImportInput]:
     config = load_handbook_source_projections_config(config_path or read_handbook_source_projections_config_path(source))
     manifest_by_document_id = {
@@ -120,13 +129,88 @@ def build_handbook_projection_import_documents(
             validate_handbook_manifest_title(structured_rows=structured_rows, manifest_document=manifest_document)
         except ValueError:
             continue
+        document_id = build_projection_target_document_id(projection=projection)
+        if is_handbook_service_navigation_projection(
+            projection_name=projection.projection_name,
+            target_collection=projection.target_collection,
+            attachment_role=projection.attachment_role,
+            source_page_start=projection.source_page_start,
+            source_page_end=projection.source_page_end,
+        ):
+            if reader is None or source_bucket is None:
+                raise ValueError("service navigation hybrid materialization requires reader and source_bucket")
+            resolved_hybrid_raw_asset_record = _resolve_hybrid_raw_asset_record(
+                raw_asset_record=raw_asset_record,
+                hybrid_raw_asset_record=hybrid_raw_asset_record,
+                import_source=import_source,
+            )
+            target_title = projection.target_title or manifest_document.title
+            document = build_handbook_service_navigation_hybrid_document(
+                source=source,
+                reader=reader,  # type: ignore[arg-type]
+                source_bucket=source_bucket,
+                raw_asset_record=resolved_hybrid_raw_asset_record,
+                source_document_id=manifest_document.document_id,
+                source_uri=manifest_document.source_uri or "",
+                source_handbook_section=manifest_document.handbook_section or manifest_document.title,
+                target_document_id=document_id,
+                target_title=target_title,
+                projection_name=projection.projection_name,
+                derived_from=projection.derived_from,
+                parent_document_id=projection.parent_document_id or manifest_document.document_id,
+                attachment_kind=projection.attachment_kind,
+                attachment_role=projection.attachment_role,
+                provider_response_key=provider_response_key,
+                layout_elements_key=layout_elements_key,
+                source_page_start=manifest_document.page_start,
+                source_page_end=manifest_document.page_end,
+                entitlement_groups=manifest_document.resolved_entitlement_groups(),
+                visibility_scope=manifest_document.resolved_visibility_scope(),
+                visibility_level=manifest_document.resolved_visibility_level(),
+                import_source=import_source,
+            )
+            metadata = load_metadata_from_bytes(document.document_units_bytes)
+            metadata["title"] = target_title
+            apply_authorization_projection_metadata(
+                metadata,
+                entitlement_groups=manifest_document.resolved_entitlement_groups(),
+                visibility_scope=manifest_document.resolved_visibility_scope(),
+                visibility_level=manifest_document.resolved_visibility_level(),
+            )
+            metadata["status"] = manifest_document.status
+            documents.append(
+                DocumentImportInput(
+                    source_label=document.source_label,
+                    document_units_bytes=document.document_units_bytes,
+                    provider_response_bytes=None,
+                    canonical_markdown_bytes=document.canonical_markdown_bytes,
+                    metadata=metadata,
+                    import_source=import_source,
+                    revision_track=document.revision_track,
+                    source_channel=document.source_channel,
+                    is_current=document.is_current,
+                    corpus=document.corpus,
+                    collection=document.collection,
+                    visibility_scope=document.visibility_scope,
+                    status=manifest_document.status,
+                    raw_path=None,
+                    raw_source_uri=document.raw_source_uri,
+                    raw_asset_id=document.raw_asset_id,
+                    raw_version_id=document.raw_version_id,
+                    provider_response_object_key=document.provider_response_object_key,
+                    additional_processed_object_keys=document.additional_processed_object_keys,
+                    additional_processed_artifacts=document.additional_processed_artifacts,
+                    title=document.title,
+                    year=document.year,
+                )
+            )
+            continue
         cleanup_result = cleanup_handbook_document(
             structured_rows=structured_rows,
             manifest_document=manifest_document,
             source_doc=source_pdf,
         )
         target_title = projection.target_title or cleanup_result.title
-        document_id = build_projection_target_document_id(projection=projection)
         canonical_markdown = _render_canonical_markdown(
             metadata={
                 "schema_version": 1,
@@ -182,7 +266,7 @@ def build_handbook_projection_import_documents(
                 provider_response_bytes=None,
                 canonical_markdown_bytes=canonical_markdown.encode("utf-8"),
                 metadata=metadata,
-                import_source="provider_response_replay",
+                import_source=import_source,
                 revision_track="source-faithful",
                 source_channel="pdf_ocr",
                 is_current=False,
@@ -241,6 +325,25 @@ def build_declared_projection_processed_keys(
                 year=year,
             )
         )
+        if is_handbook_service_navigation_projection(
+            projection_name=projection.projection_name,
+            target_collection=projection.target_collection,
+            attachment_role=projection.attachment_role,
+            source_page_start=projection.source_page_start,
+            source_page_end=projection.source_page_end,
+        ):
+            keys.append(
+                build_document_artifact_key(
+                    corpus=projection.target_corpus,
+                    collection=projection.target_collection,
+                    document_id=document_id,
+                    revision_track="source-faithful",
+                    version_id=_build_projection_placeholder_version_id(projection),
+                    filename=FLOW_GRAPH_FILENAME,
+                    title=title,
+                    year=year,
+                )
+            )
     return tuple(dict.fromkeys(keys))
 
 
@@ -326,6 +429,19 @@ def _build_projection_placeholder_version_id(projection: HandbookSourceProjectio
         ]
     )
     return f"projection:{hashlib.sha1(seed.encode('utf-8')).hexdigest()}"
+
+
+def _resolve_hybrid_raw_asset_record(
+    *,
+    raw_asset_record: RawAssetRecord,
+    hybrid_raw_asset_record: RawAssetRecord | None,
+    import_source: str,
+) -> RawAssetRecord:
+    if import_source != "provider_response_replay":
+        return hybrid_raw_asset_record or raw_asset_record
+    if hybrid_raw_asset_record is None:
+        raise ValueError("service navigation hybrid replay raw asset record is required")
+    return hybrid_raw_asset_record
 
 
 def _normalize_projection_source_title(value: str) -> str:

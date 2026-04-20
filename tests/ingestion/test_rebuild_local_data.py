@@ -303,6 +303,11 @@ class RebuildLocalDataTest(unittest.TestCase):
             "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
             cleared_prefixes,
         )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/flow-graph.json",
+            cleared_prefixes,
+        )
         self.assertEqual(document_registry.deleted_scopes, [])
         self.assertEqual(raw_asset_registry.deleted_scopes, [])
         self.assertEqual(len(calls), 1)
@@ -642,6 +647,11 @@ class RebuildLocalDataTest(unittest.TestCase):
         self.assertIn(
             "campus_services/documents/service_catalog/"
             "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/document-units.jsonl",
+            cleared_prefixes,
+        )
+        self.assertIn(
+            "campus_services/documents/service_catalog/"
+            "中央民族大学学生公寓管理工作流程--66f91543/source-faithful/2018/flow-graph.json",
             cleared_prefixes,
         )
 
