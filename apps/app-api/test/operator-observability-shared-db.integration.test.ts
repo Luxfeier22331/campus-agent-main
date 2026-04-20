@@ -228,7 +228,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           'regulations/student_handbook', 'student_handbook', 'rag-specialist', 'completed', null,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
           2, false, true, 0,
-          true, null, 'allowed', null, false,
+          true, null, 'allowed', 'projection_missing', false,
           'openai', '${modelName}', 812, 229, 0,
           3810, true, 420, '${requestCompletedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
         )
@@ -482,6 +482,55 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         traceLink: `https://sentry.example/traces/${traceId}`,
       },
       requestId,
+    });
+
+    const safetyAnomaliesResponse = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/safety/anomalies?limit=10&anomalyCode=projection_missing",
+        {
+          headers: authHeaders,
+        },
+      ),
+    );
+    expect(safetyAnomaliesResponse.status).toBe(200);
+    await expect(safetyAnomaliesResponse.json()).resolves.toMatchObject({
+      anomalies: [
+        {
+          anomalyCode: "projection_missing",
+          principalType: "student",
+          requestId,
+          selectedTarget: "rag-specialist",
+          severity: "high",
+          status: "open",
+          summary:
+            "knowledge request finalized without the required policy projection for rag-specialist.",
+          surface: "public_chat_web",
+          traceId,
+        },
+      ],
+    });
+
+    const costTimeseriesResponse = await app.fetch(
+      new Request(
+        `https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
+        {
+          headers: authHeaders,
+        },
+      ),
+    );
+    expect(costTimeseriesResponse.status).toBe(200);
+    await expect(costTimeseriesResponse.json()).resolves.toMatchObject({
+      series: [
+        {
+          cachedInputTokens: 0,
+          estimatedCostMicrousd: 3810,
+          inputTokens: 812,
+          outputTokens: 229,
+        },
+      ],
+      window: {
+        granularity: "1h",
+      },
     });
 
     const auditDetailResponse = await app.fetch(

@@ -15,6 +15,7 @@ export interface StoredRequestObservabilitySeed {
   traceId: string;
   surface: string;
   requestStartedAt: string;
+  requestedScopeSummary: string | null;
   selectedTarget: string | null;
   requestedCapability: string | null;
   principalType: string;
@@ -67,6 +68,7 @@ function toStoredRequestObservabilitySeed(
     principalType: row.principalType,
     requestId: row.requestId,
     requestedCapability: row.requestedCapability ?? null,
+    requestedScopeSummary: row.requestedScopeSummary ?? null,
     requestStartedAt: row.startedAt.toISOString(),
     selectedTarget: row.selectedTarget ?? null,
     surface: row.surface,

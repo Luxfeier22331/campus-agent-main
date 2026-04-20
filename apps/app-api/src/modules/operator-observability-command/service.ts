@@ -42,6 +42,28 @@ export interface OperatorObservabilityCommandService {
 export interface OperatorObservabilityCommandServiceDependencies {
   now?: () => Date;
   store: OperatorObservabilityCommandStore;
+  telemetry?: {
+    recordQualitySampledGrade(input: {
+      collection: string | null;
+      gradeDomain: "grounding" | "citation" | "policy";
+      gradeId: string;
+      gradeSource: string;
+      graderVersion: string;
+      modelName: string | null;
+      principalType: string;
+      rationaleSummary: string | null;
+      requestId: string;
+      requestStartedAt: string;
+      requestedCapability: string | null;
+      requestedScopeSummary: string | null;
+      sampledAt: string;
+      scoreMilli: number | null;
+      selectedTarget: string | null;
+      surface: string;
+      traceId: string;
+      verdict: "pass" | "fail" | "needs_review";
+    }): Promise<void>;
+  };
 }
 
 function normalizeString(value: unknown): string {
@@ -131,7 +153,10 @@ function ensureArray<T>(value: unknown, field: string): T[] {
   return value as T[];
 }
 
-function normalizeGradeDomain(value: unknown, field: string): string {
+function normalizeGradeDomain(
+  value: unknown,
+  field: string,
+): "grounding" | "citation" | "policy" {
   const normalized = normalizeRequiredString(value, field);
   if (!ALLOWED_GRADE_DOMAINS.has(normalized)) {
     throw new AppApiRouteError({
@@ -143,10 +168,13 @@ function normalizeGradeDomain(value: unknown, field: string): string {
     });
   }
 
-  return normalized;
+  return normalized as "grounding" | "citation" | "policy";
 }
 
-function normalizeGradeVerdict(value: unknown, field: string): string {
+function normalizeGradeVerdict(
+  value: unknown,
+  field: string,
+): "pass" | "fail" | "needs_review" {
   const normalized = normalizeRequiredString(value, field);
   if (!ALLOWED_GRADE_VERDICTS.has(normalized)) {
     throw new AppApiRouteError({
@@ -158,7 +186,7 @@ function normalizeGradeVerdict(value: unknown, field: string): string {
     });
   }
 
-  return normalized;
+  return normalized as "pass" | "fail" | "needs_review";
 }
 
 function buildGradeId(input: {
@@ -225,6 +253,7 @@ export function buildOperatorObservabilityCommandService(
           requestId,
           requestStartedAt: seed.requestStartedAt,
           requestedCapability: seed.requestedCapability,
+          requestedScopeSummary: seed.requestedScopeSummary,
           sampledAt,
           scoreMilli: score.scoreMilli,
           selectedTarget: seed.selectedTarget,
@@ -235,6 +264,28 @@ export function buildOperatorObservabilityCommandService(
       }
 
       await dependencies.store.upsertQualityGrades({ grades: writes });
+      for (const grade of writes) {
+        await dependencies.telemetry?.recordQualitySampledGrade({
+          collection: grade.collection,
+          gradeDomain: grade.gradeDomain,
+          gradeId: grade.gradeId,
+          gradeSource: grade.gradeSource,
+          graderVersion: grade.graderVersion,
+          modelName: grade.modelName,
+          principalType: grade.principalType,
+          rationaleSummary: grade.rationaleSummary,
+          requestId: grade.requestId,
+          requestStartedAt: grade.requestStartedAt,
+          requestedCapability: grade.requestedCapability,
+          requestedScopeSummary: grade.requestedScopeSummary,
+          sampledAt: grade.sampledAt,
+          scoreMilli: grade.scoreMilli,
+          selectedTarget: grade.selectedTarget,
+          surface: grade.surface,
+          traceId: grade.traceId,
+          verdict: grade.verdict,
+        });
+      }
       return { accepted: writes.length };
     },
 

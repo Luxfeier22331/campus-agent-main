@@ -310,12 +310,28 @@ export interface OperatorQualityBadcaseListFilters {
   detectedBy?: string | null;
 }
 
+export interface OperatorSafetyAnomalyListFilters {
+  limit?: number | null;
+  cursor?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  anomalyCode?: string | null;
+}
+
 export interface NormalizedOperatorQualityBadcaseListFilters {
   limit: number;
   cursor: string | null;
   status: string | null;
   causeClass: string | null;
   detectedBy: string | null;
+}
+
+export interface NormalizedOperatorSafetyAnomalyListFilters {
+  limit: number;
+  cursor: string | null;
+  severity: string | null;
+  status: string | null;
+  anomalyCode: string | null;
 }
 
 export interface OperatorQualityBadcaseListResult {
@@ -385,6 +401,30 @@ export interface OperatorSafetySummaryResult {
   asOf: string;
 }
 
+export interface OperatorSafetyAnomalyListResult {
+  anomalies: Array<{
+    anomalyId: string;
+    requestId: string;
+    traceId: string;
+    surface: string;
+    principalType: string;
+    selectedTarget: string | null;
+    anomalyCode: string;
+    severity: "high" | "medium";
+    status: "open";
+    summary: string;
+    detectedAt: string;
+    links: {
+      traceLink: string | null;
+      issueLink: string | null;
+      issueFingerprint: string | null;
+    };
+  }>;
+  page: {
+    nextCursor: string | null;
+  };
+}
+
 export interface OperatorCostSummaryResult {
   window: OperatorResultWindow;
   summary: {
@@ -411,6 +451,19 @@ export interface OperatorCostSummaryResult {
   asOf: string;
 }
 
+export interface OperatorCostTimeseriesResult {
+  window: OperatorResultWindow;
+  series: Array<{
+    bucketStart: string;
+    bucketEnd: string;
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens: number;
+    estimatedCostMicrousd: number;
+  }>;
+  asOf: string;
+}
+
 export interface OperatorQueryStore {
   getById(requestId: string): Promise<RequestProjectionRecord | null>;
   getAuditById(auditEventId: string): Promise<OperatorAuditEventDetail | null>;
@@ -419,7 +472,11 @@ export interface OperatorQueryStore {
   getQualitySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualitySummaryResult>;
   getQualityTimeseries(filters: NormalizedOperatorOverviewFilters): Promise<OperatorQualityTimeseriesResult>;
   getSafetySummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorSafetySummaryResult>;
+  listSafetyAnomalies(
+    filters: NormalizedOperatorSafetyAnomalyListFilters,
+  ): Promise<OperatorSafetyAnomalyListResult>;
   getCostSummary(filters: NormalizedOperatorOverviewFilters): Promise<OperatorCostSummaryResult>;
+  getCostTimeseries(filters: NormalizedOperatorOverviewFilters): Promise<OperatorCostTimeseriesResult>;
   listQualityBadcases(
     filters: NormalizedOperatorQualityBadcaseListFilters,
   ): Promise<OperatorQualityBadcaseListResult>;
@@ -456,10 +513,18 @@ export interface OperatorQueryService {
     principal: ResolvedAppPrincipal;
     filters: OperatorOverviewFilters;
   }): Promise<OperatorSafetySummaryResult>;
+  listSafetyAnomalies(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorSafetyAnomalyListFilters;
+  }): Promise<OperatorSafetyAnomalyListResult>;
   getCostSummary(input: {
     principal: ResolvedAppPrincipal;
     filters: OperatorOverviewFilters;
   }): Promise<OperatorCostSummaryResult>;
+  getCostTimeseries(input: {
+    principal: ResolvedAppPrincipal;
+    filters: OperatorOverviewFilters;
+  }): Promise<OperatorCostTimeseriesResult>;
   list(input: {
     principal: ResolvedAppPrincipal;
     filters: OperatorRequestListFilters;
@@ -550,6 +615,18 @@ function normalizeQualityBadcaseListFilters(
     cursor: normalizeOptionalString(filters.cursor),
     detectedBy: normalizeOptionalString(filters.detectedBy),
     limit: normalizeLimit(filters.limit),
+    status: normalizeOptionalString(filters.status),
+  };
+}
+
+function normalizeSafetyAnomalyListFilters(
+  filters: OperatorSafetyAnomalyListFilters,
+): NormalizedOperatorSafetyAnomalyListFilters {
+  return {
+    anomalyCode: normalizeOptionalString(filters.anomalyCode),
+    cursor: normalizeOptionalString(filters.cursor),
+    limit: normalizeLimit(filters.limit),
+    severity: normalizeOptionalString(filters.severity),
     status: normalizeOptionalString(filters.status),
   };
 }
@@ -696,10 +773,26 @@ export function buildOperatorQueryService(
       return dependencies.store.getSafetySummary(normalizeOverviewFilters(input.filters));
     },
 
+    async listSafetyAnomalies(input) {
+      ensureOperatorPrincipal(input.principal);
+
+      return dependencies.store.listSafetyAnomalies(
+        normalizeSafetyAnomalyListFilters(input.filters),
+      );
+    },
+
     async getCostSummary(input) {
       ensureOperatorPrincipal(input.principal);
 
       return dependencies.store.getCostSummary(normalizeOverviewFilters(input.filters));
+    },
+
+    async getCostTimeseries(input) {
+      ensureOperatorPrincipal(input.principal);
+      const filters = normalizeOverviewFilters(input.filters);
+      validateTimeseriesGranularity(filters);
+
+      return dependencies.store.getCostTimeseries(filters);
     },
 
     async list(input) {

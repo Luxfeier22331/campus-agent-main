@@ -68,6 +68,27 @@ function createCampusPrincipal(): ResolvedAppPrincipal {
   };
 }
 
+function createOperatorQueryServiceMock(
+  overrides: Partial<OperatorQueryService> = {},
+): OperatorQueryService {
+  return {
+    getById: vi.fn(),
+    getAuditById: vi.fn(),
+    getObservabilityById: vi.fn(),
+    getOverview: vi.fn(),
+    getQualitySummary: vi.fn(),
+    getQualityTimeseries: vi.fn(),
+    getSafetySummary: vi.fn(),
+    listSafetyAnomalies: vi.fn(),
+    getCostSummary: vi.fn(),
+    getCostTimeseries: vi.fn(),
+    listQualityBadcases: vi.fn(),
+    listAudit: vi.fn(),
+    list: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("GET /api/operator/requests", () => {
   it("returns request projections for operator principals only", async () => {
     const service: OperatorQueryService = {
@@ -78,7 +99,9 @@ describe("GET /api/operator/requests", () => {
       getQualitySummary: vi.fn(),
       getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
+      listSafetyAnomalies: vi.fn(),
       getCostSummary: vi.fn(),
+      getCostTimeseries: vi.fn(),
       listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn().mockResolvedValue({
@@ -182,19 +205,7 @@ describe("GET /api/operator/requests", () => {
   it("fails closed for missing or non-operator principals", async () => {
     const appWithoutPrincipal = createApp(env, {
       getPrincipal: vi.fn().mockResolvedValue(null),
-      operatorQueryService: {
-        getById: vi.fn(),
-        getAuditById: vi.fn(),
-        getObservabilityById: vi.fn(),
-        getOverview: vi.fn(),
-        getQualitySummary: vi.fn(),
-        getQualityTimeseries: vi.fn(),
-        getSafetySummary: vi.fn(),
-        getCostSummary: vi.fn(),
-        listQualityBadcases: vi.fn(),
-        listAudit: vi.fn(),
-        list: vi.fn(),
-      },
+      operatorQueryService: createOperatorQueryServiceMock(),
     });
 
     const anonymous = await appWithoutPrincipal.fetch(
@@ -215,19 +226,7 @@ describe("GET /api/operator/requests", () => {
 
     const appWithUserPrincipal = createApp(env, {
       getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
-      operatorQueryService: {
-        getById: vi.fn(),
-        getAuditById: vi.fn(),
-        getObservabilityById: vi.fn(),
-        getOverview: vi.fn(),
-        getQualitySummary: vi.fn(),
-        getQualityTimeseries: vi.fn(),
-        getSafetySummary: vi.fn(),
-        getCostSummary: vi.fn(),
-        listQualityBadcases: vi.fn(),
-        listAudit: vi.fn(),
-        list: vi.fn(),
-      },
+      operatorQueryService: createOperatorQueryServiceMock(),
     });
 
     const forbidden = await appWithUserPrincipal.fetch(
@@ -257,19 +256,7 @@ describe("GET /api/operator/requests", () => {
           status: 403,
         }),
       ),
-      operatorQueryService: {
-        getById: vi.fn(),
-        getAuditById: vi.fn(),
-        getObservabilityById: vi.fn(),
-        getOverview: vi.fn(),
-        getQualitySummary: vi.fn(),
-        getQualityTimeseries: vi.fn(),
-        getSafetySummary: vi.fn(),
-        getCostSummary: vi.fn(),
-        listQualityBadcases: vi.fn(),
-        listAudit: vi.fn(),
-        list: vi.fn(),
-      },
+      operatorQueryService: createOperatorQueryServiceMock(),
     });
 
     const response = await app.fetch(
@@ -327,7 +314,9 @@ describe("GET /api/operator/requests/:requestId", () => {
       getQualitySummary: vi.fn(),
       getQualityTimeseries: vi.fn(),
       getSafetySummary: vi.fn(),
+      listSafetyAnomalies: vi.fn(),
       getCostSummary: vi.fn(),
+      getCostTimeseries: vi.fn(),
       listQualityBadcases: vi.fn(),
       listAudit: vi.fn(),
       list: vi.fn(),
@@ -382,7 +371,7 @@ describe("GET /api/operator/requests/:requestId", () => {
   it("maps missing projections onto the shared error envelope", async () => {
     const app = createApp(env, {
       getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
-      operatorQueryService: {
+      operatorQueryService: createOperatorQueryServiceMock({
         getById: vi.fn().mockRejectedValue(
           new AppApiRouteError({
             code: "request_not_found",
@@ -391,17 +380,7 @@ describe("GET /api/operator/requests/:requestId", () => {
             status: 404,
           }),
         ),
-        getAuditById: vi.fn(),
-        getObservabilityById: vi.fn(),
-        getOverview: vi.fn(),
-        getQualitySummary: vi.fn(),
-        getQualityTimeseries: vi.fn(),
-        getSafetySummary: vi.fn(),
-        getCostSummary: vi.fn(),
-        listQualityBadcases: vi.fn(),
-        listAudit: vi.fn(),
-        list: vi.fn(),
-      },
+      }),
     });
 
     const response = await app.fetch(
@@ -424,7 +403,7 @@ describe("GET /api/operator/requests/:requestId", () => {
   it("includes summary diagnostics in request detail when projection carries them", async () => {
     const app = createApp(env, {
       getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
-      operatorQueryService: {
+      operatorQueryService: createOperatorQueryServiceMock({
         getById: vi.fn().mockResolvedValue({
           answerPreview:
             "在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
@@ -463,17 +442,7 @@ describe("GET /api/operator/requests/:requestId", () => {
           surface: "public_chat_web",
           traceId: "trace_01HQ",
         }),
-        getAuditById: vi.fn(),
-        getObservabilityById: vi.fn(),
-        getOverview: vi.fn(),
-        getQualitySummary: vi.fn(),
-        getQualityTimeseries: vi.fn(),
-        getSafetySummary: vi.fn(),
-        getCostSummary: vi.fn(),
-        listQualityBadcases: vi.fn(),
-        listAudit: vi.fn(),
-        list: vi.fn(),
-      },
+      }),
     });
 
     const response = await app.fetch(
@@ -1485,6 +1454,98 @@ describe("GET /api/operator/safety/summary", () => {
   });
 });
 
+describe("GET /api/operator/safety/anomalies", () => {
+  it("returns a safety anomaly queue for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
+      getSafetySummary: vi.fn(),
+      listSafetyAnomalies: vi.fn().mockResolvedValue({
+        anomalies: [
+          {
+            anomalyCode: "projection_missing",
+            anomalyId: "aclanom_01HQ",
+            detectedAt: "2026-03-28T08:00:10.000Z",
+            links: {
+              issueFingerprint: "projection-missing",
+              issueLink: "https://sentry.example/issues/789",
+              traceLink: "https://sentry.example/traces/trace_01HQ",
+            },
+            principalType: "campus_member",
+            requestId: "req_01HQ",
+            selectedTarget: "rag-specialist",
+            severity: "high",
+            status: "open",
+            summary: "knowledge request finalized without the required policy projection for rag-specialist.",
+            surface: "public_chat_web",
+            traceId: "trace_01HQ",
+          },
+        ],
+        page: {
+          nextCursor: null,
+        },
+      }),
+      getCostSummary: vi.fn(),
+      getCostTimeseries: vi.fn(),
+      listQualityBadcases: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/safety/anomalies?limit=10&severity=high&anomalyCode=projection_missing",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      anomalies: [
+        {
+          anomalyCode: "projection_missing",
+          anomalyId: "aclanom_01HQ",
+          detectedAt: "2026-03-28T08:00:10.000Z",
+          links: {
+            issueFingerprint: "projection-missing",
+            issueLink: "https://sentry.example/issues/789",
+            traceLink: "https://sentry.example/traces/trace_01HQ",
+          },
+          principalType: "campus_member",
+          requestId: "req_01HQ",
+          selectedTarget: "rag-specialist",
+          severity: "high",
+          status: "open",
+          summary: "knowledge request finalized without the required policy projection for rag-specialist.",
+          surface: "public_chat_web",
+          traceId: "trace_01HQ",
+        },
+      ],
+      page: {
+        nextCursor: null,
+      },
+    });
+    expect(service.listSafetyAnomalies).toHaveBeenCalledWith({
+      filters: {
+        anomalyCode: "projection_missing",
+        cursor: null,
+        limit: 10,
+        severity: "high",
+        status: null,
+      },
+      principal,
+    });
+  });
+});
+
 describe("GET /api/operator/cost/summary", () => {
   it("returns a cost summary snapshot for operator principals", async () => {
     const service = {
@@ -1588,6 +1649,87 @@ describe("GET /api/operator/cost/summary", () => {
         selectedTarget: null,
         surface: null,
         window: "1h",
+      },
+      principal,
+    });
+  });
+});
+
+describe("GET /api/operator/cost/timeseries", () => {
+  it("returns a cost timeseries snapshot for operator principals", async () => {
+    const service = {
+      getById: vi.fn(),
+      getAuditById: vi.fn(),
+      getObservabilityById: vi.fn(),
+      getOverview: vi.fn(),
+      getQualitySummary: vi.fn(),
+      getQualityTimeseries: vi.fn(),
+      getSafetySummary: vi.fn(),
+      listSafetyAnomalies: vi.fn(),
+      getCostSummary: vi.fn(),
+      getCostTimeseries: vi.fn().mockResolvedValue({
+        asOf: "2026-03-28T08:00:10.000Z",
+        series: [
+          {
+            bucketEnd: "2026-03-28T08:00:00.000Z",
+            bucketStart: "2026-03-28T07:00:00.000Z",
+            cachedInputTokens: 0,
+            estimatedCostMicrousd: 3810,
+            inputTokens: 812,
+            outputTokens: 229,
+          },
+        ],
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+      listQualityBadcases: vi.fn(),
+      listAudit: vi.fn(),
+      list: vi.fn(),
+    };
+    const principal = createOperatorPrincipal();
+    const app = createApp(env, {
+      getPrincipal: vi.fn().mockResolvedValue(principal),
+      operatorQueryService: service as unknown as OperatorQueryService,
+    });
+
+    const response = await app.fetch(
+      new Request(
+        "https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web",
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      asOf: "2026-03-28T08:00:10.000Z",
+      series: [
+        {
+          bucketEnd: "2026-03-28T08:00:00.000Z",
+          bucketStart: "2026-03-28T07:00:00.000Z",
+          cachedInputTokens: 0,
+          estimatedCostMicrousd: 3810,
+          inputTokens: 812,
+          outputTokens: 229,
+        },
+      ],
+      window: {
+        from: "2026-03-27T08:00:10.000Z",
+        granularity: "1h",
+        to: "2026-03-28T08:00:10.000Z",
+      },
+    });
+    expect(service.getCostTimeseries).toHaveBeenCalledWith({
+      filters: {
+        collection: null,
+        granularity: "1h",
+        modelName: null,
+        principalType: null,
+        requestedCapability: null,
+        selectedTarget: null,
+        surface: "public_chat_web",
+        window: "24h",
       },
       principal,
     });
