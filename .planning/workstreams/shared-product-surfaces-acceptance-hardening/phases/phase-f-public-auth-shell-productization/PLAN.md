@@ -2,7 +2,7 @@
 doc_type: phase_plan
 phase: "F"
 phase_name: "Public Auth Shell Productization"
-status: planned
+status: completed
 created: 2026-04-19
 updated: 2026-04-19
 ---

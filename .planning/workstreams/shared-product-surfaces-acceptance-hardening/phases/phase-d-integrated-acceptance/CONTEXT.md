@@ -2,7 +2,8 @@
 phase: "D"
 name: "Integrated Acceptance"
 created: 2026-04-19
-status: active
+updated: 2026-04-21
+status: completed
 ---
 
 # Phase D Context
@@ -25,4 +26,4 @@ status: active
 
 ## Entry
 
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md`

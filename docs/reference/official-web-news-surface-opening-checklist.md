@@ -2,19 +2,19 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-20
 ---
 
 # Official Web News Surface Opening Checklist
 
 ## 文档边界
 
-本文冻结 `official_web/fresh_news` 与 `official_web/news_archive` 在独立
-official-web worktree 中的 opening acceptance / handoff contract。
+本文冻结 `official_web/fresh_news` 与 `official_web/news_archive` 的长期
+opening contract。
 
 它回答的是：
 
-- 独立 worktree closeout 前必须产出哪些 artifact
+- 打开任何 news-serving surface 前必须产出哪些 artifact
 - 哪些结果不能被误写成 runtime opening success
 - promote 到 active rollout 前还需要满足什么
 
@@ -24,20 +24,15 @@ official-web worktree 中的 opening acceptance / handoff contract。
 - seed import/release 或局部 qrels 已经等于 runtime ready
 - 当前 mixed `muc_public_pages` 可以替代 `fresh_news` / `news_archive`
 
-## 当前分支与独立 Worktree 的责任边界
+补充规则：
 
-- 当前分支：
-  - 冻结长期 policy truth
-  - 冻结 runtime-profile contract
-  - 冻结 opening checklist 与 handoff 口径
-- 独立 official-web worktree：
-  - 完成 metadata、routing、eval、duplicate collapse 的真实实现
-  - 生成 fresh artifact
-  - 决定是否满足 promote 条件
+- execution status、单轮 closeout 证据与 rollout 决策继续写回 `.planning/`
+- 本文只冻结 opening gate 与 artifact contract，不代替执行状态板
 
 ## Opening Artifact Checklist
 
-独立 worktree closeout 前，至少必须保留以下 artifact：
+在任何 news surface 从 `offline_preparation` 走向 active rollout 前，至少必
+须保留以下 artifact：
 
 1. opening criteria checklist
    - `fresh_news` / `news_archive` 各自是否满足当前 repo policy
@@ -101,9 +96,9 @@ official-web worktree 中的 opening acceptance / handoff contract。
 promote 到 active rollout 前，至少需要：
 
 - 本文 checklist 全部满足
-- repo policy truth 与独立 worktree artifact 一致
+- repo policy truth 与本轮 opening artifact 一致
 - `fresh_news` / `news_archive` 的 runtime profile 已从占位值推进到真实可执行值
-- fresh artifact 已写回 `.planning/` handoff truth
+- opening artifact 已写回 `.planning/` handoff truth
 - 对当前主分支明确说明：
   - 哪个 surface 打开了
   - 哪个 surface 仍然关闭
@@ -114,4 +109,5 @@ promote 到 active rollout 前，至少需要：
 - [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-serving-and-news-retrieval-strategy.md)
 - [official-web-freshness-and-incremental-crawling.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-freshness-and-incremental-crawling.md)
 - [official-web-fresh-news-surface-handoff.md](/home/reptilian/code/campus-agent/docs/reference/official-web-fresh-news-surface-handoff.md)
-- [official-web-fresh-news-eval-baseline-20260405.md](/home/reptilian/code/campus-agent/docs/reference/official-web-fresh-news-eval-baseline-20260405.md)
+- [official-web-fresh-news-eval-baseline.md](/home/reptilian/code/campus-agent/docs/reference/official-web-fresh-news-eval-baseline.md)
+- [official-web-stable-reference-eval-baseline.md](/home/reptilian/code/campus-agent/docs/reference/official-web-stable-reference-eval-baseline.md)

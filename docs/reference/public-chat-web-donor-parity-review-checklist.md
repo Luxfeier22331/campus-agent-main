@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-09
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Public Chat Web Donor Parity Review Checklist
@@ -14,13 +14,14 @@ updated: 2026-04-19
 本文回答的是：
 
 - staging 或本地 smoke 时，哪些界面必须进入 strict parity review
+- 当前 canonical route/state inventory 是什么
 - 每个 gate 应该验证什么
 - 哪些证据足以支持一次 donor parity 判定
 
 本文不负责：
 
 - 维护某一轮 closeout 的实时判定结果
-- 替代 `.tmp/staging-smoke/...` 的原始截图与网络证据
+- 替代单轮 staging smoke 目录中的原始截图与网络证据
 - 改写 `public-chat-web -> app-api -> supervisor-api` 运行边界
 
 ## Gate 说明
@@ -29,6 +30,26 @@ updated: 2026-04-19
 - `FAIL`：当前明确存在 strict parity blocker
 - `OUT-OF-SCOPE`：必须 smoke，但不进入 donor parity 本身
 - `AUTH-SURFACE`：正式 public auth surface；不计入 strict chat parity 结论，但必须单独记录 auth shell 验收
+
+## Canonical Route / State Inventory
+
+当前 strict donor parity gate 的 canonical route/state inventory 已并入本文。
+
+| Route / State | 当前 owner | parity 级别 | 约束 |
+|---|---|---|---|
+| `/` | `src/routes/app-router.tsx` | `none` | 只承担 redirect 到 `/chat` 的 route bootstrap |
+| `/login` | route layer + donor auth shell | `auth-surface` | 正式 public auth surface，不计入 strict chat parity，但必须单独 smoke |
+| `/register` | route layer + donor auth shell | `auth-surface` | 与 `/login` 同一 auth family，不得另起 repo-owned 新壳 |
+| `/chat` | route layer -> `src/platform/chat/app-shell.tsx` | `critical` | empty thread、首轮发送、entry bootstrap 都属于 parity gate |
+| `/chat/:conversationId` | route layer -> `src/platform/chat/app-shell.tsx` | `critical` | existing thread、follow-up submit、request outcome mapping 都属于 parity gate |
+
+跨 route 状态固定包括：
+
+- route entry states that appear before the chat shell is ready
+- sidebar / history / user-nav actions
+- thread / messages / tool outputs
+- composer submit / navigate / edit flows
+- empty / loading / error states inside or directly in front of the chat shell
 
 ## Review Checklist
 
@@ -42,26 +63,18 @@ updated: 2026-04-19
 | existing thread visual shell | 已有会话能在 donor 风格 thread 内显示 | 线程态截图 |
 | message / tool rendering behavior | tool output、fallback、error state 不能明显偏离 donor thread 行为 | 结果态截图 [message.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/message.tsx) [public-chat-message-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-message-parity.test.ts) |
 | artifact / document runtime | artifact panel、document preview、editor runtime 的打开与流式行为必须与 donor 等价；仅在 launch path 实际可见时纳入该轮 gate | [shell.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/shell.tsx) [data-stream-handler.tsx](/home/reptilian/code/campus-agent/apps/public-chat-web/vendor/vercel-ai-chatbot/components/chat/data-stream-handler.tsx) [public-chat-artifact-runtime-parity.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-artifact-runtime-parity.test.ts) |
-| sharing / visibility off-path | `private-only` 模式下，launch path 不得继续暴露 share / public affordance | [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts) |
-| strict parity smoke / evidence pack | donor diff whitelist、desktop/mobile smoke、same-site network evidence 与本地 gate 必须同时闭合 | 浏览器 smoke 产物、[public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) |
+| sharing / visibility off-path | `private-only` 模式下，launch path 不得继续暴露 share / public affordance | [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) [public-chat-donor-diff-whitelist.test.ts](/home/reptilian/code/campus-agent/apps/public-chat-web/test/public-chat-donor-diff-whitelist.test.ts) |
+| strict parity smoke / evidence pack | donor diff classification、desktop/mobile smoke、same-site network evidence 与本地 gate 必须同时闭合 | 浏览器 smoke 产物、[public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) |
 | same-site `/api/*` seam | `/api/me`、`/api/history`、`/api/models`、`/api/chat/conversations`、`/api/chat/requests` 都仍走 same-site 且未退化 | network summary、worker smoke |
 | `/login` `/register` | `/login` 与 `/register` 可用，退出登录后可回到登录页；`/login` 保留 future recovery CTA slot；`/register` 不脱离 donor auth family | `AUTH-SURFACE`；单独记录 auth shell 验收，不混入 strict chat parity 结论 |
 
 ## Recommended Review Order
 
-1. 先用 [public-chat-web-chatbot-donor-baseline.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-chatbot-donor-baseline.md) 确认 donor baseline 与允许继承边界。
-2. 再用 [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md) 确认该轮需要覆盖的 route/state。
-3. 用 [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md) 与 [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) 判定哪些 diff 属于 accepted seam。
+1. 先用 [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) 确认 donor baseline、允许继承边界与 accepted seam。
+2. 再用本文确认该轮需要覆盖的 route/state 和 gate。
+3. 用 [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md) 判定当前 diff 是否仍落在 accepted classes 内。
 4. 最后把浏览器截图、same-site network summary 与本地 gate 产物收成一轮 smoke evidence。
-
-## Historical Examples
-
-- `2026-04-09` staging closeout 与 `2026-04-11` local follow-up 的判定快照固定记录在 [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)。
-- 这份 checklist 不再维护那一轮 closeout 的实时 `PASS/FAIL` 状态；后续复核应复用本清单并生成新的 evidence pack。
 
 ## 相关文件
 
 - [public-chat-web-donor-diff-classification.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-classification.md)
-- [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
-- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
-- [public-chat-web-route-state-parity-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-route-state-parity-inventory.md)

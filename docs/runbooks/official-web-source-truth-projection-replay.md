@@ -79,10 +79,6 @@ source-truth 的 host 范围：
 - `law.muc.edu.cn`
 - `history.muc.edu.cn`
 
-参考记录：
-
-- [official-web-muc-public-batch-a-law-history-audit-20260402.md](/home/reptilian/code/campus-agent/docs/reference/official-web-muc-public-batch-a-law-history-audit-20260402.md)
-
 repo-tracked declaration 入口：
 
 - [projection-declarations.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/projection-declarations.json)

@@ -210,7 +210,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@out
 建议落盘：
 
 - `.tmp/staging-smoke/<timestamp>/SUMMARY.md`
-- `docs/runbooks/public-chat-staging-smoke-artifact-template.md`
+- `docs/runbooks/templates/public-chat-staging-smoke-artifact-template.md`
 
 建议摘要字段：
 

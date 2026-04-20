@@ -30,7 +30,7 @@ This seed should be presented during `$gsd-new-milestone` when the milestone sco
 
 Related code and decisions found in the current codebase:
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`
 - `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md`
 - `.planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-i-abuse-controls-and-security-ops-loop/SUMMARY.md`
 - `apps/app-api/src/modules/safety-ops-policy.ts`

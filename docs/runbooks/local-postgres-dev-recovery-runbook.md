@@ -25,7 +25,6 @@ updated: 2026-04-12
 
 - shared Postgres ownership：`docs/data/shared-postgres-ownership.md`
 - deployed runtime posture：`docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
-- donor normalized batch 生成流程：`docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md`
 
 ## Canonical 入口
 
@@ -62,7 +61,35 @@ uv run --all-packages python -m scripts.restore_shared_postgres_dev --json
   - `.tmp/historical-intake/run14-attachment-routing-probe/normalized`
   - `.tmp/historical-intake/run14-policy-regulation-core/normalized`
 
-如果 normalized donor batch 还没准备好，先按 `docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md` 生成。
+如果 normalized donor batch 还没准备好，可直接使用 repo-tracked selection files 生成：
+
+```bash
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.normalize_authenticated_notice_legacy_export \
+  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json \
+  --manifest-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/export-manifest-20260403-run-14.json \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn \
+  --selection-path configs/ingestion/campus_notices/internal_notice/historical-batches/run14-policy-regulation-core.v1.json \
+  --output-dir .tmp/historical-intake/run14-policy-regulation-core/normalized
+
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.normalize_authenticated_notice_legacy_export \
+  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json \
+  --manifest-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/export-manifest-20260403-run-14.json \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn \
+  --selection-path configs/ingestion/campus_notices/internal_notice/historical-batches/run14-policy-regulation-expanded.v1.json \
+  --output-dir .tmp/historical-intake/run14-policy-regulation-expanded/normalized
+
+uv run --package campus-ingestion-worker python -m campus_ingestion_worker.normalize_authenticated_notice_legacy_export \
+  --bundle-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/notices-bundle-20260403-run-14.json \
+  --manifest-path /home/reptilian/code/rag-data/muc-notice-collector/runtime/exports/export-manifest-20260403-run-14.json \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn \
+  --selection-path configs/ingestion/campus_notices/internal_notice/historical-batches/run14-attachment-routing-probe.v1.json \
+  --output-dir .tmp/historical-intake/run14-attachment-routing-probe/normalized
+```
+
+如果 donor export 不在默认 `rag-data` 路径下，只替换 `--bundle-path` 与 `--manifest-path`，保持同一组 repo-tracked selection files 与 output dirs 即可。
 
 ## `restore_local_postgres_dev` 会做什么
 

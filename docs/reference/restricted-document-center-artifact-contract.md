@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-20
 ---
 
 # Restricted Document Center Artifact Contract
@@ -25,30 +25,23 @@ updated: 2026-04-15
 - 某个具体 collection 何时开放 query-serving
 - 具体 code path 已经实现到哪一步
 
-## 当前状态说明
+## Contract 姿态
 
-这份 contract 记录的是：
+这份 contract 记录的是 approved target，而不是“当前 merged truth 已全部实现”的状态板。
 
-- approved target
+它的作用固定为：
 
-不是：
+- 先冻结 `original / normalized_readable / semantic_document` 的正式边界
+- 避免后续把现有清洗结果临时拼接成没有 owner 分层的附件库
+- 为后续 restricted rollout / document center productization 提供稳定 contract
 
-- current merged-truth fully implemented execution
+如果需要判断当前实现进度，应转到：
 
-截至 2026-04-15，当前 repo 已明确成立的 execution truth 仍是：
-
-- source channel 把 originals 吸入 source bucket / source-truth
-- `internal_notice -> regulations/*` 可以把部分 owner text materialize 成 semantic document
-
-当前尚未宣称已经 fully implemented 的部分是：
-
-- 面向已认证用户开放的 document center product surface
-- `normalized_readable` 作为独立 product artifact 的全链路 materialization / registry scope / serving
-
-因此本文的作用是：
-
-- 把正式链路应该长成什么样先冻结
-- 避免后续把“现有清洗结果”临时拼接成没有边界的附件库
+- `../architecture/current-architecture.md`
+- `../domains/identity-authz-memory.md`
+- `../plans/restricted-document-rollout-and-verification.md`
+- `../../.planning/PROJECT.md`
+- `../../.planning/WORKSTREAMS.md`
 
 ## 核心结论
 

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Workstreams
@@ -37,14 +37,19 @@ updated: 2026-04-20
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/shared-product-surfaces-acceptance-hardening.md` | `Phase J` | `Phase K` 已完成 repo-owned mature auth shell local cutover 与 smoke 落盘；当前剩余 blocker 仍是 `Phase J` 真实 staging 浏览器 closeout，因为 Cloudflare live Turnstile 不接受 Playwright automation 作为最终验收依据 |
+| `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/operator-observability-control-plane-foundation.md` | `Phase C` | 已恢复 workstream 并按当前 merged truth 重排 phases；`Phase A-B` 已被已落地的 app-api observability/audit 基线吸收，当前先收口 aggregate API residual gap 与后续 panel 扩面前置 seam |
+| `notice semantic fan-out / consumption modeling` | `notice-semantic-fan-out-and-consumption-modeling` | `yes` | `docs/plans/notice-semantic-fan-out-and-consumption-modeling.md` | `Phase 1` | 新建 semantic-modeling lane；当前先冻结 `source_notice + attachment -> derived consumption units` 的 role taxonomy、authority/completeness contract 与 future agent/surface handoff，不进入实现或 query-serving opening |
+| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/execution-capability-family-convergence.md` | `Phase 3` | `Phase 1-2` 已完成并收口 current-truth terminology 与 `selected_target` / operator label semantics；下一步只推进 prompt / eval / observability wording convergence，不提前触碰 package rename |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
-| `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/shared-file-asset-loader-contract.md` | 只有在 repo-level file-like asset adoption demand 再次被提升为 active、legacy Office runtime contract/deployment posture 发生结构性变化，或 shared file asset architecture truth 被重新改写时才恢复 |
-| `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
+| `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` | 只有在 public auth family / same-site auth contract / Turnstile posture 被显式改写、public browser answer contract 再次出现 raw specialist locator 泄漏，或 shared `app-api + public-chat-web + protected-panel-web` 联合验收被重新 admission 为 active hardening 时才恢复 |
+| `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/archive/completed/shared-file-asset-loader-contract.md` | 只有在新的 admitted file asset family 被提升为 active、当前 canonical parser/normalization lane 被显式改写，或 deferred cross-scope adoption 被重新 admission 为 active implementation 时才恢复 |
+| `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
+| `campus services offline preparation hardening` | `campus-services-offline-preparation-hardening` | `yes` | `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md` | 只有在产品范围重新提升 `campus_services/*` offline-preparation quality hardening 优先级，或明确 admission 新的 bounded target 时才恢复 |
+| `campus services / notices runtime admission` | `campus-services-notices-runtime-admission` | `yes` | `docs/plans/archive/completed/campus-services-notices-runtime-admission.md` | 只有在产品范围重新 admission 新的 runtime capability family、显式改写首发/后续 tool 边界，或需要重开 service / notice / contact / process runtime opening truth 时才恢复 |
 
 ## Deferred
 
@@ -53,7 +58,6 @@ updated: 2026-04-20
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | 只有在产品范围重新提升 authenticated-notice regulation downstream consumption 优先级时才恢复；恢复后从现有 `11` 条 admitted target 的 target-side quality closeout 继续 |
 | `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 只有在下一次 auth window 真正进入执行窗口，或产品范围重新提升 auth-dependent owner recovery 优先级时才恢复 |
 | `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `docs/plans/authenticated-notice-live-portal-control-plane.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
-| `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/operator-observability-control-plane-foundation.md` | 只有在产品范围决定把 panel 从当前 operator shell 扩成完整 observability control-plane 时才恢复 |
 | `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `docs/plans/restricted-document-rollout-and-verification.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
 
 ## Backlog

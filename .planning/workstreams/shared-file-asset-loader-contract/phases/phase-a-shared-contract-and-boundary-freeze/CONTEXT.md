@@ -40,4 +40,4 @@ status: completed
 
 ## Entry
 
-- `docs/plans/shared-file-asset-loader-contract.md`
+- `docs/plans/archive/completed/shared-file-asset-loader-contract.md`

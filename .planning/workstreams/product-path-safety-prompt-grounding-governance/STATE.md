@@ -46,7 +46,7 @@ updated: 2026-04-19
 - `pnpm --dir apps/app-api exec vitest run test/chat-command.service.test.ts test/runtime-command.store.test.ts test/operator-query.store.test.ts test/operator-query.route.test.ts`
 - `pnpm --dir apps/app-api run db:generate` (`0017_stormy_vanisher.sql`)
 - `gsd-sdk query workstream.list --raw --cwd /home/reptilian/code/campus-agent`
-- `git -C /home/reptilian/code/campus-agent diff --check -- .planning/WORKSTREAMS.md .planning/seeds/SEED-001-conditional-moderation-lane.md .planning/seeds/SEED-002-conditional-hitl-approval-recovery.md .planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md .planning/workstreams/product-path-safety-prompt-grounding-governance/ROADMAP.md .planning/workstreams/product-path-safety-prompt-grounding-governance/REQUIREMENTS.md .planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-i-abuse-controls-and-security-ops-loop/SUMMARY.md docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `git -C /home/reptilian/code/campus-agent diff --check -- .planning/WORKSTREAMS.md .planning/seeds/SEED-001-conditional-moderation-lane.md .planning/seeds/SEED-002-conditional-hitl-approval-recovery.md .planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md .planning/workstreams/product-path-safety-prompt-grounding-governance/ROADMAP.md .planning/workstreams/product-path-safety-prompt-grounding-governance/REQUIREMENTS.md .planning/workstreams/product-path-safety-prompt-grounding-governance/phases/phase-i-abuse-controls-and-security-ops-loop/SUMMARY.md docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`
 
 ## Session Continuity
 

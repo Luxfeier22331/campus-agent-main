@@ -16,7 +16,7 @@ Wave D 已完成 Phase 15 的 repo-local closeout。
 
 ## Key Changes
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`
   - 新增 Phase 15 repo-local closeout 状态
   - 冻结最终 local gate set
 - `docs/plans/prompt-grounding-and-hallucination-hardening-plan.md`

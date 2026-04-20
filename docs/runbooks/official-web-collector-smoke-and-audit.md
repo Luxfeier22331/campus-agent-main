@@ -361,8 +361,7 @@ pnpm --dir apps/official-web-collector qc-report -- \
 
 - 这 5-host gate 是稳定回归批次，不代表 `muc_public` 当前唯一启用的 host 范围
 - 已在 `hosts.json` / `seeds.json` 中启用的新增 host，应先走低预算扩面验证 batch，再决定是否提升预算或进入更高频 lane
-- 2026-04-02 已完成一轮 `law.muc.edu.cn` + `history.muc.edu.cn` Batch A 验证，记录见
-  [official-web-muc-public-batch-a-law-history-audit-20260402.md](/home/reptilian/code/campus-agent/.worktrees/official-web-crawler/docs/reference/official-web-muc-public-batch-a-law-history-audit-20260402.md)
+- `law.muc.edu.cn` 与 `history.muc.edu.cn` 属于已验证过的低预算扩面 host 对；后续扩面复核继续复用同一套 batch 规则，不复用旧 evidence 作为当前 verdict
 
 ## 4.2 低预算 Expansion Batch
 

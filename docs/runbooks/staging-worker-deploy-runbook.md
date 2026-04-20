@@ -50,7 +50,7 @@ updated: 2026-04-19
   - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://campus-chat-staging.ayafeed.com`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
-  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config verification 与 `db:reconcile-shared-drift:staging`
+  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config verification、`db:bootstrap:staging`、`db:migrate:staging` 与 `db:reconcile-shared-drift:staging`
   - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 dev-backed supervisor upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入 `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写 `STAGING_SENTRY_RELEASE`
   - 真实 deploy 直接使用当前 shell 的 `wrangler` 登录态；repo-local `.wrangler-home` 只保留给 dev/test
@@ -62,6 +62,7 @@ updated: 2026-04-19
   - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
   - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env worker-staging-public-chat-web`、Cloudflare secret presence、staging build 与 built config verification
   - `pnpm deploy:staging` 发布 staging build artifact，并在 publish 时自动注入 `SENTRY_RELEASE=public-chat-web@staging-<sha>`
+  - public auth Turnstile posture 由 publish-time vars 注入：`AUTH_TURNSTILE_SITE_KEY` 必填，`AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 可选；未显式覆写时默认 `interaction-only` / `render`
   - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/protected-panel-web/wrangler.toml`
   - `env.staging` 应收敛到 `campus-panel-staging.ayafeed.com`
@@ -196,6 +197,8 @@ wrangler secret put SENTRY_DSN --env staging
 
 - `SENTRY_ENVIRONMENT=staging`
 - deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY=<real admitted sitekey for campus-chat-staging.ayafeed.com>`
+- 可选 deploy shell env `STAGING_AUTH_TURNSTILE_APPEARANCE=<always|execute|interaction-only>`；默认 `interaction-only`
+- 可选 deploy shell env `STAGING_AUTH_TURNSTILE_EXECUTION=<render|execute>`；默认 `render`
 - `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/public-chat-web deploy:staging` 会在 publish 时自动注入 `public-chat-web@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
 
 ### `apps/protected-panel-web`
@@ -221,6 +224,7 @@ wrangler secret put SENTRY_DSN --env staging
 
 - `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于 `https://campus-chat-staging.ayafeed.com`
 - `AUTH_TURNSTILE_SITE_KEY` 必须是 `campus-chat-staging.ayafeed.com` admitted widget 的真实 sitekey；testing sitekey 只允许 local smoke
+- `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 当前默认应分别收口到 `interaction-only` / `render`；如 staging 需要临时不同姿态，也只能通过 deploy shell env override，不写回 repo 固定值
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为 `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时 `panel-staging` Overview 可能正常，但 `Requests` / `official-web` 会在 `/api/operator/*` 上收到 `403 operator_identity_not_admitted`
 - `APP_API_INTERNAL_SHARED_SECRET` 必须精确等于 `PANEL_APP_API_SHARED_SECRET`
@@ -231,7 +235,7 @@ wrangler secret put SENTRY_DSN --env staging
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
 - `public-chat-web /readyz` 与 `protected-panel-web /readyz` 会继续探测 shared `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
 - `protected-panel-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy 完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
-- `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 对齐；`official_web` 相关列表如果在 staging 同时返回 `internal_error`，优先先检查 `db:reconcile-shared-drift:staging` / `db:migrate:staging`
+- `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 以及 shared-product `app_auth/chat` schema 对齐；`official_web` 或 chat surface 如果在 staging 同时返回 `internal_error`，优先先检查 `db:bootstrap:staging` / `db:reconcile-shared-drift:staging` / `db:migrate:staging`
 
 ## Wrangler Auth Recovery
 
@@ -267,6 +271,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email help_bot@out
 - 该命令会先清理该邮箱名下旧 `chat` 数据与旧 `app_auth.user` 记录，再通过真实 `/api/auth/sign-up/email` 路由重建 canonical Better Auth 账号，并清掉脚本执行过程中创建的 session
 - browser smoke 只使用这个固定 identity 登录；不要在 staging 页面继续创建 ad-hoc end-user 账号
 - 如果未来 staging admit 了专用 `public-chat smoke` 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
+- 对真实 admitted Turnstile widget 的最终 staging smoke，必须使用真实浏览器 session；不要把 Playwright / Selenium / Cypress 的 live-widget 结果当作 closeout gate。Cloudflare 官方 testing 文档明确说明这些 automation suites 会被 Turnstile 识别为 bot，自动化只适用于 testing keys，不适用于真实 staging/prod widget。
 
 ## Pre-Deploy Repo Gates
 
@@ -305,7 +310,14 @@ repo-owned Wrangler 入口默认会剥离继承来的代理 env，再直连 Clou
 
 ### 0. `apps/app-api` shared Postgres schema
 
-先执行 drift 检查：
+先补齐 shared-product bootstrap：
+
+```bash
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+pnpm --dir apps/app-api db:bootstrap:staging
+```
+
+再执行 drift 检查：
 
 ```bash
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \

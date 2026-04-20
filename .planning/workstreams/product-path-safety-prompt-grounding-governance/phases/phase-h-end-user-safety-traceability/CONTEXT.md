@@ -25,4 +25,4 @@ status: pending
 
 ## Entry
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`

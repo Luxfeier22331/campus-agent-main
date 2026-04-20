@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-15
+updated: 2026-04-20
 ---
 
 # Reference
@@ -14,6 +14,7 @@ updated: 2026-04-15
 ## 基础术语与验证基线
 
 - `runtime-serving-and-index-terms.md`
+  - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `testing-and-verification-lanes.md`
 - `eval-gold-truth-model.md`
 - `golden-dataset-case-matrix.md`
@@ -22,32 +23,35 @@ updated: 2026-04-15
 
 ## Official Web 活动基线
 
-- `official-web-fresh-news-eval-baseline-20260405.md`
+- `official-web-fresh-news-eval-baseline.md`
 - `official-web-fresh-news-surface-handoff.md`
-- `official-web-stable-reference-eval-baseline-20260405.md`
+- `official-web-news-surface-opening-checklist.md`
+- `official-web-stable-reference-eval-baseline.md`
 
 ## Authenticated Notice / Internal Notice 策略与口径
 
+- `authenticated-notice-file-release-export-contract.md`
+- `authenticated-notice-file-release-owner-recovery-readiness-contract.md`
 - `internal-notice-manual-review-collection-strategy.md`
 - `internal-notice-manual-review-future-query-contract.md`
+- `internal-notice-offline-preparation-strategy.md`
 - `internal-notice-offline-preparation-quality-acceptance.md`
+- `internal-notice-pdf-chunk-tuning-sample-set-contract.md`
+- `institutional-regulations-offline-inventory.md`
 - `restricted-document-center-artifact-contract.md`
 
 ## Authenticated Notice / Internal Notice Quality Acceptance
 
 - `institutional-regulations-promotion-quality-acceptance.md`
 
+## Navigation / Inventory
+
+- `campus-navigation-authoritative-source-inventory.md`
+
 ## Public Chat Web 活动基线
 
-- `public-chat-web-chatbot-donor-baseline.md`
 - `public-chat-web-donor-diff-classification.md`
-- `public-chat-web-donor-diff-whitelist.md`
 - `public-chat-web-donor-parity-review-checklist.md`
-- `public-chat-web-route-state-parity-inventory.md`
-
-## External Provider Issue Reports
-
-- `provider-responses-contract-violation-report-20260412.md`
 
 ## 其他实现参考
 
@@ -55,16 +59,10 @@ updated: 2026-04-15
 
 ## Historical Evidence / Archive
 
-- `authenticated-notice-portal-live-observations.md`
-- `authenticated-notice-historical-closeout-evidence.md`
-- `authenticated-notice-historical-donor-intake-evidence.md`
-- `internal-notice-offline-preparation-quality-evidence.md`
-- `official-web-muc-public-host-survey.md`
-- `official-web-muc-public-batch-a-law-history-audit-20260402.md`
-- `official-web-muc-public-pages-current-truth-qc-20260403.md`
-- `official-web-muc-public-pages-page-qc-inventory-20260403.md`
-- `official-web-muc-public-pages-release-20260402.md`
-- `official-web-stable-reference-bootstrap-release-20260404.md`
-- `phase1-ingestion-retrieval-implementation-truth.md`
-- `public-chat-web-strict-donor-parity-gap-inventory.md`
-- `retrieval-tail-latency-diagnosis-20260406.md`
+- `archive/README.md`
+
+补充规则：
+
+- historical 材料优先按领域或问题域集中到 `archive/` 子目录，而不是继续平铺在 `reference/` 根层
+- 已被并入 canonical 文档的 historical redirect notes 不再继续占据默认 root namespace
+- 需要追溯旧材料时，优先从 `archive/README.md` 与对应 archive hub 进入

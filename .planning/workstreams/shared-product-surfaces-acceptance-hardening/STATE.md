@@ -1,163 +1,158 @@
 ---
 workstream: shared-product-surfaces-acceptance-hardening
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-21
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** F
-**Current Phase Name:** Public Auth Shell Productization
-**Current Plan:** `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-f-public-auth-shell-productization/PLAN.md`
-**Total Phases:** 9
-**Total Plans in Phase:** N/A
-**Progress:** 5/9 phases complete
-**Last Activity:** 2026-04-19
-**Last Activity Description:** Executed the first `Phase F` auth-shell slice: added campus-specific donor-shell copy, froze the `/login` recovery CTA placement, and captured fresh local auth browser evidence.
+**Status:** Completed
+**Current Phase:** None
+**Current Phase Name:** None
+**Current Plan:** `<none>`
+**Total Phases:** 12
+**Total Plans in Phase:** 0
+**Progress:** 12/12 phases complete
+**Last Activity:** 2026-04-21
+**Last Activity Description:** Completed `Phase L` public-answer citation hygiene repair after local smoke exposed raw internal source locators in curriculum answers; deterministic specialist prose now keeps source trace only in structured evidence, and `app-api` finalize path now guards browser-facing assistant text from raw locator leakage.
 
 ## Current Slice
 
-- latest closeout summary for completed `Phase A-E`：`.planning/quick/260419-sps-phase-d-e-closeout/260419-sps-SUMMARY.md`
-- current reopen slice starts at `Phase F`:
-  - freeze `/login` `/register` as formal public auth surface
-  - then land forgot/reset password through shared `app-api + public-chat-web` auth seam
-  - `protected-panel-web` login remains Cloudflare Access reentry and is not part of the password product
-- local public chat browser smoke artifact：
-  - `.tmp/local-smoke/20260419T022048+0800-sps-phase-d-public-chat/SUMMARY.md`
-- local public auth shell artifact：
-  - `.tmp/local-smoke/20260419T061332+0800-sps-phase-f-auth-shell/SUMMARY.md`
-- staging panel query recovery artifact：
-  - `.tmp/staging-smoke/20260419T033550+0800-sps-phase-d-panel-query-recovery/SUMMARY.md`
-- staging readyz / deploy recovery artifact：
-  - `.tmp/staging-smoke/20260419T035932+0800-sps-phase-e-readyz-recovery/SUMMARY.md`
-- staging fixed-domain cutover artifact：
-  - `.tmp/staging-smoke/20260419T041000+0800-sps-phase-e-fixed-domain-cutover/SUMMARY.md`
-- staging scheduled-task hardening artifact：
-  - `.tmp/staging-smoke/20260419T042434+0800-sps-phase-e-scheduled-task-hardening/SUMMARY.md`
+- latest closeout summary for completed `Phase A-E`：
+  - `.planning/quick/260419-sps-phase-d-e-closeout/260419-sps-SUMMARY.md`
+- completed `Phase F` summary：
+  - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-f-public-auth-shell-productization/SUMMARY.md`
+- completed `Phase G` summary：
+  - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-g-password-reset-backend-and-mail-contract/SUMMARY.md`
+- completed `Phase H` summary：
+  - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-h-public-recovery-ux/SUMMARY.md`
+- completed `Phase I` artifacts：
+  - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-i-auth-hardening-and-smoke/PLAN.md`
+  - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-i-auth-hardening-and-smoke/SUMMARY.md`
+  - local smoke: `.tmp/local-smoke/20260419T082600+0800-sps-phase-i-turnstile-local/SUMMARY.md`
+  - staging smoke: `.tmp/staging-smoke/20260419T105000+0800-sps-phase-i-auth-continuity/SUMMARY.md`
+- completed `Phase K` local auth-shell cutover artifacts：
+  - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-k-public-auth-shell-mature-layout-cutover/CONTEXT.md`
+  - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-k-public-auth-shell-mature-layout-cutover/PLAN.md`
+  - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-k-public-auth-shell-mature-layout-cutover/SUMMARY.md`
+  - local smoke: `.tmp/local-smoke/20260420T003016+0800-sps-phase-k-auth-shell/SUMMARY.md`
+- completed `Phase L` public-answer citation hygiene artifacts：
+  - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/CONTEXT.md`
+  - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/PLAN.md`
+  - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/SUMMARY.md`
+- completed `Phase J` live-browser closeout artifacts：
+  - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-j-adaptive-turnstile-posture-productization/CONTEXT.md`
+  - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-j-adaptive-turnstile-posture-productization/PLAN.md`
+  - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-j-adaptive-turnstile-posture-productization/SUMMARY.md`
+  - staging smoke: `.tmp/staging-smoke/20260421T023205+0800-sps-phase-j-live-browser/SUMMARY.md`
+- workstream closed truth：
+  - `public-chat-web` 正式拥有 `/login` `/register` `/forgot-password` `/reset-password` 这组 public auth family
+  - `app-api` 正式拥有 Better Auth email/password、password reset、old-session revocation 与 Turnstile-backed captcha enforcement
+  - same-site auth proxy 已固定只在 `/api/auth/*` 路径转发 `Origin` / `Referer` / `x-captcha-response`
+  - `protected-panel-web` 继续明确排除 self-serve signup / password reset / profile management
+- closed `Phase J` truth：
+  - public auth family 的前向 posture 固定为 always-on Turnstile verification
+  - interactive challenge escalation 固定为 Cloudflare-managed adaptive posture，而不是 repo-owned 手动 attack-mode 开关
+  - repo runtime posture 继续固定为 `interaction-only/render`
+  - staging deploy shell 仍只允许通过可选 `STAGING_AUTH_TURNSTILE_APPEARANCE` / `STAGING_AUTH_TURNSTILE_EXECUTION` 临时 override，而不把这些值写回 repo-fixed staging vars
+  - Playwright live-widget smoke 继续只保留为诊断证据；真实 closeout 已由用户本机可见 Chrome 中的 live widget 成功路径替代
+  - 真实 staging 浏览器 closeout 已证明：
+    - `/forgot-password` 在 real admitted widget 下返回 neutral success copy
+    - staging DB 同步落下 password-reset verification row
+    - canonical reset link 可回到 `/reset-password`
+    - reset 完成后 `/login` 可用新密码重新登录并回到 `/chat`
+    - 匿名态 `/login` `/register` 都在 live admitted widget 下正常渲染，且低风险路径没有被默认固定成可见 challenge
+  - Cloudflare Dashboard widget-mode UI 本轮未补截图，因为 `dash.cloudflare.com` 需要新的交互登录；这不再阻塞 workstream closeout，因为 provider-side mode 继续是 Cloudflare-owned truth，而 runtime posture 与 real-browser continuity 已完成验收
+- closed `Phase L` truth：
+  - browser-facing assistant prose 不再携带 raw `doc_id#chunk_id` / `source-faithful` / `chunk-*` locator
+  - deterministic `rag-specialist` answer 继续只负责用户可读 prose，supporting source trace 保留在 structured evidence
+  - `app-api` finalize path 对 public answer contract 增加 hygiene guard；即使未来 upstream 再返回 raw locator，browser-facing `assistantText` 也不会原样泄漏
+  - operator-safe source trace、request observability 与 panel-side source projection contract 不受影响
 - integrated acceptance continuity anchor remains:
   - `conversationId=9cb68dd1-9a74-4ed5-a616-308c41761a4c`
   - `requestId=req_4be3b117d87a40fc807d5644d06133d0`
-- current staging `app-api` deploy version:
-  - `2a70e797-082a-43b6-b13b-03f77a335298`
-- current fixed-domain supervisor upstream injected into staging:
-  - `https://exec-staging.ayafeed.com`
-- current local persistence mechanism for the named tunnel:
-  - Windows scheduled task `CampusAgent-DevBackedSupervisorStaging`
-  - repo-native lifecycle lock `.tmp/dev-backed-supervisor-staging/lifecycle.lock`
-  - canonical strict health gate `infra/local/staging/status-dev-backed-supervisor-staging.sh --check`
+- staging runtime truth at closeout：
+  - `https://campus-api-staging.ayafeed.com/readyz` -> ready
+  - `https://campus-api-staging.ayafeed.com/healthz` -> ok
+  - `https://campus-chat-staging.ayafeed.com/readyz` -> ready
+  - `https://campus-chat-staging.ayafeed.com/healthz` -> ok
+  - fixed-domain supervisor upstream remains `https://exec-staging.ayafeed.com`
+  - named-tunnel persistence remains the Windows scheduled task `CampusAgent-DevBackedSupervisorStaging`
 
 ## Blockers
 
-- 当前没有 repo-level blocker
-- `Phase G` 之前仍缺 canonical auth mail provider / secret inventory truth；这是执行依赖，不是 `Phase F` blocker
-- residual operator note only:
-  - staging `app-api` 目前依赖 named tunnel `supervisor-api-staging` 的 active connector
-  - 这已经是固定域名姿势，且当前主机已装配 scheduled task 自愈补拉；若 host 整体离线，`campus-api-staging /readyz` 仍会回退到 upstream not-ready
+- 无 active blocker。workstream 已完成。
+- 如未来 operator 希望补 Cloudflare Dashboard widget-mode 截图，只能算平台侧附加证据，不再阻塞当前 closeout。
+- 如 future smoke 再次发现 browser answer 泄漏 raw specialist locator，则应按 `Phase L` 同级 reopen，而不是在前端做一次性清洗。
 
 ## Verification
 
-- `apps/app-api` type/test/test:worker/test:shared-db-integration 已 fresh 通过
-- `apps/public-chat-web` type/test/build 已 fresh 通过
-- `apps/protected-panel-web` type/test/build 已 fresh 通过
-- `pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"` 已 fresh 通过
-- public chat Phase D local browser smoke 已 fresh 通过并落盘到 `.tmp/local-smoke/20260419T022048+0800-sps-phase-d-public-chat/SUMMARY.md`
-- `campus-panel-staging` via `mcp__chrome_devtools__` 已 fresh 证明 Access admission 与 panel shell 正常：
-  - `GET /api/overview` -> `200`
-  - `GET /api/requests?limit=20` -> `200`
-  - `GET /api/official-web/sites` -> `200`
-  - `GET /api/official-web/runs?limit=20` -> `200`
-- `pnpm --dir apps/public-chat-web deploy:preflight:staging` 已 fresh 通过
-- `pnpm --dir apps/protected-panel-web deploy:preflight:staging` 已 fresh 通过
-- Supabase dashboard 已 fresh 证明 staging session-pooler truth 未变化：
-  - host `aws-1-ap-southeast-2.pooler.supabase.com`
-  - port `5432`
-  - database `postgres`
-  - user `postgres.syocoxoferlnhururfxl`
-  - `Network bans` 空
-- `bash -lc 'set -a; source ./.env; set +a; pnpm --dir apps/app-api db:reconcile-shared-drift:staging -- --json'` 已 fresh 通过：
-  - `driftDetected: false`
-- `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy cloudflared tunnel --config /dev/null --no-autoupdate --edge-ip-version 4 --metrics 127.0.0.1:20244 --loglevel debug --logfile /home/reptilian/code/campus-agent/.tmp/cloudflared-20244.log --url http://127.0.0.1:8081` 已 fresh 通过：
-  - live upstream `https://seen-hugh-partners-plasma.trycloudflare.com`
-- `curl --noproxy '*' -sS -i https://seen-hugh-partners-plasma.trycloudflare.com/healthz` 已 fresh 通过
-- `curl --noproxy '*' -sS -i https://seen-hugh-partners-plasma.trycloudflare.com/readyz` 已 fresh 通过
-- `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/auth-and-db.test.ts` 已 fresh 通过
-- `pnpm --dir apps/app-api exec vitest run -c vitest.worker.config.mts test/worker.test.ts` 已 fresh 通过
-- `bash -lc 'set -a; source ./.env; set +a; export STAGING_SUPERVISOR_API_BASE_URL="https://seen-hugh-partners-plasma.trycloudflare.com"; export STAGING_APP_API_OPERATOR_DATABASE_URL="${STAGING_APP_API_OPERATOR_DATABASE_URL:-$STAGING_APP_API_MANAGEMENT_DATABASE_URL}"; pnpm --dir apps/app-api deploy:staging'` 已 fresh 通过：
-  - deployed version `dddc9945-183b-4402-936f-18eb1ec15ab2`
-- `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy cloudflared tunnel --config /home/reptilian/.cloudflared/config.yml --no-autoupdate --edge-ip-version 4 --metrics 127.0.0.1:20245 --loglevel debug --logfile /home/reptilian/code/campus-agent/.tmp/cloudflared-named-20245.log run supervisor-api-staging` 已 fresh 通过：
-  - named connector started for `exec-staging.ayafeed.com`
-- `curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/healthz` 已 fresh 通过
-- `curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/readyz` 已 fresh 通过
-- `cloudflared tunnel info 7d0db8a7-53bd-417d-8028-548c35c8e30e` 已 fresh 通过：
-  - active connector present for `supervisor-api-staging`
-- `bash -lc 'set -a; source ./.env; set +a; export STAGING_APP_API_OPERATOR_DATABASE_URL="${STAGING_APP_API_OPERATOR_DATABASE_URL:-$STAGING_APP_API_MANAGEMENT_DATABASE_URL}"; pnpm --dir apps/app-api deploy:staging'` 已 fresh 通过：
-  - deployed version `2a70e797-082a-43b6-b13b-03f77a335298`
-- `infra/local/staging/install-dev-backed-supervisor-staging-task.sh` 已 fresh 通过：
-  - installed scheduled task `CampusAgent-DevBackedSupervisorStaging`
-- `bash -lc './infra/local/staging/start-dev-backed-supervisor-staging.sh >/tmp/start1.out 2>/tmp/start1.err & ./infra/local/staging/start-dev-backed-supervisor-staging.sh >/tmp/start2.out 2>/tmp/start2.err & wait'` 已 fresh 通过：
-  - overlapping start attempts no longer emit `OSError: [Errno 98] Address already in use`
-- `infra/local/staging/stop-dev-backed-supervisor-staging.sh` + `Start-ScheduledTask -TaskName 'CampusAgent-DevBackedSupervisorStaging'` 已 fresh 通过：
-  - stack relaunched from scheduled task instead of the interactive shell
-- `infra/local/staging/status-dev-backed-supervisor-staging.sh` 已 fresh 通过：
-  - `supervisor-api: running`
-  - `cloudflared: running`
-  - local `readyz = 200`
-  - public `readyz = 200`
-- `infra/local/staging/status-dev-backed-supervisor-staging.sh --check` 已 fresh 通过：
-  - local/public/app-api readiness 全部收口为单个 exit code
-- `uv run --all-packages python -m unittest tests.test_dev_backed_supervisor_staging` 已 fresh 通过：
-  - `status --check` 在依赖失效时返回非零
-  - `status --check` 在 local/public/app-api 都 ready 时返回零
-  - log rotation 会在单文件超出 `20 MiB` 时 copy-truncate 并只保留最近 `5` 份
-- `powershell.exe -NoProfile -Command "Get-ScheduledTaskInfo -TaskName 'CampusAgent-DevBackedSupervisorStaging' | Format-List LastRunTime,LastTaskResult,NextRunTime,NumberOfMissedRuns"` 已 fresh 通过：
-  - `LastTaskResult = 0`
-- `curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz` 已 fresh 通过（scheduled-task cold start 后再次确认）：
-  - `auth: ready`
-  - `database: ready`
-  - `supervisorApi: ready`
-- `curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/healthz` 已 fresh 通过
-- `curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz` 已 fresh 通过：
-  - `auth: ready`
-  - `database: ready`
-  - `supervisorApi: ready`
-- `pnpm --dir apps/app-api test:node` 已 fresh 通过（2026-04-19 当前 worktree 复跑两次）：
-  - `37` test files / `214` tests passed
-  - 先前 closeout 中记录的 `5` 个 node-lane timeout 已不再复现，应视为过期状态
-- `node scripts/run-wrangler-command.mjs --cwd apps/public-chat-web whoami --json` 已 fresh 通过；Cloudflare 登录态存在
-- public/panel `secret list` 在 direct CLI probe 下可返回，说明 `5s` manual timeout probe 不再代表 canonical preflight truth
-- `campus-panel-staging` via `mcp__chrome_devtools__` 已 fresh 证明 panel shell 与开放域读取仍正常：
-  - `GET /api/overview` -> `200`
-  - `GET /api/official-web/runs?limit=20` -> `200`
-  - `GET /api/requests?limit=20&conversationId=9cb68dd1-9a74-4ed5-a616-308c41761a4c` -> `200`
-  - `GET /api/official-web/sites` -> `200`
-- `pnpm --dir apps/public-chat-web typecheck` 已 fresh 通过
-- `pnpm --dir apps/public-chat-web exec vitest run test/public-chat-auth-regressions.test.ts test/public-chat-auth-actions.test.ts test/worker.test.ts` 已 fresh 通过：
-  - `3` test files / `25` tests passed
-- `pnpm --dir apps/public-chat-web test:worker` 当前在默认并发 worker pool 下复现 websocket `ECONNRESET`
-- `env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy pnpm --dir apps/public-chat-web exec vitest run --maxWorkers=1` 已 fresh 通过：
-  - `23` test files / `92` tests passed
-- `pnpm --dir apps/app-api db:bootstrap` 已 fresh 通过：
-  - local shared product schemas and chat migrations reconciled before auth smoke
-- local Playwright auth smoke 已 fresh 通过并落盘到 `.tmp/local-smoke/20260419T061332+0800-sps-phase-f-auth-shell/`：
-  - desktop `/login` screenshot
-  - mobile `/login` screenshot
-  - desktop `/register` screenshot
-  - mobile `/register` screenshot
-  - `POST /api/auth/sign-up/email` -> `200`
-  - UI sign-out -> `/login`
-  - `POST /api/auth/sign-in/email` -> `200`
-  - same-site `Referer` preserved for `/register`, `/chat`, `/login`
-- 已确认当前 auth follow-up gap：
-  - `Phase F` 的 planning truth 已冻结：`/login` `/register` 是正式 public auth surface，future `/forgot-password` `/reset-password` 必须挂在同一 auth family
-  - `app-api` 当前只接了 Better Auth email/password sign-up / sign-in，没有 reset-password callback
-  - `app_auth.verification` schema 已存在，可作为 reset token contract 基础
-  - repo 当前没有 end-user auth mail provider 的 canonical inventory / runbook truth
-  - `protected-panel-web` 明确不拥有 self-serve signup / password reset / profile management
+- `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts test/auth-and-db.test.ts`
+- `pnpm --dir apps/app-api exec vitest run -c vitest.worker.config.mts test/worker.test.ts`
+- `pnpm --dir apps/app-api typecheck`
+- `pnpm --dir apps/app-api test:node`
+- `pnpm --dir apps/app-api exec vitest run test/chat-command.service.test.ts`
+- `pnpm --dir apps/app-api test:shared-db-integration`
+- `pnpm --dir apps/public-chat-web exec vitest run test/public-chat-auth-actions.test.ts test/public-chat-auth-regressions.test.ts test/worker.test.ts`
+- `pnpm --dir apps/public-chat-web exec vitest run test/public-chat-auth-regressions.test.ts test/worker.test.ts`
+- `pnpm --dir apps/public-chat-web typecheck`
+- `pnpm --dir apps/public-chat-web test:worker`
+- `pnpm --dir apps/public-chat-web build`
+- `node scripts/run-wrangler-command.mjs --cwd apps/public-chat-web whoami --json`
+  - `loggedIn: true`
+  - `authType: OAuth Token`
+  - account: `linear27`
+- `pnpm --dir apps/public-chat-web deploy:preflight:staging`
+  - `overall_ready: true`
+- `pnpm --dir apps/public-chat-web deploy:staging`
+  - deployed `public-chat-web-staging`
+  - custom domain: `campus-chat-staging.ayafeed.com`
+  - current version id: `05075dab-32c0-4f29-b6f0-9f12659854a7`
+- `uv run --all-packages python -m unittest tests.test_check_worker_secret_presence`
+- `uv run --all-packages python -m unittest tests.specialist.test_rag_specialist`
+- `uv run --all-packages python -m scripts.check_worker_secret_presence --app apps/app-api --env staging --json`
+  - `overall_ready: true`
+  - configured `AUTH_RESET_EMAIL_FROM` / `AUTH_TURNSTILE_SECRET_KEY` / `RESEND_API_KEY`
+- `uv run --all-packages python -m scripts.check_worker_secret_presence --app apps/public-chat-web --env staging --json`
+  - `overall_ready: true`
+- `.tmp/local-smoke/20260419T082600+0800-sps-phase-i-turnstile-local/SUMMARY.md`
+  - local Turnstile testing credentials proved same-site captcha transport over sign-up / sign-in
+- `.tmp/staging-smoke/20260419T105000+0800-sps-phase-i-auth-continuity/SUMMARY.md`
+  - register redirected into `/chat`
+  - forgot-password returned neutral success copy
+  - Resend delivered a real reset mail for the staging identity
+  - reset page loaded via the same-site callback URL
+  - `GET /api/me` in the pre-reset browser context returned `401` after password reset
+  - login page generated a real Turnstile token in the admitted staging domain
+  - post-reset sign-in returned `200` and landed back on `/chat`
+- `.tmp/staging-smoke/20260419T234915+0800-sps-phase-j-adaptive-turnstile/SUMMARY.md`
+  - fresh staging deploy confirmed default runtime posture `interaction-only/render`
+  - `/login` `/register` `/forgot-password` all loaded under the admitted hostname with the real staging sitekey
+  - Playwright live-widget smoke produced `Security verification failed. Try again.` and `captchaTokenLength = 0` on all three pages
+  - login network captured Turnstile PAT `401` on `challenges.cloudflare.com`
+  - artifact is diagnostic only; final closeout still requires a real browser session because Cloudflare rejects automation suites on live widgets
+- `.tmp/staging-smoke/20260421T023205+0800-sps-phase-j-live-browser/SUMMARY.md`
+  - user-owned visible Chrome completed live-widget staging closeout on `/forgot-password`, `/reset-password`, and `/login`
+  - `POST /api/auth/request-password-reset` returned `200` and neutral success copy
+  - real-browser low-risk path did not surface a forced visible challenge on `/login` `/register` `/forgot-password`
+  - reset flow returned to `/login`, and post-reset sign-in landed on `/chat`
+  - post-login runtime requests returned `200` for `/api/me`, `/api/models`, and `/api/history?limit=20`
+- `.tmp/local-smoke/20260420T003016+0800-sps-phase-k-auth-shell/SUMMARY.md`
+  - desktop `/login` `/register` `/forgot-password` 与 invalid `/reset-password` shell screenshots are captured
+  - mobile `/login` `/register` screenshots confirm the same single-column shell scales without the donor split preview
+  - anonymous local auth pages emit expected `/api/me` `401`, which is pre-auth baseline behavior rather than a shell regression
+- `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/readyz`
+  - `status: ready`
+- `curl --noproxy '*' -sS https://campus-api-staging.ayafeed.com/healthz`
+  - `status: ok`
+- `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/readyz`
+  - `status: ready`
+- `curl --noproxy '*' -sS https://campus-chat-staging.ayafeed.com/healthz`
+  - `status: ok`
 
 ## Session Continuity
 
-**Stopped At:** `Phase A-E` closeout remains valid, and `Phase F` now has explicit context + plan; next session can execute against the frozen auth-shell contract instead of reopening surface ownership
-**Resume File:** `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-f-public-auth-shell-productization/PLAN.md`
+**Stopped At:** workstream 已完成；若未来重新打开 public auth family / Turnstile posture 的产品工作，应新建 phase 或按 reopen 规则恢复，而不是回退当前 closeout
+**Resume File:** `<none>`

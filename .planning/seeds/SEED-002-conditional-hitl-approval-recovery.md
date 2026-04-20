@@ -30,7 +30,7 @@ This seed should be presented during `$gsd-new-milestone` when the milestone sco
 
 Related code and decisions found in the current codebase:
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `.planning/workstreams/product-path-safety-prompt-grounding-governance/STATE.md`
 - `packages/contracts/src/campus_contracts/models.py`

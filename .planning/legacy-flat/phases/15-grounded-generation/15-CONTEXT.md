@@ -55,7 +55,7 @@
 
 ## Key References
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`
 - `docs/plans/prompt-grounding-and-hallucination-hardening-plan.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `.planning/phases/14-prompt-stack-system-prompt-runtime/14-03-SUMMARY.md`

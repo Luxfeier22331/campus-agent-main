@@ -92,7 +92,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 
 建议直接从模板起手：
 
-- `docs/runbooks/worker-observability-smoke-artifact-template.md`
+- `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
 
 ## Deployment Handoff Inputs
 
@@ -134,7 +134,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 ```
 
   这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
-- 建议先用 `docs/runbooks/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
+- 建议先用 `docs/runbooks/templates/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification
 
@@ -226,7 +226,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
 
 建议直接复制的骨架：
 
-- `docs/runbooks/worker-observability-smoke-artifact-template.md`
+- `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
 
 ## 判定规则
 

@@ -131,7 +131,7 @@ Phase A 已经解决了“统一什么、不统一什么”的问题，但 Phase
 
 - 将 Phase B 决策同步回：
   - workstream `STATE.md`
-  - `docs/plans/shared-file-asset-loader-contract.md`（如需）
+  - `docs/plans/archive/completed/shared-file-asset-loader-contract.md`（如需）
   - 后续 Phase C / D context
 - 明确哪些 follow-up 留在 future hardening，不再占住当前 implementation critical path
 
@@ -164,7 +164,7 @@ Phase A 已经解决了“统一什么、不统一什么”的问题，但 Phase
 - `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/SAMPLE-MATRIX.md`
 - `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/ROUTING-WORKSHEET.md`
 - `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/DECISION-PACKAGE.md`
-- workstream `STATE.md` and, if needed, `docs/plans/shared-file-asset-loader-contract.md`
+- workstream `STATE.md` and, if needed, `docs/plans/archive/completed/shared-file-asset-loader-contract.md`
 
 ## Exit Rule
 

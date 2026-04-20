@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Requirements: Shared Product Surfaces Acceptance Hardening
@@ -16,6 +16,7 @@ updated: 2026-04-19
 - `apps/app-api` shared backend seam 基线
 - `apps/public-chat-web` product acceptance
 - `apps/public-chat-web` end-user auth shell productization
+- `apps/public-chat-web` mature auth shell layout cutover
 - forgot/reset password browser flow
 - `apps/app-api` Better Auth password reset backend 与 auth mailer contract
 - `apps/protected-panel-web` 当前开放域 acceptance
@@ -41,7 +42,8 @@ updated: 2026-04-19
 6. `/login` `/register` 不再处于长期 out-of-scope 灰区，而是正式 public auth surface。
 7. end-user 可以通过 forgot/reset password 完成真实账户恢复，而不依赖手工改库。
 8. auth mail provider / secret / runbook truth 与 same-site recovery flow 同步成立。
+9. `/login` `/register` `/forgot-password` `/reset-password` 共享一套成熟的 public auth shell，不再保留右侧聊天窗口预览或 demo 式 split preview。
 
 ## Canonical Entry
 
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md`

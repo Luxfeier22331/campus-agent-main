@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Runbooks
@@ -27,14 +27,15 @@ updated: 2026-04-19
 - `dev-backed-supervisor-staging-operations.md`
 - `dev-backed-supervisor-staging-smoke-runbook.md`
 - `worker-observability-smoke-runbook.md`
-- `public-chat-staging-smoke-artifact-template.md`
-- `worker-observability-smoke-artifact-template.md`
+- `templates/public-chat-staging-smoke-artifact-template.md`
+- `templates/worker-observability-smoke-artifact-template.md`
 
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
 - `qdrant-cloud-backup-and-restore-runbook.md`
 - `provider-secret-governance.md`
+- `legacy-office-conversion-runtime.md`
 
 ## Authenticated Notice / Internal Notice
 
@@ -43,10 +44,7 @@ updated: 2026-04-19
 - `authenticated-notice-source-truth-replay-runbook.md`
 - `authenticated-notice-async-staged-closeout-runbook.md`
 - `internal-notice-policy-regulation-promotion-runbook.md`
-
-## Pilot / specialized runbooks
-
-- `authenticated-notice-source-truth-replay-pilot-runbook.md`
+- `internal-notice-regulation-target-quality-acceptance-runbook.md`
 
 ## Official Web
 
@@ -59,7 +57,7 @@ updated: 2026-04-19
 - `student-handbook-hybrid-rebuild-checklist.md`
 - `curriculum-plan-hybrid-rebuild-checklist.md`
 
-## Historical / Comparison Runbooks
+## Historical / Comparison Archive
 
-- `authenticated-notice-historical-donor-intake-runbook.md`
-- `authenticated-notice-historical-backfill-closeout-runbook.md`
+- `archive/README.md`
+  - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace

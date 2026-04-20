@@ -61,4 +61,4 @@ updated: 2026-04-19
 
 ## Canonical Entry
 
-- `docs/plans/hallucination-governance-and-grounded-generation-execution-plan.md`
+- `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md`

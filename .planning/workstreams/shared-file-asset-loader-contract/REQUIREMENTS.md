@@ -39,4 +39,4 @@ updated: 2026-04-20
 
 ## Canonical Entry
 
-- `docs/plans/shared-file-asset-loader-contract.md`
+- `docs/plans/archive/completed/shared-file-asset-loader-contract.md`

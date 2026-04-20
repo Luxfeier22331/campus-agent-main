@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-04-20
 ---
 
 # Runtime Serving And Index Terms
@@ -55,7 +55,14 @@ updated: 2026-04-10
 - 这两个角色可以都存在于同一个 data plane，但它们不是同一层
 - `campus_notices/internal_notice` 属于 source-triage collection
 - `regulations/*`、`curriculum/*` 属于 semantic-owner collection
+- `campus_services/contact_directory` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference` 的别名
+- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference`、`student_handbook` 或 generic RAG 的别名
 - 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为 regulation member
+
+补充说明：
+
+- 如果联系方式问题后续被 admission 为 `contact_directory_lookup` structured runtime tool，该 tool 应读取 `campus_services/contact_directory` semantic-owner projection，而不是直接读取 public-web stable-reference chunk 或 handbook 原始页段
+- 如果服务流程问题后续被 admission 为 `service_process_lookup` structured runtime tool，该 tool 应读取 `campus_services/service_catalog` semantic-owner projection，而不是直接读取 public-web stable-reference chunk、handbook 原始页段或 generic RAG retrieval result
 
 ### Query-Enabled Scope
 
@@ -67,13 +74,112 @@ updated: 2026-04-10
 
 - `configs/ingestion/<corpus>/<collection>/runtime-profile.json`
 - `.planning/PROJECT.md`
-- `.planning/legacy-flat/REQUIREMENTS.md`
+- `docs/architecture/current-architecture.md`
 
 说明：
 
 - 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - `campus_services/*` 当前仍是 `offline_preparation`
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed bridge，不应误读成长期最终 serving scope
+
+### Retrieval Plan
+
+定义：
+
+- planner-first retrieval 中由 specialist 生成的 typed retrieval execution plan
+
+说明：
+
+- `RetrievalPlan` 属于 target-state contract，不表示当前所有 query path 都已采用 planner-first execution
+- plan 必须在 admitted scope、authz、version mode、freshness gate 之内生成
+
+### Retrieval Step
+
+定义：
+
+- `RetrievalPlan` 中单个可执行的 retrieval unit
+
+说明：
+
+- step 至少携带 step type、target scope、query、filter、budget
+- step outcome 属于 query activity / execution metadata truth
+
+### Planner Budget
+
+定义：
+
+- planner / executor 在一次 request 内可消耗的 steps、latency、live branch 次数等预算
+
+说明：
+
+- budget 耗尽应 fail-close
+- budget 不是 prompt-only 软约束，必须有 code-owned enforcement
+
+### Query Activity
+
+定义：
+
+- 一次 retrieval execution 的 step-level trace summary
+
+说明：
+
+- query activity 记录计划过什么、执行了什么、每步结果如何
+- query activity 不等于最终 supporting evidence
+
+### Candidate Set
+
+定义：
+
+- planner / executor 在各 retrieval step 中得到的候选集合
+
+说明：
+
+- candidate set 属于 execution truth
+- candidate set 不等于可进入最终回答的 supporting evidence
+
+### Supporting Evidence
+
+定义：
+
+- 最终允许进入回答的 answer-bearing evidence 子集
+
+说明：
+
+- supporting evidence 必须来自 candidate set 的受控子集
+- citation、grounding、answer shaping 都围绕 supporting evidence 而不是 raw candidate trace
+
+### Freshness Gate
+
+定义：
+
+- 对“今天 / 最新 / 最近 / 刚刚”一类 query 先进行的 freshness admission gate
+
+说明：
+
+- local freshness 足够时可继续当前 retrieval
+- local freshness 不足时，只能进入 admitted live branch 或 fail-close
+
+### Live Evidence
+
+定义：
+
+- 来自 admitted live source channel 的实时或近实时 evidence
+
+说明：
+
+- live evidence 不是 general web fallback
+- live evidence 是否能成为 answer-bearing evidence，受 source-trust 与 freshness policy 约束
+
+### Execution Metadata
+
+定义：
+
+- retrieval execution 中产生的 plan / step / merge / rerank / freshness 分支摘要
+
+说明：
+
+- execution metadata 用于 observability、audit 与 grading
+- execution metadata 不应直接暴露 raw vendor payload
 
 ### Serving Alias
 

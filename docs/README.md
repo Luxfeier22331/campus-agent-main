@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Docs
@@ -59,4 +59,5 @@ updated: 2026-04-12
 - `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
 - `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature branch 进度
 - `plans/` 只保留仍有前向指导价值的计划；`completed`、`historical` 与 `superseded` plan 不进入默认入口
+- `plans/`、`reference/`、`runbooks/` 的非默认入口材料应优先收进各自 `archive/` 子目录，而不是继续堆在根层命名空间
 - `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级 workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`

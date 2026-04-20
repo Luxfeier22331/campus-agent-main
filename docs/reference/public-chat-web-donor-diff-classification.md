@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Public Chat Web Donor Diff Classification
@@ -13,13 +13,14 @@ updated: 2026-04-12
 
 本文回答的是：
 
-- `.tmp/vercel-ai-chatbot` 对比 `apps/public-chat-web/vendor/vercel-ai-chatbot/` 还剩哪些真实 diff
+- 本地 donor checkout 对比 `apps/public-chat-web/vendor/vercel-ai-chatbot/` 还剩哪些真实 diff
 - 这些 diff 分别属于 accepted product diff、accepted runtime compatibility diff，还是 historical debt
 - exact compat seam 由哪些 repo-owned 文件持有
 
+本文同时吸收了旧 `public-chat-web-chatbot-donor-baseline.md` 与 `public-chat-web-donor-diff-whitelist.md` 的 canonical 内容。
+
 本文不负责：
 
-- 改写 donor diff whitelist 的 policy 规则
 - 重新定义 strict donor parity 的 smoke / staging evidence
 - 把 upstream donor 根目录里未 vendored 的 meta 文件误记成产品壳 drift
 
@@ -28,7 +29,69 @@ updated: 2026-04-12
 当前 remaining historical debt 路径数为 `0`。
 
 - 当前 repo-tracked donor diff truth 由本文的 machine-readable inventory、whitelist policy 和 exact compat seam owner 共同固定。
-- 如果本地存在 `.tmp/vercel-ai-chatbot` donor snapshot，可以额外做严格 byte-level 对比；如果该临时目录已按仓库清理策略移除，则 gate 退回到 repo-tracked inventory/doc/seam 校验，不把“缺少本地临时快照”视为回归。
+- 如果本地存在 donor snapshot，可以额外做严格 byte-level 对比；如果该临时 checkout 已按本地清理策略移除，则 gate 退回到 repo-tracked inventory/doc/seam 校验，不把“缺少本地 donor 快照”视为回归。
+
+## Donor Baseline
+
+- upstream repo URL: `https://github.com/vercel/chatbot`
+- GitHub current canonical page: `https://github.com/vercel/ai-chatbot`
+- strict-comparison baseline checkout: local donor checkout
+- baseline commit: `691c3cb05fddf292e1f52788d383937740c57cb9`
+- baseline recorded at: `2026-04-09`
+- license posture: `Apache-2.0`
+
+当前 donor 承担的角色固定为：
+
+- `interaction/layout/style-system donor`
+- `frontend component and shell behavior donor`
+
+它不是：
+
+- 产品架构 donor
+- auth/session truth donor
+- conversation/request truth donor
+- backend/runtime/deployment donor
+
+## Allowed And Forbidden Inheritance
+
+允许继承的 donor-visible 范围固定为：
+
+- chat-first shell 布局
+- sidebar / history / composer / message list 的 DOM 结构、样式层次和交互节奏
+- empty / loading / error / history states 的可见组织方式
+- donor 使用的前端原语方向
+- chat shell 的可见组件行为
+
+允许通过 repo-owned seam 接入、但不得改变 donor-visible behavior 的内容固定为：
+
+- same-site `/api/*` transport seam
+- `app-api` owned auth/session/conversation/request truth
+- Worker route integration
+- repo-owned `/login`、`/register`
+
+禁止直接继承的范围固定为：
+
+- Next.js App Router / React Server Components / Server Actions
+- upstream `app/api/*` backend routes
+- upstream auth / DB / Blob / provider persistence ownership
+- 任何要求 browser 直连 backend provider 的默认实现
+
+## Whitelist Policy
+
+当前 `apps/public-chat-web` 只允许保留以下 donor diff 类型：
+
+- `accepted product diff`
+- `accepted runtime compatibility diff`
+- `exact compat seam`
+- 不改变结构与交互语义的中文 product copy
+
+除此之外，launch path 上的 donor-visible drift 一律不接受。
+
+补充规则：
+
+- `campus` chat mode 固定 `private-only`；share / visibility 不得重新回到 launch path
+- repo-owned visible fallback、patched status card、patched tool error card、patched artifact placeholder 一律视为 regression
+- 平台兼容必须继续收口到 repo-owned exact seam；不得把 compat truth 重新写回 vendor runtime 深处
 
 ## 分类基线
 
@@ -112,7 +175,6 @@ upstream donor 根目录存在但 vendor landing zone 不承接的 meta-only 路
 补充说明：
 
 - `src/platform/vendor-compat/request-init-extensions.d.ts` 仍然是允许存在的 type-only compatibility shim，但它不是 exact import specifier seam owner
-- policy 规则继续看 [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
 
 ## Historical Debt
 
@@ -131,6 +193,4 @@ upstream donor 根目录存在但 vendor landing zone 不承接的 meta-only 路
 
 ## 相关文件
 
-- [public-chat-web-donor-diff-whitelist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-diff-whitelist.md)
-- [public-chat-web-strict-donor-parity-gap-inventory.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md)
-- [public-chat-web-vendor-tech-debt-convergence.md](/home/reptilian/code/campus-agent/docs/plans/public-chat-web-vendor-tech-debt-convergence.md)
+- [public-chat-web-donor-parity-review-checklist.md](/home/reptilian/code/campus-agent/docs/reference/public-chat-web-donor-parity-review-checklist.md)

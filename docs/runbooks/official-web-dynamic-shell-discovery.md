@@ -35,7 +35,7 @@ updated: 2026-04-01
 
 当前 host-scoped policy 放在：
 
-- [hosts.json](/home/reptilian/code/campus-agent/.worktrees/official-web-crawler/configs/sources/official_web/muc_public/hosts.json)
+- [hosts.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/hosts.json)
 
 `dynamic_shell_discovery` 字段负责冻结：
 

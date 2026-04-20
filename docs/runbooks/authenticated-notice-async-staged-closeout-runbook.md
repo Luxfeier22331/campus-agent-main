@@ -14,16 +14,9 @@ updated: 2026-04-12
 它不替代：
 
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
-- `docs/runbooks/authenticated-notice-historical-backfill-closeout-runbook.md` 的 legacy cumulative-prefix closeout 说明
 - live collector / control-plane runbook
 
-## Historical Evidence Pointer
-
-完整 historical closeout 的实跑指标固定记录在：
-
-- `docs/reference/authenticated-notice-historical-closeout-evidence.md`
-
-这份 runbook 只维护可重复执行的流程，不维护某一轮 run 的实时 checkpoint。
+这份 runbook 只维护可重复执行的流程，不维护某一轮 run 的实时 checkpoint，也不复写已经退出默认路径的 cumulative-prefix closeout 旧流程。
 
 ## Canonical CLI
 

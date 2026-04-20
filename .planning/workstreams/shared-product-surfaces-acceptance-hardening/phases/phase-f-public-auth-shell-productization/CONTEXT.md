@@ -3,7 +3,7 @@ phase: "F"
 name: "Public Auth Shell Productization"
 created: 2026-04-19
 updated: 2026-04-19
-status: active
+status: completed
 ---
 
 # Phase F Context
@@ -79,7 +79,7 @@ status: active
 - `docs/architecture/product-runtime-architecture.md` — public/protected surface responsibilities。
 - `apps/public-chat-web/README.md` — 当前 public chat runtime 与 auth shell seam。
 - `apps/protected-panel-web/README.md` — panel auth non-goals。
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md` — workstream-native phase boundary。
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` — workstream-native phase boundary。
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/REQUIREMENTS.md` — current success criteria。
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/ROADMAP.md` — phase order and dependencies。
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/STATE.md` — current blockers and verification truth。
@@ -91,4 +91,4 @@ status: active
 
 ## Entry
 
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md`
