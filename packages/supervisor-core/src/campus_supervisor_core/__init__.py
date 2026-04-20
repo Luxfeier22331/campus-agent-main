@@ -19,6 +19,7 @@ from campus_supervisor_core.audit import (
 )
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
+    InvalidSpecialistToolPolicyError,
     InvalidSupervisorRequestError,
     MissingRoutingInputError,
     MissingSpecialistDelegateError,
@@ -67,6 +68,7 @@ __all__ = [
     "SupervisorAgent",
     "SupervisorAuditRecord",
     "SupervisorError",
+    "InvalidSpecialistToolPolicyError",
     "InvalidSupervisorRequestError",
     "MissingRoutingInputError",
     "UnsupportedCapabilityError",

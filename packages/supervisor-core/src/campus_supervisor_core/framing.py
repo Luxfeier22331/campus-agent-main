@@ -19,7 +19,9 @@ def frame_specialist_request(
 ) -> SpecialistRequest:
     if decision.target is None:
         raise MissingRoutingInputError("specialist target is required for delegated requests")
-    if decision.target == "availability-specialist":
+    if decision.specialist_payload is not None:
+        payload = decision.specialist_payload
+    elif decision.target == "availability-specialist":
         if context.availability_target_id is None:
             raise MissingRoutingInputError(
                 "availability_target_id is required for availability requests"
@@ -30,6 +32,10 @@ def frame_specialist_request(
         )
     elif decision.target == "navigation-specialist":
         payload = PlaceLookupPayload(query_text=context.user_goal)
+    elif decision.target in ("campus-services-agent", "notice-agent"):
+        raise MissingRoutingInputError(
+            f"specialist payload is required for structured runtime target: {decision.target}"
+        )
     else:
         payload = (
             RagRequestPayload(scope=_copy_scope(context.requested_scope))
@@ -47,6 +53,7 @@ def frame_specialist_request(
         actor=context.request.actor,
         context=context.context,
         payload=payload,
+        allowed_tools=decision.allowed_tools,
     )
 
 

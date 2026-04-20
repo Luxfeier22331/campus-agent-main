@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import SpecialistTarget
+from campus_contracts import (
+    AvailabilityCheckPayload,
+    CampusNoticeDiscoverPayload,
+    CampusNoticeGetPayload,
+    PlaceLookupPayload,
+    RagRequestPayload,
+    ServiceStatusLookupPayload,
+    SpecialistTarget,
+    SpecialistToolName,
+    TransportScheduleLookupPayload,
+)
 from campus_contracts.models import AllowedCorpus
 
 from campus_supervisor_core.context import SupervisorRequestContext
@@ -17,6 +27,17 @@ class RoutingDecision:
     primary_corpus: AllowedCorpus | None
     primary_collection: str | None
     intent_frame: IntentFrame
+    specialist_payload: (
+        RagRequestPayload
+        | AvailabilityCheckPayload
+        | PlaceLookupPayload
+        | ServiceStatusLookupPayload
+        | TransportScheduleLookupPayload
+        | CampusNoticeDiscoverPayload
+        | CampusNoticeGetPayload
+        | None
+    ) = None
+    allowed_tools: tuple[SpecialistToolName, ...] = ()
 
 
 def route_request(context: SupervisorRequestContext) -> RoutingDecision:

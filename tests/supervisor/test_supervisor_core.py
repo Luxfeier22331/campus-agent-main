@@ -10,6 +10,7 @@ from campus_contracts import (
     AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    CampusNoticeDiscoverPayload,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
@@ -25,6 +26,8 @@ from campus_contracts import (
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
+    ServiceStatusLookupPayload,
+    ServiceStatusLookupResult,
     SessionSlot,
     SessionSummary,
     SpecialistRequest,
@@ -32,6 +35,7 @@ from campus_contracts import (
     SupervisorObservability,
     SupervisorResponse,
     SupervisorRequest,
+    TemporalQuery,
     TraceContext,
 )
 from campus_supervisor_core import SupervisorAgent, handle_request, handle_specialist_request
@@ -41,7 +45,11 @@ from campus_supervisor_core.audit import (
     build_error_audit_record,
 )
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import DisallowedKnowledgeScopeError, MissingSpecialistDelegateError
+from campus_supervisor_core.errors import (
+    DisallowedKnowledgeScopeError,
+    InvalidSpecialistToolPolicyError,
+    MissingSpecialistDelegateError,
+)
 from campus_supervisor_core.policy import finalize_routing_decision
 from campus_supervisor_core.prompt_execution import (
     SupervisorClarifyPromptOutput,
@@ -576,6 +584,12 @@ class SupervisorCoreTest(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_supervisor_default_delegate_map_includes_forward_runtime_agents(self) -> None:
+        delegates = SupervisorAgent().specialist_delegates
+
+        self.assertIn("campus-services-agent", delegates)
+        self.assertIn("notice-agent", delegates)
 
     def test_handle_request_preserves_needs_clarification_response(self) -> None:
         response = handle_request(
@@ -1361,6 +1375,99 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.target, "availability-specialist")
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "ok")
+
+    def test_handle_request_preserves_structured_runtime_handoff_allowed_tools(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+
+        def fake_campus_services_agent(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text="海淀校区图书馆当前开放到 22:00。",
+                confidence="high",
+                result=ServiceStatusLookupResult(
+                    subject_query="图书馆今天开门吗",
+                    outcome="resolved_current",
+                    resolved_subject="海淀校区图书馆",
+                    observed_status="open",
+                    queried_time_anchor="2026-04-21T10:30:00+08:00",
+                    effective_from="2026-04-21T08:00:00+08:00",
+                    effective_until="2026-04-21T22:00:00+08:00",
+                ),
+            )
+
+        with patch(
+            "campus_supervisor_core.agent.route_request",
+            return_value=RoutingDecision(
+                target="campus-services-agent",
+                primary_corpus=None,
+                primary_collection=None,
+                intent_frame=IntentFrame(
+                    capability="knowledge",
+                    task_kind="knowledge_lookup",
+                    domain_candidates=("campus_services",),
+                    missing_slots=(),
+                    risk_level="low",
+                    needs_clarification=False,
+                    suggested_next_action="delegate",
+                    scope_class="in_scope",
+                ),
+                specialist_payload=ServiceStatusLookupPayload(
+                    subject_query="图书馆今天开门吗",
+                    temporal_query=TemporalQuery(mode="current"),
+                    campus_scope="haidian",
+                ),
+                allowed_tools=("service_status_lookup",),
+            ),
+        ):
+            response = handle_request(
+                SupervisorRequest(
+                    user_goal="图书馆今天开门吗",
+                    requested_capability="knowledge",
+                ),
+                specialist_delegates={"campus-services-agent": fake_campus_services_agent},
+            )
+
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].target, "campus-services-agent")
+        self.assertEqual(captured_requests[0].allowed_tools, ("service_status_lookup",))
+        self.assertEqual(
+            captured_requests[0].payload,
+            ServiceStatusLookupPayload(
+                subject_query="图书馆今天开门吗",
+                temporal_query=TemporalQuery(mode="current"),
+                campus_scope="haidian",
+            ),
+        )
+        self.assertEqual(response.selected_target, "campus-services-agent")
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.result.observed_status, "open")
+
+    def test_handle_specialist_request_rejects_tool_outside_notice_agent_policy(self) -> None:
+        request = SpecialistRequest(
+            target="notice-agent",
+            user_goal="帮我找校历通知",
+            payload=CampusNoticeDiscoverPayload(
+                query_text="校历通知",
+                temporal_query=TemporalQuery(mode="current_year", year_hint="2026"),
+            ),
+            allowed_tools=("service_status_lookup",),
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSpecialistToolPolicyError,
+            "notice-agent does not allow tools: service_status_lookup",
+        ):
+            handle_specialist_request(
+                request,
+                specialist_delegates={
+                    "notice-agent": lambda inner_request: SpecialistResponse(
+                        target="notice-agent",
+                        status="completed",
+                    )
+                },
+            )
 
 
 if __name__ == "__main__":

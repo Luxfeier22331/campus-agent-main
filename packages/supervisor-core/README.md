@@ -56,6 +56,7 @@
 
 - `rag-specialist` 仍是默认 retrieval query-serving specialist
 - `availability-specialist` 作为显式并行 capability 已存在，并可通过 supervisor-facing request 进入统一入口
+- `campus-services-agent` 与 `notice-agent` 现已作为 forward runtime owner package 接入 default delegate map，但这只冻结 execution-side owner / adapter / protocol seam；不等于产品主路径已经打开这些 capability
 - query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
 - 当前 runtime-profile 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持 `offline_preparation`
 
@@ -71,6 +72,8 @@
   负责 retrieval-oriented specialist 逻辑，不由 `supervisor-core` 越级实现。
 - `packages/retrieval-core`
   只通过 `rag-specialist` 间接被消费；`supervisor-core` 不直接依赖它。
+- `packages/campus-services-agent` / `packages/notice-agent`
+  拥有 structured runtime capability 的 internal query service protocol 与 thin adapter；`supervisor-core` 只委派，不直接拥有这些 query truth。
 
 ## Verification Focus
 
