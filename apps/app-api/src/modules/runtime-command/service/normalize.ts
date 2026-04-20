@@ -36,6 +36,67 @@ export function previewText(text: string, maxLength = 160): string {
   return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
 }
 
+const INTERNAL_LOCATOR_BRACKET_PATTERN =
+  /\[[^\]\n]*(?:source-faithful|chunk-[a-z0-9_-]+|(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_handbook|service_catalog|campus_services|authenticated_notice|internal_notice|notice):[^\]\n#]*#[^\]\n]*)[^\]\n]*\]/giu;
+
+const INTERNAL_LOCATOR_PATTERNS = [
+  /source-faithful/iu,
+  /\b(?:program_semester_facts|program_family_facts|course_facts|curriculum|handbook|official_web|student_handbook|service_catalog|campus_services|authenticated_notice|internal_notice|notice):/iu,
+  /\bchunk-[a-z0-9_-]+\b/iu,
+  /\[[^\]\n]*#[^\]\n]*\]/u,
+];
+
+function collapseAssistantTextWhitespace(text: string): string {
+  return text
+    .replace(/\s{2,}/g, " ")
+    .replace(/[ \t]+([，。；：！？])/g, "$1")
+    .replace(/([（【《“‘])\s+/g, "$1")
+    .replace(/\s+([）】》”’])/g, "$1")
+    .trim();
+}
+
+function fallbackAssistantText(status: SupervisorExecutionResponse["status"]): string {
+  if (status === "needs_clarification") {
+    return "我需要先确认你的具体问题，请再补充一点。";
+  }
+  if (status === "no_answer") {
+    return "当前没有足够依据回答这个问题。";
+  }
+  if (status === "approval_required") {
+    return "该请求需要先经过审批后才能继续。";
+  }
+  if (status === "rejected") {
+    return "该请求未通过当前策略校验。";
+  }
+  if (status === "error") {
+    return "当前请求暂时无法完成，请稍后再试。";
+  }
+  return "我已经找到相关依据，但返回文案格式异常，请换个问法再试一次。";
+}
+
+export function sanitizePublicAssistantText(input: {
+  status: SupervisorExecutionResponse["status"];
+  text: string;
+}): string {
+  const normalized = normalizeString(input.text);
+  if (!normalized) {
+    return fallbackAssistantText(input.status);
+  }
+
+  const stripped = collapseAssistantTextWhitespace(
+    normalized
+      .replace(INTERNAL_LOCATOR_BRACKET_PATTERN, "")
+      .replace(/\s+\]/g, "]"),
+  );
+  if (!stripped) {
+    return fallbackAssistantText(input.status);
+  }
+  if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(stripped))) {
+    return fallbackAssistantText(input.status);
+  }
+  return stripped;
+}
+
 function normalizeRequestedScope(value: unknown): RequestedScope | null {
   if (!value || typeof value !== "object") {
     return null;

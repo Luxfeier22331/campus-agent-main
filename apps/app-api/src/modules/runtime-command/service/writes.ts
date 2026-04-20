@@ -30,6 +30,7 @@ import {
   extractSourceDocIds,
   normalizePlaceCardPart,
   previewText,
+  sanitizePublicAssistantText,
 } from "./normalize";
 import type {
   ChatCommandResponse,
@@ -298,6 +299,22 @@ export function buildFinalizedWrite(input: {
       traceId: normalizedTraceId,
     };
     status = "completed";
+  }
+
+  assistantText = sanitizePublicAssistantText({
+    status: input.response.status,
+    text: assistantText,
+  });
+  if (result.kind === "error") {
+    result = {
+      ...result,
+      message: assistantText,
+    };
+  } else {
+    result = {
+      ...result,
+      text: assistantText,
+    };
   }
 
   const assistantMessage: ChatMessage = {

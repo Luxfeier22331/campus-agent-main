@@ -196,6 +196,13 @@ function createTelemetryMock(): AppTelemetry {
   };
 }
 
+function expectNoInternalLocators(text: string) {
+  expect(text).not.toContain("source-faithful");
+  expect(text).not.toContain("program_semester_facts:");
+  expect(text).not.toContain("chunk-");
+  expect(text).not.toMatch(/\[[^\]]*#[^\]]*\]/);
+}
+
 describe("chat command service", () => {
   it("derives safety identifier from principal first, then app-owned session id, else null", () => {
     const principal = createPrincipal();
@@ -446,6 +453,68 @@ describe("chat command service", () => {
       }),
     );
     expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes internal source locators before writing completed answers to browser-facing chat surfaces", async () => {
+    const { store, finalWrites } = createCommandStore();
+    const { store: conversationStore } = createConversationStore();
+    const service = buildChatCommandService({
+      generateId: createDeterministicIdGenerator(),
+      now: () => new Date("2026-03-28T08:00:00.000Z"),
+      conversationStore,
+      store,
+      supervisor: {
+        execute: vi.fn().mockResolvedValue({
+          answerText:
+            "第四学期有合同法、人格权法、侵权责任法。 [program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4#program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:source-faithful:sha256:test:chunk-0001]",
+          error: null,
+          followUpQuestion: "",
+          result: {
+            evidence: {
+              sources: [
+                {
+                  chunk_id:
+                    "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:source-faithful:sha256:test:chunk-0001",
+                  collection: "program_semester_facts",
+                  doc_id: "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4",
+                },
+              ],
+            },
+          },
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          traceId: "trace_0002",
+        }),
+      },
+    });
+
+    const response = await service.submit({
+      payload: {
+        conversationId: "conv_01HQ",
+        prompt: "法学民族班培养方案里大二下有什么课",
+        requestedScope: {
+          collection: "curriculum_plan",
+          corpus: "curriculum",
+        },
+      },
+      principal: createPrincipal(),
+    });
+
+    expect(finalWrites[0]).toMatchObject({
+      assistantMessage: {
+        kind: "answer",
+      },
+      requestExecution: {
+        status: "completed",
+      },
+    });
+    expectNoInternalLocators(finalWrites[0].assistantMessage.text);
+    expect(finalWrites[0].assistantMessage.text).toContain("第四学期有合同法、人格权法、侵权责任法。");
+    expectNoInternalLocators(response.answer.result.text);
+    expect(response.answer.result).toMatchObject({
+      kind: "answer",
+      text: "第四学期有合同法、人格权法、侵权责任法。",
+    });
   });
 
   it("persists navigation place cards into assistant structured parts", async () => {
