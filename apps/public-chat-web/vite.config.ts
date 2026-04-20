@@ -146,6 +146,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, "src/platform/vendor-compat/app/chat-actions.ts"),
       },
       {
+        find: /^@\/app\/\(auth\)\/layout$/,
+        replacement: path.resolve(__dirname, "src/platform/vendor-compat/app/auth-layout.tsx"),
+      },
+      {
         find: /^@\/hooks\/use-active-chat$/,
         replacement: path.resolve(
           __dirname,
@@ -157,6 +161,13 @@ export default defineConfig({
         replacement: path.resolve(
           __dirname,
           "src/platform/vendor-compat/hooks/use-chat-visibility.ts",
+        ),
+      },
+      {
+        find: /^@\/components\/chat\/auth-form$/,
+        replacement: path.resolve(
+          __dirname,
+          "src/platform/vendor-compat/components/chat/auth-form.tsx",
         ),
       },
       {

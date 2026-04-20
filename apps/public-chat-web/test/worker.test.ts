@@ -267,6 +267,38 @@ describe("public chat web worker shell", () => {
     expect(html).toContain("<div id=\"root\"></div>");
     expect(html).toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
     expect(html).toContain('"turnstileSiteKey":"1x00000000000000000000AA"');
+    expect(html).toContain('"turnstileAppearance":"interaction-only"');
+    expect(html).toContain('"turnstileExecution":"render"');
+  });
+
+  it("honors explicit Turnstile runtime posture overrides in the injected auth shell config", async () => {
+    const response = await worker.fetch(
+      new Request("https://chat.example.com/"),
+      {
+        APP_API: {
+          fetch: async () => new Response(null, { status: 204 }),
+        },
+        ASSETS: {
+          fetch: async () =>
+            new Response("<!doctype html><html><body><div id=\"root\"></div></body></html>", {
+              headers: {
+                "content-type": "text/html; charset=utf-8",
+              },
+              status: 200,
+            }),
+        },
+        APP_API_BASE_URL: "https://app-api.internal",
+        AUTH_TURNSTILE_APPEARANCE: "always",
+        AUTH_TURNSTILE_EXECUTION: "execute",
+        AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+        PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain('"turnstileAppearance":"always"');
+    expect(html).toContain('"turnstileExecution":"execute"');
   });
 
   it("fails closed when app-api binding is not configured for the public shell", async () => {

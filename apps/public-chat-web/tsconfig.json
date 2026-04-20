@@ -23,6 +23,8 @@
       "@/lib/editor/diff": ["src/platform/vendor-compat/lib/editor/diff.ts"],
       "@/lib/types": ["src/platform/vendor-compat/lib/types.ts"],
       "@/lib/utils": ["src/platform/vendor-compat/lib/utils.ts"],
+      "@/app/(auth)/layout": ["src/platform/vendor-compat/app/auth-layout.tsx"],
+      "@/components/chat/auth-form": ["src/platform/vendor-compat/components/chat/auth-form.tsx"],
       "@/components/ai-elements/*": ["vendor/vercel-ai-chatbot/components/ai-elements/*"],
       "@/components/theme-provider": ["vendor/vercel-ai-chatbot/components/theme-provider.tsx"],
       "@/components/ui/*": ["vendor/vercel-ai-chatbot/components/ui/*"],

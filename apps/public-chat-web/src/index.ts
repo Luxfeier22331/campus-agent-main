@@ -2,6 +2,10 @@ import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 
 import {
+  AUTH_RUNTIME_CONFIG_SCRIPT_ID,
+  resolveTurnstileRuntimeConfig,
+} from "./platform/auth/turnstile-runtime-config";
+import {
   getAllGatewayModels,
   getCapabilities,
   isDemo,
@@ -15,6 +19,8 @@ export interface Env {
     fetch(request: Request): Promise<Response> | Response;
   };
   APP_API_BASE_URL?: string;
+  AUTH_TURNSTILE_APPEARANCE?: string;
+  AUTH_TURNSTILE_EXECUTION?: string;
   AUTH_TURNSTILE_SITE_KEY?: string;
   PUBLIC_CHAT_APP_NAME?: string;
   PUBLIC_CHAT_HOSTNAME?: string;
@@ -42,7 +48,6 @@ const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
 } as const;
 
-const AUTH_RUNTIME_CONFIG_SCRIPT_ID = "__PUBLIC_CHAT_AUTH_CONFIG__";
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
@@ -305,9 +310,13 @@ async function serveModelsCatalog(): Promise<Response> {
 }
 
 function injectAuthRuntimeConfig(html: string, env: Env): string {
-  const serializedConfig = JSON.stringify({
-    turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY?.trim() || null,
-  }).replace(/</g, "\\u003c");
+  const serializedConfig = JSON.stringify(
+    resolveTurnstileRuntimeConfig({
+      turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
+      turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,
+      turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY,
+    }),
+  ).replace(/</g, "\\u003c");
   const scriptTag = `<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script>`;
 
   if (html.includes(`id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}"`)) {

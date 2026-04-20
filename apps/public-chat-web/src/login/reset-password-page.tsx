@@ -40,7 +40,7 @@ export function ResetPasswordPage() {
     if (state.status === "failed") {
       toast({
         type: "error",
-        description: "We couldn't reset your password. Please try again.",
+        description: "暂时无法更新密码，请稍后重试。",
       });
       return;
     }
@@ -48,8 +48,7 @@ export function ResetPasswordPage() {
     if (state.status === "invalid_data") {
       toast({
         type: "error",
-        description:
-          "Use a password that is at least 10 characters and matches both fields.",
+        description: "请使用至少 10 位的新密码，并确保两次输入一致。",
       });
       return;
     }
@@ -58,7 +57,7 @@ export function ResetPasswordPage() {
       setIsSuccessful(true);
       toast({
         type: "success",
-        description: "Password updated. Sign in with your new password.",
+        description: "密码已更新，请重新登录。",
       });
       void router.replace("/login");
     }
@@ -71,49 +70,39 @@ export function ResetPasswordPage() {
 
   return (
     <AuthLayout>
-      <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted-foreground/70">
-        Campus Agent
-      </p>
-      <h1 className="text-2xl font-semibold tracking-tight">Reset password</h1>
-      <p className="text-sm text-muted-foreground text-pretty">
-        Choose a new password for your campus account and then return to sign
-        in.
-      </p>
+      <h1 className="text-2xl font-semibold tracking-tight">设置新密码</h1>
+      <p className="text-sm text-muted-foreground">设置完成后，请使用新密码重新登录。</p>
       {state.status === "invalid_token" ? (
-        <div className="flex flex-col gap-4 rounded-xl border border-border/40 bg-muted/30 p-4">
-          <p className="text-sm text-foreground">
-            This reset link is invalid or has expired. Request a fresh recovery
-            email to continue.
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            当前链接已失效，请重新申请密码重置邮件。
           </p>
-          <div className="flex flex-wrap gap-3 text-[13px] text-muted-foreground">
+          <div className="text-center text-[13px] text-muted-foreground">
             <Link
               className="text-foreground underline-offset-4 hover:underline"
               href="/forgot-password"
             >
-              Request a new reset link
+              重新发送重置邮件
             </Link>
+            {" · "}
             <Link
               className="text-foreground underline-offset-4 hover:underline"
               href="/login"
             >
-              Back to sign in
+              返回登录
             </Link>
           </div>
         </div>
       ) : (
         <PasswordRecoveryResetForm action={handleSubmit}>
-          <p className="rounded-lg border border-border/40 bg-muted/30 px-3 py-2 text-[13px] text-muted-foreground">
-            Your new password must be at least 10 characters and will replace
-            every previous session.
-          </p>
-          <SubmitButton isSuccessful={isSuccessful}>Save new password</SubmitButton>
+          <SubmitButton isSuccessful={isSuccessful}>更新密码</SubmitButton>
           <p className="text-center text-[13px] text-muted-foreground">
-            {"Need another link? "}
+            {"还需要新的重置邮件？"}
             <Link
               className="text-foreground underline-offset-4 hover:underline"
               href="/forgot-password"
             >
-              Start recovery again
+              重新开始找回
             </Link>
           </p>
         </PasswordRecoveryResetForm>

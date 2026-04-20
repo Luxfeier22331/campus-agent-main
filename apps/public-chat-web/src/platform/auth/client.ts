@@ -140,7 +140,7 @@ export async function submitEmailPasswordAuth(
         });
 
   if (response?.error) {
-    const message = readAuthErrorMessage(response, "Authentication request failed.");
+    const message = readAuthErrorMessage(response, "认证请求失败。");
     throw new AuthSubmissionError(classifyAuthSubmissionError(mode, message), message);
   }
 }
@@ -159,7 +159,7 @@ export async function requestPasswordReset(
   if (response?.error) {
     const message = readAuthErrorMessage(
       response,
-      "Password reset request failed.",
+      "发送重置邮件失败。",
     );
     throw new AuthSubmissionError(classifyRecoveryError(message), message);
   }
@@ -176,7 +176,7 @@ export async function resetPasswordWithToken(
   if (response?.error) {
     const message = readAuthErrorMessage(
       response,
-      "Password reset could not be completed.",
+      "密码重置未完成。",
     );
     throw new AuthSubmissionError(classifyRecoveryError(message), message);
   }
@@ -196,6 +196,6 @@ export async function signOutChatSession(
       : undefined,
   });
   if (response?.error) {
-    throw new Error(readAuthErrorMessage(response, "Unable to sign out."));
+    throw new Error(readAuthErrorMessage(response, "暂时无法退出登录。"));
   }
 }
