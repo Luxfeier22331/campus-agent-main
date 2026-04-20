@@ -59,11 +59,15 @@ updated: 2026-04-21
 - `Phase 1: Agent Family Terminology Freeze`
 - `Phase 2: Current-Truth Contract Label Migration`
 
-后续恢复时，应直接进入 `Phase 3: Prompt Eval And Observability Label Convergence` 的 planning / execution。
+后续恢复时，应直接进入 `Phase 3: Prompt Eval And Observability Label Convergence` 的 execution。
 当前 baseline 已经固定：
 
 - `selected_target` / `selectedTarget` 继续只表示 current runtime target
 - current serialized contract 不承载 forward family label
 - panel target filter / display label 已由显式 mapping 收口
+- `Phase 3` planning pack 已创建：
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/CONTEXT.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/RESEARCH.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
 
 下一阶段不应回退重开 Phase 1/2，也不应提前扩到 package dir / import path rename。

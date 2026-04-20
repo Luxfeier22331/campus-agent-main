@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。与此同时，若存在长期稳定、可复用、非 handbook-RAG 的能力边界，例如官网探活 / 外部站点可达性核验，也允许以独立 specialist 的形式作为当前里程碑中的显式 inserted phase 落地，而不是被降级成 supervisor 内联 tool。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`specialist agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-specialist -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `student_handbook` 与 `curriculum_plan`；`campus_services` 仍保持 offline preparation。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Planning File Contract
 
@@ -68,7 +68,7 @@
 - ✓ 已存在 ingestion/data plane 基础设施骨架，可支持 `student_handbook` 与 `curriculum_plan` 的 raw / processed / chunk 路径演进 — existing
 - ✓ 已完成 `student_handbook` 的 canonical raw onboarding、稳定逻辑文档 identity/version 规则与 machine-checkable duplicate/update import reporting — Validated in Phase 2
 - ✓ 已完成 `student_handbook` 的 canonical processed artifact、chunk metadata 与 Qdrant/retrieval payload handoff 收口 — Validated in Phase 3
-- ✓ 已将边界清晰的 `official-web` / `availability` specialist 纳入当前执行，以独立 contract、supervisor 显式路由与 allowlisted 官方站点探活能力完成最小闭环 — Validated in Phase 03.1
+- ✓ 已通过 `Phase 03.1` 验证 shared supervisor/specialist seam 可承载并行 capability family；早期实验性的 `availability-specialist` 占位符已于 2026-04-21 退休，不再属于当前 merged truth — Boundary validated in Phase 03.1, placeholder retired on 2026-04-21
 - ✓ 已完成 `student_handbook` 的 `rag-specialist` answer path 收口，包括 grounded answer、chunk-level citation、`needs_clarification`、`no_answer` 与 `error` 语义 — Validated in Phase 4
 - ✓ 已完成 `student_handbook` retrieval baseline 从 dense-only bootstrap 收口为 `dense + sparse hybrid + RRF + registry-backed evidence`，并通过 live handbook fixture 与 repo tests 验证 — Validated by 2026-03-27 live + automated verification
 - ✓ 已完成 `supervisor -> specialist` 查询入口、typed actor propagation 与 durable audit logging 的 Phase 5 收口 — Validated in Phase 5
@@ -131,7 +131,7 @@
 | 旧 `../campusRAG` 仅作为迁移参考 | 新仓库目标是新架构落地，不是继续扩展旧实现 | — Pending |
 | phase-1 先优先架构边界正确、handoff 清晰、tracing / audit / ACL 最小闭环 | 这是“符合最佳实践”的核心，也是后续扩展多 specialist 的前置条件 | — Pending |
 | specialist 表示稳定能力边界，不只等于 handbook RAG | 如果官网探活 / 可达性核验是长期稳定需求，应作为独立 specialist 讨论，而不是退回 supervisor 内联 tool | — Pending |
-| `official-web` / `availability` specialist 进入当前里程碑，但以 inserted phase 并行推进 | 这是长期稳定能力边界，且可以在不改写 handbook mainline 的前提下提前验证 supervisor 的多 specialist 形态 | — Validated in Phase 03.1 |
+| 早期实验性的 `official-web` / `availability` placeholder 只用于验证多-specialist seam，现已退休 | 继续把实验占位符保留为 current truth 会把边界验证误写成长期能力承诺；验证目标已完成，placeholder 应从 merged truth 清出 | — Superseded and retired on 2026-04-21 |
 | handbook raw onboarding 必须先进入 raw bucket + raw asset registry，再允许 OCR normalized ingestion | Phase 2 要证明 raw/document truth 分层成立，不能退回本地文件路径兼容方案 | — Validated in Phase 2 |
 | handbook duplicate/update 判定基于 `document_id + revision_track` 的历史内容哈希，并通过 import report 显式暴露 created/updated/skipped buckets | 后续 Phase 3/4 需要稳定的版本推进与可审计回归证据 | — Validated in Phase 2 |
 | handbook chunking 必须从 registry 指向的 `document-units.jsonl` 重建，并让 ingestion/retrieval 之间共享同一套 evidence-trace metadata | Phase 3 要证明 processed truth、Qdrant payload 和 retrieval evidence shaping 已经收口 | — Validated in Phase 3 |

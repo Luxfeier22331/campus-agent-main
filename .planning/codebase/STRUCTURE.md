@@ -33,10 +33,13 @@
 ├── infra/                    # Local infrastructure descriptors
 │   └── local/
 ├── packages/                 # Core capability packages (supervisor, specialist, retrieval, ingestion)
-│   ├── availability-specialist/
+│   ├── campus-services-agent/
 │   ├── contracts/
 │   ├── evals/
 │   ├── ingestion-core/
+│   ├── navigation-specialist/
+│   ├── notice-agent/
+│   ├── official-web-core/
 │   ├── rag-specialist/
 │   ├── retrieval-core/
 │   ├── shared/
@@ -79,9 +82,12 @@
 - Purpose: grouped capability packages where most business logic lives (contracts, supervisor, specialist, retrieval, ingestion, evals, shared utilities).
 - Contains: Python packages under `packages/*/src/<module>`.
 - Key files:
-  - `packages/availability-specialist/src/campus_availability_specialist/*.py` for availability probing.
+  - `packages/campus-services-agent/src/campus_services_agent/*.py` for structured campus-services tool orchestration.
   - `packages/contracts/src/campus_contracts/*.py` for request/response/evidence schemas.
   - `packages/supervisor-core/src/campus_supervisor_core/*.py` for routing/agent coordination.
+  - `packages/navigation-specialist/src/campus_navigation_specialist/*.py` for place lookup behavior.
+  - `packages/notice-agent/src/campus_notice_agent/*.py` for notice-tool orchestration.
+  - `packages/official-web-core/src/campus_official_web_core/*.py` for official-web domain logic below app shells.
   - `packages/rag-specialist/src/campus_rag_specialist/*.py` for specialist logic.
   - `packages/retrieval-core/src/campus_retrieval_core/*.py` for vector retrieval backends.
   - `packages/ingestion-core/src/campus_ingestion_core/*.py` for ingestion pipelines, object store, and registries.
@@ -126,7 +132,10 @@
 - `packages/contracts/src/campus_contracts/models.py` – type-level contracts shared across packages.
 - `packages/supervisor-core/src/campus_supervisor_core/*.py` – routing, policy, audit, response composition, and context creation.
 - `packages/rag-specialist/src/campus_rag_specialist/*.py` – specialist entrypoint/composition and confidence heuristics.
-- `packages/availability-specialist/src/campus_availability_specialist/*.py` – allowlisted availability specialist behavior.
+- `packages/navigation-specialist/src/campus_navigation_specialist/*.py` – place-finding specialist behavior.
+- `packages/campus-services-agent/src/campus_services_agent/*.py` – structured campus-services runtime orchestration.
+- `packages/notice-agent/src/campus_notice_agent/*.py` – notice runtime orchestration.
+- `packages/official-web-core/src/campus_official_web_core/*.py` – official-web control-plane and source-truth logic.
 - `packages/retrieval-core/src/campus_retrieval_core/*.py` – retrieval abstractions and Qdrant backend.
 - `packages/ingestion-core/src/campus_ingestion_core/*.py` – ingestion pipelines, registries, object store keys, and runtime profile handling.
 

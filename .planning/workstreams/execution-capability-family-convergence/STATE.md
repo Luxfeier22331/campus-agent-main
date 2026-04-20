@@ -11,12 +11,12 @@ updated: 2026-04-21
 **Status:** Active
 **Current Phase:** 3
 **Current Phase Name:** Prompt Eval And Observability Label Convergence
-**Current Plan:** `<none>`
+**Current Plan:** `phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
 **Total Phases:** 4
-**Total Plans in Phase:** 0
+**Total Plans in Phase:** 1
 **Progress:** 2/4 phases complete
 **Last Activity:** 2026-04-21
-**Last Activity Description:** Completed `Phase 2` by freezing `selected_target` / `selectedTarget` as current runtime target truth, closing panel target filter coverage, and deferring prompt/eval/observability wording convergence to `Phase 3`.
+**Last Activity Description:** Created the `Phase 3` planning pack to converge prompt / eval / observability wording while preserving `Phase 2` current runtime target semantics.
 
 ## Current Slice
 
@@ -43,6 +43,9 @@ updated: 2026-04-21
   - operator-facing display label 来自显式 mapping，而不是 raw target string
   - panel 当前 target filter 闭集已被显式收口
 - 当前切片切到 `Phase 3`：
+  - `phases/phase-3-prompt-eval-and-observability-label-convergence/CONTEXT.md`
+  - `phases/phase-3-prompt-eval-and-observability-label-convergence/RESEARCH.md`
+  - `phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
   - 只处理 prompt / eval / observability wording convergence
   - 不回头重做 Phase 2 已完成的 current-truth contract 语义清理
   - 不提前进入 package dir / import path rename
@@ -65,5 +68,5 @@ updated: 2026-04-21
 
 ## Session Continuity
 
-**Stopped At:** `Phase 2` completed; next step is to create the `Phase 3` planning pack for prompt / eval / observability wording convergence
+**Stopped At:** `Phase 3` planning pack created; next step is to execute prompt / eval / observability wording convergence without re-opening contract semantics or package rename
 **Resume File:** docs/plans/execution-capability-family-convergence.md

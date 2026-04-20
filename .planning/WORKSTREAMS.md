@@ -39,7 +39,7 @@ updated: 2026-04-21
 |------------|------|------------|-------|---------------|---------------|
 | `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/operator-observability-control-plane-foundation.md` | `Phase C` | 已恢复 workstream 并按当前 merged truth 重排 phases；`Phase A-B` 已被已落地的 app-api observability/audit 基线吸收，当前先收口 aggregate API residual gap 与后续 panel 扩面前置 seam |
 | `notice semantic fan-out / consumption modeling` | `notice-semantic-fan-out-and-consumption-modeling` | `yes` | `docs/plans/notice-semantic-fan-out-and-consumption-modeling.md` | `Phase 1` | 新建 semantic-modeling lane；当前先冻结 `source_notice + attachment -> derived consumption units` 的 role taxonomy、authority/completeness contract 与 future agent/surface handoff，不进入实现或 query-serving opening |
-| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/execution-capability-family-convergence.md` | `Phase 3` | `Phase 1-2` 已完成并收口 current-truth terminology 与 `selected_target` / operator label semantics；下一步只推进 prompt / eval / observability wording convergence，不提前触碰 package rename |
+| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/execution-capability-family-convergence.md` | `Phase 3` | `Phase 3` planning pack 已创建；下一步按 prompt family wording、eval/report label split、observability/operator wording projection 三个 slice 执行，不提前触碰 package rename |
 
 ## Completed
 

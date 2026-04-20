@@ -25,7 +25,7 @@
 
 - Transport/runtime boundaries in the current tracked tree span `apps/supervisor-api`, `apps/ingestion-worker`, `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`.
 - Historical 04.6/04.7 surfaces such as `public-entry-worker` and `public-consumer-chat` still appear in docs/planning history, but they are not current tracked app directories in merged truth.
-- Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/availability-specialist`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
+- Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/navigation-specialist`, `packages/campus-services-agent`, `packages/notice-agent`, `packages/official-web-core`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
 - Architecture framing is documented in `docs/architecture/target-architecture.md` and the phase-1 implementation details in `docs/architecture/data-plane-architecture.md`, so stack decisions follow those boundaries.
 
 ## Apps & Packages Inventory
@@ -35,9 +35,12 @@
 - `apps/app-api` – shared Worker application/control-plane backend with the TypeScript runtime, shared database/schema ownership, operator query APIs, `official_web` control-plane modules, telemetry hooks, and the retained Python `ContextProjection` seam.
 - `apps/public-chat-web` – public Worker web surface that proxies chat traffic into the shared `app-api` runtime and forwards trace headers.
 - `apps/protected-panel-web` – protected Worker operator surface that talks to runtime APIs only and now includes `Overview`, `Requests`, and `Official Web` domains.
+- `packages/campus-services-agent` – structured campus-services runtime agent family, tool adapter seam, and query-service protocol owner.
 - `packages/supervisor-core` – superintendent agent, routing, policy, and response assembly (`packages/supervisor-core/src/...`).
+- `packages/navigation-specialist` – place-finding specialist boundary and `place_lookup` runtime contract owner.
+- `packages/notice-agent` – notice runtime agent family, notice-tool adapter seam, and query-service protocol owner.
+- `packages/official-web-core` – official-web control-plane domain logic shared below the Worker shell.
 - `packages/rag-specialist` – specialist agent and confidence computation funneling to `campus_retrieval_core`.
-- `packages/availability-specialist` – typed availability-probe specialist that stays parallel to `rag-specialist`.
 - `packages/retrieval-core` – LlamaIndex + Qdrant backend, retrieval settings, and retrieval service wrappers (`packages/retrieval-core/src/campus_retrieval_core/`).
 - `packages/ingestion-core` – ingestion pipelines, object store helpers, registries, OCR glue, corpus profiles (`packages/ingestion-core/src/campus_ingestion_core/`).
 - `packages/contracts` – shared DTOs such as `SupervisorRequest`, `SpecialistRequest`, `SpecialistResponse`, `EvidenceBundle`, and `ALLOWED_CORPORA` (`packages/contracts/src/campus_contracts/models.py`).
