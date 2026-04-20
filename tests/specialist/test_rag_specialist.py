@@ -262,6 +262,16 @@ def _make_curriculum_plan_source(
     )
 
 
+def _assert_answer_text_hides_internal_locators(
+    test_case: unittest.TestCase,
+    answer_text: str,
+) -> None:
+    test_case.assertNotIn("source-faithful", answer_text)
+    test_case.assertNotIn("program_semester_facts:", answer_text)
+    test_case.assertNotIn("chunk-", answer_text)
+    test_case.assertNotRegex(answer_text, r"\[[^\]]*#[^\]]*\]")
+
+
 def _resolved_scope_diagnostics(
     *,
     corpus: str,
@@ -2992,6 +3002,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("根据学生手册相关规定", response.answer_text)
         self.assertIn("侵权责任法", response.answer_text)
         self.assertIn("公司法", response.answer_text)
+        _assert_answer_text_hides_internal_locators(self, response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
             _resolved_curriculum_diagnostics_from_response(
@@ -5310,11 +5321,12 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
         captured_kwargs: dict[str, object] = {}
+        expected_evidence = _make_evidence(query_text="What are the library hours?")
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
             captured_kwargs["query"] = query
             captured_kwargs.update(kwargs)
-            return _make_evidence(query_text="What are the library hours?")
+            return expected_evidence
 
         request = SpecialistRequest(
             target="rag-specialist",
@@ -5355,13 +5367,12 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertTrue(response.answer_text)
         self.assertIn("根据学生手册相关规定", response.answer_text)
         self.assertIn("Evidence snippet 1", response.answer_text)
-        self.assertIn("[handbook:test-1#", response.answer_text)
-        self.assertIn("[handbook:test-2#", response.answer_text)
+        _assert_answer_text_hides_internal_locators(self, response.answer_text)
         self.assertEqual(response.confidence, "medium")
         self.assertEqual(
             response.result,
             RagResultPayload(
-                evidence=_make_evidence(query_text="What are the library hours?"),
+                evidence=expected_evidence,
                 diagnostics=_resolved_scope_diagnostics(
                     corpus="regulations",
                     collection="student_handbook",
@@ -5369,6 +5380,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     retrieved_title_summary=(
                         "Evidence snippet 1 about library hours and student support.",
                         "Evidence snippet 2 about library hours and student support.",
+                    ),
+                    retrieved_sources=expected_evidence.sources,
+                    source_trust_summary=SourceTrustSummary(
+                        observed_tiers=("T1",),
+                        answer_bearing_tiers=(),
+                        blocked_claim_types=(),
+                        freshness_claim_blocked=False,
+                        authorization_claim_blocked=False,
                     ),
                 ),
             ),
@@ -7053,6 +7072,14 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 rewritten_query=retriever_call["query_text"],
                 semantic_outcome="grounded_answer",
                 retrieved_title_summary=(target_title,),
+                retrieved_sources=response.result.evidence.sources,
+                source_trust_summary=SourceTrustSummary(
+                    observed_tiers=("T1",),
+                    answer_bearing_tiers=("T1",),
+                    blocked_claim_types=(),
+                    freshness_claim_blocked=False,
+                    authorization_claim_blocked=False,
+                ),
             ),
         )
 

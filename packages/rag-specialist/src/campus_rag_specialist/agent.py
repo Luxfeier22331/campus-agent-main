@@ -745,34 +745,19 @@ def _should_stop_after_official_web_reference_rows(
     return True
 
 
-def _format_source_citation(sources: tuple[EvidenceSource, ...]) -> str:
-    seen: set[str] = set()
-    labels: list[str] = []
-    for source in sources:
-        locator = f"{source.doc_id}#{source.chunk_id}"
-        if locator in seen:
-            continue
-        seen.add(locator)
-        labels.append(locator)
-    if not labels:
-        return ""
-    return f"[{', '.join(labels)}]"
-
-
 def _compose_generic_answer(
     *,
     evidence: EvidenceBundle,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
 ) -> str:
     fragments = [
-        f"{'；'.join(statements)} [{source.doc_id}#{source.chunk_id}]"
+        "；".join(statements)
         for source, statements in selected_rows
         if statements
     ]
     if not fragments:
         fragments = [
-            f"{_render_source_support(source)} [{source.doc_id}#{source.chunk_id}]"
-            for source, _ in selected_rows
+            _render_source_support(source) for source, _ in selected_rows
         ]
 
     answer_prefix = _answer_prefix(evidence)
@@ -813,11 +798,7 @@ def _compose_curriculum_semester_course_list_answer(
     if not course_titles:
         return ""
 
-    answer = f"{_answer_prefix(evidence)}，{semester_labels[0]}有{'、'.join(course_titles)}。"
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
-    if citation:
-        return f"{answer} {citation}"
-    return answer
+    return f"{_answer_prefix(evidence)}，{semester_labels[0]}有{'、'.join(course_titles)}。"
 
 
 def _compose_procedure_answer(
@@ -848,10 +829,7 @@ def _compose_procedure_answer(
         return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
     intro = _procedure_intro(evidence.query_text)
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
     answer_body = "；".join(step_fragments)
-    if citation:
-        return f"{_answer_prefix(evidence)}，{intro}{answer_body} {citation}"
     return f"{_answer_prefix(evidence)}，{intro}{answer_body}"
 
 
@@ -1753,10 +1731,7 @@ def _compose_official_web_reference_answer(
     if not fragments:
         return ""
 
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
     body = "；".join(fragments)
-    if citation:
-        return f"{_answer_prefix(evidence)}，{body} {citation}"
     return f"{_answer_prefix(evidence)}，{body}"
 
 
@@ -1768,10 +1743,7 @@ def _compose_official_web_roster_answer(
     fragments = _build_official_web_roster_fragments(selected_rows)
     if not fragments:
         return ""
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
     body = "；".join(fragments)
-    if citation:
-        return f"{_answer_prefix(evidence)}，{body} {citation}"
     return f"{_answer_prefix(evidence)}，{body}"
 
 
@@ -1787,10 +1759,7 @@ def _compose_official_web_news_answer(
         fragments = _build_official_web_generic_fragments(sentences)
     if not fragments:
         return ""
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
     body = "；".join(fragments)
-    if citation:
-        return f"{_answer_prefix(evidence)}，{body} {citation}"
     return f"{_answer_prefix(evidence)}，{body}"
 
 
@@ -1854,12 +1823,9 @@ def _compose_official_web_answer(
         value = _extract_official_web_labeled_value(location_statement)
         fragments.append(f"讲座地点为{value}" if value else location_statement)
 
-    citation = _format_source_citation(tuple(source for source, _ in selected_rows))
     body = "；".join(fragment for fragment in fragments if fragment)
     if not body:
         return ""
-    if citation:
-        return f"{_answer_prefix(evidence)}，{body} {citation}"
     return f"{_answer_prefix(evidence)}，{body}"
 
 
