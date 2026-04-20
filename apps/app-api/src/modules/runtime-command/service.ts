@@ -1,811 +1,37 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import type { SupervisorExecutionResponse } from "../integration";
+import { DRAFT_CONVERSATION_TITLE, toConversationResponse, type ChatConversation } from "../chat";
 
-import { AppApiRouteError } from "../../http";
-import { buildExecutionAuthorizationContext, type ResolvedAppPrincipal } from "../auth";
+import { createPreAcceptError, buildAbuseThrottleRejectedResponse, toHandledErrorTransportOutcome } from "./service/errors";
 import {
-  DRAFT_CONVERSATION_TITLE,
-  type ChatMessageStructuredPart,
-  type ChatPlaceCard,
-  toConversationResponse,
-  type ChatConversation,
-  type ChatConversationStore,
-  type ChatMessage,
-} from "../chat";
+  defaultComputeFingerprint,
+  defaultGenerateId,
+  deriveSafetyIdentifier,
+  previewText,
+  resolveValidatedPayload,
+} from "./service/normalize";
 import {
-  SupervisorTransportError,
-  type RequestedScope,
-  type SupervisorExecutionClient,
-  type SupervisorExecutionResponse,
-} from "../integration";
-import { extractRequestDiagnosticsSummary } from "../request-diagnostics";
+  NEW_CONVERSATION_FINGERPRINT_SCOPE,
+  type ChatCommandPayload,
+  type ChatCommandResponse,
+  type ChatCommandResult,
+  type ChatCommandService,
+  type ChatCommandServiceDependencies,
+} from "./service/types";
 import {
-  buildAcceptedRequestObservabilityFact,
-  buildFinalizedRequestObservabilityFact,
-} from "../request-observability";
-import type { AppTelemetry } from "../telemetry";
-import {
-  buildSupervisorSessionProjection,
-  deriveCurriculumSessionSlots,
-} from "./curriculum-session";
-import type {
-  AcceptRequestWrite,
-  ChatCommandStore,
-  FinalizeRequestWrite,
-  RequestExecutionStatus,
-} from "./store";
+  buildAcceptedWrite,
+  buildConversationTitle,
+  buildFinalizedWrite,
+  buildSupervisorContextProjection,
+} from "./service/writes";
 
-const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
-
-export interface ChatCommandPayload {
-  conversationId?: unknown;
-  prompt?: unknown;
-  requestedCapability?: unknown;
-  requestedScope?: unknown;
-}
-
-export type ChatCommandResult =
-  | {
-      kind: "answer" | "clarification" | "no_answer";
-      requestId: string;
-      text: string;
-      traceId: string;
-    }
-  | {
-      errorCode: string;
-      kind: "error";
-      message: string;
-      requestId: string;
-      retryable: boolean;
-      traceId: string;
-    };
-
-export interface ChatCommandResponse {
-  answer: {
-    conversation: ReturnType<typeof toConversationResponse>;
-    result: ChatCommandResult;
-  };
-  requestId: string;
-  supervisor?: SupervisorExecutionResponse;
-  traceId: string;
-}
-
-export interface ChatCommandService {
-  submit(input: {
-    idempotencyKey?: string | null;
-    payload: ChatCommandPayload;
-    principal: ResolvedAppPrincipal;
-    surface?: string;
-  }): Promise<ChatCommandResponse>;
-}
-
-export interface ChatCommandServiceDependencies {
-  computeFingerprint?: (input: {
-    conversationDiscriminator: string;
-    prompt: string;
-    requestedCapability: string;
-    requestedScope: RequestedScope | null;
-  }) => string;
-  conversationStore: ChatConversationStore;
-  deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
-  generateId?: (prefix: string) => string;
-  now?: () => Date;
-  safetyIdentifierHmacSecret?: string;
-  store: ChatCommandStore;
-  supervisor: SupervisorExecutionClient;
-  telemetry?: AppTelemetry;
-}
-
-function defaultGenerateId(prefix: string): string {
-  return `${prefix}_${randomUUID().replace(/-/g, "")}`;
-}
-
-function defaultComputeFingerprint(input: {
-  conversationDiscriminator: string;
-  prompt: string;
-  requestedCapability: string;
-  requestedScope: RequestedScope | null;
-}): string {
-  return createHash("sha256")
-    .update(
-      JSON.stringify({
-        conversationDiscriminator: input.conversationDiscriminator,
-        prompt: input.prompt,
-        requestedCapability: input.requestedCapability,
-        requestedScope: input.requestedScope,
-      }),
-    )
-    .digest("hex");
-}
-
-function previewText(text: string, maxLength = 160): string {
-  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`;
-}
-
-function normalizeString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeRequestedScope(value: unknown): RequestedScope | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const scope = value as Record<string, unknown>;
-  const corpus = normalizeString(scope.corpus);
-  const collection = normalizeString(scope.collection);
-  if (!corpus || !collection) {
-    return null;
-  }
-
-  return { corpus, collection };
-}
-
-function normalizeRequestedCapability(value: unknown): string | null {
-  const capability = normalizeString(value);
-  return capability || null;
-}
-
-function resolveSafetyIdentifierSource(
-  principal: ResolvedAppPrincipal,
-): string | null {
-  const principalId = normalizeString(principal.principal.principalId);
-  if (principalId) {
-    return `principal:${principalId}`;
-  }
-
-  const sessionId = normalizeString(principal.session?.sessionId);
-  if (sessionId) {
-    return `session:${sessionId}`;
-  }
-
-  return null;
-}
-
-export function deriveSafetyIdentifier(
-  principal: ResolvedAppPrincipal,
-  secret: string,
-): string | null {
-  const source = resolveSafetyIdentifierSource(principal);
-  const normalizedSecret = normalizeString(secret);
-  if (!source || !normalizedSecret) {
-    return null;
-  }
-
-  return createHmac("sha256", normalizedSecret).update(source).digest("hex");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((item) => normalizeOptionalString(item))
-    .filter((item): item is string => item !== null);
-}
-
-function normalizePointGeometry(value: unknown): ChatPlaceCard["pointGeometry"] {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const longitude = typeof value.longitude === "number" ? value.longitude : null;
-  const latitude = typeof value.latitude === "number" ? value.latitude : null;
-  if (longitude === null || latitude === null) {
-    return null;
-  }
-
-  return { latitude, longitude };
-}
-
-function normalizePlaceRef(value: unknown): Pick<
-  ChatPlaceCard,
-  "campusArea" | "campusScope" | "displayName" | "entityType" | "placeId"
-> | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const placeId = normalizeOptionalString(value.place_id);
-  const entityType = normalizeOptionalString(value.entity_type);
-  const displayName = normalizeOptionalString(value.display_name);
-  if (!placeId || !entityType || !displayName) {
-    return null;
-  }
-
-  return {
-    placeId,
-    entityType,
-    displayName,
-    campusScope: normalizeOptionalString(value.campus_scope),
-    campusArea: normalizeOptionalString(value.campus_area),
-  };
-}
-
-function normalizePlaceCardPart(input: {
-  selectedTarget: string | null;
-  status: SupervisorExecutionResponse["status"];
-  result: unknown;
-}): ChatMessageStructuredPart[] {
-  if (input.selectedTarget !== "navigation-specialist" || input.status !== "completed") {
-    return [];
-  }
-
-  if (!isRecord(input.result)) {
-    return [];
-  }
-
-  const placeCard = isRecord(input.result.place_card) ? input.result.place_card : null;
-  if (!placeCard) {
-    return [];
-  }
-
-  const place = normalizePlaceRef(placeCard.place);
-  if (!place) {
-    return [];
-  }
-
-  return [
-    {
-      type: "place_card",
-      placeCard: {
-        ...place,
-        locationDescription: normalizeOptionalString(placeCard.location_description),
-        landmarkHint: normalizeOptionalString(placeCard.landmark_hint),
-        accessNote: normalizeOptionalString(placeCard.access_note),
-        openingNote: normalizeOptionalString(placeCard.opening_note),
-        serviceTags: normalizeStringArray(placeCard.service_tags),
-        pointGeometry: normalizePointGeometry(placeCard.point_geometry),
-        coordinateReferenceSystem: normalizeOptionalString(
-          placeCard.coordinate_reference_system,
-        ),
-        sourceRefs: normalizeStringArray(placeCard.source_refs),
-      },
-    },
-  ];
-}
-
-function buildConversationTitle(currentTitle: string, prompt: string): string {
-  if (currentTitle !== DRAFT_CONVERSATION_TITLE && currentTitle.trim()) {
-    return currentTitle;
-  }
-
-  return previewText(prompt, 48);
-}
-
-function buildSupervisorContextProjection(input: {
-  actor: ResolvedAppPrincipal["actor"];
-  authorization?: ResolvedAppPrincipal["authorization"];
-  sessionSlots: ChatConversation["sessionSlots"];
-  turnCount: number;
-}) {
-  return {
-    actor: input.actor,
-    authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
-    profileMemory: {
-      items: [],
-    },
-    session: buildSupervisorSessionProjection({
-      sessionSlots: input.sessionSlots,
-      turnCount: input.turnCount,
-    }),
-  };
-}
-
-function extractSourceDocIds(result: unknown): string[] {
-  if (!result || typeof result !== "object") {
-    return [];
-  }
-
-  const sources = (result as { evidence?: { sources?: Array<{ doc_id?: unknown }> } }).evidence
-    ?.sources;
-  if (!Array.isArray(sources)) {
-    return [];
-  }
-
-  return sources
-    .map((source) => (typeof source?.doc_id === "string" ? source.doc_id : null))
-    .filter((value): value is string => Boolean(value));
-}
-
-function createPreAcceptError(input: {
-  code: string;
-  details?: unknown;
-  message: string;
-  retryable?: boolean;
-  status: number;
-}): AppApiRouteError {
-  return new AppApiRouteError({
-    code: input.code,
-    details: input.details,
-    message: input.message,
-    retryable: input.retryable ?? false,
-    status: input.status,
-  });
-}
-
-function resolveValidatedPayload(payload: ChatCommandPayload): {
-  conversationId: string | null;
-  prompt: string;
-  requestedCapability: string;
-  requestedScope: RequestedScope | null;
-} {
-  const conversationId = normalizeString(payload.conversationId) || null;
-
-  const prompt = normalizeString(payload.prompt);
-  if (!prompt) {
-    throw createPreAcceptError({
-      code: "validation_failed",
-      details: { field: "prompt" },
-      message: "prompt is required.",
-      status: 422,
-    });
-  }
-
-  const requestedCapability = normalizeRequestedCapability(payload.requestedCapability) ?? "knowledge";
-  if (requestedCapability !== "knowledge") {
-    throw createPreAcceptError({
-      code: "validation_failed",
-      details: { field: "requestedCapability" },
-      message: "Only knowledge requests are accepted on this route.",
-      status: 422,
-    });
-  }
-
-  const requestedScope = normalizeRequestedScope(payload.requestedScope);
-  return {
-    conversationId,
-    prompt,
-    requestedCapability,
-    requestedScope,
-  };
-}
-
-function buildAcceptedWrite(input: {
-  conversation: ChatConversation;
-  conversationSeed?: {
-    id: string;
-    ownerUserId: string;
-    title: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  conversationTitle: string;
-  idempotencyKey: string | null;
-  now: string;
-  principal: ResolvedAppPrincipal;
-  prompt: string;
-  requestFingerprintSha256: string | null;
-  requestId: string;
-  requestedCapability: string;
-  requestedScope: RequestedScope | null;
-  safetyIdentifier: string | null;
-  surface: string;
-  traceId: string;
-  userMessageId: string;
-  outboxEventId: string;
-}): AcceptRequestWrite {
-  const userMessage: ChatMessage = {
-    id: input.userMessageId,
-    conversationId: input.conversation.id,
-    role: "user",
-    kind: null,
-    text: input.prompt,
-    createdAt: input.now,
-    requestId: null,
-    retryable: null,
-    structuredParts: [],
-  };
-
-  return {
-    ...(input.conversationSeed ? { conversationSeed: input.conversationSeed } : {}),
-    conversationTitle: input.conversationTitle,
-    ownerUserId: input.conversation.ownerUserId,
-    userMessage,
-    requestExecution: {
-      requestId: input.requestId,
-      conversationId: input.conversation.id,
-      userMessageId: input.userMessageId,
-      assistantMessageId: null,
-      surface: input.surface,
-      actorUserId: input.principal.actor.userId,
-      actorPrincipalId: input.principal.actor.principalId,
-      actorRoles: input.principal.actor.roles,
-      actorDepartments: input.principal.actor.departments,
-      principalType: input.principal.principal.type,
-      principalLabel: input.principal.principal.displayName,
-      entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId || null,
-      entitlementGroups: input.principal.authorization?.entitlementGroups ?? [],
-      visibilityScope: input.principal.authorization?.visibilityScope ?? null,
-      applicabilityScope: input.principal.authorization?.applicabilityScope ?? null,
-      idempotencyKey: input.idempotencyKey,
-      requestFingerprintSha256: input.requestFingerprintSha256,
-      traceId: input.traceId,
-      safetyIdentifier: input.safetyIdentifier,
-      requestedCapability: input.requestedCapability,
-      requestedScope: input.requestedScope,
-      resolvedScope: null,
-      selectedTarget: null,
-      status: "accepted",
-      errorCode: null,
-      questionPreview: previewText(input.prompt),
-      answerPreview: null,
-      diagnostics: null,
-      sourceDocIds: [],
-      startedAt: input.now,
-      completedAt: null,
-      durationMs: null,
-      createdAt: input.now,
-      updatedAt: input.now,
-    },
-    requestObservabilityFact: buildAcceptedRequestObservabilityFact({
-      conversationId: input.conversation.id,
-      principal: input.principal,
-      requestId: input.requestId,
-      requestedCapability: input.requestedCapability,
-      requestedScope: input.requestedScope,
-      resolvedScope: null,
-      safetyIdentifier: input.safetyIdentifier,
-      startedAt: input.now,
-      surface: input.surface,
-      traceId: input.traceId,
-    }),
-    outboxEvent: {
-      eventId: input.outboxEventId,
-      requestId: input.requestId,
-      eventType: "request.accepted",
-      payload: {
-        requestId: input.requestId,
-        traceId: input.traceId,
-        conversationId: input.conversation.id,
-        status: "accepted",
-        questionPreview: previewText(input.prompt),
-        requestedCapability: input.requestedCapability,
-        requestedScope: input.requestedScope,
-        surface: input.surface,
-      },
-      occurredAt: input.now,
-      availableAt: input.now,
-      processedAt: null,
-      attemptCount: 0,
-      lastError: null,
-    },
-  };
-}
-
-function toHandledErrorTransportOutcome(
-  error: unknown,
-): {
-  answerText: string;
-  error: {
-    code: string;
-    message: string;
-    retryable?: boolean;
-  };
-  followUpQuestion: string;
-  result: null;
-  selectedTarget: null;
-  status: "error";
-  traceId: string;
-} {
-  if (error instanceof SupervisorTransportError) {
-    return {
-      answerText: "",
-      error: {
-        code: error.code,
-        message: error.message,
-        retryable: error.retryable,
-      },
-      followUpQuestion: "",
-      result: null,
-      selectedTarget: null,
-      status: "error",
-      traceId: "",
-    };
-  }
-
-  return {
-    answerText: "",
-    error: {
-      code: "internal_error",
-      message: error instanceof Error ? error.message : "Unexpected execution failure.",
-      retryable: true,
-    },
-    followUpQuestion: "",
-    result: null,
-    selectedTarget: null,
-    status: "error",
-    traceId: "",
-  };
-}
-
-function buildAbuseThrottleRejectedResponse(input: {
-  traceId: string;
-}): SupervisorExecutionResponse {
-  return {
-    answerText: "Too many requests. Please wait a few minutes and try again.",
-    error: {
-      code: "rate_limit_exceeded",
-      message: "Too many requests. Please wait a few minutes and try again.",
-      retryable: false,
-    },
-    followUpQuestion: "",
-    observability: {
-      aclAnomalyCode: null,
-      aclDecision: "denied",
-      cachedInputTokens: null,
-      candidateCount: null,
-      citationCount: null,
-      citationExpected: null,
-      citationMissing: null,
-      estimatedCostMicrousd: null,
-      failClosed: true,
-      inputTokens: null,
-      modelName: null,
-      modelProvider: null,
-      outputTokens: null,
-      policyReason: "rate_limit_exceeded",
-      refusalClass: "rejected",
-      retrievedSourceCount: null,
-      retrievalAttempted: false,
-      scopeClass: null,
-      semanticOutcome: "policy_refusal",
-    },
-    result: null,
-    selectedTarget: null,
-    status: "rejected",
-    traceId: input.traceId,
-  };
-}
-
-function buildFinalizedWrite(input: {
-  assistantMessageId: string;
-  conversation: ChatConversation;
-  conversationTitle: string;
-  completedAt: string;
-  durationMs: number;
-  outboxEventId: string;
-  principal: ResolvedAppPrincipal;
-  requestId: string;
-  requestedCapability: string;
-  requestedScope: RequestedScope | null;
-  response: SupervisorExecutionResponse;
-  safetyIdentifier: string | null;
-  surface: string;
-  startedAt: string;
-  traceId: string;
-}): {
-  responseBody: ChatCommandResponse;
-  write: FinalizeRequestWrite;
-} {
-  const normalizedTraceId = input.response.traceId || input.traceId;
-  const normalizedSupervisorResponse = {
-    ...input.response,
-    traceId: normalizedTraceId,
-  } satisfies SupervisorExecutionResponse;
-  const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
-  const sourceDocIds = extractSourceDocIds(input.response.result);
-  const structuredParts = normalizePlaceCardPart({
-    result: input.response.result,
-    selectedTarget: input.response.selectedTarget,
-    status: input.response.status,
-  });
-  const resolvedScope = resolveFinalizedScope({
-    requestedScope: input.requestedScope,
-    response: normalizedSupervisorResponse,
-  });
-
-  let assistantKind: ChatMessage["kind"];
-  let assistantText: string;
-  let errorCode: string | null = null;
-  let retryable: boolean | null = null;
-  let outboxEventType: string;
-  let result: ChatCommandResult;
-  let status: RequestExecutionStatus;
-
-  if (input.response.status === "needs_clarification") {
-    assistantKind = "clarification";
-    assistantText = input.response.followUpQuestion || input.response.answerText;
-    outboxEventType = "request.needs_clarification";
-    result = {
-      kind: "clarification",
-      requestId: input.requestId,
-      text: assistantText,
-      traceId: normalizedTraceId,
-    };
-    status = "needs_clarification";
-  } else if (input.response.status === "no_answer") {
-    assistantKind = "no_answer";
-    assistantText = input.response.answerText;
-    outboxEventType = "request.no_answer";
-    result = {
-      kind: "no_answer",
-      requestId: input.requestId,
-      text: assistantText,
-      traceId: normalizedTraceId,
-    };
-    status = "no_answer";
-  } else if (
-    input.response.status === "error" ||
-    input.response.status === "approval_required" ||
-    input.response.status === "rejected"
-  ) {
-    assistantKind = "error";
-    assistantText =
-      input.response.error?.message ||
-      input.response.answerText ||
-      (input.response.status === "approval_required"
-        ? "The request requires approval before it can continue."
-        : input.response.status === "rejected"
-          ? "The request was rejected by supervisor policy."
-          : "The request could not be completed.");
-    errorCode =
-      input.response.error?.code ??
-      (input.response.status === "approval_required"
-        ? "approval_required"
-        : input.response.status === "rejected"
-          ? "request_rejected"
-          : "internal_error");
-    retryable =
-      input.response.error?.retryable ??
-      (input.response.status === "error");
-    outboxEventType = `request.${input.response.status}`;
-    result = {
-      kind: "error",
-      message: assistantText,
-      errorCode,
-      requestId: input.requestId,
-      retryable,
-      traceId: normalizedTraceId,
-    };
-    status = input.response.status;
-  } else {
-    assistantKind = "answer";
-    assistantText = input.response.answerText;
-    outboxEventType = "request.completed";
-    result = {
-      kind: "answer",
-      requestId: input.requestId,
-      text: assistantText,
-      traceId: normalizedTraceId,
-    };
-    status = "completed";
-  }
-
-  const assistantMessage: ChatMessage = {
-    id: input.assistantMessageId,
-    conversationId: input.conversation.id,
-    role: "assistant",
-    kind: assistantKind,
-    text: assistantText,
-    createdAt: input.completedAt,
-    requestId: input.requestId,
-    retryable,
-    structuredParts,
-  };
-
-  const write: FinalizeRequestWrite = {
-    assistantMessage,
-    conversationTitle: input.conversationTitle,
-    ownerUserId: input.conversation.ownerUserId,
-    requestExecution: {
-      requestId: input.requestId,
-      conversationId: input.conversation.id,
-      userMessageId: "",
-      assistantMessageId: input.assistantMessageId,
-      surface: input.surface,
-      actorUserId: input.conversation.ownerUserId,
-      actorPrincipalId: input.conversation.ownerUserId,
-      actorRoles: [],
-      actorDepartments: [],
-      principalType: input.principal.principal.type,
-      principalLabel: null,
-      entitlementSnapshotId: null,
-      entitlementGroups: [],
-      visibilityScope: null,
-      applicabilityScope: null,
-      idempotencyKey: null,
-      requestFingerprintSha256: null,
-      traceId: normalizedTraceId,
-      safetyIdentifier: input.safetyIdentifier,
-      requestedCapability: "knowledge",
-      requestedScope: input.requestedScope,
-      resolvedScope,
-      selectedTarget: input.response.selectedTarget,
-      status,
-      errorCode,
-      questionPreview: "",
-      answerPreview: previewText(assistantText),
-      diagnostics,
-      sourceDocIds,
-      startedAt: input.startedAt,
-      completedAt: input.completedAt,
-      durationMs: input.durationMs,
-      createdAt: input.startedAt,
-      updatedAt: input.completedAt,
-    },
-    requestObservabilityFact: buildFinalizedRequestObservabilityFact({
-      completedAt: input.completedAt,
-      conversationId: input.conversation.id,
-      diagnostics,
-      durationMs: input.durationMs,
-      errorCode,
-      principal: input.principal,
-      requestId: input.requestId,
-      requestedCapability: input.requestedCapability,
-      requestedScope: input.requestedScope,
-      resolvedScope,
-      response: normalizedSupervisorResponse,
-      safetyIdentifier: input.safetyIdentifier,
-      sourceDocIds,
-      startedAt: input.startedAt,
-      status,
-      surface: input.surface,
-      traceId: normalizedTraceId,
-    }),
-    outboxEvent: {
-      eventId: input.outboxEventId,
-      requestId: input.requestId,
-      eventType: outboxEventType,
-      payload: {
-        requestId: input.requestId,
-        traceId: normalizedTraceId,
-        conversationId: input.conversation.id,
-        status,
-        selectedTarget: input.response.selectedTarget,
-        answerPreview: previewText(assistantText),
-        errorCode,
-        ...(diagnostics ? { diagnostics } : {}),
-        sourceDocIds,
-      },
-      occurredAt: input.completedAt,
-      availableAt: input.completedAt,
-      processedAt: null,
-      attemptCount: 0,
-      lastError: null,
-    },
-    sessionSlots: deriveCurriculumSessionSlots({
-      diagnostics,
-      existingSlots: input.conversation.sessionSlots,
-      finalizedAt: input.completedAt,
-      status,
-    }),
-  };
-
-  return {
-    responseBody: {
-      answer: {
-        conversation: toConversationResponse(input.conversation),
-        result,
-      },
-      requestId: input.requestId,
-      supervisor: normalizedSupervisorResponse,
-      traceId: normalizedTraceId,
-    },
-    write,
-  };
-}
-
-function resolveFinalizedScope(input: {
-  requestedScope: RequestedScope | null;
-  response: SupervisorExecutionResponse;
-}): RequestedScope | null {
-  const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
-  const collection = input.response.observability?.resolvedScopeCollection?.trim();
-  if (corpus && collection) {
-    return { collection, corpus };
-  }
-
-  return input.requestedScope;
-}
+export type {
+  ChatCommandPayload,
+  ChatCommandResponse,
+  ChatCommandResult,
+  ChatCommandService,
+  ChatCommandServiceDependencies,
+} from "./service/types";
+export { deriveSafetyIdentifier } from "./service/normalize";
 
 export function buildChatCommandService(
   dependencies: ChatCommandServiceDependencies,
@@ -813,7 +39,7 @@ export function buildChatCommandService(
   const computeFingerprint = dependencies.computeFingerprint ?? defaultComputeFingerprint;
   const deriveSafetyIdentifierForPrincipal =
     dependencies.deriveSafetyIdentifier ??
-    ((principal: ResolvedAppPrincipal) =>
+    ((principal: Parameters<typeof deriveSafetyIdentifier>[0]) =>
       deriveSafetyIdentifier(principal, dependencies.safetyIdentifierHmacSecret ?? ""));
   const generateId = dependencies.generateId ?? defaultGenerateId;
   const now = dependencies.now ?? (() => new Date());
@@ -947,6 +173,7 @@ export function buildChatCommandService(
           subject: input.principal.actor.userId,
         },
         conversationId: conversation.id,
+        principalType: input.principal.principal.type,
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
@@ -963,6 +190,7 @@ export function buildChatCommandService(
           subject: input.principal.actor.userId,
         },
         conversationId: conversation.id,
+        principalType: input.principal.principal.type,
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,
@@ -973,6 +201,7 @@ export function buildChatCommandService(
       });
       await telemetry?.recordProjectionEnqueued({
         conversationId: conversation.id,
+        principalType: input.principal.principal.type,
         projectionStage: "accepted",
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
@@ -1035,6 +264,7 @@ export function buildChatCommandService(
         await telemetry?.recordRequestTransportError({
           conversationId: conversation.id,
           errorCode: transportError.code,
+          principalType: input.principal.principal.type,
           requestId,
           requestedCapability: validatedPayload.requestedCapability,
           requestedScope: validatedPayload.requestedScope,
@@ -1091,6 +321,7 @@ export function buildChatCommandService(
       const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
       await telemetry?.recordProjectionEnqueued({
         conversationId: conversation.id,
+        principalType: input.principal.principal.type,
         projectionStage: "finalized",
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
@@ -1104,6 +335,7 @@ export function buildChatCommandService(
         conversationId: conversation.id,
         durationMs,
         errorCode: finalized.write.requestExecution.errorCode,
+        principalType: input.principal.principal.type,
         requestId,
         requestedCapability: validatedPayload.requestedCapability,
         requestedScope: validatedPayload.requestedScope,

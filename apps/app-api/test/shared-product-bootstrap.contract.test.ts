@@ -72,4 +72,28 @@ describe("app-api shared product bootstrap contracts", () => {
     expect(readme).toContain("app_auth.*");
     expect(readme).toContain("chat.*");
   });
+
+  it("cuts the worker app shell through app-local submodules instead of keeping helpers inline", () => {
+    const appSource = readAppFile("src/app.ts");
+
+    expect(appSource).toContain('from "./app/readiness"');
+    expect(appSource).toContain('from "./app/request-scope"');
+    expect(appSource).toContain('from "./app/request-utils"');
+    expect(appSource).toContain('from "./app/routes"');
+    expect(appSource).not.toContain("function dependencyNotReadyResponse()");
+    expect(appSource).not.toContain("function buildInternalEvalPrincipalFromRequest(");
+    expect(appSource).not.toContain("async function defaultRuntimeReadinessProbe(");
+  });
+
+  it("cuts runtime command normalization and write builders into service submodules", () => {
+    const serviceSource = readAppFile("src/modules/runtime-command/service.ts");
+
+    expect(serviceSource).toContain('from "./service/errors"');
+    expect(serviceSource).toContain('from "./service/normalize"');
+    expect(serviceSource).toContain('from "./service/types"');
+    expect(serviceSource).toContain('from "./service/writes"');
+    expect(serviceSource).not.toContain("function normalizeRequestedScope(");
+    expect(serviceSource).not.toContain("function buildAcceptedWrite(");
+    expect(serviceSource).not.toContain("function buildFinalizedWrite(");
+  });
 });
