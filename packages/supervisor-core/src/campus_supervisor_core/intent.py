@@ -9,7 +9,7 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
 
-IntentTaskKind = Literal["knowledge_lookup", "availability_check", "place_lookup", "unknown"]
+IntentTaskKind = Literal["knowledge_lookup", "place_lookup", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
@@ -95,19 +95,6 @@ def frame_intent(
     normalized_goal = context.user_goal.strip()
     personalization_hint = context.personalization_hint
     personalization_mode = _personalization_mode(context)
-    if capability == "availability":
-        missing_slots = () if context.availability_target_id is not None else ("availability_target_id",)
-        return IntentFrame(
-            capability="availability",
-            task_kind="availability_check",
-            domain_candidates=("availability",),
-            missing_slots=missing_slots,
-            risk_level="low",
-            needs_clarification=bool(missing_slots),
-            suggested_next_action="clarify" if missing_slots else "delegate",
-            personalization_mode=personalization_mode,
-        )
-
     if capability == "place_lookup":
         return IntentFrame(
             capability="place_lookup",

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from campus_contracts import (
-    AvailabilityCheckPayload,
     KnowledgeScope,
     PlaceLookupPayload,
     RagRequestPayload,
@@ -21,15 +20,6 @@ def frame_specialist_request(
         raise MissingRoutingInputError("specialist target is required for delegated requests")
     if decision.specialist_payload is not None:
         payload = decision.specialist_payload
-    elif decision.target == "availability-specialist":
-        if context.availability_target_id is None:
-            raise MissingRoutingInputError(
-                "availability_target_id is required for availability requests"
-            )
-        payload = AvailabilityCheckPayload(
-            target_id=context.availability_target_id,
-            follow_redirects=context.follow_redirects,
-        )
     elif decision.target == "navigation-specialist":
         payload = PlaceLookupPayload(query_text=context.user_goal)
     elif decision.target in ("campus-services-agent", "notice-agent"):

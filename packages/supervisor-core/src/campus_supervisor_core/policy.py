@@ -247,6 +247,4 @@ def _clarification_question(decision: RoutingDecision) -> str:
                 "请先说明你想查询的知识范围或资料集合。"
             )
         return "请先说明你想查询的知识范围或资料集合。"
-    if "availability_target_id" in decision.intent_frame.missing_slots:
-        return "请先说明你想检查的站点或服务目标。"
     return "请补充完成当前请求所需的关键信息。"

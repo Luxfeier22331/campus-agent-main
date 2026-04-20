@@ -36,7 +36,6 @@ updated: 2026-04-14
 - `RequestedCapability` 首发新增 `place_lookup`
 - `SpecialistTarget` 首发新增 `navigation-specialist`
 - `supervisor-core` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
-- 当前 `place_lookup` request 不接受 `availability_target_id`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 
 原因：

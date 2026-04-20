@@ -276,6 +276,7 @@ updated: 2026-04-19
 - `requested_scope_json` 与 `source_doc_ids_json` 使用结构化 JSON，不把 Python-side payload 原样塞进宽 JSON dump
 - `requested_scope_json` 表示 accept 时上游显式请求的 scope，可为空
 - `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 specialist 自主解析 surface，这里必须落最终解析结果
+- `selected_target` 表示 finalized execution 实际选择的 current runtime target；它不承载 forward family vocabulary，也不应被重载为 operator-facing display label
 - `diagnostics_json` 只保存 operator-facing summary diagnostics，例如 resolved policy object、rewritten query、clarification/no-answer reason 与 retrieved title summary；不要写 raw evidence snippet、score 或 backend payload
 - `rejected` 覆盖两类显式 fail-close：
   - supervisor policy reject
@@ -394,6 +395,7 @@ updated: 2026-04-19
 - `accepted` 阶段必须先 seed 这张表；`finalized` 阶段必须 upsert typed execution outcome
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection 回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
+- `selected_target` 继续只保存 current runtime target，供 operator projection / aggregate 过滤；future family grouping 如有需要，应走显式新字段或 projection
 - `retrieval_adequacy_verdict` / `retrieval_adequacy_reason` 表示 retrieval base 是否足以支撑回答；它们与 `grounding` 结果不是同一维度
 - `retrieved_sources_json` 保存 bounded raw retrieval candidate trace；`supporting_sources_json` 保存最终 answer-facing support trace
 - 两列都只允许保存 operator-safe compact identity fields，不保存 raw snippet、raw provider citation blob 或 vendor payload

@@ -172,6 +172,12 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 }
 ```
 
+补充约束：
+
+- `selectedTarget` 始终表示 request finalized 后的 current runtime target。
+- 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing localized wording。
+- 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer 派生，而不是重载这个字段。
+
 ## System Endpoints
 
 ### `GET /healthz`

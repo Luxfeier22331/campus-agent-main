@@ -11,8 +11,6 @@
 - 返回 `SpecialistResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
 - 当前默认 query-serving retrieval specialist 仍是 `rag-specialist`
 
-当前仓库已经存在显式 `availability-specialist` 并行能力，但它不改变本目录的 retrieval-only 责任边界，也不把 availability 逻辑带进这里。
-
 当前 bootstrap 入口是 `src/campus_rag_specialist/service.py` 中的 `delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 specialist 逻辑散落到别处。
 
 ## Source Of Truth

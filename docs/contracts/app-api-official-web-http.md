@@ -26,7 +26,7 @@ updated: 2026-04-12
 - collector Docker 的镜像构建与部署 YAML
 - panel Worker-local BFF 的具体 route mounting
 - ingestion worker 的消费实现细节
-- `fresh_news` / `news_archive` 的当前开放状态或独立 worktree 执行进度
+- `fresh_news` / `news_archive` 的当前开放状态或单轮执行进度
 
 ## Contract 与实现范围说明
 

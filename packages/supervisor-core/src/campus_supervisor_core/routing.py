@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from campus_contracts import (
-    AvailabilityCheckPayload,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     PlaceLookupPayload,
@@ -29,7 +28,6 @@ class RoutingDecision:
     intent_frame: IntentFrame
     specialist_payload: (
         RagRequestPayload
-        | AvailabilityCheckPayload
         | PlaceLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
@@ -47,14 +45,6 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
     if intent_frame.suggested_next_action != "delegate":
         return RoutingDecision(
             target=None,
-            primary_corpus=None,
-            primary_collection=None,
-            intent_frame=intent_frame,
-        )
-
-    if capability == "availability":
-        return RoutingDecision(
-            target="availability-specialist",
             primary_corpus=None,
             primary_collection=None,
             intent_frame=intent_frame,

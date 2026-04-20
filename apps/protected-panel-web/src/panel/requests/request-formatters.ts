@@ -1,6 +1,13 @@
 import type { RequestProjectionDiagnostics, RequestProjectionRecord } from "../types";
 import { PANEL_COPY, formatPanelTimestamp } from "../panel-copy";
 
+export const CURRENT_RUNTIME_TARGET_OPTIONS = [
+  { label: "检索专家", value: "rag-specialist" },
+  { label: "导航能力", value: "navigation-specialist" },
+  { label: "校园服务", value: "campus-services-agent" },
+  { label: "通知能力", value: "notice-agent" },
+] as const;
+
 export function formatDuration(durationMs: number | null) {
   if (durationMs === null) {
     return PANEL_COPY.pending;
@@ -97,6 +104,12 @@ export function formatSelectedTargetLabel(target: string | null) {
   switch (target) {
     case "rag-specialist":
       return "检索专家";
+    case "navigation-specialist":
+      return "导航能力";
+    case "campus-services-agent":
+      return "校园服务";
+    case "notice-agent":
+      return "通知能力";
     default:
       return target;
   }

@@ -1,6 +1,6 @@
 import { PANEL_COPY } from "../../panel-copy";
 import {
-  formatSelectedTargetLabel,
+  CURRENT_RUNTIME_TARGET_OPTIONS,
   formatSurfaceLabel,
 } from "../../requests/request-formatters";
 import type { OperatorOverviewWindow } from "../../types";
@@ -39,7 +39,7 @@ export const SAFETY_SURFACE_OPTIONS: Array<{ label: string; value: string | null
 
 export const SAFETY_TARGET_OPTIONS: Array<{ label: string; value: string | null }> = [
   { label: PANEL_COPY.overviewPage.filters.allTargets, value: null },
-  { label: formatSelectedTargetLabel("rag-specialist"), value: "rag-specialist" },
+  ...CURRENT_RUNTIME_TARGET_OPTIONS,
 ];
 
 export const ANOMALY_SEVERITY_OPTIONS = [

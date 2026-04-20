@@ -8,8 +8,6 @@ from campus_contracts import (
     ActorContext,
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
-    AvailabilityCheckPayload,
-    AvailabilityObservation,
     CampusNoticeDiscoverPayload,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
@@ -103,23 +101,6 @@ def _make_rag_completed_response() -> SpecialistResponse:
                     ),
                 ),
             )
-        ),
-    )
-
-
-def _make_availability_completed_response(
-    *,
-    observed_status: str = "timeout",
-    failure_classification: str = "timeout",
-) -> SpecialistResponse:
-    return SpecialistResponse(
-        target="availability-specialist",
-        status="completed",
-        answer_text=f"official-homepage observed as {observed_status}.",
-        result=AvailabilityObservation(
-            target_id="official-homepage",
-            observed_status=observed_status,
-            failure_classification=failure_classification,
         ),
     )
 
@@ -489,102 +470,6 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
         self.assertEqual(captured_requests[0].context, request_context)
 
-    def test_handle_request_keeps_source_doc_ids_empty_for_availability_completion(self) -> None:
-        audit_records: list[SupervisorAuditRecord] = []
-        request = SupervisorRequest(
-            user_goal="官网现在能打开吗？",
-            request_id="req-availability",
-            trace=TraceContext(trace_id="trace-availability"),
-            actor=ActorContext(user_id="student-001"),
-            requested_capability="availability",
-            availability_target_id="official-homepage",
-        )
-
-        response = handle_request(
-            request,
-            specialist_delegates={
-                "availability-specialist": lambda inner_request: _make_availability_completed_response()
-            },
-            audit_sink=audit_records.append,
-        )
-
-        self.assertEqual(response.selected_target, "availability-specialist")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(
-            response.result,
-            AvailabilityObservation(
-                target_id="official-homepage",
-                observed_status="timeout",
-                failure_classification="timeout",
-            ),
-        )
-        self.assertEqual(audit_records[0].selected_target, "availability-specialist")
-        self.assertEqual(audit_records[0].requested_capability, "availability")
-        self.assertEqual(audit_records[0].source_doc_ids, ())
-
-    def test_handle_request_keeps_completed_status_for_availability_connect_failure(self) -> None:
-        request = SupervisorRequest(
-            user_goal="官网现在能打开吗？",
-            requested_capability="availability",
-            availability_target_id="official-homepage",
-        )
-
-        response = handle_request(
-            request,
-            specialist_delegates={
-                "availability-specialist": lambda inner_request: _make_availability_completed_response(
-                    observed_status="connect_failure",
-                    failure_classification="connect_failure",
-                )
-            },
-        )
-
-        self.assertEqual(response.selected_target, "availability-specialist")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.observed_status, "connect_failure")
-        self.assertEqual(response.result.failure_classification, "connect_failure")
-
-    def test_supervisor_default_delegate_map_includes_availability_specialist(self) -> None:
-        request = SupervisorRequest(
-            user_goal="官网现在能打开吗？",
-            requested_capability="availability",
-            availability_target_id="official-homepage",
-        )
-        expected_response = _make_availability_completed_response()
-
-        with patch(
-            "campus_supervisor_core.agent.delegate_to_availability_specialist",
-            return_value=expected_response,
-        ) as availability_delegate:
-            with patch(
-                "campus_supervisor_core.agent._delegate_to_rag_specialist",
-                side_effect=AssertionError("rag delegate should not be used"),
-            ) as rag_delegate:
-                response = SupervisorAgent().handle(request)
-
-        availability_delegate.assert_called_once()
-        rag_delegate.assert_not_called()
-        self.assertEqual(
-            response,
-            SupervisorResponse(
-                selected_target="availability-specialist",
-                status="completed",
-                answer_text=expected_response.answer_text,
-                confidence=expected_response.confidence,
-                result=expected_response.result,
-                observability=SupervisorObservability(
-                    retrieval_attempted=False,
-                    candidate_count=0,
-                    retrieved_source_count=0,
-                    citation_expected=False,
-                    citation_count=0,
-                    citation_missing=False,
-                    acl_decision="allowed",
-                    fail_closed=False,
-                ),
-            ),
-        )
-
     def test_supervisor_default_delegate_map_includes_forward_runtime_agents(self) -> None:
         delegates = SupervisorAgent().specialist_delegates
 
@@ -803,7 +688,7 @@ class SupervisorCoreTest(unittest.TestCase):
         def fake_navigation_specialist(_request: SpecialistRequest) -> SpecialistResponse:
             nonlocal delegate_called
             delegate_called = True
-            return _make_availability_completed_response()
+            return _make_rag_completed_response()
 
         response = handle_request(
             SupervisorRequest(
@@ -959,20 +844,6 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.answer_text, "这个问题不属于当前支持的中央民族大学校园问答范围。")
         self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_out_of_scope_v1")
-
-    def test_handle_request_raises_for_valid_route_without_delegate(self) -> None:
-        with self.assertRaisesRegex(
-            MissingSpecialistDelegateError,
-            "missing delegate for specialist target: availability-specialist",
-        ):
-            handle_request(
-                SupervisorRequest(
-                    user_goal="官网现在能打开吗？",
-                    requested_capability="availability",
-                    availability_target_id="official-homepage",
-                ),
-                specialist_delegates={"rag-specialist": lambda request: _make_rag_completed_response()},
-            )
 
     def test_handle_request_preserves_error_response_fields(self) -> None:
         response = handle_request(
@@ -1183,48 +1054,6 @@ class SupervisorCoreTest(unittest.TestCase):
         ):
             self.assertNotIn(forbidden_key, payload)
 
-    def test_build_audit_record_keeps_minimum_projection_for_non_rag_response(self) -> None:
-        request = SupervisorRequest(
-            user_goal="官网现在能打开吗？",
-            request_id="req-123",
-            trace=TraceContext(trace_id="trace-123"),
-            actor=ActorContext(user_id="student-123"),
-            requested_capability="availability",
-            availability_target_id="official-homepage",
-        )
-
-        record = build_audit_record(
-            request,
-            _make_availability_completed_response(
-                observed_status="connect_failure",
-                failure_classification="connect_failure",
-            ),
-        )
-
-        self.assertEqual(
-            asdict(record),
-            {
-                "request_id": "req-123",
-                "trace_id": "trace-123",
-                "user_id": "student-123",
-                "principal_type": "",
-                "authorization_projection_source": "",
-                "entitlement_snapshot_id": "",
-                "policy_projection_version": "phase1-authorization-projection-v1",
-                "personalization_mode": "generic",
-                "selected_target": "availability-specialist",
-                "requested_capability": "availability",
-                "requested_scope_corpus": None,
-                "requested_scope_collection": None,
-                "status": "completed",
-                "error_code": None,
-                "source_doc_ids": (),
-                "evidence_source_count": 0,
-                "follow_up_emitted": False,
-                "fail_closed": False,
-            },
-        )
-
     def test_build_error_audit_record_preserves_request_projection_and_error_code(self) -> None:
         request = SupervisorRequest(
             user_goal="培养方案要求",
@@ -1354,27 +1183,6 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(record.evidence_source_count, 0)
         self.assertFalse(record.follow_up_emitted)
         self.assertTrue(record.fail_closed)
-
-    def test_handle_specialist_request_preserves_internal_delegate_seam(self) -> None:
-        request = SpecialistRequest(
-            target="availability-specialist",
-            user_goal="官网现在能打开吗？",
-            payload=AvailabilityCheckPayload(target_id="official-homepage"),
-        )
-
-        response = handle_specialist_request(
-            request,
-            specialist_delegates={
-                "availability-specialist": lambda inner_request: _make_availability_completed_response(
-                    observed_status="ok",
-                    failure_classification="",
-                )
-            },
-        )
-
-        self.assertEqual(response.target, "availability-specialist")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.observed_status, "ok")
 
     def test_handle_request_preserves_structured_runtime_handoff_allowed_tools(self) -> None:
         captured_requests: list[SpecialistRequest] = []

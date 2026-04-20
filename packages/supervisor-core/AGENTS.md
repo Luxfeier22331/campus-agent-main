@@ -7,7 +7,7 @@
 这个目录是 `supervisor` 的唯一策略实现层。
 
 - 负责用户目标路由、specialist 委派、结果组装、澄清升级和最小审计
-- 当前默认 query-serving 主线仍是 `rag-specialist`，但仓库已接受显式 `availability-specialist` 作为并行 capability
+- 当前默认 query-serving 主线仍是 `rag-specialist`
 - 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal specialist handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
@@ -64,7 +64,6 @@
 
 - 当前默认 query-serving 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
 - 当前默认 retrieval 问答主线仍然优先走 `rag-specialist`，但 API shell 不应再把它写死成唯一 transport 构造
-- 已插入的 `availability-specialist` 只能通过显式 supervisor-facing availability request 进入，不能借机退回 supervisor 内联 tool
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile 为准
 - 不要直接拼接对象存储逻辑
 - 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO

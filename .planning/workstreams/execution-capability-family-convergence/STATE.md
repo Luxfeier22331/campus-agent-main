@@ -31,7 +31,7 @@ updated: 2026-04-21
   - `rag-specialist -> rag-agent` 是首条 canonical convergence pair
   - `campus-services-agent` / `notice-agent` 继续作为 canonical forward family labels
   - `navigation-specialist -> navigation-agent` 的 coexistence 已写实
-  - `availability-specialist` 在后续显式决策前保持 legacy current-truth posture
+  - 早期实验性的 `availability-specialist` 已从 merged truth 退休；本线从 `Phase 3` 起不再把它当作固定前提
 - `Phase 2` 已正式 completed：
   - `phases/phase-2-current-truth-contract-label-migration/CONTEXT.md`
   - `phases/phase-2-current-truth-contract-label-migration/RESEARCH.md`

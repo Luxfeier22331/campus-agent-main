@@ -18,9 +18,10 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
+# Current runtime dispatch targets only. Forward family labels like `rag-agent`
+# remain target-side/planning vocabulary until a later migration phase admits them.
 SpecialistTarget = Literal[
     "rag-specialist",
-    "availability-specialist",
     "navigation-specialist",
     "campus-services-agent",
     "notice-agent",
@@ -31,7 +32,7 @@ SpecialistToolName = Literal[
     "campus_notice_discover",
     "campus_notice_get",
 ]
-RequestedCapability = Literal["knowledge", "availability", "place_lookup"]
+RequestedCapability = Literal["knowledge", "place_lookup"]
 SupervisorStatus = Literal[
     "completed",
     "needs_clarification",
@@ -85,7 +86,6 @@ ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "e
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 ALLOWED_SPECIALIST_TARGETS = (
     "rag-specialist",
-    "availability-specialist",
     "navigation-specialist",
     "campus-services-agent",
     "notice-agent",
@@ -96,7 +96,7 @@ ALLOWED_SPECIALIST_TOOL_NAMES = (
     "campus_notice_discover",
     "campus_notice_get",
 )
-ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "availability", "place_lookup")
+ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup")
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
     "needs_clarification",
@@ -486,16 +486,6 @@ class PromptTrace:
 
 
 @dataclass(frozen=True, slots=True)
-class AvailabilityCheckPayload:
-    target_id: str
-    follow_redirects: bool = True
-
-    def __post_init__(self) -> None:
-        if not self.target_id.strip():
-            raise ValueError("target_id must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
 class GeoPoint:
     longitude: float
     latitude: float
@@ -863,22 +853,6 @@ class SupervisorObservability:
 
 
 @dataclass(frozen=True, slots=True)
-class AvailabilityObservation:
-    target_id: str
-    observed_status: str
-    http_status: int | None = None
-    final_url: str = ""
-    redirect_chain: tuple[str, ...] = field(default_factory=tuple)
-    failure_classification: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.target_id.strip():
-            raise ValueError("target_id must not be empty")
-        if not self.observed_status.strip():
-            raise ValueError("observed_status must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
 class SupervisorRequest:
     user_goal: str
     conversation_id: str = ""
@@ -889,8 +863,6 @@ class SupervisorRequest:
     context: ContextProjection = field(default_factory=ContextProjection)
     requested_capability: RequestedCapability | None = None
     requested_scope: KnowledgeScope | None = None
-    availability_target_id: str | None = None
-    follow_redirects: bool = True
 
     def __post_init__(self) -> None:
         if not self.user_goal.strip():
@@ -906,8 +878,6 @@ class SupervisorRequest:
             and self.requested_capability not in ALLOWED_REQUESTED_CAPABILITIES
         ):
             raise ValueError(f"unsupported requested_capability: {self.requested_capability}")
-        if self.availability_target_id is not None and not self.availability_target_id.strip():
-            raise ValueError("availability_target_id must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -916,7 +886,6 @@ class SpecialistRequest:
     user_goal: str
     payload: (
         RagRequestPayload
-        | AvailabilityCheckPayload
         | PlaceLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
@@ -956,7 +925,6 @@ class SpecialistResponse:
     confidence: ConfidenceLevel = "low"
     result: (
         RagResultPayload
-        | AvailabilityObservation
         | PlaceLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
@@ -984,7 +952,6 @@ class SupervisorResponse:
     confidence: ConfidenceLevel = "low"
     result: (
         RagResultPayload
-        | AvailabilityObservation
         | PlaceLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult

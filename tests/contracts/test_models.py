@@ -7,8 +7,6 @@ from campus_contracts import (
     ActorContext,
     AuthorizedRetrievalFilter,
     AuthorizationProjection,
-    AvailabilityCheckPayload,
-    AvailabilityObservation,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -63,8 +61,6 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIsNone(request.safety_identifier)
         self.assertIsNone(request.requested_capability)
         self.assertIsNone(request.requested_scope)
-        self.assertIsNone(request.availability_target_id)
-        self.assertTrue(request.follow_redirects)
         self.assertEqual(
             request.trace,
             TraceContext(trace_id="", parent_run_id="", tool_call_id=""),
@@ -112,6 +108,20 @@ class ContractModelsTest(unittest.TestCase):
                 session=SessionSummary(confirmed_slots=(), turn_count=0),
             ),
         )
+
+    def test_supervisor_request_rejects_removed_availability_capability(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported requested_capability: availability"):
+            SupervisorRequest(
+                user_goal="官网能打开吗",
+                requested_capability="availability",  # type: ignore[arg-type]
+            )
+
+    def test_supervisor_request_does_not_accept_removed_availability_target_field(self) -> None:
+        with self.assertRaisesRegex(TypeError, "availability_target_id"):
+            SupervisorRequest(
+                user_goal="官网能打开吗",
+                availability_target_id="official-homepage",  # type: ignore[call-arg]
+            )
 
     def test_supervisor_request_accepts_typed_context_projection(self) -> None:
         request = SupervisorRequest(
@@ -640,27 +650,6 @@ class ContractModelsTest(unittest.TestCase):
             ),
         )
 
-    def test_response_serializes_availability_observation_shape(self) -> None:
-        response = SpecialistResponse(
-            target="availability-specialist",
-            status="completed",
-            answer_text="official-homepage timed out during the latest probe.",
-            result=AvailabilityObservation(
-                target_id="official-homepage",
-                observed_status="timeout",
-                http_status=None,
-                final_url="https://campus.example/official-homepage",
-                redirect_chain=(),
-                failure_classification="timeout",
-            ),
-        )
-
-        payload = asdict(response)
-
-        self.assertEqual(payload["target"], "availability-specialist")
-        self.assertEqual(payload["result"]["observed_status"], "timeout")
-        self.assertEqual(payload["result"]["failure_classification"], "timeout")
-
     def test_response_serializes_place_lookup_result_shape(self) -> None:
         response = SpecialistResponse(
             target="navigation-specialist",
@@ -860,24 +849,6 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["follow_up_question"], "请说明你想咨询哪一类奖学金。")
         self.assertNotIn("target", payload)
 
-    def test_availability_request_payload_serializes(self) -> None:
-        request = SpecialistRequest(
-            target="availability-specialist",
-            user_goal="检查官网是否可访问",
-            payload=AvailabilityCheckPayload(
-                target_id="official-homepage",
-                follow_redirects=False,
-            ),
-        )
-
-        self.assertEqual(
-            asdict(request)["payload"],
-            {
-                "target_id": "official-homepage",
-                "follow_redirects": False,
-            },
-        )
-
     def test_specialist_request_serializes_forward_agent_allowed_tools(self) -> None:
         request = SpecialistRequest(
             target="campus-services-agent",
@@ -1033,7 +1004,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_specialist_request_accepts_service_status_payload(self) -> None:
         request = SpecialistRequest(
-            target="availability-specialist",
+            target="campus-services-agent",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
                 subject_query="图书馆今天开门吗",

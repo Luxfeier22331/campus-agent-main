@@ -30,6 +30,7 @@ import {
   translateRuntimeErrorMessage,
 } from "../panel-copy";
 import {
+  CURRENT_RUNTIME_TARGET_OPTIONS,
   formatCapabilityLabel,
   formatPrincipalTypeLabel,
   formatSelectedTargetLabel,
@@ -65,7 +66,7 @@ const SURFACE_OPTIONS: Array<{ label: string; value: string | null }> = [
 
 const TARGET_OPTIONS: Array<{ label: string; value: string | null }> = [
   { label: PANEL_COPY.overviewPage.filters.allTargets, value: null },
-  { label: formatSelectedTargetLabel("rag-specialist"), value: "rag-specialist" },
+  ...CURRENT_RUNTIME_TARGET_OPTIONS,
 ];
 
 const PRINCIPAL_TYPE_OPTIONS = [

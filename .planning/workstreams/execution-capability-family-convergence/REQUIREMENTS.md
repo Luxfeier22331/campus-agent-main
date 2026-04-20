@@ -30,7 +30,7 @@ updated: 2026-04-21
 ## Success Criteria
 
 1. repo 存在一条长期 active workstream，显式 owner execution capability family naming。
-2. `rag-specialist`、`availability-specialist`、`navigation-specialist`、`campus-services-agent`、`notice-agent` 等 family 的前向命名规则被写成 planning truth。
+2. `rag-specialist`、`navigation-specialist`、`campus-services-agent`、`notice-agent` 等 family 的前向命名规则被写成 planning truth，并显式记录 `availability-specialist` 已退休。
 3. current-truth contract / prompt / eval / observability 的迁移顺序被固定，不再由每条局部 workstream 各自决定。
 4. 在真正迁移完成前，current merged truth 与 target truth 的差异被显式记录，而不是混写。
 

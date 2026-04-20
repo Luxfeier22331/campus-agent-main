@@ -104,8 +104,6 @@ def handle_answer(
             context=context,
             requested_capability=_parse_requested_capability(payload.get("requested_capability")),
             requested_scope=_parse_requested_scope(payload.get("requested_scope")),
-            availability_target_id=_parse_optional_string(payload.get("availability_target_id")),
-            follow_redirects=_parse_follow_redirects(payload.get("follow_redirects")),
         )
     except ValueError as exc:
         return error_response(400, ErrorInfo(code="invalid_request", message=str(exc)))
@@ -354,15 +352,6 @@ def _parse_optional_string(raw_value: object) -> str | None:
         return None
     value = str(raw_value).strip()
     return value or None
-
-
-def _parse_follow_redirects(raw_value: object) -> bool:
-    if raw_value is None:
-        return True
-    if isinstance(raw_value, bool):
-        return raw_value
-    raise ValueError("follow_redirects must be a boolean")
-
 
 def _parse_request_actor_projection(
     raw_actor: object,

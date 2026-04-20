@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import (
-    AvailabilityObservation,
     EvidenceBundle,
     ErrorInfo,
     PromptTrace,
@@ -403,46 +402,6 @@ class SupervisorPolicyTest(unittest.TestCase):
         )
         self.assertIsNotNone(finalized.observability)
         self.assertIsNone(finalized.observability.retrieval_attempted)
-
-    def test_finalize_availability_completion_keeps_non_rag_target(self) -> None:
-        response = SpecialistResponse(
-            target="availability-specialist",
-            status="completed",
-            answer_text="official-homepage timed out.",
-            result=AvailabilityObservation(
-                target_id="official-homepage",
-                observed_status="timeout",
-                failure_classification="timeout",
-            ),
-        )
-
-        finalized = finalize_specialist_response(response)
-
-        self.assertEqual(finalized.selected_target, "availability-specialist")
-        self.assertEqual(finalized.status, "completed")
-        self.assertIsNotNone(finalized.observability)
-        self.assertFalse(finalized.observability.retrieval_attempted)
-
-    def test_finalize_availability_connect_failure_keeps_completed_semantics(self) -> None:
-        response = SpecialistResponse(
-            target="availability-specialist",
-            status="completed",
-            answer_text="official-homepage observed as connect_failure.",
-            result=AvailabilityObservation(
-                target_id="official-homepage",
-                observed_status="connect_failure",
-                failure_classification="connect_failure",
-            ),
-        )
-
-        finalized = finalize_specialist_response(response)
-
-        self.assertEqual(finalized.selected_target, "availability-specialist")
-        self.assertEqual(finalized.status, "completed")
-        self.assertEqual(finalized.result.observed_status, "connect_failure")
-        self.assertIsNotNone(finalized.observability)
-        self.assertFalse(finalized.observability.retrieval_attempted)
-
 
 if __name__ == "__main__":
     unittest.main()

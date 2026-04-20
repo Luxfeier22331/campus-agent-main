@@ -13,17 +13,10 @@ from campus_supervisor_core.errors import (
 def resolve_requested_capability(context: SupervisorRequestContext) -> RequestedCapability:
     capability = context.requested_capability
     has_scope = context.requested_scope is not None
-    has_target = context.availability_target_id is not None
 
     if capability is None:
-        if has_scope and not has_target:
+        if has_scope:
             return "knowledge"
-        if has_target and not has_scope:
-            return "availability"
-        if has_scope and has_target:
-            raise InvalidSupervisorRequestError(
-                "requested_scope and availability_target_id cannot be combined without an explicit capability"
-            )
         return infer_requested_capability_from_goal(context.user_goal)
 
     if capability not in ALLOWED_REQUESTED_CAPABILITIES:
@@ -32,32 +25,15 @@ def resolve_requested_capability(context: SupervisorRequestContext) -> Requested
         )
 
     if capability == "knowledge":
-        if has_target:
-            raise InvalidSupervisorRequestError(
-                "availability_target_id is not allowed for knowledge requests"
-            )
         return capability
 
     if capability == "place_lookup":
-        if has_target:
-            raise InvalidSupervisorRequestError(
-                "availability_target_id is not allowed for place_lookup requests"
-            )
         if has_scope:
             raise InvalidSupervisorRequestError(
                 "requested_scope is not allowed for place_lookup requests"
             )
         return capability
-
-    if not has_target:
-        raise MissingRoutingInputError(
-            "availability_target_id is required for availability requests"
-        )
-    if has_scope:
-        raise InvalidSupervisorRequestError(
-            "requested_scope is not allowed for availability requests"
-        )
-    return capability
+    raise MissingRoutingInputError(f"unsupported requested capability: {capability}")
 
 
 _PLACE_LOOKUP_SIGNALS = (

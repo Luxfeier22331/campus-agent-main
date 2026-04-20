@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from campus_availability_specialist import delegate_to_availability_specialist
 from campus_notice_agent import delegate_to_notice_agent
 from campus_navigation_specialist import delegate_to_navigation_specialist
 from campus_services_agent import delegate_to_campus_services_agent
@@ -49,7 +48,6 @@ class SupervisorAgent:
         if self.specialist_delegates is None:
             self.specialist_delegates = {
                 "rag-specialist": self._delegate_to_rag_specialist,
-                "availability-specialist": delegate_to_availability_specialist,
                 "navigation-specialist": delegate_to_navigation_specialist,
                 "campus-services-agent": delegate_to_campus_services_agent,
                 "notice-agent": delegate_to_notice_agent,

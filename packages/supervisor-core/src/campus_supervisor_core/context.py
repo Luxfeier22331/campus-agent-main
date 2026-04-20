@@ -36,8 +36,6 @@ class SupervisorRequestContext:
     context: ContextProjection
     requested_capability: RequestedCapability | None
     requested_scope: KnowledgeScope | None
-    availability_target_id: str | None
-    follow_redirects: bool
     user_goal: str
 
     @property
@@ -96,7 +94,5 @@ class SupervisorRequestContext:
             context=request.context,
             requested_capability=request.requested_capability,
             requested_scope=request.requested_scope,
-            availability_target_id=request.availability_target_id,
-            follow_redirects=request.follow_redirects,
             user_goal=request.user_goal,
         )

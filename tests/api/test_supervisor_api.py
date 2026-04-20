@@ -142,27 +142,14 @@ class SupervisorApiTest(unittest.TestCase):
             ),
         )
         self.assertIsNone(captured_requests[0].requested_capability)
-        self.assertIsNone(captured_requests[0].availability_target_id)
 
-    def test_answer_route_maps_explicit_availability_hint_without_constructing_specialist_payload(self) -> None:
-        captured_requests: list[SupervisorRequest] = []
-
-        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
-            captured_requests.append(request)
-            return SupervisorResponse(
-                selected_target="availability-specialist",
-                status="completed",
-                answer_text="Website is reachable.",
-                confidence="medium",
-            )
-
+    def test_answer_route_rejects_removed_availability_request_shape(self) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="bearer",
                 bearer_token="secret-token",
                 default_actor_id="runtime-bearer-user",
             ),
-            supervisor_handler=fake_supervisor,
         )
 
         response = app.handle(
@@ -177,11 +164,12 @@ class SupervisorApiTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured_requests[0].requested_capability, "availability")
-        self.assertEqual(captured_requests[0].availability_target_id, "official-homepage")
-        self.assertFalse(captured_requests[0].follow_redirects)
-        self.assertIsNone(captured_requests[0].requested_scope)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn(
+            "unsupported requested_capability: availability",
+            response.json_body["error"]["message"],
+        )
 
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
@@ -1018,7 +1006,7 @@ class SupervisorApiTest(unittest.TestCase):
             ),
             supervisor_handler=lambda request: (_ for _ in ()).throw(
                 InvalidSupervisorRequestError(
-                    "requested_scope and availability_target_id cannot be combined without an explicit capability"
+                    "requested_scope is not allowed for place_lookup requests"
                 )
             ),
         )

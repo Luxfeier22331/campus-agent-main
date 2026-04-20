@@ -16,7 +16,6 @@ EXPECTED_WORKSPACES = {
     "apps/protected-panel-web",
     "apps/public-chat-web",
     "apps/supervisor-api",
-    "packages/availability-specialist",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",

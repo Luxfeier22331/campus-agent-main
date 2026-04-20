@@ -26,18 +26,6 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "knowledge")
 
-    def test_resolve_requested_capability_infers_availability_from_target(self) -> None:
-        capability = resolve_requested_capability(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="官网能打开吗",
-                    availability_target_id="official-homepage",
-                )
-            )
-        )
-
-        self.assertEqual(capability, "availability")
-
     def test_resolve_requested_capability_infers_place_lookup_from_goal(self) -> None:
         capability = resolve_requested_capability(
             SupervisorRequestContext.from_request(
@@ -60,44 +48,6 @@ class SupervisorValidationTest(unittest.TestCase):
         capability = resolve_requested_capability(context)
 
         self.assertEqual(capability, "knowledge")
-
-    def test_resolve_requested_capability_rejects_target_on_knowledge_request(self) -> None:
-        context = SupervisorRequestContext.from_request(
-            SupervisorRequest(
-                user_goal="library hours",
-                requested_capability="knowledge",
-                requested_scope=KnowledgeScope(
-                    corpus="regulations",
-                    collection="student_handbook",
-                ),
-                availability_target_id="official-homepage",
-            )
-        )
-
-        with self.assertRaisesRegex(
-            InvalidSupervisorRequestError,
-            "availability_target_id is not allowed for knowledge requests",
-        ):
-            resolve_requested_capability(context)
-
-    def test_resolve_requested_capability_rejects_scope_on_availability_request(self) -> None:
-        context = SupervisorRequestContext.from_request(
-            SupervisorRequest(
-                user_goal="官网能打开吗",
-                requested_capability="availability",
-                requested_scope=KnowledgeScope(
-                    corpus="regulations",
-                    collection="student_handbook",
-                ),
-                availability_target_id="official-homepage",
-            )
-        )
-
-        with self.assertRaisesRegex(
-            InvalidSupervisorRequestError,
-            "requested_scope is not allowed for availability requests",
-        ):
-            resolve_requested_capability(context)
 
     def test_resolve_requested_capability_rejects_scope_on_place_lookup_request(self) -> None:
         context = SupervisorRequestContext.from_request(

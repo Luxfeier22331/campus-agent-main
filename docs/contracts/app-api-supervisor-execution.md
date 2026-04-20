@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-14
+updated: 2026-04-20
 ---
 
 # App API Supervisor Execution Contract
@@ -121,7 +121,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `context`
   由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
 - `requested_capability`
-  当前允许 `knowledge`、`availability` 或 `place_lookup`
+  当前允许 `knowledge` 或 `place_lookup`
 - `requested_scope`
   可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-specialist` 消费的 internal spatial truth，而不是默认公开 query-serving surface
 
@@ -129,9 +129,6 @@ JSON 命名保持 `snake_case`，原因如下：
 
 - `place_lookup` contract 仍保留在 internal execution seam
 - 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
-- `availability_target_id` / `follow_redirects`
-  仅在 availability execution 时出现
-
 ## Response Body
 
 `supervisor-api` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
@@ -203,6 +200,10 @@ JSON 命名保持 `snake_case`，原因如下：
 
 其中：
 
+- `selected_target`
+  始终表示 execution path 实际选择的 current runtime target。
+  在当前 phase 它只能是 shared contract 中已 admitted 的 runtime label，例如 `rag-specialist`、`navigation-specialist`、`campus-services-agent`、`notice-agent`。
+  它不是 forward family label，也不是 operator-facing display label；`rag-agent`、`navigation-agent` 这类 target-side vocabulary 当前不进入这份 serialized contract。
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
 - 当 `selected_target = navigation-specialist` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
   - `query_text`

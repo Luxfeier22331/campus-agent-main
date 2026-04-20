@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Union
 
 from campus_contracts import (
-    AvailabilityCheckPayload,
     DEFAULT_POLICY_PROJECTION_VERSION,
     RagResultPayload,
     RagRequestPayload,
@@ -106,13 +105,9 @@ def _requested_capability_from_request(
     if isinstance(request, SupervisorRequest):
         if request.requested_capability is not None:
             return request.requested_capability
-        if request.requested_scope is not None and request.availability_target_id is None:
+        if request.requested_scope is not None:
             return "knowledge"
-        if request.availability_target_id is not None and request.requested_scope is None:
-            return "availability"
         return None
-    if isinstance(request.payload, AvailabilityCheckPayload):
-        return "availability"
     return "knowledge"
 
 
@@ -127,10 +122,8 @@ def _requested_scope_from_request(
 
 
 def _selected_target_from_request(request: SupervisorRequest) -> SpecialistTarget | None:
-    if request.requested_scope is not None and request.availability_target_id is None:
+    if request.requested_scope is not None:
         return "rag-specialist"
-    if request.availability_target_id is not None and request.requested_scope is None:
-        return "availability-specialist"
     return None
 
 

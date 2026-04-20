@@ -5,7 +5,6 @@ description = "Supervisor core for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "campus-availability-specialist",
   "campus-services-agent",
   "campus-contracts",
   "campus-notice-agent",
@@ -18,7 +17,6 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
-campus-availability-specialist = { workspace = true }
 campus-services-agent = { workspace = true }
 campus-contracts = { workspace = true }
 campus-notice-agent = { workspace = true }

@@ -28,6 +28,7 @@ import {
   translateRuntimeErrorMessage,
 } from "../panel-copy";
 import {
+  CURRENT_RUNTIME_TARGET_OPTIONS,
   formatSelectedTargetLabel,
   formatSurfaceLabel,
 } from "../requests/request-formatters";
@@ -72,7 +73,7 @@ const SURFACE_OPTIONS: Array<{ label: string; value: string | null }> = [
 
 const TARGET_OPTIONS: Array<{ label: string; value: string | null }> = [
   { label: PANEL_COPY.overviewPage.filters.allTargets, value: null },
-  { label: formatSelectedTargetLabel("rag-specialist"), value: "rag-specialist" },
+  ...CURRENT_RUNTIME_TARGET_OPTIONS,
 ];
 
 function normalizeFilterValue(value: string) {

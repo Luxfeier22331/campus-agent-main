@@ -31,7 +31,8 @@
     "deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
     "deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json SERVICE:APP_API=app-api-staging VAR:PANEL_RUNTIME_API_BASE_URL=https://campus-api-staging.ayafeed.com VAR:SENTRY_ENVIRONMENT=staging VAR_ABSENT:SENTRY_RELEASE ROUTE:campus-panel-staging.ayafeed.com",
     "preview": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home vite preview",
-    "test": "pnpm run test:worker",
+    "test": "pnpm run test:node && pnpm run test:worker",
+    "test:node": "vitest run -c vitest.node.config.mts",
     "test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
     "typecheck": "tsc --noEmit"
   },

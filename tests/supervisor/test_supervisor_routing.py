@@ -69,25 +69,6 @@ class SupervisorRoutingTest(unittest.TestCase):
         ):
             route_request(SupervisorRequestContext.from_request(request))
 
-    def test_route_request_selects_availability_specialist_from_explicit_capability_hint(self) -> None:
-        request = SupervisorRequest(
-            user_goal="官网现在能打开吗？",
-            conversation_id="conv-availability",
-            request_id="req-availability",
-            trace=TraceContext(trace_id="trace-availability"),
-            actor=ActorContext(user_id="student-001"),
-            requested_capability="availability",
-            availability_target_id="official-homepage",
-        )
-
-        decision = route_request(SupervisorRequestContext.from_request(request))
-
-        self.assertEqual(decision.target, "availability-specialist")
-        self.assertIsNone(decision.primary_corpus)
-        self.assertIsNone(decision.primary_collection)
-        self.assertEqual(decision.intent_frame.capability, "availability")
-        self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
-
     def test_route_request_fail_closes_place_lookup_queries_until_navigation_launch(self) -> None:
         request = SupervisorRequest(
             user_goal="图书馆在哪里",
@@ -103,20 +84,6 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
         self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
         self.assertEqual(decision.intent_frame.policy_reason, "navigation_temporarily_unsupported")
-
-    def test_route_request_keeps_availability_branch_independent_from_knowledge_scope_rules(self) -> None:
-        request = SupervisorRequest(
-            user_goal="service portal reachable?",
-            requested_capability="availability",
-            availability_target_id="service-catalog",
-        )
-
-        decision = route_request(SupervisorRequestContext.from_request(request))
-
-        self.assertEqual(decision.target, "availability-specialist")
-        self.assertIsNone(decision.primary_corpus)
-        self.assertIsNone(decision.primary_collection)
-        self.assertEqual(decision.intent_frame.task_kind, "availability_check")
 
     def test_route_request_delegates_knowledge_when_scope_is_missing(self) -> None:
         request = SupervisorRequest(
@@ -198,23 +165,6 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.target, "rag-specialist")
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
         self.assertEqual(decision.intent_frame.scope_class, "in_scope")
-
-    def test_route_request_rejects_conflicting_knowledge_and_availability_hints(self) -> None:
-        request = SupervisorRequest(
-            user_goal="官网能打开吗，顺便告诉我开馆时间",
-            requested_scope=KnowledgeScope(
-                corpus="regulations",
-                collection="student_handbook",
-            ),
-            availability_target_id="official-homepage",
-        )
-
-        with self.assertRaisesRegex(
-            InvalidSupervisorRequestError,
-            "requested_scope and availability_target_id cannot be combined",
-        ):
-            route_request(SupervisorRequestContext.from_request(request))
-
 
 if __name__ == "__main__":
     unittest.main()

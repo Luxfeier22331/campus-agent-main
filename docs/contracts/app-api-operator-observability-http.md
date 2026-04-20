@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-13
+updated: 2026-04-20
 ---
 
 # App API Operator Observability HTTP Contract
@@ -93,6 +93,7 @@ list endpoints 额外支持：
 - `window` 与 `granularity` 的非法组合返回 `400 validation_failed`
 - 未传 filter 时表示查询当前 operator 可见范围内的全量 app-owned aggregate
 - 过滤只作用于 app-owned projection / rollup 维度，不隐式回源 raw sink
+- `selectedTarget` 继续只表示 current runtime target filter，不表示 forward family label，也不直接承担 localized display wording
 
 ## Endpoint Summary
 
