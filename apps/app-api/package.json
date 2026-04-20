@@ -17,6 +17,8 @@
     "smoke-identity:provision": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/provision-smoke-identity.ts",
     "smoke-identity:provision:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/provision-smoke-identity.ts",
     "official-web:drain-projection": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/drain-official-web-projection.ts",
+    "official-web:seed-smoke": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-official-web-smoke.ts",
+    "requests:seed-smoke": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-request-smoke.ts",
     "db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
     "projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",
     "dev": "XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
