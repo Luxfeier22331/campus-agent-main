@@ -11,6 +11,11 @@ export default defineConfig({
     }),
   ],
   test: {
+    // The Workers pool is stable here only when files execute sequentially.
+    // Parallel file startup can exhaust the Miniflare/WebSocket bridge and
+    // surface intermittent `socket hang up` failures on full-suite runs.
+    fileParallelism: false,
+    maxWorkers: 1,
     include: ["test/**/*.test.ts"],
   },
 });

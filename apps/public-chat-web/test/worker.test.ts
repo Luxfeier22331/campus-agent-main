@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApp as createAppApi } from "../../app-api/src/app";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import packageManifestRaw from "../package.json?raw";
+import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -46,8 +47,14 @@ describe("public chat web worker shell", () => {
     expect(deployStagingSource).toContain("loadRepoEnvFile");
     expect(deployStagingSource).toContain("resolveStagingSentryRelease");
     expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
+    expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+    expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
     expect(deployStagingSource).toContain("AUTH_TURNSTILE_SITE_KEY:");
+    expect(deployStagingSource).toContain("AUTH_TURNSTILE_APPEARANCE:");
+    expect(deployStagingSource).toContain("AUTH_TURNSTILE_EXECUTION:");
     expect(deployStagingSource).toContain("SENTRY_RELEASE:");
+    expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+    expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
     expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
       "XDG_CONFIG_HOME=./.wrangler-home",
     );
