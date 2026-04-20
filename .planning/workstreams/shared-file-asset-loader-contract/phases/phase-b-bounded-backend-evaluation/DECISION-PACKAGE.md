@@ -3,7 +3,7 @@ phase: "B"
 artifact: "decision-package"
 created: 2026-04-19
 updated: 2026-04-19
-status: draft
+status: final
 ---
 
 # Phase B Decision Package
@@ -51,21 +51,21 @@ Phase B 最终是否可以关闭，以这份文档是否完成为准，而不是
   - `legacy-doc-normalizer-001`
   - `legacy-doc-normalizer-002`
   - `legacy-xls-current-code-001`
+  - `legacy-xls-normalizer-002`
 - scoring result:
   - `.doc` service-contract and fail-close evidence: strong synthetic support
-  - `.xls` future conversion-first route: still incomplete
+  - `.xls` conversion-first route now has matching provenance-preserving synthetic support
 - routing rule:
   - always conversion-first
 - operator assumptions:
   - do not assume host-global `soffice` or `java`
 - known limitations:
-  - current `.xls` evidence is migration-pressure evidence, not final-route evidence
+  - evidence is still synthetic; package-level shared conversion adapter remains Phase C work
 - deferred to:
   - `Phase C`: actual service adapter implementation
   - `future hardening`: stronger conversion backend replacement
 - current disposition:
-  - `fallback-only` for current code truth
-  - recommended `admit` target for future conversion-first route, but not yet final
+  - `admit`
 
 ### Modern OOXML
 
@@ -121,30 +121,31 @@ Phase B 最终是否可以关闭，以这份文档是否完成为准，而不是
   - `auth-inline-schedule-001`
   - `auth-inline-scoring-table-001`
   - `auth-inline-mobile-ui-001`
+  - `semantic-routing-001`
+  - `auth-inline-semantic-hero-001`
 - scoring result:
   - PDF `MinerU primary`: passes current synthetic evidence
   - PDF `Paddle` fallback: passes current synthetic evidence
   - simple image `Paddle primary`: passes current synthetic evidence
   - document image `MinerU primary`: passes current synthetic evidence
   - spatial image canonical OCR route: correctly fail-closes
-  - semantic-image multimodal trigger: still lacks direct repo test evidence
+  - semantic-image trigger now has direct repo evidence that it must stay out of canonical OCR/document parsing lanes
 - routing rule:
   - PDF `MinerU primary`, `Paddle fallback-only`
   - simple image `Paddle primary`
   - document image `MinerU primary`
   - spatial / map-like `manual_review_required`
-  - semantic image `multimodal enrichment only`
+  - semantic image excluded from canonical OCR and reserved for `multimodal enrichment only`
 - operator assumptions:
   - both provider lanes may be dual-run in compare / routing paths
 - known limitations:
-  - semantic-image multimodal trigger is still research-backed, not test-backed
+  - current repo evidence covers semantic-image exclusion threshold; a live multimodal adapter is still deferred to later implementation
 - deferred to:
-  - `Phase C`: routing module implementation
-  - `future hardening`: semantic-image multimodal evidence expansion
+  - `Phase C`: routing module implementation and multimodal adapter seam
+  - `future hardening`: semantic-image benchmark corpus expansion
 - current disposition:
-  - `admit` for PDF primary/fallback and simple/document image routes
+  - `admit` for PDF primary/fallback, simple/document image routes, and semantic-image exclusion threshold
   - `reject` for spatial-image canonical OCR route
-  - semantic-image route remains draft
 
 ### Terminal Semantics
 
@@ -160,11 +161,10 @@ Phase B 最终是否可以关闭，以这份文档是否完成为准，而不是
 - minimum sample matrix structure
 - evaluator-facing routing worksheet
 
-## What Still Must Close Before Phase B Can Finish
+## Phase B Closeout Result
 
-- direct repo evidence for `semantic-image -> multimodal enrichment only`
-- stronger end-to-end evidence for future `.xls` conversion-first route
-- explicit defer table for what is left to `Phase C` / `Phase D`
+- bounded benchmark evidence is sufficient to freeze all admitted family entry decisions
+- remaining work is implementation/deployment follow-up, not backend selection reopen
 
 ## What Is Deferred To Phase C Or Later
 
@@ -174,6 +174,7 @@ Phase B 最终是否可以关闭，以这份文档是否完成为准，而不是
 - conversion service client / adapter code
 - OOXML adapter code
 - routing module code
+- multimodal adapter seam
 
 ### Deferred To Phase D
 
@@ -186,4 +187,4 @@ Phase B 最终是否可以关闭，以这份文档是否完成为准，而不是
 
 ## Closeout Rule
 
-Phase B may be marked complete only when this document is updated from `draft` to a benchmark-backed final decision package.
+Phase B is now benchmark-backed and may be marked complete.

@@ -9,29 +9,34 @@ updated: 2026-04-20
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Completed
-**Current Phase Name:** Phase H Closeout
-**Current Plan:** None
-**Total Phases:** 8
-**Total Plans in Phase:** 3
-**Progress:** 8/8 phases complete
+**Current Phase:** Complete
+**Current Phase Name:** Closed Out After Phase I
+**Current Plan:** `<none>`
+**Total Phases:** 9
+**Total Plans in Phase:** 0
+**Progress:** 9/9 phases complete
 **Last Activity:** 2026-04-20
-**Last Activity Description:** Completed `Phase H` closeout: service-backed caller seam、standalone conversion runtime、env/docs/runbook truth 与真实 `.doc/.xls` evidence 全部落盘。
+**Last Activity Description:** Completed `Phase I`: fixed real-sample DOCX heading extraction and XLSX forward-fill semantics, added repo-owned OOXML verification script, generated fresh Phase I evidence, and closed the workstream at `9/9 phases complete`.
 
 ## Current Slice
 
-- Phase A-G 的 shared owner、family adapters、authenticated-notice attachment migration、cross-scope adoption、planning closeout 与 OCR lane-first provider realignment 历史继续保留。
-- `Phase H` 已完成并把 reopen gap 全部收口：
-  - `legacy_office_conversion_client.py` 已冻结 repo-owned caller seam；缺少 env、transport 失败、hash mismatch 与非法响应都会 fail-close。
-  - `file_asset_legacy_office.py` 与 `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment` 已完全切到 service-backed path，不再直接调用 `soffice --convert-to`。
-  - repo 已拥有独立 `apps/legacy-office-conversion-service` runtime、local compose bootstrap、`GET /healthz` / `GET /readyz` readiness gate 与 `x-app-internal-auth` admission。
-  - `docs/architecture/file-asset-loader-architecture.md`、`docs/environment/README.md`、`docs/runbooks/legacy-office-conversion-runtime.md`、`apps/ingestion-worker/README.md` 与 `env/commands/legacy-office-conversion-service.env.example` 现已统一到同一条 operator/runtime contract。
-  - `.tmp/phase-h-libreoffice-runtime-productization/` 已通过真实 authenticated notice source-bucket `.doc/.xls` 样本生成 evidence bundle。
-- 当前 workstream 现已回到 completed 状态；`official_web` linked-file adoption、`authenticated_notice file_release`、semantic-image enrichment 与 regulation downstream 继续保持 deferred / out-of-scope，不由本线继续承接。
+- Phase A-H closeout truth 继续成立
+- `Phase I` 已完成：
+  - `file_asset_ooxml.py` 已冻结 repo-owned `build_ooxml_layout_elements_bytes(...)`
+  - `docx` 现在会把真实样本中的标题与 section-like 行提升为 headings，而不是全部降级成 plain paragraphs
+  - `xlsx` continuation handling 已明确只回填 leading repeated cells，不再把 interior blanks 误补成前一行值
+  - `file_asset_text_extractable.py` 已提供 shared dispatcher `build_text_extractable_layout_elements_bytes(...)`
+  - `authenticated_notice_source_projections.py` 已优先消费 structured rows，并持久化 `layout_elements_bytes`
+  - `scripts.verify_ooxml_structured_normalization.py` 已新增为 repo-owned real-sample verification command
+  - `.tmp/phase-i-ooxml-structured-normalization/` 已生成 fresh evidence bundle：
+    - `OOXML-STRUCTURED-NORMALIZATION-SUMMARY.md`
+    - `OOXML-STRUCTURED-QUALITY-VALIDATION.md`
+    - `ooxml-structured-normalization-report.json`
+- 这条 workstream 现已 completed；未来只有在 admitted asset families、canonical parser lane 或 deferred cross-scope adoption 被重新提升为 active implementation 时才会 reopen
 
 ## Blockers
 
-- None.
+- 无；这条 workstream 已完成，后续只有在新的 admitted family / canonical lane 改写 / deferred cross-scope adoption 被重新 admission 时才会 reopen
 
 ## Verification
 
@@ -55,8 +60,20 @@ updated: 2026-04-20
   - `38 tests OK`
 - `docker compose -f infra/local/docker-compose.legacy-office-conversion.yml down`
   - service shutdown succeeded
+- `uv run --all-packages python -m unittest tests.ingestion.test_file_asset_substrate`
+  - `15 tests OK`
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_source_projections`
+  - `37 tests OK`
+- `uv run --all-packages python -m unittest tests.ingestion.test_authenticated_notice_import tests.ingestion.test_import_authenticated_notice_export_worker`
+  - `12 tests OK`
+- `uv run --all-packages python -m unittest tests.test_verify_ooxml_structured_normalization tests.ingestion.test_file_asset_substrate tests.ingestion.test_authenticated_notice_source_projections tests.ingestion.test_authenticated_notice_import tests.ingestion.test_import_authenticated_notice_export_worker`
+  - `69 tests OK`
+- `uv run --all-packages python -m scripts.verify_ooxml_structured_normalization --json`
+  - fresh Phase I real-sample evidence generated successfully
+- `git diff --check -- .planning/WORKSTREAMS.md .planning/workstreams/shared-file-asset-loader-contract/STATE.md .planning/workstreams/shared-file-asset-loader-contract/ROADMAP.md .planning/workstreams/shared-file-asset-loader-contract/phases/phase-i-ooxml-structured-normalization-contract/CONTEXT.md .planning/workstreams/shared-file-asset-loader-contract/phases/phase-i-ooxml-structured-normalization-contract/SUMMARY.md docs/plans/shared-file-asset-loader-contract.md docs/architecture/file-asset-loader-architecture.md scripts/verify_ooxml_structured_normalization.py tests/test_verify_ooxml_structured_normalization.py packages/ingestion-core/src/campus_ingestion_core/file_asset_ooxml.py packages/ingestion-core/src/campus_ingestion_core/file_asset_text_extractable.py packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py tests/ingestion/test_file_asset_substrate.py tests/ingestion/test_authenticated_notice_source_projections.py`
+  - `pass`
 
 ## Session Continuity
 
-**Stopped At:** `Phase H` 已完成；如未来 reopen，只在 repo-level file-like asset adoption、legacy Office runtime contract 或 deployment posture 再次发生结构性变化时恢复。
-**Resume File:** `.planning/workstreams/shared-file-asset-loader-contract/ROADMAP.md`
+**Stopped At:** workstream 已在 `Phase I` 完成收口；当前不再有 active phase，后续只会在新的 admitted family / canonical lane 变更或 deferred adoption 被重新 admission 时另行恢复
+**Resume File:** `<none>`

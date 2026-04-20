@@ -34,7 +34,12 @@ from campus_ingestion_core.file_asset_contract import (
     FileAssetExtractionRecord,
     serialize_file_asset_extraction_record,
 )
+from campus_ingestion_core.file_asset_routing import (
+    MINERU_PROVIDER,
+    adapt_mineru_archive_to_canonical_provider_payload,
+)
 from campus_ingestion_core.file_asset_text_extractable import (
+    build_text_extractable_layout_elements_bytes,
     extract_text_extractable_file_asset,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -203,6 +208,12 @@ class AuthenticatedNoticeProjectedNotice:
 
 
 @dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeOcrRuntime:
+    client: OnlineOcrClient
+    provider: str
+
+
+@dataclass(frozen=True, slots=True)
 class _AuthenticatedNoticeParentSourceTruth:
     record: DocumentRegistryRecord
     manifest: dict[str, Any]
@@ -340,7 +351,7 @@ def rebuild_authenticated_notice_source_projections(
     if not parent_source_truths:
         raise ValueError(f"no authenticated notice source-truth parents found for {request.corpus}/{request.collection}")
 
-    runtime_ocr_client = ocr_client
+    runtime_ocr = _resolve_authenticated_notice_ocr_runtime(env=source, ocr_client=ocr_client) if ocr_client else None
     attachment_ref_count = 0
     projected_attachment_count = 0
     text_extractable_attachment_count = 0
@@ -352,13 +363,13 @@ def rebuild_authenticated_notice_source_projections(
     ocr_provider_response_cache: dict[str, bytes] = {}
 
     for parent_source_truth in parent_source_truths:
-        projected_notice, runtime_ocr_client = _project_parent_source_truth(
+        projected_notice, runtime_ocr = _project_parent_source_truth(
             parent_source_truth=parent_source_truth,
             config=config,
             object_store=runtime_object_store,
             object_store_settings=object_store_settings,
             runtime_profile=runtime_profile,
-            ocr_client=runtime_ocr_client,
+            ocr_runtime=runtime_ocr,
             ocr_provider_response_cache=ocr_provider_response_cache,
             env=source,
         )
@@ -416,10 +427,10 @@ def _project_parent_source_truth(
     object_store: AuthenticatedNoticeProjectionObjectStore,
     object_store_settings: ObjectStoreSettings,
     runtime_profile,
-    ocr_client: OnlineOcrClient | None,
+    ocr_runtime: AuthenticatedNoticeOcrRuntime | None,
     ocr_provider_response_cache: dict[str, bytes] | None,
     env: dict[str, str],
-) -> tuple[AuthenticatedNoticeProjectedNotice, OnlineOcrClient | None]:
+) -> tuple[AuthenticatedNoticeProjectedNotice, AuthenticatedNoticeOcrRuntime | None]:
     documents: list[DocumentImportInput] = [
         _build_parent_notice_document(
             parent_source_truth=parent_source_truth,
@@ -427,7 +438,7 @@ def _project_parent_source_truth(
         )
     ]
     attachment_outcomes: list[AuthenticatedNoticeAttachmentProjectionOutcome] = []
-    runtime_ocr_client = ocr_client
+    runtime_ocr = ocr_runtime
     attachment_context_by_ref_id = _build_attachment_context_by_ref_id(
         record=parent_source_truth.record,
         attachment_refs=parent_source_truth.attachment_refs,
@@ -451,8 +462,8 @@ def _project_parent_source_truth(
                 f"{parent_source_truth.record.document_id}#{attachment_ref.get('attachment_ref_id')} "
                 f"mime_type={attachment_ref.get('mime_type')!r} object_key={attachment_ref.get('object_key')!r}"
             )
-        if classification == "ocr_required" and runtime_ocr_client is None:
-            runtime_ocr_client = _build_authenticated_notice_async_ocr_client(env)
+        if classification == "ocr_required" and runtime_ocr is None:
+            runtime_ocr = _resolve_authenticated_notice_ocr_runtime(env=env, ocr_client=None)
         result = _build_attachment_projection_result(
             parent_source_truth=parent_source_truth,
             attachment_ref=attachment_ref,
@@ -461,7 +472,7 @@ def _project_parent_source_truth(
             config=config,
             object_store=object_store,
             object_store_settings=object_store_settings,
-            ocr_client=runtime_ocr_client,
+            ocr_runtime=runtime_ocr,
             ocr_provider_response_cache=ocr_provider_response_cache,
             runtime_profile=runtime_profile,
         )
@@ -473,23 +484,35 @@ def _project_parent_source_truth(
             documents=tuple(documents),
             attachment_outcomes=tuple(attachment_outcomes),
         ),
-        runtime_ocr_client,
+        runtime_ocr,
     )
 
 
-def _build_authenticated_notice_async_ocr_client(
+def _resolve_authenticated_notice_ocr_runtime(
+    *,
     env: dict[str, str] | None,
-) -> OnlineOcrClient:
-    settings = OnlineOcrSettings.from_env(env, required=True)
-    if settings is None:  # pragma: no cover
-        raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-    if settings.provider != ONLINE_OCR_PROVIDER_ASYNC_JOBS:
-        raise ValueError(
-            "authenticated notice source-truth replay requires "
-            "OCR_PROVIDER_MODE=paddleocr_async_jobs; "
-            f"got {settings.provider!r}"
+    ocr_client: OnlineOcrClient | None,
+) -> AuthenticatedNoticeOcrRuntime:
+    source = env if env is not None else {}
+    has_explicit_ocr_settings = bool((source.get("OCR_BASE_URL") or "").strip()) or bool(
+        (source.get("OCR_API_KEY") or "").strip()
+    )
+    settings = (
+        OnlineOcrSettings.from_env(env, required=ocr_client is None)
+        if has_explicit_ocr_settings or ocr_client is None
+        else None
+    )
+    if settings is None:
+        if ocr_client is None:  # pragma: no cover
+            raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
+        return AuthenticatedNoticeOcrRuntime(
+            client=ocr_client,
+            provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS,
         )
-    return build_online_ocr_client(settings)
+    return AuthenticatedNoticeOcrRuntime(
+        client=ocr_client or build_online_ocr_client(settings),
+        provider=settings.provider,
+    )
 
 
 def _load_parent_source_truths(
@@ -614,7 +637,7 @@ def _build_attachment_projection_result(
     config: AuthenticatedNoticeSourceProjectionsConfig,
     object_store: AuthenticatedNoticeProjectionObjectStore,
     object_store_settings: ObjectStoreSettings,
-    ocr_client: OnlineOcrClient | None,
+    ocr_runtime: AuthenticatedNoticeOcrRuntime | None,
     ocr_provider_response_cache: dict[str, bytes] | None,
     runtime_profile,
 ) -> AuthenticatedNoticeAttachmentProjectionResult:
@@ -697,6 +720,7 @@ def _build_attachment_projection_result(
         policy_projection_version=parent_record.policy_projection_version,
     )
     layout_elements_bytes: bytes | None = None
+    structured_layout_rows: tuple[dict[str, Any], ...] = ()
     if classification == "text_extractable":
         extraction_outcome = extract_text_extractable_file_asset(
             attachment_bytes,
@@ -705,13 +729,21 @@ def _build_attachment_projection_result(
             source_object_key=object_key,
         )
         text_blocks = extraction_outcome.text_blocks
+        layout_elements_bytes = build_text_extractable_layout_elements_bytes(
+            attachment_bytes,
+            filename=filename,
+            media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+            source_object_key=object_key,
+        )
+        if layout_elements_bytes is not None:
+            structured_layout_rows = _load_jsonl_rows(layout_elements_bytes)
         provider_response_bytes = _build_text_extractable_provider_payload(
             attachment_ref=attachment_ref,
             extraction_policy_version=config.extraction_policy_version,
             extraction_outcome=extraction_outcome,
         )
     elif classification == "ocr_required":
-        if ocr_client is None:
+        if ocr_runtime is None:
             raise ValueError("online OCR client is required for ocr_required attachments")
         provider_response_bytes = None
         if ocr_provider_response_cache is not None:
@@ -719,7 +751,7 @@ def _build_attachment_projection_result(
         if provider_response_bytes is None:
             try:
                 provider_result = parse_online_ocr_bytes(
-                    ocr_client=ocr_client,
+                    ocr_client=ocr_runtime.client,
                     file_bytes=attachment_bytes,
                     filename=filename,
                     media_type=_normalize_optional_text(attachment_ref.get("mime_type")),
@@ -728,7 +760,10 @@ def _build_attachment_projection_result(
                 raise RuntimeError(
                     f"{parent_record.document_id}#{attachment_ref_id} attachment OCR failed: {exc}"
                 ) from exc
-            provider_response_bytes = provider_result.provider_result_bytes
+            provider_response_bytes = _normalize_authenticated_notice_ocr_provider_payload(
+                provider_response_bytes=provider_result.provider_result_bytes,
+                provider=ocr_runtime.provider,
+            )
             if ocr_provider_response_cache is not None:
                 ocr_provider_response_cache[actual_attachment_sha256] = provider_response_bytes
         text_blocks = ()
@@ -794,13 +829,28 @@ def _build_attachment_projection_result(
             if key in metadata
         },
         body=(
-            _build_attachment_markdown_body(title=title, text_blocks=text_blocks)
+            _build_attachment_markdown_body_from_layout_rows(
+                title=title,
+                layout_rows=structured_layout_rows,
+            )
+            if structured_layout_rows
+            else _build_attachment_markdown_body(title=title, text_blocks=text_blocks)
             if ocr_artifacts is None
             else (f"# {title}\n\n{ocr_artifacts.body_markdown}".strip() + "\n")
         ),
     ).encode("utf-8")
     document_units_bytes = (
-        _build_attachment_document_units_bytes(
+        _build_attachment_document_units_bytes_from_layout_rows(
+            document_id=derived_document_id,
+            version_id=version_id,
+            source_uri=str(metadata["source_url"]),
+            title=title,
+            layout_rows=structured_layout_rows,
+            attachment_ref=attachment_ref,
+            metadata=metadata,
+        )
+        if structured_layout_rows
+        else _build_attachment_document_units_bytes(
             document_id=derived_document_id,
             version_id=version_id,
             source_uri=str(metadata["source_url"]),
@@ -1538,6 +1588,19 @@ def _build_attachment_markdown_body(*, title: str, text_blocks: tuple[str, ...])
     return "\n\n".join((f"# {title}", *text_blocks)).strip() + "\n"
 
 
+def _build_attachment_markdown_body_from_layout_rows(
+    *,
+    title: str,
+    layout_rows: Sequence[dict[str, Any]],
+) -> str:
+    parts = [f"# {title}"]
+    for layout_row in _sorted_layout_rows(layout_rows):
+        markdown = _render_layout_row_markdown(layout_row)
+        if markdown:
+            parts.append(markdown)
+    return "\n\n".join(part for part in parts if part.strip()).strip() + "\n"
+
+
 def _build_attachment_document_units_bytes(
     *,
     document_id: str,
@@ -1592,6 +1655,84 @@ def _build_attachment_document_units_bytes(
                 "metadata": dict(shared_metadata),
             }
         )
+    return _jsonl_bytes(rows)
+
+
+def _build_attachment_document_units_bytes_from_layout_rows(
+    *,
+    document_id: str,
+    version_id: str,
+    source_uri: str,
+    title: str,
+    layout_rows: Sequence[dict[str, Any]],
+    attachment_ref: dict[str, Any],
+    metadata: dict[str, object],
+) -> bytes:
+    shared_anchor = {
+        "source_uri": source_uri,
+        "attachment_ref_id": attachment_ref.get("attachment_ref_id"),
+        "resource_role": attachment_ref.get("resource_role"),
+    }
+    shared_metadata = {
+        "projection_name": metadata.get("projection_name"),
+        "parent_document_id": metadata.get("parent_document_id"),
+        "attachment_ref_id": metadata.get("attachment_ref_id"),
+        "attachment_kind": metadata.get("attachment_kind"),
+        "attachment_role": metadata.get("attachment_role"),
+        "attachment_filename": metadata.get("attachment_filename"),
+        "attachment_mime_type": metadata.get("attachment_mime_type"),
+        "extraction_class": metadata.get("extraction_class"),
+    }
+    rows = [
+        {
+            "doc_id": document_id,
+            "version_id": version_id,
+            "chunk_id": "attachment-title",
+            "root_unit_id": "attachment-title",
+            "unit_type": "attachment_title",
+            "text": title,
+            "raw_text": title,
+            "clean_text": title,
+            "anchor": dict(shared_anchor),
+            "metadata": dict(shared_metadata),
+        }
+    ]
+    for index, layout_row in enumerate(_sorted_layout_rows(layout_rows), start=1):
+        clean_text = _render_layout_row_text(layout_row)
+        if not clean_text:
+            continue
+        row_type = str(layout_row.get("row_type") or "attachment_body")
+        unit_type = (
+            "attachment_heading"
+            if row_type == "heading"
+            else ("attachment_table" if row_type == "table" else "attachment_body")
+        )
+        anchor = dict(shared_anchor)
+        if layout_row.get("sheet_name"):
+            anchor["sheet_name"] = layout_row.get("sheet_name")
+        if layout_row.get("row_id"):
+            anchor["layout_row_id"] = layout_row.get("row_id")
+        metadata_payload = dict(shared_metadata)
+        metadata_payload["layout_row_type"] = row_type
+        metadata_payload["heading_level"] = layout_row.get("heading_level")
+        metadata_payload["source_format"] = layout_row.get("source_format")
+        if layout_row.get("sheet_name") is not None:
+            metadata_payload["sheet_name"] = layout_row.get("sheet_name")
+        row = {
+            "doc_id": document_id,
+            "version_id": version_id,
+            "chunk_id": f"attachment-body-{index:04d}",
+            "root_unit_id": f"attachment-body-{index:04d}",
+            "unit_type": unit_type,
+            "text": clean_text,
+            "raw_text": clean_text,
+            "clean_text": clean_text,
+            "anchor": anchor,
+            "metadata": metadata_payload,
+        }
+        if row_type == "table" and layout_row.get("table_cells") is not None:
+            row["table_cells"] = layout_row.get("table_cells")
+        rows.append(row)
     return _jsonl_bytes(rows)
 
 
@@ -1673,6 +1814,83 @@ def _load_jsonl_rows(file_bytes: bytes) -> tuple[dict[str, Any], ...]:
     return tuple(rows)
 
 
+def _sorted_layout_rows(layout_rows: Sequence[dict[str, Any]]) -> tuple[dict[str, Any], ...]:
+    return tuple(
+        sorted(
+            layout_rows,
+            key=lambda item: (
+                str(item.get("sheet_name") or ""),
+                int(item.get("row_index") or 0),
+                int(item.get("worksheet_row_number") or 0),
+            ),
+        )
+    )
+
+
+def _render_layout_row_markdown(layout_row: dict[str, Any]) -> str:
+    row_type = str(layout_row.get("row_type") or "")
+    text = str(layout_row.get("text_normalized") or "").strip()
+    if row_type == "table":
+        return _render_layout_table_markdown(layout_row)
+    if not text:
+        return ""
+    if row_type == "heading":
+        heading_level = max(2, min(6, int(layout_row.get("heading_level") or 1) + 1))
+        return f"{'#' * heading_level} {text}"
+    if row_type == "list_item":
+        return f"- {text}"
+    return text
+
+
+def _render_layout_row_text(layout_row: dict[str, Any]) -> str:
+    row_type = str(layout_row.get("row_type") or "")
+    if row_type == "table":
+        return _render_layout_table_markdown(layout_row)
+    return str(layout_row.get("text_normalized") or "").strip()
+
+
+def _render_layout_table_markdown(layout_row: dict[str, Any]) -> str:
+    table_rows = _layout_row_table_matrix(layout_row.get("table_cells"))
+    if not table_rows:
+        return ""
+    header = table_rows[0]
+    body = table_rows[1:] if len(table_rows) > 1 else []
+    parts: list[str] = []
+    if header:
+        parts.append(f"| {' | '.join(header)} |")
+        parts.append(f"| {' | '.join('---' for _ in header)} |")
+    for row in body:
+        if any(cell.strip() for cell in row):
+            parts.append(f"| {' | '.join(row)} |")
+    return "\n".join(parts).strip()
+
+
+def _layout_row_table_matrix(table_cells: object) -> list[list[str]]:
+    if not isinstance(table_cells, list) or not table_cells:
+        return []
+    if all(isinstance(row, list) for row in table_cells):
+        return [
+            [str(cell).strip() for cell in list(row)]
+            for row in table_cells
+        ]
+    if not all(isinstance(cell, dict) for cell in table_cells):
+        return []
+    row_numbers = sorted({int(cell.get("row") or 0) for cell in table_cells if int(cell.get("row") or 0) > 0})
+    max_column = max((int(cell.get("col") or 0) for cell in table_cells), default=0)
+    matrix: list[list[str]] = []
+    for row_number in row_numbers:
+        row_payload = [""] * max_column
+        for cell in table_cells:
+            if int(cell.get("row") or 0) != row_number:
+                continue
+            column_number = int(cell.get("col") or 0)
+            if column_number <= 0 or column_number > max_column:
+                continue
+            row_payload[column_number - 1] = str(cell.get("text") or "").strip()
+        matrix.append(row_payload)
+    return matrix
+
+
 def _render_canonical_markdown(*, metadata: dict[str, object], body: str) -> str:
     lines = ["---"]
     for key, value in metadata.items():
@@ -1724,6 +1942,18 @@ def _guess_attachment_filename(attachment_ref: dict[str, Any]) -> str:
         return fallback_candidate
     attachment_ref_id = _normalize_optional_text(attachment_ref.get("attachment_ref_id")) or "attachment"
     return f"{attachment_ref_id}.bin"
+
+
+def _normalize_authenticated_notice_ocr_provider_payload(
+    *,
+    provider_response_bytes: bytes,
+    provider: str,
+) -> bytes:
+    if provider == MINERU_PROVIDER:
+        return adapt_mineru_archive_to_canonical_provider_payload(provider_response_bytes)
+    return provider_response_bytes
+
+
 def _normalize_extension(value: object) -> str | None:
     if not isinstance(value, str):
         return None

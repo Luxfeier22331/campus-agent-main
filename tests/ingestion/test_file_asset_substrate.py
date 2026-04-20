@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from io import BytesIO
+import json
 import tomllib
 from types import SimpleNamespace
 from pathlib import Path
@@ -15,6 +16,7 @@ from campus_ingestion_core.file_asset_legacy_office import (
     normalize_legacy_office_asset,
 )
 from campus_ingestion_core.file_asset_ooxml import (
+    build_ooxml_layout_elements_bytes,
     extract_docx_text_blocks,
     extract_xlsx_text_blocks,
 )
@@ -135,6 +137,165 @@ def _build_formula_xlsx_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _build_merged_heading_xlsx_bytes() -> bytes:
+    content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+</Types>
+"""
+    root_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+"""
+    workbook = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="本科" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>
+"""
+    workbook_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>
+"""
+    shared_strings = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="8" uniqueCount="8">
+  <si><t>本科</t></si>
+  <si><t>中央民族大学2019-2020学年第2学期</t></si>
+  <si><t>课程名称</t></si>
+  <si><t>专业班级</t></si>
+  <si><t>总计</t></si>
+  <si><t>大学英语（四）</t></si>
+  <si><t>19A1</t></si>
+  <si><t>19B1</t></si>
+</sst>
+"""
+    worksheet = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>1</v></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="s"><v>2</v></c>
+      <c r="B3" t="s"><v>3</v></c>
+      <c r="C3" t="s"><v>4</v></c>
+    </row>
+    <row r="4">
+      <c r="A4" t="s"><v>5</v></c>
+      <c r="B4" t="s"><v>6</v></c>
+      <c r="C4"><f>SUM(B2:B2)</f><v>2</v></c>
+    </row>
+    <row r="5">
+      <c r="B5" t="s"><v>7</v></c>
+      <c r="C5"><v>3</v></c>
+    </row>
+  </sheetData>
+  <mergeCells count="2">
+    <mergeCell ref="A1:C1"/>
+    <mergeCell ref="A2:C2"/>
+  </mergeCells>
+</worksheet>
+"""
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types)
+        archive.writestr("_rels/.rels", root_rels)
+        archive.writestr("xl/workbook.xml", workbook)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        archive.writestr("xl/sharedStrings.xml", shared_strings)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
+    return buffer.getvalue()
+
+
+def _build_partial_continuation_xlsx_bytes() -> bytes:
+    content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+</Types>
+"""
+    root_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>
+"""
+    workbook = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="本科" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>
+"""
+    workbook_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>
+"""
+    shared_strings = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="10" uniqueCount="10">
+  <si><t>考试安排</t></si>
+  <si><t>课程名称</t></si>
+  <si><t>专业班级</t></si>
+  <si><t>主监考</t></si>
+  <si><t>备注</t></si>
+  <si><t>大学英语（四）</t></si>
+  <si><t>19A1</t></si>
+  <si><t>鲁雯</t></si>
+  <si><t>第一行备注</t></si>
+  <si><t>19B1</t></si>
+</sst>
+"""
+    worksheet = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    <row r="1">
+      <c r="A1" t="s"><v>0</v></c>
+    </row>
+    <row r="2">
+      <c r="A2" t="s"><v>1</v></c>
+      <c r="B2" t="s"><v>2</v></c>
+      <c r="C2" t="s"><v>3</v></c>
+      <c r="D2" t="s"><v>4</v></c>
+    </row>
+    <row r="3">
+      <c r="A3" t="s"><v>5</v></c>
+      <c r="B3" t="s"><v>6</v></c>
+      <c r="C3" t="s"><v>7</v></c>
+      <c r="D3" t="s"><v>8</v></c>
+    </row>
+    <row r="4">
+      <c r="B4" t="s"><v>9</v></c>
+      <c r="D4" t="inlineStr"><is><t>第二行备注</t></is></c>
+    </row>
+  </sheetData>
+</worksheet>
+"""
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types)
+        archive.writestr("_rels/.rels", root_rels)
+        archive.writestr("xl/workbook.xml", workbook)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        archive.writestr("xl/sharedStrings.xml", shared_strings)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet)
+    return buffer.getvalue()
+
+
 class FileAssetOoxmlExtractionTest(unittest.TestCase):
     def test_extract_docx_text_blocks_preserves_paragraph_blocks(self) -> None:
         result = extract_docx_text_blocks(
@@ -166,6 +327,129 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
         )
         self.assertIn("项目 | 数量 | 总计", result.text_blocks[0])
         self.assertIn("报名人数 | 2 | 2 [formula=SUM(B2:B2)]", result.text_blocks[0])
+
+    def test_build_ooxml_layout_elements_bytes_normalizes_docx_structure(self) -> None:
+        from docx import Document
+
+        buffer = BytesIO()
+        document = Document()
+        document.add_heading("中央民族大学附件标题", level=1)
+        document.add_paragraph("第一段正文")
+        document.add_paragraph("第二段正文")
+        table = document.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "字段"
+        table.cell(0, 1).text = "值"
+        table.cell(1, 0).text = "校区"
+        table.cell(1, 1).text = "丰台校区"
+        document.save(buffer)
+
+        rows = [
+            json.loads(line)
+            for line in build_ooxml_layout_elements_bytes(
+                buffer.getvalue(),
+                filename="attachment.docx",
+                source_object_key="source/attachment.docx",
+            )
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        self.assertEqual(rows[0]["row_type"], "heading")
+        self.assertEqual(rows[0]["heading_level"], 1)
+        self.assertEqual(rows[0]["text_normalized"], "中央民族大学附件标题")
+        self.assertEqual(rows[1]["row_type"], "paragraph")
+        self.assertEqual(rows[1]["text_normalized"], "第一段正文")
+        self.assertEqual(rows[-1]["row_type"], "table")
+        self.assertEqual(rows[-1]["table_row_count"], 2)
+        self.assertEqual(rows[-1]["table_column_count"], 2)
+        self.assertEqual(rows[-1]["source_object_key"], "source/attachment.docx")
+
+    def test_build_ooxml_layout_elements_bytes_detects_heading_like_normal_paragraphs(self) -> None:
+        from docx import Document
+
+        buffer = BytesIO()
+        document = Document()
+        document.add_paragraph("中央民族大学2021年高校新任辅导员专题网络培训教学计划")
+        document.add_paragraph("为深入学习贯彻习近平新时代中国特色社会主义思想，现将教学计划制定如下：")
+        document.add_paragraph("学习目标")
+        document.add_paragraph("帮助新任辅导员提高政治理论水平和岗位适应能力。")
+        document.add_paragraph("二、学习时间")
+        document.add_paragraph("本次培训学习时间为2021年11月22日至2022年2月22日。")
+        document.save(buffer)
+
+        rows = [
+            json.loads(line)
+            for line in build_ooxml_layout_elements_bytes(
+                buffer.getvalue(),
+                filename="plan.docx",
+                source_object_key="source/plan.docx",
+            )
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        self.assertEqual(rows[0]["row_type"], "heading")
+        self.assertEqual(rows[0]["heading_level"], 1)
+        self.assertEqual(rows[2]["row_type"], "heading")
+        self.assertEqual(rows[2]["heading_level"], 2)
+        self.assertEqual(rows[4]["row_type"], "heading")
+        self.assertEqual(rows[4]["heading_level"], 2)
+
+    def test_build_ooxml_layout_elements_bytes_normalizes_xlsx_with_forward_fill(self) -> None:
+        rows = [
+            json.loads(line)
+            for line in build_ooxml_layout_elements_bytes(
+                _build_merged_heading_xlsx_bytes(),
+                filename="attachment.xlsx",
+                source_object_key="source/attachment.xlsx",
+            )
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        self.assertEqual(rows[0]["row_type"], "heading")
+        self.assertEqual(rows[0]["text_normalized"], "本科")
+        self.assertEqual(rows[1]["row_type"], "heading")
+        self.assertEqual(rows[1]["text_normalized"], "中央民族大学2019-2020学年第2学期")
+        self.assertEqual(rows[2]["row_type"], "table")
+        self.assertEqual(rows[2]["sheet_name"], "本科")
+        self.assertEqual(rows[2]["table_row_count"], 3)
+        self.assertEqual(rows[2]["table_column_count"], 3)
+        first_cell = next(
+            cell for cell in rows[2]["table_cells"] if cell["row"] == 3 and cell["col"] == 1
+        )
+        self.assertEqual(first_cell["text"], "大学英语（四）")
+        self.assertTrue(first_cell["is_forward_filled"])
+        formula_cell = next(
+            cell for cell in rows[2]["table_cells"] if cell["row"] == 3 and cell["col"] == 3
+        )
+        self.assertEqual(formula_cell["formula"], "SUM(B2:B2)")
+
+    def test_build_ooxml_layout_elements_bytes_only_forward_fills_leading_missing_cells(self) -> None:
+        rows = [
+            json.loads(line)
+            for line in build_ooxml_layout_elements_bytes(
+                _build_partial_continuation_xlsx_bytes(),
+                filename="continuation.xlsx",
+                source_object_key="source/continuation.xlsx",
+            )
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+
+        table_row = next(row for row in rows if row["row_type"] == "table")
+        row4_col1 = next(
+            cell for cell in table_row["table_cells"] if cell["row"] == 3 and cell["col"] == 1
+        )
+        self.assertEqual(row4_col1["text"], "大学英语（四）")
+        self.assertTrue(row4_col1["is_forward_filled"])
+        self.assertFalse(
+            any(cell["row"] == 3 and cell["col"] == 3 for cell in table_row["table_cells"])
+        )
 
     def test_serialize_file_asset_outcome_emits_repo_owned_extraction_shape(self) -> None:
         result = extract_docx_text_blocks(

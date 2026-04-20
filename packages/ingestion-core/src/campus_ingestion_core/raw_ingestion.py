@@ -695,11 +695,6 @@ class RawIngestionProcessSettings:
         online_ocr = OnlineOcrSettings.from_env(source, required=True)
         if online_ocr is None:
             raise ValueError("OCR_BASE_URL and OCR_API_KEY must be configured together")
-        if online_ocr.provider == ONLINE_OCR_PROVIDER_MINERU_API:
-            raise ValueError(
-                "OCR_PROVIDER_MODE=mineru_api is compare-only; "
-                "canonical raw ingestion still requires a Paddle provider mode"
-            )
         mineru_online_ocr = OnlineOcrSettings.from_env(
             source,
             prefix="OCR_MINERU_",
@@ -729,7 +724,7 @@ class RawIngestionProcessSettings:
             collection=request.collection,
             artifact_mode=request.artifact_mode,
             split_manifest_path=request.split_manifest_path,
-            parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+            parser_version=_default_raw_ingestion_parser_version(online_ocr.provider),
             embedding_model=(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "").strip(),
             cleaning_policy_version=profile.cleaning_policy_version,
             default_visibility_scope=request.default_visibility_scope,
@@ -827,6 +822,10 @@ def process_raw_ingestion_job(
             bucket=settings.object_store.bucket_source,
             ocr_client=ocr_client,
         )
+        provider_result = _normalize_online_ocr_provider_result(
+            provider=settings.online_ocr.provider,
+            provider_result=provider_result,
+        )
 
         if settings.collection == "student_handbook":
             handbook_documents, handbook_errors = _build_handbook_split_manifest_documents(
@@ -834,6 +833,7 @@ def process_raw_ingestion_job(
                 provider_result=provider_result,
                 split_manifest=split_manifest,
                 writer=writer,
+                reader=writer,  # type: ignore[arg-type]
                 object_store=settings.object_store,
                 default_visibility_scope=settings.default_visibility_scope,
                 corpus=settings.corpus,
@@ -905,6 +905,55 @@ def _resolve_source_truth_only_ocr_settings_for_provider(
     return None
 
 
+def _resolve_route_provider(
+    *,
+    settings: RawIngestionProcessSettings,
+    provider: str,
+) -> str | None:
+    if provider == ONLINE_OCR_PROVIDER_MINERU_API:
+        if settings.online_ocr.provider == ONLINE_OCR_PROVIDER_MINERU_API:
+            return settings.online_ocr.provider
+        if settings.mineru_online_ocr is not None:
+            return settings.mineru_online_ocr.provider
+        return None
+    if provider == ONLINE_OCR_PROVIDER_ASYNC_JOBS:
+        if settings.online_ocr.provider != ONLINE_OCR_PROVIDER_MINERU_API:
+            return settings.online_ocr.provider
+        return None
+    if _resolve_source_truth_only_ocr_settings_for_provider(settings=settings, provider=provider) is not None:
+        return provider
+    return None
+
+
+def _has_route_provider(
+    *,
+    settings: RawIngestionProcessSettings,
+    provider: str,
+) -> bool:
+    return _resolve_route_provider(settings=settings, provider=provider) is not None
+
+
+def _default_raw_ingestion_parser_version(provider: str) -> str:
+    if provider == ONLINE_OCR_PROVIDER_MINERU_API:
+        return MINERU_ADAPTED_PARSER_VERSION
+    return DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION
+
+
+def _normalize_online_ocr_provider_result(
+    *,
+    provider: str,
+    provider_result: OnlineOcrProviderResult,
+) -> OnlineOcrProviderResult:
+    if provider != ONLINE_OCR_PROVIDER_MINERU_API:
+        return provider_result
+    return OnlineOcrProviderResult(
+        provider_result_bytes=adapt_mineru_archive_to_canonical_provider_payload(
+            provider_result.provider_result_bytes
+        ),
+        metadata=provider_result.metadata,
+    )
+
+
 def _build_source_truth_layout_elements_bytes(
     *,
     collection: str,
@@ -940,7 +989,8 @@ def _needs_dual_run_image_adjudication(
     raw_asset_record: RawAssetRecord,
 ) -> bool:
     return (
-        settings.mineru_online_ocr is not None
+        _has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_MINERU_API)
+        and _has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS)
         and raw_asset_record.asset_kind.strip().lower() == "image"
         and raw_asset_record.asset_subkind.strip().lower() == "generic_image"
     )
@@ -1075,16 +1125,23 @@ def _execute_source_truth_only_generic_image_dual_run(
     bucket: str,
     online_ocr_clients: dict[str, OnlineOcrClient],
 ) -> SourceTruthOnlyOcrExecutionResult:
-    mineru_provider = settings.mineru_online_ocr.provider if settings.mineru_online_ocr is not None else None
-    if mineru_provider is None:
-        raise RuntimeError("mineru provider is required for generic-image dual-run adjudication")
+    paddle_provider = _resolve_route_provider(
+        settings=settings,
+        provider=ONLINE_OCR_PROVIDER_ASYNC_JOBS,
+    )
+    mineru_provider = _resolve_route_provider(
+        settings=settings,
+        provider=ONLINE_OCR_PROVIDER_MINERU_API,
+    )
+    if paddle_provider is None or mineru_provider is None:
+        raise RuntimeError("both paddle and mineru providers are required for generic-image dual-run adjudication")
 
     paddle_bytes, baseline_summary = _execute_source_truth_only_provider(
         settings=settings,
         raw_asset_record=raw_asset_record,
         reader=reader,
         bucket=bucket,
-        provider=settings.online_ocr.provider,
+        provider=paddle_provider,
         online_ocr_clients=online_ocr_clients,
     )
     mineru_bytes, candidate_summary = _execute_source_truth_only_provider(
@@ -1137,33 +1194,45 @@ def _execute_source_truth_only_generic_image_dual_run(
             refined_raw_asset_record=refined_raw_asset_record,
         )
 
-    if route_decision.canonical_provider == mineru_provider:
+    if route_decision.canonical_provider == ONLINE_OCR_PROVIDER_MINERU_API:
         if mineru_bytes is None:
             raise RuntimeError("mineru canonical provider was selected without provider bytes")
-        provider_settings = settings.mineru_online_ocr
+        provider_settings = _resolve_source_truth_only_ocr_settings_for_provider(
+            settings=settings,
+            provider=mineru_provider,
+        )
+        if provider_settings is None:  # pragma: no cover
+            raise RuntimeError("mineru provider settings are required")
         provider_response_bytes = adapt_mineru_archive_to_canonical_provider_payload(mineru_bytes)
         raw_provider_response_bytes = (
             mineru_bytes if route_decision.persist_raw_provider_artifact else None
         )
+        resolved_provider = mineru_provider
     else:
         if paddle_bytes is None:
             raise RuntimeError("paddle canonical provider was selected without provider bytes")
-        provider_settings = settings.online_ocr
+        provider_settings = _resolve_source_truth_only_ocr_settings_for_provider(
+            settings=settings,
+            provider=paddle_provider,
+        )
+        if provider_settings is None:  # pragma: no cover
+            raise RuntimeError("paddle provider settings are required")
         provider_response_bytes = paddle_bytes
         raw_provider_response_bytes = None
+        resolved_provider = paddle_provider
 
     layout_elements_bytes = _build_source_truth_layout_elements_bytes(
         collection=settings.collection,
         source_pdf=raw_asset_record.source_filename,
         raw_asset_id=raw_asset_record.raw_asset_id,
         provider_response_bytes=provider_response_bytes,
-        ocr_provider=normalize_online_ocr_provider_label(route_decision.canonical_provider),
+        ocr_provider=normalize_online_ocr_provider_label(resolved_provider),
         ocr_model=provider_settings.model,
     )
     return SourceTruthOnlyOcrExecutionResult(
         provider_response_bytes=provider_response_bytes,
         layout_elements_bytes=layout_elements_bytes,
-        ocr_provider=normalize_online_ocr_provider_label(route_decision.canonical_provider),
+        ocr_provider=normalize_online_ocr_provider_label(resolved_provider),
         ocr_model=provider_settings.model,
         raw_provider_response_bytes=raw_provider_response_bytes,
         routing_decision_bytes=routing_decision_bytes,
@@ -1191,7 +1260,7 @@ def _execute_source_truth_only_routed_online_ocr(
     route_decision = select_online_ocr_routing(
         asset_kind=raw_asset_record.asset_kind,
         asset_subkind=raw_asset_record.asset_subkind,
-        mineru_available=settings.mineru_online_ocr is not None,
+        mineru_available=_has_route_provider(settings=settings, provider=ONLINE_OCR_PROVIDER_MINERU_API),
     )
     if not route_decision.canonical_allowed or route_decision.canonical_provider is None:
         raise ValueError(
@@ -1204,7 +1273,11 @@ def _execute_source_truth_only_routed_online_ocr(
         providers_to_try.append(route_decision.fallback_provider)
 
     errors: list[str] = []
-    for provider in providers_to_try:
+    for route_provider in providers_to_try:
+        provider = _resolve_route_provider(settings=settings, provider=route_provider)
+        if provider is None:
+            errors.append(f"{route_provider}: provider not configured")
+            continue
         provider_settings = _resolve_source_truth_only_ocr_settings_for_provider(
             settings=settings,
             provider=provider,
@@ -1436,6 +1509,7 @@ def _build_handbook_split_manifest_documents(
     provider_result: OnlineOcrProviderResult,
     split_manifest: SplitManifest,
     writer: ObjectStoreWriter,
+    reader: ObjectStoreReader,
     object_store: ObjectStoreSettings,
     default_visibility_scope: str | None,
     corpus: str,
@@ -1486,10 +1560,14 @@ def _build_handbook_split_manifest_documents(
                 build_handbook_projection_import_documents(
                     source=source,
                     raw_asset_record=raw_asset_record,
+                    hybrid_raw_asset_record=raw_asset_record,
                     provider_response_key=provider_response_key,
                     layout_elements_key=layout_elements_key,
                     structured_rows=structured_rows,
                     split_manifest_documents=split_manifest.documents,
+                    reader=reader,
+                    source_bucket=object_store.bucket_source,
+                    import_source="raw_online_ocr",
                 )
             )
         except Exception as exc:
