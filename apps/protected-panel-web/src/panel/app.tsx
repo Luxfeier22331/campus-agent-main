@@ -6,12 +6,16 @@ import {
   CustomRoutes,
   Resource,
 } from "react-admin";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 
 import { protectedPanelAuthProvider } from "./auth-provider";
 import { protectedPanelDataProvider } from "./data-provider";
 import { DelayedDomainPage } from "./pages/delayed-domain-page";
 import { OverviewPage } from "./pages/overview-page";
+import { QualityPage } from "./pages/quality-page";
+import { CostPage } from "./pages/cost-page";
+import { SafetyPage } from "./pages/safety-page";
+import { AuditPage } from "./pages/audit-page";
 import { ProtectedPanelLayout } from "./panel-layout";
 import { PANEL_COPY } from "./panel-copy";
 import { OfficialWebRunShowPage } from "./official-web/run-show";
@@ -22,11 +26,15 @@ import { AccessRequiredPage } from "./pages/access-required-page";
 import { RequestListPage } from "./requests/request-list";
 import { RequestShowPage } from "./requests/request-show";
 
+function OverviewLandingRedirect() {
+  return <Navigate replace to="/observability/overview" />;
+}
+
 export function ProtectedPanelAdminApp() {
   return (
     <Admin
       authProvider={protectedPanelAuthProvider}
-      dashboard={OverviewPage}
+      dashboard={OverviewLandingRedirect}
       dataProvider={protectedPanelDataProvider}
       disableTelemetry
       layout={ProtectedPanelLayout}
@@ -58,6 +66,11 @@ export function ProtectedPanelAdminApp() {
         show={OfficialWebRunShowPage}
       />
       <CustomRoutes>
+        <Route element={<OverviewPage />} path="/observability/overview" />
+        <Route element={<QualityPage />} path="/observability/quality" />
+        <Route element={<SafetyPage />} path="/observability/safety" />
+        <Route element={<CostPage />} path="/observability/cost" />
+        <Route element={<AuditPage />} path="/observability/audit" />
         <Route
           element={
             <DelayedDomainPage
@@ -76,15 +89,7 @@ export function ProtectedPanelAdminApp() {
           }
           path="/operations"
         />
-        <Route
-          element={
-            <DelayedDomainPage
-              domain={PANEL_COPY.menu.audit}
-              reason="审计域暂缓开放，后续应通过投影 API 提供，而不是在面板中直接暴露原始日志或遥测 sink。"
-            />
-          }
-          path="/audit"
-        />
+        <Route element={<Navigate replace to="/observability/audit" />} path="/audit" />
       </CustomRoutes>
     </Admin>
   );

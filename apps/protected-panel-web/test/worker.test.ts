@@ -1,3 +1,11 @@
+import "./data-provider.test";
+import "./audit-domain.test";
+import "./cost-domain.test";
+import "./overview-domain.test";
+import "./panel-shell-copy-regression.test";
+import "./quality-domain.test";
+import "./safety-domain.test";
+
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,6 +17,7 @@ import worker from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
+  dependencies?: Record<string, string | undefined>;
   scripts?: Record<string, string | undefined>;
 };
 
@@ -23,7 +32,9 @@ function createOperatorQueryServiceMock(
     getQualitySummary: vi.fn(),
     getQualityTimeseries: vi.fn(),
     getSafetySummary: vi.fn(),
+    listSafetyAnomalies: vi.fn(),
     getCostSummary: vi.fn(),
+    getCostTimeseries: vi.fn(),
     list: vi.fn().mockResolvedValue({
       page: {
         nextCursor: null,
@@ -38,6 +49,7 @@ function createOperatorQueryServiceMock(
 
 describe("protected panel web worker shell", () => {
   it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
+    expect(packageManifest.dependencies?.["@mui/x-charts"]).toBeTruthy();
     expect(wranglerConfig).toContain("workers_dev = false");
     expect(wranglerConfig).toContain("preview_urls = false");
     expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
@@ -1140,6 +1152,265 @@ describe("protected panel web worker shell", () => {
       expect(forwardedUrl).toBe(
         "https://app-api.internal/api/operator/requests/req_01HQ/observability",
       );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("proxies operator aggregate namespaces to app-api with the same trusted operator bridge", async () => {
+    const originalFetch = globalThis.fetch;
+    const accessTeamDomain = "https://team-operator-aggregates.cloudflareaccess.com";
+    const certsUrl = `${accessTeamDomain}/cdn-cgi/access/certs`;
+    const { privateKey, publicKey } = await generateKeyPair("ES256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "panel-test-key";
+    const token = await new SignJWT({
+      email: "ops@example.com",
+      groups: ["panel", "ops"],
+      name: "Ops Team",
+      sub: "operator-001",
+    })
+      .setProtectedHeader({ alg: "ES256", kid: "panel-test-key" })
+      .setIssuer(accessTeamDomain)
+      .setAudience("panel-operator-audience")
+      .setIssuedAt()
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    const forwardedUrls: string[] = [];
+    const forwardedOperatorEmails: string[] = [];
+
+    globalThis.fetch = (async (request: Request | URL | string) => {
+      const inbound = request instanceof Request ? request : new Request(request);
+      if (inbound.url === certsUrl) {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      throw new Error(`Unexpected fetch call: ${inbound.url}`);
+    }) as typeof fetch;
+
+    try {
+      const workerEnv = {
+        ACCESS_POLICY_AUD: "panel-operator-audience",
+        ACCESS_TEAM_DOMAIN: accessTeamDomain,
+        APP_API: {
+          fetch: async (request: Request) => {
+            const forwardedUrl = request.url;
+            forwardedUrls.push(forwardedUrl);
+            forwardedOperatorEmails.push(request.headers.get("x-app-operator-email") ?? "");
+
+            const pathname = new URL(forwardedUrl).pathname;
+            if (pathname === "/api/operator/quality/summary") {
+              return new Response(
+                JSON.stringify({
+                  asOf: "2026-03-28T08:00:10.000Z",
+                  runtime: {
+                    citationMissRate: { count: 1, eligibleCount: 4, value: 0.25 },
+                    emptyRecallRate: { count: 0, eligibleCount: 4, value: 0 },
+                    requestCount: 4,
+                    refusalDistribution: {
+                      approvalRequired: 0,
+                      needsClarification: 0,
+                      noAnswer: 0,
+                      rejected: 0,
+                    },
+                  },
+                  sampledGrades: null,
+                  window: {
+                    from: "2026-03-27T08:00:10.000Z",
+                    granularity: "1h",
+                    to: "2026-03-28T08:00:10.000Z",
+                  },
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            }
+
+            if (pathname === "/api/operator/cost/timeseries") {
+              return new Response(
+                JSON.stringify({
+                  asOf: "2026-03-28T08:00:10.000Z",
+                  series: [
+                    {
+                      bucketEnd: "2026-03-28T08:00:00.000Z",
+                      bucketStart: "2026-03-28T07:00:00.000Z",
+                      cachedInputTokens: 0,
+                      estimatedCostMicrousd: 3810,
+                      inputTokens: 812,
+                      outputTokens: 229,
+                    },
+                  ],
+                  window: {
+                    from: "2026-03-27T08:00:10.000Z",
+                    granularity: "1h",
+                    to: "2026-03-28T08:00:10.000Z",
+                  },
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            }
+
+            if (pathname === "/api/operator/audit") {
+              return new Response(
+                JSON.stringify({
+                  events: [
+                    {
+                      auditEventId: "aevt_01HQ",
+                      eventType: "request.completed",
+                      occurredAt: "2026-03-28T08:00:01.000Z",
+                      principalType: "campus_member",
+                      requestId: "req_01HQ",
+                      selectedTarget: "rag-specialist",
+                      status: "completed",
+                      summary: "Knowledge request completed via rag-specialist.",
+                      surface: "public_chat_web",
+                      traceId: "trace_01HQ",
+                    },
+                  ],
+                  page: {
+                    nextCursor: null,
+                  },
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            }
+
+            if (pathname === "/api/operator/audit/aevt_01HQ") {
+              return new Response(
+                JSON.stringify({
+                  event: {
+                    auditEventId: "aevt_01HQ",
+                    requestId: "req_01HQ",
+                  },
+                  links: {
+                    issueFingerprint: "projection-missing",
+                    issueLink: "https://sentry.example/issues/789",
+                    traceLink: "https://sentry.example/traces/trace_01HQ",
+                  },
+                }),
+                {
+                  headers: {
+                    "content-type": "application/json; charset=utf-8",
+                  },
+                  status: 200,
+                },
+              );
+            }
+
+            throw new Error(`Unexpected proxied operator path: ${pathname}`);
+          },
+        },
+        PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
+        PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
+        PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
+      };
+
+      const qualitySummaryResponse = await worker.fetch(
+        new Request(
+          "https://panel.example.com/api/operator/quality/summary?window=24h&surface=public_chat_web",
+          {
+            headers: {
+              "cf-access-jwt-assertion": token,
+            },
+          },
+        ),
+        workerEnv,
+      );
+      expect(qualitySummaryResponse.status).toBe(200);
+      await expect(qualitySummaryResponse.json()).resolves.toMatchObject({
+        runtime: {
+          requestCount: 4,
+        },
+      });
+
+      const costTimeseriesResponse = await worker.fetch(
+        new Request(
+          "https://panel.example.com/api/operator/cost/timeseries?window=24h&granularity=1h",
+          {
+            headers: {
+              "cf-access-jwt-assertion": token,
+            },
+          },
+        ),
+        workerEnv,
+      );
+      expect(costTimeseriesResponse.status).toBe(200);
+      await expect(costTimeseriesResponse.json()).resolves.toMatchObject({
+        series: [
+          {
+            estimatedCostMicrousd: 3810,
+            inputTokens: 812,
+            outputTokens: 229,
+          },
+        ],
+      });
+
+      const auditListResponse = await worker.fetch(
+        new Request(
+          "https://panel.example.com/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
+          {
+            headers: {
+              "cf-access-jwt-assertion": token,
+            },
+          },
+        ),
+        workerEnv,
+      );
+      expect(auditListResponse.status).toBe(200);
+      await expect(auditListResponse.json()).resolves.toMatchObject({
+        events: [
+          {
+            auditEventId: "aevt_01HQ",
+            eventType: "request.completed",
+          },
+        ],
+      });
+
+      const auditDetailResponse = await worker.fetch(
+        new Request("https://panel.example.com/api/operator/audit/aevt_01HQ", {
+          headers: {
+            "cf-access-jwt-assertion": token,
+          },
+        }),
+        workerEnv,
+      );
+      expect(auditDetailResponse.status).toBe(200);
+      await expect(auditDetailResponse.json()).resolves.toMatchObject({
+        event: {
+          auditEventId: "aevt_01HQ",
+        },
+      });
+
+      expect(forwardedUrls).toEqual([
+        "https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web",
+        "https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h",
+        "https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
+        "https://app-api.internal/api/operator/audit/aevt_01HQ",
+      ]);
+      expect(forwardedOperatorEmails).toEqual([
+        "ops@example.com",
+        "ops@example.com",
+        "ops@example.com",
+        "ops@example.com",
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }

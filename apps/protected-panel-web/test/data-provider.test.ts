@@ -386,6 +386,544 @@ describe("protected panel data provider", () => {
     );
   });
 
+  it("encodes explicit default overview filters onto the operator overview seam", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        alerts: [
+          {
+            alertId: "opalert_01HQ",
+            code: "safety.remote_content_suspicion_spike",
+            domain: "safety",
+            incidentBackfill: {
+              mode: "incident_backfill",
+              required: true,
+            },
+            requestCount: 3,
+            severity: "high",
+            startedAt: "2026-03-28T07:55:00.000Z",
+            status: "open",
+          },
+        ],
+        asOf: "2026-03-28T08:00:10.000Z",
+        overview: {
+          aclAnomalyRate: {
+            count: 0,
+            eligibleCount: 4,
+            value: 0,
+          },
+          citationMissRate: {
+            count: 1,
+            eligibleCount: 3,
+            value: 0.3333,
+          },
+          emptyRecallRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          estimatedCost: {
+            currency: "USD",
+            microusd: 7620,
+          },
+          failureRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          latency: {
+            p50Ms: 842,
+            p95Ms: 1600,
+            p99Ms: 1600,
+          },
+          refusalRate: {
+            count: 1,
+            eligibleCount: 4,
+            value: 0.25,
+          },
+          requestVolume: {
+            accepted: 4,
+            completed: 3,
+            errored: 1,
+          },
+          sinkHealth: {
+            missingTraceRate: {
+              count: 0,
+              eligibleCount: 4,
+              value: 0,
+            },
+            projectionFailureCount: 0,
+          },
+        },
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOperatorOverview({
+        selectedTarget: "rag-specialist",
+        signal: undefined,
+        surface: "public_chat_web",
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        alerts: [
+          expect.objectContaining({
+            alertId: "opalert_01HQ",
+          }),
+        ],
+        overview: {
+          requestVolume: {
+            accepted: 4,
+          },
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/operator/overview?window=24h&surface=public_chat_web&selectedTarget=rag-specialist",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("encodes operator quality summary filters without rewriting the app-api query contract", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        asOf: "2026-03-28T08:00:10.000Z",
+        runtime: {
+          citationMissRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          emptyRecallRate: {
+            count: 1,
+            eligibleCount: 3,
+            value: 0.3333,
+          },
+          refusalDistribution: {
+            approvalRequired: 1,
+            needsClarification: 1,
+            noAnswer: 1,
+            rejected: 0,
+          },
+          requestCount: 4,
+        },
+        sampledGrades: {
+          badcaseOpenCount: 1,
+          citationPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          coverageRate: {
+            count: 2,
+            eligibleCount: 4,
+            value: 0.5,
+          },
+          groundingPassRate: {
+            count: 1,
+            eligibleCount: 2,
+            value: 0.5,
+          },
+          policyPassRate: {
+            count: 2,
+            eligibleCount: 2,
+            value: 1,
+          },
+        },
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOperatorQualitySummary({
+        collection: "student_handbook",
+        requestedCapability: "knowledge",
+        signal: undefined,
+        surface: "public_chat_web",
+        window: "24h",
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        runtime: {
+          requestCount: 4,
+        },
+        sampledGrades: {
+          badcaseOpenCount: 1,
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/operator/quality/summary?window=24h&surface=public_chat_web&requestedCapability=knowledge&collection=student_handbook",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("encodes operator cost timeseries filters and returns the timeseries payload", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        asOf: "2026-03-28T08:00:10.000Z",
+        series: [
+          {
+            bucketEnd: "2026-03-28T08:00:00.000Z",
+            bucketStart: "2026-03-28T07:00:00.000Z",
+            cachedInputTokens: 0,
+            estimatedCostMicrousd: 3810,
+            inputTokens: 812,
+            outputTokens: 229,
+          },
+        ],
+        window: {
+          from: "2026-03-27T08:00:10.000Z",
+          granularity: "1h",
+          to: "2026-03-28T08:00:10.000Z",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOperatorCostTimeseries({
+        granularity: "1h",
+        modelName: "gpt-5.2-mini",
+        signal: undefined,
+        surface: "public_chat_web",
+        window: "24h",
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        series: [
+          expect.objectContaining({
+            estimatedCostMicrousd: 3810,
+          }),
+        ],
+        window: {
+          granularity: "1h",
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=gpt-5.2-mini",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("fails closed on invalid operator timeseries window and granularity combinations", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await expect(
+      protectedPanelDataProvider.getOperatorCostTimeseries({
+        granularity: "1d",
+        signal: undefined,
+        window: "1h",
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("uses sequential cursor history for operator safety anomaly queues", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          anomalies: [
+            {
+              anomalyCode: "projection_missing",
+              anomalyId: "aclanom_01HQ",
+              detectedAt: "2026-03-28T08:00:10.000Z",
+              links: {
+                issueFingerprint: "projection-missing",
+                issueLink: "https://sentry.example/issues/789",
+                traceLink: "https://sentry.example/traces/trace_01HQ",
+              },
+              principalType: "campus_member",
+              requestId: "req_01HQ",
+              selectedTarget: "rag-specialist",
+              severity: "high",
+              status: "open",
+              summary:
+                "knowledge request finalized without the required policy projection for rag-specialist.",
+              surface: "public_chat_web",
+              traceId: "trace_01HQ",
+            },
+          ],
+          page: {
+            nextCursor: "cursor_acl_02",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          anomalies: [
+            {
+              anomalyCode: "projection_missing",
+              anomalyId: "aclanom_02HQ",
+              detectedAt: "2026-03-28T09:00:10.000Z",
+              links: {
+                issueFingerprint: "projection-missing",
+                issueLink: "https://sentry.example/issues/790",
+                traceLink: "https://sentry.example/traces/trace_02HQ",
+              },
+              principalType: "campus_member",
+              requestId: "req_02HQ",
+              selectedTarget: "rag-specialist",
+              severity: "high",
+              status: "open",
+              summary:
+                "knowledge request finalized without the required policy projection for rag-specialist.",
+              surface: "public_chat_web",
+              traceId: "trace_02HQ",
+            },
+          ],
+          page: {
+            nextCursor: null,
+          },
+        }),
+      );
+
+    const firstPage = await protectedPanelDataProvider.listOperatorSafetyAnomalies({
+      anomalyCode: "projection_missing",
+      page: 1,
+      perPage: 10,
+      severity: "high",
+      signal: undefined,
+    });
+
+    const secondPage = await protectedPanelDataProvider.listOperatorSafetyAnomalies({
+      anomalyCode: "projection_missing",
+      page: 2,
+      perPage: 10,
+      severity: "high",
+      signal: undefined,
+    });
+
+    expect(firstPage.data[0]).toMatchObject({
+      anomalyId: "aclanom_01HQ",
+      id: "aclanom_01HQ",
+    });
+    expect(secondPage.data[0]).toMatchObject({
+      anomalyId: "aclanom_02HQ",
+      id: "aclanom_02HQ",
+    });
+    expect(secondPage.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: true,
+    });
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/operator/safety/anomalies?limit=10&severity=high&anomalyCode=projection_missing&cursor=cursor_acl_02",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.listOperatorSafetyAnomalies({
+        anomalyCode: "projection_missing",
+        page: 3,
+        perPage: 10,
+        severity: "high",
+        signal: undefined,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+    });
+  });
+
+  it("loads operator audit detail from the protected same-site seam", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      createJsonResponse({
+        event: {
+          auditEventId: "aevt_01HQ",
+          diagnostics: {
+            aclAnomalyCode: null,
+            failClosed: false,
+            sourceDocIds: ["handbook:library-hours"],
+          },
+          entitlementSnapshotId: "entitlements-2026-03-29",
+          eventType: "request.completed",
+          occurredAt: "2026-03-28T08:00:01.000Z",
+          policyProjectionVersion: "2026-03-29",
+          principalType: "campus_member",
+          requestId: "req_01HQ",
+          requestedCapability: "knowledge",
+          selectedTarget: "rag-specialist",
+          status: "completed",
+          summary: "Knowledge request completed via rag-specialist.",
+          surface: "public_chat_web",
+          terminalCode: "completed",
+          traceId: "trace_01HQ",
+        },
+        links: {
+          issueFingerprint: "timeout:supervisor-api",
+          issueLink: "https://sentry.example/issues/123",
+          traceLink: "https://sentry.example/traces/trace_01HQ",
+        },
+      }),
+    );
+
+    await expect(
+      protectedPanelDataProvider.getOperatorAuditEvent({
+        auditEventId: "aevt_01HQ",
+        signal: undefined,
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        event: {
+          auditEventId: "aevt_01HQ",
+          id: "aevt_01HQ",
+        },
+        links: {
+          traceLink: "https://sentry.example/traces/trace_01HQ",
+        },
+      },
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/operator/audit/aevt_01HQ",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
+  it("maps operator audit list filters onto the protected same-site seam with sequential pagination", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          events: [
+            {
+              auditEventId: "aevt_01HQ",
+              eventType: "request.completed",
+              occurredAt: "2026-03-28T08:00:01.000Z",
+              principalType: "campus_member",
+              requestId: "req_01HQ",
+              selectedTarget: "rag-specialist",
+              status: "completed",
+              summary: "Knowledge request completed via rag-specialist.",
+              surface: "public_chat_web",
+              traceId: "trace_01HQ",
+            },
+          ],
+          page: {
+            nextCursor: "cursor_audit_02",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          events: [
+            {
+              auditEventId: "aevt_02HQ",
+              eventType: "request.error",
+              occurredAt: "2026-03-28T08:05:01.000Z",
+              principalType: "campus_member",
+              requestId: "req_02HQ",
+              selectedTarget: "rag-specialist",
+              status: "error",
+              summary: "Knowledge request failed in runtime.",
+              surface: "public_chat_web",
+              traceId: "trace_02HQ",
+            },
+          ],
+          page: {
+            nextCursor: null,
+          },
+        }),
+      );
+
+    const firstPage = await protectedPanelDataProvider.listOperatorAudit({
+      eventType: "request.completed",
+      page: 1,
+      perPage: 10,
+      principalType: "campus_member",
+      requestId: "req_01HQ",
+      selectedTarget: "rag-specialist",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    const secondPage = await protectedPanelDataProvider.listOperatorAudit({
+      eventType: "request.completed",
+      page: 2,
+      perPage: 10,
+      principalType: "campus_member",
+      requestId: "req_01HQ",
+      selectedTarget: "rag-specialist",
+      status: "completed",
+      surface: "public_chat_web",
+      traceId: "trace_01HQ",
+    });
+
+    expect(firstPage.data[0]).toMatchObject({
+      auditEventId: "aevt_01HQ",
+      id: "aevt_01HQ",
+    });
+    expect(secondPage.data[0]).toMatchObject({
+      auditEventId: "aevt_02HQ",
+      id: "aevt_02HQ",
+    });
+    expect(secondPage.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: true,
+    });
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      1,
+      "/api/operator/audit?limit=10&requestId=req_01HQ&traceId=trace_01HQ&principalType=campus_member&surface=public_chat_web&selectedTarget=rag-specialist&eventType=request.completed&status=completed",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/operator/audit?limit=10&requestId=req_01HQ&traceId=trace_01HQ&principalType=campus_member&surface=public_chat_web&selectedTarget=rag-specialist&eventType=request.completed&status=completed&cursor=cursor_audit_02",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+        },
+        method: "GET",
+      }),
+    );
+  });
+
   it("maps official web run filters onto the protected same-site runtime seam", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createJsonResponse({
@@ -640,47 +1178,49 @@ describe("protected panel data provider", () => {
   it("loads official web run detail with page changes from the runtime seam", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       createJsonResponse({
-        pageChangeSummary: {
-          changedPages: 1,
-          deletedPages: 0,
-          failedFetchPages: 1,
-          newPages: 2,
-          notModifiedPages: 8,
-        },
-        pageChanges: [
-          {
-            changeStatus: "changed",
-            fetchDisposition: "fetched",
-            host: "www.muc.edu.cn",
-            httpStatus: 200,
-            id: "owobs_01",
-            lastChangeReason: "main_content_changed",
-            normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
-            observedAt: "2026-03-29T08:17:32.000Z",
-            pageFamily: "article_detail",
-            pageTitleNormalized: "News 1",
-            rawAssetId: "raw_01",
-            rawVersionId: "rawv_01",
-            runId: "owrun_01HQ",
-          },
-        ],
         run: {
-          artifacts: [],
-          collectorVersion: "official-web-collector@0.1.0",
-          configVersion: "git:abc1234",
-          failureCount: 1,
-          finishedAt: "2026-03-29T08:17:32.000Z",
-          ingestionDispatchRef: null,
-          ingestionDispatchStatus: "queued",
-          lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
-          projectedAt: "2026-03-29T08:17:33.000Z",
-          runId: "owrun_01HQ",
-          runIntent: "repair",
-          siteId: "www_muc_edu_cn",
-          startedAt: "2026-03-29T08:00:01.000Z",
-          status: "completed_with_errors",
-          summary: {
+          pageChangeSummary: {
+            changedPages: 1,
+            deletedPages: 0,
+            failedFetchPages: 1,
+            newPages: 2,
+            notModifiedPages: 8,
+          },
+          pageChanges: [
+            {
+              changeStatus: "changed",
+              fetchDisposition: "fetched",
+              host: "www.muc.edu.cn",
+              httpStatus: 200,
+              id: "owobs_01",
+              lastChangeReason: "main_content_changed",
+              normalizedCanonicalUrl: "https://www.muc.edu.cn/news/1",
+              observedAt: "2026-03-29T08:17:32.000Z",
+              pageFamily: "article_detail",
+              pageTitleNormalized: "News 1",
+              rawAssetId: "raw_01",
+              rawVersionId: "rawv_01",
+              runId: "owrun_01HQ",
+            },
+          ],
+          run: {
+            artifacts: [],
+            collectorVersion: "official-web-collector@0.1.0",
+            configVersion: "git:abc1234",
             failureCount: 1,
+            finishedAt: "2026-03-29T08:17:32.000Z",
+            ingestionDispatchRef: null,
+            ingestionDispatchStatus: "queued",
+            lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+            projectedAt: "2026-03-29T08:17:33.000Z",
+            runId: "owrun_01HQ",
+            runIntent: "repair",
+            siteId: "www_muc_edu_cn",
+            startedAt: "2026-03-29T08:00:01.000Z",
+            status: "completed_with_errors",
+            summary: {
+              failureCount: 1,
+            },
           },
         },
       }),

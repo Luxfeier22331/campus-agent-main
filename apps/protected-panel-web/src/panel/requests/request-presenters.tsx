@@ -127,7 +127,9 @@ export function RequestSourceDocumentChips({
 }: {
   sourceDocIds: string[];
 }) {
-  if (sourceDocIds.length === 0) {
+  const uniqueSourceDocIds = [...new Set(sourceDocIds)];
+
+  if (uniqueSourceDocIds.length === 0) {
     return (
       <Typography color="text.secondary" variant="body2">
         {PANEL_COPY.noSourceDocumentsCaptured}
@@ -137,7 +139,7 @@ export function RequestSourceDocumentChips({
 
   return (
     <Stack direction="row" flexWrap="wrap" gap={1}>
-      {sourceDocIds.map((docId) => (
+      {uniqueSourceDocIds.map((docId) => (
         <Chip key={docId} label={docId} size="small" variant="outlined" />
       ))}
     </Stack>

@@ -6,6 +6,8 @@
   "description": "Cloudflare Worker runtime shell for the protected panel web surface.",
   "packageManager": "pnpm@10.26.1",
   "dependencies": {
+    "@mui/x-charts": "^8.15.0",
+    "@tanstack/react-query": "^5.90.5",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.1",

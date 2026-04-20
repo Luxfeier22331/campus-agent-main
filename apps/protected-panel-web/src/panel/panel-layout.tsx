@@ -1,12 +1,13 @@
-import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
-import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
+import PaidOutlinedIcon from "@mui/icons-material/PaidOutlined";
+import QueryStatsOutlinedIcon from "@mui/icons-material/QueryStatsOutlined";
 import RefreshOutlinedIcon from "@mui/icons-material/RefreshOutlined";
 import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
 import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
@@ -31,28 +32,10 @@ import {
   useLogout,
   useRefresh,
   useSidebarState,
-  useTheme,
   useUserMenu,
 } from "react-admin";
 
 import { PANEL_COPY } from "./panel-copy";
-
-function ProtectedPanelThemeToggleButton() {
-  const [theme, setTheme] = useTheme("light");
-  const isDark = theme === "dark";
-
-  return (
-    <IconButton
-      aria-label={isDark ? PANEL_COPY.appBar.switchToLightMode : PANEL_COPY.appBar.switchToDarkMode}
-      color="inherit"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      size="large"
-      title={isDark ? PANEL_COPY.appBar.switchToLightMode : PANEL_COPY.appBar.switchToDarkMode}
-    >
-      {isDark ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
-    </IconButton>
-  );
-}
 
 function ProtectedPanelSidebarToggleButton() {
   const [open, setOpen] = useSidebarState();
@@ -65,7 +48,6 @@ function ProtectedPanelSidebarToggleButton() {
         color="inherit"
         onClick={() => setOpen(!open)}
         size="large"
-        title={label}
       >
         <MenuOutlinedIcon />
       </IconButton>
@@ -83,7 +65,6 @@ function ProtectedPanelRefreshButton() {
         color="inherit"
         onClick={() => refresh()}
         size="large"
-        title={PANEL_COPY.appBar.refresh}
       >
         <RefreshOutlinedIcon />
       </IconButton>
@@ -134,7 +115,6 @@ export function ProtectedPanelAppBar(props: ProtectedPanelAppBarProps) {
           <TitlePortal />
         </Box>
         <ProtectedPanelRefreshButton />
-        <ProtectedPanelThemeToggleButton />
         <ProtectedPanelUserMenu />
       </Toolbar>
     </MuiAppBar>
@@ -144,7 +124,26 @@ export function ProtectedPanelAppBar(props: ProtectedPanelAppBarProps) {
 function ProtectedPanelMenu() {
   return (
     <Menu>
-      <Menu.Item leftIcon={<DashboardOutlinedIcon />} primaryText={PANEL_COPY.menu.overview} to="/" />
+      <Menu.Item
+        leftIcon={<DashboardOutlinedIcon />}
+        primaryText={PANEL_COPY.menu.overview}
+        to="/observability/overview"
+      />
+      <Menu.Item
+        leftIcon={<QueryStatsOutlinedIcon />}
+        primaryText={PANEL_COPY.menu.quality}
+        to="/observability/quality"
+      />
+      <Menu.Item
+        leftIcon={<AdminPanelSettingsOutlinedIcon />}
+        primaryText={PANEL_COPY.menu.safety}
+        to="/observability/safety"
+      />
+      <Menu.Item
+        leftIcon={<PaidOutlinedIcon />}
+        primaryText={PANEL_COPY.menu.cost}
+        to="/observability/cost"
+      />
       <Menu.Item
         leftIcon={<FindInPageOutlinedIcon />}
         primaryText={PANEL_COPY.menu.requests}
@@ -166,7 +165,11 @@ function ProtectedPanelMenu() {
         primaryText={PANEL_COPY.menu.operations}
         to="/operations"
       />
-      <Menu.Item leftIcon={<HistoryOutlinedIcon />} primaryText={PANEL_COPY.menu.audit} to="/audit" />
+      <Menu.Item
+        leftIcon={<HistoryOutlinedIcon />}
+        primaryText={PANEL_COPY.menu.audit}
+        to="/observability/audit"
+      />
     </Menu>
   );
 }

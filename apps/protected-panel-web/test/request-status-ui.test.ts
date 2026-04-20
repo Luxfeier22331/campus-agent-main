@@ -6,7 +6,10 @@ import {
   formatSurfaceLabel,
   formatStatusLabel,
 } from "../src/panel/requests/request-formatters";
-import { RequestStatusChip } from "../src/panel/requests/request-presenters";
+import {
+  RequestSourceDocumentChips,
+  RequestStatusChip,
+} from "../src/panel/requests/request-presenters";
 import * as requestListModule from "../src/panel/requests/request-list";
 
 describe("protected panel request status ui", () => {
@@ -23,6 +26,20 @@ describe("protected panel request status ui", () => {
     expect(approvalRequiredChip.props.label).toBe("待审批");
     expect(rejectedChip.props.color).toBe("error");
     expect(rejectedChip.props.label).toBe("已拒绝");
+  });
+
+  it("deduplicates repeated source document ids before rendering chips", () => {
+    const chips = RequestSourceDocumentChips({
+      sourceDocIds: [
+        "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4",
+        "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4",
+      ],
+    });
+
+    expect(chips.props.children).toHaveLength(1);
+    expect(chips.props.children[0].key).toBe(
+      "program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4",
+    );
   });
 
   it("offers chinese request filter labels for operator use", () => {
