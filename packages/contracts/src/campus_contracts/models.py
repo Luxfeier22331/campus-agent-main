@@ -18,7 +18,19 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-SpecialistTarget = Literal["rag-specialist", "availability-specialist", "navigation-specialist"]
+SpecialistTarget = Literal[
+    "rag-specialist",
+    "availability-specialist",
+    "navigation-specialist",
+    "campus-services-agent",
+    "notice-agent",
+]
+SpecialistToolName = Literal[
+    "service_status_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
+]
 RequestedCapability = Literal["knowledge", "availability", "place_lookup"]
 SupervisorStatus = Literal[
     "completed",
@@ -32,6 +44,30 @@ MemorySourceType = Literal["verified_record", "user_declared", "conversation_sum
 MemoryVisibility = Literal["user_visible", "internal_only"]
 PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
+TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
+ToolBusinessOutcome = Literal[
+    "resolved_current",
+    "resolved_historical_reference",
+    "not_found",
+    "temporarily_unverifiable",
+    "clarification_required",
+]
+ToolFailCloseReason = Literal[
+    "current_state_unverifiable",
+    "source_truth_unavailable",
+    "temporal_scope_ambiguous",
+    "source_family_unavailable",
+]
+HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
+NoticeSourceFamily = Literal["official_web_public_notice", "internal_notice_restricted"]
+ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
+TransportServiceStatusValue = Literal[
+    "running",
+    "not_running",
+    "temporarily_suspended",
+    "limited_service",
+    "unknown",
+]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
@@ -47,7 +83,19 @@ DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_SPECIALIST_TARGETS = ("rag-specialist", "availability-specialist", "navigation-specialist")
+ALLOWED_SPECIALIST_TARGETS = (
+    "rag-specialist",
+    "availability-specialist",
+    "navigation-specialist",
+    "campus-services-agent",
+    "notice-agent",
+)
+ALLOWED_SPECIALIST_TOOL_NAMES = (
+    "service_status_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_get",
+)
 ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "availability", "place_lookup")
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
@@ -65,6 +113,30 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
 )
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
+ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
+ALLOWED_TOOL_BUSINESS_OUTCOMES = (
+    "resolved_current",
+    "resolved_historical_reference",
+    "not_found",
+    "temporarily_unverifiable",
+    "clarification_required",
+)
+ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
+    "current_state_unverifiable",
+    "source_truth_unavailable",
+    "temporal_scope_ambiguous",
+    "source_family_unavailable",
+)
+ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
+ALLOWED_NOTICE_SOURCE_FAMILIES = ("official_web_public_notice", "internal_notice_restricted")
+ALLOWED_SERVICE_STATUS_VALUES = ("open", "closed", "temporarily_closed", "limited_service", "unknown")
+ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
+    "running",
+    "not_running",
+    "temporarily_suspended",
+    "limited_service",
+    "unknown",
+)
 DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
 CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family"
 CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program"
@@ -502,6 +574,260 @@ class PlaceLookupResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TemporalQuery:
+    mode: TemporalQueryMode = "current"
+    as_of: str = ""
+    year_hint: str = ""
+
+    def __post_init__(self) -> None:
+        _validate_temporal_query_mode(self.mode)
+        normalized_as_of = self.as_of.strip()
+        normalized_year_hint = self.year_hint.strip()
+        if normalized_as_of != self.as_of:
+            object.__setattr__(self, "as_of", normalized_as_of)
+        if normalized_year_hint != self.year_hint:
+            object.__setattr__(self, "year_hint", normalized_year_hint)
+        if self.mode == "as_of":
+            if not normalized_as_of:
+                raise ValueError("as_of is required when temporal mode is as_of")
+        elif normalized_as_of:
+            raise ValueError("as_of is only allowed when temporal mode is as_of")
+        if self.mode == "current_year":
+            if not normalized_year_hint:
+                raise ValueError("year_hint is required when temporal mode is current_year")
+        elif normalized_year_hint:
+            raise ValueError("year_hint is only allowed when temporal mode is current_year")
+
+
+@dataclass(frozen=True, slots=True)
+class NoticeCard:
+    notice_id: str
+    title: str
+    source_family: NoticeSourceFamily | str
+    source_url: str
+    canonical_url: str = ""
+    summary: str = ""
+    published_at: str = ""
+    effective_at: str = ""
+    is_current: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.notice_id.strip():
+            raise ValueError("notice_id must not be empty")
+        if not self.title.strip():
+            raise ValueError("title must not be empty")
+        _validate_notice_source_family(self.source_family)
+        if not self.source_url.strip():
+            raise ValueError("source_url must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceStatusLookupPayload:
+    subject_query: str
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    campus_scope: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.subject_query.strip():
+            raise ValueError("subject_query must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceStatusLookupResult:
+    subject_query: str
+    outcome: ToolBusinessOutcome
+    resolved_subject: str = ""
+    observed_status: ServiceStatusValue | str = field(default="", compare=False)
+    queried_time_anchor: str = ""
+    effective_from: str = ""
+    effective_until: str = ""
+    override_source_refs: tuple[str, ...] = field(default_factory=tuple)
+    related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
+    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.subject_query.strip():
+            raise ValueError("subject_query must not be empty")
+        _validate_tool_business_outcome(self.outcome)
+        if self.observed_status:
+            _validate_service_status_value(self.observed_status)
+        if self.historical_downgrade_reason:
+            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome == "resolved_current":
+            if not self.resolved_subject.strip():
+                raise ValueError("resolved_subject must not be empty for resolved service status")
+            if not self.observed_status:
+                raise ValueError("observed_status must not be empty for resolved service status")
+        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
+            raise ValueError(
+                "historical_downgrade_reason must not be empty for historical service status results"
+            )
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError("fail_close_reason must not be empty for fail-closed service status results")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportStopRef:
+    stop_id: str
+    display_name: str
+
+    def __post_init__(self) -> None:
+        if not self.stop_id.strip():
+            raise ValueError("stop_id must not be empty")
+        if not self.display_name.strip():
+            raise ValueError("display_name must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportScheduleLookupPayload:
+    route_query: str
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    origin_stop_query: str = ""
+    destination_stop_query: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.route_query.strip():
+            raise ValueError("route_query must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportScheduleLookupResult:
+    route_query: str
+    outcome: ToolBusinessOutcome
+    resolved_route: str = ""
+    service_status: TransportServiceStatusValue | str = field(default="", compare=False)
+    queried_time_anchor: str = ""
+    window_start: str = ""
+    window_end: str = ""
+    stop_refs: tuple[TransportStopRef, ...] = field(default_factory=tuple)
+    related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
+    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.route_query.strip():
+            raise ValueError("route_query must not be empty")
+        _validate_tool_business_outcome(self.outcome)
+        if self.service_status:
+            _validate_transport_service_status_value(self.service_status)
+        if self.historical_downgrade_reason:
+            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome == "resolved_current":
+            if not self.resolved_route.strip():
+                raise ValueError("resolved_route must not be empty for resolved transport schedule")
+            if not self.service_status:
+                raise ValueError("service_status must not be empty for resolved transport schedule")
+        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
+            raise ValueError(
+                "historical_downgrade_reason must not be empty for historical transport schedule results"
+            )
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError("fail_close_reason must not be empty for fail-closed transport schedule results")
+
+
+@dataclass(frozen=True, slots=True)
+class CampusNoticeDiscoverPayload:
+    query_text: str
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple)
+    max_results: int = 5
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        for source_family in self.source_families:
+            _validate_notice_source_family(source_family)
+        if self.max_results <= 0:
+            raise ValueError("max_results must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class CampusNoticeDiscoverResult:
+    query_text: str
+    outcome: ToolBusinessOutcome
+    source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple, compare=False)
+    notice_cards: tuple[NoticeCard, ...] = field(default_factory=tuple)
+    queried_time_anchor: str = ""
+    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_tool_business_outcome(self.outcome)
+        for source_family in self.source_families:
+            _validate_notice_source_family(source_family)
+        if self.historical_downgrade_reason:
+            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome in {"resolved_current", "resolved_historical_reference"} and not self.notice_cards:
+            raise ValueError("notice_cards must not be empty for resolved notice discovery results")
+        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
+            raise ValueError("historical_downgrade_reason must not be empty for historical notice discovery")
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError("fail_close_reason must not be empty for fail-closed notice discovery results")
+
+
+@dataclass(frozen=True, slots=True)
+class CampusNoticeGetPayload:
+    notice_id: str
+    source_family: NoticeSourceFamily | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.notice_id.strip():
+            raise ValueError("notice_id must not be empty")
+        if self.source_family:
+            _validate_notice_source_family(self.source_family)
+
+
+@dataclass(frozen=True, slots=True)
+class CampusNoticeGetResult:
+    notice_id: str
+    outcome: ToolBusinessOutcome
+    title: str = ""
+    source_family: NoticeSourceFamily | str = field(default="", compare=False)
+    source_url: str = ""
+    canonical_url: str = ""
+    normalized_body: str = ""
+    published_at: str = ""
+    effective_at: str = ""
+    attachment_refs: tuple[str, ...] = field(default_factory=tuple)
+    provenance_refs: tuple[str, ...] = field(default_factory=tuple)
+    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.notice_id.strip():
+            raise ValueError("notice_id must not be empty")
+        _validate_tool_business_outcome(self.outcome)
+        if self.source_family:
+            _validate_notice_source_family(self.source_family)
+        if self.historical_downgrade_reason:
+            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome in {"resolved_current", "resolved_historical_reference"}:
+            if not self.title.strip():
+                raise ValueError("title must not be empty for resolved notice results")
+            if not self.source_family:
+                raise ValueError("source_family must not be empty for resolved notice results")
+            if not self.source_url.strip():
+                raise ValueError("source_url must not be empty for resolved notice results")
+            if not self.normalized_body.strip():
+                raise ValueError("normalized_body must not be empty for resolved notice results")
+        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
+            raise ValueError("historical_downgrade_reason must not be empty for historical notice get results")
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError("fail_close_reason must not be empty for fail-closed notice get results")
+
+
+@dataclass(frozen=True, slots=True)
 class RagResultPayload:
     evidence: EvidenceBundle
     diagnostics: RagResultDiagnostics | None = None
@@ -588,7 +914,16 @@ class SupervisorRequest:
 class SpecialistRequest:
     target: SpecialistTarget
     user_goal: str
-    payload: RagRequestPayload | AvailabilityCheckPayload | PlaceLookupPayload
+    payload: (
+        RagRequestPayload
+        | AvailabilityCheckPayload
+        | PlaceLookupPayload
+        | ServiceStatusLookupPayload
+        | TransportScheduleLookupPayload
+        | CampusNoticeDiscoverPayload
+        | CampusNoticeGetPayload
+    )
+    allowed_tools: tuple[SpecialistToolName, ...] = field(default_factory=tuple)
     conversation_id: str = ""
     request_id: str = ""
     safety_identifier: str | None = None
@@ -599,6 +934,9 @@ class SpecialistRequest:
     def __post_init__(self) -> None:
         if self.target not in ALLOWED_SPECIALIST_TARGETS:
             raise ValueError(f"unsupported specialist target: {self.target}")
+        for allowed_tool in self.allowed_tools:
+            if allowed_tool not in ALLOWED_SPECIALIST_TOOL_NAMES:
+                raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
         normalized_safety_identifier = _normalize_optional_safety_identifier(
@@ -616,7 +954,16 @@ class SpecialistResponse:
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
-    result: RagResultPayload | AvailabilityObservation | PlaceLookupResult | None = None
+    result: (
+        RagResultPayload
+        | AvailabilityObservation
+        | PlaceLookupResult
+        | ServiceStatusLookupResult
+        | TransportScheduleLookupResult
+        | CampusNoticeDiscoverResult
+        | CampusNoticeGetResult
+        | None
+    ) = None
     error: ErrorInfo | None = None
 
     def __post_init__(self) -> None:
@@ -635,7 +982,16 @@ class SupervisorResponse:
     answer_text: str = ""
     follow_up_question: str = ""
     confidence: ConfidenceLevel = "low"
-    result: RagResultPayload | AvailabilityObservation | PlaceLookupResult | None = None
+    result: (
+        RagResultPayload
+        | AvailabilityObservation
+        | PlaceLookupResult
+        | ServiceStatusLookupResult
+        | TransportScheduleLookupResult
+        | CampusNoticeDiscoverResult
+        | CampusNoticeGetResult
+        | None
+    ) = None
     error: ErrorInfo | None = None
     observability: SupervisorObservability | None = None
 
@@ -735,6 +1091,41 @@ def _validate_source_channel(source_channel: str) -> None:
 def _validate_source_trust_tier(source_trust_tier: str) -> None:
     if source_trust_tier not in ALLOWED_SOURCE_TRUST_TIERS:
         raise ValueError(f"unsupported source trust tier: {source_trust_tier}")
+
+
+def _validate_temporal_query_mode(mode: str) -> None:
+    if mode not in ALLOWED_TEMPORAL_QUERY_MODES:
+        raise ValueError(f"unsupported temporal mode: {mode}")
+
+
+def _validate_tool_business_outcome(outcome: str) -> None:
+    if outcome not in ALLOWED_TOOL_BUSINESS_OUTCOMES:
+        raise ValueError(f"unsupported tool business outcome: {outcome}")
+
+
+def _validate_tool_fail_close_reason(reason: str) -> None:
+    if reason not in ALLOWED_TOOL_FAIL_CLOSE_REASONS:
+        raise ValueError(f"unsupported tool fail-close reason: {reason}")
+
+
+def _validate_historical_downgrade_reason(reason: str) -> None:
+    if reason not in ALLOWED_HISTORICAL_DOWNGRADE_REASONS:
+        raise ValueError(f"unsupported historical downgrade reason: {reason}")
+
+
+def _validate_notice_source_family(source_family: str) -> None:
+    if source_family not in ALLOWED_NOTICE_SOURCE_FAMILIES:
+        raise ValueError(f"unsupported notice source family: {source_family}")
+
+
+def _validate_service_status_value(status: str) -> None:
+    if status not in ALLOWED_SERVICE_STATUS_VALUES:
+        raise ValueError(f"unsupported service status value: {status}")
+
+
+def _validate_transport_service_status_value(status: str) -> None:
+    if status not in ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES:
+        raise ValueError(f"unsupported transport service status value: {status}")
 
 
 def _validate_remote_content_suspicion_label(remote_content_suspicion_label: str) -> None:

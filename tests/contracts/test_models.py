@@ -9,6 +9,10 @@ from campus_contracts import (
     AuthorizationProjection,
     AvailabilityCheckPayload,
     AvailabilityObservation,
+    CampusNoticeDiscoverPayload,
+    CampusNoticeDiscoverResult,
+    CampusNoticeGetPayload,
+    CampusNoticeGetResult,
     ClaimSupport,
     ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
@@ -21,6 +25,7 @@ from campus_contracts import (
     EvidenceSource,
     GeoPoint,
     KnowledgeScope,
+    NoticeCard,
     PlaceCandidate,
     PlaceCard,
     PlaceLookupPayload,
@@ -34,12 +39,18 @@ from campus_contracts import (
     SessionSummary,
     RagRequestPayload,
     RagResultPayload,
+    ServiceStatusLookupPayload,
+    ServiceStatusLookupResult,
     SourceTrustSummary,
     SpecialistRequest,
     SpecialistResponse,
     SupervisorResponse,
     SupervisorRequest,
+    TemporalQuery,
     TraceContext,
+    TransportScheduleLookupPayload,
+    TransportScheduleLookupResult,
+    TransportStopRef,
 )
 
 
@@ -865,6 +876,216 @@ class ContractModelsTest(unittest.TestCase):
                 "target_id": "official-homepage",
                 "follow_redirects": False,
             },
+        )
+
+    def test_specialist_request_serializes_forward_agent_allowed_tools(self) -> None:
+        request = SpecialistRequest(
+            target="campus-services-agent",
+            user_goal="图书馆今天开门吗",
+            payload=ServiceStatusLookupPayload(
+                subject_query="图书馆今天开门吗",
+                temporal_query=TemporalQuery(mode="current"),
+            ),
+            allowed_tools=("service_status_lookup",),
+        )
+
+        payload = asdict(request)
+
+        self.assertEqual(payload["target"], "campus-services-agent")
+        self.assertEqual(tuple(payload["allowed_tools"]), ("service_status_lookup",))
+
+    def test_specialist_request_rejects_unknown_allowed_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: transport_notice_latest"):
+            SpecialistRequest(
+                target="campus-services-agent",
+                user_goal="校车现在开吗",
+                payload=TransportScheduleLookupPayload(
+                    route_query="校车",
+                    temporal_query=TemporalQuery(mode="current"),
+                ),
+                allowed_tools=("transport_notice_latest",),  # type: ignore[arg-type]
+            )
+
+    def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
+        with self.assertRaisesRegex(ValueError, "as_of is required when temporal mode is as_of"):
+            TemporalQuery(mode="as_of")
+
+    def test_temporal_query_rejects_year_hint_outside_current_year_mode(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "year_hint is only allowed when temporal mode is current_year",
+        ):
+            TemporalQuery(mode="current", year_hint="2026")
+
+    def test_service_status_payload_and_result_serialize(self) -> None:
+        payload = ServiceStatusLookupPayload(
+            subject_query="图书馆今天开门吗",
+            temporal_query=TemporalQuery(mode="current"),
+            campus_scope="haidian",
+        )
+        result = ServiceStatusLookupResult(
+            subject_query="图书馆今天开门吗",
+            outcome="resolved_current",
+            resolved_subject="海淀校区图书馆",
+            observed_status="open",
+            queried_time_anchor="2026-04-21T10:30:00+08:00",
+            effective_from="2026-04-21T08:00:00+08:00",
+            effective_until="2026-04-21T22:00:00+08:00",
+            override_source_refs=("notice:muc-library-holiday-adjustment-2026",),
+            related_notice_refs=("notice:muc-library-holiday-adjustment-2026",),
+        )
+
+        self.assertEqual(
+            asdict(payload),
+            {
+                "subject_query": "图书馆今天开门吗",
+                "temporal_query": {
+                    "mode": "current",
+                    "as_of": "",
+                    "year_hint": "",
+                },
+                "campus_scope": "haidian",
+            },
+        )
+        self.assertEqual(asdict(result)["observed_status"], "open")
+        self.assertEqual(
+            tuple(asdict(result)["override_source_refs"]),
+            ("notice:muc-library-holiday-adjustment-2026",),
+        )
+
+    def test_transport_schedule_payload_requires_non_empty_route_query(self) -> None:
+        with self.assertRaisesRegex(ValueError, "route_query must not be empty"):
+            TransportScheduleLookupPayload(route_query=" ")
+
+    def test_transport_schedule_result_serializes_stop_refs(self) -> None:
+        result = TransportScheduleLookupResult(
+            route_query="今天校车还有吗",
+            outcome="resolved_current",
+            resolved_route="海淀校区往返丰台校区班车",
+            service_status="running",
+            queried_time_anchor="2026-04-21T18:10:00+08:00",
+            window_start="2026-04-21T18:30:00+08:00",
+            window_end="2026-04-21T19:00:00+08:00",
+            stop_refs=(
+                TransportStopRef(
+                    stop_id="stop:haidian-main-gate",
+                    display_name="海淀校区南门",
+                ),
+                TransportStopRef(
+                    stop_id="stop:fengtai-main-gate",
+                    display_name="丰台校区南门",
+                ),
+            ),
+            related_notice_refs=("notice:school-bus-spring-2026",),
+        )
+
+        payload = asdict(result)
+
+        self.assertEqual(payload["service_status"], "running")
+        self.assertEqual(payload["stop_refs"][0]["display_name"], "海淀校区南门")
+        self.assertEqual(
+            tuple(payload["related_notice_refs"]),
+            ("notice:school-bus-spring-2026",),
+        )
+
+    def test_notice_discover_result_serializes_historical_downgrade(self) -> None:
+        result = CampusNoticeDiscoverResult(
+            query_text="2026年春假通知",
+            outcome="resolved_historical_reference",
+            source_families=("official_web_public_notice",),
+            notice_cards=(
+                NoticeCard(
+                    notice_id="notice:muc-spring-break-2025",
+                    title="2025年春假安排通知",
+                    source_family="official_web_public_notice",
+                    source_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
+                    canonical_url="https://www.muc.edu.cn/info/2025-spring-break.htm",
+                    summary="当前年份未命中，仅返回上一年度相关通知作为历史参考。",
+                    published_at="2025-03-01",
+                    effective_at="2025-03-10",
+                    is_current=False,
+                ),
+            ),
+            historical_downgrade_reason="current_year_miss",
+        )
+
+        payload = asdict(result)
+
+        self.assertEqual(payload["outcome"], "resolved_historical_reference")
+        self.assertEqual(payload["historical_downgrade_reason"], "current_year_miss")
+        self.assertEqual(
+            payload["notice_cards"][0]["source_family"],
+            "official_web_public_notice",
+        )
+
+    def test_notice_get_result_requires_normalized_body_for_resolved_notice(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "normalized_body must not be empty for resolved notice results",
+        ):
+            CampusNoticeGetResult(
+                notice_id="notice:muc-spring-break-2026",
+                title="2026年春假安排通知",
+                outcome="resolved_current",
+                source_family="official_web_public_notice",
+                source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+            )
+
+    def test_specialist_request_accepts_service_status_payload(self) -> None:
+        request = SpecialistRequest(
+            target="availability-specialist",
+            user_goal="图书馆今天开门吗",
+            payload=ServiceStatusLookupPayload(
+                subject_query="图书馆今天开门吗",
+                temporal_query=TemporalQuery(mode="current"),
+            ),
+        )
+
+        self.assertEqual(
+            asdict(request)["payload"],
+            {
+                "subject_query": "图书馆今天开门吗",
+                "temporal_query": {
+                    "mode": "current",
+                    "as_of": "",
+                    "year_hint": "",
+                },
+                "campus_scope": "",
+            },
+        )
+
+    def test_specialist_response_serializes_notice_get_result_shape(self) -> None:
+        response = SpecialistResponse(
+            target="rag-specialist",
+            status="completed",
+            answer_text="这是当前可确认的春假通知正文。",
+            confidence="high",
+            result=CampusNoticeGetResult(
+                notice_id="notice:muc-spring-break-2026",
+                title="2026年春假安排通知",
+                outcome="resolved_current",
+                source_family="official_web_public_notice",
+                source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+                canonical_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
+                normalized_body="一、放假时间为 4 月 30 日至 5 月 5 日。",
+                published_at="2026-04-18",
+                effective_at="2026-04-30",
+                attachment_refs=("asset:notice-attachment-001",),
+                provenance_refs=("projection:official_web_notice_projection_v1",),
+            ),
+        )
+
+        payload = asdict(response)
+
+        self.assertEqual(payload["result"]["notice_id"], "notice:muc-spring-break-2026")
+        self.assertEqual(payload["result"]["source_family"], "official_web_public_notice")
+        self.assertEqual(
+            tuple(payload["result"]["attachment_refs"]),
+            ("asset:notice-attachment-001",),
+        )
+        self.assertEqual(
+            tuple(payload["result"]["provenance_refs"]),
+            ("projection:official_web_notice_projection_v1",),
         )
 
     def test_specialist_request_rejects_missing_payload(self) -> None:
