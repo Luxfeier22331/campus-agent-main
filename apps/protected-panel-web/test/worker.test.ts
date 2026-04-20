@@ -14,6 +14,7 @@ import type { OperatorQueryService } from "../../app-api/src/modules/operator-qu
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import worker from "../src/index";
+import viteConfigSource from "../vite.config.ts?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -56,21 +57,36 @@ describe("protected panel web worker shell", () => {
     expect(wranglerConfig).toContain("[[env.staging.routes]]");
     expect(wranglerConfig).toContain('pattern = "campus-panel-staging.ayafeed.com"');
     expect(wranglerConfig).toContain("custom_domain = true");
+    expect(wranglerConfig).toContain("[env.local.vars]");
+    expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"');
+    expect(wranglerConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"');
+    expect(wranglerConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
+    expect(wranglerConfig).toContain("[[env.local.services]]");
+    expect(wranglerConfig).toContain('environment = "local"');
+    expect(wranglerConfig).toContain("[env.local.secrets]");
     expect(wranglerConfig).toContain("[[env.staging.services]]");
     expect(wranglerConfig).toContain('binding = "APP_API"');
     expect(wranglerConfig).toContain('service = "app-api-staging"');
     expect(wranglerConfig).toContain("[env.staging.vars]");
-    expect(wranglerConfig).toContain(
+    const stagingVarsBlock = wranglerConfig.split("[env.staging.vars]")[1] ?? "";
+    expect(stagingVarsBlock).toContain(
       'PANEL_RUNTIME_API_BASE_URL = "https://campus-api-staging.ayafeed.com"',
     );
-    expect(wranglerConfig).toContain('PANEL_PROTECTION_ENVELOPE = "cloudflare-access"');
-    expect(wranglerConfig).not.toContain("ACCESS_TEAM_DOMAIN");
-    expect(wranglerConfig).not.toContain("ACCESS_POLICY_AUD");
-    expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
-    expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
+    expect(stagingVarsBlock).toContain('PANEL_PROTECTION_ENVELOPE = "cloudflare-access"');
+    expect(stagingVarsBlock).not.toContain("ACCESS_TEAM_DOMAIN");
+    expect(stagingVarsBlock).not.toContain("ACCESS_POLICY_AUD");
+    expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
+    expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
     expect(deployStagingSource).toContain("SENTRY_RELEASE:");
     expect(deployStagingSource).toContain("resolveStagingSentryRelease");
     expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
+    expect(packageManifest.scripts?.dev).toContain("CLOUDFLARE_ENV=local");
+    expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PANEL_LIVE_SMOKE=1");
+    expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5174");
+    expect(packageManifest.scripts?.["dev:live-smoke"]).not.toContain("CLOUDFLARE_ENV=local");
+    expect(viteConfigSource).toContain("auxiliaryWorkers");
+    expect(viteConfigSource).toContain("wrangler.local-smoke.toml");
+    expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
     expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
     expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
     expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");

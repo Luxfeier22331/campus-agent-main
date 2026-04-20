@@ -1,0 +1,25 @@
+name = "protected-panel-web"
+main = "src/index.ts"
+compatibility_date = "2026-03-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[secrets]
+required = ["PANEL_APP_API_SHARED_SECRET"]
+
+[[services]]
+binding = "APP_API"
+service = "app-api"
+
+[vars]
+PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
+PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"
+ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"
+ACCESS_POLICY_AUD = "panel-local-smoke"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = [ "/*", "!/assets/*" ]

@@ -27,11 +27,8 @@ The root route and protected SPA routes now serve the `react-admin` shell once u
 Canonical references:
 
 - `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/current-architecture.md`
+- `docs/architecture/operator-observability-architecture.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
@@ -40,13 +37,9 @@ Canonical references:
 Implementation references:
 
 - `apps/protected-panel-web/REACT-ADMIN-REFERENCE.md`
+- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
 - `docs/plans/protected-panel-requests-triage-table-redesign.md`
-- `.planning/legacy-flat/protected-panel-worker-implementation-plan.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/protected-panel-runtime-api-inventory.md`
-
-Historical handoff:
-
-- `.planning/legacy-flat/phases/04.4-protected-internal-panel-runtime-shell-inserted/04.4-IMPLEMENTATION-HANDOFF.md`
 
 Long-term operator access assumptions:
 

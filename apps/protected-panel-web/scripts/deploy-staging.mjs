@@ -1,12 +1,33 @@
 import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildWranglerCommandEnv } from "../../../scripts/run-wrangler-command.mjs";
 import { resolveStagingSentryRelease } from "../../../scripts/staging-release.mjs";
 
 const PLACEHOLDER_ACCESS_POLICY_AUD = "panel-audience";
 const PLACEHOLDER_ACCESS_TEAM_DOMAIN = "https://team.cloudflareaccess.com";
+const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
 function fail(message) {
   console.error(message);
   process.exit(1);
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd ?? appDir,
+    env: options.env ?? process.env,
+    stdio: "inherit",
+  });
+
+  if (typeof result.status === "number") {
+    if (result.status !== 0) {
+      process.exit(result.status);
+    }
+    return;
+  }
+
+  process.exit(result.error ? 1 : 0);
 }
 
 function normalizeAccessTeamDomain(value) {
@@ -56,7 +77,10 @@ const accessTeamDomain = normalizeAccessTeamDomain(process.env.STAGING_ACCESS_TE
 const accessPolicyAud = normalizeAccessPolicyAud(process.env.STAGING_ACCESS_POLICY_AUD);
 const sentryRelease = resolveStagingSentryRelease("protected-panel-web");
 
-const result = spawnSync(
+// Always rebuild before deploy so staging cannot reuse a stale dist bundle.
+run("pnpm", ["build:staging"]);
+run("pnpm", ["deploy:verify-config:staging"]);
+run(
   "wrangler",
   [
     "deploy",
@@ -70,13 +94,7 @@ const result = spawnSync(
     `SENTRY_RELEASE:${sentryRelease}`,
   ],
   {
+    cwd: appDir,
     env: buildWranglerCommandEnv(process.env),
-    stdio: "inherit",
   },
 );
-
-if (typeof result.status === "number") {
-  process.exit(result.status);
-}
-
-process.exit(result.error ? 1 : 0);
