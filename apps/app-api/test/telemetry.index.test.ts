@@ -78,9 +78,18 @@ describe("app telemetry", () => {
     });
   });
 
-  it("projects canonical safety identifier into sentry tags and runtime telemetry payloads", async () => {
+  it("moves high-cardinality request identity into sentry context and emits canonical axiom envelope", async () => {
     const axiomSink = { emit: vi.fn().mockResolvedValue(undefined) };
-    const telemetry = createAppTelemetry({}, { axiomSink });
+    const telemetry = createAppTelemetry(
+      {
+        APP_API_ENVIRONMENT: "staging",
+        SENTRY_RELEASE: "app-api@2026.04.20",
+      },
+      {
+        axiomSink,
+        now: () => new Date("2026-04-20T12:30:00.000Z"),
+      },
+    );
     const safetyIdentifier =
       "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -119,11 +128,30 @@ describe("app telemetry", () => {
       traceId: "trace_01",
     });
 
-    expect(sentryMocks.setTag).toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
+    expect(sentryMocks.setTag).not.toHaveBeenCalledWith("request_id", "req_01");
+    expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
+    expect(sentryMocks.setTag).toHaveBeenCalledWith(
+      "requested_scope_summary",
+      "regulations/student_handbook",
+    );
+    expect(sentryMocks.setTag).toHaveBeenCalledWith("principal_type", "campus_member");
+    expect(sentryMocks.setContext).toHaveBeenCalledWith(
+      "request",
+      expect.objectContaining({
+        conversation_id: "conv_01",
+        request_id: "req_01",
+        requested_scope_summary: "regulations/student_handbook",
+        safety_identifier: safetyIdentifier,
+      }),
+    );
     expect(axiomSink.emit).toHaveBeenCalledWith(
       expect.objectContaining({
+        environment: "staging",
         event_type: "request.accepted",
+        occurred_at: "2026-04-20T12:30:00.000Z",
+        principal_type: "campus_member",
         request_id: "req_01",
+        release: "app-api@2026.04.20",
         safety_identifier: safetyIdentifier,
       }),
     );

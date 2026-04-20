@@ -17,6 +17,94 @@ const FORBIDDEN_FIELD_NAMES = new Set([
   "transcript",
 ]);
 
+const AXIOM_BASE_ALLOWED_FIELDS = [
+  "environment",
+  "error_code",
+  "event_type",
+  "occurred_at",
+  "principal_type",
+  "release",
+  "request_id",
+  "requested_capability",
+  "requested_scope_summary",
+  "selected_target",
+  "status",
+  "surface",
+  "trace_id",
+] as const;
+
+const AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<string>>([
+  [
+    "request.accepted",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "actor_id_hash",
+      "conversation_id",
+      "safety_identifier",
+    ]),
+  ],
+  [
+    "request.finalized",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "conversation_id",
+      "duration_ms",
+      "resolved_scope_summary",
+      "retryable",
+      "safety_identifier",
+      "source_doc_ids_count",
+      "source_doc_ids_summary",
+    ]),
+  ],
+  [
+    "request.transport_error",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "conversation_id",
+      "retryable",
+      "safety_identifier",
+    ]),
+  ],
+  [
+    "projection.enqueued",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "conversation_id",
+      "projection_stage",
+      "resolved_scope_summary",
+      "safety_identifier",
+    ]),
+  ],
+  [
+    "projection.drain",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "abandoned_count",
+      "failed_count",
+      "processed_count",
+      "projector_last_error_code",
+      "projector_name",
+    ]),
+  ],
+  [
+    "quality.sampled_grade",
+    new Set([
+      ...AXIOM_BASE_ALLOWED_FIELDS,
+      "collection",
+      "grade_domain",
+      "grade_id",
+      "grade_source",
+      "grader_version",
+      "model_name",
+      "rationale_summary",
+      "request_started_at",
+      "sampled_at",
+      "score_milli",
+      "verdict",
+    ]),
+  ],
+]);
+
 type AxiomScalar = boolean | number | string | null;
 
 function buildAxiomIngestUrl(endpoint: string, dataset: string): string {
@@ -40,11 +128,17 @@ export interface AxiomRuntimeEventEnv {
 
 export function sanitizeAxiomEventPayload(
   payload: Record<string, unknown>,
-): Record<string, AxiomScalar> {
+): Record<string, AxiomScalar> | null {
+  const eventType = typeof payload.event_type === "string" ? payload.event_type : "";
+  const allowedFields = AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE.get(eventType);
+  if (!allowedFields) {
+    return null;
+  }
+
   const sanitized: Record<string, AxiomScalar> = {};
 
   for (const [key, value] of Object.entries(payload)) {
-    if (FORBIDDEN_FIELD_NAMES.has(key) || value === undefined) {
+    if (!allowedFields.has(key) || FORBIDDEN_FIELD_NAMES.has(key) || value === undefined) {
       continue;
     }
 
@@ -85,6 +179,11 @@ export function createAxiomRuntimeEventSink(
         return;
       }
 
+      const sanitizedPayload = sanitizeAxiomEventPayload(payload);
+      if (!sanitizedPayload) {
+        return;
+      }
+
       try {
         const response = await new Promise<Response>((resolve, reject) => {
           const controller = new AbortController();
@@ -94,7 +193,7 @@ export function createAxiomRuntimeEventSink(
           }, timeoutMs);
 
           fetchImplementation(buildAxiomIngestUrl(endpoint, dataset), {
-            body: JSON.stringify([sanitizeAxiomEventPayload(payload)]),
+            body: JSON.stringify([sanitizedPayload]),
             headers: {
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",

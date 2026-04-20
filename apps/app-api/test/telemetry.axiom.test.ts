@@ -11,11 +11,15 @@ describe("axiom runtime event sink", () => {
   it("drops forbidden sensitive fields before building the ingest payload", () => {
     expect(
       sanitizeAxiomEventPayload({
+        environment: "staging",
         event_type: "request.accepted",
+        occurred_at: "2026-04-20T12:30:00.000Z",
         request_id: "req_01HQ",
+        release: "app-api@2026.04.20",
         trace_id: "trace_01HQ",
         surface: "public_chat_web",
         status: "accepted",
+        unexpected_blob: "should-not-pass",
         prompt: "图书馆开放到几点？",
         answer: "图书馆开放到 22:00。",
         cookie: "better-auth.session_token=test",
@@ -23,12 +27,27 @@ describe("axiom runtime event sink", () => {
         transcript: "user: ...",
       }),
     ).toEqual({
+      environment: "staging",
       event_type: "request.accepted",
+      occurred_at: "2026-04-20T12:30:00.000Z",
       request_id: "req_01HQ",
+      release: "app-api@2026.04.20",
       status: "accepted",
       surface: "public_chat_web",
       trace_id: "trace_01HQ",
     });
+  });
+
+  it("drops unsupported event types instead of treating axiom as a kitchen-sink dataset", () => {
+    expect(
+      sanitizeAxiomEventPayload({
+        event_type: "experimental.debug_dump",
+        occurred_at: "2026-04-20T12:30:00.000Z",
+        request_id: "req_01HQ",
+        surface: "public_chat_web",
+        trace_id: "trace_01HQ",
+      }),
+    ).toBeNull();
   });
 
   it("no-ops when the Axiom runtime config is incomplete", async () => {
