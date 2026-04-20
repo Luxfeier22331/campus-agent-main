@@ -1,0 +1,439 @@
+export type OperatorOverviewWindow = "15m" | "1h" | "24h" | "7d" | "30d";
+
+export type OperatorTimeseriesGranularity = "5m" | "15m" | "1h" | "1d";
+
+export interface OperatorAggregateFilterInput {
+  collection?: string | null;
+  modelName?: string | null;
+  principalType?: string | null;
+  requestedCapability?: string | null;
+  selectedTarget?: string | null;
+  surface?: string | null;
+  window?: OperatorOverviewWindow | null;
+}
+
+export interface OperatorTimeseriesFilterInput extends OperatorAggregateFilterInput {
+  granularity?: OperatorTimeseriesGranularity | null;
+}
+
+export interface OperatorCursorPageInput {
+  page?: number;
+  perPage?: number;
+}
+
+export interface OperatorQualityBadcaseListFilterInput extends OperatorCursorPageInput {
+  causeClass?: string | null;
+  detectedBy?: string | null;
+  status?: string | null;
+}
+
+export interface OperatorSafetyAnomalyListFilterInput extends OperatorCursorPageInput {
+  anomalyCode?: string | null;
+  severity?: string | null;
+  status?: string | null;
+}
+
+export interface OperatorAuditListFilterInput extends OperatorCursorPageInput {
+  eventType?: string | null;
+  principalType?: string | null;
+  requestId?: string | null;
+  selectedTarget?: string | null;
+  status?: string | null;
+  surface?: string | null;
+  traceId?: string | null;
+}
+
+export interface RawOperatorMetricRatio {
+  count: number;
+  eligibleCount: number | null;
+  value: number;
+}
+
+export type OperatorMetricRatio = RawOperatorMetricRatio;
+
+export interface RawOperatorResultWindow {
+  from: string;
+  granularity: OperatorTimeseriesGranularity;
+  to: string;
+}
+
+export type OperatorResultWindow = RawOperatorResultWindow;
+
+export interface RawOperatorOverviewAlert {
+  alertId: string;
+  code: string;
+  domain: string;
+  incidentBackfill: {
+    mode: "incident_backfill" | null;
+    required: boolean;
+  };
+  requestCount: number;
+  severity: string;
+  startedAt: string;
+  status: string;
+}
+
+export interface OperatorOverviewAlert extends RawOperatorOverviewAlert {
+  id: string;
+}
+
+export interface RawOperatorOverviewRecord {
+  alerts: RawOperatorOverviewAlert[];
+  asOf: string;
+  overview: {
+    aclAnomalyRate: RawOperatorMetricRatio;
+    citationMissRate: RawOperatorMetricRatio;
+    emptyRecallRate: RawOperatorMetricRatio;
+    estimatedCost: {
+      currency: "USD";
+      microusd: number;
+    };
+    failureRate: RawOperatorMetricRatio;
+    latency: {
+      p50Ms: number | null;
+      p95Ms: number | null;
+      p99Ms: number | null;
+    };
+    refusalRate: RawOperatorMetricRatio;
+    requestVolume: {
+      accepted: number;
+      completed: number;
+      errored: number;
+    };
+    sinkHealth: {
+      missingTraceRate: RawOperatorMetricRatio;
+      projectionFailureCount: number;
+    };
+  };
+  window: RawOperatorResultWindow;
+}
+
+export interface OperatorOverviewRecord extends Omit<RawOperatorOverviewRecord, "alerts"> {
+  alerts: OperatorOverviewAlert[];
+}
+
+export interface RawOperatorQualitySummaryRecord {
+  asOf: string;
+  runtime: {
+    citationMissRate: RawOperatorMetricRatio;
+    emptyRecallRate: RawOperatorMetricRatio;
+    refusalDistribution: {
+      approvalRequired: number;
+      needsClarification: number;
+      noAnswer: number;
+      rejected: number;
+    };
+    requestCount: number;
+  };
+  sampledGrades: {
+    badcaseOpenCount: number | null;
+    citationPassRate: RawOperatorMetricRatio | null;
+    coverageRate: RawOperatorMetricRatio | null;
+    groundingPassRate: RawOperatorMetricRatio | null;
+    policyPassRate: RawOperatorMetricRatio | null;
+  } | null;
+  window: RawOperatorResultWindow;
+}
+
+export type OperatorQualitySummaryRecord = RawOperatorQualitySummaryRecord;
+
+export interface RawOperatorQualityTimeseriesBucket {
+  bucketEnd: string;
+  bucketStart: string;
+  citationMissRate: number;
+  emptyRecallRate: number;
+  needsClarificationRate: number;
+  noAnswerRate: number;
+  requestCount: number;
+  sampledGroundingPassRate: number | null;
+}
+
+export interface RawOperatorQualityTimeseriesRecord {
+  asOf: string;
+  series: RawOperatorQualityTimeseriesBucket[];
+  window: RawOperatorResultWindow;
+}
+
+export type OperatorQualityTimeseriesRecord = RawOperatorQualityTimeseriesRecord;
+
+export interface RawOperatorTraceLinks {
+  issueFingerprint: string | null;
+  issueLink: string | null;
+  traceLink: string | null;
+}
+
+export interface RawOperatorQualityBadcaseRecord {
+  badcaseId: string;
+  causeClass: string;
+  detectedBy: string;
+  grade: {
+    graderVersion: string;
+    result: string;
+    score: number | null;
+  } | null;
+  links: RawOperatorTraceLinks;
+  openedAt: string;
+  requestId: string;
+  selectedTarget: string | null;
+  status: string;
+  summary: string;
+  surface: string;
+  traceId: string;
+}
+
+export interface OperatorQualityBadcaseRecord extends RawOperatorQualityBadcaseRecord {
+  id: string;
+}
+
+export interface RawOperatorQualityBadcaseListResponse {
+  badcases: RawOperatorQualityBadcaseRecord[];
+  page: {
+    nextCursor: string | null;
+  };
+}
+
+export interface RawOperatorSafetySummaryRecord {
+  asOf: string;
+  summary: {
+    aclAnomalyRate: RawOperatorMetricRatio;
+    decisionDistribution: {
+      allowed: number;
+      approvalRequired: number;
+      denied: number;
+      failClosed: number;
+    };
+    failClosedRate: RawOperatorMetricRatio;
+    restrictedDenyRate: RawOperatorMetricRatio;
+  };
+  window: RawOperatorResultWindow;
+}
+
+export type OperatorSafetySummaryRecord = RawOperatorSafetySummaryRecord;
+
+export interface RawOperatorSafetyAnomalyRecord {
+  anomalyCode: string;
+  anomalyId: string;
+  detectedAt: string;
+  links: RawOperatorTraceLinks;
+  principalType: string;
+  requestId: string;
+  selectedTarget: string | null;
+  severity: "high" | "medium";
+  status: "open";
+  summary: string;
+  surface: string;
+  traceId: string;
+}
+
+export interface OperatorSafetyAnomalyRecord extends RawOperatorSafetyAnomalyRecord {
+  id: string;
+}
+
+export interface RawOperatorSafetyAnomalyListResponse {
+  anomalies: RawOperatorSafetyAnomalyRecord[];
+  page: {
+    nextCursor: string | null;
+  };
+}
+
+export interface RawOperatorCostSummaryRecord {
+  asOf: string;
+  summary: {
+    byModel: Array<{
+      estimatedCostMicrousd: number;
+      modelName: string;
+      requestCount: number;
+    }>;
+    bySurface: Array<{
+      estimatedCostMicrousd: number;
+      requestCount: number;
+      surface: string;
+    }>;
+    estimatedCost: {
+      currency: "USD";
+      microusd: number;
+    };
+    tokens: {
+      cachedInput: number;
+      input: number;
+      output: number;
+    };
+  };
+  window: RawOperatorResultWindow;
+}
+
+export type OperatorCostSummaryRecord = RawOperatorCostSummaryRecord;
+
+export interface RawOperatorCostTimeseriesBucket {
+  bucketEnd: string;
+  bucketStart: string;
+  cachedInputTokens: number;
+  estimatedCostMicrousd: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface RawOperatorCostTimeseriesRecord {
+  asOf: string;
+  series: RawOperatorCostTimeseriesBucket[];
+  window: RawOperatorResultWindow;
+}
+
+export type OperatorCostTimeseriesRecord = RawOperatorCostTimeseriesRecord;
+
+export interface RawOperatorAuditEventRecord {
+  auditEventId: string;
+  eventType: string;
+  occurredAt: string;
+  principalType: string;
+  requestId: string;
+  selectedTarget: string | null;
+  status: string;
+  summary: string;
+  surface: string;
+  traceId: string;
+}
+
+export interface OperatorAuditEventRecord extends RawOperatorAuditEventRecord {
+  id: string;
+}
+
+export interface RawOperatorAuditListResponse {
+  events: RawOperatorAuditEventRecord[];
+  page: {
+    nextCursor: string | null;
+  };
+}
+
+export interface RawOperatorAuditEventDetailRecord {
+  auditEventId: string;
+  diagnostics: {
+    aclAnomalyCode: string | null;
+    failClosed: boolean | null;
+    sourceDocIds: string[];
+  };
+  entitlementSnapshotId: string | null;
+  eventType: string;
+  occurredAt: string;
+  policyProjectionVersion: string | null;
+  principalType: string;
+  requestId: string;
+  requestedCapability: string | null;
+  selectedTarget: string | null;
+  status: string;
+  summary: string;
+  surface: string;
+  terminalCode: string | null;
+  traceId: string;
+}
+
+export interface OperatorAuditEventDetailRecord extends RawOperatorAuditEventDetailRecord {
+  id: string;
+}
+
+export interface RawOperatorAuditEventDetailResponse {
+  event: RawOperatorAuditEventDetailRecord;
+  links: RawOperatorTraceLinks;
+}
+
+export interface OperatorAuditEventDetailResponse {
+  event: OperatorAuditEventDetailRecord;
+  links: RawOperatorTraceLinks;
+}
+
+export function normalizeOperatorOverviewAlert(
+  input: RawOperatorOverviewAlert,
+): OperatorOverviewAlert {
+  return {
+    ...input,
+    id: input.alertId,
+  };
+}
+
+export function normalizeOperatorOverviewRecord(
+  input: RawOperatorOverviewRecord,
+): OperatorOverviewRecord {
+  return {
+    ...input,
+    alerts: input.alerts.map(normalizeOperatorOverviewAlert),
+  };
+}
+
+export function normalizeOperatorQualitySummaryRecord(
+  input: RawOperatorQualitySummaryRecord,
+): OperatorQualitySummaryRecord {
+  return {
+    ...input,
+  };
+}
+
+export function normalizeOperatorQualityTimeseriesRecord(
+  input: RawOperatorQualityTimeseriesRecord,
+): OperatorQualityTimeseriesRecord {
+  return {
+    ...input,
+  };
+}
+
+export function normalizeOperatorQualityBadcaseRecord(
+  input: RawOperatorQualityBadcaseRecord,
+): OperatorQualityBadcaseRecord {
+  return {
+    ...input,
+    id: input.badcaseId,
+  };
+}
+
+export function normalizeOperatorSafetySummaryRecord(
+  input: RawOperatorSafetySummaryRecord,
+): OperatorSafetySummaryRecord {
+  return {
+    ...input,
+  };
+}
+
+export function normalizeOperatorSafetyAnomalyRecord(
+  input: RawOperatorSafetyAnomalyRecord,
+): OperatorSafetyAnomalyRecord {
+  return {
+    ...input,
+    id: input.anomalyId,
+  };
+}
+
+export function normalizeOperatorCostSummaryRecord(
+  input: RawOperatorCostSummaryRecord,
+): OperatorCostSummaryRecord {
+  return {
+    ...input,
+  };
+}
+
+export function normalizeOperatorCostTimeseriesRecord(
+  input: RawOperatorCostTimeseriesRecord,
+): OperatorCostTimeseriesRecord {
+  return {
+    ...input,
+  };
+}
+
+export function normalizeOperatorAuditEventRecord(
+  input: RawOperatorAuditEventRecord,
+): OperatorAuditEventRecord {
+  return {
+    ...input,
+    id: input.auditEventId,
+  };
+}
+
+export function normalizeOperatorAuditEventDetailRecord(
+  input: RawOperatorAuditEventDetailResponse,
+): OperatorAuditEventDetailResponse {
+  return {
+    ...input,
+    event: {
+      ...input.event,
+      id: input.event.auditEventId,
+    },
+  };
+}
