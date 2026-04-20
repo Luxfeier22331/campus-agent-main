@@ -12,7 +12,10 @@ import { ForgotPasswordPage } from "../login/forgot-password-page";
 import { LoginPage } from "../login/page";
 import { RegisterPage } from "../login/register-page";
 import { ResetPasswordPage } from "../login/reset-password-page";
-import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
+import {
+  ChatbotShellRuntimeProvider,
+  useChatbotShellRuntime,
+} from "@platform/chat/runtime";
 
 const ChatAppShell = lazy(async () => {
   const module = await import("@platform/chat/app-shell");
@@ -23,18 +26,14 @@ const ChatAppShell = lazy(async () => {
 });
 
 function RootRouteComponent() {
-  return (
-    <ChatbotShellRuntimeProvider>
-      <Outlet />
-    </ChatbotShellRuntimeProvider>
-  );
+  return <Outlet />;
 }
 
 function ChatRouteBootstrapFallback() {
   return <div className="flex h-dvh bg-sidebar" />;
 }
 
-function AuthenticatedChatRoute() {
+function AuthenticatedChatRouteGuard() {
   const { session } = useChatbotShellRuntime();
 
   if (session.kind === "loading") {
@@ -54,6 +53,14 @@ function AuthenticatedChatRoute() {
   }
 
   return <Outlet />;
+}
+
+function AuthenticatedChatRoute() {
+  return (
+    <ChatbotShellRuntimeProvider>
+      <AuthenticatedChatRouteGuard />
+    </ChatbotShellRuntimeProvider>
+  );
 }
 
 function ChatRoutePage() {

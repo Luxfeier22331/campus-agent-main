@@ -44,7 +44,7 @@ const PureChatItem = ({
             showOnHover={!isActive}
           >
             <MoreHorizontalIcon />
-            <span className="sr-only">More</span>
+            <span className="sr-only">更多操作</span>
           </SidebarMenuAction>
         </DropdownMenuTrigger>
 
@@ -54,7 +54,7 @@ const PureChatItem = ({
             variant="destructive"
           >
             <TrashIcon />
-            <span>Delete</span>
+            <span>删除</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -4,30 +4,15 @@ Cloudflare Worker-hosted public chat web surface for campus-agent v2.
 
 This app is the forward canonical public browser surface in front of shared `apps/app-api`.
 
-Implementation status:
+Current runtime composition:
 
-- `/login` and `/register` now run from the repo-owned route tree in `src/routes/app-router.tsx`, but the visible auth shell is the vendored donor auth shell with repo-owned Better Auth action adapters and campus product copy in `src/login/`
-- the default `/chat` + `/chat/:conversationId` routes now render the vendor chat runtime through `src/platform/chat/app-shell.tsx`
-- the vendored donor source of truth now lives in `vendor/vercel-ai-chatbot/`
-- the runtime chat shell now resolves `@/*` into the vendored donor tree; vendor-owned `ChatShell` and `AppSidebar` are the active chat UI source of truth
-- repo-owned chat runtime seams now live in `src/platform/`; route ownership now lives in `src/routes/` and `src/login/`
-- the former `src/chatbot-donor/` compatibility layer and its Next/Auth shims have been removed from the runtime path
-- the former `src/chatbot-shell/` transitional shell and duplicate `src/public-chat/auth.ts` client have been retired from the app source tree
-- the remaining `src/public-chat` API/types transition files have been merged into `src/platform/chat/`; the app source tree no longer keeps a separate `public-chat` directory
-- the former hand-written `ChatHomePage` / `ChatThreadPage` route implementation has been removed from the runtime path; `src/styles.css` now only serves the boot fallback
-- the first runtime cutover record is retained in `docs/plans/public-chat-web-chatbot-replatform.md` as a historical plan, not the current implementation source of truth
-- the donor-first reset record is retained in `docs/plans/public-chat-web-donor-first-reset.md` as historical closeout context
-- the strict parity closeout record is tracked in `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`; `2026-04-09` fresh local gate + authenticated staging smoke have closed the strict donor parity release gate, with the authoritative evidence pack fixed at `.tmp/staging-smoke/20260409T232000+0800-public-chat-wave6-closeout-2/`
-- the donor tech-debt convergence closeout is tracked in `docs/plans/public-chat-web-vendor-tech-debt-convergence.md`; Wave 5 local verification is now closed with evidence at `.tmp/local-smoke/20260411T163903+0800-public-chat-wave5-closeout/`, and further work should move to repo-level post-closeout follow-up instead of reopening donor convergence
-- the current shell parity inventory lives in `docs/reference/public-chat-web-route-state-parity-inventory.md`
-- the current donor diff classification inventory lives in `docs/reference/public-chat-web-donor-diff-classification.md`
-- the accepted donor diff whitelist lives in `docs/reference/public-chat-web-donor-diff-whitelist.md`
-- the historical donor drift inventory for the retired transitional shell lives in `docs/reference/public-chat-web-donor-drift-inventory.md` and is no longer an active blocker list
-- the current strict donor parity gap inventory lives in `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`
-- the forward runtime now stays only in `vendor/vercel-ai-chatbot/` + `src/platform/` + `src/routes/` + `src/login/`
-- the temporary `/chat/replatform-preview*` debug seam has been removed; `/chat` is now the only chat route family
-- legacy hits to `/chat/replatform-preview*` are canonicalized by the Worker shell back to `/chat`, so the removed preview prefix cannot fall through as a fake `conversationId`
-- future donor-visible drift outside `docs/reference/public-chat-web-donor-diff-whitelist.md` is a regression, not an allowed continuation
+- route ownership lives in `src/routes/` and `src/login/`
+- the visible auth family shell is composed through repo-owned Better Auth adapters and campus copy in `src/login/`
+- `/chat` and `/chat/:conversationId` render the vendored chat runtime through `src/platform/chat/app-shell.tsx`
+- vendored UI/runtime source-of-truth lives in `vendor/vercel-ai-chatbot/`
+- repo-owned platform seams live in `src/platform/`
+- exact import-compat ownership lives in `src/platform/vendor-compat/`
+- `src/styles.css` only serves the boot fallback; the active chat shell comes from the vendored runtime
 
 It owns:
 
@@ -61,34 +46,29 @@ Current chat contract assumptions:
 - `POST /api/chat/requests` is the primary chat command route
 - `public-chat-web` now reserves `/chat/:conversationId` before first send and always submits that route-owned `conversationId`
 - `POST /api/chat/conversations` remains available only for explicit empty-draft creation
-- donor-style message edit trims conversation tail through `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
+- message edit trims conversation tail through `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 
 UI behavior:
 
-- `/login` renders the donor sign-in shell against shared Better Auth endpoints, keeps campus-specific product copy, and routes password recovery into `/forgot-password`
-- `/register` renders the donor register shell against shared Better Auth endpoints and keeps the campus-email helper copy inside the same auth family shell
+- `/login` renders the vendored sign-in shell against shared Better Auth endpoints, keeps campus-specific product copy, and routes password recovery into `/forgot-password`
+- `/register` renders the vendored register shell against shared Better Auth endpoints and keeps the campus-email helper copy inside the same auth family shell
 - `/login`, `/register`, and `/forgot-password` require a Turnstile challenge before their same-site Better Auth submission is sent
 - `/forgot-password` stays enumeration-safe and only confirms that a reset link will be sent if the account is eligible
 - `/reset-password` finishes the same-site recovery flow without adding a second captcha step
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
-- the left rail uses donor-style paginated history from `GET /api/history`
-- a successful first-turn `POST /api/chat/requests` must revalidate that donor history key so the sidebar updates without a manual reload
+- the left rail uses paginated history from `GET /api/history`
+- a successful first-turn `POST /api/chat/requests` must revalidate the history key so the sidebar updates without a manual reload
 
 Canonical references:
 
 - `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
-- `docs/plans/public-chat-web-vendor-runtime-full-transplant.md`
-- `docs/plans/public-chat-web-vendor-tech-debt-convergence.md`
-- `docs/reference/public-chat-web-chatbot-donor-baseline.md`
 - `docs/reference/public-chat-web-donor-diff-classification.md`
-- `docs/reference/public-chat-web-donor-diff-whitelist.md`
 - `docs/reference/public-chat-web-donor-parity-review-checklist.md`
-- `docs/reference/public-chat-web-route-state-parity-inventory.md`
-- `docs/reference/public-chat-web-strict-donor-parity-gap-inventory.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

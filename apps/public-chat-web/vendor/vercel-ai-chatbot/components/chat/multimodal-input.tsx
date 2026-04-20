@@ -11,7 +11,6 @@ import {
   WrenchIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import {
   type ChangeEvent,
   type Dispatch,
@@ -153,7 +152,7 @@ async function fetchJson(url: string): Promise<unknown> {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to load JSON response.");
+    throw new Error("加载数据失败。");
   }
 
   return response.json();
@@ -207,7 +206,6 @@ function PureMultimodalInput({
   isLoading?: boolean;
 }) {
   const router = useRouter();
-  const { setTheme, resolvedTheme } = useTheme();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
   const hasAutoFocused = useRef(false);
@@ -259,40 +257,37 @@ function PureMultimodalInput({
         setMessages(() => []);
         break;
       case "rename":
-        toast("Rename is available from the sidebar chat menu.");
+        toast("请在侧边栏的对话菜单中重命名");
         break;
       case "model": {
         const modelBtn = document.querySelector<HTMLButtonElement>("[data-testid='model-selector']");
         modelBtn?.click();
         break;
       }
-      case "theme":
-        setTheme(resolvedTheme === "dark" ? "light" : "dark");
-        break;
       case "delete":
-        toast("Delete this chat?", {
+        toast("删除这条对话？", {
           action: {
-            label: "Delete",
+            label: "删除",
             onClick: () => {
               void fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat?id=${chatId}`, {
                 method: "DELETE",
               });
               void router.push("/chat");
-              toast.success("Chat deleted");
+              toast.success("已删除对话");
             },
           },
         });
         break;
       case "purge":
-        toast("Delete all chats?", {
+        toast("清空全部对话？", {
           action: {
-            label: "Delete all",
+            label: "全部删除",
             onClick: () => {
               void fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
                 method: "DELETE",
               });
               void router.push("/chat");
-              toast.success("All chats deleted");
+              toast.success("已清空全部对话");
             },
           },
         });
@@ -361,7 +356,7 @@ function PureMultimodalInput({
 
       if (response.ok) {
         if (!isUploadedFileResponse(data)) {
-          toast.error("Invalid upload response.");
+          toast.error("上传返回异常");
           return;
         }
 
@@ -372,10 +367,10 @@ function PureMultimodalInput({
         };
       }
       toast.error(
-        isUploadErrorResponse(data) ? data.error : "Failed to upload file, please try again!",
+        isUploadErrorResponse(data) ? data.error : "上传失败，请稍后重试",
       );
     } catch (_error) {
-      toast.error("Failed to upload file, please try again!");
+      toast.error("上传失败，请稍后重试");
     }
   }, []);
 
@@ -397,7 +392,7 @@ function PureMultimodalInput({
           ...successfullyUploadedAttachments,
         ]);
       } catch (_error) {
-        toast.error("Failed to upload files");
+        toast.error("上传附件失败，请稍后重试");
       } finally {
         setUploadQueue([]);
       }
@@ -420,7 +415,7 @@ function PureMultimodalInput({
 
       event.preventDefault();
 
-      setUploadQueue((prev) => [...prev, "Pasted image"]);
+      setUploadQueue((prev) => [...prev, "已粘贴图片"]);
 
       try {
         const uploadPromises = imageItems
@@ -438,7 +433,7 @@ function PureMultimodalInput({
 
         setAttachments((curr) => [...curr, ...(successfullyUploadedAttachments as Attachment[])]);
       } catch (_error) {
-        toast.error("Failed to upload pasted image(s)");
+        toast.error("粘贴图片上传失败，请稍后重试");
       } finally {
         setUploadQueue([]);
       }
@@ -460,7 +455,7 @@ function PureMultimodalInput({
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {editingMessage && onCancelEdit && (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <span>Editing message</span>
+          <span>正在编辑消息</span>
           <button
             className="rounded px-1.5 py-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
             onMouseDown={(e) => {
@@ -469,7 +464,7 @@ function PureMultimodalInput({
             }}
             type="button"
           >
-            Cancel
+            取消
           </button>
         </div>
       )}
@@ -488,6 +483,7 @@ function PureMultimodalInput({
         )}
 
       <input
+        aria-hidden="true"
         className="pointer-events-none fixed -top-4 -left-4 size-0.5 opacity-0"
         multiple
         onChange={handleFileChange}
@@ -524,7 +520,7 @@ function PureMultimodalInput({
           if (status === "ready" || status === "error") {
             void submitForm();
           } else {
-            toast.error("Please wait for the model to finish its response!");
+            toast.error("请等待当前回答完成后再继续");
           }
         }}
       >
@@ -598,7 +594,11 @@ function PureMultimodalInput({
               onCancelEdit();
             }
           }}
-          placeholder={editingMessage ? "Edit your message..." : "Ask about curriculum plans, required courses, policies, or campus services..."}
+          placeholder={
+            editingMessage
+              ? "编辑这条消息..."
+              : "请输入你想了解的校园信息，例如培养方案、课程要求、学生政策或校园服务"
+          }
           ref={textareaRef}
           value={input}
         />
@@ -684,6 +684,7 @@ function PureAttachmentsButton({
 
   return (
     <Button
+      aria-label="上传附件"
       className={cn(
         "h-7 w-7 rounded-lg border border-border/40 p-1 transition-colors",
         hasVision
@@ -744,7 +745,7 @@ function PureModelSelectorCompact({
         </Button>
       </ModelSelectorTrigger>
       <ModelSelectorContent>
-        <ModelSelectorInput placeholder="Search models..." />
+        <ModelSelectorInput placeholder="搜索模型..." />
         <ModelSelectorList>
           {(() => {
             const curatedIds = new Set(chatModels.map((m) => m.id));
@@ -798,7 +799,7 @@ function PureModelSelectorCompact({
 
             return sortedKeys.map((key) => (
               <ModelSelectorGroup
-                heading={key === "_available" ? "Available" : (providerNames[key] ?? key)}
+                heading={key === "_available" ? "可用模型" : (providerNames[key] ?? key)}
                 key={key}
               >
                 {grouped[key].map(({ model, curated }) => {

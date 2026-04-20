@@ -149,7 +149,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
         setMessages([]);
         setIsLoading(false);
         setThreadError(
-          error instanceof Error ? error.message : "Unable to load this conversation.",
+          error instanceof Error ? error.message : "当前对话加载失败。",
         );
       }
     }
@@ -190,7 +190,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
         prompt: trimmedPrompt,
       });
       if (outcome.conversation.id !== activeConversationId) {
-        throw new Error("Conversation identity mismatch.");
+        throw new Error("对话状态已变化，请刷新后重试。");
       }
 
       draftConversationIdRef.current = null;
@@ -209,7 +209,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
       setMessages(previousMessages);
       setStatus("error");
       const message =
-        error instanceof Error ? error.message : "Unable to send this message right now.";
+        error instanceof Error ? error.message : "当前无法发送消息，请稍后再试。";
       setThreadError(message);
       toast({
         description: message,

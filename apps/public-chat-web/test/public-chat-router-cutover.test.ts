@@ -17,6 +17,7 @@ const packageManifest = JSON.parse(packageManifestRaw) as {
 describe("public chat router cutover", () => {
   it("mounts a dedicated route app instead of the legacy public-chat app entry", () => {
     expect(mainSource).toContain("./routes/app-router");
+    expect(mainSource).toContain("PublicChatAppFrame");
     expect(mainSource).not.toContain("./public-chat/app");
   });
 

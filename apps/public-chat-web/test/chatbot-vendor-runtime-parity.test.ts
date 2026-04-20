@@ -98,7 +98,7 @@ describe("chatbot vendor runtime parity", () => {
 
   it("moves campus-domain composer placeholder into the vendor multimodal input", () => {
     expect(vendorMultimodalInputSource).toContain(
-      "Ask about curriculum plans, required courses, policies, or campus services...",
+      "请输入你想了解的校园信息，例如培养方案、课程要求、学生政策或校园服务",
     );
   });
 
@@ -110,13 +110,15 @@ describe("chatbot vendor runtime parity", () => {
     expect(vendorConstantsSource).not.toContain("哪些专业要上习概");
   });
 
-  it("keeps the donor chat header chrome while taking unsupported sharing controls off the launch path", () => {
-    expect(vendorChatHeaderSource).toContain("VercelIcon");
+  it("keeps the donor header layout while replacing donor marketing copy with repo-owned product copy", () => {
+    expect(vendorChatHeaderSource).toContain("PenSquareIcon");
     expect(vendorChatHeaderSource).toContain('from "next/link"');
-    expect(vendorChatHeaderSource).toContain("Deploy with Vercel");
+    expect(vendorChatHeaderSource).toContain('href="/"');
+    expect(vendorChatHeaderSource).toContain("新建对话");
     expect(vendorChatHeaderSource).not.toContain("VisibilitySelector");
     expect(vendorChatHeaderSource).not.toContain("conversationTitle");
-    expect(vendorChatHeaderSource).not.toContain("新对话");
+    expect(vendorChatHeaderSource).not.toContain("Deploy with Vercel");
+    expect(vendorChatHeaderSource).not.toContain("VercelIcon");
   });
 
   it("keeps the donor multimodal composer chrome instead of the reduced local composer", () => {

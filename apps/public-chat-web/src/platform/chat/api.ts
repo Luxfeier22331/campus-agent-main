@@ -6,7 +6,7 @@ import type {
 } from "./api-types";
 
 export class UnauthorizedError extends Error {
-  constructor(message = "Sign in required.") {
+  constructor(message = "请先登录。") {
     super(message);
     this.name = "UnauthorizedError";
   }
@@ -37,7 +37,7 @@ function parseErrorMessage(payload: unknown, statusText: string): string {
     return payload;
   }
 
-  return statusText || "Request failed.";
+  return statusText || "请求失败。";
 }
 
 async function requestJson<T>(input: {

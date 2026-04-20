@@ -15,7 +15,7 @@ export function useChatVisibility({
     visibilityType: initialVisibilityType,
     setVisibilityType(nextVisibilityType: VisibilityType) {
       if (nextVisibilityType !== initialVisibilityType) {
-        toast.info("Chat sharing is not available in campus mode yet.");
+        toast.info("校园模式暂未开放对话分享。");
       }
     },
   };

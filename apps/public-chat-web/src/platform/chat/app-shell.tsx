@@ -1,12 +1,9 @@
 import type { ReactNode } from "react";
-import { Toaster } from "sonner";
 
 import { AppSidebar } from "@/components/chat/app-sidebar";
 import { DataStreamProvider } from "@/components/chat/data-stream-provider";
 import { ChatShell } from "@/components/chat/shell";
-import { ThemeProvider } from "@/components/theme-provider";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { ActiveChatProvider } from "@platform/chat/use-active-chat";
 import { useChatbotShellRuntime } from "@platform/chat/runtime";
 import type { ShellChatUser } from "@platform/chat/types";
@@ -28,26 +25,12 @@ function ChatShellFrame(props: {
   user: ShellChatUser | undefined;
 }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" disableTransitionOnChange enableSystem>
-      <TooltipProvider>
-        <DataStreamProvider>
-          <SidebarProvider defaultOpen={readDefaultSidebarOpen()}>
-            <AppSidebar user={props.user} />
-            <SidebarInset>
-              <Toaster
-                position="top-center"
-                theme="system"
-                toastOptions={{
-                  className:
-                    "!bg-card !text-foreground !border-border/50 !shadow-[var(--shadow-float)]",
-                }}
-              />
-              {props.children}
-            </SidebarInset>
-          </SidebarProvider>
-        </DataStreamProvider>
-      </TooltipProvider>
-    </ThemeProvider>
+    <DataStreamProvider>
+      <SidebarProvider defaultOpen={readDefaultSidebarOpen()}>
+        <AppSidebar user={props.user} />
+        <SidebarInset>{props.children}</SidebarInset>
+      </SidebarProvider>
+    </DataStreamProvider>
   );
 }
 

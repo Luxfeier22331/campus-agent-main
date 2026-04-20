@@ -1,11 +1,10 @@
 "use client";
 
-import { PanelLeftIcon } from "lucide-react";
+import { PanelLeftIcon, PenSquareIcon } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
-import { VercelIcon } from "./icons";
 
 function PureChatHeader() {
   const { state, toggleSidebar, isMobile } = useSidebar();
@@ -17,7 +16,7 @@ function PureChatHeader() {
   return (
     <header className="sticky top-0 flex h-14 items-center gap-2 bg-sidebar px-3">
       <Button
-        aria-label="Toggle sidebar"
+        aria-label="切换侧边栏"
         className="md:hidden"
         onClick={toggleSidebar}
         size="icon-sm"
@@ -27,12 +26,11 @@ function PureChatHeader() {
       </Button>
 
       <Link
+        aria-label="新建对话"
         className="flex size-8 items-center justify-center rounded-lg md:hidden"
-        href="https://vercel.com/templates/next.js/chatbot"
-        rel="noopener noreferrer"
-        target="_blank"
+        href="/"
       >
-        <VercelIcon size={14} />
+        <PenSquareIcon className="size-4" />
       </Link>
 
       <Button
@@ -40,12 +38,10 @@ function PureChatHeader() {
         className="hidden rounded-lg bg-foreground px-4 text-background hover:bg-foreground/90 md:ml-auto md:flex"
       >
         <Link
-          href="https://vercel.com/templates/next.js/chatbot"
-          rel="noopener noreferrer"
-          target="_blank"
+          href="/"
         >
-          <VercelIcon size={16} />
-          Deploy with Vercel
+          <PenSquareIcon className="size-4" />
+          新建对话
         </Link>
       </Button>
     </header>
