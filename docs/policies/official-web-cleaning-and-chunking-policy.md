@@ -366,4 +366,4 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `fresh_news` / `news_archive` 已独立落 collection
 - collector 已稳定抽出所有 `published_at`
 - 所有 `directory_page` 都已按实体切分完成
-- current worktree 已完全达到本文目标形态
+- repo 当前并未承诺本文目标已一次性全部完成

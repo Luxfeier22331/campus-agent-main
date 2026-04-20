@@ -275,7 +275,7 @@ updated: 2026-04-03
 - 不把 sampled grading / release-gate eval / runtime aggregate 混成一张表
 - 不让 vendor-specific sink schema 反向定义 `packages/contracts`
 
-当前状态说明：
+实施说明：
 
 - 本 ADR 只冻结 accepted direction
 - 它不表示 operator observability control plane 已经在代码中完整实现

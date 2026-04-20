@@ -122,7 +122,7 @@ updated: 2026-03-29
 - 不让 panel 直读对象存储、队列、日志、Qdrant 或数据库
 - 不把 `apps/app-api` 扩成 crawl executor 或 ingestion orchestrator
 
-当前状态说明：
+实施说明：
 
 - 本 ADR 只冻结 accepted direction
 - 它不表示 `official_web` control plane 已经在代码中全部实现

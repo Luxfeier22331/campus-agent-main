@@ -96,6 +96,8 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - `regulations/*` 的别名
 - `campus_notices/internal_notice` 的 query-serving 替代品
 - 原始附件直接暴露给 RAG 的捷径
+- `lecture_publicity` 的镜像产品面
+- `roster_publication` 的镜像产品面
 
 ### 决策 3：document center 持有 original-access truth，retrieval/regulation 只消费投影
 
@@ -121,6 +123,8 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - 让 `regulations/*` 反向充当 original file access truth
 - 让 retrieval corpus 反向充当附件下载站
 - 用 regulation collection 直接承载各类模板、表格、FAQ 原件
+- 用 document center 镜像承接 `讲座预告 / 论坛 / 讲堂 / 读书会` 这类 official-portal-owned information surface
+- 用 document center 镜像承接 `名单公示 / 成绩公示 / 结果公示 / 立项名单` 这类 official-portal-owned information surface
 
 ### 决策 4：document center 必须按受限资源 fail-close 开放
 
@@ -189,6 +193,8 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 
 - `regulations/*` 的边界继续保持“semantic-owner canonical text”
 - repo 对“附件库 / 文档站”给出了正面设计答案，但它被明确冻结为独立受限资源层
+- `lecture_publicity` 这类官方门户宣传面被显式排除在 document center 的 planned scope 之外
+- `roster_publication` 这类官方门户公示面被显式排除在 document center 的 planned scope 之外
 - 已认证用户下载原件与 RAG/regulation 语义消费不再混层
 - 后续扩大 authenticated notice / file release 采集时，不再需要把“是否对用户有价值”错误改写成“是否应进入 regulation”
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-21
 ---
 
 # Navigation And Wayfinding Architecture
@@ -119,12 +119,15 @@ updated: 2026-04-05
 - ambiguity handling and clarification
 - navigation answer shaping
 - provider fallback orchestration inside the specialist boundary
+- transport pickup/dropoff point ref 的消费与路线侧整合
 
 长期不负责：
 
 - canonical app identity / session / memory ownership
 - raw browser permission handling
 - product-facing HTTP transport
+- commuter bus / metro shuttle 的 timetable truth
+- service-status truth，例如图书馆/澡堂/窗口当前开放状态
 
 ### `apps/app-api`
 
@@ -165,6 +168,7 @@ updated: 2026-04-05
 - `current location` 不属于 verified identity 或 authorization truth
 - `current location` 不得被静默提升成长期 memory truth
 - preference 可以影响 route ranking / wording，但不能替代 origin / destination truth
+- transport schedule、service status 与 notice effective window 不是 route-graph truth；如需进入导航域，只能以 point ref / service point ref 形式受控投影
 
 ## Spatial Data Plane Goal
 

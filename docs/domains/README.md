@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Domains
@@ -27,6 +27,12 @@ updated: 2026-04-12
 
 - 领域 hub 只做入口聚合，不替代原始 source of truth
 - 长期边界仍以 architecture / decisions 为准
-- 当前执行状态仍以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 `.planning/workstreams/<slug>/` 为准
+- 通用执行态入口固定为：
+  - merged truth：`../architecture/current-architecture.md`
+  - repo 级当前真相：`../.planning/PROJECT.md`
+  - workstream registry：`../.planning/WORKSTREAMS.md`
+  - 单条线执行态：`../.planning/workstreams/<slug>/STATE.md`
 - domain hub 可以提示 active/deferred/completed plan 的阅读顺序，但不重复维护完整 plan 细节
-- domain hub 可以给出简短的“当前执行说明”，但不应重写 `current-architecture` 或 `.planning` 的完整真相
+- domain hub 只做 execution routing，不单独解释“当前状态”；当前真相统一回到 `current-architecture`、`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
+- domain hub 不写带日期的 phase 进度、当前切片、blocker 列表或 milestone 级状态摘要；这类执行态真相只写在 `.planning/workstreams/<slug>/STATE.md`
+- domain hub 不再把 archive/completed 材料直接挂在默认正文入口；需要追溯历史材料时，回到对应分区的 `archive/README.md` 或 git history

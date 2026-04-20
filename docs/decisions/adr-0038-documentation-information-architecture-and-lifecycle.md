@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0038
 status: accepted
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # ADR-0038 Documentation Information Architecture And Lifecycle
@@ -90,6 +90,12 @@ Accepted on 2026-04-12.
 - 其他 canonical 文档类型
   - `active`
 
+补充规则：
+
+- 文档 front matter 的 `status` 只表达该文档自己的 lifecycle，不表达 repo 级 workstream registry state
+- `.planning/WORKSTREAMS.md` 中的 `active / deferred / backlog / legacy` 是 planning registry 语义，不是 `docs/plans/*.md` 的第二套 front matter 枚举
+- 因此 backlog entry plan 继续使用 `status: deferred`；`backlog` 只在 registry、索引说明和正文解释里出现，不新增为 plan front matter status
+
 ### 决策 4：已完成或历史性计划必须退出默认阅读路径
 
 `docs/plans/` 中的计划默认分成四类：
@@ -101,11 +107,16 @@ Accepted on 2026-04-12.
 
 `completed`、`historical` 与 `superseded` plan 不再进入根入口与默认阅读路径。
 
+`docs/plans/README.md` 允许按 “workstream entry / backlog entry / deferred reference” 组织阅读入口，但这些分组只是导航层，不得改写各 plan front matter 的 lifecycle 语义。
+
+当 `completed` / `historical` / `superseded` plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担 archive 角色。
+
 历史证据型 `reference` 和历史操作型 `runbook` 可以继续保留在 `docs/` 下，但必须：
 
 - 显式标记为 `historical`
 - 退出根入口的默认阅读路径
 - 由对应分区 landing page 承担说明和聚合
+- 当 volume 已足以影响根层可读性时，进一步物理下沉到各自 `archive/` 子目录
 
 ### 决策 5：ADR 不删除旧决策，而是显式 supersede
 

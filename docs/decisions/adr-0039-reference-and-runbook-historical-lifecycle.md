@@ -49,6 +49,7 @@ Accepted on 2026-04-12.
 - 默认阅读分组优先只列 `active`
 - 历史 evidence、legacy runbook、旧 baseline 对照文档进入单独的 `Historical` / `Archive` 分组
 - 除非用户明确需要追溯或对照，否则 agent 不应把 historical 文档当成第一入口
+- 当 historical 文档数量继续增长时，应优先按主题物理下沉到 `reference/archive/` 或 `runbooks/archive/`，而不是继续停留在分区根层
 
 ### 决策 3：historical 不是删除，也不是 superseded
 
@@ -80,4 +81,3 @@ Accepted on 2026-04-12.
 This ADR complements:
 
 - `docs/decisions/adr-0038-documentation-information-architecture-and-lifecycle.md`
-

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0027
 status: accepted
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-04-21
 ---
 
 # ADR-0027 Navigation Specialist And Spatial Truth
@@ -41,6 +41,12 @@ Accepted on 2026-04-05.
 ### 决策 1：导航能力是独立 specialist family
 
 长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation-specialist` 进入 supervisor-led orchestration。
+
+术语补充：
+
+- 当前 accepted runtime / package / ADR label 继续是 `navigation-specialist`
+- target-side family convergence 文档可以使用 `navigation-agent` 作为 forward family label
+- 这份 ADR 讨论的是 capability boundary，本身不等于 repo-wide rename 已经完成
 
 直接含义：
 

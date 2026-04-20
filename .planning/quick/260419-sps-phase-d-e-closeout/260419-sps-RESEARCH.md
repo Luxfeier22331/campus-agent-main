@@ -31,7 +31,7 @@
 
 ## Repo-Local Planning Drift To Respect
 
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md` 仍保留对旧 `.planning/STATE.md` 入口的表述。
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` 仍保留对旧 `.planning/STATE.md` 入口的表述。
 - 当前 repo 的前向 planning truth 已经迁到：
   - `.planning/WORKSTREAMS.md`
   - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/*`
@@ -128,7 +128,7 @@
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/ROADMAP.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/protected-panel-runtime-api-inventory.md`
-- `docs/plans/shared-product-surfaces-acceptance-hardening.md`
+- `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md`
 - `docs/runbooks/forward-worker-surface-smoke-runbook.md`
 - `docs/runbooks/staging-worker-deploy-runbook.md`
 - `docs/runbooks/public-chat-staging-smoke-artifact-template.md`

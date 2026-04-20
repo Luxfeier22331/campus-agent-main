@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Prompt And Instruction Architecture
@@ -46,6 +46,45 @@ updated: 2026-04-12
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_version`、`template_sha256`、`prompt_runtime_state`、`prompt_runtime_detail`
 - curriculum / handbook 的 deterministic-first protected paths 继续保持 deterministic-first，不因 prompt rollout 回退成 prompt-first
 - 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 为准
+- full agentic retrieval 的长期 target shape 另见 `docs/architecture/agentic-retrieval-architecture.md`
+
+## Agentic Retrieval Prompt Families
+
+如果长期推进到 full agentic RAG，prompt family 继续固定拆成：
+
+- `planner prompt`
+  - 只负责输出 typed retrieval plan 或 bounded replan decision
+- `clarification / no-answer prompt`
+  - 只负责在既有 gate 语义下生成用户可见表达
+- `synthesis prompt`
+  - 只负责基于 supporting evidence 生成回答
+- `grounding validation prompt`
+  - 只负责检查 synthesis 输出是否仍被 evidence 支持
+
+固定规则：
+
+- `retrieval-core` 不拥有 top-level planner prompt
+- planner prompt 不得直接返回最终用户答案
+- synthesis prompt 不得绕过 plan / executor / supporting evidence selection
+
+## Planner Structured Output Boundary
+
+长期 planner prompt 只能输出 strict structured plan artifact，而不是自由文本工具描述。
+
+它允许表达：
+
+- resolved query mode
+- admitted retrieval steps
+- step-local query / filter / target scope
+- planner reason summary
+- replan / abort decision
+
+它不允许表达：
+
+- 未 admission 的 scope opening
+- authz 结论
+- source-trust 提权
+- unrestricted live/web fallback
 
 ## 外部最佳实践对齐（2026-04-12）
 
@@ -105,6 +144,20 @@ updated: 2026-04-12
 - registry / runtime profile / release manifest
 
 共同拥有。
+
+## Planner Prompt 不是执行边界
+
+长期 agentic retrieval 下，planner prompt 同样不是边界 owner。
+
+它不能替代：
+
+- runtime profile / serving posture
+- authz / visibility enforcement
+- freshness gate
+- source-trust admission
+- candidate set 与 supporting evidence 的分层
+
+planner 只能在这些 code-owned truth 之内生成 plan。
 
 ## 长期产品姿态
 
@@ -175,6 +228,17 @@ updated: 2026-04-12
 - 用 topic keyword 替代 policy judgement
 - 用 prompt-only wording 掩盖 policy / scope / grounding 的实际差异
 
+## Replan And Abort Semantics
+
+长期 agentic retrieval 可以存在 bounded replan，但它不是无限重试。
+
+固定规则：
+
+- replan 必须显式记录原因
+- replan 次数必须受 budget 约束
+- planner 无法产出 admitted plan 时直接 fail-close
+- 不能因为第一次召回不理想，就隐式放宽 scope / authz / freshness 约束
+
 ## 敏感主题处理规则
 
 长期上，“政治敏感”不是一个足够精确的实现分类。
@@ -207,6 +271,8 @@ updated: 2026-04-12
 - 不允许 specialist 因为没有识别到 campus signal，就默认把问题回退成某个现有 collection 的普通问句
 - citation-expected 的回答必须能回链到 explicit evidence bundle
 - high-structure deterministic answer path 继续优先于 prompt-only freeform synthesis
+- live / remote retrieval output 继续视为 untrusted evidence payload，不得进入 developer instruction zone
+- raw candidate trace 不得直接当作 synthesis prompt 的 answer-bearing evidence 输入
 
 ## 幻觉分类模型
 
@@ -456,11 +522,6 @@ repo 当前推荐的 system / role 设计固定为：
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 authz truth、serving truth、product identity truth
 
-### `packages/availability-specialist`
-
-- owns availability observation prompt family
-- prompt 规模应最小化；如果 deterministic formatting 足够，可以不引入 LLM
-
 ### `packages/retrieval-core`
 
 - 不拥有 top-level task prompt
@@ -508,7 +569,6 @@ prompt assets 长期放在各自 package source tree 内，而不是集中堆到
 
 - `packages/supervisor-core/src/campus_supervisor_core/prompts/`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/`
-- `packages/availability-specialist/src/campus_availability_specialist/prompts/`
 
 每个 prompt family 至少包含：
 

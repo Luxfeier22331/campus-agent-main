@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Data Plane Architecture
@@ -21,6 +21,7 @@ updated: 2026-04-19
 
 - 当前 merged truth 的开放 surface 与产品执行状态不在本文维护，统一看 `docs/architecture/current-architecture.md` 与 `.planning/`
 - 本文中的 “scope” 指 canonical data-plane support 范围，不等于 query-enabled 或 rollout 已完成
+- full agentic retrieval 的长期 target truth 另见 `docs/architecture/agentic-retrieval-architecture.md`
 
 ## Canonical Chain
 
@@ -33,6 +34,21 @@ repo 级 canonical data-plane chain 固定为：
 - institutional document OCR ingestion
 - `official_web` source channel
 - 其他后续 source-shared collection / corpus
+
+## Relation To Agentic Retrieval Target
+
+长期如果推进 planner-first / live-assisted retrieval，repo 的 canonical data-plane chain 仍不改变。
+
+固定解释：
+
+- planner / executor / query activity 属于 online retrieval architecture，不重写 canonical chain
+- canonical document truth 仍沿 `source truth -> document artifacts -> document-units -> chunks -> index`
+- live-assisted retrieval 如果被 admission，也只是这条 canonical chain 外围的一条 bounded query-time adjunct
+
+因此：
+
+- agentic retrieval 不等于“把 online plan state 写回 source truth”
+- planner 不能因为需要 live/fresh branch，就跳过 canonical document/source-truth boundary
 
 ## Source-Truth Rules
 
@@ -68,6 +84,20 @@ source truth 的长期硬约束：
 - shared file asset loader 的 canonical owner 固定为 `packages/ingestion-core`
 - legacy binary Office、modern OOXML、PDF、image 的 admitted family 与 deployment posture 固定看 `docs/architecture/file-asset-loader-architecture.md`
 - remote API 与 self-hosted service 都只是 shared contract 下的 deployment mode，不构成新的 data-plane layer
+
+## Live-Assisted Evidence Boundary
+
+对已经 admission 的 source channel，repo 级 data plane 长期允许存在一条 bounded query-time adjunct：
+
+`source channel live fetch or remote observation -> bounded normalization -> live evidence record -> query-time candidate`
+
+固定规则：
+
+- 这条 adjunct 不替代 canonical chain
+- 它默认不直接写入 canonical source truth、document registry、release manifest 或 serving alias
+- 只有被 repo admission 的 source channel 才允许产出 live evidence
+- live evidence 是否能成为 answer-bearing evidence，仍取决于 freshness gate、source-trust gate 与 capability policy
+- 若后续要把 live evidence 升格为 canonical content，必须重新回到 source-truth / document-materialization 路径，而不是把 query-time record 原地改写成 canonical truth
 
 ## Derived Collection Rebuild
 
@@ -106,6 +136,18 @@ source truth 的长期硬约束：
 - chunk metadata
 - vector / sparse index
 - serving-side evidence carrier
+
+### Live Evidence Adjunct
+
+- admitted live source observations
+- bounded normalized live evidence records
+- query-time candidate input
+
+补充约束：
+
+- 它不是 canonical source-truth layer
+- 它也不是 document/index release truth
+- 它只为 query-time freshness-sensitive / live-assisted branch 服务
 
 ## Registry And Release Model
 
@@ -198,10 +240,13 @@ Phase 12.2 的 staged closeout 不改变 data-plane canonical chain，只改变 
 - 不让新增下游 collection 在 source truth 已存在时返回 raw 重新消费
 - 不把 source-truth contract 污染成 document truth 或 retrieval truth
 - 不把 online query logic 混回 data-plane layer
+- 不把 query-time live evidence 误写成 canonical current-version document truth
+- 不让 planner/executor 直接修改 canonical document scope 或 release truth
 
 ## 相关稳定文档
 
 - `docs/architecture/current-architecture.md`
+- `docs/architecture/agentic-retrieval-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
 - `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`

@@ -267,4 +267,4 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 - `docs/architecture/official-web-architecture.md`
 - `docs/architecture/authenticated-notice-source-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
-- `docs/plans/shared-file-asset-loader-contract.md`
+- `docs/runbooks/legacy-office-conversion-runtime.md`

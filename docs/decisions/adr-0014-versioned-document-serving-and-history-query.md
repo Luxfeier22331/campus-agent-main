@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0014
 status: accepted
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-20
 ---
 
 # ADR-0014 Versioned Document Serving And History Query
@@ -43,6 +43,8 @@ Accepted on 2026-03-28.
 5. 多来源等价内容继续归并为一个逻辑版本，不得作为多个独立 evidence 同时进入候选集。
 6. 当系统返回历史版本内容时，回答必须显式标注该内容不是现行规定。
 7. 当用户请求版本对比时，系统必须把旧版、新版和变化点作为显式回答语义，而不是只返回单边条文。
+8. 如果后续 retrieval 演进到 planner-first 形态，`historical`、`as_of`、`compare` 仍必须通过 typed query-mode / retrieval-plan 边界进入，而不是回退成 prompt 内隐式推理。
+9. `compare` 查询允许走 multi-step retrieval，但最终 answer-bearing evidence 仍必须显式区分旧版、新版与变化点支持集。
 
 ## 约束
 
@@ -53,6 +55,7 @@ Accepted on 2026-03-28.
 - 不允许让 LLM 在没有版本解析边界的情况下自行猜测用户历史意图
 - 不允许为等价来源重复建索引并重复进入 evidence bundle
 - 历史查询、按时间点查询、版本对比都必须通过显式 version-selection / version-resolution 边界进入检索
+- 不允许把历史版本解析藏在 planner prompt 的自由文本里而没有 typed plan / mode truth
 
 ## 结果
 
@@ -61,11 +64,13 @@ Accepted on 2026-03-28.
 - 需要一份单独 architecture 文档描述长期版本化 serving 与历史查询形态
 - 需要一份单独实施 plan 描述请求协议、registry、retrieval、answer、eval 的后续工作拆解
 - 当前 retrieval 与数据平面文档需要补充“现状仅支持默认 current-serving，不支持显式历史查询”的边界说明
+- 如果后续推进 full agentic retrieval，version mode 需要成为 retrieval plan 的显式字段，而不是 retrieval backend 的隐藏分支
 
 ## Complements
 
 这项决策 complements：
 
 - `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/agentic-retrieval-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0033
 status: accepted
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-04-20
 ---
 
 # ADR-0033 Internal Notice PDF Cloud OCR Default
@@ -109,7 +109,7 @@ native PDF extraction 仍可存在，但职责固定收窄为：
 - `text_extractable` lane 当前默认样本收窄到 `docx`
 - `ocr_required` lane 当前默认样本扩到文档型 `pdf` + 文本/表格主导图片
 - quality acceptance 对 `pdf` 的通过判断应基于云端 OCR 结果，而不是 native text layer
-- runbook 必须明确写出：`pdf -> paddleocr_async_jobs`
+- runbook 必须明确写出：`pdf -> lane-first OCR contract（MinerU primary，Paddle fallback）`
 - collection README / evidence 文档必须把 `355282 / 351704 / 351699` 作为固定样本记录下来
 
 ## Related Docs
@@ -119,6 +119,3 @@ native PDF extraction 仍可存在，但职责固定收窄为：
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
-- `docs/reference/authenticated-notice-portal-live-observations.md`
-- `docs/reference/authenticated-notice-historical-donor-intake-evidence.md`

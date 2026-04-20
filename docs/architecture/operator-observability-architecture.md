@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Operator Observability Architecture
@@ -131,6 +131,9 @@ updated: 2026-04-12
 
 当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
+长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner /
+executor / query activity truth；这属于 target-state observability expansion，不应被误读成当前 merged truth 已开放。
+
 ## Monitoring Taxonomy
 
 长期必须持续监控的最小指标集合包括：
@@ -160,6 +163,19 @@ updated: 2026-04-12
   - missing trace rate
   - audit projection failure
   - telemetry drop suspicion
+- planner quality
+  - invalid plan rate
+  - replan rate
+  - planner abort rate
+- retrieval execution quality
+  - step failure rate
+  - merge / dedupe collapse rate
+  - rerank drop rate
+- freshness / live branch
+  - freshness gate hit rate
+  - freshness fail-close rate
+  - live retrieval usage rate
+  - live retrieval fail-close rate
 
 这些指标默认至少按以下维度支持切分：
 
@@ -170,6 +186,49 @@ updated: 2026-04-12
 - `principal_type`
 - `collection` / `source family`
 - `model`
+
+## Agentic Retrieval Monitoring Extension
+
+长期 full agentic RAG 至少还要补以下 operator-facing summary truth：
+
+- `retrieval_plan_summary`
+  - query mode、step count、replan count、budget outcome
+- `query_activity_summary`
+  - step outcomes、step latency、step target scopes
+- `supporting_evidence_summary`
+  - answer-bearing source count、trust tier、freshness branch
+- `live_branch_summary`
+  - 是否触发 live retrieval、是否 fail-close、失败原因
+
+这些 summary 必须继续是 observability-safe typed projection，不得把 raw prompt、
+raw snippet dump 或 raw vendor payload 直接暴露给 panel。
+
+## Plan-Level And Step-Level Metrics
+
+长期 planner/executor 至少要按两层监控：
+
+- `plan-level`
+  - plan count
+  - median plan latency
+  - invalid plan rate
+  - replan rate
+  - planner abort rate
+- `step-level`
+  - step latency
+  - step failure rate
+  - rerank latency
+  - merge / dedupe collapse rate
+  - answer-bearing evidence retention rate
+
+## Freshness And Live Branch Monitoring
+
+长期 freshness-sensitive / live-assisted retrieval 需要单独观测：
+
+- 是否命中 freshness-sensitive query class
+- 是否命中 freshness gate
+- local freshness 不足时是否进入 admitted live branch
+- live branch unavailable 时是否正确 fail-close
+- archive/historical 结果是否被错误回填到 recent answer
 
 ## Measurement Modes
 
@@ -202,11 +261,39 @@ updated: 2026-04-12
 - clarification appropriateness
 - refusal appropriateness
 - policy conformance
+- retrieval plan appropriateness
+- supporting evidence selection correctness
+- freshness branch correctness
+- live branch fail-close correctness
 
 要求：
 
 - 可从 trace / structured event / projection 触发抽样
 - 输出可回流到 operator-facing quality grade projection
+
+## Structured Runtime Summary Minimum
+
+当 `campus-services-agent` / `notice-agent` 这类 structured runtime lane 后续真的 admission 到产品主路径时，`request-scoped observability fact` 至少要保留以下 compact fields：
+
+- `selected_target`
+- `tool_name`
+- `tool_business_outcome`
+- `fail_close_reason`
+- `historical_reference_reason`
+- `notice_source_family`
+
+这些字段的目标不是把 raw tool dump 暴露给 panel，而是让 operator 能分辨：
+
+- 这次请求进了哪个 structured runtime family
+- 返回的是 current answer、historical reference、canonical body，还是 deterministic fail-close / unavailable
+- 历史降级发生的原因是什么
+- notice 结果来自 public `official_web` 还是 restricted `internal_notice` source family
+
+固定约束：
+
+- 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由 `protected-panel-web`、`apps/supervisor-api` 或 sink query 直接拥有
+- 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source bundle、raw prompt
+- 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic business outcome，而不是把 closed gate 模糊写成普通 success
 
 ### Release-Gate / Regression Evals
 

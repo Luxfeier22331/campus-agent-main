@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-12
+updated: 2026-04-19
 ---
 
 # Identity And Authorization Architecture
@@ -125,10 +125,22 @@ operator access 也属于 authz truth 的一部分，但 protected surface 的 r
 - minimal operator context 仍来自 app-owned truth
 - panel 不自建 end-user account product
 
+## Human Verification And Auth Admission
+
+Turnstile 这类 human verification 属于 auth admission hardening，不属于 canonical identity / authz truth。
+
+边界固定为：
+
+- verification 失败只代表 auth-family request 在 admission 处 fail-close
+- verification 成功也不会变成 principal、profile、entitlement 或 retrieval visibility truth
+- interactive challenge escalation 属于 product runtime / edge provider posture，不下沉到 supervisor、retrieval 或 panel
+- raw captcha token、provider-specific risk signal 与 challenge state 不进入 execution path、retrieval path 或 operator read model
+
 ## Forbidden Shapes
 
 - 不把 memory 提升成授权来源
 - 不把 raw JWT / raw session 洩漏给 supervisor / specialist / retrieval
+- 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization truth
 - 不把 retrieval payload ACL 字段误读成 canonical authz truth
 - 不让 operator panel 旁路 `app-api` 直接做授权解释
 

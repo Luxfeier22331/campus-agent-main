@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-19
+updated: 2026-04-20
 ---
 
 # Architecture
@@ -33,6 +33,8 @@ updated: 2026-04-19
   - identity、memory、authz 与 retrieval filter projection 的边界
 - `retrieval-serving-architecture.md`
   - query-serving、version mode 与 evidence-oriented retrieval 形态
+- `agentic-retrieval-architecture.md`
+  - full agentic RAG 的 planner/executor/step/query-activity target shape
 - `data-plane-architecture.md`
   - source truth、document truth、chunk/index 与 replay/rebuild 分层
 - `file-asset-loader-architecture.md`

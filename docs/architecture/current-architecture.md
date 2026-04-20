@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-04-21
 ---
 
 # 当前架构
@@ -21,7 +21,7 @@ updated: 2026-04-19
 它不负责：
 
 - 历史 phase 叙事
-- 当前 worktree-local 未合入实现
+- 未合入分支实现进度
 - collection-specific cleanup / eval / rebuild 细节
 
 ## 当前拓扑
@@ -71,7 +71,9 @@ updated: 2026-04-19
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface
+- 正式拥有 public auth family route shell：`/login`、`/register`、`/forgot-password`、`/reset-password`
 - 只负责 browser route shell 与 chat UI
+- auth family 通过 same-site seam 将 Turnstile verification transport 到 `apps/app-api`
 - 通过 same-site/internal seam 调用 `apps/app-api`
 
 ### `apps/protected-panel-web`
@@ -84,6 +86,7 @@ updated: 2026-04-19
 
 - shared Worker-native application/control-plane backend
 - 拥有 auth、session、principal mapping、conversation truth、request ledger / projection input 与 selected operator surfaces
+- 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission hardening
 - 承接 `official_web` control plane
 
 ### `apps/supervisor-api`
@@ -109,14 +112,27 @@ updated: 2026-04-19
   top-level request framing、routing、delegation、response finalization
 - `packages/rag-specialist`
   当前默认 knowledge specialist，负责 retrieval-specific planning、clarification、grounded answer synthesis
-- `packages/availability-specialist`
-  已接受的非 RAG specialist capability boundary
+- `packages/navigation-specialist`
+  已接受的 navigation capability boundary；当前 package / contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close
 - `packages/retrieval-core`
   retrieval abstraction、metadata pre-filter、evidence shaping
 - `packages/ingestion-core`
   ingestion/data-plane consumption logic
 - `packages/contracts`
   supervisor / specialist handoff 与 shared typed seam
+
+## 当前术语真相
+
+- 当前 accepted merged truth 的 runtime / package / ADR label 继续以 current-truth 名称为准：
+  - `rag-specialist`
+  - `navigation-specialist`
+- target-side / planning-side 文档可以讨论 forward family label：
+  - `rag-agent`
+  - `campus-services-agent`
+  - `notice-agent`
+  - `navigation-agent`
+- 这些 forward family label 不等于 current merged truth 已经完成 rename；本文作为 current snapshot，只把 current-truth label 当作 canonical runtime truth。
+- repo-wide label migration 的执行顺序与下一步状态以 `execution-capability-family-convergence` workstream 为准。
 
 ## 当前文档地图
 

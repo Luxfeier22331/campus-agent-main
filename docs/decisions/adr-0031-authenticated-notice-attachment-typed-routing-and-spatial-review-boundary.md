@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0031
 status: accepted
 created: 2026-04-08
-updated: 2026-04-09
+updated: 2026-04-20
 ---
 
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
@@ -186,7 +186,6 @@ Accepted on 2026-04-08.
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`

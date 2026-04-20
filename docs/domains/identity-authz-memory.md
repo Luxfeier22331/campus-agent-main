@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-20
 ---
 
 # Identity / Authz / Memory Domain
@@ -12,8 +12,7 @@ updated: 2026-04-12
 - 架构总边界：`../architecture/identity-and-authorization-architecture.md`
 - 产品/runtime owner split：`../architecture/product-runtime-architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
-- 当前项目执行真相：`../../.planning/PROJECT.md`
-- 当前 workstream registry：`../../.planning/WORKSTREAMS.md`
+- 通用执行态入口：`README.md`
 
 ## 长期边界与决策
 
@@ -28,17 +27,11 @@ updated: 2026-04-12
 - `../contracts/app-api-supervisor-execution.md`
 - `../data/app-api-schema.md`
 
-## 当前执行说明
+## 执行路由
 
-- 当前 merged truth 已明确 `apps/app-api` 是 canonical identity / authz / profile memory / session memory owner
-- execution path 只消费 typed projection；retrieval path 只消费 authz filter projection，不恢复最终授权真相
-- Phase 11 foundation 已关闭；restricted rollout、memory productization、legacy ACL sunset 仍有后续工作，但这些是 productization gap，不是 owner 未定
-- 判断当前 pending work 时优先看 `../../.planning/PROJECT.md`、`../../.planning/WORKSTREAMS.md` 与 `../../.planning/workstreams/restricted-document-rollout-verification/STATE.md`，不要把旧 foundation plan 误读成当前 merged truth
-
-## Completed Foundation Plans
-
-- `../plans/intent-memory-acl-foundation.md`
-- `../plans/campus-identity-and-restricted-document-foundation.md`
+- 当前 merged truth 统一看 `../architecture/current-architecture.md` 与 `../architecture/identity-and-authorization-architecture.md`
+- 当前 pending work 统一看 `README.md` 定义的通用执行态入口，以及 `../../.planning/workstreams/restricted-document-rollout-verification/STATE.md`
+- foundation 文档只保留为关闭态基线；restricted rollout、legacy ACL sunset 与后续 memory productization 统一从下面的 follow-up 入口进入
 
 ## Deferred Follow-up Plans
 

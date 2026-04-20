@@ -175,9 +175,9 @@ updated: 2026-03-29
 - `Axiom` 与 `Sentry` 采用职责拆分，而不是互相替代
 - Phase 5 及后续运行时工作应把 audit / trace / telemetry 字段统一到同一 request identity 模型下
 
-## 当前第一版落地基线
+## 第一版落地基线
 
-截至 2026-03-29，当前 worktree 的最小接入基线固定为：
+本 ADR 接受时记录的首版落地基线固定为：
 
 - `apps/app-api`
   接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product topology 的主 observability owner

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-14
+updated: 2026-04-19
 ---
 
 # Product Runtime Architecture
@@ -119,6 +119,33 @@ protected panel 的长期 access model 固定为：
 - upstream access 不能替代 origin admission
 - dynamic shell/API responses 默认 `no-store`
 - 失去保护条件时直接 fail-closed
+
+## Public Auth Runtime And Abuse Control
+
+public auth family 的 runtime/product posture 固定为：
+
+- `public-chat-web` 拥有 `/login`、`/register`、`/forgot-password`、`/reset-password` 这组 browser route shell
+- `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side verification
+- auth family 的 human verification transport 固定走 same-site `public-chat-web -> /api/auth/* -> app-api`
+
+长期 abuse-control 规则固定为：
+
+- `sign-in`、`sign-up`、`request-password-reset` 采用 always-on verification
+- `reset-password` token consumption 继续保持 fixed same-site token flow，不额外叠第二层 challenge
+- interactive challenge escalation 固定由 Cloudflare managed/adaptive posture 决定，不引入 repo-owned “只有遇到攻击才手动打开 challenge” 开关
+- public auth shell 必须保留显式 runtime config seam，允许在不分叉 auth flow 逻辑的前提下配置 Turnstile widget posture
+
+环境 posture 固定为：
+
+- `local`
+  - 允许使用 Turnstile testing credentials 做 dev / smoke
+- `staging`
+  - 必须使用真实、hostname-admitted widget credentials
+  - 默认允许保持低摩擦 operator smoke posture，但不能改写 always-on verification truth
+- `production`
+  - 默认采用 Cloudflare `Managed` posture；仅在 risk elevated 时自适应提升到交互 challenge
+
+这里的环境差异只影响 widget posture 与 delivery/runtime 配置，不允许分叉 auth owner、same-site contract 或 auth family route/endpoint truth。
 
 ## Runtime / Delivery Posture
 

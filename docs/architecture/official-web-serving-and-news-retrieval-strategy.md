@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-14
+updated: 2026-04-21
 ---
 
 # Official Web Serving And News Retrieval Strategy
@@ -32,13 +32,14 @@ updated: 2026-04-14
 - freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
 - 数据平面不变量：`docs/architecture/data-plane-architecture.md`
 - retrieval runtime baseline：`docs/architecture/retrieval-serving-architecture.md`
+- full agentic retrieval target：`docs/architecture/agentic-retrieval-architecture.md`
 - 长期版本化 serving / 历史查询目标：`docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - current-scope cleaning / chunking 规则：`docs/policies/official-web-cleaning-and-chunking-policy.md`
 - 当前 handoff 真相：`docs/reference/official-web-fresh-news-surface-handoff.md`
 
-## 当前状态
+## Current Merged-Truth Constraint
 
-当前 worktree 中，`official_web` 仍处于：
+当前 merged truth 下，`official_web` 仍处于：
 
 `source-truth -> declared projections -> canonical document artifacts`
 
@@ -48,7 +49,7 @@ updated: 2026-04-14
 - 它尚未自动成为默认 query-serving collection
 - 本文描述的是长期 target shape，而不是当前已经上线的 retrieval truth
 
-当前 worktree-local handoff 已额外固定：
+当前已固定的 handoff truth 为：
 
 - 当前 stable-reference-like answer gate 只消费 `release_gate_required`
 - `retain_inventory_only` 只保留在 current truth / regression truth
@@ -83,13 +84,63 @@ updated: 2026-04-14
 - 官网稳定页面与新闻动态不得默认并入同一个 institutional retrieval surface。
 - `stable_reference` 可以进入默认 institutional knowledge RAG。
 - `fresh_news` 必须作为 freshness-sensitive retrieval surface 单独治理。
+- `fresh_news` retrieval surface 与未来 `notice-agent` 的 structured notice runtime 不是同一层；讲座、活动、公示、结果等 notice-like 内容可以按 routing 进入 notice discovery / canonical notice reading，而不是自动并入默认 generic RAG。
 - `regulations/*` 与 `curriculum/*` 继续是与 `official_web/*` 并列的正式语义 corpus，不应再派生出 `official_web/regulation` 或 `official_web/curriculum` 这类镜像层。
 - `listing_page` 默认不作为新闻主 evidence；它主要承担 discovery、freshness trigger、navigation fallback。
 - `article_detail` 才是新闻问答的默认主 evidence。
 - 同一篇新闻如果在 `news`、`xxgk` 等多个官网 host 上重复发布，serving truth 必须收口为一个逻辑 document/version；多 URL 差异保留在 provenance/source observations，而不是扩成多份 evidence。
-- 对“最新”“今天”“最近”这类强时效 query，单靠本地 news index 不足以形成长期正确答案 contract；必须具备显式 freshness gate，并允许 live search 或 fail-closed。
+- 对“最新”“今天”“最近”这类强时效 query，单靠本地 news index 不足以形成长期正确答案 contract；必须具备显式 freshness gate，并允许 admitted `live_assisted` branch 或 fail-close。
 - 在当前 `muc_public_pages` workstream 中，`listing_page` 与 staged-only `generic_content_page` 仍允许存在于 replay/audit truth，但不得被重新包装成 promotable release truth。
-- 当前 worktree-local `future_fresh_news_surface` seed set 只定义后续 news surface handoff，不改变上面的长期 serving 原则。
+- 当前 `future_fresh_news_surface` seed set 只定义后续 news surface handoff，不改变上面的长期 serving 原则。
+
+## Agentic Retrieval Alignment
+
+如果长期推进 full agentic RAG，`official_web` 相关 query mode 至少固定拆成：
+
+- `current`
+  - 适用于 `stable_reference` 一类当前有效说明页
+- `freshness_sensitive`
+  - 适用于“今天 / 最新 / 最近 / 刚刚”一类时效敏感新闻问法
+- `historical`
+  - 适用于显式旧闻 / 过往活动 / 历史报道
+- `as_of`
+  - 适用于某个时间点前的官网新闻状态
+- `compare`
+  - 适用于比较不同时间点新闻或公告状态
+- `live_assisted`
+  - 适用于 freshness gate 不足时进入 admitted live branch 的查询
+
+固定规则：
+
+- `freshness_sensitive` 与 `live_assisted` 不是普通 current query 的隐藏副作用
+- `live_assisted` 只允许命中 admitted `official_web` source channel，不等于 general web fallback
+- `listing_page` 即使在 live branch 中也默认不是 answer-bearing evidence
+
+## Relationship To Structured Notice Runtime
+
+长期上，`official_web/fresh_news` retrieval surface 与 `notice-agent` 的 structured runtime 可以同时存在。
+
+固定区分如下：
+
+- `fresh_news`
+  - 面向 freshness-sensitive 问答
+  - 仍属于 retrieval / evidence / citation 路径
+- `notice-agent`
+  - 面向“帮我找通知/讲座/公示/结果”“把这条通知打开”这类显式 notice task
+  - 通过 discover / get contract 返回 canonical notice metadata 与 normalized content
+  - 可以作为 future public notice source family 被 structured runtime 消费，但这不自动决定 restricted notice source 如何并入同一 runtime
+
+这意味着：
+
+- 同一 source channel 可以同时供给 retrieval surface 与 structured notice runtime
+- opening `fresh_news` 不等于所有 notice-like 页面都必须默认进入 generic RAG
+- 用户 intent 是“找 notice”时，应先走 notice runtime；intent 是“问最近发生了什么/最新情况是什么”时，才进入 freshness-sensitive retrieval branch 或 fail-close
+- public notice runtime 与 restricted notice runtime 是否共享同一个 `notice-agent` source matrix，必须由显式 contract 冻结，而不是由 `fresh_news` opening 或 source-channel 命名隐式决定
+- future public notice runtime 的 query seam 必须继续是 projection-backed：
+  - `campus_notice_discover` 读取 notice card / summary projection
+  - `campus_notice_get` 读取 canonical notice body projection
+  - `article_detail` 继续是正文主 owner，`listing_page` 只提供 discovery / recency signal
+  - 不得直接把 `fresh_news` retrieval alias 当成 discover/get 的 runtime query seam
 
 ## Corpus Boundary
 
@@ -134,6 +185,8 @@ updated: 2026-04-14
 - 官网页面如果承载的是正式规章正文、正式培养方案正文或等价的规范性事实，下游应归入 `regulations/*` 或 `curriculum/*`
 - 不要因为来源 URL 在官网 host 下，就把所有内容都留在 `official_web/*`
 - 也不要为了“来源来自官网”再复制一套 `official_web/regulation` 或 `official_web/curriculum`
+- 如果后续 direct contact-fact query 被提升为 `contact_directory_lookup` 这类 structured runtime tool，则 public contact page 可以继续留在 `stable_reference` 作为 public-web reference / provenance 上游，但不再长期充当 canonical contact runtime owner
+- 如果后续 direct service-process query 被提升为 `service_process_lookup` 这类 structured runtime tool，则 public service-entry / 办事说明页可以继续留在 `stable_reference` 作为 public-web reference / provenance 上游，但不再长期充当 canonical process runtime owner
 
 当前 `official_web/muc_public_pages` 只承担 mixed current-truth bridge：
 
@@ -195,7 +248,7 @@ updated: 2026-04-14
 - `published_at`、`crawled_at`、`last_seen_at` 等时间元数据覆盖达到可路由、可排序、可判 stale 的程度
 - cross-host duplicate news 已在逻辑 document/version 层归并，不再把同一条新闻扩成多份 competing evidence
 - query routing 已能把“校园新闻/近期活动/讲座/通知”和“稳定说明类问题”显式分流
-- freshness gate 已接到 runtime；当 freshness 不足时，系统会 live search 或 fail-close，而不是继续回答旧索引
+- freshness gate 已接到 runtime；当 freshness 不足时，系统会进入 admitted `live_assisted` branch 或 fail-close，而不是继续回答旧索引
 
 `news_archive` 的 opening 条件更严格：
 
@@ -245,7 +298,7 @@ updated: 2026-04-14
   - 最近一次 listing/detail 变化确认时间
 - 当 query 明确要求“今天”“最新”“最近”时：
   - 如果本地 freshness 满足阈值，可以回答
-  - 如果本地 freshness 不满足阈值，应转 live search 或 fail-closed
+  - 如果本地 freshness 不满足阈值，应转 admitted `live_assisted` branch 或 fail-close
 
 长期上，repo 不接受以下错误路径：
 
@@ -260,11 +313,17 @@ updated: 2026-04-14
 
 - 稳定制度 / 说明 / 联系方式
   - 优先走 `stable_reference`
+- 明确的部门电话 / 邮箱 / 办公地点 / 联系人联系方式查询
+  - 在 `contact_directory_lookup` later-wave admission 完成后，应优先走 `campus_services/contact_directory` 的 structured runtime seam
+  - admission 完成前，仍可暂留 `stable_reference` / `rag-specialist` 兜底，但这不是长期 owner truth
+- 明确的办理步骤 / 材料 / 入口 / 适用人群查询
+  - 在 `service_process_lookup` later-wave admission 完成后，应优先走 `campus_services/service_catalog` 的 structured runtime seam
+  - admission 完成前，仍可暂留 `stable_reference` / `rag-specialist` 兜底，但这不是长期 owner truth
 - 校园新闻 / 近期活动 / 某学院近况
   - 走 `fresh_news`
 - “今天 / 最新 / 刚刚 / 最近”
   - 先检查 freshness gate
-  - 不满足时转 live search 或 fail-closed
+  - 不满足时进入 admitted `live_assisted` branch 或 fail-close
 
 默认不接受的消费方式：
 
@@ -275,7 +334,7 @@ updated: 2026-04-14
 这里冻结的关键规则是：
 
 - 是否命中 `fresh_news` 属于 routing / serving policy，不属于 collector
-- 是否允许 live search fallback 属于 query-serving runtime policy，不属于 ingestion cleanup
+- 是否允许 `live_assisted` branch 属于 query-serving runtime policy，不属于 ingestion cleanup
 - personalization hint 可以帮助决定“问的是哪个学院/栏目”，但不能绕过 freshness gate
 
 ## Retrieval Policy
@@ -294,7 +353,14 @@ updated: 2026-04-14
 - 默认不与 `stable_reference` 混成一个 query-serving collection
 - 对低信号 query 必须允许 fail-close；例如学校名裸问、无锚点生活服务问法，不应强行返回随机旧新闻
 
-换句话说，变化的是 serving surface 与 filter/ranking policy，而不是顶层 retrieval contract。
+如果后续推进 full agentic retrieval，这条线还会新增：
+
+- query-mode-aware planning
+- freshness gate step
+- admitted `live_assisted` step
+- supporting evidence selection
+
+换句话说，变化的是 serving surface、query mode、plan/execution policy，而不是放弃 repo 的 retrieval/evidence contract。
 
 ## Evidence Contract
 
@@ -312,6 +378,7 @@ updated: 2026-04-14
 - 不得省略时间语义
 - 不得把旧报道改写成当前状态断言
 - 若命中的只是 listing/navigation 证据，应明确降级为“导航级线索”，而不是正文事实证据
+- admitted live evidence 如果进入最终回答，也必须显式保留时间语义与来源语义
 
 ## Metadata And Runtime Profile Requirements
 
@@ -356,13 +423,12 @@ updated: 2026-04-14
 - `stable_reference` 的 profile 保持默认 query-enabled，但不携带新闻面
   freshness / history 语义
 
-## Independent Worktree Opening Contract
+## Opening Contract
 
-当前分支只冻结长期 policy truth，不直接把 `fresh_news` / `news_archive`
-打开成 query-serving surface。
+repo 当前只冻结长期 policy truth 与 runtime-profile contract，不直接把
+`fresh_news` / `news_archive` 自动写成已开放 surface。
 
-真正的 opening execution 仍留在独立 official-web worktree，且必须满足
-统一 handoff contract：
+任何一次 opening decision 都必须满足统一 contract：
 
 - opening criteria checklist
 - metadata coverage summary
@@ -380,7 +446,7 @@ updated: 2026-04-14
 
 - `official_web/*` 已经整体进入默认 query-serving
 - `fresh_news` 已经进入 query-serving
-- live search 已经接入 supervisor query path
+- admitted `live_assisted` branch 已经接入 supervisor query path
 - 新闻发布日期抽取已经 repo-wide 稳定
 - 仅凭当前 `listing_page` projection 就足以支撑正式新闻问答
 

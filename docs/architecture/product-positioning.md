@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-06
+updated: 2026-04-21
 ---
 
 # Product Positioning
@@ -58,6 +58,7 @@ updated: 2026-04-06
 - 校园高频问答长期依赖人工答疑群或人工客服，重复劳动明显
 - 机构知识分散在手册、培养方案、官网页面和线下经验里，用户难以快速定位可信答案
 - 校园服务点、办事入口和地点信息往往依赖熟人经验，不适合继续只靠自然语言 RAG 猜测
+- 服务开放时间、临时停办/闭馆、班车/接驳车安排等运营信息经常散落在通知里；用户真正想知道的通常是“当前状态”，而不是自己翻 notice
 - 长期上，校园内地点寻找、路线选择和位置相关 guidance 需要进入同一个产品，而不是拆成另一个独立地图产品
 
 ## 产品承诺
@@ -105,11 +106,19 @@ updated: 2026-04-06
 
 - institutional knowledge question answering
 - campus service discovery
+- campus service status / operating-condition lookup
+- campus notice discovery / canonical notice reading
 - campus place finding
 - campus navigation / wayfinding
 - identity-aware and authorization-aware campus assistance
 
 这意味着它的长期产品形态不是单一 RAG 问答器，而是一个能把不同校园能力面纳入同一产品交互、同一请求治理和同一 operator control plane 的校园助理系统。
+
+其中：
+
+- 稳定制度、材料、流程类问题继续由受控知识面回答
+- 服务开放状态、临时关闭、班车安排等结构化当前状态问题应由独立 domain-agent 承接
+- 用户明确在找通知、讲座、公示或结果原文时，应优先进入 notice discovery / canonical notice reading 路径，而不是默认混入 generic RAG
 
 长期默认交互仍应保持：
 
