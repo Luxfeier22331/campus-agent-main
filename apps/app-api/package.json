@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.26.1",
   "scripts": {
     "db:bootstrap": "node ./scripts/run-with-local-env.mjs node ./scripts/bootstrap-shared-product-database.mjs",
+    "db:bootstrap:staging": "node ./scripts/run-with-staging-db-env.mjs node ./scripts/bootstrap-shared-product-database.mjs",
     "db:generate": "node ./scripts/run-with-local-env.mjs drizzle-kit generate",
     "db:ensure-app-auth-role-search-path": "node ./scripts/run-with-local-env.mjs node ./scripts/ensure-app-auth-role-search-path.mjs",
     "db:migrate": "node ./scripts/run-with-local-env.mjs drizzle-kit migrate",

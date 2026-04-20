@@ -26,6 +26,7 @@ const RUN_INTEGRATION = process.env.RUN_APP_API_SHARED_DB_INTEGRATION === "1";
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envFilePath = resolve(appRoot, ".env");
 const devVarsFilePath = resolve(appRoot, ".dev.vars");
+const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 
 async function readJson(response: Response) {
   return response.json();
@@ -155,6 +156,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
           "content-type": "application/json",
           origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
           referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+          "x-captcha-response": TURNSTILE_TEST_TOKEN,
         },
         body: JSON.stringify({
           email: createdEmail,
@@ -223,6 +225,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
           "content-type": "application/json",
           origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
           referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+          "x-captcha-response": TURNSTILE_TEST_TOKEN,
         },
         body: JSON.stringify({
           email: createdEmail,

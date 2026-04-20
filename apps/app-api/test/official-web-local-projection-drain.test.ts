@@ -74,7 +74,9 @@ describe("official web local projection drain helper", () => {
       {
         cwd: appRoot,
         env: {
+          HOME: process.env.HOME,
           PATH: process.env.PATH,
+          SHELL: process.env.SHELL,
         },
         encoding: "utf8",
       },

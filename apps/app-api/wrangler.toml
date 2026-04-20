@@ -18,7 +18,7 @@ PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
-SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8080"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8081"
 SUPERVISOR_API_TIMEOUT_MS = "8000"
 
 [env.local.secrets]

@@ -139,6 +139,9 @@ describe("app-api worker foundation", () => {
     expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
       "verify-staging-config.mjs",
     );
+    expect(packageManifest.scripts?.["db:bootstrap:staging"]).toContain(
+      "run-with-staging-db-env.mjs",
+    );
     expect(packageManifest.scripts?.["db:migrate:staging"]).toContain("run-with-staging-db-env.mjs");
     expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
       "run-with-staging-db-env.mjs",
@@ -147,9 +150,11 @@ describe("app-api worker foundation", () => {
     expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
     expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
     expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
+    expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
     expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
     expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
     expect(stagingPreflightSource).toContain('new URL("/readyz", baseUrl)');
+    expect(stagingPreflightSource).toContain("db:bootstrap:staging");
   });
 
   it("declares non-inheritable required secrets for local and staging worker environments", () => {

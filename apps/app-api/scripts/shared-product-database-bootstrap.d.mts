@@ -3,8 +3,8 @@ export type SharedProductBootstrapEnv = {
   chatSchema: string;
   databaseSslMode: string;
   databaseUrl: string;
-  betterAuthSecret: string;
-  publicChatOrigin: string;
+  betterAuthSecret?: string;
+  publicChatOrigin?: string;
 };
 
 export const APP_AUTH_SCHEMA: string;

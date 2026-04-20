@@ -7,6 +7,8 @@ import { runSharedDatabaseAdoption } from "../scripts/adopt-shared-database.mjs"
 import { runSharedDatabaseDriftReconcile } from "../scripts/reconcile-shared-db-drift.mjs";
 import { bootstrapSharedProductDatabase } from "../scripts/shared-product-database-bootstrap.mjs";
 
+const TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
+
 export function loadOptionalEnvFile(filePath: string): void {
   try {
     process.loadEnvFile(filePath);
@@ -105,6 +107,8 @@ export function buildSharedDbIntegrationEnv(input: {
     },
     AUTH_RESET_EMAIL_FROM:
       process.env.AUTH_RESET_EMAIL_FROM?.trim() || "Campus Agent <auth@example.com>",
+    AUTH_TURNSTILE_SECRET_KEY:
+      process.env.AUTH_TURNSTILE_SECRET_KEY?.trim() || TURNSTILE_TEST_SECRET_KEY,
     APP_API_INTERNAL_SHARED_SECRET:
       process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
     APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:

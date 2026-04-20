@@ -26,6 +26,10 @@ if (!operatorDatabaseUrl) {
 
 process.env.APP_API_OPERATOR_DATABASE_URL = operatorDatabaseUrl;
 process.env.APP_API_MANAGEMENT_DATABASE_URL = operatorDatabaseUrl;
+process.env.APP_API_ENVIRONMENT = "staging";
+process.env.PUBLIC_CHAT_WEB_ORIGIN =
+  process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() ||
+  "https://campus-chat-staging.ayafeed.com";
 
 const sslMode = process.env.STAGING_APP_API_DATABASE_SSLMODE?.trim();
 if (sslMode) {

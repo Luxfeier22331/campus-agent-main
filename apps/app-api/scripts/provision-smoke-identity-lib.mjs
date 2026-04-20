@@ -13,6 +13,8 @@ const DEFAULT_SUPERVISOR_BASE_URL = "https://supervisor.internal";
 const DEFAULT_SUPERVISOR_SHARED_SECRET = "smoke-identity-supervisor-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
+const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
+const DEFAULT_TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const DEFAULT_RESEND_API_KEY = "smoke-identity-resend-key";
 const DEFAULT_AUTH_RESET_EMAIL_FROM = "Campus Agent <auth@example.com>";
 
@@ -47,6 +49,44 @@ function requireValue(value, message) {
   return value.trim();
 }
 
+function shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, publicChatOrigin) {
+  if (appApiEnvironment === "development" || appApiEnvironment === "test") {
+    return true;
+  }
+
+  return /^(https?:\/\/)(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(publicChatOrigin);
+}
+
+function resolveTurnstileSecretKey(env, appApiEnvironment, publicChatOrigin) {
+  const configuredSecret = env.AUTH_TURNSTILE_SECRET_KEY?.trim();
+  if (configuredSecret) {
+    return configuredSecret;
+  }
+
+  if (shouldUseLocalTurnstileTestingDefaults(appApiEnvironment, publicChatOrigin)) {
+    return DEFAULT_TURNSTILE_TEST_SECRET_KEY;
+  }
+
+  throw new Error(
+    "AUTH_TURNSTILE_SECRET_KEY is required when provisioning a non-local smoke identity.",
+  );
+}
+
+function resolveSmokeCaptchaToken(env, authTurnstileSecretKey) {
+  const explicitToken = env.APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN?.trim();
+  if (explicitToken) {
+    return explicitToken;
+  }
+
+  if (authTurnstileSecretKey === DEFAULT_TURNSTILE_TEST_SECRET_KEY) {
+    return DEFAULT_TURNSTILE_TEST_TOKEN;
+  }
+
+  throw new Error(
+    "APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required when AUTH_TURNSTILE_SECRET_KEY is not the Cloudflare testing secret key.",
+  );
+}
+
 async function readJsonResponse(response) {
   const text = await response.text();
   if (!text) {
@@ -61,6 +101,7 @@ async function readJsonResponse(response) {
 }
 
 export function readSmokeIdentityProvisionInput(argv, env = process.env) {
+  const appApiEnvironment = env.APP_API_ENVIRONMENT?.trim() || "development";
   const email = requireValue(
     readArgValue(argv, "--email"),
     "Usage: --email <admitted smoke identity email> is required.",
@@ -70,6 +111,11 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
     "Usage: --name <display name> is required.",
   );
   const publicChatOrigin = env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || DEFAULT_PUBLIC_CHAT_ORIGIN;
+  const authTurnstileSecretKey = resolveTurnstileSecretKey(
+    env,
+    appApiEnvironment,
+    publicChatOrigin,
+  );
   const endUserEmailAllowlist =
     env.APP_API_END_USER_EMAIL_ALLOWLIST?.trim() || DEFAULT_END_USER_EMAIL_ALLOWLIST;
   const endUserEmailDomainAllowlist =
@@ -94,9 +140,11 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
   );
 
   return {
-    appApiEnvironment: env.APP_API_ENVIRONMENT?.trim() || "development",
+    appApiEnvironment,
     appName: env.APP_API_NAME?.trim() || DEFAULT_APP_NAME,
+    authTurnstileSecretKey,
     betterAuthSecret: env.BETTER_AUTH_SECRET?.trim() || DEFAULT_BETTER_AUTH_SECRET,
+    captchaToken: resolveSmokeCaptchaToken(env, authTurnstileSecretKey),
     databaseSslMode: parseDatabaseSslMode(env.APP_API_DATABASE_SSLMODE?.trim()),
     email,
     endUserEmailAllowlist,
@@ -136,6 +184,7 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
     APP_API_OPERATOR_EMAIL_ALLOWLIST: input.operatorEmailAllowlist,
     AUTH_RESET_EMAIL_FROM:
       input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
+    AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,
     BETTER_AUTH_SECRET: input.betterAuthSecret,
     PUBLIC_CHAT_WEB_ORIGIN: input.publicChatOrigin,
     RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
@@ -170,6 +219,7 @@ export async function provisionSmokeIdentity(input, deps) {
         "content-type": "application/json",
         origin: input.publicChatOrigin,
         referer: `${input.publicChatOrigin.replace(/\/$/, "")}/login`,
+        "x-captcha-response": input.captchaToken,
       },
       method: "POST",
     }),

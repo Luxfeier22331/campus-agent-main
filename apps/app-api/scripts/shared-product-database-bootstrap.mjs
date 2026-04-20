@@ -25,6 +25,11 @@ function readRequiredEnv(key, env = process.env) {
   return value;
 }
 
+function readOptionalEnv(key, env = process.env) {
+  const value = env[key]?.trim();
+  return value ? value : undefined;
+}
+
 function assertIdentifier(label, value) {
   if (!IDENTIFIER.test(value)) {
     throw new Error(`${label} must be a lowercase PostgreSQL identifier.`);
@@ -52,15 +57,16 @@ export function readSharedProductBootstrapEnv(env = process.env) {
   }
   const normalizedDatabaseUrl = new URL(databaseUrl);
   normalizedDatabaseUrl.searchParams.delete("sslmode");
-
-  const publicChatOrigin = new URL(readRequiredEnv("PUBLIC_CHAT_WEB_ORIGIN", env)).origin;
+  const publicChatOrigin = readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)
+    ? new URL(readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)).origin
+    : undefined;
 
   return {
     authSchema: APP_AUTH_SCHEMA,
     chatSchema: APP_CHAT_SCHEMA,
     databaseSslMode: env.APP_API_DATABASE_SSLMODE?.trim() || "require",
     databaseUrl: normalizedDatabaseUrl.toString(),
-    betterAuthSecret: readRequiredEnv("BETTER_AUTH_SECRET", env),
+    betterAuthSecret: readOptionalEnv("BETTER_AUTH_SECRET", env),
     publicChatOrigin,
   };
 }
@@ -156,6 +162,13 @@ async function listBetterAuthTables(pool, authSchema) {
 }
 
 function buildBetterAuthOptions(env, pool) {
+  if (!env.betterAuthSecret) {
+    throw new Error("BETTER_AUTH_SECRET is required when bootstrapping fresh app_auth tables.");
+  }
+  if (!env.publicChatOrigin) {
+    throw new Error("PUBLIC_CHAT_WEB_ORIGIN is required when bootstrapping fresh app_auth tables.");
+  }
+
   return {
     appName: "Campus Agent",
     basePath: "/api/auth",

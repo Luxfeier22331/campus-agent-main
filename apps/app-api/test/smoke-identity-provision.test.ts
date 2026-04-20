@@ -36,6 +36,7 @@ describe("app-api smoke identity provisioning", () => {
     const input = readSmokeIdentityProvisionInput(
       ["--email", "help_bot@outlook.com", "--name", "Smoke User"],
       {
+        APP_API_ENVIRONMENT: "development",
         APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
         APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
         APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
@@ -51,8 +52,26 @@ describe("app-api smoke identity provisioning", () => {
       APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
       APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
       APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+      AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
       PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
     });
+  });
+
+  it("requires an explicit captcha token when not using the Cloudflare testing secret", () => {
+    expect(() =>
+      readSmokeIdentityProvisionInput(
+        ["--email", "help_bot@outlook.com", "--name", "Smoke User"],
+        {
+          APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
+          APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+          APP_API_ENVIRONMENT: "staging",
+          APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
+          APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
+          AUTH_TURNSTILE_SECRET_KEY: "cf-staging-secret",
+          PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
+        } as NodeJS.ProcessEnv,
+      ),
+    ).toThrow("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required");
   });
 
   it("recreates the smoke identity through the real auth sign-up route after deleting prior rows", async () => {
@@ -77,27 +96,22 @@ describe("app-api smoke identity provisioning", () => {
         },
       ),
     );
+    const input = readSmokeIdentityProvisionInput(
+      ["--email", "help_bot@outlook.com", "--name", "Help Bot"],
+      {
+        APP_API_ENVIRONMENT: "development",
+        APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
+        APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
+        APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
+        APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
+        PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
+      } as NodeJS.ProcessEnv,
+    );
 
     const summary = await provisionSmokeIdentity(
       {
-        databaseSslMode: "require",
-        email: "help_bot@outlook.com",
-        managementDatabaseUrl: "postgresql://db.example/campus_agent",
-        name: "Help Bot",
-        password: "SmokePass!2026",
-        publicChatOrigin: "https://campus-chat-staging.ayafeed.com",
-        runtimeEnv: buildSmokeIdentityProvisionRuntimeEnv(
-          readSmokeIdentityProvisionInput(
-            ["--email", "help_bot@outlook.com", "--name", "Help Bot"],
-            {
-              APP_API_END_USER_EMAIL_ALLOWLIST: "help_bot@outlook.com",
-              APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
-              APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
-              APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-              PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
-            } as NodeJS.ProcessEnv,
-          ),
-        ),
+        ...input,
+        runtimeEnv: buildSmokeIdentityProvisionRuntimeEnv(input),
       },
       {
         appFetch,
@@ -120,6 +134,11 @@ describe("app-api smoke identity provisioning", () => {
         method: "POST",
         url: "https://app-api.internal/api/auth/sign-up/email",
       }),
+    );
+    const signUpRequest = appFetch.mock.calls[0]?.[0];
+    expect(signUpRequest).toBeInstanceOf(Request);
+    expect((signUpRequest as Request).headers.get("x-captcha-response")).toBe(
+      "XXXX.DUMMY.TOKEN.XXXX",
     );
     expect(executeSql).toHaveBeenNthCalledWith(
       3,

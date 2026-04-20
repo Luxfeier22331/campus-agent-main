@@ -18,6 +18,7 @@ describe("app-api shared product bootstrap contracts", () => {
     };
 
     expect(packageJson.scripts["db:bootstrap"]).toBeTruthy();
+    expect(packageJson.scripts["db:bootstrap:staging"]).toBeTruthy();
     expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeTruthy();
     expect(packageJson.scripts["db:print-auth-migration"]).toBeTruthy();
     expect(packageJson.scripts["db:reconcile-shared-drift"]).toContain(
@@ -63,6 +64,7 @@ describe("app-api shared product bootstrap contracts", () => {
     const readme = readAppFile("README.md");
 
     expect(readme).toContain("db:bootstrap");
+    expect(readme).toContain("db:bootstrap:staging");
     expect(readme).toContain("db:ensure-app-auth-role-search-path");
     expect(readme).toContain("db:reconcile-shared-drift");
     expect(readme).toContain("official-web:drain-projection");

@@ -201,6 +201,7 @@ pnpm test:shared-db-integration
 pnpm typecheck
 pnpm db:generate
 pnpm db:migrate
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm db:bootstrap:staging
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm db:migrate:staging
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm db:reconcile-shared-drift:staging
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name "Help Bot"
@@ -211,9 +212,11 @@ Deploy note:
 
 - `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
 - 在任何 staging `official_web` / operator surface smoke 之前，先执行
+  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:bootstrap:staging`
+  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:migrate:staging`
   `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:reconcile-shared-drift:staging`
-  和需要时的 `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:migrate:staging`
 - 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与 `/api/operator/official-web/runs` 会一起退化成 `internal_error`
+- `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有 staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
 
 Testing lanes:
 
