@@ -26,6 +26,7 @@ Evaluation helpers for campus-agent v2.
 - `recent_goal` / `confirmed_slot_terms` / profile-memory-only request overrides 不得被 author 成 curriculum family alias 的 canonical single-doc qrels；这类 truth 现在同样由 preflight fast-fail
 - selected `regression_locked` retrieval qrels 现在已经开始锁到 `doc_id + version_id`；`chunk_id` 仍只在边界长期稳定后使用
 - `campus_evals.scenarios` 现在同时提供 handbook / curriculum 的 `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case 集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked 常设回归样本
+- `TraceExpectation.expected_runtime_target` 固定断言 raw runtime target；如需 report / display / family wording，使用 `expected_capability_family`，不要再把两种语义混成单个 handoff 字段
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
 - deterministic runner 现在接受 `SpecialistResponse` 与 `SupervisorResponse` 两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` / `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
@@ -170,7 +171,8 @@ student handbook formal benchmark：
     - `APP_API_EVAL_TRACE_LINK_TEMPLATE`
     - `APP_API_EVAL_ISSUE_LINK_TEMPLATE`
     - `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
-  - 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`selected_target`、`corpus`、`collection`
+- 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`selected_target`、`corpus`、`collection`
+  - 其中 `selected_target` 继续只表示 raw runtime target correlation field；report/display 需要 family wording 时应显式派生独立标签
   - 如需保留 trace-rich specialist/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`

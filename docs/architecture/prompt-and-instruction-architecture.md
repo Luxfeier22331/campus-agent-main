@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Prompt And Instruction Architecture
@@ -517,7 +517,7 @@ repo 当前推荐的 system / role 设计固定为：
 
 ### `packages/rag-specialist`
 
-- owns rag-specialist role instructions
+- owns knowledge-path / `rag-agent` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 authz truth、serving truth、product identity truth
@@ -546,7 +546,7 @@ repo 当前推荐的 system / role 设计固定为：
 - supervisor prompt 在第一版不承担 authz 或 routing truth
 - 如果后续引入 LLM-assisted routing，再新增 `supervisor_route_v1`，但仍必须经过 code finalization
 
-### RAG Specialist
+### Knowledge Path (`packages/rag-specialist`)
 
 - `rag_answer_v1`
 - `rag_clarify_v1`
@@ -559,10 +559,6 @@ repo 当前推荐的 system / role 设计固定为：
 - `rag_compare_answer_v1`
 - `rag_historical_answer_v1`
 
-### Availability Specialist
-
-- `availability_observe_v1`
-
 ## Prompt Asset Placement
 
 prompt assets 长期放在各自 package source tree 内，而不是集中堆到 repo root：
@@ -570,11 +566,19 @@ prompt assets 长期放在各自 package source tree 内，而不是集中堆到
 - `packages/supervisor-core/src/campus_supervisor_core/prompts/`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/`
 
+prompt-facing vocabulary 规则固定为：
+
+- package path / runtime target 继续可以保留在 owner metadata 与代码装配面
+- model-facing `<role>` 文案默认使用 capability wording 或 forward family label
+- 不把 `rag-specialist` / `navigation-specialist` 这类 raw runtime target 当作默认 prompt persona 名称
+
 每个 prompt family 至少包含：
 
 - `prompt_id`
 - `version`
 - `owner_package`
+- `runtime_target`
+- `capability_family`
 - `supported_modes`
 - `variables_schema_version`
 - `output_schema_version`
@@ -840,7 +844,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - 我们需要显式 prompt architecture，而且当前产品主链路已经落地第一版 runtime seam
 - 但不需要把系统改写成 prompt-first RAG
 - supervisor prompt 应保持薄
-- rag-specialist prompt 应按 mode 拆分
+- knowledge-path prompt 应按 mode 拆分，并避免把 raw runtime target label 写成 model-facing persona
 - 结构化、高精度场景继续优先 deterministic composer
 - 幻觉治理的主力仍然是 `scope/evidence/finalization/eval`，而不是继续把 system prompt 写得更长
 
@@ -851,7 +855,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - package-owned prompt registry、prompt packet 与 strict validation seam 已成为产品主链路的一部分
 - `apps/supervisor-api` 已承担 runtime assembly / provider binding seam，并将 prompt trace 接入现有 diagnostics / observability
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed prompt metadata 已成为 repo-default posture
-- supervisor 的 `policy gate + scope gate` 与 rag-specialist 的 grounding validator 共同承担 prompt-side hallucination control，而不是把控制责任退回“更长的 system prompt”
+- supervisor 的 `policy gate + scope gate` 与 knowledge-path grounding validator 共同承担 prompt-side hallucination control，而不是把控制责任退回“更长的 system prompt”
 - `curriculum` 高结构答案、`handbook procedure/materials/deadline/time` 高精度 path 与 restricted deny final semantics 继续保持 deterministic-first protected path
 
 仍属当前 follow-up 但不在本文维护执行顺序的工作：

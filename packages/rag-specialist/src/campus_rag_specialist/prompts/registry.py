@@ -12,6 +12,8 @@ _PROMPTS_DIR = Path(__file__).resolve().parent
 class RagPromptSpec:
     prompt_id: str
     owner_package: str
+    runtime_target: str
+    capability_family: str
     supported_modes: tuple[str, ...]
     variables_schema_version: str
     output_schema_version: str
@@ -35,6 +37,8 @@ def _build_spec(
     return RagPromptSpec(
         prompt_id=prompt_id,
         owner_package="campus_rag_specialist",
+        runtime_target="rag-specialist",
+        capability_family="rag-agent",
         supported_modes=supported_modes,
         variables_schema_version="v1",
         output_schema_version="v1",

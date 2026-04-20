@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Operator Observability Architecture
@@ -186,6 +186,38 @@ executor / query activity truth；这属于 target-state observability expansion
 - `principal_type`
 - `collection` / `source family`
 - `model`
+
+## Raw Target And Derived Label Rule
+
+`selected_target` 的长期职责固定为 raw runtime target dimension。
+
+它继续用于：
+
+- storage / filter truth
+- telemetry sink correlation
+- deterministic runtime assertions
+- operator debug / drill-down 时的原始执行目标定位
+
+它不直接承担：
+
+- operator-facing capability family wording
+- panel 默认展示标签
+- report / summary 的 family grouping
+
+如果 operator surface 需要展示或分组，必须通过显式 projection 派生，例如：
+
+- `selected_target`
+  - raw runtime target，例如 `rag-specialist`
+- `capability_family`
+  - family wording，例如 `rag-agent`
+- `selected_target_label`
+  - operator-facing display label，例如 `检索专家`
+
+固定约束：
+
+- raw `selected_target` 不能被 schema rename、display copy 或 report summary 静默重载
+- panel 默认展示 derived label / display label；只有 debug/filter surface 才直接暴露 raw target
+- 如果未来 admission 新 runtime family，也必须先补 mapping / projection，再开放 operator-facing wording
 
 ## Agentic Retrieval Monitoring Extension
 

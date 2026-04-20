@@ -132,9 +132,20 @@ class GoldenCaseSchemaTest(unittest.TestCase):
                 expected_status="completed",
             )
 
-    def test_trace_expectation_rejects_unknown_handoff(self) -> None:
-        with self.assertRaisesRegex(ValueError, "expected_handoff"):
-            TraceExpectation(expected_handoff="supervisor-direct")
+    def test_trace_expectation_rejects_unknown_runtime_target(self) -> None:
+        with self.assertRaisesRegex(ValueError, "expected_runtime_target"):
+            TraceExpectation(expected_runtime_target="supervisor-direct")
+
+    def test_trace_expectation_rejects_unknown_capability_family(self) -> None:
+        with self.assertRaisesRegex(ValueError, "expected_capability_family"):
+            TraceExpectation(expected_capability_family="supervisor")
+
+    def test_trace_expectation_rejects_runtime_target_family_mismatch(self) -> None:
+        with self.assertRaisesRegex(ValueError, "same lane"):
+            TraceExpectation(
+                expected_runtime_target="rag-specialist",
+                expected_capability_family="navigation-agent",
+            )
 
     def test_case_accepts_reference_context_truth_and_metric_overrides(self) -> None:
         case = GoldenCase(
@@ -174,6 +185,77 @@ class GoldenCaseSchemaTest(unittest.TestCase):
 
 
 class RunCasesTest(unittest.TestCase):
+    def test_run_cases_grades_runtime_target_and_capability_family_separately(self) -> None:
+        matching_case = GoldenCase(
+            case_id="case-runtime-target-and-family-match",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学生证丢了怎么办",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=False,
+                clarification_expected=False,
+                error_expected=False,
+                expected_runtime_target="rag-specialist",
+                expected_capability_family="rag-agent",
+            ),
+        )
+        mismatched_family_case = GoldenCase(
+            case_id="case-runtime-target-family-mismatch",
+            split="release_gate",
+            source_type="expert_authored",
+            user_goal="学生证丢了怎么办",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            expected_status="no_answer",
+            trace_expectation=TraceExpectation(
+                selected_scope=HANDBOOK_SCOPE,
+                retrieval_called=False,
+                clarification_expected=False,
+                error_expected=False,
+                expected_capability_family="navigation-agent",
+            ),
+        )
+
+        report = run_cases(
+            (matching_case, mismatched_family_case),
+            executor=lambda _case: ExecutionResult(
+                response=SupervisorResponse(
+                    selected_target="rag-specialist",
+                    status="no_answer",
+                    answer_text="当前依据不足，暂时不能直接回答。",
+                    confidence="low",
+                    observability=SupervisorObservability(
+                        retrieval_attempted=False,
+                        candidate_count=0,
+                        retrieved_source_count=0,
+                        citation_expected=False,
+                        citation_count=0,
+                        citation_missing=False,
+                        refusal_class="unsupported_by_evidence",
+                        semantic_outcome="unsupported_by_evidence",
+                        scope_class="in_scope",
+                        policy_reason="",
+                        acl_decision="allowed",
+                        fail_closed=True,
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=False,
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            ),
+        )
+
+        self.assertTrue(report.results[0].trace_result.passed)
+        self.assertFalse(report.results[1].trace_result.passed)
+        self.assertEqual(report.results[1].trace_result.reason, "capability_family=rag-agent")
+
     def test_run_cases_grades_out_of_scope_semantic_truth(self) -> None:
         case = GoldenCase(
             case_id="case-out-of-scope",
@@ -703,7 +785,8 @@ class RunCasesTest(unittest.TestCase):
                 retrieval_called=True,
                 clarification_expected=False,
                 error_expected=False,
-                expected_handoff="rag-specialist",
+                expected_runtime_target="rag-specialist",
+                expected_capability_family="rag-agent",
             ),
         )
         self.assertEqual(
@@ -722,7 +805,8 @@ class RunCasesTest(unittest.TestCase):
                 clarification_expected=False,
                 error_expected=False,
                 fail_closed_expected=True,
-                expected_handoff="rag-specialist",
+                expected_runtime_target="rag-specialist",
+                expected_capability_family="rag-agent",
             ),
         )
         self.assertIn(

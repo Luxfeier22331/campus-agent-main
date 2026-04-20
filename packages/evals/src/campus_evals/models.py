@@ -4,9 +4,11 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
+    ALLOWED_SPECIALIST_TARGETS,
     ActorContext,
     EvidenceSource,
     KnowledgeScope,
+    SpecialistTarget,
     SpecialistResponse,
     SupervisorResponse,
     SupervisorStatus,
@@ -20,6 +22,28 @@ SourceType = Literal["expert_authored", "historical_logs", "incident_backfill", 
 
 ALLOWED_CASE_SPLITS = ("smoke", "regression_locked", "exploratory", "release_gate")
 ALLOWED_SOURCE_TYPES = ("expert_authored", "historical_logs", "incident_backfill", "synthetic_expansion")
+ExpectedRuntimeTarget = SpecialistTarget | Literal["none"]
+CapabilityFamilyLabel = Literal["none", "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent"]
+ALLOWED_EXPECTED_RUNTIME_TARGETS = ("none", *ALLOWED_SPECIALIST_TARGETS)
+ALLOWED_CAPABILITY_FAMILY_LABELS = (
+    "none",
+    "rag-agent",
+    "navigation-agent",
+    "campus-services-agent",
+    "notice-agent",
+)
+_RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[SpecialistTarget, CapabilityFamilyLabel] = {
+    "rag-specialist": "rag-agent",
+    "navigation-specialist": "navigation-agent",
+    "campus-services-agent": "campus-services-agent",
+    "notice-agent": "notice-agent",
+}
+
+
+def capability_family_for_runtime_target(target: SpecialistTarget | None) -> CapabilityFamilyLabel:
+    if target is None:
+        return "none"
+    return _RUNTIME_TARGET_TO_CAPABILITY_FAMILY[target]
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,11 +81,27 @@ class TraceExpectation:
     clarification_expected: bool | None = None
     error_expected: bool | None = None
     fail_closed_expected: bool | None = None
-    expected_handoff: str | None = None
+    expected_runtime_target: ExpectedRuntimeTarget | None = None
+    expected_capability_family: CapabilityFamilyLabel | None = None
 
     def __post_init__(self) -> None:
-        if self.expected_handoff is not None and self.expected_handoff not in ("none", "rag-specialist"):
-            raise ValueError(f"unsupported expected_handoff: {self.expected_handoff}")
+        if (
+            self.expected_runtime_target is not None
+            and self.expected_runtime_target not in ALLOWED_EXPECTED_RUNTIME_TARGETS
+        ):
+            raise ValueError(f"unsupported expected_runtime_target: {self.expected_runtime_target}")
+        if (
+            self.expected_capability_family is not None
+            and self.expected_capability_family not in ALLOWED_CAPABILITY_FAMILY_LABELS
+        ):
+            raise ValueError(f"unsupported expected_capability_family: {self.expected_capability_family}")
+        if self.expected_runtime_target is not None and self.expected_capability_family is not None:
+            runtime_target = None if self.expected_runtime_target == "none" else self.expected_runtime_target
+            expected_family = capability_family_for_runtime_target(runtime_target)
+            if expected_family != self.expected_capability_family:
+                raise ValueError(
+                    "expected_runtime_target and expected_capability_family must describe the same lane"
+                )
 
 
 @dataclass(frozen=True, slots=True)

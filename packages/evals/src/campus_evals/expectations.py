@@ -4,7 +4,13 @@ import re
 
 from campus_contracts import RagResultDiagnostics, RagResultPayload, SpecialistResponse, SupervisorResponse
 
-from campus_evals.models import CaseResult, DimensionResult, ExecutionResult, GoldenCase
+from campus_evals.models import (
+    CaseResult,
+    DimensionResult,
+    ExecutionResult,
+    GoldenCase,
+    capability_family_for_runtime_target,
+)
 
 KNOWN_DETERMINISTIC_METRICS = (
     "status_accuracy",
@@ -167,11 +173,14 @@ def _grade_trace(case: GoldenCase, execution: ExecutionResult) -> DimensionResul
         return DimensionResult(False, f"selected_scope={selected_scope}")
     if expected.retrieval_called is not None and observed.retrieval_called != expected.retrieval_called:
         return DimensionResult(False, f"retrieval_called={observed.retrieval_called}")
-    if expected.expected_handoff is not None:
-        actual_handoff_value = response.selected_target if isinstance(response, SupervisorResponse) else response.target
-        actual_handoff = "none" if actual_handoff_value in (None, "") else actual_handoff_value
-        if actual_handoff != expected.expected_handoff:
-            return DimensionResult(False, f"selected_target={actual_handoff}")
+    actual_runtime_target_value = response.selected_target if isinstance(response, SupervisorResponse) else response.target
+    actual_runtime_target = "none" if actual_runtime_target_value in (None, "") else actual_runtime_target_value
+    if expected.expected_runtime_target is not None and actual_runtime_target != expected.expected_runtime_target:
+        return DimensionResult(False, f"selected_target={actual_runtime_target}")
+    if expected.expected_capability_family is not None:
+        actual_family = capability_family_for_runtime_target(actual_runtime_target_value)
+        if actual_family != expected.expected_capability_family:
+            return DimensionResult(False, f"capability_family={actual_family}")
     if (
         expected.clarification_expected is not None
         and observed.clarification_emitted != expected.clarification_expected
