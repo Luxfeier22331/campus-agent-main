@@ -119,6 +119,8 @@ const APP_PREFLIGHTS = {
         ],
       ],
       ["node", ["apps/app-api/scripts/verify-staging-config.mjs"]],
+      ["pnpm", ["--dir", "apps/app-api", "db:bootstrap:staging"]],
+      ["pnpm", ["--dir", "apps/app-api", "db:migrate:staging"]],
       ["pnpm", ["--dir", "apps/app-api", "db:reconcile-shared-drift:staging", "--", "--json"]],
     ],
   },

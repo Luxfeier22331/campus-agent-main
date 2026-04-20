@@ -42,7 +42,7 @@ updated: 2026-04-19
 | Qdrant | 向量索引与 hybrid retrieval backend | `QDRANT_URL` `QDRANT_API_KEY` | root `.env` | retrieval / indexing | 在 Qdrant Cloud 创建 cluster 并在 Cluster Detail 的 API Keys 页面创建 key；自托管则自配 URL + API key |
 | Shared Postgres | app-api shared DB、document/raw registry | `CAMPUS_SHARED_POSTGRES_URL` `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` `DOCUMENT_REGISTRY_DATABASE_URL` `RAW_ASSET_REGISTRY_DATABASE_URL` | root `.env`；再 fan out 到 `apps/app-api/.env` | app-api、本地 eval ingress、registry/operator 路径 | 如果用 Supabase，operator/runtime 默认都取 session pooler `:5432`；legacy `*_MANAGEMENT_*` 只保留兼容别名；如果本地开发，走 Docker Postgres 恢复入口 |
 | S3-compatible object storage | raw source、source truth、derived artifacts | `OBJECT_STORE_ENDPOINT` `OBJECT_STORE_ACCESS_KEY` `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE` `OBJECT_STORE_BUCKET_DERIVED` | root `.env` | ingestion / replay / rebuild | 本地开发默认用 Docker MinIO；云端可用任何 S3-compatible provider，创建 bucket 与 access key 即可 |
-| OCR service | canonical raw ingestion / replay，sidecar compare | `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL` `OCR_MINERU_*` | root `.env` 或 command-scoped env | 只有 ingestion / replay / compare 需要 | canonical primary lane 当前仍要求可达的 Paddle endpoint；`OCR_MINERU_*` 只作为 `process_raw_ingestion_job` source-truth-only 的可选第二 provider |
+| OCR service | canonical raw ingestion / replay，lane-level compare | `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL` `OCR_MINERU_*` | root `.env` 或 command-scoped env | 只有 ingestion / replay / compare 需要 | canonical lane 由 routing owner 决定；`OCR_*` 表示当前 active provider，`OCR_MINERU_*` 只作为 `process_raw_ingestion_job` source-truth-only 的附加 MinerU lane |
 | Eval-only provider override | eval 独立预算 / 独立限流 | `EVAL_LLM_*` `EVAL_EMBEDDING_*` `EVAL_LLM_TRANSPORT` `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL` | root `.env` | 只有 eval 不想复用 shared provider 时 | 在对应供应商控制台单独申请；默认不需要 |
 
 ### App-local / deploy provider
@@ -50,7 +50,7 @@ updated: 2026-04-19
 | Provider / system | 作用 | 主要 env keys | 放置位置 | 何时必需 | 获取方式 |
 | --- | --- | --- | --- | --- | --- |
 | Better Auth secret | `app-api` 会话签名与加密 | `BETTER_AUTH_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | `app-api` 必需 | 自行生成高熵 secret，不是第三方平台发放 |
-| Cloudflare Turnstile | public auth family captcha hardening | `AUTH_TURNSTILE_SECRET_KEY` `AUTH_TURNSTILE_SITE_KEY` | `apps/app-api/.dev.vars` / deploy secret store；`apps/public-chat-web/.dev.vars` / Worker vars | public auth family (`sign-in` / `sign-up` / `request-password-reset`) 必需 | 在 Cloudflare Turnstile 创建 widget；server secret 放 `app-api`，public sitekey 放 `public-chat-web` |
+| Cloudflare Turnstile | public auth family captcha hardening | `AUTH_TURNSTILE_SECRET_KEY` `AUTH_TURNSTILE_SITE_KEY` `AUTH_TURNSTILE_APPEARANCE` `AUTH_TURNSTILE_EXECUTION` | `apps/app-api/.dev.vars` / deploy secret store；`apps/public-chat-web/.dev.vars` / Worker vars | public auth family (`sign-in` / `sign-up` / `request-password-reset`) 必需 | 在 Cloudflare Turnstile 创建 widget；server secret 放 `app-api`，public sitekey 放 `public-chat-web`；runtime posture 由 `public-chat-web` 注入 |
 | Resend transactional auth mail | `app-api` password reset / password-changed mail | `RESEND_API_KEY` `AUTH_RESET_EMAIL_FROM` `AUTH_RESET_EMAIL_REPLY_TO` | `apps/app-api/.dev.vars` 或 deploy secret store | end-user password reset 必需 | 在 Resend 创建 API key，并准备已验证 sender identity；`reply-to` 可选 |
 | Safety identifier HMAC secret | `app-api` 匿名安全标识导出 | `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET` | `apps/app-api/.dev.vars` 或 deploy secret store | 启用 end-user safety traceability 时必需 | 自行生成高熵 secret，不是第三方平台发放 |
 | Sentry | runtime error / trace / release evidence | `SENTRY_DSN` `SENTRY_ENVIRONMENT` `SENTRY_RELEASE` | 各 app `.dev.vars` 或 Cloudflare secret store | staging / prod observability，local smoke 可选 | 在 Sentry 创建项目后，从 Client Keys (DSN) 复制 DSN；需要 repo-local API lookup 时再建 auth token |
@@ -268,21 +268,28 @@ updated: 2026-04-19
   - `AUTH_TURNSTILE_SECRET_KEY`
 - `apps/public-chat-web/.dev.vars` 或 `apps/public-chat-web/wrangler.toml` `env.<name>.vars`：
   - `AUTH_TURNSTILE_SITE_KEY`
+  - `AUTH_TURNSTILE_APPEARANCE`
+  - `AUTH_TURNSTILE_EXECUTION`
 
 当前 repo 约束：
 
 - `AUTH_TURNSTILE_SECRET_KEY` 只供 `apps/app-api` Better Auth captcha plugin 使用，不能下沉到浏览器
 - `AUTH_TURNSTILE_SITE_KEY` 是公开 runtime string，由 `public-chat-web` Worker 注入 public auth shell
-- staging deploy 不再把 `AUTH_TURNSTILE_SITE_KEY` 固定在 repo；当前 operator posture 通过 deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY` 注入真实 admitted sitekey
+- `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 是公开 runtime posture，由 `public-chat-web` Worker 注入 auth shell；默认分别是 `interaction-only` / `render`
+- Cloudflare widget `mode` 仍是 dashboard/widget truth，不在 repo 内复制一套 `managed/non-interactive/invisible` 逻辑；repo 只表达 runtime `appearance/execution`
+- staging deploy 不再把 `AUTH_TURNSTILE_SITE_KEY` / `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 固定在 repo；当前 operator posture 通过 deploy shell env 注入真实 admitted sitekey 与可选 posture override
 - captcha 只保护 `sign-in`、`sign-up`、`request-password-reset`
 - local smoke 可使用 Cloudflare 官方 testing credentials；staging / production 必须换成目标 hostname admitted 的真实 widget 配置
+- Playwright / Selenium / Cypress 这类 automation suites 只允许搭配 Cloudflare testing credentials；对于真实 admitted staging / production widget，最终 smoke 必须使用真实浏览器 session，而不是 automation browser
+- production 前向 posture 固定为：使用 Cloudflare `Managed` widget，并配合 `AUTH_TURNSTILE_APPEARANCE=interaction-only`、`AUTH_TURNSTILE_EXECUTION=render` 达成 always-on verification + elevated-risk-only interactive challenge
 
 获取方式：
 
 1. 在 Cloudflare Dashboard 打开 `Turnstile`，为目标环境创建 widget。
 2. 记录 widget 的 sitekey，填到 `AUTH_TURNSTILE_SITE_KEY`。
 3. 记录 widget 的 secret key，填到 `AUTH_TURNSTILE_SECRET_KEY`。
-4. staging / prod 分环境独立建 widget，不要复用本地 testing credentials。
+4. 如需调整可见性或执行时机，再按需要设置 `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION`；未设置时默认是 `interaction-only` / `render`。
+5. staging / prod 分环境独立建 widget，不要复用本地 testing credentials。
 
 外部参考：
 
@@ -326,13 +333,14 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 当前获取方式分两类：
 
-- canonical lane：
-  - `OCR_PROVIDER_MODE=paddleocr_async_jobs`
-  - 需要团队已部署好的 Paddle endpoint 与 service token
-- optional second-provider lane：
+- active OCR lane：
+  - `OCR_PROVIDER_MODE` 必须显式写明当前命令实际使用的 provider
+  - 当前可以是 Paddle provider，也可以是 `mineru_api`
+  - 需要团队已部署好的 endpoint 与 service token
+- additional MinerU lane：
   - `OCR_MINERU_PROVIDER_MODE=mineru_api`
   - 当前用于 `process_raw_ingestion_job` 的 `source_truth_only` 条件式 typed-PDF 路由、`generic_image` 双跑判型，以及 `campus-ingestion-compare-online-ocr`
-  - 建议写在命令级 env 副本里，不要把 primary `OCR_PROVIDER_MODE` 改成 `mineru_api`
+  - 它是 lane-specific 补充配置，不再代表 repo 级 “second provider canonical truth”
 
 相关内部文档：
 
@@ -346,8 +354,8 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 说明：
 
-- canonical Paddle lane 当前是 team-owned endpoint contract，不是 repo 内置的公共 SaaS 开户流程
-- primary `OCR_PROVIDER_MODE=mineru_api` 仍被 `process_raw_ingestion_job` 显式拒绝，不可冒充 canonical raw ingestion provider
+- active `OCR_*` lane 当前是 team-owned endpoint contract，不是 repo 内置的公共 SaaS 开户流程
+- `OCR_PROVIDER_MODE=mineru_api` 已可作为 `process_raw_ingestion_job` 的 active provider；canonical lane 仍由 typed route 决定，不由 env 的“谁是 primary”反向定义
 - `OCR_MINERU_*` 现在只是受控补充入口：当前 repo 把它接入 `source_truth_only` 的 typed-PDF 条件路由与 `generic_image` 双跑判型，并在 MinerU 胜出时额外保留 `provider-response-raw.zip` provenance sidecar；`ocr-routing-decision.json` 会记录双跑后的 refined asset type 与 canonical provider 选择
 - MinerU 官方文档虽然支持 Office 类型，但当前 repo 的 canonical raw-ingestion 归一化和 split-manifest 仍是 PDF/image-first，因此 Office 接入继续归入 follow-up，不在当前默认 canonical scope
 
@@ -652,7 +660,7 @@ root convenience keys：
 
 - GitHub OAuth / Google OAuth / 其他 end-user social sign-in provider
 - 独立 eval provider，除非你明确要把 eval 和 shared runtime 分账
-- compare-only `mineru_api`，除非你真的要跑 OCR sidecar 对照
+- 额外的 OCR sidecar provider，除非你真的要跑 lane 级对照或 source-truth-only 双跑
 
 ## 相关仓库文档
 

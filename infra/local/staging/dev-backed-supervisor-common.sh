@@ -51,12 +51,29 @@ dev_backed_supervisor_acquire_lock() {
 
 dev_backed_supervisor_load_env() {
   local app_api_dev_vars="${dev_backed_supervisor_repo_root}/apps/app-api/.dev.vars"
+  local node_bin
+  local supervisor_shared_secret
 
   if [[ -f "${app_api_dev_vars}" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "${app_api_dev_vars}"
-    set +a
+    node_bin="$(dev_backed_supervisor_require_command node)"
+    supervisor_shared_secret="$(
+      "${node_bin}" -e '
+        const process = require("node:process");
+
+        try {
+          process.loadEnvFile(process.argv[1]);
+        } catch (error) {
+          console.error(error instanceof Error ? error.message : String(error));
+          process.exit(1);
+        }
+
+        process.stdout.write(process.env.SUPERVISOR_API_SHARED_SECRET ?? "");
+      ' "${app_api_dev_vars}"
+    )"
+
+    if [[ -n "${supervisor_shared_secret}" ]]; then
+      export SUPERVISOR_API_SHARED_SECRET="${supervisor_shared_secret}"
+    fi
   fi
 }
 
