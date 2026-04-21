@@ -98,7 +98,7 @@ updated: 2026-04-20
 - `.planning/workstreams/operator-observability-control-plane/STATE.md`
 - `.planning/workstreams/operator-observability-control-plane/phases/phase-c-metric-rollup-and-aggregate-apis/CONTEXT.md`
 - `.planning/workstreams/operator-observability-control-plane/phases/phase-c-metric-rollup-and-aggregate-apis/PLAN.md`
-- `docs/plans/operator-observability-control-plane-foundation.md`
+- `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`
 - `docs/domains/operator-observability.md`
 - `apps/app-api/src/app.ts`
 - `apps/app-api/src/modules/operator-query/service.ts`

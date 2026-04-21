@@ -1,7 +1,7 @@
 ---
 workstream: restricted-document-rollout-verification
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Project State
@@ -30,4 +30,4 @@ updated: 2026-04-19
 ## Session Continuity
 
 **Stopped At:** deferred pending restricted rollout decision
-**Resume File:** docs/plans/restricted-document-rollout-and-verification.md
+**Resume File:** `.planning/workstreams/restricted-document-rollout-verification/README.md`

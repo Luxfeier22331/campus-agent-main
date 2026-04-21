@@ -2,7 +2,7 @@
 doc_type: requirements
 status: deferred
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Requirements: Authenticated Notice Live Portal Control Plane
@@ -22,7 +22,7 @@ updated: 2026-04-19
 ## Non-goals
 
 - downstream `regulations/*` consumption
-- `351119` 等 target-side owner recovery
+- target-side owner recovery
 - repo-wide object storage 文件架构重写
 - restricted query-serving、release publish 或 document center rollout
 
@@ -36,4 +36,4 @@ updated: 2026-04-19
 
 ## Canonical Entry
 
-- `docs/plans/authenticated-notice-live-portal-control-plane.md`
+- `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md`

@@ -148,4 +148,4 @@ status: active
 - `docs/architecture/operator-observability-architecture.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/contracts/app-api-operator-observability-http.md`
-- `docs/plans/operator-observability-control-plane-foundation.md`
+- `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`

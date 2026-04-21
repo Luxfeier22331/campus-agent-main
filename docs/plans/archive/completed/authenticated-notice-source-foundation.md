@@ -23,7 +23,7 @@ updated: 2026-04-20
 - `docs/domains/authenticated-notice.md`
 - `docs/architecture/authenticated-notice-source-architecture.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `.planning/WORKSTREAMS.md`
 
 ## Reopen Rule

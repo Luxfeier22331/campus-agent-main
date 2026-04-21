@@ -23,8 +23,8 @@ updated: 2026-04-20
 - `docs/domains/identity-authz-memory.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
-- `docs/plans/restricted-document-rollout-and-verification.md`
-- `docs/plans/legacy-acl-carrier-compatibility-sunset.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`
+- `docs/plans/archive/historical/legacy-acl-carrier-compatibility-sunset.md`
 
 ## Reopen Rule
 

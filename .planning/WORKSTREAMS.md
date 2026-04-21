@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # Workstreams
@@ -18,6 +18,8 @@ updated: 2026-04-21
   - repo 级产品范围、关键决策与 merged/worktree truth
 - `WORKSTREAMS.md`
   - repo 级 workstream registry；active / deferred / backlog / legacy 的唯一总览
+- `.planning/workstreams/<slug>/README.md`
+  - native workstream 的人工入口；先解释这条线的边界、状态与应继续查看的 `REQUIREMENTS / ROADMAP / STATE`
 - `.planning/workstreams/<slug>/STATE.md`
   - 单条 workstream 的当前状态、current slice、blockers、verification 与 continuity
 - `.planning/workstreams/<slug>/ROADMAP.md`
@@ -37,49 +39,54 @@ updated: 2026-04-21
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/operator-observability-control-plane-foundation.md` | `Phase C` | 已恢复 workstream 并按当前 merged truth 重排 phases；`Phase A-B` 已被已落地的 app-api observability/audit 基线吸收，当前先收口 aggregate API residual gap 与后续 panel 扩面前置 seam |
-| `notice semantic fan-out / consumption modeling` | `notice-semantic-fan-out-and-consumption-modeling` | `yes` | `docs/plans/notice-semantic-fan-out-and-consumption-modeling.md` | `Phase 1` | 新建 semantic-modeling lane；当前先冻结 `source_notice + attachment -> derived consumption units` 的 role taxonomy、authority/completeness contract 与 future agent/surface handoff，不进入实现或 query-serving opening |
-| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/execution-capability-family-convergence.md` | `Phase 5` | `Phase 4` 已完成 rename decision freeze；当前进入 one-shot full rename execution planning，收口 package/import/raw target/docs/tests/planning 的单波次 cutover 写集 |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 新建文档站独立 workstream；当前收口 published reader assets、`app-api` docs seams、canonical reader model 与 source-card jump contract，不做 donor transplant 式 shortcut |
+| `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | `Phase 6` | 已恢复这条 bounded downstream workstream；当前先收口 `institutional_regulations` 与 `scoped_rules` 的 target-side chunk-prep / validation parity，再继续 `11` 条 admitted target rerun 与 acceptance evidence freeze |
+| `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 5` | 冻结 repo-wide oversized handwritten code inventory，并把 ingestion / retrieval / eval / app surfaces / tests 的所有 admitted split debt 映射到后续 phases；明确排除 vendor / generated / lockfiles |
+| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 1` | 新建 shared eval workstream；当前先冻结 `packages/evals`、golden dataset / case governance、benchmark artifact lifecycle、operator publish seam 与 CI/release-gate automation 的 owner 边界，不把 domain truth 或 operator panel owner 混进来 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `execution capability family convergence` | `execution-capability-family-convergence` | `yes` | `docs/plans/archive/completed/execution-capability-family-convergence.md` | 只有在 repo 重新 admission raw runtime target family rename、显式改写 `selected_target` / `selectedTarget` 语义，或新增 capability family 需要重开 repo-wide naming / label convergence 规则时才恢复 |
+| `bounded agentic retrieval productization` | `bounded-agentic-retrieval-productization` | `yes` | `docs/plans/archive/completed/bounded-agentic-retrieval-productization.md` | 只有在 repo 重新 admission 新的 retrieval step / planner-executor lifecycle、某个具体产品面决定正式消费 generic `live_source_lookup`、显式改写 raw retrieved trace / supporting evidence / operator observability contract，或把 non-current runtime acceptance 提升为 retrieval owner 时才恢复 |
+| `operator observability / control-plane` | `operator-observability-control-plane` | `yes` | `docs/plans/archive/completed/operator-observability-control-plane-foundation.md` | 只有在 repo 重新 admission 新的 operator observability domain、显式改写 `app-api` owned operator truth / sink participation contract，或 panel 需要从 read-only observability control-plane 扩成新的 write/action surface 时才恢复 |
 | `shared product surfaces acceptance / hardening` | `shared-product-surfaces-acceptance-hardening` | `yes` | `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` | 只有在 public auth family / same-site auth contract / Turnstile posture 被显式改写、public browser answer contract 再次出现 raw specialist locator 泄漏或 curriculum semester chunk-boundary corruption，或 shared `app-api + public-chat-web + protected-panel-web` 联合验收被重新 admission 为 active hardening 时才恢复 |
 | `shared file asset loader contract` | `shared-file-asset-loader-contract` | `yes` | `docs/plans/archive/completed/shared-file-asset-loader-contract.md` | 只有在新的 admitted file asset family 被提升为 active、当前 canonical parser/normalization lane 被显式改写，或 deferred cross-scope adoption 被重新 admission 为 active implementation 时才恢复 |
 | `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
 | `campus services offline preparation hardening` | `campus-services-offline-preparation-hardening` | `yes` | `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md` | 只有在产品范围重新提升 `campus_services/*` offline-preparation quality hardening 优先级，或明确 admission 新的 bounded target 时才恢复 |
 | `campus services / notices runtime admission` | `campus-services-notices-runtime-admission` | `yes` | `docs/plans/archive/completed/campus-services-notices-runtime-admission.md` | 只有在产品范围重新 admission 新的 runtime capability family、显式改写首发/后续 tool 边界，或需要重开 service / notice / contact / process runtime opening truth 时才恢复 |
+| `notice consumption layer` | `notice-consumption-layer` | `yes` | `docs/plans/archive/completed/notice-consumption-layer.md` | 只有在 admitted notice source family 被显式改写、derived consumption unit schema 被显式改写、authority/completeness contract 被显式改写，或新的产品 adoption target family 被正式 admission 时才恢复 |
+| `versioned history query foundation` | `versioned-history-query-foundation` | `yes` | `docs/plans/archive/completed/versioned-history-query-foundation.md` | 只有在 repo 重新 admission runtime-facing non-current query route contract、`app-api` live benchmark 正式承载 non-current `version_query`、或显式改写 `current / historical / as_of / compare` 的 request / resolution / retrieval / answer / eval truth 时才恢复 |
 
 ## Deferred
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
-| `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | 只有在产品范围重新提升 authenticated-notice regulation downstream consumption 优先级时才恢复；恢复后从现有 `11` 条 admitted target 的 target-side quality closeout 继续 |
 | `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 只有在下一次 auth window 真正进入执行窗口，或产品范围重新提升 auth-dependent owner recovery 优先级时才恢复 |
-| `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `docs/plans/authenticated-notice-live-portal-control-plane.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
-| `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `docs/plans/restricted-document-rollout-and-verification.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
+| `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
+| `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
 
 ## Backlog
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
-| `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
-| `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
+| `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
+| `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
 
 ## Legacy / Follow-up References
 
 这些条目继续保留为 repo 级参考，但当前不是原生 workstream：
 
-- `protected-panel-requests-triage-table-redesign.md`
-- `golden-dataset-execution-plan.md`
-- `legacy-acl-carrier-compatibility-sunset.md`
-- `post-closeout-follow-up-execution-plan.md`
-- `versioned-history-query-foundation.md`
+- `docs/plans/archive/historical/protected-panel-requests-triage-table-redesign.md`
+- `docs/plans/archive/superseded/golden-dataset-execution-plan.md`
+- `docs/plans/archive/historical/legacy-acl-carrier-compatibility-sunset.md`
+- `docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md`
 
 ## Usage Rules
 
 - 判断 repo 当前有哪些 workstreams、各自状态如何，先看这里
+- 进入 native workstream 时，先打开对应 `.planning/workstreams/<slug>/README.md`
 - 判断某条 workstream 的当前切片、blockers、verification，进入对应 `.planning/workstreams/<slug>/STATE.md`
 - 判断某条 workstream 的固定顺序，进入对应 `.planning/workstreams/<slug>/ROADMAP.md`
 - 判断某条 workstream 的范围、non-goals 与 success criteria，进入对应 `.planning/workstreams/<slug>/REQUIREMENTS.md`

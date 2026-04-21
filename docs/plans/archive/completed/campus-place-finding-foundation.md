@@ -22,8 +22,8 @@ updated: 2026-04-20
 
 - `docs/domains/navigation.md`
 - `docs/architecture/navigation-and-wayfinding-architecture.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
-- `docs/plans/campus-navigation-rollout-map-consumption.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
+- `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md`
 - `.planning/WORKSTREAMS.md`
 
 ## Reopen Rule

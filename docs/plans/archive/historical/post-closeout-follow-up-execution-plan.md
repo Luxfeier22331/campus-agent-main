@@ -34,7 +34,7 @@ updated: 2026-04-20
   - `.planning/workstreams/authenticated-notice-live-portal-control-plane/`
 - navigation：
   - `docs/domains/navigation.md`
-  - `docs/plans/campus-navigation-rollout-map-consumption.md`
+  - `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md`
 - operator / control-plane：
   - `docs/domains/operator-observability.md`
   - `.planning/workstreams/operator-observability-control-plane/`

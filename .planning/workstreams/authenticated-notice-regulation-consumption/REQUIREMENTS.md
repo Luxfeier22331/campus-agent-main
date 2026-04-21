@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: deferred
+status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Requirements: Authenticated Notice Regulation Consumption
@@ -35,4 +35,4 @@ updated: 2026-04-19
 
 ## Canonical Entry
 
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`

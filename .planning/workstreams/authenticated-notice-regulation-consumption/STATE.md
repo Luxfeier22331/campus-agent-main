@@ -1,28 +1,31 @@
 ---
 workstream: authenticated-notice-regulation-consumption
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Deferred
-**Current Phase:** 5
-**Current Phase Name:** Target-side Chunk And Quality Acceptance
-**Current Plan:** paused; Phase 5 继续作为 target-side quality umbrella，后续已明确拆成 `Phase 6-8` 三个 execution-ready slices，待 workstream reopen 后按顺序恢复
+**Status:** Active
+**Current Phase:** 6
+**Current Phase Name:** Institutional Regulations Target Chunk-Prep Parity
+**Current Plan:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-06-institutional-regulations-target-chunk-prep-parity/PLAN.md`
 **Total Phases:** 8
 **Total Plans in Phase:** N/A
-**Progress:** 4/8 phases complete
-**Last Activity:** 2026-04-20
-**Last Activity Description:** 将剩余 `notice -> chunk` 工作显式拆成 `Phase 6-8`：institutional_regulations lane parity、11-target rerun/gap closure、evidence freeze/closeout。
+**Progress:** 5/8 phases complete
+**Last Activity:** 2026-04-21
+**Last Activity Description:** 补齐 `Phase 6-8` 的 research/plan artifacts，并把 workstream 从 deferred 恢复到 `Phase 6` 执行入口。
 
 ## Current Slice
 
 - bounded lane 固定为 `11` 条 admitted regulation target + `scoped_rules` holding collection
-- 当前继续做 target-side chunk prep、metadata 与 quality hardening
-- `Phase 6` 负责把 `institutional_regulations` target-side chunk-prep / validation 收口到与 `scoped_rules` 对齐的 repo-native lane
+- 当前先收口 `institutional_regulations` 与既有 `scoped_rules` 的 shared operator/artifact parity seam
+- `Phase 6` 负责固定：
+  - dual-lane operator contract
+  - artifact triplet
+  - institutional-only lineage fail-close truth
 - `Phase 7` 负责对当前 `11` 条 target 做 full local-only acceptance rerun，并消费 fail-close 验收问题
 - `Phase 8` 负责冻结 acceptance artifacts / docs continuity，并把这条线停在 `offline_preparation`
 - `school_unit_name` 已收口为 title-first / fail-close metadata；无法从 source-facing title 高置信识别时返回 `None`
@@ -42,5 +45,5 @@ updated: 2026-04-20
 
 ## Session Continuity
 
-**Stopped At:** workstream deferred while `notice -> chunk` 剩余工作已拆成 `Phase 6-8`；后续从 `institutional_regulations` lane parity 开始，顺序推进 rerun/gap closure 与 evidence freeze，shared loader / legacy Office follow-up 已在 `shared-file-asset-loader-contract` workstream 收口，只有 future reopen rule 命中时才会恢复
-**Resume File:** docs/plans/internal-notice-policy-regulation-consumption-implementation.md
+**Stopped At:** `Phase 6` planning 已完成；下次继续时直接按 institutional lane parity plan 执行，再顺序推进 `Phase 7-8`
+**Resume File:** `.planning/workstreams/authenticated-notice-regulation-consumption/phases/phase-06-institutional-regulations-target-chunk-prep-parity/PLAN.md`

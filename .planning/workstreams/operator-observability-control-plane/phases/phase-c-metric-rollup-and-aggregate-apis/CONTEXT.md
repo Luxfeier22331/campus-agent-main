@@ -93,7 +93,7 @@ status: active
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/contracts/app-api-operator-observability-http.md`
-- `docs/plans/operator-observability-control-plane-foundation.md`
+- `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`
 - `.planning/WORKSTREAMS.md`
 - `.planning/workstreams/operator-observability-control-plane/REQUIREMENTS.md`
 - `.planning/workstreams/operator-observability-control-plane/ROADMAP.md`

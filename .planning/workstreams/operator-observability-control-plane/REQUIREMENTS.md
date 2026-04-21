@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Requirements: Operator Observability Control Plane
@@ -41,4 +41,4 @@ updated: 2026-04-20
 
 ## Canonical Entry
 
-- `docs/plans/operator-observability-control-plane-foundation.md`
+- `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`

@@ -1,22 +1,22 @@
 ---
 workstream: operator-observability-control-plane
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** 12
-**Current Phase Name:** Staging Smoke And Planning Closeout
+**Status:** Completed
+**Current Phase:** Complete
+**Current Phase Name:** Closed Out After Phase 12
 **Current Plan:** `<none>`
 **Total Phases:** 12
 **Total Plans in Phase:** 0
-**Progress:** 11/12 phases complete
-**Last Activity:** 2026-04-20
-**Last Activity Description:** Completed `Phase 11`: dev/local preflight, seeded data, Worker smoke, public chat live request, protected panel observability routes, and artifact pack are now closed with fresh evidence.
+**Progress:** 12/12 phases complete
+**Last Activity:** 2026-04-21
+**Last Activity Description:** Completed `Phase 12`: closed staging/browser/sink evidence, proved `projection.drain` directly in Axiom, archived the operator observability plan, and moved the workstream to completed truth.
 
 ## Current Slice
 
@@ -52,6 +52,10 @@ updated: 2026-04-20
   - context: `.planning/workstreams/operator-observability-control-plane/phases/phase-11-dev-smoke-and-evidence/CONTEXT.md`
   - plan: `.planning/workstreams/operator-observability-control-plane/phases/phase-11-dev-smoke-and-evidence/PLAN.md`
   - summary: `.planning/workstreams/operator-observability-control-plane/phases/phase-11-dev-smoke-and-evidence/SUMMARY.md`
+- completed `Phase 12` artifacts:
+  - context: `.planning/workstreams/operator-observability-control-plane/phases/phase-12-staging-smoke-and-planning-closeout/CONTEXT.md`
+  - plan: `.planning/workstreams/operator-observability-control-plane/phases/phase-12-staging-smoke-and-planning-closeout/PLAN.md`
+  - summary: `.planning/workstreams/operator-observability-control-plane/phases/phase-12-staging-smoke-and-planning-closeout/SUMMARY.md`
 - current forward truth:
   - `protected-panel-web` 已有 `getOperatorOverview / getOperatorQualitySummary / getOperatorQualityTimeseries / listOperatorQualityBadcases / getOperatorSafetySummary / listOperatorSafetyAnomalies / getOperatorCostSummary / getOperatorCostTimeseries / listOperatorAudit / getOperatorAuditEvent`
   - operator list seams 统一使用 shared sequential cursor helper，不再每个 domain 自己实现一套分页历史
@@ -65,11 +69,15 @@ updated: 2026-04-20
   - `apps/app-api` 现在已把 `request_id` / `safety_identifier` 等高基数字段从 `Sentry` tag 移入 structured request context，只保留 ADR-0023 允许的 searchable tags
   - `apps/app-api` 现在已把 `Axiom` runtime sink 从 blacklist-only 改成 `event_type -> allowlist`，并统一补上 `occurred_at / environment / release` canonical envelope
   - internal `quality` ingest seam 现在会在 `quality_grade_projection` upsert 成功后稳定发出 `quality.sampled_grade` sink 事件，不改变 panel truth owner
+  - staging `public-chat-web` 真实请求已完成：`POST /api/chat/requests` 返回 `200`，`requestId=req_ec951228badd42709172078a2ee13d03`
+  - staging `protected-panel-web` 真实 `/observability/overview / quality / safety / cost / audit` 路由已完成：相关 `/api/operator/*` 请求均返回 `200`
+  - `Sentry` 已证明跨 surface trace correlation 成立；`Axiom` 已直接证明 staging `projection.drain` 行可查询，不再存在 sink-side blocker
+  - canonical plan 入口已迁移到 `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`
 
 ## Blockers
 
-- `apps/protected-panel-web` 现有 `/api/overview` 仍继续承担壳层状态与 auth-provider 探针；后续 phase 必须继续避免把它重新混用成 observability aggregate truth。
-- `Phase 12` 的 staging smoke 与 planning closeout 仍未执行。
+- 无；这条 workstream 已完成。
+- `apps/protected-panel-web` 的 `/api/overview` 继续只承担壳层状态与 auth-provider 探针语义；如未来有人试图把它重新混成 operator aggregate truth，应新开 follow-up，而不是回退本线已完成 truth。
 
 ## Verification
 
@@ -77,8 +85,14 @@ updated: 2026-04-20
 - `pnpm --dir apps/app-api typecheck`
 - `pnpm --dir apps/app-api test:node`
 - `pnpm --dir apps/app-api test:shared-db-integration`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
+- real staging/browser/sink artifact pack:
+  - `.tmp/observability-smoke/20260421-182650-staging-manual/SUMMARY.md`
+  - `.tmp/observability-smoke/20260421-182650-staging-manual/chat-trace.md`
+  - `.tmp/observability-smoke/20260421-182650-staging-manual/panel-trace.md`
+  - `.tmp/observability-smoke/20260421-182650-staging-manual/app-api-runtime-event.md`
 
 ## Session Continuity
 
-**Stopped At:** `Phase 11` 已完成并留下 dev-local artifact；下一次恢复应直接规划 `Phase 12: Staging Smoke And Planning Closeout`。
-**Resume File:** .planning/workstreams/operator-observability-control-plane/ROADMAP.md
+**Stopped At:** workstream 已在 `Phase 12` 收口完成；后续只有在新的 operator domain / sink contract / write surface 被重新 admission 时才恢复。
+**Resume File:** `<none>`

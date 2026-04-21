@@ -1,23 +1,22 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-19
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Roadmap: Operator Observability Control Plane
 
 ## Overview
 
-这条 workstream 已于 `2026-04-20` 恢复为 active。
-为避免字母 phase 与当前 GSD workstream 语境混淆，roadmap 统一改为数字 phase。
+这条 workstream 已在 `2026-04-21` 完成收口。
+它完成了 `app-api` operator aggregate read model、`protected-panel-web` 的 `Overview / Quality / Safety / Cost / Audit` 域扩面、`Sentry/Axiom/grading` sink participation，以及最终的 staging/browser/sink acceptance。
 
-当前 merged truth 已经吸收了前三段后端基础：
+当前 roadmap 真相：
 
-- `Phase 1` 对应原 `Phase A`
-- `Phase 2` 对应原 `Phase B`
-- `Phase 3` 对应原 `Phase C`
-- `Phase 11` 已完成；当前 active frontier 前推到 `Phase 12`，进入 staging smoke / closeout
+- `Phase 1-3` 对应恢复前已吸收的原 `Phase A-C` 基线
+- `Phase 12` 已关闭最后的 staging smoke / planning closeout gap
+- 后续如需新增 operator write/action surface，应新开 follow-up workstream，而不是在本 roadmap 继续加 phase
 
 ## Phases
 
@@ -32,4 +31,4 @@ updated: 2026-04-20
 - [x] **Phase 9: Panel Audit Domain** — 已完成 `Audit` 页 cutover；audit timeline、detail drawer 与 trace/issue/request backlink 已落地。
 - [x] **Phase 10: Sink Participation And Grade Backflow** — 已完成 `Sentry` tag/context 收口、`Axiom` allowlist + canonical envelope、以及 `quality.sampled_grade` backflow productization，不新增 panel truth owner。
 - [x] **Phase 11: Dev Smoke And Evidence** — 已完成 dev seeded smoke、截图、console/network artifact 与回归清单。
-- [ ] **Phase 12: Staging Smoke And Planning Closeout** — 完成 staging 验收、剩余 gap 清零与 workstream closeout。
+- [x] **Phase 12: Staging Smoke And Planning Closeout** — 已完成 staging 验收、真实 `Sentry/Axiom` sink 证据闭环，以及 workstream planning closeout。

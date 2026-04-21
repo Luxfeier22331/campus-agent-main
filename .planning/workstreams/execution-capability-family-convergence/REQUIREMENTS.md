@@ -39,4 +39,4 @@ updated: 2026-04-21
 
 ## Canonical Entry
 
-- `docs/plans/execution-capability-family-convergence.md`
+- `docs/plans/archive/completed/execution-capability-family-convergence.md`

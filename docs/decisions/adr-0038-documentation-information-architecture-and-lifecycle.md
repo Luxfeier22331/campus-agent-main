@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0038
 status: accepted
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # ADR-0038 Documentation Information Architecture And Lifecycle
@@ -56,10 +56,10 @@ Accepted on 2026-04-12.
   - reference-oriented 稳定真相
 - `runbooks/`
   - how-to oriented 可重复操作步骤
-- `plans/`
-  - repo-specific forward implementation docs
+- `docs/plans/archive/`
+  - archived implementation snapshots、supporting references 与 superseded predecessor
 - `.planning/`
-  - live execution state、phase artefacts 与 worktree-local execution context
+  - live execution state、native workstream entry、phase artefacts 与 worktree-local execution context
 
 这意味着：
 
@@ -98,18 +98,19 @@ Accepted on 2026-04-12.
 
 ### 决策 4：已完成或历史性计划必须退出默认阅读路径
 
-`docs/plans/` 中的计划默认分成四类：
+native workstream 的 live entry 固定迁到 `.planning/workstreams/<slug>/README.md`。
 
-- 仍指导前向实施的 `active`
-- 能力仍接受但当前没有 active wave 的 `deferred`
-- closeout 已完成的 `completed`
-- 只保留历史基线、对照或迁移价值的 `historical`
+`docs/plans/` 不再承载 active / deferred workstream entry；根层只保留索引页，archive namespace 默认分成：
 
-`completed`、`historical` 与 `superseded` plan 不再进入根入口与默认阅读路径。
+- `completed`
+- `historical`
+- `superseded`
 
-`docs/plans/README.md` 允许按 “workstream entry / backlog entry / deferred reference” 组织阅读入口，但这些分组只是导航层，不得改写各 plan front matter 的 lifecycle 语义。
+这些 archived plan 不再进入根入口与默认阅读路径。
 
-当 `completed` / `historical` / `superseded` plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担 archive 角色。
+`docs/plans/README.md` 只负责解释 archive contract，不再扮演 repo 级 active/deferred workstream registry。
+
+当 archived plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担 archive 角色。
 
 历史证据型 `reference` 和历史操作型 `runbook` 可以继续保留在 `docs/` 下，但必须：
 
@@ -144,7 +145,8 @@ Accepted on 2026-04-12.
 
 - 根 `README.md` 与 `docs/README.md` 缩回真正的入口页
 - 顶层文档分区补齐 `README.md`
-- 明显失真的 plan 状态被校正
+- native workstream entry 统一回到 `.planning/workstreams/<slug>/README.md`
+- `docs/plans/` 收口为 archive-only namespace
 - 后续文档清理按 lifecycle 继续推进，而不是继续向入口页堆内容
 
 ## 关联文档

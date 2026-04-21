@@ -1,7 +1,7 @@
 ---
 workstream: authenticated-notice-live-portal-control-plane
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Project State
@@ -30,4 +30,4 @@ updated: 2026-04-19
 ## Session Continuity
 
 **Stopped At:** deferred pending auth-window recovery
-**Resume File:** docs/plans/authenticated-notice-live-portal-control-plane.md
+**Resume File:** `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md`

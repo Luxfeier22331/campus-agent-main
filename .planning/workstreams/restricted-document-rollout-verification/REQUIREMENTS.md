@@ -2,7 +2,7 @@
 doc_type: requirements
 status: deferred
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Requirements: Restricted Document Rollout Verification
@@ -33,4 +33,4 @@ updated: 2026-04-19
 
 ## Canonical Entry
 
-- `docs/plans/restricted-document-rollout-and-verification.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`
