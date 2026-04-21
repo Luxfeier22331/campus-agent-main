@@ -13,6 +13,7 @@ vi.mock("../src/db/runtime", () => ({
 }));
 
 import { createPgOperatorQueryStore } from "../src/modules/operator-query/store";
+import { summarizeSafetyAnomaly } from "../src/modules/operator-query/store/safety";
 
 describe("pg operator query store", () => {
   beforeEach(() => {
@@ -232,5 +233,17 @@ describe("pg operator query store", () => {
         }),
       ]),
     );
+  });
+
+  it("renders operator-facing target labels in safety anomaly summaries", () => {
+    expect(
+      summarizeSafetyAnomaly({
+        aclAnomalyCode: "projection_missing",
+        failClosed: false,
+        requestedCapability: "knowledge",
+        selectedTarget: "rag-specialist",
+        status: "completed",
+      }),
+    ).toBe("knowledge request finalized without the required policy projection for rag agent.");
   });
 });

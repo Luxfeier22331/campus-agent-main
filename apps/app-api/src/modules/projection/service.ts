@@ -1,5 +1,6 @@
 import type { RequestExecutionStatus } from "../runtime-command";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
+import { formatOperatorTargetSummaryLabel } from "../operator-target-labels";
 
 export interface ProjectionOutboxEvent {
   eventId: string;
@@ -241,7 +242,7 @@ function buildAuditSummary(input: {
 }): string {
   const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
   const targetSuffix = input.execution.selectedTarget
-    ? ` via ${input.execution.selectedTarget}`
+    ? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedTarget)}`
     : "";
 
   switch (input.status) {
