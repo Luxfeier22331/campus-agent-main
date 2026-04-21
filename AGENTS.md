@@ -280,6 +280,9 @@ uv sync --all-packages --dev
 默认仓库级验证命令：
 
 ```bash
+pnpm web:lint
+uv run --all-packages ruff check .
+uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
 ```
 
@@ -287,6 +290,7 @@ JS/TS surface 的默认验证命令：
 
 ```bash
 pnpm install
+pnpm web:lint
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
@@ -307,6 +311,7 @@ pnpm web:build:affected
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
+- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Python lint/format 默认通过 `uv run --all-packages ruff ...` 执行
 - `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
 - `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration` 是显式外部依赖 integration lane
 - `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与 `test:shared-db-integration` 必须显式调用

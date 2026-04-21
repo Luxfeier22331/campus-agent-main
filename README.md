@@ -97,7 +97,10 @@ pnpm install
 常用验证入口：
 
 ```bash
+pnpm web:lint
 uv run --all-packages python -m unittest discover -s tests -t .
+uv run --all-packages ruff check .
+uv run --all-packages ruff format . --check
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker

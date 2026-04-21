@@ -17,6 +17,23 @@ updated: 2026-03-31
 
 ## 仓库级 lane
 
+### Repo Lint Lane
+
+命令：
+
+```bash
+pnpm web:lint
+uv run --all-packages ruff check .
+uv run --all-packages ruff format . --check
+```
+
+语义：
+
+- 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
+- JS/TS 侧使用 Biome，统一从 repo root 扫描 `apps/`、`packages/`、`scripts/`、`tests/` 与 root config 文件
+- Python 侧使用 Ruff，同时承担 import 排序与格式检查
+- 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
+
 ### Python Baseline
 
 命令：

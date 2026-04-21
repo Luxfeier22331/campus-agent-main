@@ -9,14 +9,23 @@
     "web:check": "turbo run typecheck test build",
     "web:dev": "turbo run dev",
     "web:dev:chat": "turbo run dev --filter=public-chat-web",
+    "web:lint": "pnpm exec biome check .",
+    "web:lint:fix": "pnpm exec biome check --write .",
     "web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
     "web:test": "turbo run test",
     "web:test:worker": "turbo run test:worker",
     "web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
     "web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
-    "web:typecheck": "turbo run typecheck"
+    "web:typecheck": "turbo run typecheck",
+    "py:lint": "uv run --all-packages ruff check .",
+    "py:lint:fix": "uv run --all-packages ruff check . --fix",
+    "py:format": "uv run --all-packages ruff format .",
+    "py:format:check": "uv run --all-packages ruff format . --check",
+    "lint": "pnpm web:lint && pnpm py:lint && pnpm py:format:check",
+    "lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.12",
     "turbo": "^2.8.21"
   }
 }
