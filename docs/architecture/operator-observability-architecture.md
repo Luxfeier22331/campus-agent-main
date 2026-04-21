@@ -326,6 +326,7 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 - 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由 `protected-panel-web`、`apps/supervisor-api` 或 sink query 直接拥有
 - 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source bundle、raw prompt
 - 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic business outcome，而不是把 closed gate 模糊写成普通 success
+- 如果 operator 需要 capability family / 产品命名标签，必须通过独立 projection 或 UI mapping 派生，而不是改写 `selected_target`
 
 ### Release-Gate / Regression Evals
 

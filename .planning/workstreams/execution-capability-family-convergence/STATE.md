@@ -9,14 +9,14 @@ updated: 2026-04-21
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 3
-**Current Phase Name:** Prompt Eval And Observability Label Convergence
-**Current Plan:** `phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
-**Total Phases:** 4
+**Current Phase:** 5
+**Current Phase Name:** One-Shot Full Rename Execution
+**Current Plan:** `phases/phase-5-one-shot-full-rename-execution/PLAN.md`
+**Total Phases:** 5
 **Total Plans in Phase:** 1
-**Progress:** 2/4 phases complete
+**Progress:** 4/5 phases complete
 **Last Activity:** 2026-04-21
-**Last Activity Description:** Created the `Phase 3` planning pack to converge prompt / eval / observability wording while preserving `Phase 2` current runtime target semantics.
+**Last Activity Description:** `Phase 4` 已完成 rename decision freeze；`Phase 5` planning pack 已创建，当前开始收口 one-shot full rename 的执行写集、顺序与验证矩阵。
 
 ## Current Slice
 
@@ -42,31 +42,54 @@ updated: 2026-04-21
   - current serialized contract 不承载 forward family label
   - operator-facing display label 来自显式 mapping，而不是 raw target string
   - panel 当前 target filter 闭集已被显式收口
-- 当前切片切到 `Phase 3`：
+- `Phase 3` 已正式 completed：
   - `phases/phase-3-prompt-eval-and-observability-label-convergence/CONTEXT.md`
   - `phases/phase-3-prompt-eval-and-observability-label-convergence/RESEARCH.md`
   - `phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
-  - 只处理 prompt / eval / observability wording convergence
-  - 不回头重做 Phase 2 已完成的 current-truth contract 语义清理
-  - 不提前进入 package dir / import path rename
+  - `phases/phase-3-prompt-eval-and-observability-label-convergence/SUMMARY.md`
+  - prompt-facing wording 已不再把 `rag-specialist` 当默认 persona
+  - eval 已显式拆分 runtime target assertion 与 capability family label
+  - observability / operator wording 已固定 raw target 与 derived label 分层
+- `Phase 4` 已正式 completed：
+  - `phases/phase-4-package-and-runtime-rename-decision/CONTEXT.md`
+  - `phases/phase-4-package-and-runtime-rename-decision/RESEARCH.md`
+  - `phases/phase-4-package-and-runtime-rename-decision/PLAN.md`
+  - `phases/phase-4-package-and-runtime-rename-decision/SUMMARY.md`
+  - one-shot full rename 已被选定为固定方向
+  - `selected_target` / `selectedTarget` 继续只表示 raw runtime target；后续若 rename raw target value，也只能在保持该语义不变的前提下执行
+  - full rename 的 canonical write set 已冻结为 package dir / distribution / module import / raw runtime target / runtime helper / active docs / active planning / active tests
+  - no-rename、partial rename、compatibility shim 已被正式拒绝
+- 当前切片切到 `Phase 5`：
+  - `phases/phase-5-one-shot-full-rename-execution/CONTEXT.md`
+  - `phases/phase-5-one-shot-full-rename-execution/RESEARCH.md`
+  - `phases/phase-5-one-shot-full-rename-execution/PLAN.md`
+  - 当前开始 one-shot full rename 的执行规划与后续代码波次
+  - 当前 focus 是单波次 cutover，不扩到新的 capability family，也不回头重做 `Phase 1-4` 的判断
 
 ## Blockers
 
-- telemetry / eval / observability wording 仍然混有 `specialist` / `agent` 两套词汇。
-- package dir / import path / runtime object rename 是否真的执行仍未冻结。
-- 并发中的 availability 删除线不在这条 phase 的 write set 内；`Phase 3` 规划时只消费已合流的 current truth。
+- actual code rename 仍未开始；当前只完成了 Phase 5 的 execution planning truth。
+- Python workspace metadata、raw runtime target enum/value、JS/TS operator-facing mappings 与 active docs/planning 需要在同一波次协同 cutover。
+- `packages/rag-specialist/src/campus_rag_specialist/service.py` 仍是局部高耦合热点；执行时需要避免与其他并发改动冲突。
+- 并发中的 availability 删除线不在这条 workstream 的 write set 内。
 
 ## Verification
 
-- `pnpm --dir apps/protected-panel-web test`
+- `uv run --all-packages python -m unittest tests.evals.test_golden_cases.GoldenCaseSchemaTest tests.evals.test_golden_cases.RunCasesTest`
   - passed
-- `uv run --all-packages python - <<'PY' ...`
+  - 验证 runtime target / capability family split
+- `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_golden_cases`
   - passed
-  - 当前 runtime target contract 闭集与 forward label rejection 均符合预期
-- `git diff --check -- apps/protected-panel-web/package.json apps/protected-panel-web/src/panel/pages/audit-page.tsx apps/protected-panel-web/src/panel/pages/cost-page.tsx apps/protected-panel-web/src/panel/pages/overview-page/constants.ts apps/protected-panel-web/src/panel/pages/quality-page/constants.ts apps/protected-panel-web/src/panel/pages/safety-page/constants.ts apps/protected-panel-web/src/panel/requests/request-formatters.ts apps/protected-panel-web/test/request-formatters.test.ts docs/contracts/app-api-supervisor-execution.md docs/contracts/app-api-http.md docs/contracts/app-api-operator-observability-http.md docs/data/app-api-schema.md`
+  - `225` tests
+- `git diff --check -- docs/architecture/prompt-and-instruction-architecture.md docs/architecture/operator-observability-architecture.md docs/contracts/app-api-operator-observability-http.md`
   - passed
+- `git diff --check -- .planning/WORKSTREAMS.md .planning/workstreams/execution-capability-family-convergence/ROADMAP.md .planning/workstreams/execution-capability-family-convergence/STATE.md .planning/workstreams/execution-capability-family-convergence/REQUIREMENTS.md docs/plans/execution-capability-family-convergence.md .planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/SUMMARY.md .planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/CONTEXT.md .planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/RESEARCH.md .planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/PLAN.md`
+  - passed
+- `rg -n "one-shot full rename|Phase 5|compatibility shim|partial rename|rag-agent|navigation-agent" .planning/workstreams/execution-capability-family-convergence docs/plans/execution-capability-family-convergence.md .planning/WORKSTREAMS.md`
+  - passed
+  - 验证 `Phase 4 -> Phase 5` handoff、full rename admission 与拒绝 compatibility/partial rename 的 planning truth 已落盘
 
 ## Session Continuity
 
-**Stopped At:** `Phase 3` planning pack created; next step is to execute prompt / eval / observability wording convergence without re-opening contract semantics or package rename
-**Resume File:** docs/plans/execution-capability-family-convergence.md
+**Stopped At:** `Phase 5` planning pack created; next step is to按计划开始 code/doc/test one-shot full rename implementation
+**Resume File:** `.planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/PLAN.md`

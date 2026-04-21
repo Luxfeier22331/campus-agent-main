@@ -17,7 +17,7 @@ updated: 2026-04-21
 - `supervisor` 与下游 capability family 的长期命名约定
 - `rag-specialist -> rag-agent` 为首的 family terminology freeze
 - current-truth contract、`selected_target` label、observability label、prompt/eval label 的前向收敛
-- package/runtime rename 是否真的执行的决策门槛
+- package/runtime rename 是否真的执行的决策门槛，以及 admission 之后的 execution closeout
 
 ## This Document Does Not Cover
 
@@ -51,6 +51,8 @@ updated: 2026-04-21
   - `Prompt Eval And Observability Label Convergence`
 - `Phase 4`
   - `Package And Runtime Rename Decision`
+- `Phase 5`
+  - `One-Shot Full Rename Execution`
 
 ## Handoff Note
 
@@ -58,16 +60,26 @@ updated: 2026-04-21
 
 - `Phase 1: Agent Family Terminology Freeze`
 - `Phase 2: Current-Truth Contract Label Migration`
+- `Phase 3: Prompt Eval And Observability Label Convergence`
 
-后续恢复时，应直接进入 `Phase 3: Prompt Eval And Observability Label Convergence` 的 execution。
+后续恢复时，应直接进入 `Phase 5: One-Shot Full Rename Execution`。
 当前 baseline 已经固定：
 
 - `selected_target` / `selectedTarget` 继续只表示 current runtime target
 - current serialized contract 不承载 forward family label
 - panel target filter / display label 已由显式 mapping 收口
-- `Phase 3` planning pack 已创建：
-  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/CONTEXT.md`
-  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/RESEARCH.md`
-  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
+- prompt-facing wording 已不再把 legacy runtime target label 当默认 persona
+- eval 已显式拆分 raw runtime target assertion 与 capability family label
+- observability / operator wording 已固定 raw target 与 derived label 分层
+- `Phase 4` planning pack 已创建：
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/CONTEXT.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/RESEARCH.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/PLAN.md`
+- `Phase 4` 已完成：
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/SUMMARY.md`
+- `Phase 5` planning pack 已创建：
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/CONTEXT.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/RESEARCH.md`
+  - `.planning/workstreams/execution-capability-family-convergence/phases/phase-5-one-shot-full-rename-execution/PLAN.md`
 
-下一阶段不应回退重开 Phase 1/2，也不应提前扩到 package dir / import path rename。
+当前不应回退重开 `Phase 1-4`。one-shot full rename 已被正式 admission；后续只收口 code/doc/test/planning 的单波次 cutover 与 targeted verification。

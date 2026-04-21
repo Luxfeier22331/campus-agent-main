@@ -40,6 +40,7 @@ updated: 2026-04-21
 
 - repo-global developer invariants 由 shared prompt runtime helper 持有
 - package-owned role prompt 继续由 `packages/supervisor-core` / `packages/rag-specialist` prompt registry 持有
+- `packages/rag-specialist` 的 runtime package 名称继续保持 current merged truth；但 prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path wording，不再把 `rag-specialist` 当默认对外标签
 - `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py` 负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence packet 组装成 runtime stack
 - `apps/supervisor-api/src/campus_supervisor_api/prompt_executor.py` 负责 provider-backed strict structured outputs，并在产品主链路生成 validated `PromptTrace`
 - provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作 schema-valid success 放行

@@ -94,6 +94,7 @@ list endpoints 额外支持：
 - 未传 filter 时表示查询当前 operator 可见范围内的全量 app-owned aggregate
 - 过滤只作用于 app-owned projection / rollup 维度，不隐式回源 raw sink
 - `selectedTarget` 继续只表示 current runtime target filter，不表示 forward family label，也不直接承担 localized display wording
+- 如果 operator surface 需要 capability family 或 display wording，必须通过独立 projection field / mapping 提供；不得把 `rag-agent`、`navigation-agent` 之类派生标签直接写回 `selectedTarget`
 
 ## Endpoint Summary
 
