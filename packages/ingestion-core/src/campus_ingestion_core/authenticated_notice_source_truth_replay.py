@@ -17,6 +17,7 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeProjectedNotice,
     _AuthenticatedNoticeParentSourceTruth,
     _project_parent_source_truth,
+    _resolve_authenticated_notice_ocr_runtime,
     _load_json_payload,
     _load_jsonl_rows,
     load_authenticated_notice_source_projections_config,
@@ -154,13 +155,18 @@ def build_authenticated_notice_source_truth_replay_documents(
         object_store_settings=object_store_settings,
     )
     ocr_provider_response_cache: dict[str, bytes] = {}
+    runtime_ocr = (
+        _resolve_authenticated_notice_ocr_runtime(env=source, ocr_client=ocr_client)
+        if ocr_client is not None
+        else None
+    )
     projected_notice, _runtime_ocr_client = _project_parent_source_truth(
         parent_source_truth=parent_source_truth,
         config=config,
         object_store=object_store,
         object_store_settings=object_store_settings,
         runtime_profile=runtime_profile,
-        ocr_client=ocr_client,
+        ocr_runtime=runtime_ocr,
         ocr_provider_response_cache=ocr_provider_response_cache,
         env=source,
     )

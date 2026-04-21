@@ -7,6 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
     "compare-online-ocr.env.example",
+    "legacy-office-conversion-service.env.example",
     "official-web-handoff-consumer.env.example",
     "official-web-handoff-receiver.env.example",
     "process-raw-ingestion-job.env.example",
