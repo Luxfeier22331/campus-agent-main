@@ -18,7 +18,7 @@ updated: 2026-04-20
 
 - `../architecture/navigation-and-wayfinding-architecture.md`
 - `../decisions/adr-0021-institution-scoped-entity-alias-governance.md`
-- `../decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `../decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `../decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 
 ## Contract 与 Data

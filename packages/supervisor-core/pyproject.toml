@@ -8,8 +8,8 @@ dependencies = [
   "campus-services-agent",
   "campus-contracts",
   "campus-notice-agent",
-  "campus-navigation-specialist",
-  "campus-rag-specialist",
+  "campus-navigation-agent",
+  "campus-rag-agent",
   "campus-shared",
 ]
 
@@ -20,8 +20,8 @@ package = true
 campus-services-agent = { workspace = true }
 campus-contracts = { workspace = true }
 campus-notice-agent = { workspace = true }
-campus-navigation-specialist = { workspace = true }
-campus-rag-specialist = { workspace = true }
+campus-navigation-agent = { workspace = true }
+campus-rag-agent = { workspace = true }
 campus-shared = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

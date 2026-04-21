@@ -1,14 +1,32 @@
 from __future__ import annotations
 
-from dataclasses import fields
 import inspect
 import unittest
+from dataclasses import fields
 from unittest.mock import Mock, patch
 
-from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, PersonalizationHint
+from campus_contracts import (
+    AuthorizedRetrievalFilter,
+    EvidenceBundle,
+    EvidenceSource,
+    PersonalizationHint,
+)
 from campus_retrieval_core.backend_qdrant import RestrictedDocumentAccessDeniedError
-from campus_retrieval_core.models import RetrievalRequest
-from campus_retrieval_core.service import build_retrieval_backend, retrieve_sources
+from campus_retrieval_core.models import (
+    RetrievalPlan,
+    RetrievalPlanBudget,
+    RetrievalRequest,
+    RetrievalScope,
+    RetrievalSelector,
+    RetrievalSourceTrustPolicy,
+    RetrievalStep,
+    RetrievalStepBudget,
+)
+from campus_retrieval_core.service import (
+    build_retrieval_backend,
+    execute_retrieval_plan,
+    retrieve_sources,
+)
 
 
 class RetrievalServiceTest(unittest.TestCase):
@@ -17,8 +35,12 @@ class RetrievalServiceTest(unittest.TestCase):
         backend = Mock()
 
         with (
-            patch("campus_retrieval_core.service.RetrievalSettings.from_env", return_value=settings) as from_env,
-            patch("campus_retrieval_core.service.QdrantRetrievalBackend", return_value=backend) as backend_ctor,
+            patch(
+                "campus_retrieval_core.service.RetrievalSettings.from_env", return_value=settings
+            ) as from_env,
+            patch(
+                "campus_retrieval_core.service.QdrantRetrievalBackend", return_value=backend
+            ) as backend_ctor,
         ):
             runtime_backend = build_retrieval_backend()
 
@@ -33,7 +55,9 @@ class RetrievalServiceTest(unittest.TestCase):
 
         with (
             patch("campus_retrieval_core.service._RUNTIME_BACKEND_CACHE", {}),
-            patch("campus_retrieval_core.service.RetrievalSettings.from_env", return_value=settings) as from_env,
+            patch(
+                "campus_retrieval_core.service.RetrievalSettings.from_env", return_value=settings
+            ) as from_env,
             patch(
                 "campus_retrieval_core.service.QdrantRetrievalBackend",
                 side_effect=(first_backend, second_backend),
@@ -70,7 +94,9 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertIsInstance(result, EvidenceBundle)
         backend.retrieve.assert_called_once()
 
-    def test_retrieve_sources_uses_runtime_profile_retrieval_budget_when_top_k_is_omitted(self) -> None:
+    def test_retrieve_sources_uses_runtime_profile_retrieval_budget_when_top_k_is_omitted(
+        self,
+    ) -> None:
         backend = Mock()
         backend.retrieve.return_value = EvidenceBundle(
             query_text="民族学本科人才培养方案总学分要求是多少？",
@@ -222,6 +248,29 @@ class RetrievalServiceTest(unittest.TestCase):
             ("curriculum:历史学（强基计划）本科人才培养方案",),
         )
 
+    def test_retrieve_sources_passes_version_filters_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="旧版国奖评审办法",
+            corpus="regulations",
+            collection="student_handbook",
+        )
+
+        retrieve_sources(
+            "旧版国奖评审办法",
+            corpus="regulations",
+            collection="student_handbook",
+            target_document_ids=("handbook:national-scholarship",),
+            target_version_ids=("v1:national-scholarship",),
+            target_revision_track="source-faithful",
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertEqual(request.target_version_ids, ("v1:national-scholarship",))
+        self.assertEqual(request.target_revision_track, "source-faithful")
+
     def test_retrieve_sources_passes_canonical_course_filters_through_request(self) -> None:
         backend = Mock()
         backend.retrieve.return_value = EvidenceBundle(
@@ -248,7 +297,9 @@ class RetrievalServiceTest(unittest.TestCase):
         )
 
     def test_retrieve_sources_exposes_program_family_filter_surface(self) -> None:
-        self.assertIn("canonical_program_family_ids", inspect.signature(retrieve_sources).parameters)
+        self.assertIn(
+            "canonical_program_family_ids", inspect.signature(retrieve_sources).parameters
+        )
         self.assertIn(
             "canonical_program_family_ids",
             {field.name for field in fields(RetrievalRequest)},
@@ -262,6 +313,510 @@ class RetrievalServiceTest(unittest.TestCase):
         self.assertNotIn("campus_scope", field_names)
         self.assertNotIn("acl_groups", parameter_names)
         self.assertNotIn("campus_scope", parameter_names)
+
+    def test_execute_retrieval_plan_merges_dual_step_compare_results(self) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            version_id = request.target_version_ids[0]
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id=f"{version_id}:chunk-1",
+                        version_id=version_id,
+                        snippet=f"{version_id} content",
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_handbook:compare",
+            query_mode="compare",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=0),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    query_text="国奖变化",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                        target_version_ids=("v1:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+                RetrievalStep(
+                    step_id="comparison",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    query_text="国奖变化",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                        target_version_ids=("v2:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(plan, retrieve_step=fake_retrieve_step)
+
+        self.assertEqual(
+            [request.target_version_ids for request in seen_requests],
+            [("v1:national-scholarship",), ("v2:national-scholarship",)],
+        )
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("succeeded", "succeeded"),
+        )
+        self.assertEqual(len(result.merged_evidence.sources), 2)
+
+    def test_execute_retrieval_plan_supports_bounded_replan_append(self) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            if request.query_text == "国奖":
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                )
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="v1:national-scholarship:chunk-1",
+                        version_id="v1:national-scholarship",
+                        snippet="narrowed content",
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_handbook:replan",
+            query_mode="historical",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    query_text="国奖",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                        target_version_ids=("v1:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="replanned",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                        query_text="国家奖学金",
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",),
+                            target_version_ids=("v1:national-scholarship",),
+                        ),
+                        budget=RetrievalStepBudget(top_k=1),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual([request.query_text for request in seen_requests], ["国奖", "国家奖学金"])
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results), ("empty", "succeeded")
+        )
+        self.assertEqual(len(result.merged_evidence.sources), 1)
+
+    def test_execute_retrieval_plan_fail_closes_when_replan_drops_existing_version_filter(
+        self,
+    ) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_handbook:replan-version-tightening",
+            query_mode="historical",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    query_text="国奖",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                        target_version_ids=("v1:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="replanned",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                        query_text="国家奖学金",
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",),
+                        ),
+                        budget=RetrievalStepBudget(top_k=1),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual([request.query_text for request in seen_requests], ["国奖"])
+        self.assertEqual(result.replan_count, 0)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results), ("empty", "failed")
+        )
+        self.assertEqual(result.step_results[-1].failure.failure_kind, "executor_error")
+        self.assertIn("target_version_ids", result.step_results[-1].failure.message)
+
+    def test_execute_retrieval_plan_fail_closes_when_replan_switches_scope(self) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_handbook:replan-scope-switch",
+            query_mode="current",
+            admitted_scopes=(
+                RetrievalScope(corpus="regulations", collection="student_handbook"),
+                RetrievalScope(corpus="curriculum", collection="curriculum_plan"),
+            ),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    query_text="国奖",
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="replanned",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="curriculum", collection="curriculum_plan"),
+                        query_text="国家奖学金",
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",),
+                        ),
+                        budget=RetrievalStepBudget(top_k=1),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual([request.query_text for request in seen_requests], ["国奖"])
+        self.assertEqual(result.replan_count, 0)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results), ("empty", "failed")
+        )
+        self.assertEqual(result.step_results[-1].failure.failure_kind, "executor_error")
+        self.assertIn("scope", result.step_results[-1].failure.message)
+
+    def test_execute_retrieval_plan_blocks_freshness_gate_before_indexed_lookup(self) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+            )
+
+        plan = RetrievalPlan(
+            plan_id="official_web:stable_reference:freshness-sensitive",
+            query_mode="freshness_sensitive",
+            admitted_scopes=(RetrievalScope(corpus="official_web", collection="stable_reference"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=0),
+            steps=(
+                RetrievalStep(
+                    step_id="freshness-gate",
+                    step_type="freshness_gate",
+                    scope=RetrievalScope(corpus="official_web", collection="stable_reference"),
+                    query_text="中央民族大学今天有什么讲座",
+                    expected_output="freshness_decision",
+                ),
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="official_web", collection="stable_reference"),
+                    query_text="中央民族大学今天有什么讲座",
+                    depends_on_step_ids=("freshness-gate",),
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(plan, retrieve_step=fake_retrieve_step)
+
+        self.assertEqual(seen_requests, [])
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results), ("blocked",)
+        )
+        self.assertEqual(result.step_results[0].failure.failure_kind, "unresolved_freshness")
+        self.assertEqual(len(result.merged_evidence.sources), 0)
+
+    def test_execute_retrieval_plan_filters_merged_evidence_below_required_source_trust_tier(
+        self,
+    ) -> None:
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="official_web:stable-reference:chunk-1",
+                        version_id="owdocver:stable-1",
+                        snippet="讲座将于今天下午举行。",
+                        doc_id="official_web:stable_reference:article:notice-1",
+                        collection="stable_reference",
+                        source_channel="official_web",
+                        canonical_url="https://example.edu/news/notice-1",
+                        latest_url="https://example.edu/news/notice-1",
+                        source_title="讲座预告",
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="official_web:stable_reference:trust-gated-freshness",
+            query_mode="freshness_sensitive",
+            admitted_scopes=(RetrievalScope(corpus="official_web", collection="stable_reference"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(minimum_tier="T3"),
+            budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="official_web", collection="stable_reference"),
+                    query_text="中央民族大学今天有什么讲座",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(plan, retrieve_step=fake_retrieve_step)
+
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results), ("succeeded",)
+        )
+        self.assertEqual(len(result.step_results[0].grounding), 1)
+        self.assertEqual(result.step_results[0].grounding[0].source_trust_tier, "T2")
+        self.assertEqual(len(result.merged_evidence.sources), 0)
+
+    def test_execute_retrieval_plan_uses_live_lookup_executor_when_admitted(self) -> None:
+        live_step_ids: list[str] = []
+
+        plan = RetrievalPlan(
+            plan_id="official_web:fresh_news:live-assisted",
+            query_mode="live_assisted",
+            admitted_scopes=(RetrievalScope(corpus="official_web", collection="fresh_news"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(
+                minimum_tier="T3",
+                allow_live_source_lookup=True,
+            ),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=0, max_live_lookups=1),
+            steps=(
+                RetrievalStep(
+                    step_id="freshness-gate",
+                    step_type="freshness_gate",
+                    scope=RetrievalScope(corpus="official_web", collection="fresh_news"),
+                    query_text="中央民族大学今天有什么新闻",
+                    expected_output="freshness_decision",
+                ),
+                RetrievalStep(
+                    step_id="live-source-lookup",
+                    step_type="live_source_lookup",
+                    scope=RetrievalScope(corpus="official_web", collection="fresh_news"),
+                    query_text="中央民族大学今天有什么新闻",
+                    depends_on_step_ids=("freshness-gate",),
+                    expected_output="live_candidates",
+                ),
+            ),
+        )
+
+        with patch(
+            "campus_retrieval_core.service.load_runtime_profile",
+            return_value=Mock(
+                retrieval_top_k=3,
+                requires_freshness_gate=True,
+                supports_freshness_sensitive_queries=False,
+                live_search_fallback_allowed=True,
+            ),
+        ):
+            result = execute_retrieval_plan(
+                plan,
+                retrieve_live_step=lambda step: (
+                    live_step_ids.append(step.step_id)
+                    or EvidenceBundle(
+                        query_text=step.query_text,
+                        corpus=step.scope.corpus,
+                        collection=step.scope.collection,
+                        sources=(
+                            _make_source(
+                                chunk_id="official_web:fresh-news:chunk-1",
+                                version_id="owdocver:fresh-1",
+                                snippet="今天上午学校发布了一条最新新闻。",
+                                doc_id="official_web:fresh_news:article:news-1",
+                                collection="fresh_news",
+                                source_channel="official_web",
+                                canonical_url="https://example.edu/news/fresh-1",
+                                latest_url="https://example.edu/news/fresh-1",
+                                source_title="校园新闻",
+                            ),
+                        ),
+                    )
+                ),
+            )
+
+        self.assertEqual(live_step_ids, ["live-source-lookup"])
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("succeeded", "succeeded"),
+        )
+        self.assertEqual(len(result.merged_evidence.sources), 1)
+        self.assertEqual(result.merged_evidence.sources[0].source_trust_tier, "T3")
+
+    def test_execute_retrieval_plan_fail_closes_when_live_lookup_executor_is_missing(self) -> None:
+        plan = RetrievalPlan(
+            plan_id="official_web:fresh_news:live-assisted-missing-executor",
+            query_mode="live_assisted",
+            admitted_scopes=(RetrievalScope(corpus="official_web", collection="fresh_news"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(
+                minimum_tier="T3",
+                allow_live_source_lookup=True,
+            ),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=0, max_live_lookups=1),
+            steps=(
+                RetrievalStep(
+                    step_id="freshness-gate",
+                    step_type="freshness_gate",
+                    scope=RetrievalScope(corpus="official_web", collection="fresh_news"),
+                    query_text="中央民族大学今天有什么新闻",
+                    expected_output="freshness_decision",
+                ),
+                RetrievalStep(
+                    step_id="live-source-lookup",
+                    step_type="live_source_lookup",
+                    scope=RetrievalScope(corpus="official_web", collection="fresh_news"),
+                    query_text="中央民族大学今天有什么新闻",
+                    depends_on_step_ids=("freshness-gate",),
+                    expected_output="live_candidates",
+                ),
+            ),
+        )
+
+        with patch(
+            "campus_retrieval_core.service.load_runtime_profile",
+            return_value=Mock(
+                retrieval_top_k=3,
+                requires_freshness_gate=True,
+                supports_freshness_sensitive_queries=False,
+                live_search_fallback_allowed=True,
+            ),
+        ):
+            result = execute_retrieval_plan(plan)
+
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("succeeded", "blocked"),
+        )
+        self.assertEqual(result.step_results[1].failure.failure_kind, "live_lookup_unavailable")
+        self.assertEqual(len(result.merged_evidence.sources), 0)
+
+
+def _make_source(
+    *,
+    chunk_id: str,
+    version_id: str,
+    snippet: str,
+    doc_id: str = "handbook:national-scholarship",
+    collection: str = "student_handbook",
+    source_channel: str = "pdf_ocr",
+    canonical_url: str = "https://example.edu/handbook/national-scholarship",
+    latest_url: str = "https://example.edu/handbook/national-scholarship/latest",
+    source_title: str = "国家奖学金评审办法",
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id=doc_id,
+        revision_track="source-faithful",
+        version_id=version_id,
+        chunk_id=chunk_id,
+        anchor={"page_start": 1, "page_end": 1},
+        canonical_url=canonical_url,
+        latest_url=latest_url,
+        source_channel=source_channel,
+        collection=collection,
+        is_current=version_id.startswith("v2:"),
+        snippet=snippet,
+        score=0.91,
+        source_title=source_title,
+    )
 
 
 if __name__ == "__main__":

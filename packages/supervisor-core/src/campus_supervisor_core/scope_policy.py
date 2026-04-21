@@ -5,7 +5,6 @@ from typing import Literal
 
 from campus_supervisor_core.context import SupervisorRequestContext
 
-
 ScopeClass = Literal["in_scope", "out_of_scope"]
 
 _CAMPUS_SCOPE_SIGNALS = (

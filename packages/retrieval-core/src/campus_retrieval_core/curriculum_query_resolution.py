@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import lru_cache
 import json
-from pathlib import Path
 import re
 import unicodedata
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Sequence
 
 from campus_contracts import EvidenceSource
-
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _TITLE_FRAGMENT_RE = re.compile(r"(?P<fragment>.+?(?:培养方案|课程教学计划))")
@@ -105,14 +104,16 @@ def matching_curriculum_doc_ids(
     for source in sources:
         if not _is_curriculum_source(source):
             continue
-        compact_keys = {_compact_curriculum_title_key(candidate) for candidate in _source_title_candidates(source)}
+        compact_keys = {
+            _compact_curriculum_title_key(candidate)
+            for candidate in _source_title_candidates(source)
+        }
         if interpretation.program_compact_key in compact_keys:
             if source.doc_id not in exact_doc_ids:
                 exact_doc_ids.append(source.doc_id)
             continue
         if any(
-            interpretation.program_compact_key
-            and interpretation.program_compact_key in compact_key
+            interpretation.program_compact_key and interpretation.program_compact_key in compact_key
             for compact_key in compact_keys
         ):
             if source.doc_id not in partial_doc_ids:
@@ -163,8 +164,13 @@ def build_curriculum_document_support_query_text(
         return normalized_query
     if interpretation.intent_kind == "course_list" and interpretation.semester_labels:
         return interpretation.semester_labels[0]
-    if interpretation.program_query_fragment and interpretation.program_query_fragment in normalized_query:
-        focused_query = normalized_query.replace(interpretation.program_query_fragment, "", 1).strip()
+    if (
+        interpretation.program_query_fragment
+        and interpretation.program_query_fragment in normalized_query
+    ):
+        focused_query = normalized_query.replace(
+            interpretation.program_query_fragment, "", 1
+        ).strip()
         if focused_query:
             return focused_query
     return normalized_query
@@ -248,7 +254,9 @@ def _source_matches_program(
 ) -> bool:
     if not interpretation.program_compact_key:
         return False
-    compact_keys = {_compact_curriculum_title_key(candidate) for candidate in _source_title_candidates(source)}
+    compact_keys = {
+        _compact_curriculum_title_key(candidate) for candidate in _source_title_candidates(source)
+    }
     return interpretation.program_compact_key in compact_keys
 
 
@@ -274,7 +282,10 @@ def _source_matches_semester(source: EvidenceSource, semester_labels: tuple[str,
             continue
         if f"第{numeric_label}学期" in normalized_source_text:
             return True
-        if re.search(rf"(?:(?<=\|)|(?<=\s)|^){re.escape(numeric_label)}(?:(?=\|)|(?=\s)|$)", normalized_source_text):
+        if re.search(
+            rf"(?:(?<=\|)|(?<=\s)|^){re.escape(numeric_label)}(?:(?=\|)|(?=\s)|$)",
+            normalized_source_text,
+        ):
             return True
     return False
 
@@ -283,7 +294,9 @@ def _source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
     candidates = [source.source_title.strip(), source.doc_id.split(":", 1)[-1].strip()]
     if source.structural_path:
         candidates.append(source.structural_path[0].strip())
-    return tuple(candidate for candidate in dict.fromkeys(candidate for candidate in candidates if candidate))
+    return tuple(
+        candidate for candidate in dict.fromkeys(candidate for candidate in candidates if candidate)
+    )
 
 
 def _compact_curriculum_title_key(text: str) -> str:

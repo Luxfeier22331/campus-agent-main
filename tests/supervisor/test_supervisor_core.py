@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import unittest
+from dataclasses import asdict
 from unittest.mock import patch
 
 from campus_contracts import (
-    ActorContext,
-    AuthorizedRetrievalFilter,
-    AuthorizationProjection,
-    CampusNoticeDiscoverPayload,
-    ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
     CURRICULUM_SEMESTER_SLOT_NAME,
+    ActorContext,
+    AuthorizationProjection,
+    AuthorizedRetrievalFilter,
+    CampusNoticeDiscoverPayload,
+    ContextProjection,
     CurriculumFollowUpSlots,
     ErrorInfo,
     EvidenceBundle,
@@ -31,10 +31,11 @@ from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
     SupervisorObservability,
-    SupervisorResponse,
     SupervisorRequest,
+    SupervisorResponse,
     TemporalQuery,
     TraceContext,
+    VersionQuery,
 )
 from campus_supervisor_core import SupervisorAgent, handle_request, handle_specialist_request
 from campus_supervisor_core.audit import (
@@ -48,6 +49,7 @@ from campus_supervisor_core.errors import (
     InvalidSpecialistToolPolicyError,
     MissingSpecialistDelegateError,
 )
+from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.policy import finalize_routing_decision
 from campus_supervisor_core.prompt_execution import (
     SupervisorClarifyPromptOutput,
@@ -55,7 +57,6 @@ from campus_supervisor_core.prompt_execution import (
     SupervisorTerminalPromptOutput,
 )
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
-from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
 from campus_supervisor_core.routing import RoutingDecision
 
@@ -75,7 +76,7 @@ def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
 
 def _make_rag_completed_response() -> SpecialistResponse:
     return SpecialistResponse(
-        target="rag-specialist",
+        target="rag-agent",
         status="completed",
         answer_text="The library is open from 08:00 to 22:00.",
         confidence="high",
@@ -107,7 +108,7 @@ def _make_rag_completed_response() -> SpecialistResponse:
 
 def _make_curriculum_course_facts_response() -> SpecialistResponse:
     return SpecialistResponse(
-        target="rag-specialist",
+        target="rag-agent",
         status="completed",
         answer_text="根据培养方案和课程教学计划，习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)；当前还不能稳定确认开课学院。",
         confidence="high",
@@ -138,7 +139,9 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
 
 
 class SupervisorCoreTest(unittest.TestCase):
-    def test_build_supervisor_observability_keeps_raw_retrieved_sources_separate_from_supporting_sources(self) -> None:
+    def test_build_supervisor_observability_keeps_raw_retrieved_sources_separate_from_supporting_sources(
+        self,
+    ) -> None:
         support_source = EvidenceSource(
             doc_id="curriculum:法学（民族实验班）本科人才培养方案",
             revision_track="source-faithful",
@@ -170,7 +173,7 @@ class SupervisorCoreTest(unittest.TestCase):
             source_title="培养方案说明",
         )
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="completed",
             answer_text="第四学期开设侵权责任法。",
             confidence="high",
@@ -197,7 +200,9 @@ class SupervisorCoreTest(unittest.TestCase):
             ("chunk-support", "chunk-background"),
         )
 
-    def test_build_supervisor_observability_does_not_mirror_supporting_sources_for_clarification(self) -> None:
+    def test_build_supervisor_observability_does_not_mirror_supporting_sources_for_clarification(
+        self,
+    ) -> None:
         support_source = EvidenceSource(
             doc_id="curriculum:法学（民族实验班）本科人才培养方案",
             revision_track="source-faithful",
@@ -214,7 +219,7 @@ class SupervisorCoreTest(unittest.TestCase):
             source_title="法学（民族实验班）本科人才培养方案",
         )
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="needs_clarification",
             answer_text="请明确是法学民族实验班还是其他法学培养方案。",
             follow_up_question="请明确是法学民族实验班还是其他法学培养方案。",
@@ -238,9 +243,11 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(observability.retrieved_sources, ())
         self.assertEqual(observability.citation_count, 0)
 
-    def test_build_supervisor_observability_marks_course_map_fail_close_as_no_retrieval(self) -> None:
+    def test_build_supervisor_observability_marks_course_map_fail_close_as_no_retrieval(
+        self,
+    ) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="no_answer",
             answer_text="当前还不能稳定解析培养方案里的课程地图/拓扑图。",
             confidence="low",
@@ -302,9 +309,19 @@ class SupervisorCoreTest(unittest.TestCase):
                 actor=ActorContext(user_id="student-001", principal_id="principal-001"),
                 session=SessionSummary(
                     confirmed_slots=(
-                        SessionSlot(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
-                        SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
-                        SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
+                        SessionSlot(
+                            name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
+                            value="民族实验班",
+                            confirmed=True,
+                        ),
+                        SessionSlot(
+                            name=CURRICULUM_PROGRAM_SLOT_NAME,
+                            value="法学民族实验班",
+                            confirmed=True,
+                        ),
+                        SessionSlot(
+                            name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True
+                        ),
                     ),
                     turn_count=4,
                 ),
@@ -344,14 +361,14 @@ class SupervisorCoreTest(unittest.TestCase):
 
         response = handle_request(
             request,
-            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=audit_records.append,
         )
 
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "completed")
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].target, "rag-specialist")
+        self.assertEqual(captured_requests[0].target, "rag-agent")
         self.assertEqual(
             captured_requests[0].payload,
             RagRequestPayload(
@@ -373,7 +390,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "entitlement_snapshot_id": "",
                 "policy_projection_version": "phase1-authorization-projection-v1",
                 "personalization_mode": "generic",
-                "selected_target": "rag-specialist",
+                "selected_target": "rag-agent",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
@@ -386,7 +403,9 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-    def test_handle_request_keeps_curriculum_scope_but_allows_internal_course_facts_evidence(self) -> None:
+    def test_handle_request_keeps_curriculum_scope_but_allows_internal_course_facts_evidence(
+        self,
+    ) -> None:
         captured_requests: list[SpecialistRequest] = []
 
         def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
@@ -404,22 +423,26 @@ class SupervisorCoreTest(unittest.TestCase):
                     collection="curriculum_plan",
                 ),
             ),
-            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            specialist_delegates={"rag-agent": fake_rag_specialist},
         )
 
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(
             captured_requests[0].payload,
-            RagRequestPayload(scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")),
+            RagRequestPayload(
+                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+            ),
         )
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "completed")
         assert isinstance(response.result, RagResultPayload)
         self.assertEqual(response.result.evidence.collection, "course_facts")
         self.assertEqual(response.result.evidence.corpus, "curriculum")
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
 
-    def test_handle_request_delegates_knowledge_without_explicit_scope_to_rag_specialist(self) -> None:
+    def test_handle_request_delegates_knowledge_without_explicit_scope_to_rag_specialist(
+        self,
+    ) -> None:
         captured_requests: list[SpecialistRequest] = []
         request_context = ContextProjection(
             actor=ActorContext(
@@ -461,14 +484,55 @@ class SupervisorCoreTest(unittest.TestCase):
                 requested_capability="knowledge",
                 context=request_context,
             ),
-            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=lambda _record: None,
         )
 
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
         self.assertEqual(captured_requests[0].context, request_context)
+
+    def test_handle_request_preserves_explicit_version_query_in_rag_handoff(self) -> None:
+        captured_requests: list[SpecialistRequest] = []
+
+        def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
+            captured_requests.append(request)
+            return _make_rag_completed_response()
+
+        response = handle_request(
+            SupervisorRequest(
+                user_goal="比较新旧学生手册关于请假制度的差异",
+                request_id="req-version-query-001",
+                trace=TraceContext(trace_id="trace-version-query-001"),
+                actor=ActorContext(user_id="student-001"),
+                requested_scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_handbook",
+                ),
+                version_query=VersionQuery(
+                    mode="compare",
+                    version_id="v1:student-handbook",
+                    compare_to_version_id="v2:student-handbook",
+                ),
+            ),
+            specialist_delegates={"rag-agent": fake_rag_specialist},
+            audit_sink=lambda _record: None,
+        )
+
+        self.assertEqual(response.selected_target, "rag-agent")
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            captured_requests[0].payload,
+            RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                version_query=VersionQuery(
+                    mode="compare",
+                    version_id="v1:student-handbook",
+                    compare_to_version_id="v2:student-handbook",
+                ),
+            ),
+        )
 
     def test_supervisor_default_delegate_map_includes_forward_runtime_agents(self) -> None:
         delegates = SupervisorAgent().specialist_delegates
@@ -486,22 +550,22 @@ class SupervisorCoreTest(unittest.TestCase):
                 ),
             ),
             specialist_delegates={
-                "rag-specialist": lambda request: SpecialistResponse(
-                    target="rag-specialist",
+                "rag-agent": lambda request: SpecialistResponse(
+                    target="rag-agent",
                     status="needs_clarification",
                     follow_up_question="Which campus are you asking about?",
                 )
             },
         )
 
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "Which campus are you asking about?")
 
     def test_handle_request_raises_missing_rag_delegate_when_scope_is_missing(self) -> None:
         with self.assertRaisesRegex(
             MissingSpecialistDelegateError,
-            "missing delegate for specialist target: rag-specialist",
+            "missing delegate for specialist target: rag-agent",
         ):
             handle_request(
                 SupervisorRequest(
@@ -513,7 +577,9 @@ class SupervisorCoreTest(unittest.TestCase):
                             principal_id="principal-001",
                         ),
                         session=SessionSummary(
-                            confirmed_slots=(SessionSlot(name="policy_topic", value="奖学金", confirmed=True),),
+                            confirmed_slots=(
+                                SessionSlot(name="policy_topic", value="奖学金", confirmed=True),
+                            ),
                             turn_count=2,
                         ),
                     ),
@@ -550,7 +616,7 @@ class SupervisorCoreTest(unittest.TestCase):
         def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
             captured_requests.append(request)
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="needs_clarification",
                 follow_up_question="请说明你想咨询哪一类奖学金。",
             )
@@ -561,20 +627,22 @@ class SupervisorCoreTest(unittest.TestCase):
                 requested_capability="knowledge",
                 context=request_context,
             ),
-            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            specialist_delegates={"rag-agent": fake_rag_specialist},
         )
 
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "请说明你想咨询哪一类奖学金。")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].payload, RagRequestPayload(scope=None))
         self.assertEqual(captured_requests[0].context, request_context)
 
-    def test_handle_request_does_not_fallback_to_supervisor_clarification_for_internal_only_memory(self) -> None:
+    def test_handle_request_does_not_fallback_to_supervisor_clarification_for_internal_only_memory(
+        self,
+    ) -> None:
         with self.assertRaisesRegex(
             MissingSpecialistDelegateError,
-            "missing delegate for specialist target: rag-specialist",
+            "missing delegate for specialist target: rag-agent",
         ):
             handle_request(
                 SupervisorRequest(
@@ -603,7 +671,9 @@ class SupervisorCoreTest(unittest.TestCase):
                 specialist_delegates={},
             )
 
-    def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(self) -> None:
+    def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(
+        self,
+    ) -> None:
         audit_records: list[SupervisorAuditRecord] = []
 
         response = handle_request(
@@ -652,7 +722,9 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(audit_records[0].status, "approval_required")
         self.assertIsNone(audit_records[0].selected_target)
 
-    def test_handle_request_returns_out_of_scope_without_delegate_for_obvious_external_query(self) -> None:
+    def test_handle_request_returns_out_of_scope_without_delegate_for_obvious_external_query(
+        self,
+    ) -> None:
         delegate_called = False
         audit_records: list[SupervisorAuditRecord] = []
 
@@ -666,7 +738,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="MIT的校长是谁",
                 requested_capability="knowledge",
             ),
-            specialist_delegates={"rag-specialist": fake_rag_specialist},
+            specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=audit_records.append,
         )
 
@@ -695,7 +767,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="图书馆在哪里",
                 requested_capability="place_lookup",
             ),
-            specialist_delegates={"navigation-specialist": fake_navigation_specialist},
+            specialist_delegates={"navigation-agent": fake_navigation_specialist},
             audit_sink=audit_records.append,
         )
 
@@ -712,7 +784,9 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(audit_records[0].status, "no_answer")
         self.assertIsNone(audit_records[0].selected_target)
 
-    def test_finalize_routing_decision_uses_injected_prompt_executor_for_clarification(self) -> None:
+    def test_finalize_routing_decision_uses_injected_prompt_executor_for_clarification(
+        self,
+    ) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(
                 user_goal="民族实验班有什么课",
@@ -738,7 +812,9 @@ class SupervisorCoreTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_clarify(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> SupervisorPromptExecutionResult[SupervisorClarifyPromptOutput]:
                 return SupervisorPromptExecutionResult(
                     output=SupervisorClarifyPromptOutput(
                         follow_up_question="请先说清楚你想查哪一类培养方案资料。"
@@ -781,7 +857,9 @@ class SupervisorCoreTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_reject(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+            def compose_reject(
+                self, packet: object
+            ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
                 return SupervisorPromptExecutionResult(
                     output=SupervisorTerminalPromptOutput(
                         answer_text="这个请求不在当前可执行范围内。"
@@ -827,7 +905,9 @@ class SupervisorCoreTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_out_of_scope(self, packet: object) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
+            def compose_out_of_scope(
+                self, packet: object
+            ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
                 return SupervisorPromptExecutionResult(
                     output=SupervisorTerminalPromptOutput(
                         answer_text="这个问题不属于当前支持的中央民族大学校园问答范围。"
@@ -843,7 +923,9 @@ class SupervisorCoreTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.answer_text, "这个问题不属于当前支持的中央民族大学校园问答范围。")
-        self.assertEqual(response.observability.prompt_trace.prompt_id, "supervisor_out_of_scope_v1")
+        self.assertEqual(
+            response.observability.prompt_trace.prompt_id, "supervisor_out_of_scope_v1"
+        )
 
     def test_handle_request_preserves_error_response_fields(self) -> None:
         response = handle_request(
@@ -855,8 +937,8 @@ class SupervisorCoreTest(unittest.TestCase):
                 ),
             ),
             specialist_delegates={
-                "rag-specialist": lambda request: SpecialistResponse(
-                    target="rag-specialist",
+                "rag-agent": lambda request: SpecialistResponse(
+                    target="rag-agent",
                     status="error",
                     answer_text="retrieval failed while checking the handbook.",
                     follow_up_question="Try again later?",
@@ -870,7 +952,7 @@ class SupervisorCoreTest(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response.selected_target, "rag-specialist")
+        self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.answer_text, "retrieval failed while checking the handbook.")
         self.assertEqual(response.follow_up_question, "Try again later?")
@@ -889,7 +971,7 @@ class SupervisorCoreTest(unittest.TestCase):
             entitlement_snapshot_id="entitlements-2026-03-29",
             policy_projection_version="phase1-authorization-projection-v1",
             personalization_mode="user_grounded",
-            selected_target="rag-specialist",
+            selected_target="rag-agent",
             requested_capability="knowledge",
             requested_scope_corpus="regulations",
             requested_scope_collection="student_handbook",
@@ -912,7 +994,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "entitlement_snapshot_id": "entitlements-2026-03-29",
                 "policy_projection_version": "phase1-authorization-projection-v1",
                 "personalization_mode": "user_grounded",
-                "selected_target": "rag-specialist",
+                "selected_target": "rag-agent",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
                 "requested_scope_collection": "student_handbook",
@@ -988,7 +1070,9 @@ class SupervisorCoreTest(unittest.TestCase):
                     ),
                 ),
                 session=SessionSummary(
-                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                    ),
                     turn_count=3,
                 ),
             ),
@@ -1106,7 +1190,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "entitlement_snapshot_id": "entitlements-2026-03-29",
                 "policy_projection_version": "phase1-authorization-projection-v1",
                 "personalization_mode": "cohort_grounded",
-                "selected_target": "rag-specialist",
+                "selected_target": "rag-agent",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "curriculum",
                 "requested_scope_collection": "curriculum_plan",
@@ -1134,7 +1218,7 @@ class SupervisorCoreTest(unittest.TestCase):
         record = build_audit_record(
             request,
             SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="needs_clarification",
                 follow_up_question="请说明你想咨询哪一类奖学金。",
                 confidence="low",
@@ -1167,7 +1251,7 @@ class SupervisorCoreTest(unittest.TestCase):
         record = build_audit_record(
             request,
             SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="no_answer",
                 confidence="low",
                 result=RagResultPayload(

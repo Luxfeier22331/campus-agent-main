@@ -40,7 +40,7 @@
 
 其中：
 
-- `packages/supervisor-core` 与 `packages/rag-specialist` 继续拥有长期 prompt assets / packet schema
+- `packages/supervisor-core` 与 `packages/rag-agent` 继续拥有长期 prompt assets / packet schema
 - `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py` 拥有 product-path runtime assembly seam
 - `apps/supervisor-api` 不拥有新的 monolithic mega system prompt
 

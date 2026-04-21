@@ -5,6 +5,7 @@ from campus_contracts import (
     PlaceLookupPayload,
     RagRequestPayload,
     SpecialistRequest,
+    VersionQuery,
 )
 
 from campus_supervisor_core.context import SupervisorRequestContext
@@ -20,7 +21,7 @@ def frame_specialist_request(
         raise MissingRoutingInputError("specialist target is required for delegated requests")
     if decision.specialist_payload is not None:
         payload = decision.specialist_payload
-    elif decision.target == "navigation-specialist":
+    elif decision.target == "navigation-agent":
         payload = PlaceLookupPayload(query_text=context.user_goal)
     elif decision.target in ("campus-services-agent", "notice-agent"):
         raise MissingRoutingInputError(
@@ -28,9 +29,15 @@ def frame_specialist_request(
         )
     else:
         payload = (
-            RagRequestPayload(scope=_copy_scope(context.requested_scope))
+            RagRequestPayload(
+                scope=_copy_scope(context.requested_scope),
+                version_query=_copy_version_query(context.version_query),
+            )
             if context.requested_scope is not None
-            else RagRequestPayload(scope=None)
+            else RagRequestPayload(
+                scope=None,
+                version_query=_copy_version_query(context.version_query),
+            )
         )
 
     return SpecialistRequest(
@@ -49,3 +56,12 @@ def frame_specialist_request(
 
 def _copy_scope(scope: KnowledgeScope) -> KnowledgeScope:
     return KnowledgeScope(corpus=scope.corpus, collection=scope.collection)
+
+
+def _copy_version_query(version_query: VersionQuery) -> VersionQuery:
+    return VersionQuery(
+        mode=version_query.mode,
+        as_of=version_query.as_of,
+        version_id=version_query.version_id,
+        compare_to_version_id=version_query.compare_to_version_id,
+    )

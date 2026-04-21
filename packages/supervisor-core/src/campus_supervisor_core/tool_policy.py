@@ -4,10 +4,9 @@ from campus_contracts import SpecialistRequest, SpecialistTarget, SpecialistTool
 
 from campus_supervisor_core.errors import InvalidSpecialistToolPolicyError
 
-
 _ALLOWED_TOOLS_BY_TARGET: dict[SpecialistTarget, tuple[SpecialistToolName, ...]] = {
-    "rag-specialist": (),
-    "navigation-specialist": (),
+    "rag-agent": (),
+    "navigation-agent": (),
     "campus-services-agent": (
         "service_status_lookup",
         "transport_schedule_lookup",

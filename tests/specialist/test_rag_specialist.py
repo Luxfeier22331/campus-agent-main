@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from campus_contracts import (
-    ActorContext,
-    AuthorizedRetrievalFilter,
-    AuthorizationProjection,
-    ClaimSupport,
-    ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
     CURRICULUM_SEMESTER_SLOT_NAME,
+    ActorContext,
+    AuthorizationProjection,
+    AuthorizedRetrievalFilter,
+    ClaimSupport,
+    ContextProjection,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -25,41 +26,43 @@ from campus_contracts import (
     RemoteContentSuspicionSummary,
     SessionSlot,
     SessionSummary,
+    SourceTrustSummary,
     SpecialistRequest,
     SpecialistResponse,
-    SourceTrustSummary,
+    VersionQuery,
 )
+from campus_ingestion_core import ResolvedVersionQuery, ResolvedVersionSelection
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
+from campus_rag_agent import RagAgent
+from campus_rag_agent.agent import _query_mode, _select_answer_support_rows
+from campus_rag_agent.confidence import derive_confidence
+from campus_rag_agent.grounding_validation import validate_prompt_answer_grounding
+from campus_rag_agent.intent import frame_rag_intent
+from campus_rag_agent.prompt_execution import (
+    RagAnswerPromptOutput,
+    RagClarifyPromptOutput,
+    RagPromptExecutionResult,
+)
+from campus_rag_agent.prompts.registry import get_rag_prompt_spec
+from campus_rag_agent.query_planning import (
+    plan_curriculum_course_query,
+    plan_curriculum_program_family_query,
+    plan_curriculum_query,
+)
+from campus_rag_agent.service import delegate_to_rag_agent
 from campus_retrieval_core import (
     CorpusQueryDisabledError,
     RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
 )
-from campus_rag_specialist import RagSpecialistAgent
-from campus_rag_specialist.agent import _query_mode, _select_answer_support_rows
-from campus_rag_specialist.confidence import derive_confidence
-from campus_rag_specialist.grounding_validation import validate_prompt_answer_grounding
-from campus_rag_specialist.intent import frame_rag_intent
-from campus_rag_specialist.prompt_execution import (
-    RagAnswerPromptOutput,
-    RagClarifyPromptOutput,
-    RagPromptExecutionResult,
-)
-from campus_rag_specialist.prompts.registry import get_rag_prompt_spec
-from campus_rag_specialist.service import delegate_to_rag_agent
-from campus_rag_specialist.query_planning import (
-    plan_curriculum_course_query,
-    plan_curriculum_program_family_query,
-    plan_curriculum_query,
-)
-from campus_supervisor_core.response import (
-    build_supervisor_observability_from_specialist_response,
-)
 from campus_shared import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeValidationError,
 )
-from campus_ingestion_core.curriculum_program_semester_facts_projection import (
-    build_curriculum_program_semester_fact_document_id,
+from campus_supervisor_core.response import (
+    build_supervisor_observability_from_specialist_response,
 )
 
 
@@ -262,6 +265,62 @@ def _make_curriculum_plan_source(
     )
 
 
+def _make_versioned_handbook_evidence(
+    *,
+    query_text: str,
+    document_id: str,
+    primary_version_id: str,
+    primary_snippet: str,
+    comparison_version_id: str = "",
+    comparison_snippet: str = "",
+) -> EvidenceBundle:
+    sources = [
+        EvidenceSource(
+            doc_id=document_id,
+            revision_track="source-faithful",
+            version_id=primary_version_id,
+            chunk_id=f"{document_id}:source-faithful:{primary_version_id}:chunk-0001",
+            anchor={"page_start": 1, "page_end": 1},
+            canonical_url=f"https://campus.example/handbook/{document_id}",
+            latest_url=f"https://campus.example/handbook/{document_id}",
+            source_channel="pdf_ocr",
+            collection="student_handbook",
+            is_current=False,
+            snippet=primary_snippet,
+            score=0.92,
+            source_title="中央民族大学本科学生国家奖学金评审办法",
+            structural_path=("中央民族大学本科学生国家奖学金评审办法",),
+            is_answer_bearing=True,
+        )
+    ]
+    if comparison_version_id:
+        sources.append(
+            EvidenceSource(
+                doc_id=document_id,
+                revision_track="source-faithful",
+                version_id=comparison_version_id,
+                chunk_id=f"{document_id}:source-faithful:{comparison_version_id}:chunk-0001",
+                anchor={"page_start": 2, "page_end": 2},
+                canonical_url=f"https://campus.example/handbook/{document_id}",
+                latest_url=f"https://campus.example/handbook/{document_id}",
+                source_channel="pdf_ocr",
+                collection="student_handbook",
+                is_current=True,
+                snippet=comparison_snippet,
+                score=0.9,
+                source_title="中央民族大学本科学生国家奖学金评审办法",
+                structural_path=("中央民族大学本科学生国家奖学金评审办法",),
+                is_answer_bearing=True,
+            )
+        )
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus="regulations",
+        collection="student_handbook",
+        sources=tuple(sources),
+    )
+
+
 def _assert_answer_text_hides_internal_locators(
     test_case: unittest.TestCase,
     answer_text: str,
@@ -330,7 +389,7 @@ def _resolved_curriculum_diagnostics_from_response(
 class RagSpecialistTest(unittest.TestCase):
     def test_frame_rag_intent_marks_user_grounded_personalization_when_context_exists(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="保研申请流程是什么？",
             context=ContextProjection(
                 actor=ActorContext(
@@ -353,7 +412,9 @@ class RagSpecialistTest(unittest.TestCase):
                     ),
                 ),
                 session=SessionSummary(
-                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                    ),
                     turn_count=3,
                 ),
             ),
@@ -372,7 +433,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_blank_user_goal_is_rejected_by_request_contract(self) -> None:
         with self.assertRaisesRegex(ValueError, "user_goal"):
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="   ",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -398,7 +459,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科人才培养方案总学分要求是多少？",
                 payload=RagRequestPayload(scope=None),
             ),
@@ -423,7 +484,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="MIT的校长是谁",
                 payload=RagRequestPayload(scope=None),
             ),
@@ -442,7 +503,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -454,7 +515,7 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(
             response,
             SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -480,7 +541,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="宿舍报修流程",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(
@@ -493,7 +554,7 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertIsInstance(response, SpecialistResponse)
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.target, "rag-agent")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.confidence, "low")
         self.assertEqual(response.error.code, "corpus_not_query_enabled")
@@ -516,7 +577,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -529,7 +590,7 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.target, "rag-agent")
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
         self.assertIn("未检索到足够依据", response.answer_text)
@@ -552,7 +613,9 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_no_evidence_uses_injected_prompt_executor_for_no_answer(self) -> None:
         class FakePromptExecutor:
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="当前依据还不够，请补充更具体的制度名称。"
@@ -562,7 +625,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -582,7 +645,9 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_invalid_no_answer_prompt_output_falls_back_to_deterministic_copy(self) -> None:
         class FakePromptExecutor:
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(answer_text="   "),
                     prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
@@ -590,7 +655,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -640,7 +705,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，补办学生证需要携带身份证原件，并要在3个工作日内完成审核。"
@@ -648,7 +715,9 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="当前检索结果不足以支持这些补办条件，请以原文条款为准。"
@@ -656,12 +725,14 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -672,7 +743,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "no_answer")
-        self.assertEqual(response.answer_text, "当前检索结果不足以支持这些补办条件，请以原文条款为准。")
+        self.assertEqual(
+            response.answer_text, "当前检索结果不足以支持这些补办条件，请以原文条款为准。"
+        )
         self.assertEqual(response.confidence, "low")
         self.assertIsInstance(response.result, RagResultPayload)
         self.assertEqual(response.result.diagnostics.no_answer_reason, "insufficient_grounding")
@@ -734,7 +807,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，学生证遗失后应及时办理挂失，再提交书面申请并到学院审核。"
@@ -742,15 +817,19 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("no-answer prompt should not be used")
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -769,7 +848,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertFalse(response.result.diagnostics.grounding_downgraded)
         self.assertEqual(response.result.diagnostics.unsupported_fields, ())
         self.assertTrue(response.result.diagnostics.claim_supports)
-        self.assertTrue(all(claim.supported for claim in response.result.diagnostics.claim_supports))
+        self.assertTrue(
+            all(claim.supported for claim in response.result.diagnostics.claim_supports)
+        )
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_answer_v1")
 
     def test_prompt_answer_accepts_supported_material_alias_claims(self) -> None:
@@ -808,7 +889,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text=(
@@ -819,15 +902,19 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("no-answer prompt should not be used")
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -877,7 +964,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，补办学生证需要填写补办申请表。"
@@ -892,15 +981,19 @@ class RagSpecialistTest(unittest.TestCase):
                     ),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("no-answer prompt should not be used")
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -944,7 +1037,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据《学生证管理办法》，补办学生证需要填写补办申请表。"
@@ -959,7 +1054,9 @@ class RagSpecialistTest(unittest.TestCase):
                     ),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="当前检索结果不足以支持这些补办条件，请以原文条款为准。"
@@ -967,12 +1064,14 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1218,7 +1317,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据教学计划，这门课由马克思主义学院开设，法学专业和历史学专业要上，安排在第四学期，共3学分。"
@@ -1226,7 +1327,9 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_answer_v1"),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。"
@@ -1234,12 +1337,14 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思想政治理论课有哪些要求",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1250,14 +1355,22 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "no_answer")
-        self.assertEqual(response.answer_text, "当前检索结果不足以支持开课单位和适用专业，请以原文为准。")
+        self.assertEqual(
+            response.answer_text, "当前检索结果不足以支持开课单位和适用专业，请以原文为准。"
+        )
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
         self.assertTrue(response.result.diagnostics.grounding_downgraded)
         self.assertIn("offering_unit_claims", response.result.diagnostics.unsupported_fields)
         self.assertIn("audience_claims", response.result.diagnostics.unsupported_fields)
-        self.assertIn("semester_or_grade_or_term_placement_claims", response.result.diagnostics.unsupported_fields)
-        self.assertIn("quantity_or_credit_or_score_requirement_claims", response.result.diagnostics.unsupported_fields)
+        self.assertIn(
+            "semester_or_grade_or_term_placement_claims",
+            response.result.diagnostics.unsupported_fields,
+        )
+        self.assertIn(
+            "quantity_or_credit_or_score_requirement_claims",
+            response.result.diagnostics.unsupported_fields,
+        )
         self.assertIn(
             ClaimSupport(
                 claim_type="semester_or_grade_or_term_placement",
@@ -1308,24 +1421,30 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(answer_text="这是一个不该被接受的 prompt 回答。"),
                     prompt_trace=_rag_prompt_trace("rag_unsupported_v1"),
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("no-answer prompt should not be used")
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1373,24 +1492,30 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise PromptRuntimeValidationError(
                     prompt_id="rag_answer_v1",
                     reason="provider_incomplete: content_filter",
                 )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("no-answer prompt should not be used")
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("clarify prompt should not be used")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1408,7 +1533,9 @@ class RagSpecialistTest(unittest.TestCase):
             self.assertEqual(diagnostics.prompt_runtime_detail, "content_filter")
             self.assertIsNone(diagnostics.prompt_trace)
 
-    def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+    def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="学生证补办需要什么材料",
             corpus="regulations",
@@ -1426,15 +1553,19 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError("deterministic handbook materials path should not use prompt answer")
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError(
+                    "deterministic handbook materials path should not use prompt answer"
+                )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办需要什么材料",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1470,15 +1601,19 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError("deterministic handbook time path should not use prompt answer")
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError(
+                    "deterministic handbook time path should not use prompt answer"
+                )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办什么时候办",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1496,7 +1631,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
         self.assertIsNone(response.result.diagnostics.prompt_trace)
 
-    def test_handbook_exact_title_lookup_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+    def test_handbook_exact_title_lookup_keeps_deterministic_copy_even_with_prompt_executor(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="中央民族大学学生公费医疗管理办法",
             corpus="regulations",
@@ -1514,15 +1651,19 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError("deterministic handbook title lookup should not use prompt answer")
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+                raise AssertionError(
+                    "deterministic handbook title lookup should not use prompt answer"
+                )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学生公费医疗管理办法",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -1566,15 +1707,17 @@ class RagSpecialistTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagSpecialistAgent().compose_answer(evidence)
+        expected_answer = RagAgent().compose_answer(evidence)
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 raise AssertionError("deterministic curriculum path should not use prompt answer")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科第二学士学位人才培养方案学制几年？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -1589,7 +1732,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIsNotNone(response.result.diagnostics)
         self.assertIsNone(response.result.diagnostics.prompt_trace)
 
-    def test_official_web_title_targeted_reference_page_completes_without_handbook_copy(self) -> None:
+    def test_official_web_title_targeted_reference_page_completes_without_handbook_copy(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="中央民族大学学校简介",
             sources=(
@@ -1606,7 +1751,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1638,7 +1783,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民图一小时 信息素养讲座",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1658,7 +1803,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_official_web_no_evidence_uses_scope_specific_no_answer_copy(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="食堂营业时间",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1677,10 +1822,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("学生手册", response.answer_text)
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
-    def test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy(self) -> None:
+    def test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学今天有什么讲座",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1703,10 +1850,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.semantic_outcome, "freshness_fail_close")
         self.assertTrue(response.result.diagnostics.freshness_fail_closed)
 
-    def test_official_web_stable_reference_no_evidence_uses_scope_specific_no_answer_copy(self) -> None:
+    def test_official_web_stable_reference_no_evidence_uses_scope_specific_no_answer_copy(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="stable_reference")
@@ -1725,7 +1874,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("学生手册", response.answer_text)
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
-    def test_official_web_suspicious_remote_content_fails_closed_before_prompt_generation(self) -> None:
+    def test_official_web_suspicious_remote_content_fails_closed_before_prompt_generation(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="校友会页面写了什么",
             collection="stable_reference",
@@ -1745,12 +1896,18 @@ class RagSpecialistTest(unittest.TestCase):
         compose_answer_called = False
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 nonlocal compose_answer_called
                 compose_answer_called = True
-                raise AssertionError("compose_answer should not be called for suspicious remote content")
+                raise AssertionError(
+                    "compose_answer should not be called for suspicious remote content"
+                )
 
-            def compose_no_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_no_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 nonlocal captured_no_answer_safe_summaries
                 captured_no_answer_safe_summaries = [item.safe_summary for item in packet.evidence]
                 return RagPromptExecutionResult(
@@ -1760,12 +1917,14 @@ class RagSpecialistTest(unittest.TestCase):
                     prompt_trace=_rag_prompt_trace(packet.prompt_id),
                 )
 
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 raise AssertionError("compose_clarify should not be called in this scenario")
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="校友会页面写了什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="stable_reference")
@@ -1824,7 +1983,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="stable_reference")
@@ -1839,7 +1998,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("培养方案", response.answer_text)
         self.assertIn("学校简介", response.answer_text)
 
-    def test_official_web_school_profile_answer_prefers_intro_fact_over_late_background_detail(self) -> None:
+    def test_official_web_school_profile_answer_prefers_intro_fact_over_late_background_detail(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="中央民族大学学校简介",
             sources=(
@@ -1870,7 +2031,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1910,7 +2071,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1948,7 +2109,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校概况",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -1996,7 +2157,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学校概况",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2009,7 +2170,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertIn("三个校区", response.answer_text)
         self.assertIn("12个学科门类", response.answer_text)
 
-    def test_official_web_undergraduate_training_answer_highlights_program_scale_and_excellence(self) -> None:
+    def test_official_web_undergraduate_training_answer_highlights_program_scale_and_excellence(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="中央民族大学本科培养",
             sources=(
@@ -2032,7 +2195,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学本科培养",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2070,7 +2233,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学博士后",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2108,7 +2271,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学研究生培养",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2123,7 +2286,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("600余项", response.answer_text)
         self.assertNotIn("500多人", response.answer_text)
 
-    def test_official_web_scholar_page_answer_summarizes_people_and_domains_instead_of_biography_timelines(self) -> None:
+    def test_official_web_scholar_page_answer_summarizes_people_and_domains_instead_of_biography_timelines(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="中央民族大学学术名流",
             sources=(
@@ -2174,7 +2339,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学学术名流",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2215,7 +2380,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学现任领导",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2255,7 +2420,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="中央民族大学校友会简介",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2294,7 +2459,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民图一小时 信息素养讲座",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2361,7 +2526,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族团结进步促进法 解读",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2377,7 +2542,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertNotIn("》明确", response.answer_text)
         self.assertNotIn("承载着怎样的历史使命与时代内涵", response.answer_text)
 
-    def test_official_web_low_confidence_title_match_still_no_answers_with_scope_specific_copy(self) -> None:
+    def test_official_web_low_confidence_title_match_still_no_answers_with_scope_specific_copy(
+        self,
+    ) -> None:
         evidence = _make_official_web_evidence(
             query_text="食堂营业时间",
             sources=(
@@ -2393,7 +2560,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="食堂营业时间",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
@@ -2417,7 +2584,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="这个规定怎么办理？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2443,17 +2610,17 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_referential_question_uses_injected_prompt_executor_for_clarification(self) -> None:
         class FakePromptExecutor:
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
                 return RagPromptExecutionResult(
-                    output=RagClarifyPromptOutput(
-                        follow_up_question="你具体想问哪一项制度？"
-                    ),
+                    output=RagClarifyPromptOutput(follow_up_question="你具体想问哪一项制度？"),
                     prompt_trace=_rag_prompt_trace("rag_clarify_v1"),
                 )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="这个规定怎么办理？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2467,7 +2634,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.follow_up_question, "你具体想问哪一项制度？")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_clarify_v1")
 
-    def test_generic_scholarship_question_maps_to_needs_clarification_without_retrieval(self) -> None:
+    def test_generic_scholarship_question_maps_to_needs_clarification_without_retrieval(
+        self,
+    ) -> None:
         retriever_called = False
 
         def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
@@ -2477,7 +2646,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="奖学金怎么申请？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2508,12 +2677,16 @@ class RagSpecialistTest(unittest.TestCase):
             return _make_evidence()
 
         class FakePromptExecutor:
-            def compose_clarify(self, packet: object) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
-                raise AssertionError("clarify prompt should not be used for handbook planner clarification")
+            def compose_clarify(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagClarifyPromptOutput]:
+                raise AssertionError(
+                    "clarify prompt should not be used for handbook planner clarification"
+                )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2537,7 +2710,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_contextual_clarification_mentions_recent_goal_when_available(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="这个申请条件是什么？",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -2568,7 +2741,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_contextual_clarification_mentions_confirmed_slot_when_recent_goal_absent(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="这个申请条件是什么？",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -2591,7 +2764,7 @@ class RagSpecialistTest(unittest.TestCase):
 
     def test_frame_rag_intent_ignores_internal_only_profile_memory(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="这个申请条件是什么？",
             context=ContextProjection(
                 actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -2619,7 +2792,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(frame.personalization_mode, "generic")
         self.assertEqual(frame.retrieval_plan, "default_rewrite")
 
-        response = delegate_to_rag_agent(request, retriever=lambda *args, **kwargs: _make_evidence())
+        response = delegate_to_rag_agent(
+            request, retriever=lambda *args, **kwargs: _make_evidence()
+        )
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertNotIn("处分申诉", response.follow_up_question)
@@ -2633,7 +2808,7 @@ class RagSpecialistTest(unittest.TestCase):
             return _make_evidence(scores=(0.82,), query_text=query)
 
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="保研流程是什么？",
             context=ContextProjection(
                 actor=ActorContext(
@@ -2660,7 +2835,9 @@ class RagSpecialistTest(unittest.TestCase):
                     ),
                 ),
                 session=SessionSummary(
-                    confirmed_slots=(SessionSlot(name="policy_topic", value="推免资格", confirmed=True),),
+                    confirmed_slots=(
+                        SessionSlot(name="policy_topic", value="推免资格", confirmed=True),
+                    ),
                     turn_count=2,
                 ),
             ),
@@ -2685,7 +2862,9 @@ class RagSpecialistTest(unittest.TestCase):
         evidence = _make_evidence(scores=(0.82,), query_text="学生支持政策是什么")
 
         class FakePromptExecutor:
-            def compose_answer(self, packet: object) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
+            def compose_answer(
+                self, packet: object
+            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
                 return RagPromptExecutionResult(
                     output=RagAnswerPromptOutput(
                         answer_text="根据学生手册，学生支持政策以原文规定为准。"
@@ -2695,7 +2874,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生支持政策是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2727,7 +2906,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="国家奖学金还是专业奖学金怎么申请？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -2747,6 +2926,280 @@ class RagSpecialistTest(unittest.TestCase):
                 clarification_reason="policy_object_conflict",
             ),
         )
+
+    def test_resolved_historical_version_query_passes_version_filters_to_retriever(self) -> None:
+        captured_kwargs: dict[str, object] = {}
+        expected_evidence = _make_evidence(
+            query_text="国奖",
+            scores=(0.82,),
+            doc_ids=("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            captured_kwargs["query"] = query
+            captured_kwargs.update(kwargs)
+            return expected_evidence
+
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="historical",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="previous",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="国奖怎么办",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="historical"),
+                    ),
+                ),
+                retriever=fake_retriever,
+            )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("国家奖学金", captured_kwargs["query"])
+        self.assertEqual(
+            captured_kwargs["target_document_ids"],
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertEqual(
+            captured_kwargs["target_version_ids"],
+            ("v1:national-scholarship",),
+        )
+        self.assertEqual(captured_kwargs["target_revision_track"], "source-faithful")
+
+    def test_unresolved_historical_version_query_fails_closed_before_retrieval(self) -> None:
+        retriever_called = False
+
+        def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
+            nonlocal retriever_called
+            retriever_called = True
+            return _make_evidence()
+
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="historical",
+                    status="unresolved",
+                    unresolved_reason="previous_version_not_found",
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="国奖怎么办",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="historical"),
+                    ),
+                ),
+                retriever=fake_retriever,
+            )
+
+        self.assertFalse(retriever_called)
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "version_filter_unresolved")
+
+    def test_historical_answer_explicitly_marks_non_current_version(self) -> None:
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="historical",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="previous",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="国奖第九条怎么要求论文和著作？",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="historical"),
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: _make_versioned_handbook_evidence(
+                    query_text="国奖第九条怎么要求论文和著作？",
+                    document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    primary_version_id="v1:national-scholarship",
+                    primary_snippet="第九条 论文与著作按上一版要求计入综合测评。",
+                ),
+            )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("历史版本", response.answer_text)
+        self.assertIn("非现行", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "historical_grounded_answer")
+
+    def test_as_of_answer_explicitly_marks_time_anchor(self) -> None:
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="as_of",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="as_of",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="2024年6月1日时国奖第九条怎么要求论文和著作？",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="as_of", as_of="2024-06-01"),
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: _make_versioned_handbook_evidence(
+                    query_text="2024年6月1日时国奖第九条怎么要求论文和著作？",
+                    document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    primary_version_id="v1:national-scholarship",
+                    primary_snippet="第九条 截至该时间点，论文与著作按旧版细则执行。",
+                ),
+            )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("截至2024-06-01", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "as_of_grounded_answer")
+
+    def test_compare_answer_distinguishes_old_and_new_versions(self) -> None:
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="compare",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="previous",
+                    ),
+                    comparison_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v2:national-scholarship",
+                        anchor="current",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="国奖第九条旧版和新版有什么变化？",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="compare"),
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: _make_versioned_handbook_evidence(
+                    query_text="国奖第九条旧版和新版有什么变化？",
+                    document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    primary_version_id="v1:national-scholarship",
+                    primary_snippet="第九条 旧版只认可上一学年的论文与著作。",
+                    comparison_version_id="v2:national-scholarship",
+                    comparison_snippet="第九条 新版明确论文与著作须与奖学金评审年度相关。",
+                ),
+            )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("旧版", response.answer_text)
+        self.assertIn("新版", response.answer_text)
+        self.assertIn("变化点", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "compare_grounded_answer")
+
+    def test_compare_answer_fails_closed_when_one_side_support_is_missing(self) -> None:
+        with (
+            patch(
+                "campus_rag_agent.service.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="compare",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="previous",
+                    ),
+                    comparison_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v2:national-scholarship",
+                        anchor="current",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                SpecialistRequest(
+                    target="rag-agent",
+                    user_goal="国奖第九条旧版和新版有什么变化？",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        version_query=VersionQuery(mode="compare"),
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: _make_versioned_handbook_evidence(
+                    query_text="国奖第九条旧版和新版有什么变化？",
+                    document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    primary_version_id="v1:national-scholarship",
+                    primary_snippet="第九条 旧版只认可上一学年的论文与著作。",
+                ),
+            )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "compare_support_incomplete")
 
     def test_curriculum_ambiguous_title_fragment_maps_to_needs_clarification(self) -> None:
         evidence = EvidenceBundle(
@@ -2784,7 +3237,10 @@ class RagSpecialistTest(unittest.TestCase):
                     snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
                     score=0.48,
                     source_title="信息与计算科学（民族实验班）本科人才培养方案",
-                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "信息与计算科学（民族实验班）本科人才培养方案",
+                        "一、培养目标",
+                    ),
                 ),
                 EvidenceSource(
                     doc_id="curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
@@ -2800,14 +3256,17 @@ class RagSpecialistTest(unittest.TestCase):
                     snippet="计算机科学与技术（民族实验班）本科人才培养方案 一、培养目标。",
                     score=0.47,
                     source_title="计算机科学与技术（民族实验班）本科人才培养方案",
-                    structural_path=("计算机科学与技术（民族实验班）本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "计算机科学与技术（民族实验班）本科人才培养方案",
+                        "一、培养目标",
+                    ),
                 ),
             ),
         )
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族实验班",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -2821,7 +3280,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.evidence, evidence)
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title")
+        self.assertEqual(
+            response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title"
+        )
         self.assertEqual(
             response.result.diagnostics.retrieved_title_summary,
             (
@@ -2831,7 +3292,9 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
-    def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(self) -> None:
+    def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="法学民族实验班培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -2907,7 +3370,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="法学民族班培养方案里大二下有什么课",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -2978,7 +3441,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="法学民族班培养方案里大二下有什么课",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -3018,7 +3481,9 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
-    def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(self) -> None:
+    def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族实验班培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -3069,7 +3534,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族班培养方案里大二下有什么课",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -3081,7 +3546,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("培养方案", response.follow_up_question)
 
-    def test_curriculum_follow_up_program_fragment_uses_recent_goal_to_resolve_family_then_semester(self) -> None:
+    def test_curriculum_follow_up_program_fragment_uses_recent_goal_to_resolve_family_then_semester(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -3103,7 +3570,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="法学",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -3145,7 +3612,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
         self.assertIn("侵权责任法", response.answer_text)
 
-    def test_curriculum_follow_up_semester_fragment_uses_recent_goal_to_continue_same_program(self) -> None:
+    def test_curriculum_follow_up_semester_fragment_uses_recent_goal_to_continue_same_program(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -3167,7 +3636,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="那大二下呢",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -3209,7 +3678,9 @@ class RagSpecialistTest(unittest.TestCase):
         )
         self.assertIn("中国少数民族文字学", response.answer_text)
 
-    def test_curriculum_follow_up_program_fragment_prefers_typed_session_slots_over_stale_recent_goal(self) -> None:
+    def test_curriculum_follow_up_program_fragment_prefers_typed_session_slots_over_stale_recent_goal(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -3231,7 +3702,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="法学",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -3287,7 +3758,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.session_program, "法学民族实验班")
         self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
-    def test_curriculum_follow_up_semester_fragment_prefers_typed_program_slot_over_stale_recent_goal(self) -> None:
+    def test_curriculum_follow_up_semester_fragment_prefers_typed_program_slot_over_stale_recent_goal(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -3309,7 +3782,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="那大二下呢",
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001", principal_id="principal-001"),
@@ -3362,7 +3835,9 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
-    def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(self) -> None:
+    def test_curriculum_generic_base_class_with_verified_major_prefers_clarification_over_silent_resolution(
+        self,
+    ) -> None:
         retriever_called = False
 
         def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
@@ -3372,7 +3847,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="基地班",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -3391,7 +3866,9 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertFalse(retriever_called)
 
-    def test_curriculum_deictic_query_with_verified_major_prefers_major_scoped_candidate(self) -> None:
+    def test_curriculum_deictic_query_with_verified_major_prefers_major_scoped_candidate(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -3413,7 +3890,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="我这个专业的基地班大二下有什么课",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -3446,10 +3923,12 @@ class RagSpecialistTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.session_program, "历史学强基计划")
         self.assertEqual(response.result.diagnostics.session_semester, "第四学期")
 
-    def test_curriculum_generic_base_class_clarification_records_soft_bias_without_identity_resolution(self) -> None:
+    def test_curriculum_generic_base_class_clarification_records_soft_bias_without_identity_resolution(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="基地班",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -3466,9 +3945,13 @@ class RagSpecialistTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "needs_clarification")
-        self.assertEqual(response.result.diagnostics.clarification_reason, "curriculum_program_family_alias")
+        self.assertEqual(
+            response.result.diagnostics.clarification_reason, "curriculum_program_family_alias"
+        )
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_family_alias")
+        self.assertEqual(
+            response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_family_alias"
+        )
         self.assertEqual(response.result.diagnostics.resolution_mode, "needs_clarification")
         self.assertFalse(response.result.diagnostics.used_verified_identity)
         self.assertTrue(response.result.diagnostics.used_soft_preference)
@@ -3488,7 +3971,7 @@ class RagSpecialistTest(unittest.TestCase):
     def test_curriculum_deictic_resolution_records_verified_identity_diagnostics(self) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="我这个专业的基地班大二下有什么课",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -3525,7 +4008,9 @@ class RagSpecialistTest(unittest.TestCase):
             ),
         )
 
-    def test_curriculum_deictic_experimental_class_with_verified_major_still_needs_clarification(self) -> None:
+    def test_curriculum_deictic_experimental_class_with_verified_major_still_needs_clarification(
+        self,
+    ) -> None:
         retriever_called = False
 
         def fake_retriever(*args: object, **kwargs: object) -> EvidenceBundle:
@@ -3535,7 +4020,7 @@ class RagSpecialistTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="我这个专业的实验班大二下有什么课",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -3580,7 +4065,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "course_family:muc.ideological_political_theory",
         )
 
-    def test_plan_curriculum_course_query_marks_schedule_partial_answer_for_unsupported_offering_unit(self) -> None:
+    def test_plan_curriculum_course_query_marks_schedule_partial_answer_for_unsupported_offering_unit(
+        self,
+    ) -> None:
         plan = plan_curriculum_course_query("思政课哪个学院开，第几学期开")
 
         self.assertIsNotNone(plan)
@@ -3591,7 +4078,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.unsupported_fields, ("offering_unit",))
         self.assertTrue(plan.partial_answer)
 
-    def test_plan_curriculum_course_query_resolves_short_family_schedule_alias_variant(self) -> None:
+    def test_plan_curriculum_course_query_resolves_short_family_schedule_alias_variant(
+        self,
+    ) -> None:
         plan = plan_curriculum_course_query("思政第几学期开")
 
         self.assertIsNotNone(plan)
@@ -3630,7 +4119,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "course_family:muc.ideological_political_theory",
         )
 
-    def test_plan_curriculum_course_query_resolves_single_course_schedule_alias_variant(self) -> None:
+    def test_plan_curriculum_course_query_resolves_single_course_schedule_alias_variant(
+        self,
+    ) -> None:
         plan = plan_curriculum_course_query("习概开设学期")
 
         self.assertIsNotNone(plan)
@@ -3640,7 +4131,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(plan.fact_intent, "schedule")
         self.assertEqual(plan.canonical_course_id, "course:muc.xigai")
 
-    def test_plan_curriculum_program_family_query_resolves_innovation_experimental_alias(self) -> None:
+    def test_plan_curriculum_program_family_query_resolves_innovation_experimental_alias(
+        self,
+    ) -> None:
         plan = plan_curriculum_program_family_query("创新实验班有哪些")
 
         self.assertIsNotNone(plan)
@@ -3651,7 +4144,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.innovation_class_generic",
         )
 
-    def test_plan_curriculum_program_family_query_resolves_ethnic_experimental_membership_alias(self) -> None:
+    def test_plan_curriculum_program_family_query_resolves_ethnic_experimental_membership_alias(
+        self,
+    ) -> None:
         plan = plan_curriculum_program_family_query("民族实验班有哪些")
 
         self.assertIsNotNone(plan)
@@ -3695,7 +4190,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.second_bachelor_degree",
         )
 
-    def test_plan_curriculum_program_family_query_resolves_second_degree_alias_variant(self) -> None:
+    def test_plan_curriculum_program_family_query_resolves_second_degree_alias_variant(
+        self,
+    ) -> None:
         plan = plan_curriculum_program_family_query("第二学位有哪些专业")
 
         self.assertIsNotNone(plan)
@@ -3717,7 +4214,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.second_bachelor_degree",
         )
 
-    def test_plan_curriculum_program_family_query_resolves_experimental_name_pattern_query(self) -> None:
+    def test_plan_curriculum_program_family_query_resolves_experimental_name_pattern_query(
+        self,
+    ) -> None:
         plan = plan_curriculum_program_family_query("名称里带实验班的培养方案有哪些")
 
         self.assertIsNotNone(plan)
@@ -3728,7 +4227,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.experimental_class_generic",
         )
 
-    def test_plan_curriculum_program_family_query_resolves_innovation_name_pattern_query(self) -> None:
+    def test_plan_curriculum_program_family_query_resolves_innovation_name_pattern_query(
+        self,
+    ) -> None:
         plan = plan_curriculum_program_family_query("名称里带创新班的培养方案有哪些")
 
         self.assertIsNotNone(plan)
@@ -3739,7 +4240,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             "program_family:muc.innovation_class_generic",
         )
 
-    def test_plan_curriculum_query_clarifies_generic_base_class_even_with_verified_major(self) -> None:
+    def test_plan_curriculum_query_clarifies_generic_base_class_even_with_verified_major(
+        self,
+    ) -> None:
         plan = plan_curriculum_query(
             "基地班",
             verified_major="历史学",
@@ -3747,9 +4250,13 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(plan.status, "needs_clarification")
         self.assertEqual(plan.target_document_ids, ())
-        self.assertEqual(plan.preferred_document_ids, ("curriculum:历史学（强基计划）本科人才培养方案",))
+        self.assertEqual(
+            plan.preferred_document_ids, ("curriculum:历史学（强基计划）本科人才培养方案",)
+        )
 
-    def test_plan_curriculum_query_uses_verified_major_for_deictic_query_soft_preference(self) -> None:
+    def test_plan_curriculum_query_uses_verified_major_for_deictic_query_soft_preference(
+        self,
+    ) -> None:
         plan = plan_curriculum_query(
             "我这个专业的基地班大二下有什么课",
             verified_major="历史学",
@@ -3784,7 +4291,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -3848,7 +4355,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="习概有哪些专业要上",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -3860,10 +4367,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["corpus"], "curriculum")
         self.assertEqual(retriever_call["collection"], "course_facts")
-        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-audience",))
+        self.assertEqual(
+            retriever_call["target_document_ids"], ("course_facts:muc.xigai-audience",)
+        )
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
-        self.assertEqual(response.answer_text, "习近平新时代中国特色社会主义思想概论面向所有本预科学生。")
+        self.assertEqual(
+            response.answer_text, "习近平新时代中国特色社会主义思想概论面向所有本预科学生。"
+        )
         self.assertIn("所有本预科学生", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
@@ -3916,7 +4427,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课包括哪些课",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -3985,7 +4496,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课是哪个学院开的，有哪些专业要上",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4050,7 +4561,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="习概第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4061,7 +4572,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
-        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
+        self.assertEqual(
+            retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",)
+        )
         self.assertEqual(retriever_call["canonical_course_ids"], ("course:muc.xigai",))
         self.assertEqual(retriever_call["canonical_course_family_ids"], ())
         self.assertIn("第1学期(理工/艺体)", response.answer_text)
@@ -4114,7 +4627,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="习概哪个学院开，第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4125,8 +4638,13 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(retriever_call["collection"], "course_facts")
-        self.assertEqual(retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",))
-        self.assertIn("习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
+        self.assertEqual(
+            retriever_call["target_document_ids"], ("course_facts:muc.xigai-semester",)
+        )
+        self.assertIn(
+            "习近平新时代中国特色社会主义思想概论开设学期：第1学期(理工/艺体)；第2学期(文科)",
+            response.answer_text,
+        )
         self.assertIn("当前还不能稳定确认开课学院", response.answer_text)
         self.assertEqual(
             response.result.diagnostics,
@@ -4142,10 +4660,12 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-    def test_course_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(self) -> None:
+    def test_course_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="习概开设学期",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4189,10 +4709,12 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("当前已采集的课程事实", response.answer_text)
         self.assertNotIn("课程事实", response.answer_text)
 
-    def test_course_family_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(self) -> None:
+    def test_course_family_schedule_answer_uses_user_facing_wording_without_internal_course_fact_phrase(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4356,7 +4878,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                         snippet="毛泽东思想和中国特色社会主义理论体系概论开设学期：第3学期。",
                         score=0.92,
                         source_title="中央民族大学通识课程思想政治理论课教学计划",
-                        structural_path=("思想政治理论课", "毛泽东思想和中国特色社会主义理论体系概论"),
+                        structural_path=(
+                            "思想政治理论课",
+                            "毛泽东思想和中国特色社会主义理论体系概论",
+                        ),
                         detail_label="开设学期",
                         content_kind="course_fact",
                         content_role="semester",
@@ -4407,7 +4932,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4455,10 +4980,12 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-    def test_course_family_schedule_query_uses_partial_completeness_wording_when_family_members_are_missing(self) -> None:
+    def test_course_family_schedule_query_uses_partial_completeness_wording_when_family_members_are_missing(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4517,7 +5044,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("目前能确认的有", response.answer_text)
         self.assertNotIn("各课程开设学期如下", response.answer_text)
         self.assertIn("马克思主义基本原理：第3学期(文科)；第4学期(理工/艺体)", response.answer_text)
-        self.assertIn("习近平新时代中国特色社会主义思想概论：第1学期(理工/艺体)；第2学期(文科)", response.answer_text)
+        self.assertIn(
+            "习近平新时代中国特色社会主义思想概论：第1学期(理工/艺体)；第2学期(文科)",
+            response.answer_text,
+        )
 
     def test_course_family_schedule_query_orders_courses_by_canonical_family_order(self) -> None:
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -4611,7 +5141,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4685,7 +5215,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="思政课哪个学院开，第几学期开",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4714,7 +5244,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_class(self) -> None:
+    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_class(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -4750,7 +5282,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4780,7 +5312,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_experimental_alias(self) -> None:
+    def test_program_family_membership_query_uses_program_family_facts_for_ethnic_experimental_alias(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -4816,7 +5350,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族实验班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4833,7 +5367,6 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
         self.assertIn("法学", response.answer_text)
         self.assertIn("计算机科学与技术", response.answer_text)
-
 
     def test_program_family_membership_query_uses_program_family_facts_for_base_class(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -4871,7 +5404,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="基地班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4930,7 +5463,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="实验班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -4988,7 +5521,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="创新班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5046,7 +5579,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="创新实验班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5101,7 +5634,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="强基有哪些专业",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5159,7 +5692,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="二学位有哪些专业",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5218,7 +5751,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="名称里带实验班的培养方案有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5275,7 +5808,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="名称里带创新班的培养方案有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5301,7 +5834,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="How do I replace my student card?",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5329,7 +5862,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             return expected_evidence
 
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="What are the library hours?",
             actor=ActorContext(
                 user_id="student-001",
@@ -5342,7 +5875,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         response = delegate_to_rag_agent(request, retriever=fake_retriever)
 
         self.assertIsInstance(response, SpecialistResponse)
-        self.assertEqual(response.target, "rag-specialist")
+        self.assertEqual(response.target, "rag-agent")
         self.assertEqual(response.status, "completed")
         self.assertEqual(captured_kwargs["query"], "What are the library hours?")
         self.assertEqual(captured_kwargs["corpus"], "regulations")
@@ -5403,7 +5936,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="保研流程是什么？",
                 context=ContextProjection(
                     actor=ActorContext(
@@ -5456,7 +5989,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="提交书面申请后院系如何审核？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5476,7 +6009,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
         self.assertLessEqual(response.answer_text.count("学校复核后按规定办理。"), 1)
 
-    def test_completed_response_keeps_only_supporting_sources_and_excludes_background_snippets(self) -> None:
+    def test_completed_response_keeps_only_supporting_sources_and_excludes_background_snippets(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="学生证丢失后怎么办理补办？",
             corpus="regulations",
@@ -5545,7 +6080,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证丢失后怎么办理补办？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5572,7 +6107,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertNotIn("公费医疗", response.answer_text)
         self.assertNotIn("1.", response.answer_text)
 
-    def test_completed_response_preserves_raw_retrieved_sources_even_when_support_matches(self) -> None:
+    def test_completed_response_preserves_raw_retrieved_sources_even_when_support_matches(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族班有哪些",
             corpus="curriculum",
@@ -5602,7 +6139,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族班有哪些",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -5622,7 +6159,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ("program-family-facts:ethnic-class-membership",),
         )
 
-    def test_completed_handbook_response_preserves_raw_retrieved_sources_for_observability_counts(self) -> None:
+    def test_completed_handbook_response_preserves_raw_retrieved_sources_for_observability_counts(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
@@ -5643,7 +6182,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5665,6 +6204,35 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(observability.candidate_count, 1)
         self.assertEqual(observability.retrieved_source_count, 1)
         self.assertEqual(observability.citation_count, 1)
+        self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.plan_id,
+            "regulations:student_handbook:current",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.query_mode,
+            "current",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.terminal_state,
+            "completed",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.replan_count,
+            0,
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.step_activities[0].step_type,
+            "indexed_lookup",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.step_activities[0].status,
+            "succeeded",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_plan_summary.step_activities[0].candidate_count,
+            1,
+        )
 
     def test_completed_response_focuses_student_card_reissue_on_actionable_steps(self) -> None:
         evidence = EvidenceBundle(
@@ -5751,7 +6319,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5761,7 +6329,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual([source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"])
+        self.assertEqual(
+            [source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"]
+        )
         self.assertIn("先", response.answer_text)
         self.assertIn("再", response.answer_text)
         self.assertIn("挂失", response.answer_text)
@@ -5812,7 +6382,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5827,9 +6397,14 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
         self.assertFalse(response.result.diagnostics.grounding_downgraded)
-        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ("中央民族大学本科(预科)学生证管理办法",))
+        self.assertEqual(
+            response.result.diagnostics.retrieved_title_summary,
+            ("中央民族大学本科(预科)学生证管理办法",),
+        )
 
-    def test_completed_response_keeps_only_primary_time_rule_when_it_already_answers_lighting_query(self) -> None:
+    def test_completed_response_keeps_only_primary_time_rule_when_it_already_answers_lighting_query(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="宿舍照明",
             corpus="regulations",
@@ -5915,7 +6490,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="宿舍照明",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -5925,7 +6500,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual([source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"])
+        self.assertEqual(
+            [source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"]
+        )
         self.assertIn("宿舍照明", response.answer_text)
         self.assertIn("24:00", response.answer_text)
         self.assertIn("6月1日至9月30日", response.answer_text)
@@ -5969,7 +6546,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertEqual([source.chunk_id for source in draft.supporting_sources], ["chunk-0001"])
         self.assertEqual(len(draft.supporting_contexts), 1)
@@ -5978,7 +6555,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
         self.assertNotIn("文号：", draft.supporting_contexts[0])
 
-    def test_curriculum_completed_answer_uses_direct_fact_sentence_without_curriculum_prefix(self) -> None:
+    def test_curriculum_completed_answer_uses_direct_fact_sentence_without_curriculum_prefix(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科人才培养方案",
             corpus="curriculum",
@@ -6017,7 +6596,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科人才培养方案学制几年？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6075,7 +6654,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.97,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6101,7 +6683,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.96,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6110,7 +6695,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="法学民族实验班培养方案里第一学期有什么课",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6172,7 +6757,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertEqual(
             [source.chunk_id for source in draft.supporting_sources],
@@ -6181,7 +6766,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         self.assertIn("两年", draft.answer_text)
         self.assertNotIn("民族学导论", draft.answer_text)
 
-    def test_curriculum_semester_answer_filters_other_semester_rows_within_same_source(self) -> None:
+    def test_curriculum_semester_answer_filters_other_semester_rows_within_same_source(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="法学民族实验班培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -6212,14 +6799,17 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.97,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertIn("侵权责任法", draft.answer_text)
         self.assertIn("公司法", draft.answer_text)
@@ -6256,21 +6846,26 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.95,
                     source_title="民族学本科第二学士学位人才培养方案",
-                    structural_path=("民族学本科第二学士学位人才培养方案", "八、民族学本科专业教学进程计划表"),
+                    structural_path=(
+                        "民族学本科第二学士学位人才培养方案",
+                        "八、民族学本科专业教学进程计划表",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertIn("人类学导论", draft.answer_text)
         self.assertIn("民族学田野调查方法", draft.answer_text)
         self.assertNotIn("民族学导论", draft.answer_text)
         self.assertNotIn("中国民族志", draft.answer_text)
 
-    def test_curriculum_semester_answer_merges_same_semester_rows_across_multiple_sources(self) -> None:
+    def test_curriculum_semester_answer_merges_same_semester_rows_across_multiple_sources(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="历史学强基计划培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -6298,7 +6893,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.97,
                     source_title="历史学（强基计划）本科人才培养方案",
-                    structural_path=("历史学（强基计划）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "历史学（强基计划）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6326,14 +6924,17 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.96,
                     source_title="历史学（强基计划）本科人才培养方案",
-                    structural_path=("历史学（强基计划）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "历史学（强基计划）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertIn("大学英语(四)", draft.answer_text)
         self.assertIn("中国近代边疆民族史料研读", draft.answer_text)
@@ -6347,7 +6948,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
         )
         self.assertNotIn("民族学人类学经典导读", draft.answer_text)
 
-    def test_curriculum_semester_answer_lists_all_semester_courses_without_table_row_truncation(self) -> None:
+    def test_curriculum_semester_answer_lists_all_semester_courses_without_table_row_truncation(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="法学民族实验班培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -6376,7 +6979,10 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.98,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6404,14 +7010,17 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
                     ),
                     score=0.97,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertIn("第四学期有", draft.answer_text)
         self.assertIn("合同法", draft.answer_text)
@@ -6426,7 +7035,9 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             },
         )
 
-    def test_curriculum_semester_answer_merges_program_semester_fact_partial_chunks_without_leaking_broken_course_fragments(self) -> None:
+    def test_curriculum_semester_answer_merges_program_semester_fact_partial_chunks_without_leaking_broken_course_fragments(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="法学民族实验班培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -6495,7 +7106,7 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertEqual(
             draft.answer_text,
@@ -6514,8 +7125,11 @@ class CurriculumQueryPlanningTest(unittest.TestCase):
             },
         )
 
+
 class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
-    def test_curriculum_semester_answer_keeps_general_and_core_sections_ahead_of_elective_duplicates(self) -> None:
+    def test_curriculum_semester_answer_keeps_general_and_core_sections_ahead_of_elective_duplicates(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="历史学强基计划培养方案里第四学期有什么课",
             corpus="curriculum",
@@ -6621,7 +7235,7 @@ class RagSpecialistCurriculumSemesterSelectionTest(unittest.TestCase):
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertIn("大学英语(四)", draft.answer_text)
         self.assertIn("中国近代边疆民族史料研读", draft.answer_text)
@@ -6667,7 +7281,12 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
                     score=0.98,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "2. 专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6677,7 +7296,12 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 2. 专业选修课程 发展经济学专题。",
                     score=0.97,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "2. 专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -6687,23 +7311,30 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 1. 专业核心课程 专业核心课程 30 学分。",
                     score=0.96,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "1. 专业核心课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
             ),
         )
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
 
         self.assertEqual(draft.supporting_sources, ())
         self.assertEqual(draft.supporting_contexts, ())
         self.assertEqual(draft.answer_text, "")
 
-    def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(self) -> None:
+    def test_curriculum_generic_degree_question_uses_curriculum_specific_clarification(
+        self,
+    ) -> None:
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="学位怎么授予？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6716,7 +7347,9 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         self.assertIn("培养方案", response.follow_up_question)
         self.assertNotIn("学生手册", response.follow_up_question)
 
-    def test_curriculum_short_fact_answer_reorders_supporting_sources_before_confidence(self) -> None:
+    def test_curriculum_short_fact_answer_reorders_supporting_sources_before_confidence(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科人才培养方案总学分要求是多少？",
             corpus="curriculum",
@@ -6783,7 +7416,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科人才培养方案总学分要求是多少？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6837,7 +7470,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科人才培养方案",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6850,7 +7483,9 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         self.assertEqual(response.confidence, "medium")
         self.assertIn("民族学本科人才培养方案", response.answer_text)
 
-    def test_curriculum_named_document_fact_query_avoids_clarification_and_locks_to_target_document(self) -> None:
+    def test_curriculum_named_document_fact_query_avoids_clarification_and_locks_to_target_document(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             corpus="curriculum",
@@ -6917,7 +7552,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科第二学士学位人才培养方案学制几年？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6932,7 +7567,9 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         self.assertIn("民族学本科第二学士学位人才培养方案", response.answer_text)
         self.assertNotIn("教育学本科第二学士学位人才培养方案", response.answer_text)
 
-    def test_curriculum_named_document_multi_chunk_support_allows_medium_confidence_for_low_fact_scores(self) -> None:
+    def test_curriculum_named_document_multi_chunk_support_allows_medium_confidence_for_low_fact_scores(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             corpus="curriculum",
@@ -6985,7 +7622,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科第二学士学位人才培养方案学制几年？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -6998,7 +7635,9 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         self.assertEqual(response.confidence, "medium")
         self.assertIn("两年", response.answer_text)
 
-    def test_curriculum_named_document_credit_query_allows_same_doc_multi_chunk_medium_confidence(self) -> None:
+    def test_curriculum_named_document_credit_query_allows_same_doc_multi_chunk_medium_confidence(
+        self,
+    ) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科人才培养方案总学分要求是多少？",
             corpus="curriculum",
@@ -7051,7 +7690,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民族学本科人才培养方案总学分要求是多少？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -7076,7 +7715,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -7135,7 +7774,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="国奖第九条里对论文和著作怎么要求的？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -7171,7 +7810,9 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             ),
         )
 
-    def test_handbook_resolved_policy_without_supported_clause_maps_to_object_scoped_no_answer(self) -> None:
+    def test_handbook_resolved_policy_without_supported_clause_maps_to_object_scoped_no_answer(
+        self,
+    ) -> None:
         retriever_call: dict[str, object] = {}
         target_doc_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
         target_title = "中央民族大学本科学生国家奖学金评审办法"
@@ -7187,7 +7828,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -7253,7 +7894,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -7265,12 +7906,19 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertIn(target_title, response.answer_text)
         self.assertEqual(response.result.evidence.sources, ())
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(
+            response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found"
+        )
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "insufficient")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(
+            response.result.diagnostics.retrieval_adequacy_reason,
+            "resolved_policy_clause_not_found",
+        )
 
-    def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(self) -> None:
+    def test_restricted_access_denied_for_anonymous_user_does_not_leak_resolved_policy_title(
+        self,
+    ) -> None:
         target_title = "中央民族大学本科学生国家奖学金评审办法"
 
         def fake_retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
@@ -7278,7 +7926,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 context=ContextProjection(actor=ActorContext(principal_type="anonymous")),
                 payload=RagRequestPayload(
@@ -7303,7 +7951,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
 
         response = delegate_to_rag_agent(
             SpecialistRequest(
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 context=ContextProjection(actor=ActorContext(principal_type="operator")),
                 payload=RagRequestPayload(

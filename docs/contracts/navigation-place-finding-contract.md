@@ -14,7 +14,7 @@ updated: 2026-04-14
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `packages/supervisor-core -> packages/navigation-specialist` 的 capability / target 语义
+- `packages/supervisor-core -> packages/navigation-agent` 的 capability / target 语义
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/public-chat-web` 对地点卡片的消费形态
 
@@ -34,7 +34,7 @@ updated: 2026-04-14
 ## Capability And Routing
 
 - `RequestedCapability` 首发新增 `place_lookup`
-- `SpecialistTarget` 首发新增 `navigation-specialist`
+- `SpecialistTarget` 首发新增 `navigation-agent`
 - `supervisor-core` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 
@@ -109,7 +109,7 @@ updated: 2026-04-14
 
 用途：
 
-- `navigation-specialist` 的首发 place-finding 输入
+- `navigation-agent` 的首发 place-finding 输入
 
 ### `PlaceLookupResult`
 
@@ -128,7 +128,7 @@ updated: 2026-04-14
 
 ## Terminal Semantics
 
-当前 `navigation-specialist` 继续遵循 repo 已冻结的 supervisor terminal semantics：
+当前 `navigation-agent` 继续遵循 repo 已冻结的 supervisor terminal semantics：
 
 - `completed`
 - `needs_clarification`
@@ -149,7 +149,7 @@ updated: 2026-04-14
 当前说明：
 
 - 这份 normalization shape 继续保留为 future navigation rollout contract
-- 但在当前产品路径里，supervisor 不会把 `place_lookup` 委派到 `navigation-specialist`
+- 但在当前产品路径里，supervisor 不会把 `place_lookup` 委派到 `navigation-agent`
 - 因此 `place_card` 当前不是浏览器已开放能力
 
 当前 assistant structured part 固定为：
@@ -225,7 +225,7 @@ updated: 2026-04-14
 
 - `docs/architecture/navigation-and-wayfinding-architecture.md`
 - `docs/domains/navigation.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`

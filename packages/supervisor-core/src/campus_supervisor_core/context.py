@@ -8,6 +8,7 @@ from campus_contracts import (
     KnowledgeScope,
     RequestedCapability,
     SupervisorRequest,
+    VersionQuery,
 )
 from campus_contracts.models import AllowedCorpus
 
@@ -36,6 +37,7 @@ class SupervisorRequestContext:
     context: ContextProjection
     requested_capability: RequestedCapability | None
     requested_scope: KnowledgeScope | None
+    version_query: VersionQuery
     user_goal: str
 
     @property
@@ -94,5 +96,6 @@ class SupervisorRequestContext:
             context=request.context,
             requested_capability=request.requested_capability,
             requested_scope=request.requested_scope,
+            version_query=request.version_query,
             user_goal=request.user_goal,
         )

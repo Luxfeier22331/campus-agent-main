@@ -32,7 +32,9 @@ def assemble_response(response: SupervisorResponse) -> SupervisorResponse:
     )
 
 
-def source_doc_ids_from_response(response: SpecialistResponse | SupervisorResponse) -> tuple[str, ...]:
+def source_doc_ids_from_response(
+    response: SpecialistResponse | SupervisorResponse,
+) -> tuple[str, ...]:
     if not isinstance(response.result, RagResultPayload):
         return ()
     return tuple(source.doc_id for source in response.result.evidence.sources)
@@ -41,7 +43,7 @@ def source_doc_ids_from_response(response: SpecialistResponse | SupervisorRespon
 def build_supervisor_observability_from_specialist_response(
     response: SpecialistResponse,
 ) -> SupervisorObservability | None:
-    if response.target != "rag-specialist":
+    if response.target != "rag-agent":
         return SupervisorObservability(
             retrieval_attempted=False,
             candidate_count=0,
@@ -66,7 +68,10 @@ def build_supervisor_observability_from_specialist_response(
     if response.status == "completed":
         retrieval_attempted = True
     elif response.status == "no_answer":
-        if diagnostics is not None and diagnostics.no_answer_reason == "curriculum_course_map_unsupported":
+        if (
+            diagnostics is not None
+            and diagnostics.no_answer_reason == "curriculum_course_map_unsupported"
+        ):
             retrieval_attempted = False
         else:
             retrieval_attempted = True
@@ -88,9 +93,7 @@ def build_supervisor_observability_from_specialist_response(
         citation_count=citation_count,
         citation_missing=(citation_count == 0) if citation_expected else False,
         refusal_class=(
-            response.status
-            if response.status in {"needs_clarification", "no_answer"}
-            else ""
+            response.status if response.status in {"needs_clarification", "no_answer"} else ""
         ),
         semantic_outcome=_semantic_outcome_from_specialist_response(
             response.status,
@@ -101,7 +104,9 @@ def build_supervisor_observability_from_specialist_response(
         fail_closed=True if denied or _is_freshness_fail_closed(diagnostics) else False,
         prompt_runtime_state=diagnostics.prompt_runtime_state if diagnostics is not None else "",
         prompt_runtime_detail=diagnostics.prompt_runtime_detail if diagnostics is not None else "",
-        resolved_scope_corpus=diagnostics.resolved_scope_corpus if diagnostics is not None else None,
+        resolved_scope_corpus=diagnostics.resolved_scope_corpus
+        if diagnostics is not None
+        else None,
         resolved_scope_collection=(
             diagnostics.resolved_scope_collection if diagnostics is not None else ""
         ),
@@ -110,17 +115,11 @@ def build_supervisor_observability_from_specialist_response(
 
 
 def _is_restricted_access_denied(diagnostics: RagResultDiagnostics | None) -> bool:
-    return (
-        diagnostics is not None
-        and diagnostics.no_answer_reason == "restricted_access_denied"
-    )
+    return diagnostics is not None and diagnostics.no_answer_reason == "restricted_access_denied"
 
 
 def _is_freshness_fail_closed(diagnostics: RagResultDiagnostics | None) -> bool:
-    return (
-        diagnostics is not None
-        and diagnostics.freshness_fail_closed
-    )
+    return diagnostics is not None and diagnostics.freshness_fail_closed
 
 
 def _semantic_outcome_from_specialist_response(
@@ -142,6 +141,6 @@ def _semantic_outcome_from_specialist_response(
 
 
 def _scope_class_from_specialist_response(target: str) -> str:
-    if target in {"rag-specialist", "navigation-specialist"}:
+    if target in {"rag-agent", "navigation-agent"}:
         return "in_scope"
     return ""

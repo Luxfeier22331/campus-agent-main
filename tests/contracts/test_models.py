@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import asdict, fields
 import unittest
+from dataclasses import asdict, fields
 
 from campus_contracts import (
-    ActorContext,
-    AuthorizedRetrievalFilter,
-    AuthorizationProjection,
-    CampusNoticeDiscoverPayload,
-    CampusNoticeDiscoverResult,
-    CampusNoticeGetPayload,
-    CampusNoticeGetResult,
-    ClaimSupport,
-    ContextProjection,
     CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
     CURRICULUM_PROGRAM_SLOT_NAME,
     CURRICULUM_SEMESTER_SLOT_NAME,
+    ActorContext,
+    AuthorizationProjection,
+    AuthorizedRetrievalFilter,
+    CampusNoticeDiscoverResult,
+    CampusNoticeGetResult,
+    ClaimSupport,
+    ContextProjection,
     CurriculumFollowUpSlots,
     DocumentRef,
     ErrorInfo,
@@ -31,24 +29,27 @@ from campus_contracts import (
     PlaceRef,
     ProfileMemoryItem,
     ProfileMemorySummary,
-    RagResultDiagnostics,
-    RemoteContentSuspicionSummary,
-    SessionSlot,
-    SessionSummary,
     RagRequestPayload,
+    RagResultDiagnostics,
     RagResultPayload,
+    RemoteContentSuspicionSummary,
+    RetrievalPlanSummary,
+    RetrievalStepActivitySummary,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
+    SessionSlot,
+    SessionSummary,
     SourceTrustSummary,
     SpecialistRequest,
     SpecialistResponse,
-    SupervisorResponse,
     SupervisorRequest,
+    SupervisorResponse,
     TemporalQuery,
     TraceContext,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
     TransportStopRef,
+    VersionQuery,
 )
 
 
@@ -61,6 +62,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertIsNone(request.safety_identifier)
         self.assertIsNone(request.requested_capability)
         self.assertIsNone(request.requested_scope)
+        self.assertEqual(request.version_query, VersionQuery(mode="current"))
         self.assertEqual(
             request.trace,
             TraceContext(trace_id="", parent_run_id="", tool_call_id=""),
@@ -176,7 +178,9 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(request.actor.user_id, "student-001")
         self.assertEqual(request.context.actor.major, "philosophy")
         self.assertEqual(request.context.actor.principal_type, "student")
-        self.assertEqual(request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29")
+        self.assertEqual(
+            request.context.authorization.entitlement_snapshot_id, "entitlements-2026-03-29"
+        )
         self.assertEqual(request.context.authorization.projection_source, "campus_identity")
         self.assertEqual(
             request.context.authorization.retrieval_filter.entitlement_groups,
@@ -193,13 +197,21 @@ class ContractModelsTest(unittest.TestCase):
                 safety_identifier="student-001",
             )
 
-    def test_session_summary_exposes_curriculum_follow_up_slots_with_last_confirmed_precedence(self) -> None:
+    def test_session_summary_exposes_curriculum_follow_up_slots_with_last_confirmed_precedence(
+        self,
+    ) -> None:
         summary = SessionSummary(
             confirmed_slots=(
-                SessionSlot(name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True),
+                SessionSlot(
+                    name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME, value="民族实验班", confirmed=True
+                ),
                 SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第二学期", confirmed=True),
-                SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="新闻学民族实验班", confirmed=False),
-                SessionSlot(name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True),
+                SessionSlot(
+                    name=CURRICULUM_PROGRAM_SLOT_NAME, value="新闻学民族实验班", confirmed=False
+                ),
+                SessionSlot(
+                    name=CURRICULUM_PROGRAM_SLOT_NAME, value="法学民族实验班", confirmed=True
+                ),
                 SessionSlot(name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True),
             ),
             turn_count=3,
@@ -344,6 +356,7 @@ class ContractModelsTest(unittest.TestCase):
                 "partial_answer": True,
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
+                "retrieval_plan_summary": None,
                 "retrieved_sources": (),
                 "prompt_trace": None,
             },
@@ -481,9 +494,58 @@ class ContractModelsTest(unittest.TestCase):
                 "generation_blocked": True,
             },
         )
+
+    def test_retrieval_plan_summary_serializes_as_contract_field(self) -> None:
+        diagnostics = RagResultDiagnostics(
+            retrieval_plan_summary=RetrievalPlanSummary(
+                plan_id="regulations:student_handbook:current",
+                query_mode="current",
+                replan_count=0,
+                terminal_state="completed",
+                step_activities=(
+                    RetrievalStepActivitySummary(
+                        step_id="indexed-lookup",
+                        step_type="indexed_lookup",
+                        corpus="regulations",
+                        collection="student_handbook",
+                        status="succeeded",
+                        top_k=3,
+                        latency_ms=12,
+                        candidate_count=2,
+                        reference_count=2,
+                        failure_kind="",
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            asdict(diagnostics)["retrieval_plan_summary"],
+            {
+                "plan_id": "regulations:student_handbook:current",
+                "query_mode": "current",
+                "replan_count": 0,
+                "terminal_state": "completed",
+                "step_activities": (
+                    {
+                        "step_id": "indexed-lookup",
+                        "step_type": "indexed_lookup",
+                        "corpus": "regulations",
+                        "collection": "student_handbook",
+                        "status": "succeeded",
+                        "top_k": 3,
+                        "latency_ms": 12,
+                        "candidate_count": 2,
+                        "reference_count": 2,
+                        "failure_kind": "",
+                    },
+                ),
+            },
+        )
+
     def test_specialist_request_requires_explicit_payload(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
@@ -500,23 +562,67 @@ class ContractModelsTest(unittest.TestCase):
         )
         self.assertEqual(request.context.actor, ActorContext())
 
+    def test_version_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
+        with self.assertRaisesRegex(ValueError, "as_of is required when version mode is as_of"):
+            VersionQuery(mode="as_of")
+
+    def test_version_query_rejects_as_of_anchor_outside_as_of_mode(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "as_of is only allowed when version mode is as_of",
+        ):
+            VersionQuery(mode="historical", as_of="2025-09-01")
+
+    def test_version_query_accepts_as_of_anchor_when_mode_is_as_of(self) -> None:
+        query = VersionQuery(mode="as_of", as_of="2025-09-01")
+
+        self.assertEqual(query.mode, "as_of")
+        self.assertEqual(query.as_of, "2025-09-01")
+
+    def test_version_query_accepts_exact_version_anchor_for_historical_mode(self) -> None:
+        query = VersionQuery(mode="historical", version_id="v1:student-handbook")
+
+        self.assertEqual(query.mode, "historical")
+        self.assertEqual(query.version_id, "v1:student-handbook")
+
+    def test_version_query_accepts_exact_compare_pair_for_compare_mode(self) -> None:
+        query = VersionQuery(
+            mode="compare",
+            version_id="v1:student-handbook",
+            compare_to_version_id="v2:student-handbook",
+        )
+
+        self.assertEqual(query.mode, "compare")
+        self.assertEqual(query.version_id, "v1:student-handbook")
+        self.assertEqual(query.compare_to_version_id, "v2:student-handbook")
+
+    def test_version_query_rejects_compare_secondary_anchor_without_primary_version_id(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "version_id is required when compare_to_version_id is set",
+        ):
+            VersionQuery(mode="compare", compare_to_version_id="v2:student-handbook")
+
     def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
                     collection="curriculum_plan",
                 )
-            )
+            ),
         )
 
         self.assertEqual(request.payload.scope.corpus, "regulations")
         self.assertEqual(request.payload.scope.collection, "curriculum_plan")
+
     def test_request_accepts_offline_campus_services_scope(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="校园110电话是多少？",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
@@ -531,7 +637,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_response_serializes_rag_result_shape(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="completed",
             answer_text="The library is open.",
             confidence="high",
@@ -568,7 +674,7 @@ class ContractModelsTest(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "rag-specialist")
+        self.assertEqual(payload["target"], "rag-agent")
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["confidence"], "high")
         self.assertEqual(payload["result"]["evidence"]["corpus"], "regulations")
@@ -612,7 +718,9 @@ class ContractModelsTest(unittest.TestCase):
 
         payload = asdict(source)
 
-        self.assertEqual(payload["canonical_source_id"], "curriculum:法学（民族实验班）本科人才培养方案")
+        self.assertEqual(
+            payload["canonical_source_id"], "curriculum:法学（民族实验班）本科人才培养方案"
+        )
         self.assertEqual(payload["canonical_source_title"], "法学（民族实验班）本科人才培养方案")
         self.assertEqual(payload["source_unit_kind"], "semester_course_list")
         self.assertEqual(payload["source_unit_key"], "semester-4")
@@ -652,7 +760,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_response_serializes_place_lookup_result_shape(self) -> None:
         response = SpecialistResponse(
-            target="navigation-specialist",
+            target="navigation-agent",
             status="completed",
             answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
             confidence="high",
@@ -690,13 +798,15 @@ class ContractModelsTest(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(payload["target"], "navigation-agent")
         self.assertEqual(payload["result"]["query_text"], "图书馆在哪里")
         self.assertEqual(payload["result"]["matched_alias"], "图书馆")
         self.assertEqual(payload["result"]["resolved_place"]["place_id"], "muc.haidian.library")
         self.assertEqual(payload["result"]["place_card"]["place"]["entity_type"], "building")
         self.assertEqual(payload["result"]["place_card"]["point_geometry"]["longitude"], 116.31551)
-        self.assertEqual(payload["result"]["place_card"]["coordinate_reference_system"], "EPSG:4326")
+        self.assertEqual(
+            payload["result"]["place_card"]["coordinate_reference_system"], "EPSG:4326"
+        )
         self.assertEqual(
             tuple(payload["result"]["place_card"]["service_tags"]),
             ("自习", "借阅", "打印"),
@@ -704,7 +814,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
         response = SpecialistResponse(
-            target="navigation-specialist",
+            target="navigation-agent",
             status="needs_clarification",
             follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
             confidence="medium",
@@ -738,7 +848,7 @@ class ContractModelsTest(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["target"], "navigation-specialist")
+        self.assertEqual(payload["target"], "navigation-agent")
         self.assertEqual(len(payload["result"]["candidate_places"]), 2)
         self.assertEqual(
             payload["result"]["candidate_places"][1]["place"]["display_name"],
@@ -747,7 +857,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
         response = SpecialistResponse(
-            target="navigation-specialist",
+            target="navigation-agent",
             status="completed",
             answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
             confidence="high",
@@ -789,7 +899,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -836,7 +946,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_supervisor_response_serializes_selected_target_and_context_free_shape(self) -> None:
         response = SupervisorResponse(
-            selected_target="rag-specialist",
+            selected_target="rag-agent",
             status="needs_clarification",
             follow_up_question="请说明你想咨询哪一类奖学金。",
             confidence="low",
@@ -844,7 +954,7 @@ class ContractModelsTest(unittest.TestCase):
 
         payload = asdict(response)
 
-        self.assertEqual(payload["selected_target"], "rag-specialist")
+        self.assertEqual(payload["selected_target"], "rag-agent")
         self.assertEqual(payload["status"], "needs_clarification")
         self.assertEqual(payload["follow_up_question"], "请说明你想咨询哪一类奖学金。")
         self.assertNotIn("target", payload)
@@ -866,7 +976,9 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(tuple(payload["allowed_tools"]), ("service_status_lookup",))
 
     def test_specialist_request_rejects_unknown_allowed_tool(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: transport_notice_latest"):
+        with self.assertRaisesRegex(
+            ValueError, "unsupported allowed_tool: transport_notice_latest"
+        ):
             SpecialistRequest(
                 target="campus-services-agent",
                 user_goal="校车现在开吗",
@@ -1027,7 +1139,7 @@ class ContractModelsTest(unittest.TestCase):
 
     def test_specialist_response_serializes_notice_get_result_shape(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="completed",
             answer_text="这是当前可确认的春假通知正文。",
             confidence="high",
@@ -1062,7 +1174,7 @@ class ContractModelsTest(unittest.TestCase):
     def test_specialist_request_rejects_missing_payload(self) -> None:
         with self.assertRaises(TypeError):
             SpecialistRequest(  # type: ignore[call-arg]
-                target="rag-specialist",
+                target="rag-agent",
                 user_goal="library hours",
             )
 

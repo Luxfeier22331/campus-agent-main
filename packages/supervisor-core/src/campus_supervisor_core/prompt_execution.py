@@ -38,26 +38,22 @@ class SupervisorPromptExecutor(Protocol):
     def compose_clarify(
         self,
         packet: SupervisorPromptPacket,
-    ) -> SupervisorPromptExecutionResult[SupervisorClarifyPromptOutput]:
-        ...
+    ) -> SupervisorPromptExecutionResult[SupervisorClarifyPromptOutput]: ...
 
     def compose_approval_required(
         self,
         packet: SupervisorPromptPacket,
-    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
-        ...
+    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]: ...
 
     def compose_out_of_scope(
         self,
         packet: SupervisorPromptPacket,
-    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
-        ...
+    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]: ...
 
     def compose_reject(
         self,
         packet: SupervisorPromptPacket,
-    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]:
-        ...
+    ) -> SupervisorPromptExecutionResult[SupervisorTerminalPromptOutput]: ...
 
 
 class StrictValidatedSupervisorPromptExecutor:
@@ -132,9 +128,8 @@ class StrictValidatedSupervisorPromptExecutor:
 def wrap_supervisor_prompt_executor(
     prompt_executor: SupervisorPromptExecutor | None,
 ) -> SupervisorPromptExecutor | None:
-    if (
-        prompt_executor is None
-        or isinstance(prompt_executor, StrictValidatedSupervisorPromptExecutor)
+    if prompt_executor is None or isinstance(
+        prompt_executor, StrictValidatedSupervisorPromptExecutor
     ):
         return prompt_executor
     return StrictValidatedSupervisorPromptExecutor(prompt_executor)

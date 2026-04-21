@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import patch
 
 from campus_contracts import SupervisorRequest, SupervisorResponse
-
 from campus_supervisor_api.app import create_app
-from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request, main as dev_server_main
+from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request
+from campus_supervisor_api.dev_server import main as dev_server_main
 from campus_supervisor_api.settings import ApiSettings
 
 
@@ -59,7 +59,7 @@ class SupervisorApiDevServerTest(unittest.TestCase):
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="The library closes at 22:00.",
                 confidence="high",

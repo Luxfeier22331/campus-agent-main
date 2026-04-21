@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from campus_contracts import ErrorInfo, SpecialistResponse, SupervisorObservability, SupervisorResponse
+from campus_contracts import (
+    ErrorInfo,
+    SpecialistResponse,
+    SupervisorObservability,
+    SupervisorResponse,
+)
 from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
 
 from campus_supervisor_core.context import SupervisorRequestContext
@@ -14,8 +19,8 @@ from campus_supervisor_core.prompt_packets import (
     build_supervisor_out_of_scope_prompt_packet,
     build_supervisor_reject_prompt_packet,
 )
-from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
+from campus_supervisor_core.routing import RoutingDecision
 
 
 def finalize_routing_decision(
@@ -165,7 +170,9 @@ def finalize_routing_decision(
         status="rejected",
         answer_text=answer_text,
         confidence="low",
-        error=ErrorInfo(code="request_rejected", message="request was rejected by supervisor policy"),
+        error=ErrorInfo(
+            code="request_rejected", message="request was rejected by supervisor policy"
+        ),
         observability=SupervisorObservability(
             retrieval_attempted=False,
             candidate_count=0,

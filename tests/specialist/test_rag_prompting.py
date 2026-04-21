@@ -15,13 +15,14 @@ from campus_contracts import (
     SessionSummary,
     SpecialistRequest,
 )
-from campus_rag_specialist.intent import frame_rag_intent
-from campus_rag_specialist.prompt_packets import (
+from campus_rag_agent import RagAgent
+from campus_rag_agent.intent import frame_rag_intent
+from campus_rag_agent.prompt_packets import (
     build_rag_answer_prompt_packet,
     build_rag_clarify_prompt_packet,
     build_rag_no_answer_prompt_packet,
 )
-from campus_rag_specialist.prompts.registry import (
+from campus_rag_agent.prompts.registry import (
     get_rag_prompt_spec,
     list_rag_prompt_specs,
 )
@@ -29,7 +30,7 @@ from campus_rag_specialist.prompts.registry import (
 
 def _make_request() -> SpecialistRequest:
     return SpecialistRequest(
-        target="rag-specialist",
+        target="rag-agent",
         user_goal="这个规定怎么办",
         context=ContextProjection(
             actor=ActorContext(
@@ -130,10 +131,10 @@ class RagPromptRegistryTest(unittest.TestCase):
         no_answer = get_rag_prompt_spec("rag_no_answer_v1")
         unsupported = get_rag_prompt_spec("rag_unsupported_v1")
 
-        self.assertEqual(answer.owner_package, "campus_rag_specialist")
-        self.assertEqual(clarify.owner_package, "campus_rag_specialist")
-        self.assertEqual(no_answer.owner_package, "campus_rag_specialist")
-        self.assertEqual(answer.runtime_target, "rag-specialist")
+        self.assertEqual(answer.owner_package, "campus_rag_agent")
+        self.assertEqual(clarify.owner_package, "campus_rag_agent")
+        self.assertEqual(no_answer.owner_package, "campus_rag_agent")
+        self.assertEqual(answer.runtime_target, "rag-agent")
         self.assertEqual(answer.capability_family, "rag-agent")
         self.assertEqual(clarify.capability_family, "rag-agent")
         self.assertEqual(no_answer.capability_family, "rag-agent")
@@ -150,6 +151,9 @@ class RagPromptRegistryTest(unittest.TestCase):
         self.assertRegex(clarify.template_sha256, r"^[0-9a-f]{64}$")
         self.assertRegex(no_answer.template_sha256, r"^[0-9a-f]{64}$")
         self.assertRegex(unsupported.template_sha256, r"^[0-9a-f]{64}$")
+
+    def test_rag_agent_symbol_is_exposed_from_package_root(self) -> None:
+        self.assertIsNotNone(RagAgent)
 
 
 class RagPromptPacketTest(unittest.TestCase):

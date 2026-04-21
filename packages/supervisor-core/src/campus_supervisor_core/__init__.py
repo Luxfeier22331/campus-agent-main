@@ -9,7 +9,7 @@ from campus_contracts import (
     SupervisorRequest,
     SupervisorResponse,
 )
-from campus_rag_specialist.prompt_execution import RagPromptExecutor
+from campus_rag_agent.prompt_execution import RagPromptExecutor
 
 from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
 from campus_supervisor_core.audit import (
@@ -27,7 +27,6 @@ from campus_supervisor_core.errors import (
     UnsupportedCapabilityError,
 )
 from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
-
 
 AuditSink = Callable[[SupervisorAuditRecord], None]
 

@@ -4,7 +4,6 @@ import json
 import unittest
 
 import httpx
-
 from campus_contracts import (
     ActorContext,
     ContextProjection,
@@ -16,6 +15,7 @@ from campus_contracts import (
     SupervisorRequest,
     TraceContext,
 )
+from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
 from campus_shared import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeHTTPSettings,
@@ -29,7 +29,6 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.prompt_packets import build_supervisor_clarify_prompt_packet
 from campus_supervisor_core.routing import RoutingDecision
-from campus_rag_specialist.prompt_packets import build_rag_answer_prompt_packet
 
 
 def _provider_config() -> PromptRuntimeProviderConfig:
@@ -76,7 +75,7 @@ def _build_supervisor_packet():
 
 def _build_rag_packet():
     request = SpecialistRequest(
-        target="rag-specialist",
+        target="rag-agent",
         user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
         request_id="req-rag-provider-exec",
         safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

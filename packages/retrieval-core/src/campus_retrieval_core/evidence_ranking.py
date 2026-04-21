@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import re
 import unicodedata
+from dataclasses import dataclass, replace
 from typing import Sequence
 
 from campus_contracts import EvidenceSource
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
+
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
     interpret_curriculum_query,
     query_targets_curriculum_source_title,
 )
-
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ASCII_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
@@ -130,7 +130,9 @@ def prioritize_evidence_sources(
         )
         for source in sources
     )
-    ranked = _neutralize_title_compactness_for_ambiguous_title_fragment(query_key=query_key, features=ranked)
+    ranked = _neutralize_title_compactness_for_ambiguous_title_fragment(
+        query_key=query_key, features=ranked
+    )
     return tuple(
         feature.source
         for feature in sorted(
@@ -200,7 +202,8 @@ def select_supporting_evidence_sources(
     )
     locked_doc_id = (
         ranked_documents[0].doc_id
-        if ranked_documents and _query_targets_document(query_key=query_key, feature=ranked_documents[0])
+        if ranked_documents
+        and _query_targets_document(query_key=query_key, feature=ranked_documents[0])
         else ""
     )
     curriculum_lookup_selected = _select_curriculum_lookup_support_sources(
@@ -306,7 +309,9 @@ def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bo
     if not query_key:
         return False
     explicit_title_key = _match_key(source.source_title)
-    if _is_official_web_short_title_match(query_key=query_key, source=source, explicit_title_key=explicit_title_key):
+    if _is_official_web_short_title_match(
+        query_key=query_key, source=source, explicit_title_key=explicit_title_key
+    ):
         return True
     title_keys = _source_title_keys(source)
     title_match_priority = _title_match_priority(query_key=query_key, title_keys=title_keys)
@@ -322,7 +327,10 @@ def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bo
         default=0,
     )
     semantic_title_coverage = max(
-        (_semantic_title_coverage(query_key=query_key, title_key=title_key) for title_key in title_keys),
+        (
+            _semantic_title_coverage(query_key=query_key, title_key=title_key)
+            for title_key in title_keys
+        ),
         default=0.0,
     )
     return (
@@ -364,7 +372,12 @@ def _build_ranking_features(
     focused_query_key = _focused_query_key(query_key=query_key, title_keys=title_keys)
     title_match_priority = _title_match_priority(query_key=query_key, title_keys=title_keys)
     title_overlap_count = max(
-        (_query_lexical_support_count(normalized_query=normalized_query, query_key=query_key, search_key=title_key) for title_key in title_keys),
+        (
+            _query_lexical_support_count(
+                normalized_query=normalized_query, query_key=query_key, search_key=title_key
+            )
+            for title_key in title_keys
+        ),
         default=0,
     )
     detail_support_count = _query_lexical_support_count(
@@ -432,10 +445,14 @@ def _build_document_ranking_features(
 
 
 def _query_targets_document(*, query_key: str, feature: _DocumentRankingFeatures) -> bool:
-    return feature.title_match_priority >= 2 or (_is_short_semantic_query(query_key) and feature.title_overlap_count >= 2)
+    return feature.title_match_priority >= 2 or (
+        _is_short_semantic_query(query_key) and feature.title_overlap_count >= 2
+    )
 
 
-def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
+def _source_sort_key(
+    feature: _SourceRankingFeatures,
+) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
@@ -449,7 +466,9 @@ def _source_sort_key(feature: _SourceRankingFeatures) -> tuple[int, int, int, in
     )
 
 
-def _document_sort_key(feature: _DocumentRankingFeatures) -> tuple[int, int, int, int, int, int, int, float]:
+def _document_sort_key(
+    feature: _DocumentRankingFeatures,
+) -> tuple[int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
@@ -467,7 +486,11 @@ def _curriculum_lookup_section_sort_key(
     query_text: str,
     feature: _SourceRankingFeatures,
 ) -> tuple[int, int, float]:
-    focus_priority = 0 if _curriculum_lookup_source_matches_query(query_text=query_text, source=feature.source) else 1
+    focus_priority = (
+        0
+        if _curriculum_lookup_source_matches_query(query_text=query_text, source=feature.source)
+        else 1
+    )
     return (
         focus_priority,
         _source_chunk_ordinal(feature.source),
@@ -485,10 +508,7 @@ def _curriculum_lookup_source_matches_query(*, query_text: str, source: Evidence
         return False
     normalized_query = _normalize_text(query_text)
     normalized_section = _normalize_text(_curriculum_support_section_text(source))
-    return any(
-        term in normalized_query and term in normalized_section
-        for term in query_terms
-    )
+    return any(term in normalized_query and term in normalized_section for term in query_terms)
 
 
 def _curriculum_support_section_key(source: EvidenceSource) -> str:
@@ -523,7 +543,9 @@ def _source_title_keys(source: EvidenceSource) -> tuple[str, ...]:
     return tuple(
         dict.fromkeys(
             title_key
-            for title_key in (_match_key(candidate) for candidate in _source_title_candidates(source))
+            for title_key in (
+                _match_key(candidate) for candidate in _source_title_candidates(source)
+            )
             if title_key
         )
     )
@@ -603,7 +625,9 @@ def _title_match_priority(*, query_key: str, title_keys: Sequence[str]) -> int:
 
 
 def _focused_query_key(*, query_key: str, title_keys: Sequence[str]) -> str:
-    for title_key in sorted((key for key in title_keys if key and key in query_key), key=len, reverse=True):
+    for title_key in sorted(
+        (key for key in title_keys if key and key in query_key), key=len, reverse=True
+    ):
         remainder = query_key.replace(title_key, "", 1)
         if remainder:
             return remainder
@@ -614,7 +638,11 @@ def _title_compactness(*, query_key: str, title_keys: Sequence[str]) -> int:
     if not _is_short_title_fragment_query(query_key):
         return 0
     extra_chars = min(
-        (len(title_key) - len(query_key) for title_key in title_keys if title_key and query_key and query_key in title_key),
+        (
+            len(title_key) - len(query_key)
+            for title_key in title_keys
+            if title_key and query_key and query_key in title_key
+        ),
         default=None,
     )
     if extra_chars is None:
@@ -629,7 +657,10 @@ def _neutralize_title_compactness_for_ambiguous_title_fragment(
 ) -> tuple[_SourceRankingFeatures, ...]:
     if not _is_short_title_fragment_query(query_key):
         return features
-    if len({feature.source.doc_id for feature in features if feature.title_match_priority >= 2}) < 2:
+    if (
+        len({feature.source.doc_id for feature in features if feature.title_match_priority >= 2})
+        < 2
+    ):
         return features
     return tuple(replace(feature, title_compactness=0) for feature in features)
 
@@ -681,7 +712,9 @@ def _title_variants(text: str) -> tuple[str, ...]:
     normalized_text = _normalize_text(text)
     if not normalized_text:
         return ()
-    without_bracketed_segment = _normalize_text(_TITLE_BRACKETED_SEGMENT_RE.sub("", normalized_text))
+    without_bracketed_segment = _normalize_text(
+        _TITLE_BRACKETED_SEGMENT_RE.sub("", normalized_text)
+    )
     return tuple(
         dict.fromkeys(
             candidate
@@ -732,7 +765,10 @@ def _cjk_tokens(segment: str, *, token_size: int) -> tuple[str, ...]:
     return tuple(
         dict.fromkeys(
             token
-            for token in (segment[index : index + token_size] for index in range(len(segment) - token_size + 1))
+            for token in (
+                segment[index : index + token_size]
+                for index in range(len(segment) - token_size + 1)
+            )
             if token.strip()
         )
     )

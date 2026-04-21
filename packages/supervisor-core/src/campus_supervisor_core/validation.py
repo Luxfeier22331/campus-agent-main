@@ -13,16 +13,20 @@ from campus_supervisor_core.errors import (
 def resolve_requested_capability(context: SupervisorRequestContext) -> RequestedCapability:
     capability = context.requested_capability
     has_scope = context.requested_scope is not None
+    has_non_current_version_query = context.version_query.mode != "current"
 
     if capability is None:
         if has_scope:
             return "knowledge"
-        return infer_requested_capability_from_goal(context.user_goal)
+        inferred_capability = infer_requested_capability_from_goal(context.user_goal)
+        if inferred_capability == "place_lookup" and has_non_current_version_query:
+            raise InvalidSupervisorRequestError(
+                "version_query is not allowed for place_lookup requests"
+            )
+        return inferred_capability
 
     if capability not in ALLOWED_REQUESTED_CAPABILITIES:
-        raise UnsupportedCapabilityError(
-            f"unsupported requested_capability: {capability}"
-        )
+        raise UnsupportedCapabilityError(f"unsupported requested_capability: {capability}")
 
     if capability == "knowledge":
         return capability
@@ -31,6 +35,10 @@ def resolve_requested_capability(context: SupervisorRequestContext) -> Requested
         if has_scope:
             raise InvalidSupervisorRequestError(
                 "requested_scope is not allowed for place_lookup requests"
+            )
+        if has_non_current_version_query:
+            raise InvalidSupervisorRequestError(
+                "version_query is not allowed for place_lookup requests"
             )
         return capability
     raise MissingRoutingInputError(f"unsupported requested capability: {capability}")

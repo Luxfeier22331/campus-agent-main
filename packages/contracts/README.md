@@ -16,4 +16,4 @@
 - retrieval backend、Qdrant、MinIO、registry 或其他基础设施类型
 - specialist 内部实现细节
 
-当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `rag-specialist`、`navigation-specialist` 与已 admission 的 structured runtime target。
+当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `rag-agent`、`navigation-agent` 与已 admission 的 structured runtime target。

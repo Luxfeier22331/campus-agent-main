@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import httpx
-from pydantic import BaseModel, ConfigDict
-
-from campus_rag_specialist.prompt_execution import (
+from campus_rag_agent.prompt_execution import (
     RagAnswerPromptOutput,
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
 )
-from campus_rag_specialist.prompt_packets import RagPromptPacket
-from campus_rag_specialist.prompts.registry import get_rag_prompt_spec
+from campus_rag_agent.prompt_packets import RagPromptPacket
+from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from campus_shared import (
     PromptRuntimeProviderConfig,
     ResponsesStructuredOutputExecutor,
     build_prompt_trace,
-)
-from campus_supervisor_api.prompt_stack import (
-    build_rag_prompt_stack,
-    build_supervisor_prompt_stack,
 )
 from campus_supervisor_core.prompt_execution import (
     SupervisorClarifyPromptOutput,
@@ -26,6 +20,12 @@ from campus_supervisor_core.prompt_execution import (
 )
 from campus_supervisor_core.prompt_packets import SupervisorPromptPacket
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
+from pydantic import BaseModel, ConfigDict
+
+from campus_supervisor_api.prompt_stack import (
+    build_rag_prompt_stack,
+    build_supervisor_prompt_stack,
+)
 
 
 class _FollowUpQuestionModel(BaseModel):
@@ -71,9 +71,7 @@ class ProviderBackedSupervisorPromptExecutor:
             safety_identifier=packet.safety_identifier,
         )
         return SupervisorPromptExecutionResult(
-            output=SupervisorClarifyPromptOutput(
-                follow_up_question=parsed.follow_up_question
-            ),
+            output=SupervisorClarifyPromptOutput(follow_up_question=parsed.follow_up_question),
             prompt_trace=build_prompt_trace(
                 spec=spec,
                 model_provider=stack.model_provider,
@@ -155,9 +153,7 @@ class ProviderBackedRagPromptExecutor:
             safety_identifier=packet.safety_identifier,
         )
         return RagPromptExecutionResult(
-            output=RagClarifyPromptOutput(
-                follow_up_question=parsed.follow_up_question
-            ),
+            output=RagClarifyPromptOutput(follow_up_question=parsed.follow_up_question),
             prompt_trace=build_prompt_trace(
                 spec=spec,
                 model_provider=stack.model_provider,

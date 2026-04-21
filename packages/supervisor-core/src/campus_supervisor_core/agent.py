@@ -3,9 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from campus_notice_agent import delegate_to_notice_agent
-from campus_navigation_specialist import delegate_to_navigation_specialist
-from campus_services_agent import delegate_to_campus_services_agent
 from campus_contracts import (
     SpecialistRequest,
     SpecialistResponse,
@@ -13,27 +10,29 @@ from campus_contracts import (
     SupervisorRequest,
     SupervisorResponse,
 )
-from campus_rag_specialist.prompt_execution import RagPromptExecutor
+from campus_navigation_agent import delegate_to_navigation_agent
+from campus_notice_agent import delegate_to_notice_agent
+from campus_rag_agent.prompt_execution import RagPromptExecutor
+from campus_services_agent import delegate_to_campus_services_agent
 
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import MissingSpecialistDelegateError
 from campus_supervisor_core.framing import frame_specialist_request
-from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
+from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.routing import route_request
 from campus_supervisor_core.tool_policy import assert_tool_policy_is_supported
 
-
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
 
 
-def _delegate_to_rag_specialist(
+def _delegate_to_rag_agent(
     request: SpecialistRequest,
     *,
     prompt_executor: RagPromptExecutor | None = None,
 ) -> SpecialistResponse:
-    from campus_rag_specialist.service import delegate_to_rag_agent
+    from campus_rag_agent.service import delegate_to_rag_agent
 
     return delegate_to_rag_agent(request, prompt_executor=prompt_executor)
 
@@ -47,14 +46,14 @@ class SupervisorAgent:
     def __post_init__(self) -> None:
         if self.specialist_delegates is None:
             self.specialist_delegates = {
-                "rag-specialist": self._delegate_to_rag_specialist,
-                "navigation-specialist": delegate_to_navigation_specialist,
+                "rag-agent": self._delegate_to_rag_agent,
+                "navigation-agent": delegate_to_navigation_agent,
                 "campus-services-agent": delegate_to_campus_services_agent,
                 "notice-agent": delegate_to_notice_agent,
             }
 
-    def _delegate_to_rag_specialist(self, request: SpecialistRequest) -> SpecialistResponse:
-        return _delegate_to_rag_specialist(request, prompt_executor=self.rag_prompt_executor)
+    def _delegate_to_rag_agent(self, request: SpecialistRequest) -> SpecialistResponse:
+        return _delegate_to_rag_agent(request, prompt_executor=self.rag_prompt_executor)
 
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         context = SupervisorRequestContext.from_request(request)

@@ -6,8 +6,8 @@ from uuid import uuid4
 
 from campus_contracts import (
     ActorContext,
-    AuthorizedRetrievalFilter,
     AuthorizationProjection,
+    AuthorizedRetrievalFilter,
     ContextProjection,
     ErrorInfo,
     KnowledgeScope,
@@ -15,9 +15,10 @@ from campus_contracts import (
     ProfileMemorySummary,
     SessionSlot,
     SessionSummary,
-    SupervisorResponse,
     SupervisorRequest,
+    SupervisorResponse,
     TraceContext,
+    VersionQuery,
 )
 from campus_supervisor_core import (
     SupervisorError,
@@ -104,6 +105,7 @@ def handle_answer(
             context=context,
             requested_capability=_parse_requested_capability(payload.get("requested_capability")),
             requested_scope=_parse_requested_scope(payload.get("requested_scope")),
+            version_query=_parse_version_query(payload.get("version_query")),
         )
     except ValueError as exc:
         return error_response(400, ErrorInfo(code="invalid_request", message=str(exc)))
@@ -141,8 +143,7 @@ def readyz(settings: ApiSettings) -> HttpResponse:
     elif not settings.prompt_strict_structured_outputs:
         admission_reason = "strict_structured_outputs_disabled"
     elif (
-        not settings.supervisor_prompt_model.strip()
-        or not settings.specialist_prompt_model.strip()
+        not settings.supervisor_prompt_model.strip() or not settings.specialist_prompt_model.strip()
     ):
         admission_reason = "prompt_models_not_configured"
     elif not settings.prompt_runtime_api_key.strip():
@@ -260,9 +261,15 @@ def _parse_profile_memory_summary(raw_memory: object) -> ProfileMemorySummary:
             kwargs["last_verified_at"] = last_verified_at
         items.append(
             ProfileMemoryItem(
-                item_id=_require_string(raw_item.get("item_id"), field_name="context.profile_memory.items[].item_id"),
-                key=_require_string(raw_item.get("key"), field_name="context.profile_memory.items[].key"),
-                value=_require_string(raw_item.get("value"), field_name="context.profile_memory.items[].value"),
+                item_id=_require_string(
+                    raw_item.get("item_id"), field_name="context.profile_memory.items[].item_id"
+                ),
+                key=_require_string(
+                    raw_item.get("key"), field_name="context.profile_memory.items[].key"
+                ),
+                value=_require_string(
+                    raw_item.get("value"), field_name="context.profile_memory.items[].value"
+                ),
                 **kwargs,
             )
         )
@@ -289,8 +296,12 @@ def _parse_session_summary(raw_session: object) -> SessionSummary:
             raise ValueError("context.session.confirmed_slots[].confirmed must be a boolean")
         confirmed_slots.append(
             SessionSlot(
-                name=_require_string(raw_slot.get("name"), field_name="context.session.confirmed_slots[].name"),
-                value=_require_string(raw_slot.get("value"), field_name="context.session.confirmed_slots[].value"),
+                name=_require_string(
+                    raw_slot.get("name"), field_name="context.session.confirmed_slots[].name"
+                ),
+                value=_require_string(
+                    raw_slot.get("value"), field_name="context.session.confirmed_slots[].value"
+                ),
                 confirmed=confirmed,
             )
         )
@@ -347,11 +358,29 @@ def _parse_requested_capability(raw_capability: object) -> str | None:
     return capability or None
 
 
+def _parse_version_query(raw_version_query: object) -> VersionQuery:
+    if raw_version_query is None:
+        return VersionQuery()
+    if not isinstance(raw_version_query, dict):
+        raise ValueError("version_query must be an object")
+    mode = _parse_optional_string(raw_version_query.get("mode"))
+    as_of = _parse_optional_string(raw_version_query.get("as_of"))
+    version_id = _parse_optional_string(raw_version_query.get("version_id"))
+    compare_to_version_id = _parse_optional_string(raw_version_query.get("compare_to_version_id"))
+    return VersionQuery(
+        mode="current" if mode is None else mode,
+        as_of="" if as_of is None else as_of,
+        version_id="" if version_id is None else version_id,
+        compare_to_version_id="" if compare_to_version_id is None else compare_to_version_id,
+    )
+
+
 def _parse_optional_string(raw_value: object) -> str | None:
     if raw_value is None:
         return None
     value = str(raw_value).strip()
     return value or None
+
 
 def _parse_request_actor_projection(
     raw_actor: object,
@@ -435,9 +464,14 @@ def _parse_authorization_projection(
         require_explicit=require_explicit_filter,
     )
     return AuthorizationProjection(
-        principal_id=_parse_optional_string(raw_authorization.get("principal_id")) or actor.principal_id or actor.user_id,
+        principal_id=_parse_optional_string(raw_authorization.get("principal_id"))
+        or actor.principal_id
+        or actor.user_id,
         projection_source=_parse_optional_string(raw_authorization.get("projection_source")) or "",
-        entitlement_snapshot_id=_parse_optional_string(raw_authorization.get("entitlement_snapshot_id")) or "",
+        entitlement_snapshot_id=_parse_optional_string(
+            raw_authorization.get("entitlement_snapshot_id")
+        )
+        or "",
         entitlement_groups=entitlement_groups,
         visibility_scope=visibility_scope,
         applicability_scope=_parse_optional_string(raw_authorization.get("applicability_scope")),
@@ -470,7 +504,10 @@ def _parse_authorized_retrieval_filter(
         ),
         visibility_level=_parse_optional_string(raw_filter.get("visibility_level")) or "public",
         visibility_scope=_parse_optional_string(raw_filter.get("visibility_scope")),
-        policy_projection_version=_parse_optional_string(raw_filter.get("policy_projection_version")) or "",
+        policy_projection_version=_parse_optional_string(
+            raw_filter.get("policy_projection_version")
+        )
+        or "",
     )
 
 
@@ -487,7 +524,9 @@ def _default_authorization_projection(actor: ActorContext) -> AuthorizationProje
     )
 
 
-def _assert_supported_actor_context_fields(raw_actor: dict[str, object], *, field_prefix: str) -> None:
+def _assert_supported_actor_context_fields(
+    raw_actor: dict[str, object], *, field_prefix: str
+) -> None:
     supported_fields = (
         "user_id",
         "principal_id",
@@ -499,15 +538,10 @@ def _assert_supported_actor_context_fields(raw_actor: dict[str, object], *, fiel
         "program",
     )
     unsupported_fields = tuple(
-        field_name
-        for field_name in raw_actor
-        if field_name not in supported_fields
+        field_name for field_name in raw_actor if field_name not in supported_fields
     )
     if unsupported_fields:
-        joined = ", ".join(
-            f"{field_prefix}.{field_name}"
-            for field_name in unsupported_fields
-        )
+        joined = ", ".join(f"{field_prefix}.{field_name}" for field_name in unsupported_fields)
         raise ValueError(f"unsupported actor context fields are not allowed: {joined}")
 
 
@@ -519,15 +553,11 @@ def _assert_supported_retrieval_filter_fields(raw_filter: dict[str, object]) -> 
         "policy_projection_version",
     )
     unsupported_fields = tuple(
-        field_name
-        for field_name in raw_filter
-        if field_name not in supported_fields
+        field_name for field_name in raw_filter if field_name not in supported_fields
     )
     if unsupported_fields:
         joined = ", ".join(
             f"context.authorization.retrieval_filter.{field_name}"
             for field_name in unsupported_fields
         )
-        raise ValueError(
-            f"unsupported retrieval filter fields are not allowed: {joined}"
-        )
+        raise ValueError(f"unsupported retrieval filter fields are not allowed: {joined}")

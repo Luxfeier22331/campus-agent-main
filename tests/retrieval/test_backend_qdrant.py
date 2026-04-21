@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import replace
-from pathlib import Path
 import unittest
 import uuid
+from dataclasses import replace
 from unittest.mock import Mock, patch
 
 from campus_contracts import (
-    AuthorizedRetrievalFilter,
     DEFAULT_POLICY_PROJECTION_VERSION,
+    AuthorizedRetrievalFilter,
     EvidenceBundle,
     EvidenceSource,
     PersonalizationHint,
@@ -31,15 +30,15 @@ from campus_retrieval_core.backend_qdrant import (
     RestrictedDocumentAccessDeniedError,
     RetrievalBackendError,
     _apply_document_diversity_policy,
+    _apply_no_hit_policy,
     _apply_official_web_low_signal_policy,
     _apply_preferred_document_bias,
-    _apply_no_hit_policy,
     _build_document_support_query_text,
     _build_hybrid_prefetch,
+    _build_metadata_filters,
+    _build_qdrant_client,
     _build_qdrant_filter,
     _build_rrf_query,
-    _build_qdrant_client,
-    _build_metadata_filters,
     _prefer_curriculum_semester_course_list_sources,
 )
 from campus_retrieval_core.evidence_ranking import (
@@ -53,13 +52,14 @@ from campus_retrieval_core.settings import (
 )
 from llama_index.core.schema import TextNode
 from qdrant_client import QdrantClient
-from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
+from qdrant_client.http.exceptions import ResponseHandlingException
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
-STUDENT_HANDBOOK_QDRANT_COLLECTION = (
-    load_runtime_profile("regulations", "student_handbook").qdrant_index_binding.alias_name
-)
+STUDENT_HANDBOOK_QDRANT_COLLECTION = load_runtime_profile(
+    "regulations", "student_handbook"
+).qdrant_index_binding.alias_name
 
 
 def _make_source(
@@ -164,7 +164,9 @@ def _make_runtime_profile(
         embedding_query_instruction=embedding_query_instruction,
         no_hit_min_top_score=0.6,
         no_hit_min_score_gap=0.1,
-        qdrant_index_binding=QdrantIndexBinding(alias_name=collection, collection_prefix=collection),
+        qdrant_index_binding=QdrantIndexBinding(
+            alias_name=collection, collection_prefix=collection
+        ),
     )
 
 
@@ -209,9 +211,7 @@ def _make_structured_jsonl(*, document_id: str, version_id: str, text: str) -> b
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"visibility_level":"public","entitlement_groups":[]}}'
-        .replace("'", '"')
-        .encode("utf-8")
+        f'"visibility_level":"public","entitlement_groups":[]}}'.replace("'", '"').encode("utf-8")
     )
 
 
@@ -225,9 +225,9 @@ def _make_structured_jsonl_with_visibility_level(
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"visibility_level":"{visibility_level}","entitlement_groups":[]}}'
-        .replace("'", '"')
-        .encode("utf-8")
+        f'"visibility_level":"{visibility_level}","entitlement_groups":[]}}'.replace(
+            "'", '"'
+        ).encode("utf-8")
     )
 
 
@@ -243,9 +243,9 @@ def _make_structured_jsonl_with_entitlement_groups(
     return (
         f'{{"doc_id":"{document_id}","version_id":"{version_id}","chunk_id":"legacy-{document_id}",'
         f'"clean_text":{text!r},"anchor":{{"section_path":["Student Handbook","Library"],"page_start":5,"page_end":5}},'
-        f'"visibility_level":"{visibility_level}","entitlement_groups":[{serialized_groups}]}}'
-        .replace("'", '"')
-        .encode("utf-8")
+        f'"visibility_level":"{visibility_level}","entitlement_groups":[{serialized_groups}]}}'.replace(
+            "'", '"'
+        ).encode("utf-8")
     )
 
 
@@ -305,7 +305,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertNotIn("acl_level", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
 
-    def test_build_metadata_filters_ignore_personalization_hint_for_authz_and_serving_scope(self) -> None:
+    def test_build_metadata_filters_ignore_personalization_hint_for_authz_and_serving_scope(
+        self,
+    ) -> None:
         filters = _build_metadata_filters(
             RetrievalRequest(
                 query_text="保研流程",
@@ -425,7 +427,49 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertNotIn("entitlement_groups", auth_keys)
         self.assertNotIn("acl_groups", auth_keys)
 
-    def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(self) -> None:
+    def test_build_qdrant_filter_applies_explicit_version_filters_before_current_only(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="旧版国奖评审办法",
+                corpus="regulations",
+                collection="student_handbook",
+                target_document_ids=("handbook:national-scholarship",),
+                target_version_ids=("v1:national-scholarship",),
+                target_revision_track="source-faithful",
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            )
+        )
+
+        conditions = qdrant_filter.must or []
+        version_conditions = [
+            condition for condition in conditions if getattr(condition, "key", None) == "version_id"
+        ]
+        self.assertEqual(len(version_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(version_conditions[0], "match", None), "any", None),
+            ["v1:national-scholarship"],
+        )
+        revision_conditions = [
+            condition
+            for condition in conditions
+            if getattr(condition, "key", None) == "revision_track"
+        ]
+        self.assertEqual(len(revision_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(revision_conditions[0], "match", None), "value", None),
+            "source-faithful",
+        )
+        self.assertFalse(
+            any(getattr(condition, "key", None) == "is_current" for condition in conditions)
+        )
+
+    def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         restricted = replace(
             _make_registry_record(
@@ -482,7 +526,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(result.sources, ())
 
-    def test_backend_raises_access_denied_for_targeted_restricted_document_without_authorization(self) -> None:
+    def test_backend_raises_access_denied_for_targeted_restricted_document_without_authorization(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         restricted = replace(
             _make_registry_record(
@@ -520,7 +566,9 @@ class BackendQdrantTest(unittest.TestCase):
                 )
             )
 
-    def test_backend_raises_access_denied_when_any_targeted_document_is_restricted_without_authorization(self) -> None:
+    def test_backend_raises_access_denied_when_any_targeted_document_is_restricted_without_authorization(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         allowed = _make_registry_record(
             document_id="handbook:allowed-notice",
@@ -651,7 +699,9 @@ class BackendQdrantTest(unittest.TestCase):
         filter_keys = _collect_filter_keys(filters)
         self.assertIn("canonical_program_family_id", filter_keys)
 
-    def test_build_qdrant_filter_adds_canonical_program_family_constraint_when_present(self) -> None:
+    def test_build_qdrant_filter_adds_canonical_program_family_constraint_when_present(
+        self,
+    ) -> None:
         qdrant_filter = _build_qdrant_filter(
             RetrievalRequest(
                 query_text="基地班有哪些",
@@ -714,7 +764,9 @@ class BackendQdrantTest(unittest.TestCase):
             ],
         )
 
-    def test_apply_official_web_low_signal_policy_fail_closes_generic_campus_name_query(self) -> None:
+    def test_apply_official_web_low_signal_policy_fail_closes_generic_campus_name_query(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
 
         filtered = _apply_official_web_low_signal_policy(
@@ -736,7 +788,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(filtered, ())
 
-    def test_apply_official_web_low_signal_policy_fail_closes_unanchored_life_service_query(self) -> None:
+    def test_apply_official_web_low_signal_policy_fail_closes_unanchored_life_service_query(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
 
         filtered = _apply_official_web_low_signal_policy(
@@ -780,7 +834,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(len(filtered), 1)
 
-    def test_apply_official_web_low_signal_policy_fail_closes_freshness_sensitive_query_when_profile_is_not_freshness_ready(self) -> None:
+    def test_apply_official_web_low_signal_policy_fail_closes_freshness_sensitive_query_when_profile_is_not_freshness_ready(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(
             corpus="official_web",
             collection="muc_public_pages",
@@ -916,7 +972,9 @@ class BackendQdrantTest(unittest.TestCase):
             original_sources,
         )
 
-    def test_apply_document_diversity_policy_locks_official_web_title_target_to_single_doc(self) -> None:
+    def test_apply_document_diversity_policy_locks_official_web_title_target_to_single_doc(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
 
         collapsed = _apply_document_diversity_policy(
@@ -957,7 +1015,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_apply_document_diversity_policy_prefers_lead_chunk_for_title_targeted_official_web_reference_doc(self) -> None:
+    def test_apply_document_diversity_policy_prefers_lead_chunk_for_title_targeted_official_web_reference_doc(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
 
         collapsed = _apply_document_diversity_policy(
@@ -1047,7 +1107,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_apply_document_diversity_policy_rejects_parent_heading_match_for_school_overview_query(self) -> None:
+    def test_apply_document_diversity_policy_rejects_parent_heading_match_for_school_overview_query(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(
             corpus="official_web",
             collection="stable_reference",
@@ -1132,7 +1194,9 @@ class BackendQdrantTest(unittest.TestCase):
             embedding_model=embedding_model,
         )
         qdrant_client = QdrantClient(location=":memory:")
-        qdrant_client.create_payload_index = Mock(side_effect=AssertionError("should not be called"))  # type: ignore[method-assign]
+        qdrant_client.create_payload_index = Mock(
+            side_effect=AssertionError("should not be called")
+        )  # type: ignore[method-assign]
 
         ids = index_chunks_to_qdrant(
             chunks=chunks,
@@ -1143,7 +1207,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(len(ids), 1)
 
-    def test_index_chunks_to_qdrant_creates_named_dense_and_sparse_vectors_for_remote_backend(self) -> None:
+    def test_index_chunks_to_qdrant_creates_named_dense_and_sparse_vectors_for_remote_backend(
+        self,
+    ) -> None:
         record = _make_registry_record(
             document_id="handbook:test-remote",
             version_id="v1:test-remote",
@@ -1184,7 +1250,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn("sparse", point.vector)
         self.assertIsInstance(point.vector["sparse"], qdrant_models.Document)
         self.assertEqual(point.vector["sparse"].model, "qdrant/bm25")
-        indexed_fields = [call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list]
+        indexed_fields = [
+            call.kwargs["field_name"] for call in qdrant_client.create_payload_index.call_args_list
+        ]
         self.assertEqual(
             indexed_fields,
             [
@@ -1267,7 +1335,9 @@ class BackendQdrantTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(settings.document_registry_database_url, "postgresql://shared.example/postgres")
+        self.assertEqual(
+            settings.document_registry_database_url, "postgresql://shared.example/postgres"
+        )
 
     def test_retrieval_settings_from_env_requires_explicit_qdrant_url(self) -> None:
         with self.assertRaisesRegex(ValueError, "QDRANT_URL is required"):
@@ -1306,10 +1376,16 @@ class BackendQdrantTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.query_calls: list[str] = []
 
-            def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector:
-                raise AssertionError("document embedding should not be used during retrieval query prefetch")
+            def build_document(
+                self, text: str
+            ) -> qdrant_models.Document | qdrant_models.SparseVector:
+                raise AssertionError(
+                    "document embedding should not be used during retrieval query prefetch"
+                )
 
-            def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None:
+            def build_query(
+                self, text: str
+            ) -> qdrant_models.Document | qdrant_models.SparseVector | None:
                 self.query_calls.append(text)
                 return qdrant_models.Document(
                     text=text,
@@ -1379,7 +1455,8 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertTrue(
             any(
                 getattr(condition, "key", None) == "revision_track"
-                and getattr(getattr(condition, "match", None), "any", None) == ["current-effective", "source-faithful"]
+                and getattr(getattr(condition, "match", None), "any", None)
+                == ["current-effective", "source-faithful"]
                 for condition in dense_conditions
             )
         )
@@ -1446,7 +1523,9 @@ class BackendQdrantTest(unittest.TestCase):
         )
         fake_client = object()
 
-        with patch("campus_retrieval_core.backend_qdrant.QdrantClient", return_value=fake_client) as client_ctor:
+        with patch(
+            "campus_retrieval_core.backend_qdrant.QdrantClient", return_value=fake_client
+        ) as client_ctor:
             result = _build_qdrant_client(settings)
 
         self.assertIs(result, fake_client)
@@ -1462,7 +1541,9 @@ class BackendQdrantTest(unittest.TestCase):
     def test_backend_uses_collection_exists_without_alias_listing_precheck(self) -> None:
         qdrant_client = Mock()
         qdrant_client.collection_exists = Mock(return_value=True)
-        qdrant_client.get_aliases = Mock(side_effect=AssertionError("alias listing should not be called"))
+        qdrant_client.get_aliases = Mock(
+            side_effect=AssertionError("alias listing should not be called")
+        )
         qdrant_client.query_points = Mock(return_value=qdrant_models.QueryResponse(points=[]))
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         backend = QdrantRetrievalBackend(
@@ -1524,8 +1605,12 @@ class BackendQdrantTest(unittest.TestCase):
         qdrant_client = Mock()
         qdrant_client.collection_exists = Mock(
             side_effect=[
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
                 True,
             ]
         )
@@ -1561,8 +1646,12 @@ class BackendQdrantTest(unittest.TestCase):
         qdrant_client.collection_exists = Mock(return_value=True)
         qdrant_client.query_points = Mock(
             side_effect=[
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
                 qdrant_models.QueryResponse(points=[]),
             ]
         )
@@ -1596,9 +1685,15 @@ class BackendQdrantTest(unittest.TestCase):
         qdrant_client.collection_exists = Mock(return_value=True)
         qdrant_client.query_points = Mock(
             side_effect=[
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
-                ResponseHandlingException(RuntimeError("_ssl.c:983: The handshake operation timed out")),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
+                ResponseHandlingException(
+                    RuntimeError("_ssl.c:983: The handshake operation timed out")
+                ),
             ]
         )
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
@@ -1965,7 +2060,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual([source.doc_id for source in result.sources], ["handbook:students"])
 
-    def test_backend_fail_closes_when_document_has_entitlement_groups_even_if_structured_visibility_is_public(self) -> None:
+    def test_backend_fail_closes_when_document_has_entitlement_groups_even_if_structured_visibility_is_public(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         restricted = _make_registry_record(
             document_id="handbook:staff-only",
@@ -2158,7 +2255,9 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://news.muc.edu.cn/info/1011/61874.htm",
                                 "anchor": {
                                     "page_family": "article_detail",
-                                    "section_path": ["中央民族大学与北京丰台人才集团共建就业实习实践基地"],
+                                    "section_path": [
+                                        "中央民族大学与北京丰台人才集团共建就业实习实践基地"
+                                    ],
                                 },
                                 "title": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
                             },
@@ -2185,7 +2284,10 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://news.muc.edu.cn/info/1011/61874.htm",
                                 "anchor": {
                                     "page_family": "article_detail",
-                                    "section_path": ["中央民族大学与北京丰台人才集团共建就业实习实践基地", "正文"],
+                                    "section_path": [
+                                        "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                                        "正文",
+                                    ],
                                 },
                                 "title": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
                             },
@@ -2212,7 +2314,9 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://news.muc.edu.cn/info/1011/61954.htm",
                                 "anchor": {
                                     "page_family": "article_detail",
-                                    "section_path": ["校长强世功接受“统战新语”专访 解读民族团结进步促进法"],
+                                    "section_path": [
+                                        "校长强世功接受“统战新语”专访 解读民族团结进步促进法"
+                                    ],
                                 },
                                 "title": "校长强世功接受“统战新语”专访 解读民族团结进步促进法",
                             },
@@ -2232,7 +2336,9 @@ class BackendQdrantTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        with patch("campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile):
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile
+        ):
             result = backend.retrieve(
                 RetrievalRequest(
                     query_text="中央民族大学与北京丰台人才集团共建就业实习实践基地",
@@ -2329,7 +2435,9 @@ class BackendQdrantTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        with patch("campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile):
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile
+        ):
             result = backend.retrieve(
                 RetrievalRequest(
                     query_text="中央民族大学学校简介",
@@ -2349,7 +2457,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_backend_title_targeted_official_web_reference_query_recovers_lead_chunk_from_same_doc_support(self) -> None:
+    def test_backend_title_targeted_official_web_reference_query_recovers_lead_chunk_from_same_doc_support(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
@@ -2461,7 +2571,9 @@ class BackendQdrantTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        with patch("campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile):
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile
+        ):
             result = backend.retrieve(
                 RetrievalRequest(
                     query_text="中央民族大学学校简介",
@@ -2481,7 +2593,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_backend_title_targeted_official_web_reference_query_recovers_lead_chunk_for_stable_reference(self) -> None:
+    def test_backend_title_targeted_official_web_reference_query_recovers_lead_chunk_for_stable_reference(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(
             corpus="official_web",
             collection="stable_reference",
@@ -2597,7 +2711,9 @@ class BackendQdrantTest(unittest.TestCase):
             sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
         )
 
-        with patch("campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile):
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile", return_value=profile
+        ):
             result = backend.retrieve(
                 RetrievalRequest(
                     query_text="中央民族大学学校简介",
@@ -2617,7 +2733,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_prioritize_evidence_sources_prefers_exact_curriculum_title_over_longer_superset(self) -> None:
+    def test_prioritize_evidence_sources_prefers_exact_curriculum_title_over_longer_superset(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族学本科人才培养方案",
             sources=(
@@ -2638,7 +2756,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科人才培养方案")
 
-    def test_prioritize_evidence_sources_prefers_curriculum_fact_chunk_for_short_fact_query(self) -> None:
+    def test_prioritize_evidence_sources_prefers_curriculum_fact_chunk_for_short_fact_query(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             sources=(
@@ -2671,7 +2791,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "curriculum:ethnology-second-degree:chunk-0005")
 
-    def test_prioritize_evidence_sources_prefers_named_curriculum_document_over_other_docs_fact_chunks(self) -> None:
+    def test_prioritize_evidence_sources_prefers_named_curriculum_document_over_other_docs_fact_chunks(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             sources=(
@@ -2698,7 +2820,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科第二学士学位人才培养方案")
 
-    def test_prioritize_evidence_sources_prefers_same_document_academic_years_chunk_over_generic_tables(self) -> None:
+    def test_prioritize_evidence_sources_prefers_same_document_academic_years_chunk_over_generic_tables(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             sources=(
@@ -2708,7 +2832,10 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="七、各教学环节学时学分分配表 合计 56 学分。",
                     score=0.015873017,
                     source_title="民族学本科第二学士学位人才培养方案",
-                    structural_path=("民族学本科第二学士学位人才培养方案", "七、各教学环节学时学分分配表"),
+                    structural_path=(
+                        "民族学本科第二学士学位人才培养方案",
+                        "七、各教学环节学时学分分配表",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2718,7 +2845,10 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="八、民族学本科专业教学进程计划表 社会研究方法。",
                     score=0.014925373,
                     source_title="民族学本科第二学士学位人才培养方案",
-                    structural_path=("民族学本科第二学士学位人才培养方案", "八、民族学本科专业教学进程计划表"),
+                    structural_path=(
+                        "民族学本科第二学士学位人才培养方案",
+                        "八、民族学本科专业教学进程计划表",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2738,7 +2868,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "curriculum:ethnology-second-degree:chunk-0005")
 
-    def test_prioritize_evidence_sources_prefers_same_document_course_map_chunk_over_generic_tables(self) -> None:
+    def test_prioritize_evidence_sources_prefers_same_document_course_map_chunk_over_generic_tables(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
             sources=(
@@ -2748,7 +2880,12 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 1. 专业核心课程 经济学说史。",
                     score=0.032002047,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "1. 专业核心课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2758,7 +2895,12 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
                     score=0.031257633,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "2. 专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2800,7 +2942,12 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 2. 专业选修课程 中国近现代经济史。",
                     score=0.98,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "2. 专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2810,7 +2957,12 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 2. 专业选修课程 发展经济学专题。",
                     score=0.97,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "2. 专业选修课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "2. 专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2820,7 +2972,12 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="五、课程设置和修读建议 1. 专业核心课程 专业核心课程 30 学分。",
                     score=0.96,
                     source_title="经济学拔尖人才创新班人才培养方案",
-                    structural_path=("经济学拔尖人才创新班人才培养方案", "五、课程设置和修读建议", "(二) 专业教育", "1. 专业核心课程"),
+                    structural_path=(
+                        "经济学拔尖人才创新班人才培养方案",
+                        "五、课程设置和修读建议",
+                        "(二) 专业教育",
+                        "1. 专业核心课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2829,7 +2986,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(selected, ())
 
-    def test_prioritize_evidence_sources_does_not_force_shortest_title_for_ambiguous_ethnic_experimental_fragment(self) -> None:
+    def test_prioritize_evidence_sources_does_not_force_shortest_title_for_ambiguous_ethnic_experimental_fragment(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族实验班",
             sources=(
@@ -2839,7 +2998,10 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="培养要求表 必修课 40 学分。",
                     score=0.91,
                     source_title="计算机科学与技术（民族实验班）本科人才培养方案",
-                    structural_path=("计算机科学与技术（民族实验班）本科人才培养方案", "七、培养要求"),
+                    structural_path=(
+                        "计算机科学与技术（民族实验班）本科人才培养方案",
+                        "七、培养要求",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                 ),
@@ -2858,15 +3020,22 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
                     score=0.48,
                     source_title="信息与计算科学（民族实验班）本科人才培养方案",
-                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "信息与计算科学（民族实验班）本科人才培养方案",
+                        "一、培养目标",
+                    ),
                     content_kind="section_text",
                 ),
             ),
         )
 
-        self.assertEqual(ranked[0].doc_id, "curriculum:计算机科学与技术（民族实验班）本科人才培养方案")
+        self.assertEqual(
+            ranked[0].doc_id, "curriculum:计算机科学与技术（民族实验班）本科人才培养方案"
+        )
 
-    def test_query_targets_source_title_accepts_curriculum_title_with_inserted_direction_variant(self) -> None:
+    def test_query_targets_source_title_accepts_curriculum_title_with_inserted_direction_variant(
+        self,
+    ) -> None:
         self.assertTrue(
             query_targets_source_title(
                 query_text="中国少数民族语言文学强基计划本科人才培养方案",
@@ -2876,13 +3045,18 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
                     score=0.51,
                     source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
-                    structural_path=("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                        "一、培养目标",
+                    ),
                     content_kind="section_text",
                 ),
             )
         )
 
-    def test_query_targets_source_title_accepts_long_semantic_curriculum_title_paraphrase(self) -> None:
+    def test_query_targets_source_title_accepts_long_semantic_curriculum_title_paraphrase(
+        self,
+    ) -> None:
         self.assertTrue(
             query_targets_source_title(
                 query_text="想看中国少数民族语言文学古文字学方向强基计划培养方案",
@@ -2892,13 +3066,18 @@ class BackendQdrantTest(unittest.TestCase):
                     snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
                     score=0.51,
                     source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
-                    structural_path=("中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                        "一、培养目标",
+                    ),
                     content_kind="section_text",
                 ),
             )
         )
 
-    def test_query_targets_source_title_accepts_short_official_web_page_title_with_school_prefix(self) -> None:
+    def test_query_targets_source_title_accepts_short_official_web_page_title_with_school_prefix(
+        self,
+    ) -> None:
         self.assertTrue(
             query_targets_source_title(
                 query_text="中央民族大学博士后",
@@ -2922,7 +3101,9 @@ class BackendQdrantTest(unittest.TestCase):
             )
         )
 
-    def test_query_targets_source_title_ignores_parent_heading_for_official_web_reference_doc(self) -> None:
+    def test_query_targets_source_title_ignores_parent_heading_for_official_web_reference_doc(
+        self,
+    ) -> None:
         self.assertFalse(
             query_targets_source_title(
                 query_text="中央民族大学学校概况",
@@ -2946,7 +3127,9 @@ class BackendQdrantTest(unittest.TestCase):
             )
         )
 
-    def test_build_document_support_query_text_uses_fact_hints_for_official_web_reference_pages(self) -> None:
+    def test_build_document_support_query_text_uses_fact_hints_for_official_web_reference_pages(
+        self,
+    ) -> None:
         school_overview_source = EvidenceSource(
             doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
             revision_track="source-faithful",
@@ -3021,7 +3204,9 @@ class BackendQdrantTest(unittest.TestCase):
             "学术名流 历史学 社会学 民族学 人类学 语言学 音乐",
         )
 
-    def test_build_document_support_query_text_uses_fact_hints_for_stable_reference_pages(self) -> None:
+    def test_build_document_support_query_text_uses_fact_hints_for_stable_reference_pages(
+        self,
+    ) -> None:
         school_overview_source = EvidenceSource(
             doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
             revision_track="source-faithful",
@@ -3048,7 +3233,9 @@ class BackendQdrantTest(unittest.TestCase):
             "学校概况 三个校区 12个学科门类",
         )
 
-    def test_apply_document_diversity_policy_prefers_fact_rich_chunk_for_stable_reference_queries(self) -> None:
+    def test_apply_document_diversity_policy_prefers_fact_rich_chunk_for_stable_reference_queries(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
         school_overview_sources = (
             EvidenceSource(
@@ -3143,10 +3330,14 @@ class BackendQdrantTest(unittest.TestCase):
         )
         self.assertEqual(
             tuple(source.chunk_id for source in postdoctoral_filtered),
-            ("official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0003",),
+            (
+                "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0003",
+            ),
         )
 
-    def test_apply_document_diversity_policy_keeps_multiple_scholar_chunks_for_scholar_page(self) -> None:
+    def test_apply_document_diversity_policy_keeps_multiple_scholar_chunks_for_scholar_page(
+        self,
+    ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
         scholar_sources = (
             EvidenceSource(
@@ -3217,7 +3408,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_expand_named_document_support_uses_focused_query_for_same_document_followup(self) -> None:
+    def test_expand_named_document_support_uses_focused_query_for_same_document_followup(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = Mock()
         embedding_model.get_query_embedding.side_effect = (
@@ -3228,7 +3421,9 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model.build_query.side_effect = ("sparse-full", "sparse-focused")
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
-        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
         qdrant_client.query_points.side_effect = (
             qdrant_models.QueryResponse(
                 points=[
@@ -3250,7 +3445,12 @@ class BackendQdrantTest(unittest.TestCase):
                             "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
                             "source_channel": "pdf_ocr",
                             "is_current": True,
-                            "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                            "anchor": {
+                                "section_path": [
+                                    "民族学本科第二学士学位人才培养方案",
+                                    "一、培养目标",
+                                ]
+                            },
                             "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
                         },
                     ),
@@ -3276,7 +3476,12 @@ class BackendQdrantTest(unittest.TestCase):
                             "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
                             "source_channel": "pdf_ocr",
                             "is_current": True,
-                            "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "五、学制 两年"]},
+                            "anchor": {
+                                "section_path": [
+                                    "民族学本科第二学士学位人才培养方案",
+                                    "五、学制 两年",
+                                ]
+                            },
                             "text": "五、学制 两年",
                         },
                     ),
@@ -3340,7 +3545,9 @@ class BackendQdrantTest(unittest.TestCase):
             "课程地图",
         )
 
-    def test_build_document_support_query_text_normalizes_curriculum_alias_and_semester_noise(self) -> None:
+    def test_build_document_support_query_text_normalizes_curriculum_alias_and_semester_noise(
+        self,
+    ) -> None:
         self.assertEqual(
             _build_document_support_query_text(
                 query_text="法学民族班培养方案里大二下有什么课",
@@ -3357,7 +3564,9 @@ class BackendQdrantTest(unittest.TestCase):
             "第四学期",
         )
 
-    def test_prioritize_evidence_sources_uses_explicit_source_title_when_doc_ids_are_opaque(self) -> None:
+    def test_prioritize_evidence_sources_uses_explicit_source_title_when_doc_ids_are_opaque(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             sources=(
@@ -3388,7 +3597,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].doc_id, "curriculum:doc-001")
 
-    def test_prioritize_evidence_sources_prefers_answer_bearing_procedure_chunk_over_closing_provision(self) -> None:
+    def test_prioritize_evidence_sources_prefers_answer_bearing_procedure_chunk_over_closing_provision(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="学生证丢失后怎么办理补办？",
             sources=(
@@ -3422,7 +3633,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "student-card-procedure")
 
-    def test_prioritize_evidence_sources_uses_content_role_to_demote_explanatory_background_chunks(self) -> None:
+    def test_prioritize_evidence_sources_uses_content_role_to_demote_explanatory_background_chunks(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="学生证补办流程是什么？",
             sources=(
@@ -3613,7 +3826,9 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertEqual(sources[0].source_unit_kind, "semester_course_list")
         self.assertEqual(sources[0].source_unit_key, "semester-4")
 
-    def test_build_evidence_sources_infers_curriculum_table_fact_when_runtime_payload_omits_unit_metadata(self) -> None:
+    def test_build_evidence_sources_infers_curriculum_table_fact_when_runtime_payload_omits_unit_metadata(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
         backend = QdrantRetrievalBackend(
@@ -3698,7 +3913,12 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
                                 "source_channel": "pdf_ocr",
                                 "is_current": True,
-                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                                "anchor": {
+                                    "section_path": [
+                                        "民族学本科第二学士学位人才培养方案",
+                                        "一、培养目标",
+                                    ]
+                                },
                                 "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
                             },
                         ),
@@ -3720,7 +3940,12 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://campus.example/curriculum/education-second-degree",
                                 "source_channel": "pdf_ocr",
                                 "is_current": True,
-                                "anchor": {"section_path": ["教育学本科第二学士学位人才培养方案", "三、学制、总学分和学位授予"]},
+                                "anchor": {
+                                    "section_path": [
+                                        "教育学本科第二学士学位人才培养方案",
+                                        "三、学制、总学分和学位授予",
+                                    ]
+                                },
                                 "text": "三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
                             },
                         ),
@@ -3746,7 +3971,12 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
                                 "source_channel": "pdf_ocr",
                                 "is_current": True,
-                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "一、培养目标"]},
+                                "anchor": {
+                                    "section_path": [
+                                        "民族学本科第二学士学位人才培养方案",
+                                        "一、培养目标",
+                                    ]
+                                },
                                 "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
                             },
                         ),
@@ -3768,7 +3998,12 @@ class BackendQdrantTest(unittest.TestCase):
                                 "latest_url": "https://campus.example/curriculum/ethnology-second-degree",
                                 "source_channel": "pdf_ocr",
                                 "is_current": True,
-                                "anchor": {"section_path": ["民族学本科第二学士学位人才培养方案", "五、学制 两年"]},
+                                "anchor": {
+                                    "section_path": [
+                                        "民族学本科第二学士学位人才培养方案",
+                                        "五、学制 两年",
+                                    ]
+                                },
                                 "text": "五、学制 两年",
                             },
                         ),
@@ -3805,7 +4040,9 @@ class BackendQdrantTest(unittest.TestCase):
         )
         self.assertEqual(qdrant_client.query_points.call_count, 2)
 
-    def test_backend_supplements_curriculum_semester_followup_with_same_doc_semester_chunks(self) -> None:
+    def test_backend_supplements_curriculum_semester_followup_with_same_doc_semester_chunks(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = Mock()
         embedding_model.get_query_embedding.side_effect = (
@@ -3816,7 +4053,9 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model.build_query.side_effect = ("sparse-full", "sparse-focused")
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
-        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
         qdrant_client.query_points.side_effect = (
             qdrant_models.QueryResponse(
                 points=[
@@ -4022,7 +4261,9 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model.build_query.return_value = "sparse-targeted"
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
-        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
         qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
             points=[
                 qdrant_models.ScoredPoint(
@@ -4141,7 +4382,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_backend_targeted_overfetch_curriculum_title_target_query_recovers_same_doc_support_when_initial_results_are_too_narrow(self) -> None:
+    def test_backend_targeted_overfetch_curriculum_title_target_query_recovers_same_doc_support_when_initial_results_are_too_narrow(
+        self,
+    ) -> None:
         embedding_model = Mock()
         embedding_model.get_query_embedding.side_effect = (
             (0.1, 0.2, 0.3),
@@ -4151,7 +4394,9 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model.build_query.side_effect = ("sparse-initial", "sparse-focused")
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
-        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
         qdrant_client.query_points.side_effect = (
             qdrant_models.QueryResponse(
                 points=[
@@ -4350,7 +4595,9 @@ class BackendQdrantTest(unittest.TestCase):
             ),
         )
 
-    def test_backend_prioritizes_same_doc_course_list_chunks_over_other_semester_tables(self) -> None:
+    def test_backend_prioritizes_same_doc_course_list_chunks_over_other_semester_tables(
+        self,
+    ) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = Mock()
         embedding_model.get_query_embedding.side_effect = (
@@ -4361,7 +4608,9 @@ class BackendQdrantTest(unittest.TestCase):
         sparse_embedding_model.build_query.side_effect = ("sparse-full", "sparse-focused")
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
-        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(aliases=[])
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
         qdrant_client.query_points.side_effect = (
             qdrant_models.QueryResponse(
                 points=[
@@ -4561,7 +4810,9 @@ class BackendQdrantTest(unittest.TestCase):
             },
         )
 
-    def test_prefer_curriculum_semester_course_list_sources_keeps_core_and_general_sections_in_front(self) -> None:
+    def test_prefer_curriculum_semester_course_list_sources_keeps_core_and_general_sections_in_front(
+        self,
+    ) -> None:
         reordered = _prefer_curriculum_semester_course_list_sources(
             query_text="历史学（强基计划）本科人才培养方案里第四学期有什么课",
             sources=(
@@ -4719,8 +4970,16 @@ class BackendQdrantTest(unittest.TestCase):
         self.assertIn("curriculum:历史学（强基计划）本科人才培养方案:chunk-0010", first_three)
         self.assertIn("curriculum:历史学（强基计划）本科人才培养方案:chunk-0014", first_three)
         self.assertLess(
-            next(index for index, source in enumerate(reordered) if source.chunk_id.endswith("chunk-0014")),
-            next(index for index, source in enumerate(reordered) if source.chunk_id.endswith("chunk-0019")),
+            next(
+                index
+                for index, source in enumerate(reordered)
+                if source.chunk_id.endswith("chunk-0014")
+            ),
+            next(
+                index
+                for index, source in enumerate(reordered)
+                if source.chunk_id.endswith("chunk-0019")
+            ),
         )
 
     def test_no_hit_policy_fail_closes_curriculum_ambiguous_low_score_results(self) -> None:
@@ -4746,7 +5005,9 @@ class BackendQdrantTest(unittest.TestCase):
 
         self.assertEqual(result, ())
 
-    def test_no_hit_policy_rejects_nonexistent_curriculum_program_with_only_boilerplate_matches(self) -> None:
+    def test_no_hit_policy_rejects_nonexistent_curriculum_program_with_only_boilerplate_matches(
+        self,
+    ) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
 
         result = _apply_no_hit_policy(
@@ -4950,7 +5211,9 @@ class BackendQdrantTest(unittest.TestCase):
             )
 
     def test_backend_builds_registry_from_database_url_when_not_injected(self) -> None:
-        with patch("campus_retrieval_core.backend_qdrant.build_document_registry_from_env") as builder:
+        with patch(
+            "campus_retrieval_core.backend_qdrant.build_document_registry_from_env"
+        ) as builder:
             builder.return_value = InMemoryDocumentRegistry()
 
             backend = QdrantRetrievalBackend(

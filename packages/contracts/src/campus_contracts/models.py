@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
-
 
 AllowedCorpus: TypeAlias = str
 RevisionTrack = Literal["source-faithful", "current-effective", "editorial"]
@@ -18,11 +17,11 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-# Current runtime dispatch targets only. Forward family labels like `rag-agent`
-# remain target-side/planning vocabulary until a later migration phase admits them.
+# Current admitted runtime dispatch targets only. `rag-agent` / `navigation-agent`
+# are now canonical runtime labels, not planning-only aliases.
 SpecialistTarget = Literal[
-    "rag-specialist",
-    "navigation-specialist",
+    "rag-agent",
+    "navigation-agent",
     "campus-services-agent",
     "notice-agent",
 ]
@@ -41,11 +40,14 @@ SupervisorStatus = Literal[
     "rejected",
     "approval_required",
 ]
-MemorySourceType = Literal["verified_record", "user_declared", "conversation_summary", "system_inferred"]
+MemorySourceType = Literal[
+    "verified_record", "user_declared", "conversation_summary", "system_inferred"
+]
 MemoryVisibility = Literal["user_visible", "internal_only"]
 PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
+VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -71,7 +73,12 @@ TransportServiceStatusValue = Literal[
 ]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
-ALLOWED_SOURCE_CHANNELS = ("pdf_ocr", "official_web", "manual_curated", "authenticated_notice_portal")
+ALLOWED_SOURCE_CHANNELS = (
+    "pdf_ocr",
+    "official_web",
+    "manual_curated",
+    "authenticated_notice_portal",
+)
 ALLOWED_SOURCE_TRUST_TIERS = ("T0", "T1", "T2", "T3")
 ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS = (
     "prompt_override_signal",
@@ -85,8 +92,8 @@ DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
 ALLOWED_SPECIALIST_TARGETS = (
-    "rag-specialist",
-    "navigation-specialist",
+    "rag-agent",
+    "navigation-agent",
     "campus-services-agent",
     "notice-agent",
 )
@@ -114,6 +121,7 @@ ALLOWED_MEMORY_SOURCE_TYPES = (
 ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
+ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",
@@ -129,7 +137,13 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = ("official_web_public_notice", "internal_notice_restricted")
-ALLOWED_SERVICE_STATUS_VALUES = ("open", "closed", "temporarily_closed", "limited_service", "unknown")
+ALLOWED_SERVICE_STATUS_VALUES = (
+    "open",
+    "closed",
+    "temporarily_closed",
+    "limited_service",
+    "unknown",
+)
 ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "running",
     "not_running",
@@ -236,7 +250,9 @@ class AuthorizedRetrievalFilter:
 
     def __post_init__(self) -> None:
         visibility_level = self.visibility_level.strip() or "public"
-        policy_projection_version = self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        policy_projection_version = (
+            self.policy_projection_version.strip() or DEFAULT_POLICY_PROJECTION_VERSION
+        )
 
         if visibility_level != self.visibility_level:
             object.__setattr__(self, "visibility_level", visibility_level)
@@ -377,6 +393,46 @@ class ErrorInfo:
 @dataclass(frozen=True, slots=True)
 class RagRequestPayload:
     scope: KnowledgeScope | None = None
+    version_query: VersionQuery = field(default_factory=lambda: VersionQuery())
+
+
+@dataclass(frozen=True, slots=True)
+class VersionQuery:
+    mode: VersionQueryMode = "current"
+    as_of: str = ""
+    version_id: str = ""
+    compare_to_version_id: str = ""
+
+    def __post_init__(self) -> None:
+        _validate_version_query_mode(self.mode)
+        normalized_as_of = self.as_of.strip()
+        normalized_version_id = self.version_id.strip()
+        normalized_compare_to_version_id = self.compare_to_version_id.strip()
+        if normalized_as_of != self.as_of:
+            object.__setattr__(self, "as_of", normalized_as_of)
+        if normalized_version_id != self.version_id:
+            object.__setattr__(self, "version_id", normalized_version_id)
+        if normalized_compare_to_version_id != self.compare_to_version_id:
+            object.__setattr__(self, "compare_to_version_id", normalized_compare_to_version_id)
+        if self.mode == "as_of":
+            if not normalized_as_of:
+                raise ValueError("as_of is required when version mode is as_of")
+            if normalized_version_id:
+                raise ValueError("version_id is not allowed when version mode is as_of")
+            if normalized_compare_to_version_id:
+                raise ValueError(
+                    "compare_to_version_id is only allowed when version mode is compare"
+                )
+        elif normalized_as_of:
+            raise ValueError("as_of is only allowed when version mode is as_of")
+        if self.mode not in {"historical", "compare"} and normalized_version_id:
+            raise ValueError(
+                "version_id is only allowed when version mode is historical or compare"
+            )
+        if self.mode != "compare" and normalized_compare_to_version_id:
+            raise ValueError("compare_to_version_id is only allowed when version mode is compare")
+        if normalized_compare_to_version_id and not normalized_version_id:
+            raise ValueError("version_id is required when compare_to_version_id is set")
 
 
 @dataclass(frozen=True, slots=True)
@@ -429,6 +485,57 @@ class RemoteContentSuspicionSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RetrievalStepActivitySummary:
+    step_id: str
+    step_type: str
+    corpus: AllowedCorpus
+    collection: str
+    status: str
+    top_k: int = 0
+    latency_ms: int | None = None
+    candidate_count: int = 0
+    reference_count: int = 0
+    failure_kind: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.step_id.strip():
+            raise ValueError("step_id must not be empty")
+        if not self.step_type.strip():
+            raise ValueError("step_type must not be empty")
+        if not self.collection.strip():
+            raise ValueError("collection must not be empty")
+        if not self.status.strip():
+            raise ValueError("status must not be empty")
+        if self.top_k < 0:
+            raise ValueError("top_k must not be negative")
+        if self.latency_ms is not None and self.latency_ms < 0:
+            raise ValueError("latency_ms must not be negative")
+        if self.candidate_count < 0:
+            raise ValueError("candidate_count must not be negative")
+        if self.reference_count < 0:
+            raise ValueError("reference_count must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalPlanSummary:
+    plan_id: str
+    query_mode: str
+    replan_count: int = 0
+    terminal_state: str = "completed"
+    step_activities: tuple[RetrievalStepActivitySummary, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.plan_id.strip():
+            raise ValueError("plan_id must not be empty")
+        if not self.query_mode.strip():
+            raise ValueError("query_mode must not be empty")
+        if self.replan_count < 0:
+            raise ValueError("replan_count must not be negative")
+        if self.terminal_state not in {"completed", "blocked", "failed_closed"}:
+            raise ValueError(f"unsupported terminal_state: {self.terminal_state}")
+
+
+@dataclass(frozen=True, slots=True)
 class RagResultDiagnostics:
     resolved_scope_corpus: AllowedCorpus | None = None
     resolved_scope_collection: str = ""
@@ -470,6 +577,7 @@ class RagResultDiagnostics:
     partial_answer: bool = False
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
+    retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
     retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
     prompt_trace: PromptTrace | None = None
 
@@ -656,7 +764,9 @@ class ServiceStatusLookupResult:
                 "historical_downgrade_reason must not be empty for historical service status results"
             )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError("fail_close_reason must not be empty for fail-closed service status results")
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed service status results"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -717,7 +827,9 @@ class TransportScheduleLookupResult:
                 "historical_downgrade_reason must not be empty for historical transport schedule results"
             )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError("fail_close_reason must not be empty for fail-closed transport schedule results")
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed transport schedule results"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -740,7 +852,9 @@ class CampusNoticeDiscoverPayload:
 class CampusNoticeDiscoverResult:
     query_text: str
     outcome: ToolBusinessOutcome
-    source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple, compare=False)
+    source_families: tuple[NoticeSourceFamily | str, ...] = field(
+        default_factory=tuple, compare=False
+    )
     notice_cards: tuple[NoticeCard, ...] = field(default_factory=tuple)
     queried_time_anchor: str = ""
     historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
@@ -756,12 +870,19 @@ class CampusNoticeDiscoverResult:
             _validate_historical_downgrade_reason(self.historical_downgrade_reason)
         if self.fail_close_reason:
             _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome in {"resolved_current", "resolved_historical_reference"} and not self.notice_cards:
+        if (
+            self.outcome in {"resolved_current", "resolved_historical_reference"}
+            and not self.notice_cards
+        ):
             raise ValueError("notice_cards must not be empty for resolved notice discovery results")
         if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
-            raise ValueError("historical_downgrade_reason must not be empty for historical notice discovery")
+            raise ValueError(
+                "historical_downgrade_reason must not be empty for historical notice discovery"
+            )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError("fail_close_reason must not be empty for fail-closed notice discovery results")
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed notice discovery results"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -812,9 +933,13 @@ class CampusNoticeGetResult:
             if not self.normalized_body.strip():
                 raise ValueError("normalized_body must not be empty for resolved notice results")
         if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
-            raise ValueError("historical_downgrade_reason must not be empty for historical notice get results")
+            raise ValueError(
+                "historical_downgrade_reason must not be empty for historical notice get results"
+            )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError("fail_close_reason must not be empty for fail-closed notice get results")
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed notice get results"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -863,13 +988,12 @@ class SupervisorRequest:
     context: ContextProjection = field(default_factory=ContextProjection)
     requested_capability: RequestedCapability | None = None
     requested_scope: KnowledgeScope | None = None
+    version_query: VersionQuery = field(default_factory=VersionQuery)
 
     def __post_init__(self) -> None:
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
-        normalized_safety_identifier = _normalize_optional_safety_identifier(
-            self.safety_identifier
-        )
+        normalized_safety_identifier = _normalize_optional_safety_identifier(self.safety_identifier)
         if normalized_safety_identifier != self.safety_identifier:
             object.__setattr__(self, "safety_identifier", normalized_safety_identifier)
         _coerce_context_projection(self)
@@ -908,9 +1032,7 @@ class SpecialistRequest:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
-        normalized_safety_identifier = _normalize_optional_safety_identifier(
-            self.safety_identifier
-        )
+        normalized_safety_identifier = _normalize_optional_safety_identifier(self.safety_identifier)
         if normalized_safety_identifier != self.safety_identifier:
             object.__setattr__(self, "safety_identifier", normalized_safety_identifier)
         _coerce_context_projection(self)
@@ -963,7 +1085,10 @@ class SupervisorResponse:
     observability: SupervisorObservability | None = None
 
     def __post_init__(self) -> None:
-        if self.selected_target is not None and self.selected_target not in ALLOWED_SPECIALIST_TARGETS:
+        if (
+            self.selected_target is not None
+            and self.selected_target not in ALLOWED_SPECIALIST_TARGETS
+        ):
             raise ValueError(f"unsupported selected_target: {self.selected_target}")
         if self.status not in ALLOWED_SUPERVISOR_STATUSES:
             raise ValueError(f"unsupported supervisor status: {self.status}")
@@ -997,9 +1122,7 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     if not normalized:
         return None
     if not _SHA256_HEX_RE.fullmatch(normalized):
-        raise ValueError(
-            "safety_identifier must be a 64-character lowercase hex string"
-        )
+        raise ValueError("safety_identifier must be a 64-character lowercase hex string")
     return normalized
 
 
@@ -1065,6 +1188,11 @@ def _validate_temporal_query_mode(mode: str) -> None:
         raise ValueError(f"unsupported temporal mode: {mode}")
 
 
+def _validate_version_query_mode(mode: str) -> None:
+    if mode not in ALLOWED_VERSION_QUERY_MODES:
+        raise ValueError(f"unsupported version mode: {mode}")
+
+
 def _validate_tool_business_outcome(outcome: str) -> None:
     if outcome not in ALLOWED_TOOL_BUSINESS_OUTCOMES:
         raise ValueError(f"unsupported tool business outcome: {outcome}")
@@ -1098,8 +1226,7 @@ def _validate_transport_service_status_value(status: str) -> None:
 def _validate_remote_content_suspicion_label(remote_content_suspicion_label: str) -> None:
     if remote_content_suspicion_label not in ALLOWED_REMOTE_CONTENT_SUSPICION_LABELS:
         raise ValueError(
-            "unsupported remote content suspicion label: "
-            f"{remote_content_suspicion_label}"
+            f"unsupported remote content suspicion label: {remote_content_suspicion_label}"
         )
 
 

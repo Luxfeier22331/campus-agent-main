@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from campus_rag_specialist.prompt_packets import RagPromptPacket
-from campus_rag_specialist.prompts.registry import get_rag_prompt_spec
+from campus_rag_agent.prompt_packets import RagPromptPacket
+from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from campus_shared import (
     REPO_GLOBAL_DEVELOPER_INVARIANTS_ID,
     REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION,
@@ -13,7 +13,6 @@ from campus_shared import (
 )
 from campus_supervisor_core.prompt_packets import SupervisorPromptPacket
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
-
 
 PromptMessageRole = Literal["developer", "user"]
 PromptMessageZone = Literal[
@@ -134,9 +133,7 @@ def build_rag_prompt_stack(
             PromptStackMessage(
                 role="user",
                 zone="untrusted_evidence_packet",
-                content=serialize_prompt_payload(
-                    {"evidence": packet.evidence}
-                ),
+                content=serialize_prompt_payload({"evidence": packet.evidence}),
             )
         )
     return PromptStackAssembly(

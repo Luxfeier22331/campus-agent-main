@@ -5,13 +5,13 @@ from functools import partial
 from typing import Mapping
 
 from campus_shared import PromptRuntimeProviderConfig
+from campus_supervisor_core import handle_request
+
+from campus_supervisor_api.api import HttpResponse, HttpRoute, build_routes
 from campus_supervisor_api.prompt_executor import (
     ProviderBackedRagPromptExecutor,
     ProviderBackedSupervisorPromptExecutor,
 )
-from campus_supervisor_core import handle_request
-
-from campus_supervisor_api.api import HttpResponse, HttpRoute, build_routes
 from campus_supervisor_api.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_api.settings import ApiSettings
 
@@ -42,7 +42,10 @@ class SupervisorApiApp:
         for route in self.routes:
             if route.method == method.upper() and route.path == path:
                 return route.handler(normalized_headers, json_body)
-        return HttpResponse(status_code=404, json_body={"error": {"code": "not_found", "message": "Route not found."}})
+        return HttpResponse(
+            status_code=404,
+            json_body={"error": {"code": "not_found", "message": "Route not found."}},
+        )
 
 
 def create_app(
@@ -51,8 +54,8 @@ def create_app(
     supervisor_handler=handle_request,
 ) -> SupervisorApiApp:
     runtime_settings = settings or ApiSettings.from_env()
-    prompt_runtime, supervisor_prompt_executor, rag_prompt_executor = (
-        _build_prompt_runtime_assets(runtime_settings)
+    prompt_runtime, supervisor_prompt_executor, rag_prompt_executor = _build_prompt_runtime_assets(
+        runtime_settings
     )
     bound_supervisor_handler = supervisor_handler
     if (

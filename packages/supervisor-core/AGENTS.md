@@ -7,7 +7,7 @@
 这个目录是 `supervisor` 的唯一策略实现层。
 
 - 负责用户目标路由、specialist 委派、结果组装、澄清升级和最小审计
-- 当前默认 query-serving 主线仍是 `rag-specialist`
+- 当前默认 query-serving 主线仍是 `rag-agent`
 - 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal specialist handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
@@ -57,13 +57,13 @@
 
 - `apps/supervisor-api` 负责 AgentOS/runtime 与外部 API 壳；不要把 transport/auth 设置回灌到这里
 - `apps/supervisor-api` 只负责 auth mapping、trace propagation、`SupervisorRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
-- `packages/rag-specialist` 负责 retrieval 导向的 specialist 逻辑；不要在这里越级实现 specialist 内部策略
+- `packages/rag-agent` 负责 retrieval 导向的 specialist 逻辑；不要在这里越级实现 specialist 内部策略
 - `packages/contracts` 是唯一共享 request/handoff/schema 边界；不要绕过 `SupervisorRequest` / `SpecialistRequest` / `SpecialistResponse` 私自发明并行接口
 
 ## Current Serving Constraints
 
 - 当前默认 query-serving 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
-- 当前默认 retrieval 问答主线仍然优先走 `rag-specialist`，但 API shell 不应再把它写死成唯一 transport 构造
+- 当前默认 retrieval 问答主线仍然优先走 `rag-agent`，但 API shell 不应再把它写死成唯一 transport 构造
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile 为准
 - 不要直接拼接对象存储逻辑
 - 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO
@@ -89,7 +89,7 @@
 - 可以把 `response shaping`、`audit fields`、`tests` 拆成独立子任务
 - 不要把最终路由规则、specialist 选择逻辑或接口取舍完全交给被委派的子任务；主代理保留最终编排责任
 - 只有在 `contracts` 已冻结时，才并行推进 supervisor 内实现
-- 若与 `packages/rag-specialist` 或 `packages/contracts` 同时改动，先切清写集再并行
+- 若与 `packages/rag-agent` 或 `packages/contracts` 同时改动，先切清写集再并行
 
 ## Verification
 

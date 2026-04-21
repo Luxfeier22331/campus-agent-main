@@ -3,21 +3,20 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import (
-    EvidenceBundle,
     ErrorInfo,
+    EvidenceBundle,
     PromptTrace,
     RagResultDiagnostics,
     RagResultPayload,
     SpecialistResponse,
-    SupervisorResponse,
     SupervisorRequest,
 )
+from campus_shared import PromptRuntimeValidationError
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.routing import RoutingDecision
-from campus_shared import PromptRuntimeValidationError
 
 
 def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -36,7 +35,7 @@ def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
 class SupervisorPolicyTest(unittest.TestCase):
     def test_finalize_completed_response_keeps_completed_status(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="completed",
             answer_text="The library is open.",
             confidence="high",
@@ -44,7 +43,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertEqual(finalized.selected_target, "rag-specialist")
+        self.assertEqual(finalized.selected_target, "rag-agent")
         self.assertEqual(finalized.status, "completed")
         self.assertEqual(finalized.answer_text, "The library is open.")
         self.assertEqual(finalized.confidence, "high")
@@ -54,14 +53,14 @@ class SupervisorPolicyTest(unittest.TestCase):
 
     def test_finalize_needs_clarification_response_keeps_follow_up(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="needs_clarification",
             follow_up_question="Which campus are you asking about?",
         )
 
         finalized = finalize_specialist_response(response)
 
-        self.assertEqual(finalized.selected_target, "rag-specialist")
+        self.assertEqual(finalized.selected_target, "rag-agent")
         self.assertEqual(finalized.status, "needs_clarification")
         self.assertEqual(finalized.follow_up_question, "Which campus are you asking about?")
         self.assertIsNotNone(finalized.observability)
@@ -69,7 +68,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
     def test_finalize_no_answer_response_keeps_no_answer_semantics(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -86,7 +85,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertEqual(finalized.selected_target, "rag-specialist")
+        self.assertEqual(finalized.selected_target, "rag-agent")
         self.assertEqual(finalized.status, "no_answer")
         self.assertEqual(finalized.confidence, "low")
         self.assertIsNotNone(finalized.observability)
@@ -96,7 +95,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
     def test_finalize_restricted_no_answer_projects_restricted_semantic_outcome(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -120,7 +119,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
     def test_finalize_freshness_fail_close_projects_fail_closed_observability(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="no_answer",
             confidence="low",
             result=RagResultPayload(
@@ -179,7 +178,9 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.observability.scope_class, "out_of_scope")
         self.assertEqual(finalized.observability.policy_reason, "product_scope_boundary")
 
-    def test_finalize_out_of_scope_uses_navigation_specific_copy_when_temporarily_unsupported(self) -> None:
+    def test_finalize_out_of_scope_uses_navigation_specific_copy_when_temporarily_unsupported(
+        self,
+    ) -> None:
         finalized = finalize_routing_decision(
             SupervisorRequestContext.from_request(
                 SupervisorRequest(
@@ -211,9 +212,13 @@ class SupervisorPolicyTest(unittest.TestCase):
             finalized.answer_text,
             "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
         )
-        self.assertEqual(finalized.observability.policy_reason, "navigation_temporarily_unsupported")
+        self.assertEqual(
+            finalized.observability.policy_reason, "navigation_temporarily_unsupported"
+        )
 
-    def test_finalize_out_of_scope_with_invalid_prompt_output_falls_back_to_default_copy(self) -> None:
+    def test_finalize_out_of_scope_with_invalid_prompt_output_falls_back_to_default_copy(
+        self,
+    ) -> None:
         class FakePromptExecutor:
             def compose_out_of_scope(self, packet: object):
                 from campus_supervisor_core.prompt_execution import (
@@ -377,7 +382,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(
-            target="rag-specialist",
+            target="rag-agent",
             status="error",
             confidence="low",
             error=ErrorInfo(
@@ -389,7 +394,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         finalized = finalize_specialist_response(response)
 
-        self.assertEqual(finalized.selected_target, "rag-specialist")
+        self.assertEqual(finalized.selected_target, "rag-agent")
         self.assertEqual(finalized.status, "error")
         self.assertEqual(finalized.confidence, "low")
         self.assertEqual(
@@ -402,6 +407,7 @@ class SupervisorPolicyTest(unittest.TestCase):
         )
         self.assertIsNotNone(finalized.observability)
         self.assertIsNone(finalized.observability.retrieval_attempted)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Callable
 
 from campus_supervisor_core import SupervisorAuditRecord
-
 
 AuditSink = Callable[[SupervisorAuditRecord], None]
 

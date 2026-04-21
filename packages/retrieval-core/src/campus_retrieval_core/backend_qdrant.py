@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
 import re
 import time
 import unicodedata
-from typing import Callable, Iterable, Sequence, TypeVar
+from dataclasses import dataclass, field, replace
+from typing import Callable, Sequence, TypeVar
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import (
@@ -14,6 +14,7 @@ from campus_ingestion_core.corpus_profiles import (
     load_runtime_profile,
 )
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -24,10 +25,15 @@ from campus_ingestion_core.sparse import (
     build_sparse_embedding_model,
 )
 from llama_index.core.schema import MetadataMode, TextNode
-from llama_index.core.vector_stores import FilterCondition, FilterOperator, MetadataFilter, MetadataFilters
+from llama_index.core.vector_stores import (
+    FilterCondition,
+    FilterOperator,
+    MetadataFilter,
+    MetadataFilters,
+)
 from qdrant_client import QdrantClient
-from qdrant_client.http.exceptions import ResponseHandlingException
 from qdrant_client.http import models as qdrant_models
+from qdrant_client.http.exceptions import ResponseHandlingException
 
 from campus_retrieval_core.curriculum_query_resolution import (
     build_curriculum_document_support_query_text,
@@ -35,7 +41,10 @@ from campus_retrieval_core.curriculum_query_resolution import (
     interpret_curriculum_query,
     matching_curriculum_doc_ids,
 )
-from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources, query_targets_source_title
+from campus_retrieval_core.evidence_ranking import (
+    prioritize_evidence_sources,
+    query_targets_source_title,
+)
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 
@@ -170,7 +179,13 @@ _DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
 )
 _QDRANT_READ_RETRY_ATTEMPTS = 3
 _QDRANT_READ_RETRY_BACKOFF_SECONDS = 0.5
-_QDRANT_TRANSIENT_ERROR_TEXT = ("timed out", "timeout", "temporarily unavailable", "connection reset", "handshake")
+_QDRANT_TRANSIENT_ERROR_TEXT = (
+    "timed out",
+    "timeout",
+    "temporarily unavailable",
+    "connection reset",
+    "handshake",
+)
 _SAME_DOC_SCROLL_BATCH_LIMIT = 64
 _SAME_DOC_SCROLL_MAX_RECORDS = 256
 _RetryResult = TypeVar("_RetryResult")
@@ -196,7 +211,9 @@ class QdrantRetrievalBackend:
     embedding_model: object | None = None
     sparse_embedding_model: SparseEmbeddingModel | None = None
     dense_query_cache_ttl_seconds: float = DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS
-    _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(default_factory=dict, init=False)
+    _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(
+        default_factory=dict, init=False
+    )
     _known_collection_names: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
@@ -251,7 +268,9 @@ class QdrantRetrievalBackend:
                     )
                 self._known_collection_names.add(qdrant_collection_name)
             dense_query_embedding = self._get_dense_query_embedding(query_text, profile=profile)
-            initial_query_limit = self._resolve_initial_query_limit(request=request, profile=profile)
+            initial_query_limit = self._resolve_initial_query_limit(
+                request=request, profile=profile
+            )
             response = _retry_qdrant_read(
                 lambda: self.qdrant_client.query_points(
                     collection_name=qdrant_collection_name,
@@ -327,7 +346,9 @@ class QdrantRetrievalBackend:
             )[: request.top_k],
         )
 
-    def _build_evidence_sources(self, points: Sequence[qdrant_models.ScoredPoint]) -> tuple[EvidenceSource, ...]:
+    def _build_evidence_sources(
+        self, points: Sequence[qdrant_models.ScoredPoint]
+    ) -> tuple[EvidenceSource, ...]:
         sources: list[EvidenceSource] = []
         for point in points:
             payload = dict(point.payload or {})
@@ -341,7 +362,9 @@ class QdrantRetrievalBackend:
             if not document_id or not revision_track or not version_id:
                 continue
             anchor = _coerce_dict(metadata.get("anchor"))
-            canonical_url = _optional_text(metadata.get("canonical_url")) or _optional_text(metadata.get("source_uri"))
+            canonical_url = _optional_text(metadata.get("canonical_url")) or _optional_text(
+                metadata.get("source_uri")
+            )
             latest_url = _optional_text(metadata.get("latest_url")) or canonical_url
             source_channel = _optional_text(metadata.get("source_channel"))
             collection = _optional_text(metadata.get("collection"))
@@ -359,10 +382,13 @@ class QdrantRetrievalBackend:
                 runtime_profile = load_runtime_profile(record.corpus, record.collection)
                 latest_record = self.registry.current_version(
                     document_id,
-                    preferred_revision_tracks=runtime_profile.serving_revision_tracks or DEFAULT_LATEST_REVISION_TRACKS,
+                    preferred_revision_tracks=runtime_profile.serving_revision_tracks
+                    or DEFAULT_LATEST_REVISION_TRACKS,
                 )
                 canonical_url = canonical_url or record.source_uri
-                latest_url = latest_url or (latest_record.source_uri if latest_record is not None else record.source_uri)
+                latest_url = latest_url or (
+                    latest_record.source_uri if latest_record is not None else record.source_uri
+                )
                 source_channel = source_channel or record.source_channel
                 collection = collection or record.collection
                 if is_current is None:
@@ -452,7 +478,8 @@ class QdrantRetrievalBackend:
         for document_id in request.target_document_ids:
             record = self.registry.current_version(
                 document_id,
-                preferred_revision_tracks=profile.serving_revision_tracks or DEFAULT_LATEST_REVISION_TRACKS,
+                preferred_revision_tracks=profile.serving_revision_tracks
+                or DEFAULT_LATEST_REVISION_TRACKS,
             )
             if record is None:
                 continue
@@ -484,8 +511,13 @@ class QdrantRetrievalBackend:
             expires_at, embedding = cached
             if expires_at > now:
                 return embedding
-        embedding = tuple(float(item) for item in self.embedding_model.get_query_embedding(normalized_query))
-        self._dense_query_cache[normalized_query] = (now + self.dense_query_cache_ttl_seconds, embedding)
+        embedding = tuple(
+            float(item) for item in self.embedding_model.get_query_embedding(normalized_query)
+        )
+        self._dense_query_cache[normalized_query] = (
+            now + self.dense_query_cache_ttl_seconds,
+            embedding,
+        )
         return embedding
 
     def _resolve_initial_query_limit(
@@ -520,7 +552,9 @@ class QdrantRetrievalBackend:
     ) -> bool:
         if profile.document_support_strategy != "targeted_overfetch":
             return False
-        return bool(request.target_document_ids) and len(frozenset(request.target_document_ids)) == 1
+        return (
+            bool(request.target_document_ids) and len(frozenset(request.target_document_ids)) == 1
+        )
 
     def _should_expand_narrow_curriculum_targeted_support(
         self,
@@ -544,7 +578,9 @@ class QdrantRetrievalBackend:
             query_text=request.query_text,
             source=target_source,
         )
-        if _normalize_low_signal_query(support_query_text) == _normalize_low_signal_query(request.query_text):
+        if _normalize_low_signal_query(support_query_text) == _normalize_low_signal_query(
+            request.query_text
+        ):
             return False
         section_keys = {
             _curriculum_support_section_key(source)
@@ -682,8 +718,7 @@ class QdrantRetrievalBackend:
         selected_sources = course_list_sources or scoped_sources
         boosted_score = max(default_score, 1.0)
         return tuple(
-            replace(source, score=max(source.score, boosted_score))
-            for source in selected_sources
+            replace(source, score=max(source.score, boosted_score)) for source in selected_sources
         )
 
     def _recover_official_web_lead_chunk_support(
@@ -767,7 +802,9 @@ def _build_hybrid_prefetch(
     )
     prefetch = [
         qdrant_models.Prefetch(
-            query=list(dense_query_embedding or embedding_model.get_query_embedding(dense_query_text)),
+            query=list(
+                dense_query_embedding or embedding_model.get_query_embedding(dense_query_text)
+            ),
             using=profile.qdrant_index_binding.dense_vector_name,
             filter=runtime_query_filter,
             limit=dense_limit,
@@ -834,7 +871,9 @@ def _document_support_query_candidates(source: EvidenceSource) -> tuple[str, ...
     return tuple(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
-def _build_official_web_document_support_query_text(*, query_text: str, source: EvidenceSource) -> str:
+def _build_official_web_document_support_query_text(
+    *, query_text: str, source: EvidenceSource
+) -> str:
     if (
         source.source_channel != "official_web"
         or not is_official_web_stable_reference_like_collection(source.collection)
@@ -907,12 +946,16 @@ def _prefer_curriculum_semester_course_list_sources(
     }
     if not preferred_chunk_ids:
         return tuple(sources)
-    preferred_sources = tuple(source for source in sources if source.chunk_id in preferred_chunk_ids)
+    preferred_sources = tuple(
+        source for source in sources if source.chunk_id in preferred_chunk_ids
+    )
     ordered_preferred_sources = _order_curriculum_semester_course_list_sources(
         semester_labels=interpretation.semester_labels,
         sources=preferred_sources,
     )
-    remaining_sources = tuple(source for source in sources if source.chunk_id not in preferred_chunk_ids)
+    remaining_sources = tuple(
+        source for source in sources if source.chunk_id not in preferred_chunk_ids
+    )
     return tuple((*ordered_preferred_sources, *remaining_sources))
 
 
@@ -985,7 +1028,9 @@ def _curriculum_related_semester_row_count(
 ) -> int:
     if not semester_labels:
         return 0
-    normalized_labels = {unicodedata.normalize("NFKC", label).strip() for label in semester_labels if label.strip()}
+    normalized_labels = {
+        unicodedata.normalize("NFKC", label).strip() for label in semester_labels if label.strip()
+    }
     numeric_labels = _curriculum_semester_numeric_labels(semester_labels)
     if not normalized_labels and not numeric_labels:
         return 0
@@ -1038,13 +1083,7 @@ def _curriculum_semester_numeric_labels(semester_labels: tuple[str, ...]) -> tup
         "第九学期": "9",
         "第十学期": "10",
     }
-    return tuple(
-        dict.fromkeys(
-            numerals[label]
-            for label in semester_labels
-            if label in numerals
-        )
-    )
+    return tuple(dict.fromkeys(numerals[label] for label in semester_labels if label in numerals))
 
 
 def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNode | None:
@@ -1091,7 +1130,10 @@ def _retry_qdrant_read(operation: Callable[[], _RetryResult]) -> _RetryResult:
         try:
             return operation()
         except ResponseHandlingException as exc:
-            if not _looks_like_transient_qdrant_error(exc) or attempt >= _QDRANT_READ_RETRY_ATTEMPTS:
+            if (
+                not _looks_like_transient_qdrant_error(exc)
+                or attempt >= _QDRANT_READ_RETRY_ATTEMPTS
+            ):
                 raise
             last_error = exc
             time.sleep(_QDRANT_READ_RETRY_BACKOFF_SECONDS * attempt)
@@ -1117,7 +1159,14 @@ def _build_metadata_filters(
         MetadataFilter(key="corpus", value=request.corpus),
         MetadataFilter(key="collection", value=request.collection),
     ]
-    if runtime_profile.serving_revision_tracks:
+    if request.target_revision_track:
+        filters.append(
+            MetadataFilter(
+                key="revision_track",
+                value=request.target_revision_track,
+            )
+        )
+    elif runtime_profile.serving_revision_tracks:
         filters.append(
             MetadataFilter(
                 key="revision_track",
@@ -1131,6 +1180,14 @@ def _build_metadata_filters(
             MetadataFilter(
                 key="document_id",
                 value=list(request.target_document_ids),
+                operator=FilterOperator.IN,
+            )
+        )
+    if request.target_version_ids:
+        filters.append(
+            MetadataFilter(
+                key="version_id",
+                value=list(request.target_version_ids),
                 operator=FilterOperator.IN,
             )
         )
@@ -1192,14 +1249,21 @@ def _build_qdrant_filter(
             visibility_scope=request.effective_visibility_scope(),
         ),
     ]
-    if runtime_profile.serving_revision_tracks:
+    if request.target_revision_track:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="revision_track",
+                match=qdrant_models.MatchValue(value=request.target_revision_track),
+            )
+        )
+    elif runtime_profile.serving_revision_tracks:
         must.append(
             qdrant_models.FieldCondition(
                 key="revision_track",
                 match=qdrant_models.MatchAny(any=list(runtime_profile.serving_revision_tracks)),
             )
         )
-    if runtime_profile.current_only:
+    if runtime_profile.current_only and not request.target_version_ids:
         must.append(
             qdrant_models.FieldCondition(
                 key="is_current",
@@ -1211,6 +1275,13 @@ def _build_qdrant_filter(
             qdrant_models.FieldCondition(
                 key="document_id",
                 match=qdrant_models.MatchAny(any=list(request.target_document_ids)),
+            )
+        )
+    if request.target_version_ids:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="version_id",
+                match=qdrant_models.MatchAny(any=list(request.target_version_ids)),
             )
         )
     if request.canonical_course_ids:
@@ -1288,7 +1359,9 @@ def _build_authorization_metadata_filter(
     return MetadataFilters(filters=filters, condition=FilterCondition.OR)
 
 
-def _build_visibility_scope_metadata_filter(visibility_scope: str | None) -> MetadataFilter | MetadataFilters:
+def _build_visibility_scope_metadata_filter(
+    visibility_scope: str | None,
+) -> MetadataFilter | MetadataFilters:
     if visibility_scope is None:
         return MetadataFilter(key="visibility_scope", value=None, operator=FilterOperator.IS_EMPTY)
     return MetadataFilters(
@@ -1480,7 +1553,11 @@ def _resolve_detail_label(
 
 
 def _resolve_canonical_source_id(metadata: dict[str, object]) -> str:
-    return _optional_text(metadata.get("canonical_source_id")) or _optional_text(metadata.get("source_doc_id")) or ""
+    return (
+        _optional_text(metadata.get("canonical_source_id"))
+        or _optional_text(metadata.get("source_doc_id"))
+        or ""
+    )
 
 
 def _resolve_canonical_source_title(metadata: dict[str, object]) -> str:
@@ -1502,7 +1579,11 @@ def _resolve_source_unit_kind(
         return explicit_kind
     if collection != "program_semester_facts":
         return ""
-    return _optional_text(metadata.get("content_role")) or _optional_text(anchor.get("fact_type")) or ""
+    return (
+        _optional_text(metadata.get("content_role"))
+        or _optional_text(anchor.get("fact_type"))
+        or ""
+    )
 
 
 def _resolve_source_unit_key(
@@ -1549,7 +1630,12 @@ def _resolve_is_answer_bearing(
     )
     if content_role == "table_fact":
         return True
-    return bool(detail_label) and content_kind in {"article_body", "policy_page", "section_text", "table_unit"}
+    return bool(detail_label) and content_kind in {
+        "article_body",
+        "policy_page",
+        "section_text",
+        "table_unit",
+    }
 
 
 def _looks_like_curriculum_table_unit(
@@ -1636,10 +1722,9 @@ def _apply_official_web_low_signal_policy(
         return ()
     if normalized_query in _OFFICIAL_WEB_GENERIC_QUERY_TERMS:
         return ()
-    if (
-        any(term in normalized_query for term in _OFFICIAL_WEB_UNANCHORED_LIFE_SERVICE_TERMS)
-        and not any(term in normalized_query for term in _OFFICIAL_WEB_SPECIFICITY_HINT_TERMS)
-    ):
+    if any(
+        term in normalized_query for term in _OFFICIAL_WEB_UNANCHORED_LIFE_SERVICE_TERMS
+    ) and not any(term in normalized_query for term in _OFFICIAL_WEB_SPECIFICITY_HINT_TERMS):
         return ()
     return tuple(sources)
 
@@ -1653,7 +1738,9 @@ def _apply_document_diversity_policy(
     if not is_official_web_stable_reference_like_profile(profile):
         return tuple(sources)
     title_targeting_sources = tuple(
-        source for source in sources if query_targets_source_title(query_text=query_text, source=source)
+        source
+        for source in sources
+        if query_targets_source_title(query_text=query_text, source=source)
     )
     normalized_query = _normalize_low_signal_query(query_text)
     if title_targeting_sources:
@@ -1736,7 +1823,10 @@ def _select_official_web_school_overview_campus_source(
     campus_sources = [
         source
         for source in sources
-        if any(term in _normalize_low_signal_query(source.snippet) for term in ("三个校区", "海淀", "丰台"))
+        if any(
+            term in _normalize_low_signal_query(source.snippet)
+            for term in ("三个校区", "海淀", "丰台")
+        )
     ]
     if not campus_sources:
         return None
@@ -1749,7 +1839,10 @@ def _select_official_web_school_overview_discipline_source(
     discipline_sources = [
         source
         for source in sources
-        if any(term in _normalize_low_signal_query(source.snippet) for term in ("12个学科门类", "71个本科专业"))
+        if any(
+            term in _normalize_low_signal_query(source.snippet)
+            for term in ("12个学科门类", "71个本科专业")
+        )
     ]
     if not discipline_sources:
         return None
@@ -1808,7 +1901,10 @@ def _official_web_scholar_support_sort_key(source: EvidenceSource) -> tuple[int,
     domains = _official_web_scholar_source_domains(source)
     normalized_snippet = _normalize_low_signal_query(source.snippet)
     contribution_bonus = 0
-    if any(term in normalized_snippet for term in ("贡献", "创始", "首创", "培养", "代表著作", "主要著作", "研究")):
+    if any(
+        term in normalized_snippet
+        for term in ("贡献", "创始", "首创", "培养", "代表著作", "主要著作", "研究")
+    ):
         contribution_bonus += 1
     chunk_ordinal = _official_web_source_chunk_ordinal(source)
     lead_bonus = 100 - min(chunk_ordinal, 100) if chunk_ordinal is not None else 0
@@ -1872,9 +1968,15 @@ def _official_web_representative_source_sort_key(
     fact_bonus = 0
     intro_bonus = 0
     if any(term in normalized_query for term in _OFFICIAL_WEB_STRICT_TITLE_TARGET_QUERY_TERMS):
-        if any(term in normalized_snippet for term in ("讲座时间", "时间：", "讲座地点", "地点：", "讲座主题", "主题：")):
+        if any(
+            term in normalized_snippet
+            for term in ("讲座时间", "时间：", "讲座地点", "地点：", "讲座主题", "主题：")
+        ):
             notice_bonus += 40
-        if any(term in normalized_snippet for term in ("二维码", "扫码", "扫描", "预约", "报名", "图书馆积分")):
+        if any(
+            term in normalized_snippet
+            for term in ("二维码", "扫码", "扫描", "预约", "报名", "图书馆积分")
+        ):
             notice_bonus -= 40
     if "学校概况" in normalized_query:
         if any(term in normalized_snippet for term in ("12个学科门类", "71个本科专业")):
@@ -1882,7 +1984,9 @@ def _official_web_representative_source_sort_key(
         if any(term in normalized_snippet for term in ("三个校区", "海淀", "丰台")):
             fact_bonus += 120
     if "本科培养" in normalized_query:
-        if any(term in normalized_snippet for term in ("本科专业71个", "在招专业61个", "11个学科门类")):
+        if any(
+            term in normalized_snippet for term in ("本科专业71个", "在招专业61个", "11个学科门类")
+        ):
             fact_bonus += 260
         if any(term in normalized_snippet for term in ("强基计划", "一流本科专业")):
             fact_bonus += 180
@@ -1896,12 +2000,19 @@ def _official_web_representative_source_sort_key(
     if "研究生培养" in normalized_query:
         if "12个学科门类" in normalized_snippet:
             fact_bonus += 280
-        if any(term in normalized_snippet for term in ("24个研究生招生培养单位", "博士一级学科授权点", "硕士一级学科授权点")):
+        if any(
+            term in normalized_snippet
+            for term in ("24个研究生招生培养单位", "博士一级学科授权点", "硕士一级学科授权点")
+        ):
             fact_bonus += 180
     if any(term in normalized_query for term in _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS):
-        if any(term in source.snippet for term in ("是一所", "是党和国家", "创建的一所", "特色鲜明")):
+        if any(
+            term in source.snippet for term in ("是一所", "是党和国家", "创建的一所", "特色鲜明")
+        ):
             intro_bonus += 30
-        if re.search(r"20\d{2}年", source.snippet) and any(term in source.snippet for term in ("入选", "大事记")):
+        if re.search(r"20\d{2}年", source.snippet) and any(
+            term in source.snippet for term in ("入选", "大事记")
+        ):
             intro_bonus -= 20
     chunk_ordinal = _official_web_source_chunk_ordinal(source)
     lead_bonus = 200 - min(chunk_ordinal, 200) if chunk_ordinal is not None else 0
@@ -1948,7 +2059,9 @@ def _has_query_lexical_support(*, query_text: str, snippets: str | Sequence[str]
         if any(token in normalized_snippet for normalized_snippet in normalized_snippets):
             return True
     for segment in _query_support_segments(normalized_query):
-        if _segment_has_strong_lexical_support(segment=segment, normalized_snippets=normalized_snippets):
+        if _segment_has_strong_lexical_support(
+            segment=segment, normalized_snippets=normalized_snippets
+        ):
             return True
     return False
 
@@ -1973,10 +2086,16 @@ def _normalize_snippets(snippets: str | Sequence[str]) -> tuple[str, ...]:
     )
 
 
-def _segment_has_strong_lexical_support(*, segment: str, normalized_snippets: Sequence[str]) -> bool:
+def _segment_has_strong_lexical_support(
+    *, segment: str, normalized_snippets: Sequence[str]
+) -> bool:
     if len(segment) >= 4 and any(segment in snippet for snippet in normalized_snippets):
         return True
-    trigrams = tuple(token for token in _cjk_query_tokens(segment, token_size=3) if token not in _WEAK_CJK_QUERY_TOKENS)
+    trigrams = tuple(
+        token
+        for token in _cjk_query_tokens(segment, token_size=3)
+        if token not in _WEAK_CJK_QUERY_TOKENS
+    )
     if any(token in snippet for token in trigrams for snippet in normalized_snippets):
         return True
     matched_bigrams = {
@@ -2017,7 +2136,10 @@ def _cjk_query_tokens(segment: str, *, token_size: int) -> tuple[str, ...]:
     return tuple(
         dict.fromkeys(
             token
-            for token in (segment[index : index + token_size] for index in range(len(segment) - token_size + 1))
+            for token in (
+                segment[index : index + token_size]
+                for index in range(len(segment) - token_size + 1)
+            )
             if token.strip()
         )
     )

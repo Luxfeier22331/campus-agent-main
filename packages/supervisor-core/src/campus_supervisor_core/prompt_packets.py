@@ -9,7 +9,6 @@ from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentPersonalizationMode
 from campus_supervisor_core.routing import RoutingDecision
 
-
 SupervisorPromptMode = Literal["clarify", "approval_required", "out_of_scope", "reject"]
 
 
@@ -45,10 +44,14 @@ def build_supervisor_clarify_prompt_packet(
     decision: RoutingDecision,
 ) -> SupervisorPromptPacket:
     if decision.intent_frame.suggested_next_action != "clarify":
-        raise ValueError("supervisor clarify prompt packet requires suggested_next_action='clarify'")
+        raise ValueError(
+            "supervisor clarify prompt packet requires suggested_next_action='clarify'"
+        )
 
     requested_capability = decision.intent_frame.capability
-    resolved_scope_corpus = context.requested_scope.corpus if context.requested_scope is not None else ""
+    resolved_scope_corpus = (
+        context.requested_scope.corpus if context.requested_scope is not None else ""
+    )
     resolved_scope_collection = (
         context.requested_scope.collection if context.requested_scope is not None else ""
     )
@@ -100,7 +103,9 @@ def build_supervisor_approval_required_prompt_packet(
         language="zh-CN",
         task_kind=decision.intent_frame.task_kind,
         requested_capability=decision.intent_frame.capability,
-        resolved_scope_corpus=context.requested_scope.corpus if context.requested_scope is not None else "",
+        resolved_scope_corpus=context.requested_scope.corpus
+        if context.requested_scope is not None
+        else "",
         resolved_scope_collection=(
             context.requested_scope.collection if context.requested_scope is not None else ""
         ),
@@ -164,7 +169,9 @@ def build_supervisor_reject_prompt_packet(
     decision: RoutingDecision,
 ) -> SupervisorPromptPacket:
     if decision.intent_frame.suggested_next_action != "rejected":
-        raise ValueError("supervisor reject prompt packet requires suggested_next_action='rejected'")
+        raise ValueError(
+            "supervisor reject prompt packet requires suggested_next_action='rejected'"
+        )
 
     task = SupervisorTaskPacket(
         request_id=context.request_id,
@@ -172,7 +179,9 @@ def build_supervisor_reject_prompt_packet(
         language="zh-CN",
         task_kind=decision.intent_frame.task_kind,
         requested_capability=decision.intent_frame.capability,
-        resolved_scope_corpus=context.requested_scope.corpus if context.requested_scope is not None else "",
+        resolved_scope_corpus=context.requested_scope.corpus
+        if context.requested_scope is not None
+        else "",
         resolved_scope_collection=(
             context.requested_scope.collection if context.requested_scope is not None else ""
         ),

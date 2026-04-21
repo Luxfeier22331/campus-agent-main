@@ -13,7 +13,7 @@ from campus_contracts import (
     SupervisorRequest,
     TraceContext,
 )
-from campus_rag_specialist.prompt_packets import build_rag_answer_prompt_packet
+from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
 from campus_supervisor_api.app import create_app
 from campus_supervisor_api.prompt_stack import (
     build_rag_prompt_stack,
@@ -101,7 +101,7 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
 
     def test_build_rag_prompt_stack_keeps_evidence_out_of_developer_zone(self) -> None:
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
             request_id="req-rag-prompt-stack",
             trace=TraceContext(trace_id="trace-rag-prompt-stack"),

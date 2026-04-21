@@ -52,7 +52,7 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
 
     if capability == "place_lookup":
         return RoutingDecision(
-            target="navigation-specialist",
+            target="navigation-agent",
             primary_corpus=None,
             primary_collection=None,
             intent_frame=intent_frame,
@@ -62,7 +62,7 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
         assert_scope_is_query_enabled(context.requested_scope)
 
     return RoutingDecision(
-        target="rag-specialist",
+        target="rag-agent",
         primary_corpus=context.primary_corpus,
         primary_collection=context.primary_collection,
         intent_frame=intent_frame,

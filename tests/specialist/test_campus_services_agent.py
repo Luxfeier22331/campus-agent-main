@@ -39,7 +39,9 @@ class _FakeCampusServicesQueryService:
             related_notice_refs=("notice:library-hours",),
         )
 
-    def lookup_transport_schedule(self, query: TransportScheduleQuery) -> TransportScheduleLookupResult:
+    def lookup_transport_schedule(
+        self, query: TransportScheduleQuery
+    ) -> TransportScheduleLookupResult:
         self.last_transport_schedule_query = query
         return TransportScheduleLookupResult(
             route_query=query.payload.route_query,
@@ -49,9 +51,7 @@ class _FakeCampusServicesQueryService:
             queried_time_anchor="2026-04-21T10:30:00+08:00",
             window_start="2026-04-21T08:00:00+08:00",
             window_end="2026-04-21T20:00:00+08:00",
-            stop_refs=(
-                TransportStopRef(stop_id="haidian-library", display_name="图书馆站"),
-            ),
+            stop_refs=(TransportStopRef(stop_id="haidian-library", display_name="图书馆站"),),
         )
 
 

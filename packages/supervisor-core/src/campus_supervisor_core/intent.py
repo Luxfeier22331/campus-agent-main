@@ -8,7 +8,6 @@ from campus_contracts import RequestedCapability
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
-
 IntentTaskKind = Literal["knowledge_lookup", "place_lookup", "unknown"]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
@@ -210,9 +209,13 @@ def _is_targeted_political_persuasion(normalized_goal: str) -> bool:
     has_influence_action = any(
         signal in normalized_goal for signal in _POLITICAL_INFLUENCE_ACTION_SIGNALS
     )
-    has_target_audience = any(signal in normalized_goal for signal in _POLITICAL_TARGET_AUDIENCE_SIGNALS)
+    has_target_audience = any(
+        signal in normalized_goal for signal in _POLITICAL_TARGET_AUDIENCE_SIGNALS
+    )
     has_position_signal = any(signal in normalized_goal for signal in _POLITICAL_POSITION_SIGNALS)
-    has_message_writing = any(signal in normalized_goal for signal in _POLITICAL_MESSAGE_WRITING_SIGNALS)
+    has_message_writing = any(
+        signal in normalized_goal for signal in _POLITICAL_MESSAGE_WRITING_SIGNALS
+    )
 
     if has_influence_action and (has_target_audience or has_position_signal):
         return True

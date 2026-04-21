@@ -37,7 +37,9 @@ class SupervisorScopePolicyTest(unittest.TestCase):
         self.assertEqual(decision.scope_class, "out_of_scope")
         self.assertEqual(decision.reason, "product_scope_boundary")
 
-    def test_evaluate_knowledge_scope_keeps_curriculum_question_without_scope_in_scope(self) -> None:
+    def test_evaluate_knowledge_scope_keeps_curriculum_question_without_scope_in_scope(
+        self,
+    ) -> None:
         decision = evaluate_knowledge_scope(
             SupervisorRequestContext.from_request(
                 SupervisorRequest(

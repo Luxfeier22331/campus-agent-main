@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import asdict
-from functools import partial
 import json
 import os
-from pathlib import Path
 import tempfile
 import unittest
+from dataclasses import asdict
+from functools import partial
+from pathlib import Path
 from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
-    AuthorizedRetrievalFilter,
     AuthorizationProjection,
+    AuthorizedRetrievalFilter,
     ContextProjection,
     ErrorInfo,
     EvidenceBundle,
@@ -25,18 +25,19 @@ from campus_contracts import (
     SessionSummary,
     SpecialistRequest,
     SpecialistResponse,
-    SupervisorResponse,
     SupervisorRequest,
+    SupervisorResponse,
     TraceContext,
+    VersionQuery,
 )
+from campus_supervisor_api.api import HttpResponse
+from campus_supervisor_api.app import create_app
+from campus_supervisor_api.settings import ApiSettings
 from campus_supervisor_core import (
     DisallowedKnowledgeScopeError,
     InvalidSupervisorRequestError,
     handle_request,
 )
-from campus_supervisor_api.api import HttpResponse
-from campus_supervisor_api.app import create_app
-from campus_supervisor_api.settings import ApiSettings
 
 
 class SupervisorApiTest(unittest.TestCase):
@@ -46,7 +47,7 @@ class SupervisorApiTest(unittest.TestCase):
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="The library is open from 08:00 to 22:00.",
                 confidence="medium",
@@ -93,7 +94,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIsInstance(response, HttpResponse)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["trace_id"], "trace-001")
-        self.assertEqual(response.json_body["selected_target"], "rag-specialist")
+        self.assertEqual(response.json_body["selected_target"], "rag-agent")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(
             response.json_body["answer_text"],
@@ -142,6 +143,131 @@ class SupervisorApiTest(unittest.TestCase):
             ),
         )
         self.assertIsNone(captured_requests[0].requested_capability)
+        self.assertEqual(captured_requests[0].version_query, VersionQuery(mode="current"))
+
+    def test_answer_route_projects_explicit_version_query_to_supervisor_request(self) -> None:
+        captured_requests: list[SupervisorRequest] = []
+
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
+            captured_requests.append(request)
+            return SupervisorResponse(
+                selected_target="rag-agent",
+                status="completed",
+                answer_text="正在比较历史版本。",
+                confidence="medium",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                app_name="campus-agent-v2",
+                auth_mode="bearer",
+                bearer_token="secret-token",
+                default_actor_id="api-bearer-user",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token"},
+            json_body={
+                "user_goal": "比较新旧学生手册关于请假制度的差异",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "version_query": {
+                    "mode": "compare",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            captured_requests[0].version_query,
+            VersionQuery(mode="compare"),
+        )
+
+    def test_answer_route_projects_compare_version_selectors_to_supervisor_request(self) -> None:
+        captured_requests: list[SupervisorRequest] = []
+
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
+            captured_requests.append(request)
+            return SupervisorResponse(
+                selected_target="rag-agent",
+                status="completed",
+                answer_text="正在比较指定版本。",
+                confidence="medium",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                app_name="campus-agent-v2",
+                auth_mode="bearer",
+                bearer_token="secret-token",
+                default_actor_id="api-bearer-user",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token"},
+            json_body={
+                "user_goal": "比较指定两个学生手册版本的差异",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_handbook",
+                },
+                "version_query": {
+                    "mode": "compare",
+                    "version_id": "v1:student-handbook",
+                    "compare_to_version_id": "v2:student-handbook",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(
+            captured_requests[0].version_query,
+            VersionQuery(
+                mode="compare",
+                version_id="v1:student-handbook",
+                compare_to_version_id="v2:student-handbook",
+            ),
+        )
+
+    def test_answer_route_rejects_non_current_version_query_for_place_lookup(self) -> None:
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
+            ),
+        )
+
+        response = app.handle(
+            "POST",
+            "/api/v1/answer",
+            headers={"authorization": "Bearer secret-token"},
+            json_body={
+                "user_goal": "图书馆在哪里",
+                "version_query": {
+                    "mode": "historical",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_supervisor_request")
+        self.assertIn(
+            "version_query is not allowed for place_lookup requests",
+            response.json_body["error"]["message"],
+        )
 
     def test_answer_route_rejects_removed_availability_request_shape(self) -> None:
         app = create_app(
@@ -174,7 +300,7 @@ class SupervisorApiTest(unittest.TestCase):
     def test_answer_route_projects_supervisor_response_without_orchestration_logic(self) -> None:
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -208,7 +334,7 @@ class SupervisorApiTest(unittest.TestCase):
 
         expected_payload = asdict(
             SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="error",
                 confidence="low",
                 error=ErrorInfo(
@@ -229,7 +355,7 @@ class SupervisorApiTest(unittest.TestCase):
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="Projected from supervisor-core.",
                 confidence="high",
@@ -276,7 +402,7 @@ class SupervisorApiTest(unittest.TestCase):
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="Projected from supervisor-core.",
                 confidence="high",
@@ -345,7 +471,7 @@ class SupervisorApiTest(unittest.TestCase):
                     audit_log_path=audit_path,
                 ),
                 supervisor_handler=lambda request: SupervisorResponse(
-                    selected_target="rag-specialist",
+                    selected_target="rag-agent",
                     status="completed",
                     answer_text="The library is open from 08:00 to 22:00.",
                     confidence="high",
@@ -387,9 +513,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["principal_type"], "")
             self.assertEqual(payload["authorization_projection_source"], "")
             self.assertEqual(payload["entitlement_snapshot_id"], "")
-            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(
+                payload["policy_projection_version"], "phase1-authorization-projection-v1"
+            )
             self.assertEqual(payload["personalization_mode"], "generic")
-            self.assertEqual(payload["selected_target"], "rag-specialist")
+            self.assertEqual(payload["selected_target"], "rag-agent")
             self.assertEqual(payload["status"], "completed")
             self.assertIsNone(payload["error_code"])
             self.assertEqual(payload["evidence_source_count"], 0)
@@ -441,7 +569,7 @@ class SupervisorApiTest(unittest.TestCase):
                     audit_log_path=audit_path,
                 ),
                 supervisor_handler=lambda request: SupervisorResponse(
-                    selected_target="rag-specialist",
+                    selected_target="rag-agent",
                     status="completed",
                     answer_text="按当前投影处理完成。",
                     confidence="high",
@@ -527,9 +655,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["principal_type"], "student")
             self.assertEqual(payload["authorization_projection_source"], "campus_identity")
             self.assertEqual(payload["entitlement_snapshot_id"], "entitlements-2026-03-29")
-            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(
+                payload["policy_projection_version"], "phase1-authorization-projection-v1"
+            )
             self.assertEqual(payload["personalization_mode"], "user_grounded")
-            self.assertEqual(payload["selected_target"], "rag-specialist")
+            self.assertEqual(payload["selected_target"], "rag-agent")
             self.assertNotIn("entitlement_groups", payload)
             self.assertNotIn("visibility_scope", payload)
             self.assertNotIn("approval_state", payload)
@@ -575,9 +705,11 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertEqual(payload["principal_type"], "")
             self.assertEqual(payload["authorization_projection_source"], "")
             self.assertEqual(payload["entitlement_snapshot_id"], "")
-            self.assertEqual(payload["policy_projection_version"], "phase1-authorization-projection-v1")
+            self.assertEqual(
+                payload["policy_projection_version"], "phase1-authorization-projection-v1"
+            )
             self.assertEqual(payload["personalization_mode"], "generic")
-            self.assertEqual(payload["selected_target"], "rag-specialist")
+            self.assertEqual(payload["selected_target"], "rag-agent")
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_code"], "disallowed_knowledge_scope")
             self.assertEqual(payload["evidence_source_count"], 0)
@@ -586,13 +718,15 @@ class SupervisorApiTest(unittest.TestCase):
             self.assertNotIn("context", payload)
             self.assertNotIn("profile_memory", payload)
 
-    def test_bearer_mode_does_not_promote_legacy_actor_headers_into_specialist_handoff(self) -> None:
+    def test_bearer_mode_does_not_promote_legacy_actor_headers_into_specialist_handoff(
+        self,
+    ) -> None:
         captured_specialist_requests: list[SpecialistRequest] = []
 
         def fake_rag_specialist(request):
             captured_specialist_requests.append(request)
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="completed",
                 answer_text="Projected through supervisor.",
                 confidence="high",
@@ -607,7 +741,7 @@ class SupervisorApiTest(unittest.TestCase):
             ),
             supervisor_handler=partial(
                 handle_request,
-                specialist_delegates={"rag-specialist": fake_rag_specialist},
+                specialist_delegates={"rag-agent": fake_rag_specialist},
             ),
         )
 
@@ -638,13 +772,14 @@ class SupervisorApiTest(unittest.TestCase):
                 roles=("student",),
             ),
         )
+
     def test_answer_route_rejects_trusted_worker_requests_without_projected_context(self) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="Worker path reached supervisor.",
                 confidence="high",
@@ -679,13 +814,15 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertIn("context", response.json_body["error"]["message"])
         self.assertEqual(captured_requests, [])
 
-    def test_answer_route_accepts_projected_context_in_trusted_worker_mode_without_legacy_retrieval_carrier(self) -> None:
+    def test_answer_route_accepts_projected_context_in_trusted_worker_mode_without_legacy_retrieval_carrier(
+        self,
+    ) -> None:
         captured_requests: list[SupervisorRequest] = []
 
         def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
             captured_requests.append(request)
             return SupervisorResponse(
-                selected_target="rag-specialist",
+                selected_target="rag-agent",
                 status="completed",
                 answer_text="Projected context reached supervisor.",
                 confidence="high",
@@ -819,7 +956,9 @@ class SupervisorApiTest(unittest.TestCase):
         )
         self.assertEqual(captured_requests[0].actor, captured_requests[0].context.actor)
 
-    def test_answer_route_rejects_unsupported_actor_context_fields_in_trusted_worker_context(self) -> None:
+    def test_answer_route_rejects_unsupported_actor_context_fields_in_trusted_worker_context(
+        self,
+    ) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
@@ -868,7 +1007,9 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("unsupported actor context fields", response.json_body["error"]["message"])
 
-    def test_answer_route_rejects_unsupported_retrieval_filter_fields_in_trusted_worker_context(self) -> None:
+    def test_answer_route_rejects_unsupported_retrieval_filter_fields_in_trusted_worker_context(
+        self,
+    ) -> None:
         app = create_app(
             settings=ApiSettings(
                 auth_mode="trusted-worker",
@@ -961,6 +1102,7 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("actor and context.actor must match", response.json_body["error"]["message"])
+
     def test_answer_route_rejects_missing_trusted_worker_secret(self) -> None:
         app = create_app(
             settings=ApiSettings(
@@ -1117,7 +1259,9 @@ class SupervisorApiTest(unittest.TestCase):
             "api_key_not_configured",
         )
 
-    def test_ready_route_reports_prompt_runtime_admission_when_provider_binding_is_complete(self) -> None:
+    def test_ready_route_reports_prompt_runtime_admission_when_provider_binding_is_complete(
+        self,
+    ) -> None:
         app = create_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
@@ -1168,7 +1312,9 @@ class SupervisorApiTest(unittest.TestCase):
         self.assertFalse(settings.prompt_strict_structured_outputs)
         self.assertEqual(str(settings.audit_log_path), "var/log/custom-audit.log")
 
-    def test_api_settings_from_env_uses_shared_prompt_runtime_model_when_role_overrides_are_absent(self) -> None:
+    def test_api_settings_from_env_uses_shared_prompt_runtime_model_when_role_overrides_are_absent(
+        self,
+    ) -> None:
         env = {
             "PROMPT_RUNTIME_MODEL": "gpt-shared",
         }

@@ -5,15 +5,15 @@ from typing import Union
 
 from campus_contracts import (
     DEFAULT_POLICY_PROJECTION_VERSION,
-    RagResultPayload,
     RagRequestPayload,
+    RagResultPayload,
     RequestedCapability,
     SpecialistRequest,
     SpecialistResponse,
     SpecialistTarget,
+    SupervisorRequest,
     SupervisorResponse,
     SupervisorStatus,
-    SupervisorRequest,
 )
 from campus_contracts.models import AllowedCorpus
 
@@ -123,7 +123,7 @@ def _requested_scope_from_request(
 
 def _selected_target_from_request(request: SupervisorRequest) -> SpecialistTarget | None:
     if request.requested_scope is not None:
-        return "rag-specialist"
+        return "rag-agent"
     return None
 
 
@@ -148,10 +148,7 @@ def _is_fail_closed_status(status: SupervisorStatus) -> bool:
 def _principal_type_from_request(
     request: Union[SupervisorRequest, SpecialistRequest],
 ) -> str:
-    return (
-        request.context.actor.principal_type.strip()
-        or request.actor.principal_type.strip()
-    )
+    return request.context.actor.principal_type.strip() or request.actor.principal_type.strip()
 
 
 def _authorization_projection_source_from_request(
@@ -192,8 +189,7 @@ def _has_user_grounded_personalization(
         if item.key == "recent_goal" and item.value.strip():
             return True
     return any(
-        slot.confirmed and slot.value.strip()
-        for slot in request.context.session.confirmed_slots
+        slot.confirmed and slot.value.strip() for slot in request.context.session.confirmed_slots
     )
 
 

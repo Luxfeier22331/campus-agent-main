@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import KnowledgeScope, SupervisorRequest
+from campus_contracts import KnowledgeScope, SupervisorRequest, VersionQuery
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     InvalidSupervisorRequestError,
@@ -64,5 +64,21 @@ class SupervisorValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(
             InvalidSupervisorRequestError,
             "requested_scope is not allowed for place_lookup requests",
+        ):
+            resolve_requested_capability(context)
+
+    def test_resolve_requested_capability_rejects_version_query_on_place_lookup_request(
+        self,
+    ) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="图书馆在哪里",
+                version_query=VersionQuery(mode="historical"),
+            )
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSupervisorRequestError,
+            "version_query is not allowed for place_lookup requests",
         ):
             resolve_requested_capability(context)

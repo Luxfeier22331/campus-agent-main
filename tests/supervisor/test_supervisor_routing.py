@@ -11,7 +11,6 @@ from campus_contracts import (
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
-    InvalidSupervisorRequestError,
 )
 from campus_supervisor_core.routing import route_request
 
@@ -32,7 +31,7 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.target, "rag-agent")
         self.assertEqual(decision.primary_corpus, "regulations")
         self.assertEqual(decision.primary_collection, "student_handbook")
         self.assertEqual(decision.intent_frame.capability, "knowledge")
@@ -49,7 +48,7 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.target, "rag-agent")
         self.assertEqual(decision.primary_corpus, "curriculum")
         self.assertEqual(decision.primary_collection, "curriculum_plan")
         self.assertEqual(decision.intent_frame.task_kind, "knowledge_lookup")
@@ -93,7 +92,7 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.target, "rag-agent")
         self.assertIsNone(decision.primary_corpus)
         self.assertIsNone(decision.primary_collection)
         self.assertFalse(decision.intent_frame.needs_clarification)
@@ -162,9 +161,10 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertEqual(decision.target, "rag-specialist")
+        self.assertEqual(decision.target, "rag-agent")
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
         self.assertEqual(decision.intent_frame.scope_class, "in_scope")
+
 
 if __name__ == "__main__":
     unittest.main()

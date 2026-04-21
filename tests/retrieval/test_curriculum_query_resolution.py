@@ -46,14 +46,18 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
     def test_interpret_curriculum_query_normalizes_alias_and_semester(self) -> None:
         interpretation = interpret_curriculum_query("法学民族班培养方案里大二下有什么课")
 
-        self.assertEqual(interpretation.normalized_query_text, "法学民族实验班培养方案里第四学期有什么课")
+        self.assertEqual(
+            interpretation.normalized_query_text, "法学民族实验班培养方案里第四学期有什么课"
+        )
         self.assertEqual(interpretation.program_query_fragment, "法学民族实验班培养方案")
         self.assertEqual(interpretation.program_compact_key, "法学民族实验班")
         self.assertEqual(interpretation.semester_labels, ("第四学期",))
         self.assertEqual(interpretation.intent_kind, "course_list")
 
     def test_interpret_curriculum_query_marks_course_map_as_structured_lookup(self) -> None:
-        interpretation = interpret_curriculum_query("经济学拔尖人才创新班人才培养方案课程地图怎么安排？")
+        interpretation = interpret_curriculum_query(
+            "经济学拔尖人才创新班人才培养方案课程地图怎么安排？"
+        )
 
         self.assertEqual(
             interpretation.program_query_fragment,
@@ -62,7 +66,9 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.intent_kind, "curriculum_lookup")
         self.assertEqual(interpretation.curriculum_lookup_target, "course_map")
 
-    def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(self) -> None:
+    def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(
+        self,
+    ) -> None:
         for query_text, expected_target in (
             ("法学民族实验班培养方案课程设置怎么安排", "course_settings"),
             ("法学民族实验班培养方案修读建议怎么安排", "study_advice"),
@@ -78,7 +84,9 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.normalized_query_text, "某培养方案里第九学期有什么课")
         self.assertEqual(interpretation.semester_labels, ("第九学期",))
 
-    def test_query_targets_curriculum_source_title_accepts_alias_and_compact_title_match(self) -> None:
+    def test_query_targets_curriculum_source_title_accepts_alias_and_compact_title_match(
+        self,
+    ) -> None:
         self.assertTrue(
             query_targets_curriculum_source_title(
                 query_text="法学民族班培养方案里大二下有什么课",
@@ -129,10 +137,15 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         )
 
         self.assertTrue(scope_applied)
-        self.assertEqual(tuple(source.doc_id for source in scoped_sources), ("curriculum:法学（民族实验班）本科人才培养方案",))
+        self.assertEqual(
+            tuple(source.doc_id for source in scoped_sources),
+            ("curriculum:法学（民族实验班）本科人才培养方案",),
+        )
         self.assertEqual(tuple(source.chunk_id for source in scoped_sources), ("law-4",))
 
-    def test_filter_curriculum_query_sources_returns_empty_when_doc_is_resolved_but_semester_is_missing(self) -> None:
+    def test_filter_curriculum_query_sources_returns_empty_when_doc_is_resolved_but_semester_is_missing(
+        self,
+    ) -> None:
         scoped_sources, scope_applied = filter_curriculum_query_sources(
             query_text="法学民族班培养方案里大二下有什么课",
             sources=(
@@ -151,7 +164,9 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertTrue(scope_applied)
         self.assertEqual(scoped_sources, ())
 
-    def test_filter_curriculum_query_sources_accepts_numeric_semester_columns_in_tables(self) -> None:
+    def test_filter_curriculum_query_sources_accepts_numeric_semester_columns_in_tables(
+        self,
+    ) -> None:
         scoped_sources, scope_applied = filter_curriculum_query_sources(
             query_text="法学民族班培养方案里大一上有什么课",
             sources=(
@@ -169,7 +184,10 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
                     ),
                     score=0.92,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                 ),
                 _source(
                     doc_id="curriculum:法学（民族实验班）本科人才培养方案",
@@ -185,7 +203,10 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
                     ),
                     score=0.91,
                     source_title="法学（民族实验班）本科人才培养方案",
-                    structural_path=("法学（民族实验班）本科人才培养方案", "五、课程设置和修读建议"),
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
                 ),
             ),
         )

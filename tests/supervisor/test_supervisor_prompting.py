@@ -5,7 +5,6 @@ import unittest
 from campus_contracts import (
     ActorContext,
     ContextProjection,
-    CurriculumFollowUpSlots,
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,

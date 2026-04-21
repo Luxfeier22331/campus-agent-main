@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from campus_shared import APP_NAME
@@ -64,12 +64,10 @@ class ApiSettings:
             audit_log_path=Path(os.getenv("AUDIT_LOG_PATH", "./var/log/audit.log")),
             prompt_runtime_model=prompt_runtime_model,
             supervisor_prompt_model=(
-                os.getenv("SUPERVISOR_PROMPT_MODEL", "").strip()
-                or prompt_runtime_model
+                os.getenv("SUPERVISOR_PROMPT_MODEL", "").strip() or prompt_runtime_model
             ),
             specialist_prompt_model=(
-                os.getenv("SPECIALIST_PROMPT_MODEL", "").strip()
-                or prompt_runtime_model
+                os.getenv("SPECIALIST_PROMPT_MODEL", "").strip() or prompt_runtime_model
             ),
             prompt_runtime_provider=os.getenv(
                 "PROMPT_RUNTIME_PROVIDER",
@@ -89,12 +87,8 @@ class ApiSettings:
                 os.getenv("LLM_BASE_URL", DEFAULT_PROMPT_RUNTIME_BASE_URL),
             ).strip()
             or DEFAULT_PROMPT_RUNTIME_BASE_URL,
-            prompt_runtime_reasoning_effort=(
-                os.getenv("PROMPT_RUNTIME_REASONING_EFFORT") or None
-            ),
-            prompt_runtime_max_output_tokens=_read_optional_int(
-                "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS"
-            ),
+            prompt_runtime_reasoning_effort=(os.getenv("PROMPT_RUNTIME_REASONING_EFFORT") or None),
+            prompt_runtime_max_output_tokens=_read_optional_int("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS"),
             prompt_strict_structured_outputs=_read_bool(
                 "PROMPT_STRICT_STRUCTURED_OUTPUTS",
                 default=True,

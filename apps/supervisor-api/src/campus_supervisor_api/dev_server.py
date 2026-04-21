@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
-import os
 from typing import Mapping
 from urllib.parse import urlsplit
 

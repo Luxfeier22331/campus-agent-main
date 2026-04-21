@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import secrets
+from dataclasses import dataclass
 from typing import Mapping
 
 from campus_contracts import ActorContext
@@ -43,7 +43,9 @@ def _map_bearer_actor_context(headers: Mapping[str, str], settings: ApiSettings)
     )
 
 
-def _map_trusted_worker_actor_context(headers: Mapping[str, str], settings: ApiSettings) -> ActorContext:
+def _map_trusted_worker_actor_context(
+    headers: Mapping[str, str], settings: ApiSettings
+) -> ActorContext:
     worker_secret = headers.get("x-worker-origin-auth", "")
     if not settings.worker_shared_secret:
         raise ApiAuthError(
