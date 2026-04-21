@@ -96,19 +96,20 @@ pnpm --dir apps/authenticated-notice-collector auth:check
 - 直接 fail-close
 - 不要把这次会话当成“可用登录态”
 
-### 3. 先做 bounded smoke
+### 3. 先做 targeted export
 
-如果当前 auth window 的目标是 `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`，这里默认走 targeted export，不再用“随便抓 1 条”的数量 smoke 代替。
+如果当前 auth window 已经 admission 某个 non-excluded target，这里默认走 targeted export，不再用“随便抓 1 条”的数量 smoke 代替。
 
 前提：
 
 - operator 已经从 portal 侧确认这次要抓的精确 `file_release_id`
+- 该 target 不在当前排除名单中
 - 如果还没有这个 id，本 runbook 不授权直接回退到 full export 代替 targeted capture
 
 执行命令：
 
 ```bash
-AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<351119对应file_release_id> \
+AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
 pnpm --dir apps/authenticated-notice-collector file-release:export
 ```
 
@@ -130,7 +131,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 ### 4. 可选的通用 bounded smoke
 
-如果这次 auth window 不是为 `351119` 做定向抓取，而只是验证 collector 链路，可继续使用最小数量 smoke：
+如果这次 auth window 只是验证 collector 链路，或者当前还没有 admission 具体 target，可继续使用最小数量 smoke：
 
 ```bash
 AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
@@ -168,7 +169,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 固定规则：
 
-- `351119` 的下一次 auth-window 准备默认停在 targeted export，不默认升级成 full export
+- 已 admission 具体 target 时，默认停在 targeted export，不默认升级成 full export
 - 只有明确需要 broader inventory 时，才从 targeted / smoke 升级到 full
 - 不要在认证窗口里一边改代码一边试导出
 - 不要在 full export 前跳过 `auth:check`
@@ -184,7 +185,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - `file-releases-bundle-<timestamp>.json`
 - `file-releases-manifest-<timestamp>.json`
 
-如果当前执行的是 `351119` targeted export，还应看到 manifest 中：
+如果当前执行的是 targeted export，还应看到 manifest 中：
 
 - `export_scope=file-release-target-<file_release_id>-<timestamp>`
 - `filters.target_file_release_id=<file_release_id>`

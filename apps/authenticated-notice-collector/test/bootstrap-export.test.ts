@@ -313,6 +313,27 @@ describe("authenticated notice collector bootstrap export", () => {
           state: true,
         };
       },
+      fetchNoticeSelects: async () => ({
+        datas: {
+          org: [
+            {
+              organization_id: "00011",
+              organization_name: "教务处（考试中心、教师教学发展中心）",
+            },
+          ],
+          type: [
+            {
+              notice_type_id: 5,
+              notice_type_name: "办公通知",
+            },
+            {
+              notice_type_id: 6,
+              notice_type_name: "教学通知",
+            },
+          ],
+        },
+        state: true,
+      }),
       fetchNoticePage: async ({ noticeType }) => {
         if (noticeType === "5") {
           return {
@@ -420,6 +441,22 @@ describe("authenticated notice collector bootstrap export", () => {
         type: "6",
       },
     ]);
+    expect(result.exportManifest.observed_notice_types).toEqual([
+      {
+        notice_type_id: 5,
+        notice_type_name: "办公通知",
+      },
+      {
+        notice_type_id: 6,
+        notice_type_name: "教学通知",
+      },
+    ]);
+    expect(result.exportManifest.observed_organizations).toEqual([
+      {
+        organization_id: "00011",
+        organization_name: "教务处（考试中心、教师教学发展中心）",
+      },
+    ]);
     expect(result.exportManifest.collector).toEqual({
       attachment_collection_mode: "detail_api_and_html_reference_only",
       attachment_storage_mode: "reference_only",
@@ -488,6 +525,18 @@ describe("authenticated notice collector bootstrap export", () => {
             notice_id: noticeId,
             notice_release_time: "2026-04-02 18:49",
           },
+        },
+        state: true,
+      }),
+      fetchNoticeSelects: async () => ({
+        datas: {
+          org: [],
+          type: [
+            {
+              notice_type_id: 5,
+              notice_type_name: "办公通知",
+            },
+          ],
         },
         state: true,
       }),
@@ -617,6 +666,18 @@ describe("authenticated notice collector bootstrap export", () => {
         },
         state: true,
       }),
+      fetchNoticeSelects: async () => ({
+        datas: {
+          org: [],
+          type: [
+            {
+              notice_type_id: 5,
+              notice_type_name: "办公通知",
+            },
+          ],
+        },
+        state: true,
+      }),
       fetchNoticePage: async () => ({
         datas: {
           page: {
@@ -713,6 +774,18 @@ describe("authenticated notice collector bootstrap export", () => {
         },
         state: true,
       }),
+      fetchNoticeSelects: async () => ({
+        datas: {
+          org: [],
+          type: [
+            {
+              notice_type_id: 5,
+              notice_type_name: "办公通知",
+            },
+          ],
+        },
+        state: true,
+      }),
       fetchNoticePage: async () => ({
         datas: {
           page: {
@@ -786,6 +859,18 @@ describe("authenticated notice collector bootstrap export", () => {
           max_notices: null,
           notice_types: ["5"],
         },
+        observed_notice_types: [
+          {
+            notice_type_id: 5,
+            notice_type_name: "办公通知",
+          },
+        ],
+        observed_organizations: [
+          {
+            organization_id: "00011",
+            organization_name: "教务处（考试中心、教师教学发展中心）",
+          },
+        ],
         collector: {
           attachment_collection_mode: "detail_api_and_html_reference_only",
           attachment_storage_mode: "reference_only",

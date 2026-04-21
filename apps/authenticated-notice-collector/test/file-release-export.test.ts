@@ -145,6 +145,24 @@ describe("authenticated notice collector file release export", () => {
           url: `/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
         };
       },
+      fetchFileReleaseCodeTypes: async () => ({
+        data: [
+          {
+            id: 2,
+            name: "民大校发",
+            sort: 2,
+          },
+        ],
+        state: true,
+      }),
+      fetchFileReleaseExplainDepartments: async () => ({
+        data: [
+          {
+            ORGANIZATION_NAME: "教务处",
+          },
+        ],
+        state: true,
+      }),
       fetchFileReleasePage: async ({ currentPage }) => {
         if (currentPage === 1) {
           return {
@@ -229,6 +247,14 @@ describe("authenticated notice collector file release export", () => {
         typename: "教学管理",
       },
     ]);
+    expect(result.exportManifest.observed_file_code_types).toEqual([
+      {
+        id: 2,
+        name: "民大校发",
+        sort: 2,
+      },
+    ]);
+    expect(result.exportManifest.observed_explain_departments).toEqual(["教务处"]);
     expect(result.bundleRecords.map((item) => item.file_release_id)).toEqual([646, 647]);
   });
 
@@ -272,6 +298,24 @@ describe("authenticated notice collector file release export", () => {
           url: `/comsys-prompt-portlet-web/file/${fileReleaseId}.pdf`,
         };
       },
+      fetchFileReleaseCodeTypes: async () => ({
+        data: [
+          {
+            id: 2,
+            name: "民大校发",
+            sort: 2,
+          },
+        ],
+        state: true,
+      }),
+      fetchFileReleaseExplainDepartments: async () => ({
+        data: [
+          {
+            ORGANIZATION_NAME: "教务处",
+          },
+        ],
+        state: true,
+      }),
       fetchFileReleasePage: async ({ currentPage }) => {
         if (currentPage === 1) {
           return {
@@ -358,6 +402,14 @@ describe("authenticated notice collector file release export", () => {
         fetchFileReleaseDownloadUrl: async () => {
           throw new Error("unexpected url fetch");
         },
+        fetchFileReleaseCodeTypes: async () => ({
+          data: [],
+          state: true,
+        }),
+        fetchFileReleaseExplainDepartments: async () => ({
+          data: [],
+          state: true,
+        }),
         fetchFileReleasePage: async () => ({
           data: [
             {
@@ -473,6 +525,24 @@ describe("authenticated notice collector file release export", () => {
         state: true,
         url: "/comsys-prompt-portlet-web/file/sample.pdf",
       }),
+      fetchFileReleaseCodeTypes: async () => ({
+        data: [
+          {
+            id: 2,
+            name: "民大校发",
+            sort: 2,
+          },
+        ],
+        state: true,
+      }),
+      fetchFileReleaseExplainDepartments: async () => ({
+        data: [
+          {
+            ORGANIZATION_NAME: "教务处",
+          },
+        ],
+        state: true,
+      }),
       fetchFileReleasePage: async () => ({
         data: [
           {
@@ -584,6 +654,14 @@ describe("authenticated notice collector file release export", () => {
           target_file_release_id: null,
         },
         observed_departments: ["教务处"],
+        observed_explain_departments: ["教务处（考试中心、教师教学发展中心）"],
+        observed_file_code_types: [
+          {
+            id: 2,
+            name: "民大校发",
+            sort: 2,
+          },
+        ],
         observed_file_types: [
           {
             id: 18,

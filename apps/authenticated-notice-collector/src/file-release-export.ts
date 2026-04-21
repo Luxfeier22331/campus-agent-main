@@ -2,7 +2,15 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { fetchAttachmentBinary, fetchFileReleaseDetail, fetchFileReleaseDownloadUrl, fetchFileReleasePage, fetchFileReleaseTypes } from "./api";
+import {
+  fetchAttachmentBinary,
+  fetchFileReleaseCodeTypes,
+  fetchFileReleaseDetail,
+  fetchFileReleaseDownloadUrl,
+  fetchFileReleaseExplainDepartments,
+  fetchFileReleasePage,
+  fetchFileReleaseTypes,
+} from "./api";
 import { createAuthenticatedNoticeArtifactStoreFromEnv, type AuthenticatedNoticeArtifactStore } from "./artifact-store";
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
 import { createApiContextFromStorageState } from "./portal";
@@ -12,8 +20,10 @@ import type {
   BundleReleasedFileObservation,
   CollectorFileReleaseExportMetadata,
   DisposableApiContextLike,
+  FileReleaseCodeTypeListResponse,
   FileReleaseDetailResponse,
   FileReleaseDepartmentRecord,
+  FileReleaseExplainDepartmentListResponse,
   FileReleaseExportManifest,
   FileReleaseListItem,
   FileReleasePageResponse,
@@ -54,6 +64,12 @@ export interface CollectFileReleaseBundleInput {
     currentPage: number;
     pageSize: number;
   }) => Promise<FileReleasePageResponse>;
+  fetchFileReleaseCodeTypes?: (input: {
+    apiContext: ApiRequestContextLike;
+  }) => Promise<FileReleaseCodeTypeListResponse>;
+  fetchFileReleaseExplainDepartments?: (input: {
+    apiContext: ApiRequestContextLike;
+  }) => Promise<FileReleaseExplainDepartmentListResponse>;
   fetchFileReleaseTypes?: (input: {
     apiContext: ApiRequestContextLike;
   }) => Promise<FileReleaseTypeListResponse>;
@@ -204,6 +220,22 @@ export async function collectFileReleaseBundle(
         requestBackoffBaseMs: input.requestBackoffBaseMs,
         requestMaxRetries: input.requestMaxRetries,
       }));
+  const fetchCodeTypes =
+    input.fetchFileReleaseCodeTypes ??
+    ((typeInput) =>
+      fetchFileReleaseCodeTypes({
+        ...typeInput,
+        requestBackoffBaseMs: input.requestBackoffBaseMs,
+        requestMaxRetries: input.requestMaxRetries,
+      }));
+  const fetchExplainDepartments =
+    input.fetchFileReleaseExplainDepartments ??
+    ((deptInput) =>
+      fetchFileReleaseExplainDepartments({
+        ...deptInput,
+        requestBackoffBaseMs: input.requestBackoffBaseMs,
+        requestMaxRetries: input.requestMaxRetries,
+      }));
 
   const bundleMap = new Map<number, BundleFileReleaseRecord>();
   const observedDepartments = new Set<string>();
@@ -216,6 +248,10 @@ export async function collectFileReleaseBundle(
   try {
     const fileTypeResponse = await fetchTypes({ apiContext });
     const observedFileTypes = normalizeObservedFileTypes(fileTypeResponse);
+    const fileCodeTypeResponse = await fetchCodeTypes({ apiContext });
+    const observedFileCodeTypes = normalizeObservedFileCodeTypes(fileCodeTypeResponse);
+    const explainDepartmentResponse = await fetchExplainDepartments({ apiContext });
+    const observedExplainDepartments = normalizeObservedExplainDepartments(explainDepartmentResponse);
     const fileTypeNameById = new Map(observedFileTypes.map((item) => [item.id, item.typename]));
 
     for (let currentPage = 1; ; currentPage += 1) {
@@ -321,6 +357,8 @@ export async function collectFileReleaseBundle(
         itemsSeen,
         maxFileReleases: input.maxFileReleases ?? null,
         maxPages: input.maxPages ?? null,
+        observedExplainDepartments,
+        observedFileCodeTypes,
         observedDepartments: [...observedDepartments].sort((left, right) => left.localeCompare(right, "zh-Hans-CN")),
         observedFileTypes,
         pageSize: input.pageSize,
@@ -487,6 +525,8 @@ function buildExportManifest(input: {
   itemsSeen: number;
   maxFileReleases: number | null;
   maxPages: number | null;
+  observedExplainDepartments: string[];
+  observedFileCodeTypes: Array<{ id: number; name: string; sort: number | null }>;
   observedDepartments: string[];
   observedFileTypes: Array<{ id: number; typename: string; sort: number | null }>;
   pageSize: number;
@@ -526,6 +566,8 @@ function buildExportManifest(input: {
     },
     observed_file_types: input.observedFileTypes,
     observed_departments: input.observedDepartments,
+    observed_file_code_types: input.observedFileCodeTypes,
+    observed_explain_departments: input.observedExplainDepartments,
     run: {
       mode: "file_release_export",
       status: "success",
@@ -566,6 +608,37 @@ function normalizeDepartments(input: FileReleaseDepartmentRecord[] | undefined):
   return (input ?? [])
     .map((item) => normalizeNullableText(item.filedepartment))
     .filter((item): item is string => item !== null);
+}
+
+function normalizeObservedFileCodeTypes(
+  response: FileReleaseCodeTypeListResponse,
+): Array<{ id: number; name: string; sort: number | null }> {
+  const normalized: Array<{ id: number; name: string; sort: number | null }> = [];
+  const seen = new Set<number>();
+  for (const item of response.data ?? []) {
+    const id = normalizeOptionalId(item.id);
+    const name = normalizeNullableText(item.name);
+    if (id === null || !name || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push({
+      id,
+      name,
+      sort: normalizeNullableNumber(item.sort),
+    });
+  }
+  return normalized.sort((left, right) => left.id - right.id);
+}
+
+function normalizeObservedExplainDepartments(
+  response: FileReleaseExplainDepartmentListResponse,
+): string[] {
+  return [...new Set(
+    (response.data ?? [])
+      .map((item) => normalizeNullableText(item.ORGANIZATION_NAME))
+      .filter((item): item is string => item !== null),
+  )].sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
 }
 
 function resolveFileReleaseFilename(input: {

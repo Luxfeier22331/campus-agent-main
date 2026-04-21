@@ -1,17 +1,29 @@
 import type {
   ApiRequestContextLike,
   ApiResponseLike,
+  FileReleaseCodeTypeListResponse,
   FileReleaseDetailResponse,
   FileReleaseDownloadUrlResponse,
+  FileReleaseExplainDepartmentListResponse,
   FileReleasePageResponse,
   FileReleaseTypeListResponse,
   NoticeDetailResponse,
   NoticeListResponse,
+  NoticeSelectsResponse,
 } from "./types";
 
 export interface FetchNoticePageInput {
   apiContext: ApiRequestContextLike;
   noticeType: string;
+  currentPage: number;
+  pageSize: number;
+  requestMaxRetries: number;
+  requestBackoffBaseMs: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export interface FetchNoticeSelectsInput {
+  apiContext: ApiRequestContextLike;
   currentPage: number;
   pageSize: number;
   requestMaxRetries: number;
@@ -79,6 +91,20 @@ export interface FetchFileReleaseTypesInput {
   sleep?: (ms: number) => Promise<void>;
 }
 
+export interface FetchFileReleaseExplainDepartmentsInput {
+  apiContext: ApiRequestContextLike;
+  requestMaxRetries: number;
+  requestBackoffBaseMs: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+export interface FetchFileReleaseCodeTypesInput {
+  apiContext: ApiRequestContextLike;
+  requestMaxRetries: number;
+  requestBackoffBaseMs: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
 const defaultSleep = async (ms: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -129,6 +155,51 @@ export async function fetchNoticePage(input: FetchNoticePageInput): Promise<Noti
     }
   }
   throw lastError ?? new Error("fetchNoticePage failed with unknown error");
+}
+
+export async function fetchNoticeSelects(
+  input: FetchNoticeSelectsInput,
+): Promise<NoticeSelectsResponse> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
+    try {
+      const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeSlects", {
+        form: {
+          currentPage: String(input.currentPage),
+          pageSize: String(input.pageSize),
+          searchValue: "",
+          state: "",
+          is_add: "0",
+          totalCounts: "0",
+          total: "-1",
+          select_all: "false",
+          select_notice: "",
+          type: "",
+          searchDepartment: "",
+          start_date: "",
+          end_date: "",
+          system_show: "1",
+          comsys_random_t: String(Math.random()),
+        },
+      });
+      if (!response.ok()) {
+        throw buildRequestError(response.status(), response.statusText(), "getNoticeSlects");
+      }
+      const json = await parseJsonResponse<NoticeSelectsResponse>(response, "getNoticeSlects");
+      assertNoticeSelectsResponse(json);
+      return json;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (lastError.message.startsWith("auth-expired:")) {
+        throw lastError;
+      }
+      if (attempt >= input.requestMaxRetries) {
+        throw lastError;
+      }
+      await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
+    }
+  }
+  throw lastError ?? new Error("fetchNoticeSelects failed with unknown error");
 }
 
 export async function fetchNoticeDetail(input: FetchNoticeDetailInput): Promise<NoticeDetailResponse> {
@@ -303,6 +374,53 @@ export async function fetchFileReleaseTypes(
   });
 }
 
+export async function fetchFileReleaseExplainDepartments(
+  input: FetchFileReleaseExplainDepartmentsInput,
+): Promise<FileReleaseExplainDepartmentListResponse> {
+  return await retryPortalRequest({
+    requestBackoffBaseMs: input.requestBackoffBaseMs,
+    requestMaxRetries: input.requestMaxRetries,
+    sleep: input.sleep,
+    task: async () => {
+      const response = await input.apiContext.post("/comsys-prompt-portlet-web/getExplainDepts", {
+        form: {
+          comsys_random_t: String(Math.random()),
+        },
+      });
+      if (!response.ok()) {
+        throw buildRequestError(response.status(), response.statusText(), "getExplainDepts");
+      }
+      const json = await parseJsonResponse<FileReleaseExplainDepartmentListResponse>(response, "getExplainDepts");
+      assertFileReleaseExplainDepartmentResponse(json);
+      return json;
+    },
+  });
+}
+
+export async function fetchFileReleaseCodeTypes(
+  input: FetchFileReleaseCodeTypesInput,
+): Promise<FileReleaseCodeTypeListResponse> {
+  return await retryPortalRequest({
+    requestBackoffBaseMs: input.requestBackoffBaseMs,
+    requestMaxRetries: input.requestMaxRetries,
+    sleep: input.sleep,
+    task: async () => {
+      const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileFileType", {
+        form: {
+          name: "",
+          comsys_random_t: String(Math.random()),
+        },
+      });
+      if (!response.ok()) {
+        throw buildRequestError(response.status(), response.statusText(), "getFileFileType");
+      }
+      const json = await parseJsonResponse<FileReleaseCodeTypeListResponse>(response, "getFileFileType");
+      assertFileReleaseCodeTypeResponse(json);
+      return json;
+    },
+  });
+}
+
 async function retryPortalRequest<T>(input: {
   task: () => Promise<T>;
   requestMaxRetries: number;
@@ -389,6 +507,19 @@ function assertNoticeListResponse(
   }
 }
 
+function assertNoticeSelectsResponse(
+  payload: NoticeSelectsResponse,
+): asserts payload is NoticeSelectsResponse & {
+  datas: {
+    org: Array<Record<string, unknown>>;
+    type: Array<Record<string, unknown>>;
+  };
+} {
+  if (!payload.state || !payload.datas || !Array.isArray(payload.datas.org) || !Array.isArray(payload.datas.type)) {
+    throw new Error(`unexpected notice selects response: ${JSON.stringify(payload).slice(0, 400)}`);
+  }
+}
+
 function assertFileReleasePageResponse(
   payload: FileReleasePageResponse,
 ): asserts payload is FileReleasePageResponse & { data: Array<Record<string, unknown>> } {
@@ -402,5 +533,23 @@ function assertFileReleaseTypeResponse(
 ): asserts payload is FileReleaseTypeListResponse & { data: Array<Record<string, unknown>> } {
   if (!payload.state || !Array.isArray(payload.data)) {
     throw new Error(`unexpected file release type response: ${JSON.stringify(payload).slice(0, 400)}`);
+  }
+}
+
+function assertFileReleaseExplainDepartmentResponse(
+  payload: FileReleaseExplainDepartmentListResponse,
+): asserts payload is FileReleaseExplainDepartmentListResponse & { data: Array<Record<string, unknown>> } {
+  if (!payload.state || !Array.isArray(payload.data)) {
+    throw new Error(
+      `unexpected file release explain department response: ${JSON.stringify(payload).slice(0, 400)}`,
+    );
+  }
+}
+
+function assertFileReleaseCodeTypeResponse(
+  payload: FileReleaseCodeTypeListResponse,
+): asserts payload is FileReleaseCodeTypeListResponse & { data: Array<Record<string, unknown>> } {
+  if (!payload.state || !Array.isArray(payload.data)) {
+    throw new Error(`unexpected file release code type response: ${JSON.stringify(payload).slice(0, 400)}`);
   }
 }

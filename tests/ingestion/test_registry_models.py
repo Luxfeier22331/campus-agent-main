@@ -17,6 +17,10 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     PostgresAuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    PostgresAuthenticatedNoticeFileReleaseInventoryStore,
+    build_authenticated_notice_file_release_inventory_store_from_env,
+)
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
@@ -983,6 +987,44 @@ class RegistryModelsTest(unittest.TestCase):
             build_authenticated_notice_source_truth_inventory_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_file_release_inventory_store_from_env_prefers_operator_database_url_when_requested(
+        self,
+    ) -> None:
+        with patch(
+            "campus_ingestion_core.authenticated_notice_file_release_inventory.PostgresAuthenticatedNoticeFileReleaseInventoryStore"
+        ) as store_cls:
+            instance = store_cls.return_value
+
+            store = build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                    "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+            self.assertIs(store, instance)
+            store_cls.assert_called_once_with(
+                database_url=(
+                    "postgresql://operator.example/postgres"
+                    "?__campus_connection_mode=operator_session"
+                )
+            )
+
+    def test_build_file_release_inventory_store_from_env_requires_operator_database_url_when_requested(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL.*prefer_operator=True",
+        ):
+            build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
                 },
                 prefer_operator=True,
             )

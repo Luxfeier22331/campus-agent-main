@@ -53,6 +53,25 @@ export interface NoticeListResponse {
   };
 }
 
+export interface NoticeSelectOrganizationRecord {
+  organization_id?: string | null;
+  organization_name?: string | null;
+}
+
+export interface NoticeSelectTypeRecord {
+  notice_type_id?: number | string | null;
+  notice_type_name?: string | null;
+}
+
+export interface NoticeSelectsResponse {
+  state?: boolean;
+  msg?: string;
+  datas?: {
+    org?: NoticeSelectOrganizationRecord[];
+    type?: NoticeSelectTypeRecord[];
+  };
+}
+
 export interface NoticeDetailInfo {
   notice_title?: string | null;
   notice_state?: number | null;
@@ -255,6 +274,26 @@ export interface FileReleaseTypeListResponse {
   data?: FileReleaseTypeRecord[];
 }
 
+export interface FileReleaseExplainDepartmentRecord {
+  ORGANIZATION_NAME?: string | null;
+}
+
+export interface FileReleaseExplainDepartmentListResponse {
+  state?: boolean;
+  data?: FileReleaseExplainDepartmentRecord[];
+}
+
+export interface FileReleaseCodeTypeRecord {
+  id?: number | string | null;
+  name?: string | null;
+  sort?: number | string | null;
+}
+
+export interface FileReleaseCodeTypeListResponse {
+  state?: boolean;
+  data?: FileReleaseCodeTypeRecord[];
+}
+
 export interface BundleReleasedFileObservation {
   source_url: string;
   normalized_source_url: string;
@@ -338,6 +377,12 @@ export interface FileReleaseExportManifest {
     sort: number | null;
   }>;
   observed_departments: string[];
+  observed_file_code_types: Array<{
+    id: number;
+    name: string;
+    sort: number | null;
+  }>;
+  observed_explain_departments: string[];
   run: {
     mode: "file_release_export";
     status: "success";
@@ -366,6 +411,14 @@ export interface BootstrapExportManifest {
     max_notices: number | null;
   };
   notice_type_policy: NoticeTypePolicySnapshot[];
+  observed_notice_types: Array<{
+    notice_type_id: number;
+    notice_type_name: string;
+  }>;
+  observed_organizations: Array<{
+    organization_id: string;
+    organization_name: string;
+  }>;
   run: {
     mode: "bootstrap_export";
     status: "success";

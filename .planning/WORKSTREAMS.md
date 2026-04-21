@@ -56,6 +56,7 @@ updated: 2026-04-22
 | `product-path safety / prompt / grounding governance` | `product-path-safety-prompt-grounding-governance` | `yes` | `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` | 只有 future product scope 扩到 open-ended public input，或重新引入 state-changing / externally side-effectful action execution，并命中 `.planning/seeds/SEED-001-conditional-moderation-lane.md` / `.planning/seeds/SEED-002-conditional-hitl-approval-recovery.md` 的 trigger 条件时才恢复 |
 | `campus services offline preparation hardening` | `campus-services-offline-preparation-hardening` | `yes` | `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md` | 只有在产品范围重新提升 `campus_services/*` offline-preparation quality hardening 优先级，或明确 admission 新的 bounded target 时才恢复 |
 | `campus services / notices runtime admission` | `campus-services-notices-runtime-admission` | `yes` | `docs/plans/archive/completed/campus-services-notices-runtime-admission.md` | 只有在产品范围重新 admission 新的 runtime capability family、显式改写首发/后续 tool 边界，或需要重开 service / notice / contact / process runtime opening truth 时才恢复 |
+| `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md` | 只有在新的显式 non-excluded target 被 admission、认证窗口重新可用且产品范围重新恢复 bounded owner recovery 优先级时才恢复 |
 | `notice consumption layer` | `notice-consumption-layer` | `yes` | `docs/plans/archive/completed/notice-consumption-layer.md` | 只有在 admitted notice source family 被显式改写、derived consumption unit schema 被显式改写、authority/completeness contract 被显式改写，或新的产品 adoption target family 被正式 admission 时才恢复 |
 | `versioned history query foundation` | `versioned-history-query-foundation` | `yes` | `docs/plans/archive/completed/versioned-history-query-foundation.md` | 只有在 repo 重新 admission runtime-facing non-current query route contract、`app-api` live benchmark 正式承载 non-current `version_query`、或显式改写 `current / historical / as_of / compare` 的 request / resolution / retrieval / answer / eval truth 时才恢复 |
 
@@ -63,7 +64,6 @@ updated: 2026-04-22
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
-| `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 只有在下一次 auth window 真正进入执行窗口，或产品范围重新提升 auth-dependent owner recovery 优先级时才恢复 |
 | `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
 | `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
 

@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   fetchAttachmentBinary,
+  fetchFileReleaseCodeTypes,
   fetchFileReleaseDetail,
   fetchFileReleaseDownloadUrl,
+  fetchFileReleaseExplainDepartments,
   fetchFileReleasePage,
   fetchFileReleaseTypes,
   fetchNoticePage,
+  fetchNoticeSelects,
 } from "../src/api";
 
 describe("authenticated notice collector api", () => {
@@ -323,6 +326,146 @@ describe("authenticated notice collector api", () => {
       {
         path: "/comsys-prompt-portlet-web/getFileType",
         form: {},
+      },
+    ]);
+  });
+
+  it("fetches notice and file-release selector snapshots for taxonomy exports", async () => {
+    const calls: Array<{ path: string; form: Record<string, string> }> = [];
+    const apiContext = {
+      async get() {
+        throw new Error("unexpected get");
+      },
+      async post(path: string, input: { form: Record<string, string> }) {
+        calls.push({ path, form: input.form });
+        if (path === "/comsys-portal-notice-web/getNoticeSlects") {
+          const payload = {
+            datas: {
+              org: [
+                {
+                  organization_id: "00011",
+                  organization_name: "教务处（考试中心、教师教学发展中心）",
+                },
+              ],
+              type: [
+                {
+                  notice_type_id: 5,
+                  notice_type_name: "办公通知",
+                },
+                {
+                  notice_type_id: 6,
+                  notice_type_name: "教学通知",
+                },
+              ],
+            },
+            state: true,
+          };
+          return {
+            json: async () => payload,
+            ok: () => true,
+            status: () => 200,
+            statusText: () => "OK",
+            text: async () => JSON.stringify(payload),
+          };
+        }
+        if (path === "/comsys-prompt-portlet-web/getExplainDepts") {
+          const payload = {
+            data: [
+              {
+                ORGANIZATION_NAME: "教务处（考试中心、教师教学发展中心）",
+              },
+            ],
+            state: true,
+          };
+          return {
+            json: async () => payload,
+            ok: () => true,
+            status: () => 200,
+            statusText: () => "OK",
+            text: async () => JSON.stringify(payload),
+          };
+        }
+        if (path === "/comsys-prompt-portlet-web/getFileFileType") {
+          const payload = {
+            data: [
+              {
+                id: 2,
+                name: "民大校发",
+                sort: 2,
+              },
+            ],
+            state: true,
+          };
+          return {
+            json: async () => payload,
+            ok: () => true,
+            status: () => 200,
+            statusText: () => "OK",
+            text: async () => JSON.stringify(payload),
+          };
+        }
+        throw new Error(`unexpected path: ${path}`);
+      },
+    };
+
+    const noticeSelects = await fetchNoticeSelects({
+      apiContext,
+      currentPage: 1,
+      pageSize: 15,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      sleep: async () => {},
+    });
+    const explainDepartments = await fetchFileReleaseExplainDepartments({
+      apiContext,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      sleep: async () => {},
+    });
+    const codeTypes = await fetchFileReleaseCodeTypes({
+      apiContext,
+      requestBackoffBaseMs: 1,
+      requestMaxRetries: 1,
+      sleep: async () => {},
+    });
+
+    expect(noticeSelects.datas?.type).toHaveLength(2);
+    expect(noticeSelects.datas?.org?.[0]?.organization_name).toBe("教务处（考试中心、教师教学发展中心）");
+    expect(explainDepartments.data?.[0]?.ORGANIZATION_NAME).toBe("教务处（考试中心、教师教学发展中心）");
+    expect(codeTypes.data?.[0]?.name).toBe("民大校发");
+    expect(calls).toEqual([
+      {
+        form: {
+          comsys_random_t: expect.any(String),
+          currentPage: "1",
+          end_date: "",
+          is_add: "0",
+          pageSize: "15",
+          searchDepartment: "",
+          searchValue: "",
+          select_all: "false",
+          select_notice: "",
+          start_date: "",
+          state: "",
+          system_show: "1",
+          total: "-1",
+          totalCounts: "0",
+          type: "",
+        },
+        path: "/comsys-portal-notice-web/getNoticeSlects",
+      },
+      {
+        form: {
+          comsys_random_t: expect.any(String),
+        },
+        path: "/comsys-prompt-portlet-web/getExplainDepts",
+      },
+      {
+        form: {
+          comsys_random_t: expect.any(String),
+          name: "",
+        },
+        path: "/comsys-prompt-portlet-web/getFileFileType",
       },
     ]);
   });

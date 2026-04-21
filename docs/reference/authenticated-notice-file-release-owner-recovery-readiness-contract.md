@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-22
 ---
 
 # Authenticated Notice File-Release Owner-Recovery Readiness Contract
@@ -13,7 +13,7 @@ updated: 2026-04-14
 
 它回答的是：
 
-- downstream 如何读取 `file-releases-bundle-*.json` 与 `file-releases-manifest-*.json`
+- downstream 如何读取 `file-releases-bundle-*.json` / `file-releases-manifest-*.json`，或本地 PG `campus_notices/file_release_capture` ledger
 - `owner_title_hint` 应如何与 `file_release` 记录做 bounded matching
 - matching 结果如何分成 `ready / missing_capture / missing_source_bytes / ambiguous_match`
 
@@ -35,6 +35,8 @@ repo 当前已经具备一条 bounded downstream consumer：
 
 - `load_authenticated_notice_file_release_export`
 - `resolve_file_release_owner_recovery_readiness`
+- `resolve_file_release_owner_recovery_readiness_from_inventory_entries`
+- `resolve_file_release_owner_recovery_readiness_from_inventory_store`
 
 它的职责只有两步：
 
@@ -46,6 +48,20 @@ repo 当前已经具备一条 bounded downstream consumer：
 - 恢复 regulation owner body
 - 调用 OCR/provider
 - 把 recovered owner body 自动推进到 promotion/materialization
+
+## 当前落地形态
+
+当前 repo 已把 `authenticated_notice_portal/file_release` 的 repo-tracked export materialize 成一条 capture-only local PG ledger：
+
+- `corpus/collection = campus_notices/file_release_capture`
+- `ingestion_projection.authenticated_notice_file_release_inventory`
+- 同 scope 的 `ingestion_registry.raw_asset_registry_records`
+
+固定限制：
+
+- 不写 `document_registry_records`
+- 不做 OCR / parse / chunk / index / release
+- 这条 local PG materialization 已作为一次性 closeout 完成，不再保留独立 recurring backfill 需求
 
 ## 分层规则
 
@@ -63,15 +79,22 @@ repo 当前仍严格保持：
 
 ## 输入契约
 
-下游输入固定为两份 collector artifact：
+下游输入固定允许两种等价形态：
 
-- `file-releases-bundle-<timestamp>.json`
-- `file-releases-manifest-<timestamp>.json`
+1. 两份 collector artifact：
+   - `file-releases-bundle-<timestamp>.json`
+   - `file-releases-manifest-<timestamp>.json`
+2. 本地 PG `campus_notices/file_release_capture` inventory rows
+   - 从 `ingestion_projection.authenticated_notice_file_release_inventory` 读取
+   - 如需 recoverable source locator，则同 scope raw-asset truth 仍以 `ingestion_registry.raw_asset_registry_records` 为准
 
 当前代码入口：
 
 - `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.load_authenticated_notice_file_release_export`
 - `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness_from_inventory_entries`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness_from_inventory_store`
+- `campus_ingestion_worker.check_authenticated_notice_file_release_readiness`
 
 ## Matching Contract
 
@@ -123,8 +146,8 @@ repo 当前仍严格保持：
 
 固定解释：
 
-- 当前 blocker 在 capture 层
-- 正确动作是下次认证窗口补 bounded `file_release` export
+- 当前 blocker 在 capture 层，不在 PG ledger 层
+- 正确动作是重新打开 capture/admission，而不是再次把问题解释成 `file_release` PG 补齐
 
 ### `missing_source_bytes`
 

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { materializeBundleAttachments } from "./attachment-materialization";
 import { createAuthenticatedNoticeArtifactStoreFromEnv, type AuthenticatedNoticeArtifactStore } from "./artifact-store";
-import { fetchNoticeDetail, fetchNoticePage } from "./api";
+import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api";
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
 import { buildNoticeTypePolicySnapshot, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
@@ -23,6 +23,7 @@ import type {
   NoticeDetailResponse,
   NoticeItem,
   NoticeListResponse,
+  NoticeSelectsResponse,
   NoticeTypeConfig,
 } from "./types";
 
@@ -65,6 +66,11 @@ export interface CollectBootstrapBundleInput {
     noticeType: string;
     pageSize: number;
   }) => Promise<NoticeListResponse>;
+  fetchNoticeSelects?: (input: {
+    apiContext: ApiRequestContextLike;
+    currentPage: number;
+    pageSize: number;
+  }) => Promise<NoticeSelectsResponse>;
   maxNotices?: number;
   noticeTypes: NoticeTypeConfig[];
   requestBackoffBaseMs: number;
@@ -156,6 +162,14 @@ export async function collectBootstrapBundle(
         requestBackoffBaseMs: input.requestBackoffBaseMs,
         requestMaxRetries: input.requestMaxRetries,
       }));
+  const fetchSelects =
+    input.fetchNoticeSelects ??
+    ((selectInput) =>
+      fetchNoticeSelects({
+        ...selectInput,
+        requestBackoffBaseMs: input.requestBackoffBaseMs,
+        requestMaxRetries: input.requestMaxRetries,
+      }));
   const fetchDetail =
     input.fetchNoticeDetail ??
     ((detailInput) =>
@@ -169,6 +183,8 @@ export async function collectBootstrapBundle(
   let detailFetched = 0;
   let itemsSeen = 0;
   let pagesFetched = 0;
+  let observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }> = [];
+  let observedOrganizations: Array<{ organization_id: string; organization_name: string }> = [];
   let materialized = {
     bundleRecords: [] as BundleNoticeRecord[],
     downloadedAttachmentCount: 0,
@@ -176,6 +192,13 @@ export async function collectBootstrapBundle(
   };
 
   try {
+    const noticeSelects = await fetchSelects({
+      apiContext,
+      currentPage: 1,
+      pageSize: 15,
+    });
+    observedNoticeTypes = normalizeObservedNoticeTypes(noticeSelects);
+    observedOrganizations = normalizeObservedOrganizations(noticeSelects);
     for (const noticeType of input.noticeTypes) {
       for (let currentPage = 1; currentPage <= noticeType.incrementalPages; currentPage += 1) {
         if (input.maxNotices && bundleMap.size >= input.maxNotices) {
@@ -264,6 +287,8 @@ export async function collectBootstrapBundle(
       itemsSeen,
       maxNotices: input.maxNotices ?? null,
       noticeTypes: input.noticeTypes,
+      observedNoticeTypes,
+      observedOrganizations,
       pagesFetched,
       siteId: input.siteId,
       sourceHomeUrl: input.sourceHomeUrl,
@@ -300,6 +325,8 @@ function buildExportManifest(input: {
   itemsSeen: number;
   maxNotices: number | null;
   noticeTypes: NoticeTypeConfig[];
+  observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
+  observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
   pagesFetched: number;
   siteId: string;
   sourceHomeUrl: string;
@@ -328,6 +355,8 @@ function buildExportManifest(input: {
       notice_types: input.noticeTypes.map((item) => item.type),
     },
     notice_type_policy: buildNoticeTypePolicySnapshot(input.noticeTypes),
+    observed_notice_types: input.observedNoticeTypes,
+    observed_organizations: input.observedOrganizations,
     run: {
       detail_fetched: input.detailFetched,
       errors: 0,
@@ -340,6 +369,46 @@ function buildExportManifest(input: {
       status: "success",
     },
   };
+}
+
+function normalizeObservedNoticeTypes(
+  response: NoticeSelectsResponse,
+): Array<{ notice_type_id: number; notice_type_name: string }> {
+  const normalized: Array<{ notice_type_id: number; notice_type_name: string }> = [];
+  const seen = new Set<number>();
+  for (const item of response.datas?.type ?? []) {
+    const noticeTypeId = normalizeOptionalNoticeId(item.notice_type_id);
+    const noticeTypeName = normalizeNullableText(item.notice_type_name);
+    if (noticeTypeId === null || !noticeTypeName || seen.has(noticeTypeId)) {
+      continue;
+    }
+    seen.add(noticeTypeId);
+    normalized.push({
+      notice_type_id: noticeTypeId,
+      notice_type_name: noticeTypeName,
+    });
+  }
+  return normalized.sort((left, right) => left.notice_type_id - right.notice_type_id);
+}
+
+function normalizeObservedOrganizations(
+  response: NoticeSelectsResponse,
+): Array<{ organization_id: string; organization_name: string }> {
+  const normalized: Array<{ organization_id: string; organization_name: string }> = [];
+  const seen = new Set<string>();
+  for (const item of response.datas?.org ?? []) {
+    const organizationId = normalizeNullableText(item.organization_id);
+    const organizationName = normalizeNullableText(item.organization_name);
+    if (!organizationId || !organizationName || seen.has(organizationId)) {
+      continue;
+    }
+    seen.add(organizationId);
+    normalized.push({
+      organization_id: organizationId,
+      organization_name: organizationName,
+    });
+  }
+  return normalized.sort((left, right) => left.organization_id.localeCompare(right.organization_id, "zh-Hans-CN"));
 }
 
 function mergeBundleRecord(

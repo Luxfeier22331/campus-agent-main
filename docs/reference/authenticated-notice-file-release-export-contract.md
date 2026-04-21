@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-12
-updated: 2026-04-18
+updated: 2026-04-21
 ---
 
 # Authenticated Notice File-Release Export Contract
@@ -15,6 +15,7 @@ updated: 2026-04-18
 
 - collector 为 `file_release` 导出什么 bundle / manifest
 - bundle row 和 manifest 的字段语义是什么
+- collector 会额外快照哪些 portal selector / taxonomy truth
 - `reference_only` 与 `object_store_write` 各自代表什么
 - released file 的对象存储 key 如何编排
 
@@ -66,6 +67,23 @@ updated: 2026-04-18
 
 - full export：`file-release-<timestamp>`
 - targeted export：`file-release-target-<file_release_id>-<timestamp>`
+
+## Portal Selector Snapshot
+
+除了 list/detail/download-url 记录外，collector 在每次 export 时还会快照当前 portal 的 selector truth：
+
+- `/comsys-prompt-portlet-web/getFileType`
+  - `observed_file_types`
+- `/comsys-prompt-portlet-web/getFileFileType`
+  - `observed_file_code_types`
+- `/comsys-prompt-portlet-web/getExplainDepts`
+  - `observed_explain_departments`
+
+这些字段的作用是：
+
+- 冻结本次 export 看到的 `file_release` 分类与说明部门全集
+- 让后续 owner recovery / downstream triage 可以基于真实 portal taxonomy，而不是只看当前 bundle rows 中碰巧出现的子集
+- 明确 `制度汇编/制度管理` 这类管理视图依然属于 `file_release` family，而不是新的第三 source family
 
 ## Schema Version
 
@@ -164,6 +182,8 @@ manifest 顶层固定为 `FileReleaseExportManifest`。
 - `filters`
 - `observed_file_types`
 - `observed_departments`
+- `observed_file_code_types`
+- `observed_explain_departments`
 - `run`
 
 ### `collector`
@@ -208,6 +228,46 @@ collector 当前固定行为：
 - 未设置 `target_file_release_id` 时，继续按现有 full export / quantity-bounded export 语义执行
 - 设置 `target_file_release_id` 时，只允许导出该 `file_release_id` 对应的 bundle row
 - 如果 traversed export scope 内没有命中目标 `file_release_id`，collector 必须 fail-close，不能写出空 bundle 的伪成功结果
+
+### `observed_file_types`
+
+来自 `/getFileType`，表示 portal 当前返回的一级文件分类全集。
+
+每项固定包含：
+
+- `id`
+- `typename`
+- `sort`
+
+### `observed_departments`
+
+来自 `pageFile` 响应里的 `dws`，表示本次遍历窗口实际观测到的 `filedepartment` 去重集合。
+
+它表达的是：
+
+- 本次 list traversal 实际命中的部门值
+
+它不表达：
+
+- portal 全量说明部门全集
+
+### `observed_file_code_types`
+
+来自 `/getFileFileType`，表示 portal 当前返回的文件字号 / 编码类型全集。
+
+每项固定包含：
+
+- `id`
+- `name`
+- `sort`
+
+### `observed_explain_departments`
+
+来自 `/getExplainDepts`，表示 portal 当前返回的说明部门全集。
+
+固定表现：
+
+- 即使本次 bundle rows 只覆盖其中少量部门，manifest 仍保留 portal 全量 selector snapshot
 
 ## Storage Semantics
 
