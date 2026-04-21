@@ -12,11 +12,11 @@ updated: 2026-04-21
 **Current Phase:** None
 **Current Phase Name:** None
 **Current Plan:** `<none>`
-**Total Phases:** 12
+**Total Phases:** 13
 **Total Plans in Phase:** 0
-**Progress:** 12/12 phases complete
+**Progress:** 13/13 phases complete
 **Last Activity:** 2026-04-21
-**Last Activity Description:** Completed `Phase L` public-answer citation hygiene repair after local smoke exposed raw internal source locators in curriculum answers; deterministic specialist prose now keeps source trace only in structured evidence, and `app-api` finalize path now guards browser-facing assistant text from raw locator leakage.
+**Last Activity Description:** Completed `Phase M` curriculum semester answer boundary repair after local smoke exposed a second public answer contract breach: `program_semester_facts` multi-chunk retrieval was leaking chunk-boundary fragments such as broken course names into browser-facing curriculum answers. `rag-specialist` now assembles semester course lists deterministically from structured candidates, the regression is covered in Python tests, and a fresh local browser smoke closed with request `req_e96b9a09ed374ec28ee6231000c5e0f8`.
 
 ## Current Slice
 
@@ -42,6 +42,10 @@ updated: 2026-04-21
   - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/CONTEXT.md`
   - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/PLAN.md`
   - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-l-public-answer-citation-hygiene-repair/SUMMARY.md`
+- completed `Phase M` curriculum semester answer boundary repair artifacts：
+  - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-m-curriculum-semester-answer-boundary-repair/CONTEXT.md`
+  - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-m-curriculum-semester-answer-boundary-repair/PLAN.md`
+  - summary: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-m-curriculum-semester-answer-boundary-repair/SUMMARY.md`
 - completed `Phase J` live-browser closeout artifacts：
   - context: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-j-adaptive-turnstile-posture-productization/CONTEXT.md`
   - plan: `.planning/workstreams/shared-product-surfaces-acceptance-hardening/phases/phase-j-adaptive-turnstile-posture-productization/PLAN.md`
@@ -70,6 +74,15 @@ updated: 2026-04-21
   - deterministic `rag-specialist` answer 继续只负责用户可读 prose，supporting source trace 保留在 structured evidence
   - `app-api` finalize path 对 public answer contract 增加 hygiene guard；即使未来 upstream 再返回 raw locator，browser-facing `assistantText` 也不会原样泄漏
   - operator-safe source trace、request observability 与 panel-side source projection contract 不受影响
+- closed `Phase M` truth：
+  - `program_semester_facts` 命中多个 partial chunk 时，browser-facing curriculum answer 不再把 chunk 边界残片拼成损坏课程名
+  - canonical `program_semester_facts` projection truth 与 MinIO 文档对象不需要被改写；问题边界明确收口在 `rag-specialist` 的 deterministic semester answer composition
+  - `rag-specialist` 现按学期课程候选项去重、折叠并输出稳定课程列表，而不是直接复用 generic snippet 拼接
+  - fresh local chat continuity 已验证：
+    - `conversationId=ee0e20ac-7e56-4705-8a5a-ed919911c0c4`
+    - `requestId=req_e96b9a09ed374ec28ee6231000c5e0f8`
+    - 浏览器答案不再出现 `中国民族史概要(一；`、`；展经济学` 等断裂片段
+  - local smoke 中出现的 `Invalid bearer token` 仅是 operator 启动 supervisor 时误用了 bearer 模式；repo 既有 contract 仍要求本地 `app-api -> supervisor-api` 走 `trusted-worker + API_WORKER_SHARED_SECRET`
 - integrated acceptance continuity anchor remains:
   - `conversationId=9cb68dd1-9a74-4ed5-a616-308c41761a4c`
   - `requestId=req_4be3b117d87a40fc807d5644d06133d0`
@@ -85,7 +98,7 @@ updated: 2026-04-21
 
 - 无 active blocker。workstream 已完成。
 - 如未来 operator 希望补 Cloudflare Dashboard widget-mode 截图，只能算平台侧附加证据，不再阻塞当前 closeout。
-- 如 future smoke 再次发现 browser answer 泄漏 raw specialist locator，则应按 `Phase L` 同级 reopen，而不是在前端做一次性清洗。
+- 如 future smoke 再次发现 browser answer 泄漏 raw specialist locator，或 curriculum semester answer 再次出现 chunk-boundary fragment corruption，则应按 `Phase L/M` 同级 reopen，而不是在前端做一次性清洗。
 
 ## Verification
 
@@ -112,6 +125,16 @@ updated: 2026-04-21
   - current version id: `05075dab-32c0-4f29-b6f0-9f12659854a7`
 - `uv run --all-packages python -m unittest tests.test_check_worker_secret_presence`
 - `uv run --all-packages python -m unittest tests.specialist.test_rag_specialist`
+- `curl -sS http://127.0.0.1:8081/readyz`
+  - local trusted-worker supervisor ready after starting with `API_AUTH_MODE=trusted-worker`
+- local direct execution smoke
+  - `POST http://127.0.0.1:8081/api/v1/answer`
+  - `x-worker-origin-auth` matched `apps/app-api/.dev.vars` `SUPERVISOR_API_SHARED_SECRET`
+  - response completed and returned a clean semester-course answer without broken fragments
+- local browser smoke
+  - `public-chat-web` local dev conversation `ee0e20ac-7e56-4705-8a5a-ed919911c0c4`
+  - `runtime.request_execution.request_id=req_e96b9a09ed374ec28ee6231000c5e0f8`
+  - `answer_preview` confirms clean semester answer
 - `uv run --all-packages python -m scripts.check_worker_secret_presence --app apps/app-api --env staging --json`
   - `overall_ready: true`
   - configured `AUTH_RESET_EMAIL_FROM` / `AUTH_TURNSTILE_SECRET_KEY` / `RESEND_API_KEY`
@@ -154,5 +177,5 @@ updated: 2026-04-21
 
 ## Session Continuity
 
-**Stopped At:** workstream 已完成；若未来重新打开 public auth family / Turnstile posture 的产品工作，应新建 phase 或按 reopen 规则恢复，而不是回退当前 closeout
+**Stopped At:** workstream 已完成；若未来重新打开 public auth family / Turnstile posture / public answer contract 的产品工作，应新建 phase 或按 reopen 规则恢复，而不是回退当前 closeout
 **Resume File:** `<none>`

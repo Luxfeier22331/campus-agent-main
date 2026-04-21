@@ -26,3 +26,4 @@ updated: 2026-04-21
 - [x] **Phase J: Adaptive Turnstile Posture Productization** — 已以真实 staging 浏览器 closeout 证明 live admitted widget 在默认 `interaction-only/render` posture 下完成 `/forgot-password -> /reset-password -> /login` 闭环，并确认匿名态 `/register` 与低风险路径无强制可见 challenge 回归。
 - [x] **Phase K: Public Auth Shell Mature Layout Cutover** — 已去掉 donor auth shell 的右侧聊天窗口预览，把 `/login` `/register` `/forgot-password` `/reset-password` 收口到 repo-owned compat seam 承接的成熟单壳，并补 fresh local desktop/mobile smoke artifact。
 - [x] **Phase L: Public Answer Citation Hygiene Repair** — 已修复 deterministic `rag-specialist` 用户文案把 `doc_id#chunk_id` / `source-faithful` locator 直接写进答案的问题，并在 `app-api` finalize 边界补齐 browser-facing answer hygiene guard 与回归测试。
+- [x] **Phase M: Curriculum Semester Answer Boundary Repair** — 已修复 `program_semester_facts` 多 chunk 命中时把 chunk 边界残片直接拼进课程答案的问题；`rag-specialist` 现按学期课程事实做 deterministic 合并，local direct execution 与 `public-chat-web` 真实 smoke 都已证明不再出现断裂课程名。
