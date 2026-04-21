@@ -9,6 +9,7 @@ from campus_ingestion_core.authenticated_notice_attachment_object_backfill impor
     AuthenticatedNoticeAttachmentObjectBackfillRequest,
     backfill_authenticated_notice_attachment_objects,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

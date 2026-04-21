@@ -8,6 +8,7 @@ from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedd
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_processed_artifact_key
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 
@@ -74,11 +75,18 @@ def _structured_row(
         "acl": {"level": "public", "allow_groups": []},
     }
 
+
 class HandbookChunkingPipelineTest(unittest.TestCase):
     def test_build_indexable_chunks_rejects_mixed_document_units(self) -> None:
         structured_payload = "\n".join(
             [
-                json.dumps(_structured_row(unit_type="article_body", clean_text="第一条 正文", root_unit_id="article-001")),
+                json.dumps(
+                    _structured_row(
+                        unit_type="article_body",
+                        clean_text="第一条 正文",
+                        root_unit_id="article-001",
+                    )
+                ),
                 json.dumps(
                     _structured_row(
                         doc_id="handbook:other-doc",
@@ -117,8 +125,12 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
 
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(chunk.metadata["unit_type"] == "policy_page" for chunk in chunks))
-        self.assertTrue(all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks))
-        self.assertTrue(all(chunk.metadata["root_unit_id"] == "policy-page-001" for chunk in chunks))
+        self.assertTrue(
+            all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks)
+        )
+        self.assertTrue(
+            all(chunk.metadata["root_unit_id"] == "policy-page-001" for chunk in chunks)
+        )
 
     def test_table_unit_becomes_primary_embeddable_evidence_unit(self) -> None:
         structured_payload = "\n".join(
@@ -194,7 +206,9 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
             tuple(range(1, len(chunks) + 1)),
         )
         self.assertTrue(all(chunk.metadata["segment_total"] == len(chunks) for chunk in chunks))
-        self.assertTrue(all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks))
+        self.assertTrue(
+            all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks)
+        )
         self.assertTrue(all(chunk.metadata["unit_type"] == "article_body" for chunk in chunks))
         self.assertTrue(all(chunk.metadata["root_unit_id"] == "article-001" for chunk in chunks))
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
@@ -16,17 +16,17 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
     AuthenticatedNoticeProjectedNotice,
     _AuthenticatedNoticeParentSourceTruth,
-    _project_parent_source_truth,
-    _resolve_authenticated_notice_ocr_runtime,
     _load_json_payload,
     _load_jsonl_rows,
+    _project_parent_source_truth,
+    _resolve_authenticated_notice_ocr_runtime,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    HIGH_RISK_NOTICE_LABELS,
     AuthenticatedNoticeSourceTruthInventoryEntry,
     AuthenticatedNoticeSourceTruthInventoryStore,
-    HIGH_RISK_NOTICE_LABELS,
     _aggregate_notice_risk_counts,
     build_authenticated_notice_source_truth_inventory_entries,
     document_record_from_authenticated_notice_source_truth_parent_snapshot,
@@ -36,7 +36,6 @@ from campus_ingestion_core.raw_ingestion import OnlineOcrClient
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 SOURCE_TRUTH_REPLAY_INPUT_KIND = "source_truth_replay"
 
@@ -59,15 +58,7 @@ class AuthenticatedNoticeSourceTruthReplayRequest:
         object.__setattr__(
             self,
             "notice_ids",
-            tuple(
-                sorted(
-                    {
-                        str(item).strip()
-                        for item in self.notice_ids
-                        if str(item).strip()
-                    }
-                )
-            ),
+            tuple(sorted({str(item).strip() for item in self.notice_ids if str(item).strip()})),
         )
         assert_known_scope(self.corpus, self.collection)
 
@@ -144,8 +135,9 @@ def build_authenticated_notice_source_truth_replay_documents(
     ocr_client: OnlineOcrClient | None = None,
 ) -> AuthenticatedNoticeProjectedNotice:
     source = env if env is not None else dict(os.environ)
-    config_path = request.source_projections_path or read_authenticated_notice_source_projections_config_path(
-        source
+    config_path = (
+        request.source_projections_path
+        or read_authenticated_notice_source_projections_config_path(source)
     )
     config = load_authenticated_notice_source_projections_config(config_path)
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
@@ -204,9 +196,7 @@ def load_authenticated_notice_source_truth_replay_inventory_from_payload(
     raw = dict(payload)
     run_id = str(raw.get("run_id") or "").strip()
     if expected_run_id is not None and run_id != expected_run_id:
-        raise ValueError(
-            f"source-truth replay frozen inventory run mismatch: {expected_run_id}"
-        )
+        raise ValueError(f"source-truth replay frozen inventory run mismatch: {expected_run_id}")
     input_kind = str(raw.get("input_kind") or SOURCE_TRUTH_REPLAY_INPUT_KIND).strip()
     if input_kind != SOURCE_TRUTH_REPLAY_INPUT_KIND:
         raise ValueError(
@@ -224,16 +214,13 @@ def load_authenticated_notice_source_truth_replay_inventory_from_payload(
         sorted(
             str(item).strip()
             for item in (
-                raw.get("selected_notice_ids")
-                or [str(parent["notice_id"]) for parent in parents]
+                raw.get("selected_notice_ids") or [str(parent["notice_id"]) for parent in parents]
             )
             if str(item).strip()
         )
     )
     if not selected_notice_ids and parents:
-        selected_notice_ids = tuple(
-            sorted(str(parent["notice_id"]) for parent in parents)
-        )
+        selected_notice_ids = tuple(sorted(str(parent["notice_id"]) for parent in parents))
     notice_risk_counts = {
         str(label): int(count)
         for label, count in dict(raw.get("notice_risk_counts") or {}).items()
@@ -324,10 +311,7 @@ def build_authenticated_notice_source_truth_replay_expected_scope(
         for plan in _attachment_projection_plans_from_parent(parent):
             attachment_projection_plans[(notice_id, str(plan["attachment_ref_id"]))] = plan
             materialization_policy = str(plan["materialization_policy"])
-            if (
-                materialization_policy
-                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
-            ):
+            if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT:
                 attachment_document_count += 1
                 expected_document_ids.add(str(plan["document_id"]))
             elif (
@@ -335,10 +319,7 @@ def build_authenticated_notice_source_truth_replay_expected_scope(
                 == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
             ):
                 ocr_candidate_count += 1
-            elif (
-                materialization_policy
-                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW
-            ):
+            elif materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
                 manual_review_required_count += 1
     return {
         "notice_ids": expected_notice_ids,
@@ -358,10 +339,10 @@ def _load_parent_source_truth_from_snapshot(
     object_store: AuthenticatedNoticeSourceTruthReplayObjectStore,
     object_store_settings: ObjectStoreSettings,
 ) -> _AuthenticatedNoticeParentSourceTruth:
-    source_artifact_keys = tuple(str(item) for item in parent_snapshot.get("source_artifact_keys") or ())
-    record = document_record_from_authenticated_notice_source_truth_parent_snapshot(
-        parent_snapshot
+    source_artifact_keys = tuple(
+        str(item) for item in parent_snapshot.get("source_artifact_keys") or ()
     )
+    record = document_record_from_authenticated_notice_source_truth_parent_snapshot(parent_snapshot)
     notice_manifest_key = str(parent_snapshot["notice_manifest_key"])
     content_blocks_key = str(parent_snapshot["content_blocks_key"])
     attachment_refs_key = str(parent_snapshot["attachment_refs_key"])
@@ -427,6 +408,7 @@ def _attachment_projection_plans_from_parent(
         fallback.append(plan)
     return tuple(fallback)
 
+
 def _inventory_from_entries(
     entries: Sequence[AuthenticatedNoticeSourceTruthInventoryEntry],
     *,
@@ -439,17 +421,15 @@ def _inventory_from_entries(
         )
     site_ids = {entry.site_id for entry in entries if entry.site_id.strip()}
     if len(site_ids) != 1:
-        raise ValueError(f"authenticated notice source replay requires a single site_id, got {sorted(site_ids)}")
-    source_home_urls = {
-        entry.source_home_url for entry in entries if entry.source_home_url.strip()
-    }
+        raise ValueError(
+            f"authenticated notice source replay requires a single site_id, got {sorted(site_ids)}"
+        )
+    source_home_urls = {entry.source_home_url for entry in entries if entry.source_home_url.strip()}
     if len(source_home_urls) != 1:
         raise ValueError(
             "authenticated notice source replay requires a single non-empty source_home_url"
         )
-    embedding_models = {
-        entry.embedding_model for entry in entries if entry.embedding_model.strip()
-    }
+    embedding_models = {entry.embedding_model for entry in entries if entry.embedding_model.strip()}
     if len(embedding_models) != 1:
         raise ValueError(
             "authenticated notice source replay requires a single non-empty embedding_model"
@@ -464,9 +444,7 @@ def _inventory_from_entries(
         site_id=next(iter(site_ids)),
         source_home_url=next(iter(source_home_urls)),
         embedding_model=next(iter(embedding_models)),
-        selected_notice_ids=tuple(
-            sorted(str(item["notice_id"]) for item in ordered_parents)
-        ),
+        selected_notice_ids=tuple(sorted(str(item["notice_id"]) for item in ordered_parents)),
         notice_risk_counts=_aggregate_notice_risk_counts(
             entry.notice_risk_label for entry in entries
         ),

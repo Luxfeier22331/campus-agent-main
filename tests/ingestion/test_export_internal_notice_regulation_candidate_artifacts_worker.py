@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import importlib
 import io
 import json
+import unittest
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.export_internal_notice_regulation_candidate_artifacts"
@@ -158,7 +157,9 @@ class ExportInternalNoticeRegulationCandidateArtifactsWorkerCliTest(unittest.Tes
             self.assertIn("source_notice_release_time: 2021-02-28 16:09", markdown)
             candidate_documents = [
                 json.loads(line)
-                for line in Path(payload["candidate_documents_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(payload["candidate_documents_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(candidate_documents[0]["entitlement_groups"], ["campus_members"])

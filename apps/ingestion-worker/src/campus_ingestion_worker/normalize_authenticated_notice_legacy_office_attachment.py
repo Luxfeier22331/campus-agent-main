@@ -13,6 +13,7 @@ from campus_ingestion_core.file_asset_legacy_office import (
 from campus_ingestion_core.legacy_office_conversion_client import (
     LegacyOfficeConversionClientProtocol,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -70,6 +71,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         else None,
     )
     print(json.dumps(serialize_file_asset_outcome(result), ensure_ascii=False, indent=2))
+
+
 __all__ = [
     "LegacyOfficeNormalizationResult",
     "build_parser",

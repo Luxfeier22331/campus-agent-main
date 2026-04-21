@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import base64
-from collections.abc import Mapping
-from dataclasses import dataclass
 import hashlib
 import json
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 from urllib import error as urllib_error
 from urllib import request as urllib_request
-
 
 _SUPPORTED_TARGET_FORMATS = {"docx", "xlsx"}
 
@@ -168,8 +167,7 @@ def build_legacy_office_conversion_client_from_env(
         timeout_seconds = float(timeout_seconds_raw)
     except ValueError as exc:
         raise LegacyOfficeConversionClientError(
-            "legacy Office conversion service timeout is invalid: "
-            f"{timeout_seconds_raw!r}"
+            f"legacy Office conversion service timeout is invalid: {timeout_seconds_raw!r}"
         ) from exc
 
     return LegacyOfficeConversionClient(

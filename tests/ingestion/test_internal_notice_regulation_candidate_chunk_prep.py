@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
+import unittest
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.internal_notice_regulation_candidate_chunk_prep import (
     load_internal_notice_regulation_candidate_documents,
@@ -74,7 +74,9 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
 
 
 class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
-    def test_prepare_candidate_chunks_emits_local_only_target_artifacts_and_validation(self) -> None:
+    def test_prepare_candidate_chunks_emits_local_only_target_artifacts_and_validation(
+        self,
+    ) -> None:
         candidate = _candidate_document()
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -92,14 +94,18 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertEqual(manifest["target_collection"], "institutional_regulations")
             self.assertEqual(manifest["prepared_candidate_count"], 1)
 
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertTrue(validation["passed"])
             self.assertEqual(validation["wrapper_notice_leak_chunk_count"], 0)
             self.assertEqual(validation["front_matter_leak_chunk_count"], 0)
 
             document_reports = [
                 json.loads(line)
-                for line in Path(report.document_reports_path).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.document_reports_path)
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(len(document_reports), 1)
@@ -139,15 +145,17 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertTrue(
                 all(chunk["collection"] == "institutional_regulations" for chunk in chunks)
             )
+            self.assertTrue(all("特此通知" not in chunk["text"] for chunk in chunks))
             self.assertTrue(
-                all("特此通知" not in chunk["text"] for chunk in chunks)
-            )
-            self.assertTrue(
-                any(chunk["metadata"].get("aggregation_mode") == "adjacent_short_textual_units" for chunk in chunks)
+                any(
+                    chunk["metadata"].get("aggregation_mode") == "adjacent_short_textual_units"
+                    for chunk in chunks
+                )
             )
             self.assertTrue(
                 any(
-                    chunk["anchor"].get("section_path") == ["二、采购注意事项", "（一）采购意向公示要求"]
+                    chunk["anchor"].get("section_path")
+                    == ["二、采购注意事项", "（一）采购意向公示要求"]
                     and "2.请各项目单位务必高度重视" in chunk["text"]
                     for chunk in chunks
                 )
@@ -189,7 +197,9 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
                 output_dir=Path(temp_dir),
             )
             self.assertTrue(report.passed)
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertEqual(validation["missing_projection_metadata_count"], 0)
             self.assertEqual(validation["failed_candidate_ids"], [])
 

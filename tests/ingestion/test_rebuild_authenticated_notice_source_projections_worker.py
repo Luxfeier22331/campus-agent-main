@@ -10,13 +10,17 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     AuthenticatedNoticeSourceProjectionReport,
 )
 
-worker = importlib.import_module("campus_ingestion_worker.rebuild_authenticated_notice_source_projections")
+worker = importlib.import_module(
+    "campus_ingestion_worker.rebuild_authenticated_notice_source_projections"
+)
 
 
 class RebuildAuthenticatedNoticeSourceProjectionsWorkerCliTest(unittest.TestCase):
     def test_main_builds_typed_request_from_cli_args(self) -> None:
         with (
-            patch("campus_ingestion_worker.rebuild_authenticated_notice_source_projections.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.rebuild_authenticated_notice_source_projections.load_worker_env"
+            ),
             patch(
                 "campus_ingestion_worker.rebuild_authenticated_notice_source_projections.rebuild_authenticated_notice_source_projections"
             ) as rebuild,
@@ -33,7 +37,9 @@ class RebuildAuthenticatedNoticeSourceProjectionsWorkerCliTest(unittest.TestCase
                 ocr_no_text_attachment_count=0,
                 reference_only_attachment_count=1,
                 manual_review_attachment_count=0,
-                created_document_ids=("notice_attachment:muc_internal_portal:355119:attachment-0001",),
+                created_document_ids=(
+                    "notice_attachment:muc_internal_portal:355119:attachment-0001",
+                ),
                 updated_document_ids=("notice:muc_internal_portal:355119",),
                 skipped_document_ids=(),
                 errors=(),
@@ -58,7 +64,9 @@ class RebuildAuthenticatedNoticeSourceProjectionsWorkerCliTest(unittest.TestCase
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.corpus, "campus_notices")
         self.assertEqual(request.collection, "internal_notice")
-        self.assertEqual(str(request.source_projections_path), "/tmp/internal-notice-source-projections.v1.json")
+        self.assertEqual(
+            str(request.source_projections_path), "/tmp/internal-notice-source-projections.v1.json"
+        )
         self.assertEqual(request.default_visibility_scope, "campus")
         self.assertEqual(request.notice_ids, ("355119", "355120"))
         payload = json.loads(stdout.getvalue())

@@ -13,7 +13,9 @@ class ImportAuthenticatedNoticeExportWorkerCliTest(unittest.TestCase):
     def test_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.import_authenticated_notice_export.load_worker_env"),
-            patch("campus_ingestion_worker.import_authenticated_notice_export.import_authenticated_notice_export") as run_import,
+            patch(
+                "campus_ingestion_worker.import_authenticated_notice_export.import_authenticated_notice_export"
+            ) as run_import,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             run_import.return_value = {

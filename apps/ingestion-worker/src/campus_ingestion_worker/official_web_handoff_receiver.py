@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import json
+import os
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import json
-import os
 from pathlib import Path
-import secrets
 from typing import Callable, Mapping
 from urllib.parse import urlsplit
 from uuid import uuid4
-
 
 OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION = "official_web_handoff_dispatch.v1"
 _EXPECTED_TOP_LEVEL_FIELDS = {
@@ -196,8 +195,12 @@ def readyz(settings: OfficialWebHandoffReceiverSettings) -> HttpResponse:
         json_body={
             "status": "ready",
             "dependencies": {
-                "officialWebHandoffToken": "configured" if settings.bearer_token else "not_configured",
-                "officialWebInbox": "configured" if str(settings.inbox_dir).strip() else "not_configured",
+                "officialWebHandoffToken": "configured"
+                if settings.bearer_token
+                else "not_configured",
+                "officialWebInbox": "configured"
+                if str(settings.inbox_dir).strip()
+                else "not_configured",
             },
             "inboxDir": str(settings.inbox_dir),
         },
@@ -383,7 +386,9 @@ def persist_handoff_record(
         existing = json.loads(record_path.read_text(encoding="utf-8"))
         existing_payload = existing.get("payload")
         if existing_payload != payload:
-            raise FileExistsError(f"handoff event {event_id} already exists with different payload.")
+            raise FileExistsError(
+                f"handoff event {event_id} already exists with different payload."
+            )
         dispatch_ref = _require_non_empty_text(existing.get("dispatchRef"), "dispatchRef")
         received_at = _require_non_empty_text(existing.get("receivedAt"), "receivedAt")
         return dispatch_ref, received_at
@@ -414,9 +419,7 @@ def persist_handoff_record(
 
 def _safe_event_id(event_id: str) -> str:
     sanitized = "".join(
-        character
-        for character in event_id
-        if character.isalnum() or character in {"-", "_"}
+        character for character in event_id if character.isalnum() or character in {"-", "_"}
     )
     if not sanitized:
         raise ValueError("eventId must contain at least one safe filename character.")

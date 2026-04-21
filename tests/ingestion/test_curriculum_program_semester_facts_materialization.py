@@ -6,6 +6,7 @@ import unittest
 import campus_ingestion_core.curriculum_program_semester_facts_projection as semester_projection
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.split_manifest import SplitManifestDocument
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 
@@ -195,7 +196,9 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
             uploaded_keys,
         )
 
-    def test_materialize_program_semester_facts_from_canonical_scope_filters_source_documents(self) -> None:
+    def test_materialize_program_semester_facts_from_canonical_scope_filters_source_documents(
+        self,
+    ) -> None:
         materialize = getattr(
             semester_projection,
             "materialize_curriculum_program_semester_facts_from_canonical_scope",
@@ -275,7 +278,10 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
 
         self.assertEqual(report.source_document_count, 1)
         self.assertTrue(
-            all("历史学（强基计划）本科人才培养方案" in document_id for document_id in report.created_document_ids)
+            all(
+                "历史学（强基计划）本科人才培养方案" in document_id
+                for document_id in report.created_document_ids
+            )
         )
 
 

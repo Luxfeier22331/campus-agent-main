@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-from importlib import metadata
-from io import BytesIO
 import posixpath
 import re
-from xml.etree import ElementTree
 import zipfile
+from dataclasses import dataclass
+from importlib import metadata
+from io import BytesIO
+from xml.etree import ElementTree
 
 from campus_ingestion_core.file_asset_contract import (
     ArtifactProvenance,
@@ -24,7 +24,6 @@ from campus_ingestion_core.source_truth_common import (
     serialize_layout_rows,
 )
 
-
 _DOCX_DOCUMENT_PATH = "word/document.xml"
 _WORDPROCESSINGML_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _XLSX_WORKBOOK_PATH = "xl/workbook.xml"
@@ -32,9 +31,7 @@ _XLSX_WORKBOOK_RELS_PATH = "xl/_rels/workbook.xml.rels"
 _XLSX_SHARED_STRINGS_PATH = "xl/sharedStrings.xml"
 _SPREADSHEETML_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 _PACKAGE_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
-_OFFICE_DOC_REL_ID_ATTR = (
-    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
-)
+_OFFICE_DOC_REL_ID_ATTR = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 _OOXML_LAYOUT_SCHEMA_VERSION = "ooxml_layout_elements_v1"
@@ -440,14 +437,21 @@ def _build_xlsx_table_layout_row(
     source_object_key: str | None,
     filename: str,
 ) -> dict[str, object]:
-    max_column = max((max(sheet_row.cells) for sheet_row in sheet_rows if sheet_row.cells), default=0)
+    max_column = max(
+        (max(sheet_row.cells) for sheet_row in sheet_rows if sheet_row.cells), default=0
+    )
     table_cells: list[dict[str, object]] = []
     previous_text_by_column: dict[int, str] = {}
     previous_formula_by_column: dict[int, str] = {}
     for table_row_index, sheet_row in enumerate(sheet_rows, start=1):
         explicit_cells = sheet_row.cells
         first_explicit_column = min(explicit_cells) if explicit_cells else None
-        continuation_row = table_row_index > 1 and bool(explicit_cells) and first_explicit_column is not None and first_explicit_column > 1
+        continuation_row = (
+            table_row_index > 1
+            and bool(explicit_cells)
+            and first_explicit_column is not None
+            and first_explicit_column > 1
+        )
         for column_index in range(1, max_column + 1):
             explicit_value = explicit_cells.get(column_index)
             if explicit_value is None:
@@ -569,7 +573,9 @@ def _load_xlsx_shared_strings(archive: zipfile.ZipFile) -> tuple[str, ...]:
     values: list[str] = []
     for node in shared_strings_root.findall(f"{_SPREADSHEETML_NS}si"):
         values.append(
-            "".join(text_node.text or "" for text_node in node.iter(f"{_SPREADSHEETML_NS}t")).strip()
+            "".join(
+                text_node.text or "" for text_node in node.iter(f"{_SPREADSHEETML_NS}t")
+            ).strip()
         )
     return tuple(values)
 
@@ -613,7 +619,9 @@ def _load_xlsx_cell_value(
         formula = formula_node.text.strip() or None
 
     if cell_type == "inlineStr":
-        value = "".join(text_node.text or "" for text_node in cell.iter(f"{_SPREADSHEETML_NS}t")).strip()
+        value = "".join(
+            text_node.text or "" for text_node in cell.iter(f"{_SPREADSHEETML_NS}t")
+        ).strip()
         if not value:
             return None
         return _XlsxCellValue(text=value, formula=formula)

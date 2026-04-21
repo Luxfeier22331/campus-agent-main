@@ -5,6 +5,7 @@ import json
 from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout import AuthenticatedNoticeCloseoutService
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

@@ -34,7 +34,9 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
         )
         with (
             patch("campus_ingestion_worker.release_registry_scope.load_worker_env"),
-            patch("campus_ingestion_worker.release_registry_scope.release_registry_scope") as release_scope,
+            patch(
+                "campus_ingestion_worker.release_registry_scope.release_registry_scope"
+            ) as release_scope,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             release_scope.return_value = report

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import argparse
 import hashlib
 import json
 import os
-import argparse
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core import (
     ObjectStoreSettings,
@@ -15,10 +14,10 @@ from campus_ingestion_core import (
     build_raw_asset_key,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.campusrag_ingestion_metadata import build_raw_asset_id
 from campus_ingestion_core.campusrag_ingestion_support import (
     ObjectStoreWriter,
     S3ObjectStoreWriter,
-    build_raw_asset_id,
     utc_now,
 )
 from campus_ingestion_core.file_asset_routing import infer_raw_asset_typed_metadata
@@ -133,7 +132,9 @@ def main() -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Register a raw asset with an explicit corpus/collection scope")
+    parser = argparse.ArgumentParser(
+        description="Register a raw asset with an explicit corpus/collection scope"
+    )
     path_group = parser.add_mutually_exclusive_group(required=True)
     path_group.add_argument("--file-path", dest="file_path")
     path_group.add_argument("--pdf-path", dest="file_path", help=argparse.SUPPRESS)

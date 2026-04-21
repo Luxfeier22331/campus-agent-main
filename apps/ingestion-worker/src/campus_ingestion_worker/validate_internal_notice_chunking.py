@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -12,6 +12,7 @@ from campus_ingestion_core import (
     export_internal_notice_chunk_samples,
     scan_internal_notice_chunking,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -34,7 +35,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     if args.corpus != "campus_notices" or args.collection != "internal_notice":
-        raise ValueError("validate_internal_notice_chunking only supports campus_notices/internal_notice")
+        raise ValueError(
+            "validate_internal_notice_chunking only supports campus_notices/internal_notice"
+        )
     scan_result = scan_internal_notice_chunking(
         preparation_run_id=args.preparation_run_id,
         closeout_run_id=args.closeout_run_id,

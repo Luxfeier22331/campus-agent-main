@@ -103,10 +103,7 @@ def serialize_normalization_outcome(outcome: NormalizationOutcome) -> dict[str, 
         "provenance": serialize_artifact_provenance(outcome.provenance),
         "normalized_extension": outcome.normalized_extension,
         "normalized_sha256": outcome.normalized_sha256,
-        "artifact_refs": [
-            serialize_file_asset_artifact_ref(ref)
-            for ref in outcome.artifact_refs
-        ],
+        "artifact_refs": [serialize_file_asset_artifact_ref(ref) for ref in outcome.artifact_refs],
     }
 
 
@@ -117,10 +114,7 @@ def serialize_extraction_outcome(outcome: ExtractionOutcome) -> dict[str, Any]:
         "provenance": serialize_artifact_provenance(outcome.provenance),
         "text_blocks": list(outcome.text_blocks),
         "extraction_strategy": outcome.extraction_strategy,
-        "artifact_refs": [
-            serialize_file_asset_artifact_ref(ref)
-            for ref in outcome.artifact_refs
-        ],
+        "artifact_refs": [serialize_file_asset_artifact_ref(ref) for ref in outcome.artifact_refs],
     }
 
 
@@ -138,10 +132,7 @@ def serialize_terminal_outcome(outcome: TerminalOutcome) -> dict[str, Any]:
         "descriptor": serialize_file_asset_descriptor(outcome.descriptor),
         "provenance": serialize_artifact_provenance(outcome.provenance),
         "outcome": outcome.outcome,
-        "artifact_refs": [
-            serialize_file_asset_artifact_ref(ref)
-            for ref in outcome.artifact_refs
-        ],
+        "artifact_refs": [serialize_file_asset_artifact_ref(ref) for ref in outcome.artifact_refs],
     }
 
 
@@ -168,9 +159,7 @@ def parse_file_asset_descriptor(payload: Mapping[str, Any]) -> FileAssetDescript
             else None
         ),
         source_sha256=(
-            str(payload["source_sha256"])
-            if payload.get("source_sha256") is not None
-            else None
+            str(payload["source_sha256"]) if payload.get("source_sha256") is not None else None
         ),
     )
 
@@ -189,21 +178,15 @@ def parse_artifact_provenance(payload: Mapping[str, Any]) -> ArtifactProvenance:
         engine_version=str(payload.get("engine_version") or ""),
         warnings=tuple(str(item) for item in payload.get("warnings") or ()),
         failure_reason=(
-            str(payload["failure_reason"])
-            if payload.get("failure_reason") is not None
-            else None
+            str(payload["failure_reason"]) if payload.get("failure_reason") is not None else None
         ),
     )
 
 
 def parse_normalization_outcome(payload: Mapping[str, Any]) -> NormalizationOutcome:
     return NormalizationOutcome(
-        descriptor=parse_file_asset_descriptor(
-            dict(payload.get("descriptor") or {})
-        ),
-        provenance=parse_artifact_provenance(
-            dict(payload.get("provenance") or {})
-        ),
+        descriptor=parse_file_asset_descriptor(dict(payload.get("descriptor") or {})),
+        provenance=parse_artifact_provenance(dict(payload.get("provenance") or {})),
         normalized_extension=str(payload.get("normalized_extension") or ""),
         normalized_sha256=str(payload.get("normalized_sha256") or ""),
         artifact_refs=tuple(
@@ -216,12 +199,8 @@ def parse_normalization_outcome(payload: Mapping[str, Any]) -> NormalizationOutc
 
 def parse_extraction_outcome(payload: Mapping[str, Any]) -> ExtractionOutcome:
     return ExtractionOutcome(
-        descriptor=parse_file_asset_descriptor(
-            dict(payload.get("descriptor") or {})
-        ),
-        provenance=parse_artifact_provenance(
-            dict(payload.get("provenance") or {})
-        ),
+        descriptor=parse_file_asset_descriptor(dict(payload.get("descriptor") or {})),
+        provenance=parse_artifact_provenance(dict(payload.get("provenance") or {})),
         text_blocks=tuple(str(item) for item in payload.get("text_blocks") or ()),
         extraction_strategy=str(payload.get("extraction_strategy") or ""),
         artifact_refs=tuple(
@@ -235,7 +214,9 @@ def parse_extraction_outcome(payload: Mapping[str, Any]) -> ExtractionOutcome:
 def parse_file_asset_extraction_record(payload: Mapping[str, Any]) -> FileAssetExtractionRecord:
     schema_version = str(payload.get("schema_version") or "")
     if schema_version != "file_asset_extraction_record_v1":
-        raise ValueError(f"unsupported file asset extraction record schema_version: {schema_version!r}")
+        raise ValueError(
+            f"unsupported file asset extraction record schema_version: {schema_version!r}"
+        )
     metadata_payload = payload.get("metadata") or {}
     outcome_payload = payload.get("outcome") or {}
     if not isinstance(metadata_payload, Mapping):
@@ -250,12 +231,8 @@ def parse_file_asset_extraction_record(payload: Mapping[str, Any]) -> FileAssetE
 
 def parse_terminal_outcome(payload: Mapping[str, Any]) -> TerminalOutcome:
     return TerminalOutcome(
-        descriptor=parse_file_asset_descriptor(
-            dict(payload.get("descriptor") or {})
-        ),
-        provenance=parse_artifact_provenance(
-            dict(payload.get("provenance") or {})
-        ),
+        descriptor=parse_file_asset_descriptor(dict(payload.get("descriptor") or {})),
+        provenance=parse_artifact_provenance(dict(payload.get("provenance") or {})),
         outcome=str(payload.get("outcome") or ""),
         artifact_refs=tuple(
             parse_file_asset_artifact_ref(item)

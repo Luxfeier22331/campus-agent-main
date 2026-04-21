@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import unittest
+from dataclasses import asdict
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
@@ -74,9 +74,7 @@ def _inventory_entry(
         file_type_name="规章制度",
         resolved_download_url=f"https://portal.example.edu/files/{file_release_id}/download",
         released_file_storage_provider=storage_provider,
-        released_file_bucket=(
-            "campus-rag-source" if storage_provider == "object_store" else None
-        ),
+        released_file_bucket=("campus-rag-source" if storage_provider == "object_store" else None),
         released_file_object_key=(
             f"authenticated_notice_portal/file-release-{file_release_id}/2025/"
             f"sha256-deadbeef/capture/file-{file_release_id}.pdf"
@@ -85,7 +83,9 @@ def _inventory_entry(
         ),
         released_file_sha256=("deadbeef" * 8 if storage_provider == "object_store" else None),
         released_file_byte_size=(1024 if storage_provider == "object_store" else None),
-        released_file_ingest_status=("uploaded" if storage_provider == "object_store" else "reference_only"),
+        released_file_ingest_status=(
+            "uploaded" if storage_provider == "object_store" else "reference_only"
+        ),
         released_file_provenance_status=(
             "collected_internal" if storage_provider == "object_store" else "reference_only"
         ),

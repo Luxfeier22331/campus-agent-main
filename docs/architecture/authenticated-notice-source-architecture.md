@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-19
+updated: 2026-04-22
 ---
 
 # Authenticated Notice Source Architecture
@@ -70,6 +70,22 @@ updated: 2026-04-19
 - `notice`
 
 `file_release` 当前仍是 collector-owned typed export slice。它必须和 `notice` 分开采集、分开导出，不能把文件发布记录伪装成 notice，也不能把 notice 正文里“见信息门户-文件发布”的提示误当作 notice 自身正文。
+
+同时，当前 repo 已接受一条 capture-only local PG ledger scope：
+
+- `campus_notices/file_release_capture`
+
+它只承接 `authenticated_notice_portal/file_release` 的 inventory / raw-asset truth，用于 owner-recovery readiness 与 operator 排障。
+
+固定限制：
+
+- 当前只 materialize 到本地 PG
+- 只写 `ingestion_projection.authenticated_notice_file_release_inventory` 与同 scope 的 raw-asset registry rows
+- 不生成 `document_registry_records`
+- 不进入 chunk / index / release
+- 不把这条 scope 提升成 canonical `notice` source-truth 或 query-serving surface
+
+当前这条 local PG ledger 已完成一次性 closeout materialization；repo 不再把 `file_release` PG 补齐保留为独立持续需求。
 
 当前 collector-owned export shape、bundle/manifest 字段，以及 `reference_only` / `object_store_write` 的含义，固定记录在：
 
@@ -488,5 +504,5 @@ Phase 12.2 已把 authenticated notice historical closeout 重构为 async stage
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
-- `docs/plans/restricted-document-rollout-and-verification.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`
   - deferred rollout follow-up；当前执行真相以 `.planning/PROJECT.md` / `.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md` 为准

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, is_dataclass
 import json
+from dataclasses import asdict, is_dataclass
 from typing import Any, Sequence
 
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (

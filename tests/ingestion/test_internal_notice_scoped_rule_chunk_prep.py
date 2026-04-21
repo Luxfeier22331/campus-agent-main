@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.internal_notice_scoped_rule_chunk_prep import (
     prepare_scoped_rule_chunks,
@@ -222,7 +221,9 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             self.assertEqual(manifest["target_collection"], "scoped_rules")
             self.assertEqual(manifest["prepared_document_count"], 2)
 
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertTrue(validation["passed"])
             self.assertEqual(validation["missing_cycle_year_count"], 0)
             self.assertEqual(validation["missing_school_unit_name_count"], 0)
@@ -231,14 +232,14 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
 
             document_reports = [
                 json.loads(line)
-                for line in Path(report.document_reports_path).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.document_reports_path)
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(len(document_reports), 2)
             annual_report = next(
-                item
-                for item in document_reports
-                if item["document_nature"] == "annual_cycle_rule"
+                item for item in document_reports if item["document_nature"] == "annual_cycle_rule"
             )
             self.assertTrue(annual_report["passed"])
             self.assertEqual(annual_report["missing_cycle_year_count"], 0)
@@ -252,11 +253,12 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                 if line.strip()
             ]
             self.assertTrue(
-                any(chunk["metadata"].get("content_role") == "scoped_rule_title" for chunk in annual_chunks)
+                any(
+                    chunk["metadata"].get("content_role") == "scoped_rule_title"
+                    for chunk in annual_chunks
+                )
             )
-            self.assertTrue(
-                all(chunk["collection"] == "scoped_rules" for chunk in annual_chunks)
-            )
+            self.assertTrue(all(chunk["collection"] == "scoped_rules" for chunk in annual_chunks))
             self.assertTrue(
                 any(
                     chunk["metadata"].get("document_nature") == "annual_cycle_rule"
@@ -265,7 +267,9 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                 )
             )
 
-    def test_prepare_scoped_rule_chunks_flags_missing_cycle_year_for_annual_cycle_rule(self) -> None:
+    def test_prepare_scoped_rule_chunks_flags_missing_cycle_year_for_annual_cycle_rule(
+        self,
+    ) -> None:
         annual_record = _record(
             document_id="institutional_regulation:muc:推免工作实施细则:missing-year",
             version_id="sha256:annual:missing-year",
@@ -300,7 +304,9 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             )
 
             self.assertFalse(report.passed)
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertFalse(validation["passed"])
             self.assertEqual(validation["missing_cycle_year_count"], 1)
             self.assertEqual(
@@ -308,7 +314,9 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                 [annual_record.document_id],
             )
 
-    def test_prepare_scoped_rule_chunks_flags_missing_school_unit_name_for_annual_cycle_rule(self) -> None:
+    def test_prepare_scoped_rule_chunks_flags_missing_school_unit_name_for_annual_cycle_rule(
+        self,
+    ) -> None:
         annual_record = _record(
             document_id="institutional_regulation:muc:推免工作实施细则:missing-school-unit",
             version_id="sha256:annual:missing-school-unit",
@@ -344,7 +352,9 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             )
 
             self.assertFalse(report.passed)
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertFalse(validation["passed"])
             self.assertEqual(validation["missing_school_unit_name_count"], 1)
             self.assertEqual(

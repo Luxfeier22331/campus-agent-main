@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,14 +12,14 @@ from campus_ingestion_core.file_asset_contract import (
     FileAssetDescriptor,
     NormalizationOutcome,
 )
+from campus_ingestion_core.file_asset_ooxml import (
+    extract_docx_text_blocks,
+    extract_xlsx_text_blocks,
+)
 from campus_ingestion_core.legacy_office_conversion_client import (
     LegacyOfficeConversionClientProtocol,
     LegacyOfficeConversionRequest,
     build_legacy_office_conversion_client_from_env,
-)
-from campus_ingestion_core.file_asset_ooxml import (
-    extract_docx_text_blocks,
-    extract_xlsx_text_blocks,
 )
 
 
@@ -88,16 +88,21 @@ def normalize_legacy_office_asset(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{input_path.stem}{normalized_extension}"
     conversion_client_instance = (
-        conversion_client if conversion_client is not None else build_legacy_office_conversion_client_from_env()
+        conversion_client
+        if conversion_client is not None
+        else build_legacy_office_conversion_client_from_env()
     )
     normalized_media_type = {
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }[normalized_extension]
-    source_media_type = source_mime_type or {
-        ".doc": "application/msword",
-        ".xls": "application/vnd.ms-excel",
-    }[source_extension]
+    source_media_type = (
+        source_mime_type
+        or {
+            ".doc": "application/msword",
+            ".xls": "application/vnd.ms-excel",
+        }[source_extension]
+    )
     conversion_result = conversion_client_instance.convert(
         LegacyOfficeConversionRequest(
             source_media_type=source_media_type,
@@ -226,8 +231,7 @@ def extract_legacy_office_text_blocks(
         ),
         text_blocks=normalized_extraction.text_blocks,
         extraction_strategy=(
-            "legacy_office_conversion_then_"
-            f"{normalized_extraction.extraction_strategy}"
+            f"legacy_office_conversion_then_{normalized_extraction.extraction_strategy}"
         ),
         artifact_refs=tuple(
             (*normalized_result.artifact_refs, *normalized_extraction.artifact_refs)
@@ -236,6 +240,8 @@ def extract_legacy_office_text_blocks(
         normalized_extension=normalized_result.normalized_extension,
         normalized_sha256=normalized_result.normalized_sha256,
     )
+
+
 __all__ = [
     "LegacyOfficeExtractionResult",
     "LegacyOfficeNormalizationResult",

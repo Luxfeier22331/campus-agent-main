@@ -18,7 +18,9 @@ class RebuildLocalDataWorkerCliTest(unittest.TestCase):
             patch("campus_ingestion_worker.rebuild_local_data.rebuild_local_data") as rebuild,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            rebuild.return_value = LocalDataRebuildReport(import_context={"k": "v"}, import_result={"status": "ok"})
+            rebuild.return_value = LocalDataRebuildReport(
+                import_context={"k": "v"}, import_result={"status": "ok"}
+            )
             rebuild_worker.main(
                 [
                     "--mode",

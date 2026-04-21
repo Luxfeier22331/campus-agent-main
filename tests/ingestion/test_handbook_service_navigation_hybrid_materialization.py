@@ -4,13 +4,14 @@ import json
 import unittest
 from unittest.mock import patch
 
-from campus_ingestion_core.campusrag_ingestion_support import ProcessedArtifactInput
+from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
 from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
     ServiceNavigationFlow,
     ServiceNavigationFlowGraph,
     ServiceNavigationPageFinding,
     ServiceNavigationStep,
     build_handbook_service_navigation_hybrid_document,
+    build_handbook_service_navigation_hybrid_document_from_projection_artifact,
     is_handbook_service_navigation_projection,
 )
 from campus_ingestion_core.models import RawAssetRecord
@@ -195,9 +196,20 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
         )
         self.assertIsInstance(flow_graph_artifact, ProcessedArtifactInput)
         parsed_flow_graph = json.loads(flow_graph_artifact.data.decode("utf-8"))
-        self.assertEqual(parsed_flow_graph["document_title"], "中央民族大学学生公寓管理工作流程")
         self.assertEqual(
-            [page["source_page"] for page in parsed_flow_graph["page_findings"]],
+            parsed_flow_graph["schema_version"], "handbook_service_navigation_projection_v1"
+        )
+        self.assertEqual(
+            parsed_flow_graph["projection_name"], "handbook_navigation_service_catalog"
+        )
+        self.assertEqual(
+            parsed_flow_graph["target_document_id"], "campus_services:service_catalog:test-001"
+        )
+        self.assertEqual(
+            parsed_flow_graph["flow_graph"]["document_title"], "中央民族大学学生公寓管理工作流程"
+        )
+        self.assertEqual(
+            [page["source_page"] for page in parsed_flow_graph["flow_graph"]["page_findings"]],
             [252, 253, 254, 255],
         )
         self.assertIn("新生入住办理流程", document.canonical_markdown_bytes.decode("utf-8"))
@@ -208,13 +220,150 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
             if line.strip()
         ]
         self.assertEqual(rows[0]["doc_id"], "campus_services:service_catalog:test-001")
-        self.assertEqual(rows[0]["metadata"]["projection_name"], "handbook_navigation_service_catalog")
+        self.assertEqual(
+            rows[0]["metadata"]["projection_name"], "handbook_navigation_service_catalog"
+        )
         self.assertEqual(rows[0]["metadata"]["derived_from_document_id"], "handbook:source-001")
-        self.assertEqual(rows[0]["metadata"]["derived_from_raw_asset_id"], "asset:student-handbook-pdf")
+        self.assertEqual(
+            rows[0]["metadata"]["derived_from_raw_asset_id"], "asset:student-handbook-pdf"
+        )
         self.assertEqual(rows[0]["metadata"]["attachment_role"], "service_navigation_document")
         self.assertEqual(rows[0]["entitlement_groups"], ["students"])
         self.assertEqual(rows[0]["visibility_scope"], "main")
         self.assertEqual(rows[0]["visibility_level"], "restricted")
+
+    def test_build_hybrid_document_from_projection_artifact_reuses_source_side_artifact(
+        self,
+    ) -> None:
+        reader = _FakeReader(
+            (
+                json.dumps(
+                    {
+                        "schema_version": "handbook_service_navigation_projection_v1",
+                        "projection_name": "handbook_navigation_service_catalog",
+                        "raw_asset_id": "asset:student-handbook-pdf",
+                        "raw_version_id": "sha256:test-raw-version",
+                        "source_document_id": "handbook:source-001",
+                        "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:source-001",
+                        "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+                        "source_page_start": 252,
+                        "source_page_end": 255,
+                        "target_document_id": "campus_services:service_catalog:test-001",
+                        "target_title": "中央民族大学学生公寓管理工作流程",
+                        "extractor_runtime": {"kind": "prompt_runtime", "mode": "captured"},
+                        "flow_graph": {
+                            "document_title": "中央民族大学学生公寓管理工作流程",
+                            "global_manual_review_required": False,
+                            "page_findings": [
+                                {
+                                    "source_page": 252,
+                                    "page_heading": "学生公寓办理总览",
+                                    "flows": [],
+                                },
+                                {
+                                    "source_page": 253,
+                                    "page_heading": "学生公寓入住流程",
+                                    "flows": [
+                                        {
+                                            "flow_heading": "新生入住办理流程",
+                                            "audience_scope": "本科生新生",
+                                            "steps": [
+                                                {
+                                                    "step_id": "step-1",
+                                                    "step_text": "学生到学院完成报到登记",
+                                                    "next_step_ids": ["step-2"],
+                                                },
+                                                {
+                                                    "step_id": "step-2",
+                                                    "step_text": "持报到材料前往公寓办理入住",
+                                                    "next_step_ids": [],
+                                                },
+                                            ],
+                                            "manual_review_notes": [],
+                                        }
+                                    ],
+                                },
+                                {
+                                    "source_page": 254,
+                                    "page_heading": "学生公寓退宿流程",
+                                    "flows": [],
+                                },
+                                {
+                                    "source_page": 255,
+                                    "page_heading": "学生公寓调整流程",
+                                    "flows": [],
+                                },
+                            ],
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            ).encode("utf-8")
+        )
+        raw_asset_record = RawAssetRecord(
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:test-raw-version",
+            corpus="regulations",
+            collection="student_handbook",
+            raw_source_uri="s3://source/student-handbook.pdf",
+            content_hash="test-raw-version",
+            source_filename="学生手册_2018.pdf",
+            object_key="official_pdf/student-handbook/2018/sha256/test-raw-version/capture/student-handbook.pdf",
+            ingestion_timestamp="2026-04-20T00:00:00+00:00",
+            import_source="provider_response_replay",
+        )
+
+        document = build_handbook_service_navigation_hybrid_document_from_projection_artifact(
+            reader=reader,
+            source_bucket="campus-rag-source",
+            projection_artifact_key=(
+                "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+                "projection/handbook_navigation_service_catalog/flow-graph.json"
+            ),
+            raw_asset_record=raw_asset_record,
+            source_document_id="handbook:source-001",
+            source_uri="campus-agent://regulations/student_handbook/docs/handbook:source-001",
+            source_handbook_section="中央民族大学公寓及公费医疗管理规定",
+            target_document_id="campus_services:service_catalog:test-001",
+            target_title="中央民族大学学生公寓管理工作流程",
+            projection_name="handbook_navigation_service_catalog",
+            derived_from="source_truth",
+            parent_document_id="handbook:source-001",
+            attachment_kind="navigation_like",
+            attachment_role="service_navigation_document",
+            provider_response_key=(
+                "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+                "provider/paddleocr-vl-1-5/provider-response.jsonl"
+            ),
+            layout_elements_key=(
+                "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+                "source-truth/layout-elements.jsonl"
+            ),
+            source_page_start=252,
+            source_page_end=255,
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="restricted",
+            import_source="provider_response_replay",
+        )
+
+        self.assertEqual(
+            reader.reads,
+            [
+                (
+                    "campus-rag-source",
+                    "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+                    "projection/handbook_navigation_service_catalog/flow-graph.json",
+                )
+            ],
+        )
+        self.assertEqual(document.additional_processed_artifacts, ())
+        self.assertIn(
+            "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+            "projection/handbook_navigation_service_catalog/flow-graph.json",
+            document.additional_processed_object_keys,
+        )
 
     def test_build_hybrid_document_fails_closed_when_graph_has_no_body_bearing_steps(self) -> None:
         reader = _FakeReader(b"%PDF-fake%")
@@ -298,7 +447,9 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                     import_source="raw_online_ocr",
                 )
 
-    def test_build_hybrid_document_fails_closed_when_graph_page_mapping_drifts_from_declared_selector(self) -> None:
+    def test_build_hybrid_document_fails_closed_when_graph_page_mapping_drifts_from_declared_selector(
+        self,
+    ) -> None:
         reader = _FakeReader(b"%PDF-fake%")
         raw_asset_record = RawAssetRecord(
             raw_asset_id="asset:student-handbook-pdf",

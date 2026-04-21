@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, is_dataclass
 import json
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -15,7 +15,9 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Rebuild authenticated notice source-truth projections")
+    parser = argparse.ArgumentParser(
+        description="Rebuild authenticated notice source-truth projections"
+    )
     parser.add_argument("--corpus", default="campus_notices")
     parser.add_argument("--collection", default="internal_notice")
     parser.add_argument("--source-projections-path")
@@ -30,7 +32,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     request = AuthenticatedNoticeSourceProjectionRequest(
         corpus=args.corpus,
         collection=args.collection,
-        source_projections_path=(Path(args.source_projections_path) if args.source_projections_path else None),
+        source_projections_path=(
+            Path(args.source_projections_path) if args.source_projections_path else None
+        ),
         default_visibility_scope=args.default_visibility_scope,
         notice_ids=tuple(args.notice_ids),
     )

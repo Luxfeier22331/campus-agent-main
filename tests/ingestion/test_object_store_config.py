@@ -3,12 +3,12 @@ from __future__ import annotations
 import unittest
 
 from botocore.config import Config
-
 from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
     build_processed_artifact_key,
     build_processed_asset_artifact_key,
     build_raw_asset_key,
+    build_source_projection_artifact_key,
     parse_source_object_key,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
@@ -126,7 +126,9 @@ class ObjectStoreConfigTest(unittest.TestCase):
             "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
         )
 
-    def test_build_processed_artifact_key_distinguishes_internal_notice_attachment_documents(self) -> None:
+    def test_build_processed_artifact_key_distinguishes_internal_notice_attachment_documents(
+        self,
+    ) -> None:
         title = "关于两校区通勤班车新增班次的通知 / 附件 1 / 班次表.jpg"
         first_key = build_processed_artifact_key(
             corpus="campus_notices",
@@ -198,6 +200,26 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self.assertEqual(parsed["raw_version_id"], "sha256:raw-001")
         self.assertEqual(parsed["stage"], "provider")
         self.assertEqual(parsed["model_slug"], "paddleocr-vl-1-5")
+
+    def test_parse_source_object_key_supports_projection_stage(self) -> None:
+        key = build_source_projection_artifact_key(
+            raw_asset_id="asset:student-handbook-pdf",
+            raw_version_id="sha256:raw-001",
+            projection_name="handbook_navigation_service_catalog",
+            filename="flow-graph.json",
+            year="2018",
+        )
+
+        parsed = parse_source_object_key(key)
+
+        self.assertEqual(
+            key,
+            "official_pdf/student-handbook/2018/sha256/raw-001/projection/handbook_navigation_service_catalog/flow-graph.json",
+        )
+        self.assertEqual(parsed["raw_version_id"], "sha256:raw-001")
+        self.assertEqual(parsed["stage"], "projection")
+        self.assertEqual(parsed["projection_name"], "handbook_navigation_service_catalog")
+        self.assertIsNone(parsed["model_slug"])
 
     def test_factory_exposes_s3_compatible_client_config_only(self) -> None:
         settings = ObjectStoreSettings.from_env(

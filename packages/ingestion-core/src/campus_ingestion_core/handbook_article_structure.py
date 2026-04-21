@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import unicodedata
+from dataclasses import dataclass
 from typing import Sequence
-
 
 TOP_LEVEL_CLAUSE_RE = re.compile(
     r"^(?:[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]|[一二三四五六七八九十百千万〇零两]+、)"
@@ -188,7 +187,10 @@ def _normalize_article_structure_line(line: str) -> tuple[str, ...]:
     if inline_match is not None:
         split_body = _split_inline_heading_body(inline_match.group("body").strip())
         if split_body is not None:
-            return (_compose_heading_line(inline_match.group("label").strip(), split_body[0]), split_body[1])
+            return (
+                _compose_heading_line(inline_match.group("label").strip(), split_body[0]),
+                split_body[1],
+            )
         return (line,)
 
     split_plain = _split_plain_heading_body(line)
@@ -290,7 +292,9 @@ def _strip_trailing_parenthetical(text: str) -> str:
         left_index = normalized.rfind(left)
         if left_index <= 0:
             continue
-        if normalized[left_index + 1 : -1].count(left) or normalized[left_index + 1 : -1].count(right):
+        if normalized[left_index + 1 : -1].count(left) or normalized[left_index + 1 : -1].count(
+            right
+        ):
             continue
         return normalized[:left_index].strip()
     return normalized

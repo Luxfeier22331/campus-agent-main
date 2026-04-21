@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Sequence
 
-
 HF_TOKENIZER_ALLOW_PATTERNS = (
     "tokenizer.json",
     "tokenizer_config.json",

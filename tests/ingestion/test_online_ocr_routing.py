@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from io import BytesIO
 import json
 import unittest
 import zipfile
+from io import BytesIO
 
 from campus_ingestion_core.file_asset_routing import (
     adapt_mineru_archive_to_canonical_provider_payload,
@@ -89,7 +89,9 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertIsNone(decision.fallback_provider)
         self.assertIn("semantic_image_deferred", decision.reason_codes)
 
-    def test_adapt_mineru_archive_to_canonical_provider_payload_builds_paddle_shaped_jsonl(self) -> None:
+    def test_adapt_mineru_archive_to_canonical_provider_payload_builds_paddle_shaped_jsonl(
+        self,
+    ) -> None:
         payload = adapt_mineru_archive_to_canonical_provider_payload(_build_mineru_archive_bytes())
         lines = [line for line in payload.decode("utf-8").splitlines() if line.strip()]
 

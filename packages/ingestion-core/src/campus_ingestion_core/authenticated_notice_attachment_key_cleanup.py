@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import re
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 LEGACY_ATTACHMENT_OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}/[^/]+$")
 
@@ -131,9 +130,7 @@ def _load_candidates(path: Path) -> tuple[tuple[str, ...], int]:
             label="legacy_object_key",
         )
         if not _is_legacy_attachment_object_key(legacy_object_key):
-            raise ValueError(
-                f"{legacy_object_key} must be a legacy attachment object key"
-            )
+            raise ValueError(f"{legacy_object_key} must be a legacy attachment object key")
         if legacy_object_key in seen:
             continue
         seen.add(legacy_object_key)

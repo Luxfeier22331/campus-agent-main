@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_worker.official_web_historical_backfill import (
     OfficialWebHistoricalBackfillSettings,
@@ -22,7 +22,9 @@ def _write_text(path: Path, payload: str) -> None:
     path.write_text(payload, encoding="utf-8")
 
 
-def _handoff_record(*, event_id: str, run_id: str, site_id: str, scheduler_run_key: str) -> dict[str, object]:
+def _handoff_record(
+    *, event_id: str, run_id: str, site_id: str, scheduler_run_key: str
+) -> dict[str, object]:
     return {
         "schemaVersion": "official_web_handoff_dispatch.v1",
         "dispatchRef": "owdispatch_test_01",
@@ -83,7 +85,9 @@ def _handoff_record(*, event_id: str, run_id: str, site_id: str, scheduler_run_k
     }
 
 
-def _local_output_payload(*, site_id: str, run_id: str) -> tuple[dict[str, object], dict[str, object]]:
+def _local_output_payload(
+    *, site_id: str, run_id: str
+) -> tuple[dict[str, object], dict[str, object]]:
     bundle = {
         "schemaVersion": "official_web_source_truth_bundle.v1",
         "sourceChannel": "official_web",
@@ -168,7 +172,9 @@ class FakeBackfillObjectStore:
 
 
 class OfficialWebHistoricalBackfillTest(unittest.TestCase):
-    def test_inventory_marks_missing_bucket_artifacts_as_recoverable_when_local_output_exists(self) -> None:
+    def test_inventory_marks_missing_bucket_artifacts_as_recoverable_when_local_output_exists(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             inbox_dir = root / "inbox"
@@ -183,7 +189,9 @@ class OfficialWebHistoricalBackfillTest(unittest.TestCase):
                 ),
             )
             local_output_dir = root / "official-web-history-001"
-            bundle, manifest = _local_output_payload(site_id="muc_public", run_id="owrun_history_001")
+            bundle, manifest = _local_output_payload(
+                site_id="muc_public", run_id="owrun_history_001"
+            )
             _write_json(local_output_dir / "crawl-run.json", {"crawlRunId": "owrun_history_001"})
             _write_json(local_output_dir / "source-truth-bundle.json", bundle)
             _write_json(
@@ -237,7 +245,9 @@ class OfficialWebHistoricalBackfillTest(unittest.TestCase):
                 ),
             )
             local_output_dir = root / "official-web-history-001"
-            bundle, manifest = _local_output_payload(site_id="muc_public", run_id="owrun_history_001")
+            bundle, manifest = _local_output_payload(
+                site_id="muc_public", run_id="owrun_history_001"
+            )
             _write_json(local_output_dir / "crawl-run.json", {"crawlRunId": "owrun_history_001"})
             _write_json(local_output_dir / "host-summary.json", {"hosts": []})
             _write_text(local_output_dir / "url-results.jsonl", "{}\n")
@@ -252,10 +262,21 @@ class OfficialWebHistoricalBackfillTest(unittest.TestCase):
                 / "owver_33e64dacedd143f278947cd6"
             )
             _write_text(source_asset_dir / "capture" / "response.html", "<html>ok</html>")
-            _write_json(source_asset_dir / "capture" / "response-headers.json", {"content-type": "text/html"})
-            _write_json(source_asset_dir / "capture" / "fetch-metadata.json", {"requestedUrl": "https://news.muc.edu.cn/"})
-            _write_json(source_asset_dir / "provider" / "cheerio-basic" / "page-extraction.json", {"title": "中央民族大学新闻网"})
-            _write_text(source_asset_dir / "provider" / "cheerio-basic" / "discovered-links.jsonl", "{}\n")
+            _write_json(
+                source_asset_dir / "capture" / "response-headers.json",
+                {"content-type": "text/html"},
+            )
+            _write_json(
+                source_asset_dir / "capture" / "fetch-metadata.json",
+                {"requestedUrl": "https://news.muc.edu.cn/"},
+            )
+            _write_json(
+                source_asset_dir / "provider" / "cheerio-basic" / "page-extraction.json",
+                {"title": "中央民族大学新闻网"},
+            )
+            _write_text(
+                source_asset_dir / "provider" / "cheerio-basic" / "discovered-links.jsonl", "{}\n"
+            )
             _write_json(source_asset_dir / "source-truth" / "page-manifest.json", manifest)
             _write_text(source_asset_dir / "source-truth" / "content-blocks.jsonl", "{}\n")
 
@@ -287,8 +308,7 @@ class OfficialWebHistoricalBackfillTest(unittest.TestCase):
 
             persisted = json.loads(record_path.read_text(encoding="utf-8"))
             artifact_types = {
-                artifact["artifactType"]
-                for artifact in persisted["payload"]["artifacts"]
+                artifact["artifactType"] for artifact in persisted["payload"]["artifacts"]
             }
             self.assertIn("source_truth_bundle", artifact_types)
             self.assertIn("page_observations", artifact_types)

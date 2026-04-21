@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from campus_ingestion_core.curriculum_split_seed import (
     HistoricalCurriculumDocument,
-    build_manifest_document_rows,
     build_curriculum_split_manifest_seed,
+    build_manifest_document_rows,
     derive_curriculum_source_uri_from_canonical_path,
     load_layout_elements_rows,
 )
@@ -14,7 +14,9 @@ from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 
 class CurriculumSplitSeedTest(unittest.TestCase):
-    def test_build_curriculum_split_manifest_seed_uses_heading_rows_for_non_overlapping_ranges(self) -> None:
+    def test_build_curriculum_split_manifest_seed_uses_heading_rows_for_non_overlapping_ranges(
+        self,
+    ) -> None:
         historical_documents = (
             HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
@@ -36,9 +38,30 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             ),
         )
         structured_rows = [
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划甲", "page_start": 20, "page_end": 20},
-            {"row_type": "paragraph", "block_role": "text", "title_candidate_score": 0.0, "text_normalized": "计划乙培养具有国际视野的人才。", "page_start": 21, "page_end": 21},
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划乙", "page_start": 22, "page_end": 22},
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划甲",
+                "page_start": 20,
+                "page_end": 20,
+            },
+            {
+                "row_type": "paragraph",
+                "block_role": "text",
+                "title_candidate_score": 0.0,
+                "text_normalized": "计划乙培养具有国际视野的人才。",
+                "page_start": 21,
+                "page_end": 21,
+            },
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划乙",
+                "page_start": 22,
+                "page_end": 22,
+            },
         ]
 
         seed = build_curriculum_split_manifest_seed(
@@ -54,11 +77,17 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(len(seed.missing_documents), 0)
         self.assertEqual(len(seed.retired_documents), 0)
         self.assertEqual(seed.manifest.documents[0].document_id, "curriculum:plan-a")
-        self.assertEqual((seed.manifest.documents[0].page_start, seed.manifest.documents[0].page_end), (20, 21))
+        self.assertEqual(
+            (seed.manifest.documents[0].page_start, seed.manifest.documents[0].page_end), (20, 21)
+        )
         self.assertEqual(seed.manifest.documents[1].document_id, "curriculum:plan-b")
-        self.assertEqual((seed.manifest.documents[1].page_start, seed.manifest.documents[1].page_end), (22, 22))
+        self.assertEqual(
+            (seed.manifest.documents[1].page_start, seed.manifest.documents[1].page_end), (22, 22)
+        )
 
-    def test_derive_curriculum_source_uri_from_canonical_path_wraps_canonical_doc_path(self) -> None:
+    def test_derive_curriculum_source_uri_from_canonical_path_wraps_canonical_doc_path(
+        self,
+    ) -> None:
         self.assertEqual(
             derive_curriculum_source_uri_from_canonical_path(
                 "rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md"
@@ -66,7 +95,9 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
         )
 
-    def test_curriculum_split_manifest_seed_retires_historical_synthetic_umbrella_title(self) -> None:
+    def test_curriculum_split_manifest_seed_retires_historical_synthetic_umbrella_title(
+        self,
+    ) -> None:
         historical_documents = (
             HistoricalCurriculumDocument(
                 document_id="plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74",
@@ -88,7 +119,14 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             ),
         )
         structured_rows = [
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划甲", "page_start": 20, "page_end": 20},
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划甲",
+                "page_start": 20,
+                "page_end": 20,
+            },
         ]
         seed = build_curriculum_split_manifest_seed(
             historical_documents=historical_documents,
@@ -101,7 +139,9 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(retired.title, "各类课程教学计划")
         self.assertEqual(retired.reason, "synthetic_umbrella_title")
 
-    def test_build_curriculum_split_manifest_seed_marks_ambiguous_heading_titles_missing(self) -> None:
+    def test_build_curriculum_split_manifest_seed_marks_ambiguous_heading_titles_missing(
+        self,
+    ) -> None:
         historical_documents = (
             HistoricalCurriculumDocument(
                 document_id="curriculum:plan-a",
@@ -123,9 +163,30 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             ),
         )
         structured_rows = [
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划甲", "page_start": 20, "page_end": 20},
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划甲", "page_start": 30, "page_end": 30},
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划乙", "page_start": 40, "page_end": 40},
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划甲",
+                "page_start": 20,
+                "page_end": 20,
+            },
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划甲",
+                "page_start": 30,
+                "page_end": 30,
+            },
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划乙",
+                "page_start": 40,
+                "page_end": 40,
+            },
         ]
 
         seed = build_curriculum_split_manifest_seed(
@@ -160,8 +221,22 @@ class CurriculumSplitSeedTest(unittest.TestCase):
             ),
         )
         structured_rows = [
-            {"row_type": "paragraph", "block_role": "text", "title_candidate_score": 0.0, "text_normalized": "计划甲培养具有国际视野的人才。", "page_start": 20, "page_end": 20},
-            {"row_type": "heading", "block_role": "doc_title", "title_candidate_score": 1.0, "text_normalized": "计划乙", "page_start": 21, "page_end": 21},
+            {
+                "row_type": "paragraph",
+                "block_role": "text",
+                "title_candidate_score": 0.0,
+                "text_normalized": "计划甲培养具有国际视野的人才。",
+                "page_start": 20,
+                "page_end": 20,
+            },
+            {
+                "row_type": "heading",
+                "block_role": "doc_title",
+                "title_candidate_score": 1.0,
+                "text_normalized": "计划乙",
+                "page_start": 21,
+                "page_end": 21,
+            },
         ]
 
         seed = build_curriculum_split_manifest_seed(
@@ -175,7 +250,9 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(seed.missing_documents[0].reason, "title_not_found_in_structured_headings")
 
     def test_build_manifest_document_rows_produces_document_level_structured_shape(self) -> None:
-        structured_rows = load_layout_elements_rows(Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl"))
+        structured_rows = load_layout_elements_rows(
+            Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
+        )
         document = SplitManifestDocument(
             document_id="curriculum:国际经济与贸易本科人才培养方案",
             title="国际经济与贸易本科人才培养方案",
@@ -225,7 +302,9 @@ class CurriculumSplitSeedTest(unittest.TestCase):
         self.assertEqual(first_page_row["visibility_level"], "public")
         self.assertNotIn("acl", first_page_row)
 
-    def test_build_manifest_document_rows_canonicalizes_root_heading_to_manifest_title(self) -> None:
+    def test_build_manifest_document_rows_canonicalizes_root_heading_to_manifest_title(
+        self,
+    ) -> None:
         manifest_document = SplitManifestDocument(
             document_id="curriculum:民族学本科第二学士学位人才培养方案",
             title="民族学本科第二学士学位人才培养方案",

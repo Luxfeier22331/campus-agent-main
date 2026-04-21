@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -27,7 +27,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     report = replay_official_web_source_truth_local(
         output_dir=Path(args.output_dir).resolve(),
         projection_output_dir=Path(args.projection_output_dir).resolve(),
-        declarations_path=(Path(args.declarations_path).resolve() if args.declarations_path else None),
+        declarations_path=(
+            Path(args.declarations_path).resolve() if args.declarations_path else None
+        ),
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

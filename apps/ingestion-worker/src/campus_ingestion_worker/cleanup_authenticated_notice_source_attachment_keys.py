@@ -9,6 +9,7 @@ from campus_ingestion_core.authenticated_notice_attachment_key_cleanup import (
     AuthenticatedNoticeAttachmentKeyCleanupRequest,
     cleanup_authenticated_notice_source_attachment_keys,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

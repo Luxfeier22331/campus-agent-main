@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
 import os
+from dataclasses import asdict
 from typing import Sequence
 
 from campus_ingestion_core.qdrant_backup import SnapshotRestoreRequest, restore_snapshot_backup
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

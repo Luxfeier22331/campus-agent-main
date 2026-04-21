@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import unittest
+from dataclasses import asdict
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -13,8 +13,8 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     document_record_from_authenticated_notice_source_truth_parent_snapshot,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    AuthenticatedNoticeSourceTruthReplayInventory,
     SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    AuthenticatedNoticeSourceTruthReplayInventory,
     build_authenticated_notice_source_truth_replay_batch_input_payload,
     build_authenticated_notice_source_truth_replay_expected_scope,
     build_authenticated_notice_source_truth_replay_inventory_payload,
@@ -87,9 +87,7 @@ def _document_record(document_id: str, version_id: str) -> DocumentRegistryRecor
             raw_asset_id=f"asset:{document_id}",
             raw_version_id=version_id,
         ),
-        processed_object_keys=(
-            f"campus_notices/source-truth/{document_id}/notice-manifest.json",
-        ),
+        processed_object_keys=(f"campus_notices/source-truth/{document_id}/notice-manifest.json",),
         import_source="authenticated_notice_bootstrap_import",
     )
 
@@ -142,7 +140,9 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
 
 
 class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
-    def test_parent_snapshot_record_parser_rehydrates_registry_record_with_source_key_fallback(self) -> None:
+    def test_parent_snapshot_record_parser_rehydrates_registry_record_with_source_key_fallback(
+        self,
+    ) -> None:
         record = _document_record("notice:muc:000005", "sha256:5")
         parent_snapshot = {
             "record": asdict(record),
@@ -191,7 +191,9 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
                 page_size=1,
             )
 
-        self.assertEqual([record.document_id for record in records], ["notice:muc:000001", "notice:muc:000002"])
+        self.assertEqual(
+            [record.document_id for record in records], ["notice:muc:000001", "notice:muc:000002"]
+        )
         self.assertEqual(len(cursor.execute_calls), 3)
         first_query, first_params = cursor.execute_calls[0]
         second_query, second_params = cursor.execute_calls[1]
@@ -404,9 +406,7 @@ class AuthenticatedNoticeSourceTruthReplayPayloadContractTest(unittest.TestCase)
             },
         )
 
-        expected_scope = build_authenticated_notice_source_truth_replay_expected_scope(
-            parents
-        )
+        expected_scope = build_authenticated_notice_source_truth_replay_expected_scope(parents)
         batch_payload = build_authenticated_notice_source_truth_replay_batch_input_payload(
             run_id="run-1",
             batch_id=7,

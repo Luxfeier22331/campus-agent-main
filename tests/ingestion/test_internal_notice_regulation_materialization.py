@@ -8,7 +8,8 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
+from campus_ingestion_core.models import DocumentRegistryRecord
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 
@@ -122,14 +123,20 @@ def _inventory_entry(
         attachment_document_count=len(attachment_projection_plans),
         attachment_ref_count=len(attachment_projection_plans),
         text_extractable_count=sum(
-            1 for item in attachment_projection_plans if item.get("classification") == "text_extractable"
+            1
+            for item in attachment_projection_plans
+            if item.get("classification") == "text_extractable"
         ),
         ocr_required_count=sum(
-            1 for item in attachment_projection_plans if item.get("classification") == "ocr_required"
+            1
+            for item in attachment_projection_plans
+            if item.get("classification") == "ocr_required"
         ),
         reference_only_count=0,
         manual_review_required_count=0,
-        notice_risk_label="body_with_text_attachments" if attachment_projection_plans else "body_only",
+        notice_risk_label="body_with_text_attachments"
+        if attachment_projection_plans
+        else "body_only",
         attachment_mix_score=len(attachment_projection_plans),
         has_text_table_attachment=bool(attachment_projection_plans),
         has_spatial_attachment=False,
@@ -184,7 +191,9 @@ def _document_rows(upload: dict[str, object]) -> list[dict[str, object]]:
 
 
 class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
-    def test_materialize_from_internal_notice_scope_builds_target_documents_and_replaces_scope(self) -> None:
+    def test_materialize_from_internal_notice_scope_builds_target_documents_and_replaces_scope(
+        self,
+    ) -> None:
         materialize = getattr(
             regulation_materialization,
             "materialize_institutional_regulations_from_internal_notice_scope",
@@ -231,9 +240,7 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             content_hash="sha256:parent-100003",
             is_current=True,
         )
-        stale_target = _regulation_record(
-            "institutional_regulation:muc:stale-regulation:stale1234"
-        )
+        stale_target = _regulation_record("institutional_regulation:muc:stale-regulation:stale1234")
 
         registry = InMemoryDocumentRegistry(
             (parent_1, attachment_1, parent_2, attachment_2, parent_3, stale_target)
@@ -280,13 +287,19 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                 ("campus-rag-derived", parent_1.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n"
                 ),
-                ("campus-rag-derived", attachment_1.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    attachment_1.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n第二条 本指导意见适用于全体在校学生。\n"
                 ),
                 ("campus-rag-derived", parent_2.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）\n\n请相关单位参照附件执行。\n"
                 ),
-                ("campus-rag-derived", attachment_2.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    attachment_2.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n第二条 本指导意见适用于全体在校学生。\n"
                 ),
                 ("campus-rag-derived", parent_3.canonical_markdown_object_key): _canonical_markdown(
@@ -306,7 +319,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                            },
                         }
                     ]
                 ),
@@ -324,7 +339,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学关于学生使用人工智能的指导意见（2026版）"},
+                            "metadata": {
+                                "title": "中央民族大学关于学生使用人工智能的指导意见（2026版）"
+                            },
                         }
                     ]
                 ),
@@ -342,7 +359,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"
+                            },
                         }
                     ]
                 ),
@@ -360,7 +379,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学关于学生使用人工智能的指导意见（2026版）"},
+                            "metadata": {
+                                "title": "中央民族大学关于学生使用人工智能的指导意见（2026版）"
+                            },
                         }
                     ]
                 ),
@@ -378,7 +399,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "关于修订《中央民族大学实验室安全管理规定》的通知"},
+                            "metadata": {
+                                "title": "关于修订《中央民族大学实验室安全管理规定》的通知"
+                            },
                         }
                     ]
                 ),
@@ -406,7 +429,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertEqual(report.materialized_document_count, 2)
         self.assertEqual(len(report.created_document_ids), 2)
         self.assertEqual(report.updated_document_ids, ())
-        self.assertTrue(report.raw_asset_id.startswith("asset:internal-notice-regulation-promotion"))
+        self.assertTrue(
+            report.raw_asset_id.startswith("asset:internal-notice-regulation-promotion")
+        )
         raw_record = raw_asset_registry.get(report.raw_asset_id, report.raw_version_id)
         self.assertIsNotNone(raw_record)
         if raw_record is None:
@@ -415,19 +440,21 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
 
         target_records = registry.list_by_scope("regulations", "institutional_regulations")
         self.assertEqual(len(target_records), 2)
-        self.assertNotIn(stale_target.document_id, {record.document_id for record in target_records})
+        self.assertNotIn(
+            stale_target.document_id, {record.document_id for record in target_records}
+        )
         self.assertTrue(all("100001" not in record.document_id for record in target_records))
         self.assertTrue(all("100003" not in record.document_id for record in target_records))
 
         uploads_by_key = {
-            str(upload["key"]): upload for upload in object_store.uploads if str(upload["key"]).endswith(".jsonl")
+            str(upload["key"]): upload
+            for upload in object_store.uploads
+            if str(upload["key"]).endswith(".jsonl")
         }
         guidance_record = next(
             record
             for record in target_records
-            if "学生使用人工智能的指导意见" in (
-                record.canonical_markdown_object_key or ""
-            )
+            if "学生使用人工智能的指导意见" in (record.canonical_markdown_object_key or "")
         )
         regulation_record = next(
             record
@@ -435,7 +462,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             if "实验室安全管理规定" in (record.canonical_markdown_object_key or "")
         )
 
-        guidance_rows = _document_rows(uploads_by_key[guidance_record.document_units_object_key or ""])
+        guidance_rows = _document_rows(
+            uploads_by_key[guidance_record.document_units_object_key or ""]
+        )
         first_guidance_metadata = guidance_rows[0]["metadata"]
         self.assertEqual(
             first_guidance_metadata["source_notice_ids"],
@@ -448,7 +477,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                 "notice_attachment:muc_internal_portal:100002:attachment-0001",
             ],
         )
-        self.assertEqual(first_guidance_metadata["promotion_source_collection"], "campus_notices/internal_notice")
+        self.assertEqual(
+            first_guidance_metadata["promotion_source_collection"], "campus_notices/internal_notice"
+        )
         self.assertEqual(
             first_guidance_metadata["source_notice_document_id"],
             "notice:muc_internal_portal:100001",
@@ -494,7 +525,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         )
         self.assertTrue(guidance_record.is_current)
 
-        regulation_rows = _document_rows(uploads_by_key[regulation_record.document_units_object_key or ""])
+        regulation_rows = _document_rows(
+            uploads_by_key[regulation_record.document_units_object_key or ""]
+        )
         regulation_metadata = regulation_rows[0]["metadata"]
         self.assertEqual(regulation_metadata["source_notice_ids"], ["100003"])
         self.assertEqual(
@@ -531,7 +564,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             bucket="campus-rag-derived",
             key=guidance_record.canonical_markdown_object_key or "",
         ).decode("utf-8")
-        self.assertTrue(guidance_markdown.startswith("# 中央民族大学关于学生使用人工智能的指导意见（2026版）"))
+        self.assertTrue(
+            guidance_markdown.startswith("# 中央民族大学关于学生使用人工智能的指导意见（2026版）")
+        )
         self.assertNotIn("关于发布", guidance_markdown)
 
         regulation_markdown = object_store.get_bytes(
@@ -542,7 +577,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertNotIn("特此通知", regulation_markdown)
         self.assertIn("第一条 为加强实验室安全管理", regulation_markdown)
 
-    def test_materialize_from_internal_notice_scope_excludes_contextual_rules_routed_to_scoped_rules(self) -> None:
+    def test_materialize_from_internal_notice_scope_excludes_contextual_rules_routed_to_scoped_rules(
+        self,
+    ) -> None:
         materialize = getattr(
             regulation_materialization,
             "materialize_institutional_regulations_from_internal_notice_scope",
@@ -587,12 +624,18 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", annual_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    annual_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学2026年“英才计划”硕博连读研究生招生实施细则\n\n"
                     "第一条 为规范2026年“英才计划”硕博连读研究生招生工作，制定本细则。\n"
                     "第二条 报名时间为2025年12月10日至2026年1月10日。\n"
                 ),
-                ("campus-rag-derived", temporary_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    temporary_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学丰台校区就医管理办法（暂行）\n\n"
                     "第一条 为规范丰台校区就医管理，制定本办法。\n"
                     "第二条 正式运营前由临时医疗点负责首诊，正式运营后取消本过渡安排。\n"
@@ -611,7 +654,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
                             "visibility_scope": "campus",
                             "visibility_level": "restricted",
                             "policy_projection_version": "phase1-authorization-projection-v1",
-                            "metadata": {"title": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"},
+                            "metadata": {
+                                "title": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则"
+                            },
                         }
                     ]
                 ),

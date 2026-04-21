@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import json
+import mimetypes
+import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
 from io import BytesIO
-import json
-import mimetypes
 from pathlib import Path
 from typing import Any
-import zipfile
 
 from PIL import Image
-
 
 _EXTENSION_CONTENT_TYPES = {
     ".csv": "text/csv",
@@ -116,7 +115,9 @@ class OnlineOcrRoutingDecision:
     persist_raw_provider_artifact: bool
 
 
-def infer_raw_asset_typed_metadata(*, source_path: Path, file_bytes: bytes) -> RawAssetTypedMetadata:
+def infer_raw_asset_typed_metadata(
+    *, source_path: Path, file_bytes: bytes
+) -> RawAssetTypedMetadata:
     extension = source_path.suffix.strip().lower()
     guessed_content_type, _ = mimetypes.guess_type(source_path.name)
     content_type = _normalize_content_type(
@@ -369,7 +370,10 @@ def select_online_ocr_routing(
             persist_raw_provider_artifact=False,
         )
 
-    if normalized_asset_subkind in _PADDLE_PRIMARY_IMAGE_SUBKINDS or normalized_asset_kind == "image":
+    if (
+        normalized_asset_subkind in _PADDLE_PRIMARY_IMAGE_SUBKINDS
+        or normalized_asset_kind == "image"
+    ):
         return OnlineOcrRoutingDecision(
             route_id="generic_image_paddle_primary",
             canonical_allowed=True,
@@ -594,11 +598,7 @@ def _parser_version_for_provider(provider: str) -> str:
 
 
 def _load_mineru_content_items(archive: zipfile.ZipFile) -> list[dict[str, Any]]:
-    preferred_names = [
-        name
-        for name in archive.namelist()
-        if name.endswith("_content_list.json")
-    ]
+    preferred_names = [name for name in archive.namelist() if name.endswith("_content_list.json")]
     if preferred_names:
         for name in preferred_names:
             payload = json.loads(archive.read(name).decode("utf-8"))
@@ -710,9 +710,7 @@ def _content_item_text(item: dict[str, Any]) -> str:
         title_content = content.get("title_content")
         if isinstance(title_content, list):
             texts = [
-                str(part.get("content") or "")
-                for part in title_content
-                if isinstance(part, dict)
+                str(part.get("content") or "") for part in title_content if isinstance(part, dict)
             ]
             return "".join(texts).strip()
     if isinstance(item.get("table_body"), str):

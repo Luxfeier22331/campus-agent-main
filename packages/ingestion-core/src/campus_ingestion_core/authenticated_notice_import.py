@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
+
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
@@ -16,21 +17,21 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION,
     DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
 )
-from campus_ingestion_core.authenticated_notice_source_truth import (
-    AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
-    AuthenticatedNoticeSourceMaterial,
-    prepare_authenticated_notice_source_material,
-)
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _load_json_payload,
     _load_jsonl_rows,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
+from campus_ingestion_core.authenticated_notice_source_truth import (
+    AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
+    AuthenticatedNoticeSourceMaterial,
+    prepare_authenticated_notice_source_material,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
-    DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
+    DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
@@ -41,11 +42,11 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     S3ObjectStoreWriter,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
+    utc_now,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import (
-    build_document_artifact_key,
     build_raw_asset_key,
     build_source_provider_artifact_key,
     build_source_truth_artifact_key,
@@ -53,22 +54,22 @@ from campus_ingestion_core.object_store import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
+    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
+    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     DocumentRegistry,
     RawAssetRegistry,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.scope_catalog import assert_known_scope
-from campus_ingestion_core.campusrag_ingestion_support import utc_now
+from campus_ingestion_core.settings import ObjectStoreSettings
+
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeImportRequest:
@@ -91,7 +92,11 @@ class AuthenticatedNoticeImportRequest:
             object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
         if self.attachment_blob_root is not None:
             object.__setattr__(self, "attachment_blob_root", Path(self.attachment_blob_root))
-        object.__setattr__(self, "default_entitlement_groups", tuple(group.strip() for group in self.default_entitlement_groups if group.strip()))
+        object.__setattr__(
+            self,
+            "default_entitlement_groups",
+            tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
+        )
         assert_known_scope(self.corpus, self.collection)
         if not self.site_id.strip():
             raise ValueError("site_id is required")
@@ -232,10 +237,7 @@ def import_authenticated_notice_export(
 
     runtime_profile = load_runtime_profile(request.corpus, request.collection)
     stats = collect_import_document_stats(
-        documents=[
-            notice_import.document_import
-            for notice_import in prepared.notice_imports
-        ],
+        documents=[notice_import.document_import for notice_import in prepared.notice_imports],
         registry=registry,
         raw_asset_registry=raw_registry,
         writer=writer,
@@ -245,6 +247,7 @@ def import_authenticated_notice_export(
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.visibility_scope,
         scope_refresh=(request.corpus, request.collection),
+        scope_refresh_preserve_existing=_should_preserve_authenticated_notice_scope_record,
     )
     if inventory_store is not None:
         config_path = read_authenticated_notice_source_projections_config_path(source)
@@ -265,9 +268,15 @@ def import_authenticated_notice_export(
             parent_snapshot = build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
                 record=parent_record,
                 raw_record=notice_import.raw_record,
-                notice_manifest_key=notice_import.source_artifact_keys["source-truth/notice-manifest.json"],
-                content_blocks_key=notice_import.source_artifact_keys["source-truth/content-blocks.jsonl"],
-                attachment_refs_key=notice_import.source_artifact_keys["source-truth/attachment-refs.jsonl"],
+                notice_manifest_key=notice_import.source_artifact_keys[
+                    "source-truth/notice-manifest.json"
+                ],
+                content_blocks_key=notice_import.source_artifact_keys[
+                    "source-truth/content-blocks.jsonl"
+                ],
+                attachment_refs_key=notice_import.source_artifact_keys[
+                    "source-truth/attachment-refs.jsonl"
+                ],
                 source_artifact_keys=tuple(
                     key
                     for key in notice_import.source_artifact_keys.values()
@@ -330,6 +339,15 @@ def _build_inventory_store_from_env_if_configured(
     if any(env.get(key) for key in runtime_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(env)
     return None
+
+
+def _should_preserve_authenticated_notice_scope_record(
+    record: DocumentRegistryRecord,
+) -> bool:
+    # Bootstrap import owns parent notice snapshots. Child or derived families in the
+    # same internal_notice scope are produced by later pipelines and must not be
+    # deleted when parent notices are replayed into PG.
+    return not str(record.document_id).startswith("notice:")
 
 
 def _assert_attachment_blob_root_precondition(

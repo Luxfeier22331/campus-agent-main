@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import unittest
 from collections import Counter
 from pathlib import Path
-import unittest
 
 from campus_ingestion_core.handbook_cleanup import build_handbook_doc_id
 from campus_ingestion_core.split_manifest import load_split_manifest
-
 
 MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
@@ -106,7 +105,8 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
         self.assertEqual(manifest.documents[-1].page_end, 260)
         self.assertTrue(
             all(
-                document.source_uri == f"campus-agent://regulations/student_handbook/docs/{document.document_id}"
+                document.source_uri
+                == f"campus-agent://regulations/student_handbook/docs/{document.document_id}"
                 for document in manifest.documents
             )
         )

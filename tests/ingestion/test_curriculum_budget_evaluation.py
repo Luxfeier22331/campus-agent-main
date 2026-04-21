@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.curriculum_budget_evaluation import (
     CurriculumBudgetCandidate,
-    CurriculumBudgetProfileSpec,
     CurriculumBudgetEvaluationDocument,
     CurriculumBudgetProbeCase,
+    CurriculumBudgetProfileSpec,
     build_default_curriculum_budget_candidates,
     evaluate_curriculum_budget_candidates,
     load_default_curriculum_budget_evaluation_documents,
@@ -18,7 +18,9 @@ from campus_ingestion_core.curriculum_budget_evaluation import (
 from campus_ingestion_core.models import DocumentRegistryRecord
 
 
-def _make_curriculum_record(*, document_id: str, version_id: str, title: str) -> DocumentRegistryRecord:
+def _make_curriculum_record(
+    *, document_id: str, version_id: str, title: str
+) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
         revision_track="source-faithful",
@@ -42,7 +44,9 @@ def _make_curriculum_record(*, document_id: str, version_id: str, title: str) ->
     )
 
 
-def _table_row(*, doc_id: str, version_id: str, row_id: str, row_type: str, text: str, **extra: object) -> str:
+def _table_row(
+    *, doc_id: str, version_id: str, row_id: str, row_type: str, text: str, **extra: object
+) -> str:
     payload = {
         "doc_id": doc_id,
         "version_id": version_id,
@@ -59,7 +63,9 @@ def _table_row(*, doc_id: str, version_id: str, row_id: str, row_type: str, text
 
 
 class CurriculumBudgetEvaluationTest(unittest.TestCase):
-    def test_build_default_curriculum_budget_candidates_includes_v2_split_table_profiles(self) -> None:
+    def test_build_default_curriculum_budget_candidates_includes_v2_split_table_profiles(
+        self,
+    ) -> None:
         candidates = build_default_curriculum_budget_candidates()
 
         by_name = {candidate.name: candidate for candidate in candidates}
@@ -67,7 +73,10 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
         self.assertIn("baseline-uniform", by_name)
         self.assertIn("v2-table-balanced", by_name)
         self.assertIn("v2-table-relaxed", by_name)
-        self.assertEqual(by_name["v2-table-balanced"].default_profile, by_name["baseline-uniform"].default_profile)
+        self.assertEqual(
+            by_name["v2-table-balanced"].default_profile,
+            by_name["baseline-uniform"].default_profile,
+        )
         self.assertEqual(
             by_name["v2-table-balanced"].table_profile,
             CurriculumBudgetProfileSpec(
@@ -87,7 +96,9 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             ),
         )
 
-    def test_evaluate_curriculum_budget_candidates_supports_split_table_budget_and_writes_reports(self) -> None:
+    def test_evaluate_curriculum_budget_candidates_supports_split_table_budget_and_writes_reports(
+        self,
+    ) -> None:
         record = _make_curriculum_record(
             document_id="curriculum:test-budget-doc",
             version_id="sha256:test-budget-doc",
@@ -130,8 +141,22 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
                     html="<table></table>",
                     continuation_group_id="table-001",
                     table_cells=[
-                        {"row": 1, "col": 1, "text": "课程名称", "rowspan": 1, "colspan": 1, "is_header": True},
-                        {"row": 1, "col": 2, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
+                        {
+                            "row": 1,
+                            "col": 1,
+                            "text": "课程名称",
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "is_header": True,
+                        },
+                        {
+                            "row": 1,
+                            "col": 2,
+                            "text": "学分",
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "is_header": True,
+                        },
                         {
                             "row": 2,
                             "col": 1,
@@ -140,7 +165,14 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
                             "colspan": 1,
                             "is_header": False,
                         },
-                        {"row": 2, "col": 2, "text": "3", "rowspan": 1, "colspan": 1, "is_header": False},
+                        {
+                            "row": 2,
+                            "col": 2,
+                            "text": "3",
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "is_header": False,
+                        },
                         {
                             "row": 3,
                             "col": 1,
@@ -149,7 +181,14 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
                             "colspan": 1,
                             "is_header": False,
                         },
-                        {"row": 3, "col": 2, "text": "3", "rowspan": 1, "colspan": 1, "is_header": False},
+                        {
+                            "row": 3,
+                            "col": 2,
+                            "text": "3",
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "is_header": False,
+                        },
                         {
                             "row": 4,
                             "col": 1,
@@ -158,7 +197,14 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
                             "colspan": 1,
                             "is_header": False,
                         },
-                        {"row": 4, "col": 2, "text": "2", "rowspan": 1, "colspan": 1, "is_header": False},
+                        {
+                            "row": 4,
+                            "col": 2,
+                            "text": "2",
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "is_header": False,
+                        },
                     ],
                 ),
             ]
@@ -229,14 +275,22 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
                 by_name["uniform-small"].aggregate.missing_any_structural_heading_count,
                 by_name["table-relaxed"].aggregate.missing_any_structural_heading_count,
             )
-            self.assertEqual(by_name["uniform-small"].aggregate.probe_summary.complete_hit_at_1_count, 0)
-            self.assertEqual(by_name["table-relaxed"].aggregate.probe_summary.complete_hit_at_1_count, 1)
+            self.assertEqual(
+                by_name["uniform-small"].aggregate.probe_summary.complete_hit_at_1_count, 0
+            )
+            self.assertEqual(
+                by_name["table-relaxed"].aggregate.probe_summary.complete_hit_at_1_count, 1
+            )
             self.assertEqual(by_name["uniform-small"].aggregate.document_count, 1)
             self.assertEqual(by_name["table-relaxed"].aggregate.document_count, 1)
 
-            matrix_payload = json.loads((Path(temp_dir) / "budget-eval-matrix.json").read_text(encoding="utf-8"))
+            matrix_payload = json.loads(
+                (Path(temp_dir) / "budget-eval-matrix.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(len(matrix_payload["candidates"]), 2)
-            self.assertEqual(matrix_payload["candidates"][0]["documents"][0]["title"], "测试培养方案")
+            self.assertEqual(
+                matrix_payload["candidates"][0]["documents"][0]["title"], "测试培养方案"
+            )
             self.assertIn("probe_summary", matrix_payload["candidates"][0]["documents"][0])
 
             markdown = (Path(temp_dir) / "budget-eval-report.md").read_text(encoding="utf-8")
@@ -244,7 +298,9 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             self.assertIn("table-relaxed", markdown)
             self.assertIn("Probe Summary", markdown)
 
-    def test_load_default_curriculum_budget_evaluation_documents_defaults_to_runtime_inputs(self) -> None:
+    def test_load_default_curriculum_budget_evaluation_documents_defaults_to_runtime_inputs(
+        self,
+    ) -> None:
         documents = load_default_curriculum_budget_evaluation_documents()
 
         runtime_titles = {document.title for document in documents if document.tier == "runtime"}
@@ -259,14 +315,25 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
 
     def test_historical_curriculum_budget_documents_require_explicit_opt_in(self) -> None:
         documents = load_historical_curriculum_budget_evaluation_documents()
-        historical_labels = {document.label for document in documents if document.tier == "historical"}
+        historical_labels = {
+            document.label for document in documents if document.tier == "historical"
+        }
 
         self.assertEqual(
             historical_labels,
-            {"narrative", "requirement-like", "table-heavy", "mixed", "title-boundary", "normalized-title"},
+            {
+                "narrative",
+                "requirement-like",
+                "table-heavy",
+                "mixed",
+                "title-boundary",
+                "normalized-title",
+            },
         )
 
-    def test_baseline_candidate_clears_runtime_fixture_oversize_and_structure_failures(self) -> None:
+    def test_baseline_candidate_clears_runtime_fixture_oversize_and_structure_failures(
+        self,
+    ) -> None:
         baseline = next(
             candidate
             for candidate in build_default_curriculum_budget_candidates()
@@ -286,10 +353,7 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             )
 
         self.assertEqual(len(report.candidates), 1)
-        by_title = {
-            document.title: document
-            for document in report.candidates[0].documents
-        }
+        by_title = {document.title: document for document in report.candidates[0].documents}
         self.assertEqual(
             set(by_title),
             {"国际经济与贸易本科人才培养方案", "经济学拔尖人才创新班人才培养方案"},
@@ -310,7 +374,9 @@ class CurriculumBudgetEvaluationTest(unittest.TestCase):
             report = evaluate_curriculum_budget_candidates(
                 output_dir=Path(temp_dir),
                 candidates=(baseline,),
-                documents=load_default_curriculum_budget_evaluation_documents(include_historical=True),
+                documents=load_default_curriculum_budget_evaluation_documents(
+                    include_historical=True
+                ),
             )
 
         self.assertEqual(len(report.candidates), 1)

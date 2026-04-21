@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
 import unicodedata
-
+from dataclasses import dataclass
 
 ARTICLE_PREFIX_RE = re.compile(
     r"^(?P<label>第\s*[0-9一二三四五六七八九十百千万〇零两]+\s*条)\s*(?P<rest>.*)$"
@@ -14,7 +13,9 @@ CHAPTER_SECTION_RE = re.compile(
 CHAPTER_SECTION_LABEL_RE = re.compile(
     r"^(?P<label>第[一二三四五六七八九十百千万〇零两]+[章节编])\s*(?P<rest>.*)$"
 )
-PART_HEADING_RE = re.compile(r"^(?P<label>第[一二三四五六七八九十百千万〇零两0-9]+部分)\s*(?P<rest>.*)$")
+PART_HEADING_RE = re.compile(
+    r"^(?P<label>第[一二三四五六七八九十百千万〇零两0-9]+部分)\s*(?P<rest>.*)$"
+)
 ENUMERATED_HEADING_RE = re.compile(
     r"^(?P<label>[一二三四五六七八九十百千万〇零两0-9]+、)\s*(?P<rest>.+)$"
 )
@@ -67,7 +68,9 @@ def _classify_chapter_heading(text: str) -> StructuralHeading | None:
     if not CHAPTER_SECTION_RE.match(text):
         return None
     normalized = _normalize_chapter_heading(text)
-    return StructuralHeading(text=normalized, rank=_chapter_heading_rank(normalized), kind="chapter")
+    return StructuralHeading(
+        text=normalized, rank=_chapter_heading_rank(normalized), kind="chapter"
+    )
 
 
 def _classify_part_heading(text: str) -> StructuralHeading | None:
@@ -128,7 +131,9 @@ def _looks_like_article_line(text: str) -> bool:
 
 
 def _normalize_text(value: str) -> str:
-    normalized = unicodedata.normalize("NFKC", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+    normalized = unicodedata.normalize(
+        "NFKC", value.replace("\r\n", "\n").replace("\r", "\n")
+    ).strip()
     lines = [" ".join(line.split()).strip() for line in normalized.split("\n")]
     return "\n".join(line for line in lines if line)
 

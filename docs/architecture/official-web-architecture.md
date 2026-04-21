@@ -34,6 +34,7 @@ updated: 2026-04-19
 - `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与 ingestion handoff
 - `apps/ingestion-worker` 继续只是 offline executor
 - protected panel 通过 `apps/app-api` 消费 `official_web` operator surfaces
+- collector 写入 source bucket 的对象同时包含 page-level `capture/`、`provider/`、`source-truth/` artifacts，以及 `official_web/{site_id}/runs/{run_id}/...` run artifacts
 
 ## Source Channel Rules
 

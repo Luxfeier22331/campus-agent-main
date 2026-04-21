@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import importlib
 import io
 import json
 import tempfile
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,7 +13,6 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest"
@@ -170,7 +169,10 @@ class BuildInternalNoticeRegulationPromotionManifestWorkerCliTest(unittest.TestC
             )
             target = object_store_root / "campus-rag-derived" / record.canonical_markdown_object_key
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("# 中央民族大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n", encoding="utf-8")
+            target.write_text(
+                "# 中央民族大学实验室安全管理规定\n\n第一条 为加强实验室安全管理，制定本规定。\n",
+                encoding="utf-8",
+            )
 
             with (
                 patch(

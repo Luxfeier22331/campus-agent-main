@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, replace
 import json
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Protocol, Sequence
 
@@ -21,6 +21,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 _PROMOTION_DISALLOWED_PAGE_FAMILIES = frozenset(
@@ -105,7 +106,9 @@ def import_projection_output(
                 continue
 
         canonical_path = Path(
-            _require_text(document.get("canonical_markdown_path"), "documents[].canonical_markdown_path")
+            _require_text(
+                document.get("canonical_markdown_path"), "documents[].canonical_markdown_path"
+            )
         )
         document_units_path = Path(
             _require_text(document.get("document_units_path"), "documents[].document_units_path")
@@ -134,7 +137,9 @@ def import_projection_output(
                 source_channel="official_web",
                 is_current=True,
                 corpus=_require_text(document.get("target_corpus"), "documents[].target_corpus"),
-                collection=_require_text(document.get("target_collection"), "documents[].target_collection"),
+                collection=_require_text(
+                    document.get("target_collection"), "documents[].target_collection"
+                ),
                 raw_source_uri=_require_text(
                     document.get("normalized_canonical_url"),
                     "documents[].normalized_canonical_url",
@@ -146,10 +151,12 @@ def import_projection_output(
                     key
                     for key in (
                         _optional_text(
-                            page.get("pageManifestObjectKey") or page.get("page_manifest_object_key")
+                            page.get("pageManifestObjectKey")
+                            or page.get("page_manifest_object_key")
                         ),
                         _optional_text(
-                            page.get("contentBlocksObjectKey") or page.get("content_blocks_object_key")
+                            page.get("contentBlocksObjectKey")
+                            or page.get("content_blocks_object_key")
                         ),
                     )
                     if key is not None
@@ -218,7 +225,9 @@ def _build_official_web_raw_asset_record(
     bundle_page: dict[str, object],
     document: DocumentImportInput,
 ) -> RawAssetRecord:
-    raw_asset_id = _require_text(bundle_page.get("rawAssetId") or bundle_page.get("raw_asset_id"), "rawAssetId")
+    raw_asset_id = _require_text(
+        bundle_page.get("rawAssetId") or bundle_page.get("raw_asset_id"), "rawAssetId"
+    )
     raw_version_id = _require_text(
         bundle_page.get("rawVersionId") or bundle_page.get("raw_version_id"),
         "rawVersionId",
@@ -262,8 +271,10 @@ def _document_matches_scope_refresh(
     scope_refresh: tuple[str, str],
 ) -> bool:
     return (
-        _require_text(document.get("target_corpus"), "documents[].target_corpus") == scope_refresh[0]
-        and _require_text(document.get("target_collection"), "documents[].target_collection") == scope_refresh[1]
+        _require_text(document.get("target_corpus"), "documents[].target_corpus")
+        == scope_refresh[0]
+        and _require_text(document.get("target_collection"), "documents[].target_collection")
+        == scope_refresh[1]
     )
 
 
@@ -282,7 +293,9 @@ def _rewrite_import_report(report: ImportReport) -> None:
         "unresolved_source_pdfs": list(report.unresolved_source_pdfs),
         "errors": list(report.errors),
     }
-    Path(report.report_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    Path(report.report_path).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _load_provider_bytes(

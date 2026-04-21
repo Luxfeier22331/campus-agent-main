@@ -1,20 +1,24 @@
 from __future__ import annotations
 
-from base64 import b64encode
-from dataclasses import asdict, dataclass
 import hashlib
 import json
+from base64 import b64encode
+from dataclasses import asdict, dataclass
 from typing import Protocol
 
 import httpx
-
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput, ProcessedArtifactInput
-from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_document_artifact_key, infer_year_label
 
+from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
+from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.object_store import (
+    build_source_projection_artifact_key,
+    infer_year_label,
+)
 
 FLOW_GRAPH_FILENAME = "flow-graph.json"
+HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION = "handbook_service_navigation_projection_v1"
 DEFAULT_PROMPT_RUNTIME_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS = 30.0
@@ -120,6 +124,61 @@ def build_handbook_service_navigation_hybrid_document(
     visibility_level: str,
     import_source: str,
 ) -> DocumentImportInput:
+    projection_artifact = materialize_handbook_service_navigation_projection_artifact(
+        source=source,
+        reader=reader,
+        source_bucket=source_bucket,
+        raw_asset_record=raw_asset_record,
+        source_document_id=source_document_id,
+        source_uri=source_uri,
+        source_handbook_section=source_handbook_section,
+        target_document_id=target_document_id,
+        target_title=target_title,
+        projection_name=projection_name,
+        source_page_start=source_page_start,
+        source_page_end=source_page_end,
+    )
+    return _build_handbook_service_navigation_hybrid_document_from_projection_bytes(
+        projection_artifact_bytes=projection_artifact.data,
+        projection_artifact_key=projection_artifact.object_key,
+        raw_asset_record=raw_asset_record,
+        source_document_id=source_document_id,
+        source_uri=source_uri,
+        source_handbook_section=source_handbook_section,
+        target_document_id=target_document_id,
+        target_title=target_title,
+        projection_name=projection_name,
+        derived_from=derived_from,
+        parent_document_id=parent_document_id,
+        attachment_kind=attachment_kind,
+        attachment_role=attachment_role,
+        provider_response_key=provider_response_key,
+        layout_elements_key=layout_elements_key,
+        source_page_start=source_page_start,
+        source_page_end=source_page_end,
+        entitlement_groups=entitlement_groups,
+        visibility_scope=visibility_scope,
+        visibility_level=visibility_level,
+        import_source=import_source,
+        additional_processed_artifacts=(projection_artifact,),
+    )
+
+
+def materialize_handbook_service_navigation_projection_artifact(
+    *,
+    source: dict[str, str],
+    reader: ObjectStoreByteReader,
+    source_bucket: str,
+    raw_asset_record: RawAssetRecord,
+    source_document_id: str,
+    source_uri: str,
+    source_handbook_section: str,
+    target_document_id: str,
+    target_title: str,
+    projection_name: str,
+    source_page_start: int,
+    source_page_end: int,
+) -> ProcessedArtifactInput:
     raw_pdf_bytes = reader.get_bytes(bucket=source_bucket, key=raw_asset_record.object_key)
     page_pngs = _render_declared_pdf_pages_to_pngs(
         pdf_bytes=raw_pdf_bytes,
@@ -140,20 +199,136 @@ def build_handbook_service_navigation_hybrid_document(
         source_page_end=source_page_end,
     )
 
-    version_seed = json.dumps(asdict(flow_graph), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    version_id = f"flow-graph:{hashlib.sha1(version_seed.encode('utf-8')).hexdigest()}"
     year = infer_year_label(raw_asset_record.source_filename)
-    flow_graph_key = build_document_artifact_key(
-        corpus="campus_services",
-        collection="service_catalog",
-        document_id=target_document_id,
-        revision_track="source-faithful",
-        version_id=version_id,
+    flow_graph_key = build_source_projection_artifact_key(
+        raw_asset_id=raw_asset_record.raw_asset_id,
+        raw_version_id=raw_asset_record.raw_version_id,
+        projection_name=projection_name,
         filename=FLOW_GRAPH_FILENAME,
-        title=target_title,
         year=year,
     )
-    flow_graph_bytes = (json.dumps(asdict(flow_graph), ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    flow_graph_bytes = (
+        json.dumps(
+            {
+                "schema_version": HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION,
+                "projection_name": projection_name,
+                "raw_asset_id": raw_asset_record.raw_asset_id,
+                "raw_version_id": raw_asset_record.raw_version_id,
+                "source_document_id": source_document_id,
+                "source_uri": source_uri,
+                "source_handbook_section": source_handbook_section,
+                "source_page_start": source_page_start,
+                "source_page_end": source_page_end,
+                "target_document_id": target_document_id,
+                "target_title": target_title,
+                "extractor_runtime": _resolve_projection_extractor_runtime(source),
+                "flow_graph": asdict(flow_graph),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n"
+    ).encode("utf-8")
+    return ProcessedArtifactInput(
+        object_key=flow_graph_key,
+        data=flow_graph_bytes,
+        content_type="application/json",
+    )
+
+
+def build_handbook_service_navigation_hybrid_document_from_projection_artifact(
+    *,
+    reader: ObjectStoreByteReader,
+    source_bucket: str,
+    projection_artifact_key: str,
+    raw_asset_record: RawAssetRecord,
+    source_document_id: str,
+    source_uri: str,
+    source_handbook_section: str,
+    target_document_id: str,
+    target_title: str,
+    projection_name: str,
+    derived_from: str,
+    parent_document_id: str,
+    attachment_kind: str | None,
+    attachment_role: str | None,
+    provider_response_key: str,
+    layout_elements_key: str,
+    source_page_start: int,
+    source_page_end: int,
+    entitlement_groups: tuple[str, ...],
+    visibility_scope: str | None,
+    visibility_level: str,
+    import_source: str,
+) -> DocumentImportInput:
+    projection_artifact_bytes = reader.get_bytes(bucket=source_bucket, key=projection_artifact_key)
+    return _build_handbook_service_navigation_hybrid_document_from_projection_bytes(
+        projection_artifact_bytes=projection_artifact_bytes,
+        projection_artifact_key=projection_artifact_key,
+        raw_asset_record=raw_asset_record,
+        source_document_id=source_document_id,
+        source_uri=source_uri,
+        source_handbook_section=source_handbook_section,
+        target_document_id=target_document_id,
+        target_title=target_title,
+        projection_name=projection_name,
+        derived_from=derived_from,
+        parent_document_id=parent_document_id,
+        attachment_kind=attachment_kind,
+        attachment_role=attachment_role,
+        provider_response_key=provider_response_key,
+        layout_elements_key=layout_elements_key,
+        source_page_start=source_page_start,
+        source_page_end=source_page_end,
+        entitlement_groups=entitlement_groups,
+        visibility_scope=visibility_scope,
+        visibility_level=visibility_level,
+        import_source=import_source,
+        additional_processed_artifacts=(),
+    )
+
+
+def _build_handbook_service_navigation_hybrid_document_from_projection_bytes(
+    *,
+    projection_artifact_bytes: bytes,
+    projection_artifact_key: str,
+    raw_asset_record: RawAssetRecord,
+    source_document_id: str,
+    source_uri: str,
+    source_handbook_section: str,
+    target_document_id: str,
+    target_title: str,
+    projection_name: str,
+    derived_from: str,
+    parent_document_id: str,
+    attachment_kind: str | None,
+    attachment_role: str | None,
+    provider_response_key: str,
+    layout_elements_key: str,
+    source_page_start: int,
+    source_page_end: int,
+    entitlement_groups: tuple[str, ...],
+    visibility_scope: str | None,
+    visibility_level: str,
+    import_source: str,
+    additional_processed_artifacts: tuple[ProcessedArtifactInput, ...],
+) -> DocumentImportInput:
+    projection_artifact = _load_projection_artifact(projection_artifact_bytes)
+    _validate_projection_artifact(
+        projection_artifact=projection_artifact,
+        raw_asset_record=raw_asset_record,
+        source_document_id=source_document_id,
+        target_document_id=target_document_id,
+        target_title=target_title,
+        projection_name=projection_name,
+        source_page_start=source_page_start,
+        source_page_end=source_page_end,
+    )
+    flow_graph = projection_artifact["flow_graph"]
+    version_seed = json.dumps(
+        asdict(flow_graph), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    version_id = f"flow-graph:{hashlib.sha1(version_seed.encode('utf-8')).hexdigest()}"
     canonical_markdown = _render_canonical_markdown(
         metadata={
             "schema_version": 1,
@@ -175,6 +350,7 @@ def build_handbook_service_navigation_hybrid_document(
             "attachment_kind": attachment_kind,
             "attachment_role": attachment_role,
             "migration_source_provider_response_key": provider_response_key,
+            "projection_artifact_key": projection_artifact_key,
         },
         body=_render_flow_graph_markdown(flow_graph),
     )
@@ -224,16 +400,10 @@ def build_handbook_service_navigation_hybrid_document(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
         provider_response_object_key=provider_response_key,
-        additional_processed_object_keys=(layout_elements_key, flow_graph_key),
-        additional_processed_artifacts=(
-            ProcessedArtifactInput(
-                object_key=flow_graph_key,
-                data=flow_graph_bytes,
-                content_type="application/json",
-            ),
-        ),
+        additional_processed_object_keys=(layout_elements_key, projection_artifact_key),
+        additional_processed_artifacts=additional_processed_artifacts,
         title=target_title,
-        year=year,
+        year=infer_year_label(raw_asset_record.source_filename),
     )
 
 
@@ -275,7 +445,9 @@ def _build_document_units_bytes(
                 flow_lines.append(f"适用对象：{flow.audience_scope}")
             flow_lines.append("步骤：")
             for step_index, step in enumerate(flow.steps, start=1):
-                next_text = "；下一步：" + ", ".join(step.next_step_ids) if step.next_step_ids else ""
+                next_text = (
+                    "；下一步：" + ", ".join(step.next_step_ids) if step.next_step_ids else ""
+                )
                 flow_lines.append(f"{step_index}. [{step.step_id}] {step.step_text}{next_text}")
             for note in flow.manual_review_notes:
                 flow_lines.append(f"人工复核：{note}")
@@ -328,6 +500,95 @@ def _build_document_units_bytes(
     return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
 
 
+def _load_projection_artifact(payload_bytes: bytes) -> dict[str, object]:
+    payload = json.loads(payload_bytes)
+    if not isinstance(payload, dict):
+        raise ValueError("handbook service navigation projection artifact must be a JSON object")
+    schema_version = str(payload.get("schema_version") or "").strip()
+    if schema_version != HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION:
+        raise ValueError(
+            "unsupported handbook service navigation projection artifact schema_version: "
+            f"{schema_version!r}"
+        )
+    artifact = {
+        "projection_name": str(payload.get("projection_name") or "").strip(),
+        "raw_asset_id": str(payload.get("raw_asset_id") or "").strip(),
+        "raw_version_id": str(payload.get("raw_version_id") or "").strip(),
+        "source_document_id": str(payload.get("source_document_id") or "").strip(),
+        "source_uri": str(payload.get("source_uri") or "").strip(),
+        "source_handbook_section": str(payload.get("source_handbook_section") or "").strip(),
+        "source_page_start": int(payload.get("source_page_start") or 0),
+        "source_page_end": int(payload.get("source_page_end") or 0),
+        "target_document_id": str(payload.get("target_document_id") or "").strip(),
+        "target_title": str(payload.get("target_title") or "").strip(),
+        "extractor_runtime": dict(payload.get("extractor_runtime") or {}),
+        "flow_graph": _coerce_flow_graph(payload.get("flow_graph")),
+    }
+    if not artifact["projection_name"]:
+        raise ValueError(
+            "handbook service navigation projection artifact projection_name is required"
+        )
+    if not artifact["raw_asset_id"] or not artifact["raw_version_id"]:
+        raise ValueError("handbook service navigation projection artifact raw identity is required")
+    if not artifact["source_document_id"]:
+        raise ValueError(
+            "handbook service navigation projection artifact source_document_id is required"
+        )
+    if not artifact["target_document_id"] or not artifact["target_title"]:
+        raise ValueError(
+            "handbook service navigation projection artifact target identity is required"
+        )
+    return artifact
+
+
+def _validate_projection_artifact(
+    *,
+    projection_artifact: dict[str, object],
+    raw_asset_record: RawAssetRecord,
+    source_document_id: str,
+    target_document_id: str,
+    target_title: str,
+    projection_name: str,
+    source_page_start: int,
+    source_page_end: int,
+) -> None:
+    expected_pairs = {
+        "projection_name": projection_name,
+        "raw_asset_id": raw_asset_record.raw_asset_id,
+        "raw_version_id": raw_asset_record.raw_version_id,
+        "source_document_id": source_document_id,
+        "target_document_id": target_document_id,
+        "target_title": target_title,
+        "source_page_start": source_page_start,
+        "source_page_end": source_page_end,
+    }
+    for key, expected in expected_pairs.items():
+        actual = projection_artifact.get(key)
+        if actual != expected:
+            raise ValueError(
+                "handbook service navigation projection artifact mismatch: "
+                f"{key} expected {expected!r}, got {actual!r}"
+            )
+
+
+def _resolve_projection_extractor_runtime(source: dict[str, str]) -> dict[str, str]:
+    base_url = (
+        source.get("PROMPT_RUNTIME_BASE_URL")
+        or source.get("LLM_BASE_URL")
+        or DEFAULT_PROMPT_RUNTIME_BASE_URL
+    ).strip()
+    model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
+    reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
+    runtime = {
+        "kind": "prompt_runtime",
+        "base_url": base_url,
+        "model": model_name,
+    }
+    if reasoning_effort:
+        runtime["reasoning_effort"] = reasoning_effort
+    return runtime
+
+
 def _render_flow_graph_markdown(flow_graph: ServiceNavigationFlowGraph) -> str:
     lines: list[str] = [f"# {flow_graph.document_title}", ""]
     for page_finding in flow_graph.page_findings:
@@ -377,7 +638,11 @@ def _validate_flow_graph(
             if flow.steps:
                 has_body_bearing_steps = True
             for step in flow.steps:
-                missing = [next_step_id for next_step_id in step.next_step_ids if next_step_id not in step_ids]
+                missing = [
+                    next_step_id
+                    for next_step_id in step.next_step_ids
+                    if next_step_id not in step_ids
+                ]
                 if missing:
                     raise ValueError(
                         f"flow graph contains dangling next_step_ids on page {page_finding.source_page}: {missing}"
@@ -419,13 +684,21 @@ def _extract_service_navigation_flow_graph(
 ) -> ServiceNavigationFlowGraph:
     api_key = (source.get("PROMPT_RUNTIME_API_KEY") or source.get("LLM_API_KEY") or "").strip()
     model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
-    base_url = (source.get("PROMPT_RUNTIME_BASE_URL") or source.get("LLM_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
+    base_url = (
+        source.get("PROMPT_RUNTIME_BASE_URL")
+        or source.get("LLM_BASE_URL")
+        or DEFAULT_PROMPT_RUNTIME_BASE_URL
+    ).strip()
     reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
     max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()
     if not api_key:
-        raise ValueError("PROMPT_RUNTIME_API_KEY is required for service navigation hybrid extraction")
+        raise ValueError(
+            "PROMPT_RUNTIME_API_KEY is required for service navigation hybrid extraction"
+        )
     if not model_name:
-        raise ValueError("PROMPT_RUNTIME_MODEL is required for service navigation hybrid extraction")
+        raise ValueError(
+            "PROMPT_RUNTIME_MODEL is required for service navigation hybrid extraction"
+        )
 
     system_text = (
         "You are extracting a bounded campus service navigation flow graph from declared PDF pages only. "
@@ -492,12 +765,16 @@ def _extract_service_navigation_flow_graph(
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:  # pragma: no cover
-        raise ValueError(f"service navigation hybrid extraction request failed: {response.status_code} {response.text}") from exc
+        raise ValueError(
+            f"service navigation hybrid extraction request failed: {response.status_code} {response.text}"
+        ) from exc
     response_json = response.json()
     if not isinstance(response_json, dict):
         raise ValueError("service navigation hybrid extraction response must be a JSON object")
     if str(response_json.get("status", "")).strip() not in {"", "completed"}:
-        raise ValueError(f"service navigation hybrid extraction status {response_json.get('status')!r}")
+        raise ValueError(
+            f"service navigation hybrid extraction status {response_json.get('status')!r}"
+        )
     if response_json.get("error"):
         raise ValueError(json.dumps(response_json["error"], ensure_ascii=False))
     raw_payload = response_json.get("output_parsed")
@@ -536,11 +813,15 @@ def _coerce_flow_graph(payload: object) -> ServiceNavigationFlowGraph:
                         ServiceNavigationStep(
                             step_id=str(step["step_id"]),
                             step_text=str(step["step_text"]),
-                            next_step_ids=tuple(str(item) for item in step.get("next_step_ids") or ()),
+                            next_step_ids=tuple(
+                                str(item) for item in step.get("next_step_ids") or ()
+                            ),
                         )
                         for step in flow.get("steps") or ()
                     ),
-                    manual_review_notes=tuple(str(item) for item in flow.get("manual_review_notes") or ()),
+                    manual_review_notes=tuple(
+                        str(item) for item in flow.get("manual_review_notes") or ()
+                    ),
                 )
                 for flow in page.get("flows") or ()
             ),
@@ -576,7 +857,12 @@ def _service_navigation_flow_graph_schema() -> dict[str, object]:
                             "items": {
                                 "type": "object",
                                 "additionalProperties": False,
-                                "required": ["flow_heading", "audience_scope", "steps", "manual_review_notes"],
+                                "required": [
+                                    "flow_heading",
+                                    "audience_scope",
+                                    "steps",
+                                    "manual_review_notes",
+                                ],
                                 "properties": {
                                     "flow_heading": {"type": "string"},
                                     "audience_scope": {"type": "string"},
@@ -637,10 +923,13 @@ def _format_front_matter_value(value: object) -> str:
 
 __all__ = [
     "FLOW_GRAPH_FILENAME",
+    "HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION",
     "ServiceNavigationFlow",
     "ServiceNavigationFlowGraph",
     "ServiceNavigationPageFinding",
     "ServiceNavigationStep",
     "build_handbook_service_navigation_hybrid_document",
+    "build_handbook_service_navigation_hybrid_document_from_projection_artifact",
     "is_handbook_service_navigation_projection",
+    "materialize_handbook_service_navigation_projection_artifact",
 ]

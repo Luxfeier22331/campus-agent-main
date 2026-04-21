@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    InMemoryAuthenticatedNoticeFileReleaseInventoryStore,
+)
+from campus_ingestion_core.authenticated_notice_file_release_inventory_backfill import (
+    inventory_entry_from_file_release_bundle_record,
+)
 from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
     inventory_entry_to_file_release_bundle_record,
     load_authenticated_notice_file_release_export,
     resolve_file_release_owner_recovery_readiness,
     resolve_file_release_owner_recovery_readiness_from_inventory_entries,
     resolve_file_release_owner_recovery_readiness_from_inventory_store,
-)
-from campus_ingestion_core.authenticated_notice_file_release_inventory import (
-    InMemoryAuthenticatedNoticeFileReleaseInventoryStore,
-)
-from campus_ingestion_core.authenticated_notice_file_release_inventory_backfill import (
-    inventory_entry_from_file_release_bundle_record,
 )
 
 
@@ -27,7 +27,8 @@ def _bundle_record(
     upfilename: str | None = None,
     storage_provider: str = "object_store",
     bucket: str | None = "campus-rag-source",
-    object_key: str | None = "authenticated_notice_portal/file-release-646/2025/sha256-deadbeef/capture/file.pdf",
+    object_key: str
+    | None = "authenticated_notice_portal/file-release-646/2025/sha256-deadbeef/capture/file.pdf",
     sha256: str | None = "deadbeef" * 8,
     ingest_status: str | None = "uploaded",
     provenance_status: str | None = "collected_internal",
@@ -121,13 +122,22 @@ def _export_manifest() -> dict[str, object]:
 
 class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
     def test_load_export_reads_bundle_and_manifest_json(self) -> None:
-        bundle = [_bundle_record(file_release_id=646, filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf")]
+        bundle = [
+            _bundle_record(
+                file_release_id=646,
+                filename="中央民族大学差旅费管理办法（民大校发〔2025〕104号）.pdf",
+            )
+        ]
         manifest = _export_manifest()
         with TemporaryDirectory() as tmpdir:
             bundle_path = Path(tmpdir) / "file-releases-bundle.json"
             manifest_path = Path(tmpdir) / "file-releases-manifest.json"
-            bundle_path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2), encoding="utf-8")
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            bundle_path.write_text(
+                json.dumps(bundle, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            manifest_path.write_text(
+                json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
             export = load_authenticated_notice_file_release_export(
                 bundle_path=bundle_path,
@@ -255,7 +265,9 @@ class AuthenticatedNoticeFileReleaseOwnerRecoveryTest(unittest.TestCase):
 
         self.assertEqual(report.status, "ready")
         self.assertEqual(report.selected_match.file_release_id, 646)
-        self.assertEqual(report.collector_contract_version, "authenticated_notice_file_release_export_v1")
+        self.assertEqual(
+            report.collector_contract_version, "authenticated_notice_file_release_export_v1"
+        )
 
     def test_resolve_readiness_from_inventory_store_uses_pg_ledger_shape(self) -> None:
         inventory_store = InMemoryAuthenticatedNoticeFileReleaseInventoryStore()

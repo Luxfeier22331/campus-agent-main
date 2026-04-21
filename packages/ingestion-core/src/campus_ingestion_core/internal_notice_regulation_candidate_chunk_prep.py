@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -16,7 +16,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
-
 
 _TARGET_SCOPE = ("regulations", "institutional_regulations")
 _PARSER_VERSION = "internal_notice_regulation_projection_preview_v1"
@@ -440,7 +439,8 @@ def _build_document_report(
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
     passed = not any(
-        issue in {
+        issue
+        in {
             "no_chunks_emitted",
             "missing_title_chunk",
             "missing_contextualization",
@@ -480,7 +480,9 @@ def _load_jsonl_rows(payload: bytes) -> list[dict[str, Any]]:
     return [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
 
 
-def _candidate_document_from_dict(payload: dict[str, Any]) -> InternalNoticeRegulationCandidateArtifactDocument:
+def _candidate_document_from_dict(
+    payload: dict[str, Any],
+) -> InternalNoticeRegulationCandidateArtifactDocument:
     data = dict(payload)
     for field_name in (
         "entitlement_groups",
@@ -510,7 +512,10 @@ def _is_missing_metadata_field(value: object) -> bool:
 
 def _slugify_path_component(value: str) -> str:
     normalized = value.strip()
-    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-") or "candidate"
+    return (
+        "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-")
+        or "candidate"
+    )
 
 
 __all__ = [

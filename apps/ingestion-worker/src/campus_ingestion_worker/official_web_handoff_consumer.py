@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass, replace
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import shutil
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, Literal, Protocol, Sequence
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -17,6 +17,7 @@ from campus_ingestion_core import (
     ObjectStoreSettings,
     audit_official_web_projection_chunking,
     build_document_registry_from_env,
+    build_official_web_run_artifact_key,
     build_raw_asset_registry_from_env,
     replay_official_web_source_truth_local,
     validate_official_web_projection_output,
@@ -26,7 +27,6 @@ from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.official_web_projection_import import import_projection_output
-
 
 OFFICIAL_WEB_HANDOFF_CONSUME_REPORT_SCHEMA_VERSION = "official_web_handoff_consume_report.v1"
 _DEFAULT_MINIMUM_PROMOTE_PAGES = 2
@@ -416,7 +416,8 @@ def consume_handoff_record(
             replay_input_dir=execution_paths["replay_input_dir"],
             bundle_payload=bundle_payload,
             source_object_store=object_store,
-            derived_object_store=derived_object_store or _resolve_derived_object_store(object_store),
+            derived_object_store=derived_object_store
+            or _resolve_derived_object_store(object_store),
             document_registry=document_registry or build_document_registry_from_env(),
             raw_asset_registry=raw_asset_registry or build_raw_asset_registry_from_env(),
             object_store_settings=_resolve_persist_object_store_settings(
@@ -558,7 +559,9 @@ def _download_source_truth_bundle(
         invalid_code="invalid_source_truth_bundle",
     )
     site_id = _require_text(payload.get("siteId") or payload.get("site_id"), "siteId")
-    crawl_run_id = _require_text(payload.get("crawlRunId") or payload.get("crawl_run_id"), "crawlRunId")
+    crawl_run_id = _require_text(
+        payload.get("crawlRunId") or payload.get("crawl_run_id"), "crawlRunId"
+    )
     if site_id != expected_site_id:
         raise OfficialWebHandoffConsumeError(
             code="invalid_source_truth_bundle",
@@ -594,17 +597,21 @@ def _materialize_replay_input(
         )
     for page in pages:
         page_payload = _require_object(page, "pages[]")
-        raw_asset_id = _require_text(page_payload.get("rawAssetId") or page_payload.get("raw_asset_id"), "rawAssetId")
+        raw_asset_id = _require_text(
+            page_payload.get("rawAssetId") or page_payload.get("raw_asset_id"), "rawAssetId"
+        )
         raw_version_id = _require_text(
             page_payload.get("rawVersionId") or page_payload.get("raw_version_id"),
             "rawVersionId",
         )
         manifest_key = _require_text(
-            page_payload.get("pageManifestObjectKey") or page_payload.get("page_manifest_object_key"),
+            page_payload.get("pageManifestObjectKey")
+            or page_payload.get("page_manifest_object_key"),
             "pageManifestObjectKey",
         )
         blocks_key = _require_text(
-            page_payload.get("contentBlocksObjectKey") or page_payload.get("content_blocks_object_key"),
+            page_payload.get("contentBlocksObjectKey")
+            or page_payload.get("content_blocks_object_key"),
             "contentBlocksObjectKey",
         )
         manifest_bytes = _download_bytes(
@@ -619,7 +626,9 @@ def _materialize_replay_input(
             key=blocks_key,
             missing_code="missing_content_blocks",
         )
-        base_dir = replay_input_dir / "source-assets" / raw_asset_id / raw_version_id / "source-truth"
+        base_dir = (
+            replay_input_dir / "source-assets" / raw_asset_id / raw_version_id / "source-truth"
+        )
         base_dir.mkdir(parents=True, exist_ok=True)
         (base_dir / "page-manifest.json").write_bytes(manifest_bytes)
         (base_dir / "content-blocks.jsonl").write_bytes(blocks_bytes)
@@ -637,7 +646,11 @@ def _resolve_source_truth_bundle_key(payload: dict[str, object]) -> str:
                 return object_key
     site_id = _require_text(payload.get("siteId"), "payload.siteId")
     run_id = _require_text(payload.get("runId"), "payload.runId")
-    return f"official_web/{site_id}/runs/{run_id}/source-truth-bundle.json"
+    return build_official_web_run_artifact_key(
+        site_id=site_id,
+        run_id=run_id,
+        artifact_name="source-truth-bundle.json",
+    )
 
 
 def _build_stage_quality_report(
@@ -651,15 +664,16 @@ def _build_stage_quality_report(
     seed_set = _normalize_string_list(payload.get("seedSet"))
     expected_host_set = _normalize_string_list(payload.get("hostSet"))
     actual_host_set = sorted(_load_manifest_hosts(replay_input_dir))
-    replay_counts = replay_report.get("counts") if isinstance(replay_report.get("counts"), dict) else {}
+    replay_counts = (
+        replay_report.get("counts") if isinstance(replay_report.get("counts"), dict) else {}
+    )
     pages_seen = _coerce_non_negative_int(replay_counts.get("pages_seen"))
     emitted_documents = _coerce_non_negative_int(replay_counts.get("emitted_documents"))
     manual_review_pages = _coerce_non_negative_int(replay_counts.get("manual_review_pages"))
     chunk_audit_passed = bool(chunk_audit_report.get("passed"))
     replay_documents = _require_object_list(replay_report.get("documents"), "documents")
     document_page_family_counts = _count_by_value(
-        _require_text(document.get("page_family"), "page_family")
-        for document in replay_documents
+        _require_text(document.get("page_family"), "page_family") for document in replay_documents
     )
     document_serving_intent_counts = _count_by_value(
         _require_text(document.get("serving_intent") or "unknown", "serving_intent")
@@ -667,10 +681,14 @@ def _build_stage_quality_report(
     )
     manual_review_page_family_counts = _count_by_value(
         _require_text(page.get("page_family"), "page_family")
-        for page in _require_object_list(replay_report.get("manual_review_pages"), "manual_review_pages")
+        for page in _require_object_list(
+            replay_report.get("manual_review_pages"), "manual_review_pages"
+        )
     )
     seed_coverage_ratio = round(pages_seen / len(seed_set), 4) if seed_set else 1.0
-    host_coverage_ratio = round(len(actual_host_set) / len(expected_host_set), 4) if expected_host_set else 1.0
+    host_coverage_ratio = (
+        round(len(actual_host_set) / len(expected_host_set), 4) if expected_host_set else 1.0
+    )
     blocked_checks: list[dict[str, object]] = []
     checks: list[dict[str, object]] = []
 
@@ -724,7 +742,8 @@ def _build_stage_quality_report(
     promotable_document_count = sum(
         1
         for document in replay_documents
-        if _require_text(document.get("serving_intent") or "unknown", "serving_intent") == "promotable"
+        if _require_text(document.get("serving_intent") or "unknown", "serving_intent")
+        == "promotable"
     )
     record_check(
         code="promotable_documents_present",
@@ -743,8 +762,10 @@ def _build_stage_quality_report(
     disallowed_document_page_families = _count_by_value(
         _require_text(document.get("page_family"), "page_family")
         for document in replay_documents
-        if _require_text(document.get("serving_intent") or "unknown", "serving_intent") == "promotable"
-        and _require_text(document.get("page_family"), "page_family") in _PROMOTION_DISALLOWED_PAGE_FAMILIES
+        if _require_text(document.get("serving_intent") or "unknown", "serving_intent")
+        == "promotable"
+        and _require_text(document.get("page_family"), "page_family")
+        in _PROMOTION_DISALLOWED_PAGE_FAMILIES
     )
     unknown_document_serving_intents = {
         serving_intent: count
@@ -1059,9 +1080,7 @@ def _normalize_error(error: Exception) -> dict[str, object]:
 
 def _safe_event_id(event_id: str) -> str:
     sanitized = "".join(
-        character
-        for character in event_id
-        if character.isalnum() or character in {"-", "_"}
+        character for character in event_id if character.isalnum() or character in {"-", "_"}
     )
     if not sanitized:
         raise ValueError("eventId must contain at least one safe filename character.")
@@ -1075,11 +1094,7 @@ def _utcnow() -> str:
 def _build_promotion_blocked_message(blocked_checks: object) -> str:
     if not isinstance(blocked_checks, list) or not blocked_checks:
         return "promotion blocked by quality gates"
-    labels = [
-        _optional_text(item.get("code"))
-        for item in blocked_checks
-        if isinstance(item, dict)
-    ]
+    labels = [_optional_text(item.get("code")) for item in blocked_checks if isinstance(item, dict)]
     normalized = [label for label in labels if label is not None]
     if not normalized:
         return "promotion blocked by quality gates"
@@ -1164,7 +1179,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         limit=args.limit,
         force=args.force,
         promote_import=args.promote,
-        declarations_path=Path(args.declarations_path).resolve() if args.declarations_path else None,
+        declarations_path=Path(args.declarations_path).resolve()
+        if args.declarations_path
+        else None,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
     if report.counts["failed"] > 0:

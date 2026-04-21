@@ -10,7 +10,6 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization import (
     InternalNoticeScopedRuleMaterializationReport,
 )
 
-
 _MODULE_NAME = "campus_ingestion_worker.materialize_internal_notice_scoped_rules"
 
 

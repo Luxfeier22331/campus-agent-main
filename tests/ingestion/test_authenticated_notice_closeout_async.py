@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
 import hashlib
 import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import threading
 import time
 import unittest
+from dataclasses import asdict, replace
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_closeout import (
@@ -22,19 +22,22 @@ from campus_ingestion_core.authenticated_notice_closeout import (
     CloseoutWorker,
     InMemoryCloseoutStore,
 )
-from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
-from campus_ingestion_core.authenticated_notice_import import import_authenticated_notice_export
-from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    AuthenticatedNoticeSourceTruthReplayRequest,
+from campus_ingestion_core.authenticated_notice_closeout_models import (
+    document_stage_slug,
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
 )
-from campus_ingestion_core.authenticated_notice_closeout_models import (
-    document_stage_slug,
+from campus_ingestion_core.authenticated_notice_import import (
+    AuthenticatedNoticeImportRequest,
+    import_authenticated_notice_export,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayRequest,
 )
 from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
+
 from tests.ingestion.test_authenticated_notice_import import (
     _FakeObjectStore,
     _sample_export_manifest,
@@ -42,15 +45,17 @@ from tests.ingestion.test_authenticated_notice_import import (
     _write_json,
 )
 from tests.ingestion.test_authenticated_notice_source_projections import (
-    _FakeAttachmentOcrClient,
-    _FakeAttachmentNoTextOcrClient,
     _attachment_object_key,
+    _build_map_like_png_bytes,
     _build_minimal_docx_bytes,
     _build_minimal_gif_bytes,
-    _build_map_like_png_bytes,
     _build_minimal_png_bytes,
-    _sample_notice_bundle as _sample_projection_notice_bundle,
+    _FakeAttachmentNoTextOcrClient,
+    _FakeAttachmentOcrClient,
     _sample_notice_bundle_with_decorative_gif,
+)
+from tests.ingestion.test_authenticated_notice_source_projections import (
+    _sample_notice_bundle as _sample_projection_notice_bundle,
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
@@ -192,14 +197,8 @@ class CloseoutPlannerTest(unittest.TestCase):
             [(shard.shard_id, shard.notice_ids) for shard in second_shards],
         )
         self.assertEqual(
-            [
-                (batch.batch_id, batch.shard_id, batch.notice_ids)
-                for batch in first_batches
-            ],
-            [
-                (batch.batch_id, batch.shard_id, batch.notice_ids)
-                for batch in second_batches
-            ],
+            [(batch.batch_id, batch.shard_id, batch.notice_ids) for batch in first_batches],
+            [(batch.batch_id, batch.shard_id, batch.notice_ids) for batch in second_batches],
         )
         self.assertEqual(sum(len(shard.notice_ids) for shard in first_shards), 7)
         self.assertEqual(sum(len(batch.notice_ids) for batch in first_batches), 7)
@@ -460,7 +459,7 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(cursor),
             ),
             patch.object(store, "_require_run_cursor", side_effect=_record_claim_run),
@@ -476,7 +475,7 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(object()),
             ),
             patch.object(store, "_require_run_cursor", side_effect=_record_commit_run),
@@ -515,12 +514,14 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(cursor),
             ),
             patch.object(store, "_require_run_cursor", return_value=run),
             patch.object(store, "_save_batch_cursor"),
-            patch.object(store, "_get_worker_cursor", return_value=CloseoutWorker(worker_id="worker-a")),
+            patch.object(
+                store, "_get_worker_cursor", return_value=CloseoutWorker(worker_id="worker-a")
+            ),
             patch.object(store, "_save_worker_cursor"),
             patch.object(store, "_require_shard_cursor", return_value=self._build_shard()),
             patch.object(store, "_save_shard_cursor"),
@@ -543,7 +544,7 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(object()),
             ),
             patch.object(store, "_require_run_cursor", return_value=run),
@@ -611,7 +612,7 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(object()),
             ),
             patch.object(
@@ -622,17 +623,23 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
             patch.object(
                 store,
                 "_require_batch_cursor",
-                side_effect=lambda _cursor, run_id, batch_id: events.append(f"batch:{batch_id}") or batch,
+                side_effect=lambda _cursor, run_id, batch_id: (
+                    events.append(f"batch:{batch_id}") or batch
+                ),
             ),
             patch.object(
                 store,
                 "_require_worker_cursor",
-                side_effect=lambda _cursor, run_id, worker_id: events.append(f"worker:{worker_id}") or worker,
+                side_effect=lambda _cursor, run_id, worker_id: (
+                    events.append(f"worker:{worker_id}") or worker
+                ),
             ),
             patch.object(
                 store,
                 "_require_shard_cursor",
-                side_effect=lambda _cursor, run_id, shard_id: events.append(f"shard:{shard_id}") or shard,
+                side_effect=lambda _cursor, run_id, shard_id: (
+                    events.append(f"shard:{shard_id}") or shard
+                ),
             ),
             patch.object(store, "_save_batch_cursor"),
             patch.object(store, "_save_shard_cursor"),
@@ -660,7 +667,7 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
 
         with (
             patch(
-                "campus_ingestion_core.authenticated_notice_closeout_store._postgres_connection",
+                "campus_ingestion_core.authenticated_notice_closeout_store_postgres._postgres_connection",
                 return_value=_FakeConnectionContextManager(object()),
             ),
             patch.object(
@@ -671,7 +678,9 @@ class PostgresCloseoutStoreLockOrderTest(unittest.TestCase):
             patch.object(
                 store,
                 "_get_worker_cursor",
-                side_effect=lambda _cursor, run_id, worker_id: events.append(f"worker:{worker_id}") or worker,
+                side_effect=lambda _cursor, run_id, worker_id: (
+                    events.append(f"worker:{worker_id}") or worker
+                ),
             ),
             patch.object(store, "_save_worker_cursor"),
             patch.object(store, "_active_worker_count_cursor", return_value=0),
@@ -725,7 +734,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
         manifest_path = root / "source-truth-manifest.json"
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
         png_bytes = _build_minimal_png_bytes()
-        bundle = bundle or _sample_projection_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
+        bundle = bundle or _sample_projection_notice_bundle(
+            docx_bytes=docx_bytes, png_bytes=png_bytes
+        )
         _write_json(bundle_path, bundle)
         _write_json(manifest_path, _sample_export_manifest())
         import_authenticated_notice_export(
@@ -746,8 +757,14 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             source_truth_inventory_store=source_truth_inventory_store,
         )
         payloads = attachment_payloads or {
-            str(bundle[0]["attachments"][0]["object_key"]): (docx_bytes, str(bundle[0]["attachments"][0]["mime_type"])),
-            str(bundle[0]["attachments"][1]["object_key"]): (png_bytes, str(bundle[0]["attachments"][1]["mime_type"])),
+            str(bundle[0]["attachments"][0]["object_key"]): (
+                docx_bytes,
+                str(bundle[0]["attachments"][0]["mime_type"]),
+            ),
+            str(bundle[0]["attachments"][1]["object_key"]): (
+                png_bytes,
+                str(bundle[0]["attachments"][1]["mime_type"]),
+            ),
         }
         for object_key, (data, content_type) in payloads.items():
             object_store.put_bytes(
@@ -1010,7 +1027,10 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertTrue(parent["has_text_table_attachment"])
             self.assertFalse(parent["has_spatial_attachment"])
             self.assertTrue(parent["has_reference_only_attachment"])
-            self.assertEqual(parent["raw_record"]["raw_asset_id"], "asset:authenticated-notice:muc_internal_portal:355119")
+            self.assertEqual(
+                parent["raw_record"]["raw_asset_id"],
+                "asset:authenticated-notice:muc_internal_portal:355119",
+            )
             self.assertEqual(
                 sorted(item["classification"] for item in parent["attachment_projection_plans"]),
                 ["ocr_required", "text_extractable"],
@@ -1030,7 +1050,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             service, object_store = self._build_service(root=root)
-            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("报名表第一行", "报名表第二行")
+            )
             first_png_bytes = _build_minimal_png_bytes()
             second_docx_bytes = _build_minimal_docx_bytes(
                 paragraphs=("第二条报名表第一行", "第二条报名表第二行")
@@ -1209,11 +1231,15 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(summary["state"], "planned")
             self.assertEqual(summary["expected_notice_count"], 1)
 
-    def test_rebuild_source_truth_inventory_selected_notice_ids_do_not_shrink_full_scope(self) -> None:
+    def test_rebuild_source_truth_inventory_selected_notice_ids_do_not_shrink_full_scope(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             service, object_store = self._build_service(root=root)
-            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("报名表第一行", "报名表第二行")
+            )
             first_png_bytes = _build_minimal_png_bytes()
             second_docx_bytes = _build_minimal_docx_bytes(
                 paragraphs=("第二条报名表第一行", "第二条报名表第二行")
@@ -1264,7 +1290,10 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 inventory_store=inventory_store,
             )
             self.assertEqual(
-                tuple(entry.notice_id for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")),
+                tuple(
+                    entry.notice_id
+                    for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")
+                ),
                 ("355119", "355120"),
             )
 
@@ -1278,7 +1307,10 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             )
 
             self.assertEqual(
-                tuple(entry.notice_id for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")),
+                tuple(
+                    entry.notice_id
+                    for entry in inventory_store.list_by_scope("campus_notices", "internal_notice")
+                ),
                 ("355119", "355120"),
             )
 
@@ -1371,7 +1403,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             assert poisoned is not None
             inventory_key = str(poisoned.source_truth_inventory_object_key)
             inventory_payload = json.loads(
-                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode("utf-8")
+                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode(
+                    "utf-8"
+                )
             )
             inventory_payload["expected_ocr_candidate_count"] = 1
             parent = dict(inventory_payload["parents"][0])
@@ -1428,7 +1462,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(repaired["expected_ocr_candidate_count"], 0)
             expected_attachment_sha256 = str(bundle[0]["attachments"][0]["sha256"])
             refreshed_payload = json.loads(
-                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode("utf-8")
+                object_store.get_bytes(bucket="campus-rag-derived", key=inventory_key).decode(
+                    "utf-8"
+                )
             )
             refreshed_parent = refreshed_payload["parents"][0]
             self.assertEqual(
@@ -1687,7 +1723,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 any(record.document_id.startswith("notice_attachment:") for record in records)
             )
 
-    def test_source_truth_replay_workers_record_no_text_ocr_outcome_without_child_document(self) -> None:
+    def test_source_truth_replay_workers_record_no_text_ocr_outcome_without_child_document(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             service, object_store = self._build_service(
@@ -1723,7 +1761,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             self.assertEqual(verified["expected_ocr_candidate_count"], 1)
             self.assertEqual(verified["staged_document_count"], 2)
             self.assertEqual(verified["verification"]["expected_document_id_count"], 2)
-            self.assertEqual(verified["verification"]["materialized_ocr_attachment_document_count"], 0)
+            self.assertEqual(
+                verified["verification"]["materialized_ocr_attachment_document_count"], 0
+            )
             self.assertEqual(verified["verification"]["no_extractable_text_attachment_count"], 1)
             self.assertEqual(verified["verification"]["missing_attachment_outcome_count"], 0)
             self.assertTrue(verified["verification"]["ok"])
@@ -1782,7 +1822,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 ocr_client=_FakeAttachmentNoTextOcrClient(),
             )
             service.planner = CloseoutPlanner(shard_size=2, batch_size=2, max_shards=4)
-            first_docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表第一行", "报名表第二行"))
+            first_docx_bytes = _build_minimal_docx_bytes(
+                paragraphs=("报名表第一行", "报名表第二行")
+            )
             first_png_bytes = _build_minimal_png_bytes()
             second_docx_bytes = _build_minimal_docx_bytes(
                 paragraphs=("第二条报名表第一行", "第二条报名表第二行")
@@ -1976,7 +2018,9 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
                 filename="input.json",
                 segments=("batches", "000001"),
             )
-            del object_store.objects[(service.object_store_settings.bucket_derived, batch_input_key)]
+            del object_store.objects[
+                (service.object_store_settings.bucket_derived, batch_input_key)
+            ]
 
             verification = service.run_verifier.verify_run("source-truth-run-1")
 
@@ -2096,9 +2140,7 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
 
             run = service.closeout_store.get_run("run-1")
             assert run is not None
-            service.closeout_store.save_run(
-                replace(run, state=CloseoutRunState.PROMOTING)
-            )
+            service.closeout_store.save_run(replace(run, state=CloseoutRunState.PROMOTING))
 
             promotion = service.promote_run("run-1")
             self.assertEqual(promotion["state"], "done")
@@ -2110,28 +2152,34 @@ class AuthenticatedNoticeCloseoutServiceTest(unittest.TestCase):
             service, _object_store = self._build_service(root=root)
             run_started_at = "2026-04-04T00:00:00+00:00"
             promotion_started_at = "2026-04-05T00:00:00+00:00"
-            run = CloseoutRun(
-                run_id="run-1",
-                bundle_path="/tmp/bundle.json",
-                manifest_path="/tmp/manifest.json",
-                expected_notice_count=2,
-                operations_prefix="campus_notices/operations/authenticated-notice-closeout/run-1",
-                batch_count=2,
-                completed_batch_count=2,
-                staged_notice_count=2,
-                staged_raw_asset_count=2,
-                staged_document_count=2,
-                processed_notice_count=2,
-                started_at=run_started_at,
-                promotion={
-                    "promotion_id": "promotion-0001",
-                    "state": "running",
-                    "phase": "copying",
-                    "started_at": promotion_started_at,
-                    "copy_batch_count": 2,
-                    "copy_completed_batch_count": 1,
-                },
-            ).mark_planned().mark_running().mark_verified({"ok": True}).mark_promoting()
+            run = (
+                CloseoutRun(
+                    run_id="run-1",
+                    bundle_path="/tmp/bundle.json",
+                    manifest_path="/tmp/manifest.json",
+                    expected_notice_count=2,
+                    operations_prefix="campus_notices/operations/authenticated-notice-closeout/run-1",
+                    batch_count=2,
+                    completed_batch_count=2,
+                    staged_notice_count=2,
+                    staged_raw_asset_count=2,
+                    staged_document_count=2,
+                    processed_notice_count=2,
+                    started_at=run_started_at,
+                    promotion={
+                        "promotion_id": "promotion-0001",
+                        "state": "running",
+                        "phase": "copying",
+                        "started_at": promotion_started_at,
+                        "copy_batch_count": 2,
+                        "copy_completed_batch_count": 1,
+                    },
+                )
+                .mark_planned()
+                .mark_running()
+                .mark_verified({"ok": True})
+                .mark_promoting()
+            )
             service.closeout_store.save_run(run)
 
             summary = service.show_run("run-1")

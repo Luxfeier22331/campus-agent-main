@@ -16,11 +16,15 @@ from campus_ingestion_core.chunking import (
     build_curriculum_chunk_profile,
 )
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
-from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units
+from campus_ingestion_core.handbook_cleanup import (
+    cleanup_handbook_document,
+    serialize_handbook_document_units,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef
 from campus_ingestion_core.object_store import build_processed_artifact_key
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.split_manifest import SplitManifestDocument
+
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
 
 
@@ -151,7 +155,9 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
     )
 
 
-def _make_official_web_registry_record(*, collection: str = "muc_public_pages") -> DocumentRegistryRecord:
+def _make_official_web_registry_record(
+    *, collection: str = "muc_public_pages"
+) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="official_web:muc_public:listing_page:test-001",
         revision_track="source-faithful",
@@ -171,7 +177,9 @@ def _make_official_web_registry_record(*, collection: str = "muc_public_pages") 
     )
 
 
-def _handbook_source_row(page: int, row_type: str, text: str, *, html: str | None = None) -> dict[str, object]:
+def _handbook_source_row(
+    page: int, row_type: str, text: str, *, html: str | None = None
+) -> dict[str, object]:
     return {
         "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
@@ -266,7 +274,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, CURRICULUM_CLEANING_POLICY_VERSION)
         self.assertEqual(profile.strategy_name, "curriculum_plan_structure_v2")
 
-    def test_build_curriculum_chunk_profile_v2_uses_balanced_table_budget_for_table_units(self) -> None:
+    def test_build_curriculum_chunk_profile_v2_uses_balanced_table_budget_for_table_units(
+        self,
+    ) -> None:
         profile = build_curriculum_chunk_profile(
             profile_version=CURRICULUM_V2_CHUNK_POLICY_VERSION,
             model_name="Qwen3-Embedding-4B",
@@ -308,7 +318,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -337,7 +349,10 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["split_strategy"], "structure_first")
         self.assertEqual(chunk.metadata["chunk_policy_version"], DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(chunk.metadata["cleaning_policy_version"], DEFAULT_CLEANING_POLICY_VERSION)
-        self.assertEqual(chunk.metadata["display_text"], "Student handbook library hours are from 08:00 to 22:00.")
+        self.assertEqual(
+            chunk.metadata["display_text"],
+            "Student handbook library hours are from 08:00 to 22:00.",
+        )
         self.assertFalse(chunk.metadata["contextualized_text"])
         self.assertIn("library hours", chunk.text.lower())
         node = chunk.to_node()
@@ -395,12 +410,18 @@ class ProcessingPipelineTest(unittest.TestCase):
         )
 
         self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0].metadata["chunk_policy_version"], CURRICULUM_V2_CHUNK_POLICY_VERSION)
-        self.assertEqual(chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION)
+        self.assertEqual(
+            chunks[0].metadata["chunk_policy_version"], CURRICULUM_V2_CHUNK_POLICY_VERSION
+        )
+        self.assertEqual(
+            chunks[0].metadata["cleaning_policy_version"], CURRICULUM_CLEANING_POLICY_VERSION
+        )
         self.assertEqual(chunks[0].metadata["strategy_name"], "curriculum_plan_structure_v2")
         self.assertEqual(chunks[0].metadata["unit_type"], "section_text")
 
-    def test_build_indexable_chunks_from_jsonl_prefers_canonical_document_authorization_projection(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_prefers_canonical_document_authorization_projection(
+        self,
+    ) -> None:
         record = DocumentRegistryRecord(
             document_id="handbook:test-authz",
             revision_track="source-faithful",
@@ -464,7 +485,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -474,7 +497,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
 
-    def test_build_indexable_chunks_from_jsonl_reads_canonical_row_authorization_projection(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_reads_canonical_row_authorization_projection(
+        self,
+    ) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -503,7 +528,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -513,7 +540,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIsNone(chunk.visibility_scope)
         self.assertEqual(chunk.visibility_level, "restricted")
 
-    def test_build_indexable_chunks_from_jsonl_does_not_read_non_canonical_row_visibility_metadata(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_does_not_read_non_canonical_row_visibility_metadata(
+        self,
+    ) -> None:
         record = _make_public_registry_record()
         structured_payload = "\n".join(
             [
@@ -537,7 +566,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -571,7 +602,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
 
-    def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(
+        self,
+    ) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -614,7 +647,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn(TABLE_PLACEHOLDER, chunk.text)
         self.assertIn("library remains open", chunk.text.lower())
 
-    def test_build_indexable_chunks_from_jsonl_splits_oversized_unit_and_keeps_root_metadata(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_splits_oversized_unit_and_keeps_root_metadata(
+        self,
+    ) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -643,7 +678,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             tuple(range(1, len(chunks) + 1)),
         )
         self.assertTrue(all(chunk.metadata["segment_total"] == len(chunks) for chunk in chunks))
-        self.assertTrue(all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks))
+        self.assertTrue(
+            all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in chunks)
+        )
         self.assertTrue(all(chunk.metadata["unit_type"] == "article_body" for chunk in chunks))
         self.assertTrue(all(chunk.metadata["root_unit_id"] == "article-001" for chunk in chunks))
 
@@ -665,7 +702,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             build_indexable_chunks_from_jsonl(
                 record=record,
                 structured_jsonl_bytes=structured_payload,
-                chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+                chunk_profile=ChunkProfile(
+                    chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+                ),
             )
 
     def test_build_indexable_chunks_from_jsonl_falls_back_to_raw_text(self) -> None:
@@ -686,7 +725,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -714,17 +755,23 @@ class ProcessingPipelineTest(unittest.TestCase):
                 structured_jsonl_bytes=structured_payload,
             )
 
-    def test_build_indexable_chunks_from_jsonl_uses_batch_dense_embeddings_when_available(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_uses_batch_dense_embeddings_when_available(
+        self,
+    ) -> None:
         class _BatchOnlyEmbeddingModel:
             def __init__(self) -> None:
                 self.batch_calls: list[tuple[str, ...]] = []
 
             def get_text_embedding(self, text: str) -> list[float]:
-                raise AssertionError("single-item embedding should not be used when batch embeddings are available")
+                raise AssertionError(
+                    "single-item embedding should not be used when batch embeddings are available"
+                )
 
             def get_text_embedding_batch(self, texts: list[str]) -> list[list[float]]:
                 self.batch_calls.append(tuple(texts))
-                return [[float(index), float(index) + 0.5] for index, _ in enumerate(texts, start=1)]
+                return [
+                    [float(index), float(index) + 0.5] for index, _ in enumerate(texts, start=1)
+                ]
 
         record = _make_registry_record()
         structured_payload = "\n".join(
@@ -772,7 +819,12 @@ class ProcessingPipelineTest(unittest.TestCase):
                 _handbook_source_row(1, "heading", "中央民族大学奖学金评定办法"),
                 _handbook_source_row(1, "paragraph", "民大校发〔2018〕329号"),
                 _handbook_source_row(1, "paragraph", "第一条 奖学金评定坚持公开、公平、公正。"),
-                _handbook_source_row(2, "table", "项目 | 说明", html="<table><tr><td>项目</td><td>说明</td></tr></table>"),
+                _handbook_source_row(
+                    2,
+                    "table",
+                    "项目 | 说明",
+                    html="<table><tr><td>项目</td><td>说明</td></tr></table>",
+                ),
             ],
             manifest_document=SplitManifestDocument(
                 document_id="manifest:scholarship-policy",
@@ -850,14 +902,20 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertTrue(all(1 <= int(chunk.anchor["page_start"]) <= 2 for chunk in chunks))
         document_unit_rows = [
             json.loads(line)
-            for line in serialize_handbook_document_units(cleanup_result.document_units).decode("utf-8").splitlines()
+            for line in serialize_handbook_document_units(cleanup_result.document_units)
+            .decode("utf-8")
+            .splitlines()
             if line.strip()
         ]
         self.assertTrue(all("acl" not in row for row in document_unit_rows))
-        self.assertTrue(all(row["entitlement_groups"] == ["students"] for row in document_unit_rows))
+        self.assertTrue(
+            all(row["entitlement_groups"] == ["students"] for row in document_unit_rows)
+        )
         self.assertTrue(all(row["visibility_level"] == "restricted" for row in document_unit_rows))
 
-    def test_build_indexable_chunks_contextualizes_handbook_text_with_document_metadata(self) -> None:
+    def test_build_indexable_chunks_contextualizes_handbook_text_with_document_metadata(
+        self,
+    ) -> None:
         cleanup_result = cleanup_handbook_document(
             structured_rows=[
                 _handbook_source_row(1, "heading", "中央民族大学奖学金评定办法"),
@@ -917,14 +975,18 @@ class ProcessingPipelineTest(unittest.TestCase):
             chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
         )
 
-        article_chunk = next(chunk for chunk in chunks if chunk.metadata["unit_type"] == "article_body")
+        article_chunk = next(
+            chunk for chunk in chunks if chunk.metadata["unit_type"] == "article_body"
+        )
         self.assertIn("中央民族大学奖学金评定办法", article_chunk.text)
         self.assertIn("第一条", article_chunk.text)
         self.assertIn("文号：民大校发〔2018〕329号", article_chunk.text)
         self.assertIn("奖学金评定坚持公开、公平、公正", article_chunk.text)
         self.assertEqual(article_chunk.metadata["display_text"], "奖学金评定坚持公开、公平、公正。")
 
-    def test_build_indexable_chunks_contextualizes_large_handbook_chunk_without_dropping_minimum_context(self) -> None:
+    def test_build_indexable_chunks_contextualizes_large_handbook_chunk_without_dropping_minimum_context(
+        self,
+    ) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -977,7 +1039,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("第十六条", chunk.text)
         self.assertIn("3、学生应严格遵守课堂纪律", chunk.text)
 
-    def test_build_indexable_chunks_deduplicates_identical_official_web_title_and_section_path(self) -> None:
+    def test_build_indexable_chunks_deduplicates_identical_official_web_title_and_section_path(
+        self,
+    ) -> None:
         record = _make_official_web_registry_record()
         structured_payload = "\n".join(
             [
@@ -1011,7 +1075,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
 
         self.assertEqual(len(chunks), 1)
         chunk = chunks[0]
@@ -1057,14 +1123,18 @@ class ProcessingPipelineTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].metadata["strategy_name"], "official_web_structure_v2")
         self.assertEqual(chunks[0].metadata["chunk_policy_version"], "official_web_semantic_v2")
         self.assertEqual(chunks[0].metadata["cleaning_policy_version"], "official_web_cleaning_v2")
 
-    def test_build_indexable_chunks_uses_official_web_strategy_for_stable_reference_scope(self) -> None:
+    def test_build_indexable_chunks_uses_official_web_strategy_for_stable_reference_scope(
+        self,
+    ) -> None:
         record = _make_official_web_registry_record(collection="stable_reference")
         structured_payload = "\n".join(
             [
@@ -1100,7 +1170,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].metadata["strategy_name"], "official_web_structure_v2")
@@ -1201,14 +1273,18 @@ class ProcessingPipelineTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
 
         self.assertEqual(len(chunks), 1)
         self.assertEqual(chunks[0].metadata["content_role"], "reference_fact")
         self.assertNotIn("教务处", chunks[0].text)
         self.assertNotIn("投稿方式", chunks[0].text)
 
-    def test_build_indexable_chunks_keeps_labeled_header_for_short_official_web_sections(self) -> None:
+    def test_build_indexable_chunks_keeps_labeled_header_for_short_official_web_sections(
+        self,
+    ) -> None:
         record = _make_official_web_registry_record()
         structured_payload = "\n".join(
             [
@@ -1244,7 +1320,9 @@ class ProcessingPipelineTest(unittest.TestCase):
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(record=record, structured_jsonl_bytes=structured_payload)
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
 
         self.assertEqual(len(chunks), 1)
         first_line = chunks[0].text.splitlines()[0]
@@ -1252,7 +1330,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertTrue(first_line.startswith("标题：学校概况 | 章节：学校简介"))
         self.assertNotIn("学校概况 / 学校简介", first_line)
 
-    def test_build_indexable_chunks_merges_adjacent_short_textual_units_before_embedding(self) -> None:
+    def test_build_indexable_chunks_merges_adjacent_short_textual_units_before_embedding(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学学生管理规定",
@@ -1348,7 +1428,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("第四条 学生应遵守宿舍秩序。", chunk.metadata["display_text"])
         self.assertIn("第二条-第四条", chunk.text)
 
-    def test_build_indexable_chunks_does_not_merge_short_textual_units_across_table_units(self) -> None:
+    def test_build_indexable_chunks_does_not_merge_short_textual_units_across_table_units(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学学生管理规定",
@@ -1439,7 +1521,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIsNone(chunks[2].metadata.get("aggregation_mode"))
         self.assertEqual(chunks[1].metadata["unit_type"], "table_unit")
 
-    def test_build_indexable_chunks_absorbs_trailing_short_tail_into_previous_textual_chunk(self) -> None:
+    def test_build_indexable_chunks_absorbs_trailing_short_tail_into_previous_textual_chunk(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学学生管理规定",
@@ -1561,7 +1645,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("第五条", chunk.metadata["display_text"])
         self.assertIn("第六条 本办法自公布之日起施行。", chunk.metadata["display_text"])
 
-    def test_build_indexable_chunks_merges_first_article_even_when_only_first_has_preface_text(self) -> None:
+    def test_build_indexable_chunks_merges_first_article_even_when_only_first_has_preface_text(
+        self,
+    ) -> None:
         record = _make_registry_record()
         base_metadata = {
             "title": "中央民族大学学生资助管理工作暂行办法",
@@ -1630,9 +1716,13 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["aggregation_mode"], "adjacent_short_textual_units")
         self.assertNotIn("preface_text", chunk.metadata)
         self.assertIn("第一条 坚持公平、公开、公正原则", chunk.metadata["display_text"])
-        self.assertIn("第二条 坚持资助与解困、助学与育人相结合的原则。", chunk.metadata["display_text"])
+        self.assertIn(
+            "第二条 坚持资助与解困、助学与育人相结合的原则。", chunk.metadata["display_text"]
+        )
 
-    def test_build_indexable_chunks_merges_short_policy_page_siblings_under_shared_parent(self) -> None:
+    def test_build_indexable_chunks_merges_short_policy_page_siblings_under_shared_parent(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学学生志愿服务管理办法",
@@ -1713,12 +1803,19 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["member_unit_count"], 3)
         self.assertEqual(chunk.anchor["section_path"], ["第二章 分则", "第二部分 认证"])
         self.assertIn("第二部分 认证", chunk.text)
-        self.assertIn("(一)每学年第一学期,针对全体注册志愿者开展志愿服务认证。", chunk.metadata["display_text"])
-        self.assertIn("共青团中央民族大学委员会(青年志愿者工作部)。", chunk.metadata["display_text"])
+        self.assertIn(
+            "(一)每学年第一学期,针对全体注册志愿者开展志愿服务认证。",
+            chunk.metadata["display_text"],
+        )
+        self.assertIn(
+            "共青团中央民族大学委员会(青年志愿者工作部)。", chunk.metadata["display_text"]
+        )
         self.assertNotIn("一、认证时间 (一)每学年第一学期", chunk.metadata["display_text"])
         self.assertNotIn("三、认证程序 共青团中央民族大学委员会", chunk.metadata["display_text"])
 
-    def test_build_indexable_chunks_does_not_repeat_policy_section_heading_inside_display_text(self) -> None:
+    def test_build_indexable_chunks_does_not_repeat_policy_section_heading_inside_display_text(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
@@ -1785,7 +1882,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertIn("\n\n四、本办法由学生工作部(处)负责解释。", chunk.metadata["display_text"])
         self.assertNotIn("三、学生课堂秩序管理 12、", chunk.text)
 
-    def test_build_indexable_chunks_does_not_merge_policy_procedure_block_with_closing_provisions(self) -> None:
+    def test_build_indexable_chunks_does_not_merge_policy_procedure_block_with_closing_provisions(
+        self,
+    ) -> None:
         record = _make_registry_record()
         metadata = {
             "title": "中央民族大学全日制本科学生学士学位授予规定",
@@ -1920,7 +2019,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -1930,7 +2031,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["content_role"], "time_rule")
         self.assertTrue(chunk.metadata["is_answer_bearing"])
 
-    def test_build_indexable_chunks_marks_scope_rule_policy_page_as_non_answer_bearing(self) -> None:
+    def test_build_indexable_chunks_marks_scope_rule_policy_page_as_non_answer_bearing(
+        self,
+    ) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -1957,7 +2060,9 @@ class ProcessingPipelineTest(unittest.TestCase):
         chunks = build_indexable_chunks_from_jsonl(
             record=record,
             structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32),
+            chunk_profile=ChunkProfile(
+                chunk_size=128, max_chunk_size=256, chunk_overlap=16, min_chunk_size=32
+            ),
             embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
         )
 
@@ -1966,6 +2071,7 @@ class ProcessingPipelineTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["detail_label"], "三")
         self.assertEqual(chunk.metadata["content_role"], "scope_rule")
         self.assertFalse(chunk.metadata["is_answer_bearing"])
+
 
 if __name__ == "__main__":
     unittest.main()

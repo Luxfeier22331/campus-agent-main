@@ -1,27 +1,52 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.campusrag_ingestion_support import (
-    DocumentImportInput,
+from campus_ingestion_core.campusrag_ingestion_artifacts import (
     ResolvedDocumentArtifactKeys,
-    S3ObjectStoreWriter,
-    apply_authorization_projection_metadata,
-    build_registry_record_from_stage_payload,
     build_document_processed_object_keys,
-    collect_import_document_stats,
-    persist_import_documents,
-    load_metadata_from_bytes,
     parse_document_import_stub,
-    persist_import_documents,
     resolve_document_artifact_keys,
     serialize_document_import_stub,
 )
+from campus_ingestion_core.campusrag_ingestion_authorization import (
+    apply_authorization_projection_metadata,
+    load_metadata_from_bytes,
+)
+from campus_ingestion_core.campusrag_ingestion_metadata import (
+    derive_document_title,
+    derive_document_year,
+    derive_source_uri,
+    resolved_raw_asset,
+)
+from campus_ingestion_core.campusrag_ingestion_refresh import (
+    artifact_bucket_for_key,
+    registry_record_needs_refresh,
+)
+from campus_ingestion_core.campusrag_ingestion_registry_state import (
+    apply_current_promotion,
+)
+from campus_ingestion_core.campusrag_ingestion_sources import (
+    build_source_observation,
+    document_semantic_hash,
+    merge_equivalent_source_record,
+)
+from campus_ingestion_core.campusrag_ingestion_stage_payload import (
+    build_registry_record_from_stage_payload,
+)
+from campus_ingestion_core.campusrag_ingestion_support import (
+    DocumentImportInput,
+    S3ObjectStoreWriter,
+    collect_import_document_stats,
+    persist_import_documents,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.object_store import build_source_truth_artifact_key
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -194,7 +219,9 @@ class _ImportablePrefetchRegistry(_SpyDocumentRegistry):
         collection: str | None = None,
     ) -> tuple[DocumentRegistryRecord, ...]:
         self.list_by_scope_calls.append((corpus, collection))
-        raise AssertionError("list_by_scope should not be used when importable scope prefetch is available")
+        raise AssertionError(
+            "list_by_scope should not be used when importable scope prefetch is available"
+        )
 
     def list_importable_scope_records_by_scope(
         self,
@@ -238,6 +265,198 @@ class _FakeS3Client:
 
     def close(self) -> None:
         self.closed = True
+
+
+class CampusragIngestionSourcesTest(unittest.TestCase):
+    def test_document_semantic_hash_prefers_explicit_hash(self) -> None:
+        document = _document_input(
+            document_id="handbook:doc-semantic",
+            version_id="v1:doc-semantic",
+            body='{"type":"paragraph","text":"semantic"}\n',
+        )
+        document.metadata["semantic_content_hash"] = "semantic-doc-semantic"
+
+        self.assertEqual(
+            document_semantic_hash(
+                document_units_bytes=document.document_units_bytes,
+                semantic_content_hash=document.metadata.get("semantic_content_hash"),
+            ),
+            "semantic-doc-semantic",
+        )
+
+    def test_merge_equivalent_source_record_prefers_official_web_for_current_effective_records(
+        self,
+    ) -> None:
+        existing = _record(
+            document_id="handbook:doc-merge-helper",
+            version_id="v1:doc-merge-helper",
+            content_hash=hashlib.sha256(b"same\n").hexdigest(),
+            revision_track="current-effective",
+            is_current=True,
+            source_channel="pdf_ocr",
+            source_uri="https://pdf.example/doc-merge-helper",
+        )
+        candidate = build_source_observation(
+            source_channel="official_web",
+            source_uri="https://web.example/doc-merge-helper",
+            raw_asset=None,
+            is_primary=False,
+            import_source="official_web_sync",
+        )
+
+        merged = merge_equivalent_source_record(
+            existing=existing,
+            candidate_observation=candidate,
+            candidate_is_current=True,
+            timestamp="2026-03-25T01:00:00+00:00",
+        )
+
+        self.assertEqual(merged.source_channel, "official_web")
+        self.assertEqual(merged.source_uri, "https://web.example/doc-merge-helper")
+        self.assertEqual(len(merged.source_observations), 2)
+        self.assertEqual(
+            tuple(
+                observation.source_channel
+                for observation in merged.source_observations
+                if observation.is_primary
+            ),
+            ("official_web",),
+        )
+
+
+class CampusragIngestionMetadataTest(unittest.TestCase):
+    def test_derive_source_uri_prefers_source_url(self) -> None:
+        self.assertEqual(
+            derive_source_uri(
+                {
+                    "source_url": " https://example.edu/source-url ",
+                    "source_pdf": "https://example.edu/source.pdf",
+                }
+            ),
+            " https://example.edu/source-url ",
+        )
+
+    def test_derive_document_title_and_year_use_metadata_before_fallback(self) -> None:
+        metadata = {
+            "document_title": " 2026 学生手册 ",
+            "published_date": "2026-03-24",
+        }
+
+        self.assertEqual(
+            derive_document_title(metadata=metadata, document_id="handbook:doc-title"),
+            "2026 学生手册",
+        )
+        self.assertEqual(derive_document_year(metadata=metadata), "2026")
+
+    def test_resolved_raw_asset_reuses_override_and_derives_capture_key(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            raw_path = Path(tmpdir) / "guide-2026.pdf"
+            raw_path.write_bytes(b"pdf-bytes")
+
+            resolved = resolved_raw_asset(
+                raw_path=raw_path,
+                raw_source_uri=None,
+                corpus="regulations",
+                raw_asset_id_override="override-asset",
+            )
+
+        assert resolved is not None
+        self.assertEqual(resolved.raw_asset_id, "override-asset")
+        self.assertEqual(
+            resolved.raw_version_id,
+            f"sha256:{hashlib.sha256(b'pdf-bytes').hexdigest()}",
+        )
+        self.assertTrue(resolved.raw_source_uri.endswith("/guide-2026.pdf"))
+        self.assertTrue(resolved.object_key.endswith("/capture/guide-2026.pdf"))
+
+
+class CampusragIngestionRefreshTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.object_store = ObjectStoreSettings(
+            endpoint="http://localhost:9000",
+            access_key="minioadmin",
+            secret_key="minioadmin",
+        )
+
+    def test_artifact_bucket_for_key_routes_source_truth_keys_to_source_bucket(self) -> None:
+        source_key = build_source_truth_artifact_key(
+            raw_asset_id="asset:doc-refresh",
+            raw_version_id="sha256:doc-refresh",
+            filename="provider-response.jsonl",
+            year="2026",
+        )
+
+        self.assertEqual(
+            artifact_bucket_for_key(object_store=self.object_store, key=source_key),
+            self.object_store.bucket_source,
+        )
+
+    def test_registry_record_needs_refresh_returns_false_when_processed_artifacts_match(
+        self,
+    ) -> None:
+        existing = _record(
+            document_id="handbook:doc-refresh",
+            version_id="v1:doc-refresh",
+            content_hash=hashlib.sha256(b"same\n").hexdigest(),
+        )
+        writer = _FakeWriter(
+            existing_objects=(
+                (self.object_store.bucket_derived, existing.document_units_object_key),
+            )
+        )
+        writer.objects[(self.object_store.bucket_derived, existing.document_units_object_key)] = (
+            b"same\n"
+        )
+
+        self.assertFalse(
+            registry_record_needs_refresh(
+                existing=existing,
+                document_units_bytes=b"same\n",
+                document_units_key=existing.document_units_object_key,
+                provider_response_bytes=None,
+                provider_response_key=existing.provider_response_object_key,
+                layout_elements_bytes=None,
+                layout_elements_key=existing.layout_elements_object_key,
+                canonical_markdown_bytes=None,
+                canonical_markdown_key=existing.canonical_markdown_object_key,
+                processed_object_keys=existing.processed_object_keys,
+                writer=writer,
+                object_store=self.object_store,
+            )
+        )
+
+
+class CampusragIngestionRegistryStateTest(unittest.TestCase):
+    def test_apply_current_promotion_demotes_prior_current_record(self) -> None:
+        prior_current = _record(
+            document_id="handbook:doc-current",
+            version_id="v1:doc-current",
+            content_hash=hashlib.sha256(b"old\n").hexdigest(),
+            revision_track="current-effective",
+            is_current=True,
+        )
+        new_current = _record(
+            document_id="handbook:doc-current",
+            version_id="v2:doc-current",
+            content_hash=hashlib.sha256(b"new\n").hexdigest(),
+            revision_track="current-effective",
+            is_current=True,
+        )
+
+        promoted, demoted = apply_current_promotion(
+            existing_records_by_lineage={
+                ("regulations", "student_handbook"): {
+                    ("handbook:doc-current", "current-effective"): (prior_current,),
+                }
+            },
+            scope=("regulations", "student_handbook"),
+            record=new_current,
+        )
+
+        self.assertEqual(promoted.supersedes_version_id, "v1:doc-current")
+        self.assertEqual(len(demoted), 1)
+        self.assertFalse(demoted[0].is_current)
+        self.assertEqual(demoted[0].status, "superseded")
 
 
 class CampusragIngestionSupportTest(unittest.TestCase):
@@ -317,7 +536,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             ),
         )
 
-    def test_resolve_document_artifact_keys_reuses_explicit_keys_and_builds_missing_derived_keys(self) -> None:
+    def test_resolve_document_artifact_keys_reuses_explicit_keys_and_builds_missing_derived_keys(
+        self,
+    ) -> None:
         document = DocumentImportInput(
             source_label="notice-2",
             document_units_bytes=b"units",
@@ -419,7 +640,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             ),
         )
 
-    def test_build_registry_record_from_stage_payload_prefers_frozen_final_processed_keys(self) -> None:
+    def test_build_registry_record_from_stage_payload_prefers_frozen_final_processed_keys(
+        self,
+    ) -> None:
         document = DocumentImportInput(
             source_label="notice-4",
             document_units_bytes=b"units",
@@ -550,7 +773,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
 
         self.assertEqual(payload, b'{"ok": 1}')
 
-    def test_collect_import_document_stats_batches_incremental_upserts_after_single_prefetch(self) -> None:
+    def test_collect_import_document_stats_batches_incremental_upserts_after_single_prefetch(
+        self,
+    ) -> None:
         doc_a = _document_input(
             document_id="handbook:doc-a",
             version_id="v1:doc-a",
@@ -640,7 +865,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             ("handbook:doc-keep", "handbook:doc-new"),
         )
 
-    def test_collect_import_document_stats_scope_refresh_can_recover_from_legacy_registry_rows(self) -> None:
+    def test_collect_import_document_stats_scope_refresh_can_recover_from_legacy_registry_rows(
+        self,
+    ) -> None:
         doc_keep = _document_input(
             document_id="handbook:doc-keep",
             version_id="v1:doc-keep",
@@ -699,7 +926,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(registry.importable_scope_calls, [("regulations", "student_handbook")])
         self.assertEqual(registry.list_by_scope_calls, [])
 
-    def test_collect_import_document_stats_demotes_prior_current_version_when_new_current_is_imported(self) -> None:
+    def test_collect_import_document_stats_demotes_prior_current_version_when_new_current_is_imported(
+        self,
+    ) -> None:
         doc_new_current = _document_input(
             document_id="handbook:doc-current",
             version_id="v2:doc-current",
@@ -737,11 +966,15 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(len(refreshed_records), 2)
         records_by_version = {record.version_id: record for record in refreshed_records}
         self.assertTrue(records_by_version["v2:doc-current"].is_current)
-        self.assertEqual(records_by_version["v2:doc-current"].supersedes_version_id, "v1:doc-current")
+        self.assertEqual(
+            records_by_version["v2:doc-current"].supersedes_version_id, "v1:doc-current"
+        )
         self.assertFalse(records_by_version["v1:doc-current"].is_current)
         self.assertEqual(records_by_version["v1:doc-current"].status, "superseded")
 
-    def test_collect_import_document_stats_merges_equivalent_web_source_without_creating_new_version(self) -> None:
+    def test_collect_import_document_stats_merges_equivalent_web_source_without_creating_new_version(
+        self,
+    ) -> None:
         body = '{"type":"paragraph","text":"same"}\n'
         existing = _record(
             document_id="handbook:doc-merge",
@@ -786,7 +1019,11 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertEqual(merged.source_uri, "https://web.example/doc-merge")
         self.assertEqual(len(merged.source_observations), 2)
         self.assertEqual(
-            tuple(observation.source_channel for observation in merged.source_observations if observation.is_primary),
+            tuple(
+                observation.source_channel
+                for observation in merged.source_observations
+                if observation.is_primary
+            ),
             ("official_web",),
         )
 
@@ -884,7 +1121,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             },
         )
 
-    def test_collect_import_document_stats_rewrites_missing_processed_artifacts_for_matching_content(self) -> None:
+    def test_collect_import_document_stats_rewrites_missing_processed_artifacts_for_matching_content(
+        self,
+    ) -> None:
         document = _document_input(
             document_id="handbook:doc-a",
             version_id="v1:doc-a",
@@ -922,7 +1161,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         self.assertIn((self.object_store.bucket_derived, expected_key), writer.puts)
         self.assertEqual(len(registry.upsert_many_calls), 1)
 
-    def test_collect_import_document_stats_rewrites_changed_processed_artifacts_for_matching_content(self) -> None:
+    def test_collect_import_document_stats_rewrites_changed_processed_artifacts_for_matching_content(
+        self,
+    ) -> None:
         document = _document_input(
             document_id="handbook:doc-b",
             version_id="v1:doc-b",
@@ -939,9 +1180,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             "regulations/documents/student_handbook/doc-b--doc-b/"
             "source-faithful/2026/document-units.jsonl"
         )
-        writer = _FakeWriter(
-            existing_objects=((self.object_store.bucket_derived, expected_key),)
-        )
+        writer = _FakeWriter(existing_objects=((self.object_store.bucket_derived, expected_key),))
         writer.objects[(self.object_store.bucket_derived, expected_key)] = (
             '{"type":"paragraph","text":"old"}\n'.encode("utf-8")
         )
@@ -977,7 +1216,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         registry = _SpyDocumentRegistry(records=())
         writer = _FakeWriter()
 
-        with patch("campus_ingestion_core.campusrag_ingestion_support.collect_import_document_stats") as collect_stats:
+        with patch(
+            "campus_ingestion_core.campusrag_ingestion_support.collect_import_document_stats"
+        ) as collect_stats:
             collect_stats.return_value = Mock(
                 success_count=1,
                 skipped_count=0,
@@ -1013,7 +1254,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             ("regulations", "student_handbook"),
         )
 
-    def test_collect_import_document_stats_prefers_new_authorization_projection_metadata(self) -> None:
+    def test_collect_import_document_stats_prefers_new_authorization_projection_metadata(
+        self,
+    ) -> None:
         document = _document_input(
             document_id="handbook:doc-authz",
             version_id="v1:doc-authz",
@@ -1051,7 +1294,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             DEFAULT_POLICY_PROJECTION_VERSION,
         )
 
-    def test_collect_import_document_stats_rejects_unsupported_authorization_metadata_keys(self) -> None:
+    def test_collect_import_document_stats_rejects_unsupported_authorization_metadata_keys(
+        self,
+    ) -> None:
         document = _document_input(
             document_id="handbook:doc-authz",
             version_id="v1:doc-authz",
@@ -1086,7 +1331,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             "unsupported authorization metadata keys",
         )
 
-    def test_apply_authorization_projection_metadata_writes_canonical_projection_fields(self) -> None:
+    def test_apply_authorization_projection_metadata_writes_canonical_projection_fields(
+        self,
+    ) -> None:
         metadata = {
             "document_id": "handbook:doc-authz",
             "version_id": "v1:doc-authz",
@@ -1107,7 +1354,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             DEFAULT_POLICY_PROJECTION_VERSION,
         )
 
-    def test_apply_authorization_projection_metadata_rejects_unsupported_authorization_metadata_keys(self) -> None:
+    def test_apply_authorization_projection_metadata_rejects_unsupported_authorization_metadata_keys(
+        self,
+    ) -> None:
         metadata = {
             "document_id": "handbook:doc-authz",
             "version_id": "v1:doc-authz",
@@ -1156,6 +1405,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
                     '"acl":{"level":"public","allow_groups":["legacy-staff"]}}\n'
                 ).encode("utf-8")
             )
+
 
 if __name__ == "__main__":
     unittest.main()

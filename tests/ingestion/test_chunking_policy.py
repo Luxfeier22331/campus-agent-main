@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 import sys
 import threading
 import time
 import types
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
 import campus_ingestion_core.tokenizer_cache as tokenizer_cache
@@ -25,11 +25,32 @@ from campus_ingestion_core.chunking import (
     StudentHandbookChunkingStrategyV2,
     _load_hf_tokenizer,
     assemble_chunk_text,
-    build_student_handbook_chunk_profile,
     build_chunk_text_context,
+    build_student_handbook_chunk_profile,
     chunk_structured_unit,
     clean_structured_text,
     estimate_token_count,
+)
+from campus_ingestion_core.chunking_context import (
+    assemble_chunk_text as assemble_chunk_text_from_context_module,
+)
+from campus_ingestion_core.chunking_context import (
+    build_chunk_text_context as build_chunk_text_context_from_context_module,
+)
+from campus_ingestion_core.chunking_structure import (
+    repair_article_subclause_boundary_context as repair_article_subclause_boundary_context_from_structure_module,
+)
+from campus_ingestion_core.chunking_tables import (
+    build_table_piece_specs as build_table_piece_specs_from_table_module,
+)
+from campus_ingestion_core.chunking_token_windows import (
+    collect_soft_boundary_indexes,
+    merge_short_tail,
+    split_token_windows,
+    tokenize_text,
+)
+from campus_ingestion_core.chunking_tokenizers import (
+    normalize_embedding_model_name as normalize_embedding_model_name_from_tokenizers_module,
 )
 from campus_ingestion_core.handbook_article_structure import normalize_article_body_structure
 
@@ -82,7 +103,9 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(profile.chunk_policy_version, "student_handbook_semantic_v2")
         self.assertIn("Qwen3-Embedding-4B", profile.tokenizer_name)
 
-    def test_build_student_handbook_chunk_profile_v3_uses_qwen_tokenizer_and_final_text_budgeting(self) -> None:
+    def test_build_student_handbook_chunk_profile_v3_uses_qwen_tokenizer_and_final_text_budgeting(
+        self,
+    ) -> None:
         profile = build_student_handbook_chunk_profile(
             profile_version=HANDBOOK_V3_CHUNK_POLICY_VERSION,
             model_name="Qwen3-Embedding-4B",
@@ -97,6 +120,12 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(profile.safety_margin, 16)
         self.assertEqual(profile.strategy_name, "student_handbook_structure_v3")
         self.assertEqual(profile.tokenizer_name, "hf:Qwen/Qwen3-Embedding-4B")
+
+    def test_chunking_tokenizers_module_normalizes_qwen_embedding_alias(self) -> None:
+        self.assertEqual(
+            normalize_embedding_model_name_from_tokenizers_module("Qwen/Qwen3-Embedding-4B"),
+            "Qwen3-Embedding-4B",
+        )
 
     def test_resolve_prefetched_hf_tokenizer_path_requires_local_cache(self) -> None:
         with mock.patch(
@@ -133,7 +162,7 @@ class ChunkingPolicyTest(unittest.TestCase):
             )
         )
         with mock.patch(
-            "campus_ingestion_core.chunking.resolve_prefetched_hf_tokenizer_path",
+            "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
             return_value="/tmp/qwen-tokenizer",
         ) as resolve_path:
             with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
@@ -164,7 +193,7 @@ class ChunkingPolicyTest(unittest.TestCase):
         )
 
         with mock.patch(
-            "campus_ingestion_core.chunking.resolve_prefetched_hf_tokenizer_path",
+            "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
             return_value="/tmp/qwen-tokenizer",
         ):
             with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
@@ -196,7 +225,12 @@ class ChunkingPolicyTest(unittest.TestCase):
     def test_assemble_chunk_text_prefers_compact_header_for_short_deeply_nested_text(self) -> None:
         context_plan = build_chunk_text_context(
             anchor={
-                "section_path": ["第二章 分则", "第一部分 注册", "四、权利", "(二) 注册志愿服务组织"],
+                "section_path": [
+                    "第二章 分则",
+                    "第一部分 注册",
+                    "四、权利",
+                    "(二) 注册志愿服务组织",
+                ],
             },
             metadata={
                 "title": "中央民族大学学生志愿服务管理办法",
@@ -221,7 +255,9 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertLess(assembly.header_token_count, 50)
         self.assertIn("注册志愿服务组织", assembly.text)
 
-    def test_build_chunk_text_context_title_only_variant_keeps_title_when_section_path_exists(self) -> None:
+    def test_build_chunk_text_context_title_only_variant_keeps_title_when_section_path_exists(
+        self,
+    ) -> None:
         context_plan = build_chunk_text_context(
             anchor={
                 "section_path": ["第五章 奖励分测评"],
@@ -242,6 +278,39 @@ class ChunkingPolicyTest(unittest.TestCase):
             "中央民族大学本科学生综合素质测评办法\n文号：民大校发[2018]323号",
         )
 
+    def test_chunking_context_module_keeps_compact_path_for_short_official_web_display(
+        self,
+    ) -> None:
+        context_plan = build_chunk_text_context_from_context_module(
+            anchor={
+                "section_path": ["校园服务", "图书馆", "借阅须知"],
+            },
+            metadata={
+                "title": "中央民族大学图书馆借阅须知",
+                "policy_doc_no": "图规〔2026〕8号",
+                "page_family": "generic_content_page",
+                "serving_intent": "answer_ready",
+            },
+        )
+
+        assembly = assemble_chunk_text_from_context_module(
+            display_text="读者应在闭馆前完成借阅和自助设备归还。",
+            context_plan=context_plan,
+            chunk_profile=ChunkProfile(
+                chunk_size=96,
+                max_chunk_size=144,
+                chunk_overlap=16,
+                min_chunk_size=32,
+                final_text_aware=True,
+                safety_margin=8,
+            ),
+        )
+
+        self.assertEqual(assembly.header_mode, "compact_path")
+        self.assertIn("中央民族大学图书馆借阅须知", assembly.text)
+        self.assertIn("章节：借阅须知", assembly.text)
+        self.assertNotIn("校园服务 > 图书馆 > 借阅须知", assembly.text)
+
     def test_table_units_are_not_resplit_even_when_token_budget_is_large(self) -> None:
         unit = StructuredUnitChunkInput(
             unit_type="table_row",
@@ -257,7 +326,9 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertEqual(pieces[0].segment_total, 1)
         self.assertIsNone(pieces[0].split_reason)
 
-    def test_normalize_article_body_structure_keeps_soft_wrap_recoveries_as_single_body_lines(self) -> None:
+    def test_normalize_article_body_structure_keeps_soft_wrap_recoveries_as_single_body_lines(
+        self,
+    ) -> None:
         normalized = normalize_article_body_structure(
             "\n".join(
                 [
@@ -286,7 +357,10 @@ class ChunkingPolicyTest(unittest.TestCase):
             )
         )
 
-        self.assertIn("(一)确定项目选拔条件与年度选拔计划\n国际合作处(港澳台事务办公室)确定各留学项目等相关事宜", normalized)
+        self.assertIn(
+            "(一)确定项目选拔条件与年度选拔计划\n国际合作处(港澳台事务办公室)确定各留学项目等相关事宜",
+            normalized,
+        )
         self.assertIn("(二)发布选拔要求与通知\n教务处根据项目要求,发布具体选拔通知", normalized)
         self.assertIn("(一)科研项目奖励(总分1.5分)\n参与科研项目且已在所评学年内结项", normalized)
 
@@ -300,8 +374,12 @@ class ChunkingPolicyTest(unittest.TestCase):
             )
         )
 
-        self.assertIn("发表一般文章、专著奖励标准\n备注:学校官方微信即中央民族大学微信公众号", normalized)
-        self.assertIn("参加社会实践、主题活动奖励标准\n备注:志愿服务活动须经学校团委认定为准。", normalized)
+        self.assertIn(
+            "发表一般文章、专著奖励标准\n备注:学校官方微信即中央民族大学微信公众号", normalized
+        )
+        self.assertIn(
+            "参加社会实践、主题活动奖励标准\n备注:志愿服务活动须经学校团委认定为准。", normalized
+        )
 
     def test_table_unit_splits_by_row_window_when_body_rows_exceed_budget(self) -> None:
         unit = StructuredUnitChunkInput(
@@ -321,13 +399,45 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         pieces = chunk_structured_unit(
             unit=unit,
-            chunk_profile=ChunkProfile(chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20),
+            chunk_profile=ChunkProfile(
+                chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20
+            ),
         )
 
         self.assertGreater(len(pieces), 1)
         self.assertTrue(all(piece.unit_type == "table_unit" for piece in pieces))
         self.assertTrue(all(piece.split_reason == "table_row_window" for piece in pieces))
         self.assertTrue(all("等级 | 分数" in piece.text for piece in pieces))
+
+    def test_chunking_tables_module_splits_table_rows_by_window(self) -> None:
+        specs = build_table_piece_specs_from_table_module(
+            unit=types.SimpleNamespace(
+                unit_type="table_unit",
+                text="表格上下文: 奖励标准\n等级 | 分数\n优 | 90-100",
+                metadata={
+                    "table_header_line": "等级 | 分数",
+                    "table_row_lines": [
+                        "优秀一等奖 | " + "甲" * 40,
+                        "优秀二等奖 | " + "乙" * 40,
+                        "优秀三等奖 | " + "丙" * 40,
+                    ],
+                    "caption_lines": ["表格上下文: 奖励标准"],
+                },
+            ),
+            chunk_profile=types.SimpleNamespace(max_chunk_size=80),
+            count_tokens=RegexApproxTokenCounter().count,
+            clean_text=lambda unit_type, text: text.strip(),
+            resolve_display_budget=lambda unit, chunk_profile: types.SimpleNamespace(
+                max_tokens=80,
+                target_tokens=50,
+                min_tokens=20,
+                overlap_tokens=8,
+            ),
+        )
+
+        self.assertGreater(len(specs), 1)
+        self.assertTrue(all(spec.split_reason == "table_row_window" for spec in specs))
+        self.assertTrue(all("等级 | 分数" in spec.text for spec in specs))
 
     def test_table_unit_without_row_lines_splits_oversized_fallback_text(self) -> None:
         unit = StructuredUnitChunkInput(
@@ -338,7 +448,9 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         pieces = chunk_structured_unit(
             unit=unit,
-            chunk_profile=ChunkProfile(chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20),
+            chunk_profile=ChunkProfile(
+                chunk_size=50, max_chunk_size=80, chunk_overlap=8, min_chunk_size=20
+            ),
         )
 
         self.assertGreater(len(pieces), 1)
@@ -363,10 +475,14 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertGreater(len(pieces), 1)
         self.assertTrue(all(piece.root_unit_id == "article-001" for piece in pieces))
         self.assertTrue(all(piece.unit_type == "article_body" for piece in pieces))
-        self.assertEqual(tuple(piece.segment_index for piece in pieces), tuple(range(1, len(pieces) + 1)))
+        self.assertEqual(
+            tuple(piece.segment_index for piece in pieces), tuple(range(1, len(pieces) + 1))
+        )
         self.assertTrue(all(piece.segment_total == len(pieces) for piece in pieces))
         self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
-        self.assertTrue(all(estimate_token_count(piece.text) <= DEFAULT_MAX_CHUNK_SIZE for piece in pieces))
+        self.assertTrue(
+            all(estimate_token_count(piece.text) <= DEFAULT_MAX_CHUNK_SIZE for piece in pieces)
+        )
 
     def test_article_body_prefers_clause_boundaries_before_token_guardrail(self) -> None:
         line_one = "(一) " + " ".join(f"a{index}" for index in range(8))
@@ -380,7 +496,9 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         pieces = chunk_structured_unit(
             unit=unit,
-            chunk_profile=ChunkProfile(chunk_size=16, max_chunk_size=25, chunk_overlap=4, min_chunk_size=8),
+            chunk_profile=ChunkProfile(
+                chunk_size=16, max_chunk_size=25, chunk_overlap=4, min_chunk_size=8
+            ),
         )
 
         self.assertEqual(len(pieces), 2)
@@ -432,7 +550,9 @@ class ChunkingPolicyTest(unittest.TestCase):
             unit=StructuredUnitChunkInput(
                 unit_type="article_body",
                 root_unit_id="article-006",
-                text="\n".join([preamble, base_one, base_two, secondary_intro, extra_one, extra_two]),
+                text="\n".join(
+                    [preamble, base_one, base_two, secondary_intro, extra_one, extra_two]
+                ),
             ),
             chunk_profile=ChunkProfile(
                 chunk_size=24,
@@ -447,7 +567,9 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         joined = "\n".join(piece.text for piece in pieces)
         self.assertIn(secondary_intro, joined)
-        self.assertTrue(any(secondary_intro in piece.text and extra_one in piece.text for piece in pieces))
+        self.assertTrue(
+            any(secondary_intro in piece.text and extra_one in piece.text for piece in pieces)
+        )
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "clause_block" for piece in pieces))
 
@@ -493,9 +615,13 @@ class ChunkingPolicyTest(unittest.TestCase):
                 for piece in pieces
             )
         )
-        self.assertFalse(any(piece.text.startswith("1. 笔试主要为外语综合能力测试") for piece in pieces))
+        self.assertFalse(
+            any(piece.text.startswith("1. 笔试主要为外语综合能力测试") for piece in pieces)
+        )
 
-    def test_article_structure_boundary_carries_parent_context_for_nested_subclause_segments(self) -> None:
+    def test_article_structure_boundary_carries_parent_context_for_nested_subclause_segments(
+        self,
+    ) -> None:
         lines = [
             "转专业程序",
             "(一)制定并提交专业接收计划",
@@ -540,8 +666,28 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertGreaterEqual(len(pieces), 2)
         self.assertTrue(all(piece.split_reason == "structure_boundary" for piece in pieces))
         self.assertTrue(all(piece.boundary_rule == "article_structure_block" for piece in pieces))
-        self.assertTrue(any(piece.text.startswith("转专业程序\n(五)考核及确定名单\n3. 确定面试名单的原则") for piece in pieces))
+        self.assertTrue(
+            any(
+                piece.text.startswith("转专业程序\n(五)考核及确定名单\n3. 确定面试名单的原则")
+                for piece in pieces
+            )
+        )
         self.assertFalse(any(piece.text.startswith("转专业程序\n(2)") for piece in pieces))
+
+    def test_chunking_structure_module_repairs_numeric_subclause_parent_context(self) -> None:
+        repaired = repair_article_subclause_boundary_context_from_structure_module(
+            (
+                "(五)考核及确定名单\n1. 考核方式由各院系确定。",
+                "2. 面试人数原则上按接收计划数的150%确定。",
+            ),
+            display_budget=types.SimpleNamespace(max_tokens=64),
+            count_tokens=RegexApproxTokenCounter().count,
+        )
+
+        self.assertEqual(
+            repaired[1],
+            "(五)考核及确定名单\n2. 面试人数原则上按接收计划数的150%确定。",
+        )
 
     def test_policy_page_prefers_roster_line_boundaries_before_token_guardrail(self) -> None:
         lines = [
@@ -560,7 +706,9 @@ class ChunkingPolicyTest(unittest.TestCase):
 
         pieces = chunk_structured_unit(
             unit=unit,
-            chunk_profile=ChunkProfile(chunk_size=10, max_chunk_size=16, chunk_overlap=4, min_chunk_size=6),
+            chunk_profile=ChunkProfile(
+                chunk_size=10, max_chunk_size=16, chunk_overlap=4, min_chunk_size=6
+            ),
         )
 
         self.assertEqual(len(pieces), 2)
@@ -633,7 +781,9 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertTrue(all(piece.boundary_rule == "enumerated_list_block" for piece in pieces))
         self.assertTrue(any("4." in piece.text for piece in pieces))
 
-    def test_article_body_falls_back_to_token_guardrail_when_clause_lines_exceed_max_chunk_size(self) -> None:
+    def test_article_body_falls_back_to_token_guardrail_when_clause_lines_exceed_max_chunk_size(
+        self,
+    ) -> None:
         lines = [
             "(一) " + " ".join(f"a{index}" for index in range(40)),
             "(二) " + " ".join(f"b{index}" for index in range(40)),
@@ -644,7 +794,9 @@ class ChunkingPolicyTest(unittest.TestCase):
                 root_unit_id="article-004",
                 text="\n".join(lines),
             ),
-            chunk_profile=ChunkProfile(chunk_size=16, max_chunk_size=25, chunk_overlap=4, min_chunk_size=8),
+            chunk_profile=ChunkProfile(
+                chunk_size=16, max_chunk_size=25, chunk_overlap=4, min_chunk_size=8
+            ),
         )
 
         self.assertGreater(len(pieces), 2)
@@ -709,8 +861,51 @@ class ChunkingPolicyTest(unittest.TestCase):
         )
         self.assertIn("2020年将耐多药肺结核纳入本市基本医疗保险门诊特殊疾病范围。", pieces[-1].text)
 
-    def test_structure_boundary_prefers_target_budget_over_max_budget_when_grouping_clauses(self) -> None:
-        lines = [f"({marker}) " + " ".join(f"甲{index}" for index in range(18)) for marker in ("一", "二", "三", "四", "五")]
+    def test_chunking_token_window_module_rebalances_short_tail(self) -> None:
+        display_budget = types.SimpleNamespace(
+            max_tokens=24,
+            target_tokens=18,
+            min_tokens=10,
+            overlap_tokens=4,
+        )
+        counter = RegexApproxTokenCounter().count
+        text = "\n".join(
+            [
+                "第一段说明甲乙丙丁戊己庚辛壬癸。",
+                "第二段说明甲乙丙丁戊己庚辛壬癸。",
+                "第三段说明甲乙丙丁戊己庚辛壬癸。",
+            ]
+        )
+
+        token_spans = tokenize_text(text)
+        boundary_indexes = collect_soft_boundary_indexes(text=text, token_spans=token_spans)
+        windows = split_token_windows(
+            text=text,
+            token_spans=token_spans,
+            display_budget=display_budget,
+            count_tokens=counter,
+        )
+        rebalanced = merge_short_tail(
+            windows,
+            text=text,
+            token_spans=token_spans,
+            boundary_indexes=boundary_indexes,
+            display_budget=display_budget,
+            count_tokens=counter,
+        )
+
+        self.assertGreaterEqual(len(windows), 2)
+        self.assertGreaterEqual(counter(rebalanced[-1][2]), display_budget.min_tokens)
+        self.assertLessEqual(counter(rebalanced[-1][2]), display_budget.max_tokens)
+        self.assertIn("第三段说明", rebalanced[-1][2])
+
+    def test_structure_boundary_prefers_target_budget_over_max_budget_when_grouping_clauses(
+        self,
+    ) -> None:
+        lines = [
+            f"({marker}) " + " ".join(f"甲{index}" for index in range(18))
+            for marker in ("一", "二", "三", "四", "五")
+        ]
         pieces = chunk_structured_unit(
             unit=StructuredUnitChunkInput(
                 unit_type="article_body",
@@ -768,7 +963,9 @@ class ChunkingPolicyTest(unittest.TestCase):
         self.assertGreater(len(pieces), 1)
         self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
 
-    def test_policy_page_falls_back_to_token_guardrail_when_roster_lines_exceed_max_chunk_size(self) -> None:
+    def test_policy_page_falls_back_to_token_guardrail_when_roster_lines_exceed_max_chunk_size(
+        self,
+    ) -> None:
         lines = [
             "校园110 " + " ".join(f"6893{index:04d}" for index in range(20)),
             "学校办公室 " + " ".join(f"6894{index:04d}" for index in range(20)),
@@ -779,14 +976,18 @@ class ChunkingPolicyTest(unittest.TestCase):
                 root_unit_id="policy-page-003",
                 text="\n".join(lines),
             ),
-            chunk_profile=ChunkProfile(chunk_size=12, max_chunk_size=18, chunk_overlap=4, min_chunk_size=6),
+            chunk_profile=ChunkProfile(
+                chunk_size=12, max_chunk_size=18, chunk_overlap=4, min_chunk_size=6
+            ),
         )
 
         self.assertGreater(len(pieces), 2)
         self.assertTrue(all(piece.split_reason == "token_guardrail" for piece in pieces))
         self.assertTrue(all(estimate_token_count(piece.text) <= 18 for piece in pieces))
 
-    def test_generic_chunk_profile_without_handbook_strategy_falls_back_to_token_guardrail(self) -> None:
+    def test_generic_chunk_profile_without_handbook_strategy_falls_back_to_token_guardrail(
+        self,
+    ) -> None:
         line_one = "(一) " + " ".join(f"a{index}" for index in range(8))
         line_two = "(二) " + " ".join(f"b{index}" for index in range(8))
         line_three = "(三) " + " ".join(f"c{index}" for index in range(8))

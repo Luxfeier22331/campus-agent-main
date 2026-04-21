@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
 import os
+from dataclasses import asdict, dataclass, field
 from threading import RLock
 from typing import Any, Protocol, Sequence
 
@@ -29,14 +29,11 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
-
 DEFAULT_FILE_RELEASE_INVENTORY_SCHEMA = "ingestion_projection"
 DEFAULT_FILE_RELEASE_INVENTORY_TABLE = (
     f"{DEFAULT_FILE_RELEASE_INVENTORY_SCHEMA}.authenticated_notice_file_release_inventory"
 )
-DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL"
-)
+DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY = "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL"
 DEFAULT_FILE_RELEASE_INVENTORY_OPERATOR_ENV_KEY = (
     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL"
 )
@@ -127,9 +124,7 @@ class AuthenticatedNoticeFileReleaseInventoryStore(Protocol):
 
 class InMemoryAuthenticatedNoticeFileReleaseInventoryStore:
     def __init__(self) -> None:
-        self._entries: dict[
-            tuple[str, str, int], AuthenticatedNoticeFileReleaseInventoryEntry
-        ] = {}
+        self._entries: dict[tuple[str, str, int], AuthenticatedNoticeFileReleaseInventoryEntry] = {}
         self._lock = RLock()
 
     def upsert_many(
@@ -162,11 +157,7 @@ class InMemoryAuthenticatedNoticeFileReleaseInventoryStore:
         *,
         file_release_ids: Sequence[int | str] = (),
     ) -> tuple[AuthenticatedNoticeFileReleaseInventoryEntry, ...]:
-        selected_ids = {
-            int(str(item).strip())
-            for item in file_release_ids
-            if str(item).strip()
-        }
+        selected_ids = {int(str(item).strip()) for item in file_release_ids if str(item).strip()}
         with self._lock:
             return tuple(
                 sorted(
@@ -175,10 +166,7 @@ class InMemoryAuthenticatedNoticeFileReleaseInventoryStore:
                         for record in self._entries.values()
                         if record.corpus == corpus
                         and record.collection == collection
-                        and (
-                            not selected_ids
-                            or record.file_release_id in selected_ids
-                        )
+                        and (not selected_ids or record.file_release_id in selected_ids)
                     ),
                     key=lambda record: record.file_release_id,
                 )
@@ -233,13 +221,7 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
         file_release_ids: Sequence[int | str] = (),
     ) -> tuple[AuthenticatedNoticeFileReleaseInventoryEntry, ...]:
         normalized_ids = tuple(
-            sorted(
-                {
-                    int(str(item).strip())
-                    for item in file_release_ids
-                    if str(item).strip()
-                }
-            )
+            sorted({int(str(item).strip()) for item in file_release_ids if str(item).strip()})
         )
         if normalized_ids:
             rows = self._fetchall(
@@ -251,9 +233,7 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
                 (corpus, collection, list(normalized_ids)),
             )
             return tuple(
-                AuthenticatedNoticeFileReleaseInventoryEntry.from_dict(
-                    _coerce_json_payload(row[0])
-                )
+                AuthenticatedNoticeFileReleaseInventoryEntry.from_dict(_coerce_json_payload(row[0]))
                 for row in rows
             )
         records: list[AuthenticatedNoticeFileReleaseInventoryEntry] = []
@@ -273,9 +253,7 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
             if not rows:
                 break
             page_records = tuple(
-                AuthenticatedNoticeFileReleaseInventoryEntry.from_dict(
-                    _coerce_json_payload(row[0])
-                )
+                AuthenticatedNoticeFileReleaseInventoryEntry.from_dict(_coerce_json_payload(row[0]))
                 for row in rows
             )
             records.extend(page_records)

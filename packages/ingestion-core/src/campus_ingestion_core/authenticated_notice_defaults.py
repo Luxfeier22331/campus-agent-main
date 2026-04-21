@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 DEFAULT_AUTHENTICATED_NOTICE_CORPUS = "campus_notices"
 DEFAULT_AUTHENTICATED_NOTICE_COLLECTION = "internal_notice"
 DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL = "Qwen3-Embedding-4B"

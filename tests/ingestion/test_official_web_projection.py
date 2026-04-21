@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.official_web_projection import (
     load_official_web_projection_declarations,
@@ -241,7 +241,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "manual_review"):
                 load_official_web_projection_declarations(path)
 
-    def test_replay_official_web_source_truth_local_emits_listing_documents_and_keeps_shell_review(self) -> None:
+    def test_replay_official_web_source_truth_local_emits_listing_documents_and_keeps_shell_review(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -391,7 +393,10 @@ class OfficialWebProjectionTest(unittest.TestCase):
             self.assertEqual(len(report.documents), 2)
             self.assertEqual(len(report.manual_review_pages), 1)
             self.assertTrue(
-                any(page["normalized_canonical_url"] == "https://www.example.edu/app/" for page in report.manual_review_pages)
+                any(
+                    page["normalized_canonical_url"] == "https://www.example.edu/app/"
+                    for page in report.manual_review_pages
+                )
             )
 
             for document in report.documents:
@@ -408,7 +413,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 self.assertGreater(len(rows), 0)
                 self.assertTrue(all(row["doc_id"] == document["document_id"] for row in rows))
 
-    def test_replay_official_web_source_truth_local_routes_stable_reference_titles_to_stable_reference_scope(self) -> None:
+    def test_replay_official_web_source_truth_local_routes_stable_reference_titles_to_stable_reference_scope(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -511,13 +518,21 @@ class OfficialWebProjectionTest(unittest.TestCase):
 
             self.assertEqual(report.counts["emitted_documents"], 2)
             documents_by_title = {document["title"]: document for document in report.documents}
-            self.assertEqual(documents_by_title["学校简介"]["target_collection"], "stable_reference")
+            self.assertEqual(
+                documents_by_title["学校简介"]["target_collection"], "stable_reference"
+            )
             self.assertEqual(documents_by_title["学校简介"]["target_corpus"], "official_web")
-            self.assertEqual(documents_by_title["学校简介"]["routing_route_id"], "stable-reference-bootstrap")
-            self.assertEqual(documents_by_title["校园新闻"]["target_collection"], "muc_public_pages")
+            self.assertEqual(
+                documents_by_title["学校简介"]["routing_route_id"], "stable-reference-bootstrap"
+            )
+            self.assertEqual(
+                documents_by_title["校园新闻"]["target_collection"], "muc_public_pages"
+            )
             self.assertIsNone(documents_by_title["校园新闻"]["routing_route_id"])
 
-    def test_replay_official_web_source_truth_local_routes_fresh_news_seed_titles_to_fresh_news_scope(self) -> None:
+    def test_replay_official_web_source_truth_local_routes_fresh_news_seed_titles_to_fresh_news_scope(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -535,7 +550,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                             "target_corpus": "official_web",
                             "target_collection": "fresh_news",
                             "page_families": ["article_detail"],
-                            "title_allowlist": ["中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"],
+                            "title_allowlist": [
+                                "中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"
+                            ],
                         }
                     ],
                 ),
@@ -669,19 +686,29 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
 
             documents_by_title = {document["title"]: document for document in report.documents}
-            self.assertEqual(documents_by_title["学校简介"]["target_collection"], "stable_reference")
             self.assertEqual(
-                documents_by_title["中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"]["target_collection"],
+                documents_by_title["学校简介"]["target_collection"], "stable_reference"
+            )
+            self.assertEqual(
+                documents_by_title["中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"][
+                    "target_collection"
+                ],
                 "fresh_news",
             )
             self.assertEqual(
-                documents_by_title["中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"]["routing_route_id"],
+                documents_by_title["中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破"][
+                    "routing_route_id"
+                ],
                 "fresh-news-seed-handoff",
             )
-            self.assertEqual(documents_by_title["校园新闻"]["target_collection"], "muc_public_pages")
+            self.assertEqual(
+                documents_by_title["校园新闻"]["target_collection"], "muc_public_pages"
+            )
             self.assertIsNone(documents_by_title["校园新闻"]["routing_route_id"])
 
-    def test_replay_official_web_source_truth_local_keeps_generic_fallback_pages_in_manual_review_for_muc_public_pages(self) -> None:
+    def test_replay_official_web_source_truth_local_keeps_generic_fallback_pages_in_manual_review_for_muc_public_pages(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -757,7 +784,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             self.assertEqual(report.manual_review_pages[0]["page_family"], "generic_content_page")
             self.assertIn("staged_only", report.manual_review_pages[0]["reason"])
 
-    def test_projection_emits_serving_intent_metadata_for_promotable_and_audit_only_documents(self) -> None:
+    def test_projection_emits_serving_intent_metadata_for_promotable_and_audit_only_documents(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -855,16 +884,28 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 declarations_path=declarations_path,
             )
 
-            article_document = next(document for document in report.documents if document["page_family"] == "article_detail")
-            listing_document = next(document for document in report.documents if document["page_family"] == "listing_page")
+            article_document = next(
+                document
+                for document in report.documents
+                if document["page_family"] == "article_detail"
+            )
+            listing_document = next(
+                document
+                for document in report.documents
+                if document["page_family"] == "listing_page"
+            )
             article_units = [
                 json.loads(line)
-                for line in Path(article_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(article_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             listing_units = [
                 json.loads(line)
-                for line in Path(listing_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(listing_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -878,7 +919,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             self.assertEqual(listing_document["serving_intent"], "audit_only")
             self.assertEqual(listing_document["promotion_block_reason"], "listing_page_audit_only")
             self.assertEqual(listing_units[0]["metadata"]["serving_intent"], "audit_only")
-            self.assertEqual(listing_units[0]["metadata"]["promotion_block_reason"], "listing_page_audit_only")
+            self.assertEqual(
+                listing_units[0]["metadata"]["promotion_block_reason"], "listing_page_audit_only"
+            )
             self.assertEqual(listing_units[0]["metadata"]["content_role"], "navigation_audit")
             self.assertNotIn("acl", listing_units[0])
 
@@ -948,7 +991,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             document = report.documents[0]
             units = [
                 json.loads(line)
-                for line in Path(document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -1065,11 +1110,15 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 document = documents_by_title[title]
                 units = [
                     json.loads(line)
-                    for line in Path(document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                    for line in Path(document["document_units_path"])
+                    .read_text(encoding="utf-8")
+                    .splitlines()
                     if line.strip()
                 ]
                 self.assertEqual(document["serving_intent"], "audit_only")
-                self.assertEqual(document["promotion_block_reason"], "low_value_public_notice_audit_only")
+                self.assertEqual(
+                    document["promotion_block_reason"], "low_value_public_notice_audit_only"
+                )
                 self.assertEqual(units[0]["metadata"]["serving_intent"], "audit_only")
                 self.assertEqual(
                     units[0]["metadata"]["promotion_block_reason"],
@@ -1172,17 +1221,29 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
-            self.assertEqual([unit["unit_type"] for unit in units], ["directory_entry", "directory_entry"])
-            self.assertEqual(units[0]["clean_text"], "张三 教授 研究方向：民族法学 电子邮箱：zhangsan@example.edu")
-            self.assertEqual(units[1]["clean_text"], "李四 副教授 办公电话：010-68930001 电子邮箱：lisi@example.edu")
+            self.assertEqual(
+                [unit["unit_type"] for unit in units], ["directory_entry", "directory_entry"]
+            )
+            self.assertEqual(
+                units[0]["clean_text"],
+                "张三 教授 研究方向：民族法学 电子邮箱：zhangsan@example.edu",
+            )
+            self.assertEqual(
+                units[1]["clean_text"],
+                "李四 副教授 办公电话：010-68930001 电子邮箱：lisi@example.edu",
+            )
             self.assertEqual(units[0]["metadata"]["serving_intent"], "promotable")
             self.assertEqual(units[0]["metadata"]["content_role"], "directory_reference")
 
-    def test_projection_emits_stable_semantic_content_hash_for_cross_host_duplicate_articles(self) -> None:
+    def test_projection_emits_stable_semantic_content_hash_for_cross_host_duplicate_articles(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -1287,19 +1348,27 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 declarations_path=declarations_path,
             )
             news_document = next(
-                document for document in report.documents if document["raw_asset_id"] == "owasset_article_news"
+                document
+                for document in report.documents
+                if document["raw_asset_id"] == "owasset_article_news"
             )
             xxgk_document = next(
-                document for document in report.documents if document["raw_asset_id"] == "owasset_article_xxgk"
+                document
+                for document in report.documents
+                if document["raw_asset_id"] == "owasset_article_xxgk"
             )
             news_units = [
                 json.loads(line)
-                for line in Path(news_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(news_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             xxgk_units = [
                 json.loads(line)
-                for line in Path(xxgk_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(xxgk_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -1309,7 +1378,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             self.assertTrue(news_units[0]["metadata"]["semantic_content_hash"])
 
-    def test_projection_semantic_content_hash_ignores_terminal_host_specific_boilerplate(self) -> None:
+    def test_projection_semantic_content_hash_ignores_terminal_host_specific_boilerplate(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -1473,12 +1544,16 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             news_units = [
                 json.loads(line)
-                for line in Path(news_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(news_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             xxgk_units = [
                 json.loads(line)
-                for line in Path(xxgk_document["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(xxgk_document["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -1498,7 +1573,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 xxgk_units[0]["metadata"]["semantic_content_hash"],
             )
 
-    def test_replay_official_web_source_truth_local_keeps_portal_like_directory_pages_in_manual_review(self) -> None:
+    def test_replay_official_web_source_truth_local_keeps_portal_like_directory_pages_in_manual_review(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -1620,7 +1697,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                         block_order=7,
                         block_role="paragraph",
                         text="2026.03.26",
-                        parent_heading_path=["中央民族大学党委举办树立和践行正确政绩观学习教育读书班"],
+                        parent_heading_path=[
+                            "中央民族大学党委举办树立和践行正确政绩观学习教育读书班"
+                        ],
                     ),
                 ],
             )
@@ -1703,7 +1782,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             validation = validate_official_web_projection_output(projection_dir)
 
             self.assertFalse(validation.valid)
-            self.assertTrue(any(issue["code"] == "missing_document_units" for issue in validation.issues))
+            self.assertTrue(
+                any(issue["code"] == "missing_document_units" for issue in validation.issues)
+            )
 
     def test_article_projection_skips_leading_listing_noise_before_first_paragraph(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -1806,14 +1887,18 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("## 学校简介", canonical)
             self.assertIn("中央民族大学是一所特色鲜明的高等院校。", canonical)
             self.assertNotIn("- 学校简介", canonical)
             self.assertEqual(canonical.count("学校简介"), 1)
 
-    def test_article_projection_splits_multi_paragraph_sections_before_becoming_one_giant_unit(self) -> None:
+    def test_article_projection_splits_multi_paragraph_sections_before_becoming_one_giant_unit(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -1917,13 +2002,17 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
             self.assertEqual(len(units), 2)
             self.assertTrue(all(unit["unit_type"] == "section_text" for unit in units))
-            self.assertTrue(all(unit["anchor"]["section_path"] == ["学校概况", "学校简介"] for unit in units))
+            self.assertTrue(
+                all(unit["anchor"]["section_path"] == ["学校概况", "学校简介"] for unit in units)
+            )
             self.assertLessEqual(max(len(unit["anchor"]["row_ids"]) for unit in units), 3)
             combined_text = "\n".join(unit["clean_text"] for unit in units)
             self.assertIn("中央民族大学是一所特色鲜明的高等院校。", combined_text)
@@ -2077,17 +2166,28 @@ class OfficialWebProjectionTest(unittest.TestCase):
             ]
 
             self.assertEqual(len(units), 2)
-            self.assertIn("讲座主题：聚焦人文社科前沿研究——人大复印报刊资料数据库助力科研创新", units[0]["clean_text"])
+            self.assertIn(
+                "讲座主题：聚焦人文社科前沿研究——人大复印报刊资料数据库助力科研创新",
+                units[0]["clean_text"],
+            )
             self.assertIn("讲座时间：2026年3月26日下午14:00—15:00", units[0]["clean_text"])
             self.assertIn("讲座地点：丰台校区图书馆视听空间125室", units[0]["clean_text"])
-            self.assertNotIn("讲座内容：介绍人大复印报刊资料数据库在选题追踪与文献综述中的使用方法。", units[0]["clean_text"])
+            self.assertNotIn(
+                "讲座内容：介绍人大复印报刊资料数据库在选题追踪与文献综述中的使用方法。",
+                units[0]["clean_text"],
+            )
             self.assertEqual(units[0]["anchor"]["row_ids"], ["p-1", "p-2", "p-3"])
-            self.assertIn("讲座内容：介绍人大复印报刊资料数据库在选题追踪与文献综述中的使用方法。", units[1]["clean_text"])
+            self.assertIn(
+                "讲座内容：介绍人大复印报刊资料数据库在选题追踪与文献综述中的使用方法。",
+                units[1]["clean_text"],
+            )
             self.assertIn("欢迎全校师生报名参加。", units[1]["clean_text"])
             self.assertNotIn("二维码预约讲座信息", units[1]["clean_text"])
             self.assertNotIn("图书馆积分", units[1]["clean_text"])
 
-    def test_article_projection_keeps_notice_fact_rows_grouped_and_marks_notice_fact_role(self) -> None:
+    def test_article_projection_keeps_notice_fact_rows_grouped_and_marks_notice_fact_role(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -2190,7 +2290,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -2200,11 +2302,16 @@ class OfficialWebProjectionTest(unittest.TestCase):
             units[0]["anchor"]["row_ids"],
             ["p-1", "p-2", "p-3", "p-4"],
         )
-        self.assertIn("讲座主题：聚焦人文社科前沿研究——人大复印报刊资料数据库助力科研创新", units[0]["clean_text"])
+        self.assertIn(
+            "讲座主题：聚焦人文社科前沿研究——人大复印报刊资料数据库助力科研创新",
+            units[0]["clean_text"],
+        )
         self.assertIn("讲座时间：2026年3月26日下午14:00—15:00", units[0]["clean_text"])
         self.assertIn("讲座地点：丰台校区图书馆视听空间125室", units[0]["clean_text"])
 
-    def test_article_projection_classifies_support_only_lines_and_excludes_them_from_canonical_markdown(self) -> None:
+    def test_article_projection_classifies_support_only_lines_and_excludes_them_from_canonical_markdown(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -2309,13 +2416,22 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
-        self.assertEqual([unit["metadata"]["content_role"] for unit in units], ["reference_fact", "source_attribution", "boilerplate"])
-        self.assertIn("学校现有本科专业71个，在招专业61个，涵盖11个学科门类。", units[0]["clean_text"])
+        self.assertEqual(
+            [unit["metadata"]["content_role"] for unit in units],
+            ["reference_fact", "source_attribution", "boilerplate"],
+        )
+        self.assertIn(
+            "学校现有本科专业71个，在招专业61个，涵盖11个学科门类。", units[0]["clean_text"]
+        )
         self.assertEqual(units[1]["clean_text"], "（来源：教务处）")
         self.assertIn("新闻网版权与免责声明：", units[2]["clean_text"])
         self.assertNotIn("（来源：教务处）", canonical)
@@ -2433,7 +2549,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertNotIn("- NEWS&NOTICS", canonical)
             self.assertEqual(canonical.count("2025-2026-1学期缓补考时间安排"), 1)
@@ -2520,7 +2638,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 2026-03-12 2025-2026-1学期缓补考时间安排", canonical)
             self.assertIn("- 2026.03.12 历史学动态调整结果公示", canonical)
@@ -2628,9 +2748,13 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
-            self.assertNotIn("- 中山大学历史系 南开大学历史学院 东北师范大学历史文化学院", canonical)
+            self.assertNotIn(
+                "- 中山大学历史系 南开大学历史学院 东北师范大学历史文化学院", canonical
+            )
             self.assertIn("- 中山大学历史系", canonical)
             self.assertIn("- 南开大学历史学院", canonical)
             self.assertIn("- 东北师范大学历史文化学院", canonical)
@@ -2741,7 +2865,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
             self.assertIn("- 《学习时报》孔新峰：政德何以重要", canonical)
@@ -2846,15 +2972,21 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
-            self.assertIn("- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical)
+            self.assertIn(
+                "- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical
+            )
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("校园经纬", canonical)
             self.assertNotIn("全球合作", canonical)
 
-    def test_listing_projection_skips_trailing_main_content_short_label_rows_before_next_heading(self) -> None:
+    def test_listing_projection_skips_trailing_main_content_short_label_rows_before_next_heading(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -2978,10 +3110,14 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
-            self.assertIn("- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical)
+            self.assertIn(
+                "- 中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会", canonical
+            )
             self.assertNotIn("教学科研", canonical)
             self.assertNotIn("校园经纬", canonical)
             self.assertNotIn("全球合作", canonical)
@@ -3087,8 +3223,12 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
-            units_lines = Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
+            units_lines = Path(report.documents[0]["document_units_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("【专题报道】深入贯彻中央八项规定精神学习教育", canonical)
             self.assertNotIn("24张，集齐一整年的民大", canonical)
@@ -3209,7 +3349,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 徐庭云教授生平", canonical)
             self.assertIn("- 徐庭云教授长期从事北方民族史与少数民族妇女史研究。", canonical)
@@ -3337,7 +3479,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
             canonical_lines = canonical.splitlines()
 
             self.assertIn("2025-12-12 2025-2026-1学期期末考试安排", canonical)
@@ -3437,9 +3581,13 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
-            self.assertIn("我院教师裴艾琳学术专著《遐迩同风：宋代南方族群治理转型研究》出版发行", canonical)
+            self.assertIn(
+                "我院教师裴艾琳学术专著《遐迩同风：宋代南方族群治理转型研究》出版发行", canonical
+            )
             self.assertNotIn("- 信息门户", canonical)
             self.assertNotIn("- 图书馆", canonical)
 
@@ -3534,7 +3682,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 徐庭云教授生平", canonical)
             self.assertIn("- 2026-01-17", canonical)
@@ -3611,7 +3761,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("## 资讯公告", canonical)
             self.assertNotIn("## 资讯公告NEWS&NOTICS", canonical)
@@ -3747,7 +3899,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
                 projection_output_dir=projection_dir,
                 declarations_path=declarations_path,
             )
-            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(encoding="utf-8")
+            canonical = Path(report.documents[0]["canonical_markdown_path"]).read_text(
+                encoding="utf-8"
+            )
 
             self.assertIn("- 中央民族大学党委举办树立和践行正确政绩观学习教育读书班", canonical)
             self.assertIn("- 《学习时报》孔新峰：政德何以重要", canonical)
@@ -3880,7 +4034,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -4033,7 +4189,9 @@ class OfficialWebProjectionTest(unittest.TestCase):
             )
             units = [
                 json.loads(line)
-                for line in Path(report.documents[0]["document_units_path"]).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.documents[0]["document_units_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 

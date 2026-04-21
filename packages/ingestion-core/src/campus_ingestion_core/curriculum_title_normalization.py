@@ -26,7 +26,9 @@ def canonicalize_curriculum_manifest_heading(
         return clean_text
     if not _row_is_manifest_title_candidate(row):
         return clean_text
-    if normalize_curriculum_title_for_match(clean_text) != normalize_curriculum_title_for_match(manifest_title):
+    if normalize_curriculum_title_for_match(clean_text) != normalize_curriculum_title_for_match(
+        manifest_title
+    ):
         return clean_text
     return manifest_title.strip() or clean_text
 

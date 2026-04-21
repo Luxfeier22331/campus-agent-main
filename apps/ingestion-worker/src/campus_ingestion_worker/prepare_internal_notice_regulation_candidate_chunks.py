@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -34,8 +34,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         Path(args.candidate_documents_jsonl)
     )
     if args.candidate_ids:
-        selected_ids = {candidate_id.strip() for candidate_id in args.candidate_ids if candidate_id.strip()}
-        documents = tuple(document for document in documents if document.candidate_id in selected_ids)
+        selected_ids = {
+            candidate_id.strip() for candidate_id in args.candidate_ids if candidate_id.strip()
+        }
+        documents = tuple(
+            document for document in documents if document.candidate_id in selected_ids
+        )
     report = prepare_internal_notice_regulation_candidate_chunks(
         documents=documents,
         output_dir=Path(args.output_dir),

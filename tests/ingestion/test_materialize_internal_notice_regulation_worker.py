@@ -10,7 +10,6 @@ from campus_ingestion_core.internal_notice_regulation_materialization import (
     InstitutionalRegulationMaterializationReport,
 )
 
-
 _MODULE_NAME = "campus_ingestion_worker.materialize_internal_notice_regulation_candidates"
 
 

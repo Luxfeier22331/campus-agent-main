@@ -26,16 +26,16 @@ from campus_ingestion_core.authenticated_notice_closeout_planning import (
 from campus_ingestion_core.authenticated_notice_closeout_service import (
     AuthenticatedNoticeCloseoutService,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    AuthenticatedNoticeSourceTruthReplayRequest,
-)
-from campus_ingestion_core.authenticated_notice_closeout_verification import (
-    CloseoutVerifier,
-)
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     InMemoryCloseoutStore,
     PostgresAuthenticatedNoticeCloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
+)
+from campus_ingestion_core.authenticated_notice_closeout_verification import (
+    CloseoutVerifier,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayRequest,
 )
 
 __all__ = [

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import math
 import os
 import re
 import unicodedata
+from dataclasses import dataclass
 from typing import Protocol
 
 from qdrant_client.http import models as qdrant_models
@@ -32,7 +32,9 @@ class SparseEmbeddingModel(Protocol):
 
     def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector: ...
 
-    def build_query(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector | None: ...
+    def build_query(
+        self, text: str
+    ) -> qdrant_models.Document | qdrant_models.SparseVector | None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,8 +62,10 @@ class SparseEmbeddingSettings:
     def from_env(cls, env: dict[str, str] | None = None) -> "SparseEmbeddingSettings":
         source = env if env is not None else os.environ
         return cls(
-            provider=(source.get("SPARSE_PROVIDER") or DEFAULT_SPARSE_PROVIDER).strip() or DEFAULT_SPARSE_PROVIDER,
-            model=(source.get("SPARSE_MODEL") or DEFAULT_SPARSE_MODEL).strip() or DEFAULT_SPARSE_MODEL,
+            provider=(source.get("SPARSE_PROVIDER") or DEFAULT_SPARSE_PROVIDER).strip()
+            or DEFAULT_SPARSE_PROVIDER,
+            model=(source.get("SPARSE_MODEL") or DEFAULT_SPARSE_MODEL).strip()
+            or DEFAULT_SPARSE_MODEL,
             tokenizer=(source.get("SPARSE_TOKENIZER") or DEFAULT_SPARSE_TOKENIZER).strip()
             or DEFAULT_SPARSE_TOKENIZER,
             language=(source.get("SPARSE_LANGUAGE") or DEFAULT_SPARSE_LANGUAGE).strip()
@@ -152,7 +156,9 @@ def _build_sparse_vector(*, text: str, query_mode: bool) -> SparseVectorData:
 
     encoded: list[tuple[int, float]] = []
     for token, count in counts.items():
-        index = int.from_bytes(hashlib.blake2s(token.encode("utf-8"), digest_size=4).digest(), "big")
+        index = int.from_bytes(
+            hashlib.blake2s(token.encode("utf-8"), digest_size=4).digest(), "big"
+        )
         value = 1.0 if query_mode else 1.0 + math.log1p(count)
         encoded.append((index, value))
     encoded.sort(key=lambda item: item[0])

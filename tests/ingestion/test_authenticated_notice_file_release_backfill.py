@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     InMemoryAuthenticatedNoticeFileReleaseInventoryStore,
@@ -13,6 +13,7 @@ from campus_ingestion_core.authenticated_notice_file_release_inventory_backfill 
     backfill_authenticated_notice_file_release_inventory,
     inventory_entry_from_file_release_bundle_record,
 )
+
 from tests.ingestion.test_authenticated_notice_file_release_owner_recovery import (
     _bundle_record,
     _export_manifest,
@@ -75,7 +76,10 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
         self.assertEqual(report.inventory_upsert_count, 2)
         self.assertEqual(report.raw_asset_upsert_count, 2)
         self.assertEqual(
-            [item.file_release_id for item in inventory_store.list_by_scope("campus_notices", "file_release_capture")],
+            [
+                item.file_release_id
+                for item in inventory_store.list_by_scope("campus_notices", "file_release_capture")
+            ],
             [646, 647],
         )
         self.assertEqual(
@@ -129,7 +133,10 @@ class AuthenticatedNoticeFileReleaseBackfillTest(unittest.TestCase):
 
         self.assertTrue(report.targeted_upsert)
         self.assertEqual(
-            [item.file_release_id for item in inventory_store.list_by_scope("campus_notices", "file_release_capture")],
+            [
+                item.file_release_id
+                for item in inventory_store.list_by_scope("campus_notices", "file_release_capture")
+            ],
             [646, 700],
         )
         self.assertEqual(

@@ -6,13 +6,13 @@ import os
 from pathlib import Path
 from typing import Any, Sequence
 
+from campus_ingestion_core.authenticated_notice_import import (
+    load_authenticated_notice_bundle_payload,
+)
 from campus_ingestion_core.authenticated_notice_notice_family import (
     classify_authenticated_notice_bundle_record,
     load_authenticated_notice_notice_family_config,
     read_authenticated_notice_notice_family_config_path,
-)
-from campus_ingestion_core.authenticated_notice_import import (
-    load_authenticated_notice_bundle_payload,
 )
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env

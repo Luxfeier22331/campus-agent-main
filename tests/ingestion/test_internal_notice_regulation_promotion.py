@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
-from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.in_memory_registries import InMemoryDocumentRegistry
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
@@ -19,6 +18,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     export_internal_notice_regulation_candidate_artifacts,
     extract_internal_notice_parent_regulation_body_preview,
 )
+from campus_ingestion_core.models import DocumentRegistryRecord
 
 
 class _FakeObjectStore:
@@ -114,14 +114,20 @@ def _inventory_entry(
         attachment_document_count=len(attachment_projection_plans),
         attachment_ref_count=len(attachment_projection_plans),
         text_extractable_count=sum(
-            1 for item in attachment_projection_plans if item.get("classification") == "text_extractable"
+            1
+            for item in attachment_projection_plans
+            if item.get("classification") == "text_extractable"
         ),
         ocr_required_count=sum(
-            1 for item in attachment_projection_plans if item.get("classification") == "ocr_required"
+            1
+            for item in attachment_projection_plans
+            if item.get("classification") == "ocr_required"
         ),
         reference_only_count=0,
         manual_review_required_count=0,
-        notice_risk_label="body_with_text_attachments" if attachment_projection_plans else "body_only",
+        notice_risk_label="body_with_text_attachments"
+        if attachment_projection_plans
+        else "body_only",
         attachment_mix_score=len(attachment_projection_plans),
         has_text_table_attachment=bool(attachment_projection_plans),
         has_spatial_attachment=False,
@@ -132,7 +138,9 @@ def _inventory_entry(
 
 
 class InternalNoticeRegulationPromotionTest(unittest.TestCase):
-    def test_split_regulation_title_fields_preserves_full_edition_label_in_display_title(self) -> None:
+    def test_split_regulation_title_fields_preserves_full_edition_label_in_display_title(
+        self,
+    ) -> None:
         guidance_title = "中央民族大学关于学生使用人工智能的指导意见（2026版）"
         self.assertEqual(
             _split_regulation_title_fields(guidance_title),
@@ -163,7 +171,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
             "中央民族大学实验室安全管理规定 / 2026",
         )
 
-    def test_split_regulation_title_fields_does_not_misclassify_status_doc_no_or_cohort_year(self) -> None:
+    def test_split_regulation_title_fields_does_not_misclassify_status_doc_no_or_cohort_year(
+        self,
+    ) -> None:
         temporary_title = "中央民族大学丰台校区就医管理办法（暂行）"
         self.assertEqual(
             _split_regulation_title_fields(temporary_title),
@@ -197,7 +207,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
             ),
         )
 
-    def test_extract_parent_notice_preview_strips_wrapper_boilerplate_for_procurement_notice(self) -> None:
+    def test_extract_parent_notice_preview_strips_wrapper_boilerplate_for_procurement_notice(
+        self,
+    ) -> None:
         preview = extract_internal_notice_parent_regulation_body_preview(
             "# 关于修订《中央民族大学采购工作管理办法》的通知\n\n"
             "学校各单位、各部门：\n\n"
@@ -245,7 +257,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertNotIn("各学院：", preview.cleaned_body)
         self.assertNotIn("特此通知", preview.cleaned_body)
 
-    def test_extract_parent_notice_preview_strips_document_number_before_wrapper_intro(self) -> None:
+    def test_extract_parent_notice_preview_strips_document_number_before_wrapper_intro(
+        self,
+    ) -> None:
         preview = extract_internal_notice_parent_regulation_body_preview(
             "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n"
             "生环实发【2021】02号\n\n"
@@ -261,7 +275,10 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
             source_title="生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
         )
 
-        self.assertEqual(preview.regulation_title_normalized, "生命与环境科学学院关于2021年暑假期间实验室安全管理规定")
+        self.assertEqual(
+            preview.regulation_title_normalized,
+            "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+        )
         self.assertEqual(
             preview.removed_leading_lines,
             (
@@ -278,7 +295,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertNotIn("生环实发【2021】02号", preview.cleaned_body)
         self.assertNotIn("现将2021年暑假期间实验室安全管理规定如下", preview.cleaned_body)
 
-    def test_extract_parent_notice_preview_does_not_use_section_heading_as_regulation_title(self) -> None:
+    def test_extract_parent_notice_preview_does_not_use_section_heading_as_regulation_title(
+        self,
+    ) -> None:
         preview = extract_internal_notice_parent_regulation_body_preview(
             "# 关于2025-2026学年第一学期本科生网上选课的通知\n\n"
             "各学院、各位同学：\n\n"
@@ -293,7 +312,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertIsNone(preview.regulation_title_normalized)
         self.assertTrue(preview.cleaned_body.startswith("一、选课范围"))
 
-    def test_build_manifest_prefers_attachment_candidates_holds_wrappers_and_flags_duplicates(self) -> None:
+    def test_build_manifest_prefers_attachment_candidates_holds_wrappers_and_flags_duplicates(
+        self,
+    ) -> None:
         parent_1 = _record(
             document_id="notice:muc_internal_portal:100001",
             source_uri="https://portal.example.edu/notices/100001",
@@ -330,7 +351,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
             content_hash="sha256:parent-100003",
         )
 
-        registry = InMemoryDocumentRegistry((parent_1, attachment_1, parent_2, attachment_2, parent_3))
+        registry = InMemoryDocumentRegistry(
+            (parent_1, attachment_1, parent_2, attachment_2, parent_3)
+        )
         inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
         inventory_store.upsert_many(
             (
@@ -373,13 +396,19 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                 ("campus-rag-derived", parent_1.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知\n\n现将《中央民族大学关于学生使用人工智能的指导意见（2026版）》予以发布，请遵照执行。\n"
                 ),
-                ("campus-rag-derived", attachment_1.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    attachment_1.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
                 ("campus-rag-derived", parent_2.canonical_markdown_object_key): _canonical_markdown(
                     "# 关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）\n\n请相关单位参照附件执行。\n"
                 ),
-                ("campus-rag-derived", attachment_2.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    attachment_2.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
                 ("campus-rag-derived", parent_3.canonical_markdown_object_key): _canonical_markdown(
@@ -391,7 +420,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                            },
                         }
                     ]
                 ),
@@ -411,7 +442,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知（转发）"
+                            },
                         }
                     ]
                 ),
@@ -481,7 +514,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
 
         duplicate_attachment = reports_by_id[attachment_2.document_id]
         self.assertEqual(duplicate_attachment.action, "hold_in_internal_notice")
-        self.assertEqual(duplicate_attachment.duplicate_primary_document_id, attachment_1.document_id)
+        self.assertEqual(
+            duplicate_attachment.duplicate_primary_document_id, attachment_1.document_id
+        )
         self.assertEqual(duplicate_attachment.source_attachment_sha256, "sha256-guideline")
 
         manual_parent = reports_by_id[parent_3.document_id]
@@ -504,7 +539,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(manual_parent.effective_date, "2026年2月1日")
         self.assertEqual(manual_parent.revision_signal, "修订")
 
-    def test_build_manifest_demotes_notice_body_when_only_section_heading_looks_like_title(self) -> None:
+    def test_build_manifest_demotes_notice_body_when_only_section_heading_looks_like_title(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:310001",
             source_uri="https://portal.example.edu/notices/310001",
@@ -561,7 +598,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(document_report.promotion_class, "wrapper_notice_only")
         self.assertIsNone(document_report.regulation_title_normalized)
 
-    def test_build_manifest_recovers_attachment_sha256_from_source_truth_when_plan_omits_it(self) -> None:
+    def test_build_manifest_recovers_attachment_sha256_from_source_truth_when_plan_omits_it(
+        self,
+    ) -> None:
         attachment = _record(
             document_id="notice_attachment:muc_internal_portal:355282:attachment-0001",
             source_uri="https://portal.example.edu/files/355282.docx",
@@ -589,7 +628,10 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", attachment.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    attachment.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学关于学生使用人工智能的指导意见（2026版）\n\n"
                     "第一条 为规范学生使用人工智能，制定本指导意见。\n"
                 ),
@@ -635,7 +677,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertNotIn("source_attachment_sha256", document_report.missing_required_metadata)
         self.assertNotIn("effective_date", document_report.missing_required_metadata)
 
-    def test_build_manifest_deduplicates_parent_notice_semantic_body_even_when_source_hash_differs(self) -> None:
+    def test_build_manifest_deduplicates_parent_notice_semantic_body_even_when_source_hash_differs(
+        self,
+    ) -> None:
         parent_1 = _record(
             document_id="notice:muc_internal_portal:210001",
             source_uri="https://portal.example.edu/notices/210001",
@@ -700,7 +744,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
-                            "metadata": {"title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"},
+                            "metadata": {
+                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                            },
                         }
                     ]
                 ),
@@ -710,7 +756,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
-                            "metadata": {"title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"},
+                            "metadata": {
+                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                            },
                         }
                     ]
                 ),
@@ -742,7 +790,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(duplicate_report.duplicate_group_key, primary_report.duplicate_group_key)
         self.assertIn("duplicate_attachment_or_content", duplicate_report.reasons)
 
-    def test_build_manifest_flags_incomplete_wrapper_notice_snapshot_when_attachment_docs_are_missing(self) -> None:
+    def test_build_manifest_flags_incomplete_wrapper_notice_snapshot_when_attachment_docs_are_missing(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200001",
             source_uri="https://portal.example.edu/notices/200001",
@@ -780,7 +830,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于发布《中央民族大学本科生综合测评办法》的通知",
-                            "metadata": {"title": "关于发布《中央民族大学本科生综合测评办法》的通知"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学本科生综合测评办法》的通知"
+                            },
                         }
                     ]
                 ),
@@ -803,7 +855,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(document_report.promotion_class, "manual_promotion_review")
         self.assertIn("input_incomplete_missing_attachment_docs", document_report.reasons)
 
-    def test_build_manifest_keeps_wrapper_notice_summary_in_internal_notice_without_body_structure(self) -> None:
+    def test_build_manifest_keeps_wrapper_notice_summary_in_internal_notice_without_body_structure(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200002",
             source_uri="https://portal.example.edu/notices/200002",
@@ -833,7 +887,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于印发实施《中央民族大学学生申诉管理办法》的通知",
-                            "metadata": {"title": "关于印发实施《中央民族大学学生申诉管理办法》的通知"},
+                            "metadata": {
+                                "title": "关于印发实施《中央民族大学学生申诉管理办法》的通知"
+                            },
                         }
                     ]
                 ),
@@ -854,7 +910,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(document_report.action, "hold_in_internal_notice")
         self.assertEqual(document_report.promotion_class, "wrapper_notice_only")
 
-    def test_build_manifest_fail_closes_attachment_backed_wrapper_notice_without_recovered_attachment_source(self) -> None:
+    def test_build_manifest_fail_closes_attachment_backed_wrapper_notice_without_recovered_attachment_source(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200010",
             source_uri="https://portal.example.edu/notices/200010",
@@ -891,7 +949,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                            },
                         }
                     ]
                 ),
@@ -917,7 +977,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
             "attachment_backed_regulation_body_missing",
         )
 
-    def test_build_manifest_prefers_explicit_owner_expectation_for_attachment_backed_wrapper_notice(self) -> None:
+    def test_build_manifest_prefers_explicit_owner_expectation_for_attachment_backed_wrapper_notice(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200012",
             source_uri="https://portal.example.edu/notices/200012",
@@ -959,7 +1021,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
-                            "metadata": {"title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"},
+                            "metadata": {
+                                "title": "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知"
+                            },
                         }
                     ]
                 ),
@@ -980,7 +1044,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertIn("attachment_backed_regulation_body_missing", document_report.reasons)
         self.assertEqual(document_report.semantic_owner_kind, "attachment_document")
 
-    def test_build_manifest_fail_closes_file_release_backed_wrapper_notice_without_recovered_owner_document(self) -> None:
+    def test_build_manifest_fail_closes_file_release_backed_wrapper_notice_without_recovered_owner_document(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200011",
             source_uri="https://portal.example.edu/notices/200011",
@@ -1015,7 +1081,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "关于《中央民族大学差旅费管理办法》发布实施的通知",
-                            "metadata": {"title": "关于《中央民族大学差旅费管理办法》发布实施的通知"},
+                            "metadata": {
+                                "title": "关于《中央民族大学差旅费管理办法》发布实施的通知"
+                            },
                         }
                     ]
                 ),
@@ -1154,7 +1222,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(document_report.source_notice_release_time, "2021-02-28 16:09")
         self.assertNotIn("source_notice_release_time", document_report.missing_required_metadata)
 
-    def test_build_manifest_promotes_time_bound_and_admission_regulations_with_document_nature_metadata(self) -> None:
+    def test_build_manifest_promotes_time_bound_and_admission_regulations_with_document_nature_metadata(
+        self,
+    ) -> None:
         temporary_parent = _record(
             document_id="notice:muc_internal_portal:200003",
             source_uri="https://portal.example.edu/notices/200003",
@@ -1196,23 +1266,53 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", temporary_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    temporary_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学丰台校区就医管理办法（暂行）\n\n一、就医医院\n\n1. 增加合同医院。\n2. 临时医疗点负责首诊。\n"
                 ),
-                ("campus-rag-derived", seasonal_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    seasonal_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 生命与环境科学学院关于2021年暑假期间实验室安全管理规定\n\n一、基本要求\n\n1. 暑假期间实验须两人以上同时在场。\n2. 假期期间严禁在实验室食宿。\n"
                 ),
-                ("campus-rag-derived", admission_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    admission_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学2026年“英才计划”硕博连读研究生招生实施细则\n\n一、选拔对象\n\n1. 符合条件的硕士研究生。\n\n二、网上报名\n\n1. 报名时间：2025年12月10日至2026年1月10日。\n"
                 ),
                 ("campus-rag-derived", temporary_parent.document_units_object_key): _document_units(
-                    [{"chunk_id": "title", "unit_type": "policy_page", "text": "中央民族大学丰台校区就医管理办法（暂行）", "metadata": {}}]
+                    [
+                        {
+                            "chunk_id": "title",
+                            "unit_type": "policy_page",
+                            "text": "中央民族大学丰台校区就医管理办法（暂行）",
+                            "metadata": {},
+                        }
+                    ]
                 ),
                 ("campus-rag-derived", seasonal_parent.document_units_object_key): _document_units(
-                    [{"chunk_id": "title", "unit_type": "policy_page", "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定", "metadata": {}}]
+                    [
+                        {
+                            "chunk_id": "title",
+                            "unit_type": "policy_page",
+                            "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+                            "metadata": {},
+                        }
+                    ]
                 ),
                 ("campus-rag-derived", admission_parent.document_units_object_key): _document_units(
-                    [{"chunk_id": "title", "unit_type": "policy_page", "text": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则", "metadata": {}}]
+                    [
+                        {
+                            "chunk_id": "title",
+                            "unit_type": "policy_page",
+                            "text": "中央民族大学2026年“英才计划”硕博连读研究生招生实施细则",
+                            "metadata": {},
+                        }
+                    ]
                 ),
             }
         )
@@ -1285,7 +1385,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则",
-                            "metadata": {"title": "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则"},
+                            "metadata": {
+                                "title": "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则"
+                            },
                         }
                     ]
                 ),
@@ -1340,7 +1442,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
                             "chunk_id": "title",
                             "unit_type": "policy_page",
                             "text": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
-                            "metadata": {"title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"},
+                            "metadata": {
+                                "title": "生命与环境科学学院关于2021年暑假期间实验室安全管理规定"
+                            },
                         }
                     ]
                 ),
@@ -1359,7 +1463,9 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         self.assertEqual(document_report.promotion_class, "manual_promotion_review")
         self.assertIn("missing_quality_gate:wrapper_semantics_removed", document_report.reasons)
 
-    def test_build_manifest_allows_provisional_regulations_without_explicit_temporary_body_signals(self) -> None:
+    def test_build_manifest_allows_provisional_regulations_without_explicit_temporary_body_signals(
+        self,
+    ) -> None:
         provisional_parent = _record(
             document_id="notice:muc_internal_portal:200009",
             source_uri="https://portal.example.edu/notices/200009",
@@ -1380,13 +1486,19 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", provisional_parent.canonical_markdown_object_key): _canonical_markdown(
+                (
+                    "campus-rag-derived",
+                    provisional_parent.canonical_markdown_object_key,
+                ): _canonical_markdown(
                     "# 中央民族大学学生资助管理暂行办法\n\n"
                     "第一条 为规范学生资助工作，制定本办法。\n"
                     "第二条 学校建立学生资助工作统筹机制。\n"
                     "第三条 各培养单位负责落实资助政策。\n"
                 ),
-                ("campus-rag-derived", provisional_parent.document_units_object_key): _document_units(
+                (
+                    "campus-rag-derived",
+                    provisional_parent.document_units_object_key,
+                ): _document_units(
                     [
                         {
                             "chunk_id": "title",
@@ -1411,13 +1523,21 @@ class InternalNoticeRegulationPromotionTest(unittest.TestCase):
         provisional_report = report.documents[0]
         self.assertEqual(provisional_report.action, "promote_candidate")
         self.assertEqual(provisional_report.promotion_class, "formal_regulation")
-        self.assertEqual(provisional_report.regulation_title_normalized, "中央民族大学学生资助管理暂行办法")
-        self.assertEqual(provisional_report.regulation_work_title, "中央民族大学学生资助管理暂行办法")
+        self.assertEqual(
+            provisional_report.regulation_title_normalized, "中央民族大学学生资助管理暂行办法"
+        )
+        self.assertEqual(
+            provisional_report.regulation_work_title, "中央民族大学学生资助管理暂行办法"
+        )
         self.assertIsNone(provisional_report.regulation_edition_label)
-        self.assertEqual(provisional_report.regulation_display_title, "中央民族大学学生资助管理暂行办法")
+        self.assertEqual(
+            provisional_report.regulation_display_title, "中央民族大学学生资助管理暂行办法"
+        )
         self.assertNotIn("time_bound_operational_rule_detected", provisional_report.reasons)
 
-    def test_export_candidate_artifacts_writes_local_only_cleaned_markdown_for_parent_candidate(self) -> None:
+    def test_export_candidate_artifacts_writes_local_only_cleaned_markdown_for_parent_candidate(
+        self,
+    ) -> None:
         parent = _record(
             document_id="notice:muc_internal_portal:200008",
             source_uri="https://portal.example.edu/notices/200008",

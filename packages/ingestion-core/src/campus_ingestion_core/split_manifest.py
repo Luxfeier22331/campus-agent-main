@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
-import json
 from pathlib import Path
 
 from campus_ingestion_core.scope_catalog import assert_known_scope
-
 
 SplitManifestValidator = Callable[["SplitManifest"], None]
 
@@ -138,7 +137,9 @@ def _assert_manifest_uses_canonical_authorization_projection(payload: dict[str, 
             )
 
 
-def _collect_unsupported_authorization_projection_keys(payload: dict[str, object]) -> tuple[str, ...]:
+def _collect_unsupported_authorization_projection_keys(
+    payload: dict[str, object],
+) -> tuple[str, ...]:
     supported_keys = {
         "entitlement_groups",
         "visibility_scope",
@@ -148,8 +149,7 @@ def _collect_unsupported_authorization_projection_keys(payload: dict[str, object
     return tuple(
         key
         for key in payload
-        if _looks_like_authorization_projection_key(key)
-        and key not in supported_keys
+        if _looks_like_authorization_projection_key(key) and key not in supported_keys
     )
 
 
@@ -165,7 +165,9 @@ def _looks_like_authorization_projection_key(key: str) -> bool:
 
 
 def _validate_non_overlapping_page_ranges(documents: tuple[SplitManifestDocument, ...]) -> None:
-    sorted_documents = sorted(documents, key=lambda item: (item.page_start, item.page_end, item.document_id))
+    sorted_documents = sorted(
+        documents, key=lambda item: (item.page_start, item.page_end, item.document_id)
+    )
     seen_document_ids: set[str] = set()
     current_end = 0
     for document in sorted_documents:

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
+
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
 )
-
 
 _TARGET_SCOPE = ("regulations", "institutional_regulations")
 _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
@@ -96,7 +96,8 @@ def build_internal_notice_regulation_projected_document(
         body=candidate_document.promotion_body,
         metadata=metadata,
         source_url=f"{_SOURCE_URL_PREFIX}/{candidate_document.candidate_id}",
-        source_filename=runtime_context.source_filename or Path(candidate_document.artifact_markdown_path).name,
+        source_filename=runtime_context.source_filename
+        or Path(candidate_document.artifact_markdown_path).name,
         entitlement_groups=candidate_document.entitlement_groups,
         visibility_scope=candidate_document.visibility_scope,
         visibility_level=candidate_document.visibility_level,
@@ -168,7 +169,9 @@ def build_internal_notice_regulation_projection_metadata(
         candidate_document.regulation_display_title
         or candidate_document.regulation_title_normalized
     )
-    source_notice_ids = tuple(sorted(set(context.source_notice_ids or (candidate_document.notice_id,))))
+    source_notice_ids = tuple(
+        sorted(set(context.source_notice_ids or (candidate_document.notice_id,)))
+    )
     source_document_ids = tuple(
         sorted(set(context.source_document_ids or (candidate_document.source_document_id,)))
     )
@@ -531,7 +534,9 @@ def _resolve_regulation_block_structure(
                 next_top_level_path=path,
                 next_nested_path=(),
             )
-        path = (*current_top_level_path, heading_text) if current_top_level_path else (heading_text,)
+        path = (
+            (*current_top_level_path, heading_text) if current_top_level_path else (heading_text,)
+        )
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,
@@ -549,7 +554,7 @@ def _resolve_regulation_block_structure(
         match = pattern.match(normalized)
         if match is None:
             continue
-        label = match.group("label").strip()
+        match.group("label").strip()
         if level == "top":
             path = (normalized,)
             return _RegulationBlockStructure(

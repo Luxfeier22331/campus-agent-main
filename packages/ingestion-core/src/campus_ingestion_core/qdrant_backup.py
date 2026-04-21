@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import json
 import os
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 from urllib.parse import quote
 
 import requests
+from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 from qdrant_client.http.models import SnapshotPriority
@@ -25,7 +26,6 @@ from campus_ingestion_core.object_store import (
     build_qdrant_backup_artifact_key,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
-from campus_retrieval_core.settings import RetrievalSettings
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,7 +371,9 @@ def restore_snapshot_backup(
         collection=request.collection,
         release_id=request.release_id,
     )
-    restored_collection_name = request.target_collection_name or backup_manifest.physical_collection_name
+    restored_collection_name = (
+        request.target_collection_name or backup_manifest.physical_collection_name
+    )
     restore_report_key = build_qdrant_backup_artifact_key(
         corpus=request.corpus,
         collection=request.collection,
@@ -484,7 +486,10 @@ def check_snapshot_gc_eligibility(
     if target_manifest.physical_collection_name == current_alias_target:
         role = "current"
         blockers.append("current_alias_target")
-    elif latest_manifest.previous_physical_collection_name == target_manifest.physical_collection_name:
+    elif (
+        latest_manifest.previous_physical_collection_name
+        == target_manifest.physical_collection_name
+    ):
         role = "previous"
         blockers.append("latest_previous_release")
     elif target_manifest.physical_collection_name in request.protected_physical_collection_names:
@@ -628,8 +633,7 @@ def _load_snapshot_backup_manifest(
         serving_alias=str(payload["serving_alias"]),
         physical_collection_name=str(payload["physical_collection_name"]),
         alias_bindings={
-            str(key): str(value)
-            for key, value in (payload.get("alias_bindings") or {}).items()
+            str(key): str(value) for key, value in (payload.get("alias_bindings") or {}).items()
         },
         index_release_manifest_key=str(payload["index_release_manifest_key"]),
         validation_summary_key=(
@@ -716,7 +720,9 @@ def _remap_alias_bindings(
     remapped: dict[str, str] = {}
     for alias_name, collection_name in alias_bindings.items():
         remapped[alias_name] = (
-            restored_collection_name if collection_name == original_collection_name else collection_name
+            restored_collection_name
+            if collection_name == original_collection_name
+            else collection_name
         )
     return remapped
 

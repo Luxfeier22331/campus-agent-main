@@ -4,18 +4,17 @@ import hashlib
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
-from unittest.mock import patch
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from campus_ingestion_core.file_asset_contract import (
     ArtifactProvenance,
     FileAssetArtifactRef,
     FileAssetDescriptor,
 )
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment"
@@ -99,7 +98,9 @@ class NormalizeAuthenticatedNoticeLegacyOfficeAttachmentWorkerCliTest(unittest.T
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["outcome_type"], "normalization")
         self.assertEqual(payload["normalized_extension"], ".docx")
-        self.assertEqual(payload["descriptor"]["source_object_key"], "attachments/example/legacy.doc")
+        self.assertEqual(
+            payload["descriptor"]["source_object_key"], "attachments/example/legacy.doc"
+        )
         self.assertEqual(payload["provenance"]["engine_name"], "jodconverter+libreoffice")
         self.assertEqual(
             payload["artifact_refs"][0]["object_key"],

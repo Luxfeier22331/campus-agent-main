@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -10,13 +10,14 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
+    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
+)
 from campus_ingestion_core.in_memory_registries import (
     InMemoryDocumentRegistry,
     InMemoryRawAssetRegistry,
 )
-from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
-)
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.smoke_authenticated_notice_bootstrap import (
     build_smoke_summary,
@@ -84,7 +85,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),
-        attachment_blob_root=(Path(args.attachment_blob_root) if args.attachment_blob_root else None),
+        attachment_blob_root=(
+            Path(args.attachment_blob_root) if args.attachment_blob_root else None
+        ),
         site_id=args.site_id,
         source_home_url=args.source_home_url,
         corpus=args.corpus,

@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import unittest
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
-
-from PIL import Image
 
 from campus_ingestion_worker.register_raw_asset import build_parser
 from campus_ingestion_worker.register_raw_asset import register_raw_asset as _register_raw_asset
+from PIL import Image
+
 from tests.support.in_memory_registry import InMemoryRawAssetRegistry
 
 
@@ -79,14 +79,18 @@ class RegisterRawAssetTest(unittest.TestCase):
         self.assertEqual(file_args.file_path, "student-handbook.pdf")
         self.assertEqual(legacy_args.file_path, "student-handbook.pdf")
 
-    def test_register_raw_asset_uses_filename_derived_identity_and_reuses_existing_record(self) -> None:
+    def test_register_raw_asset_uses_filename_derived_identity_and_reuses_existing_record(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pdf_path = root / "student-handbook.pdf"
             pdf_bytes = b"%PDF-1.4 handbook source"
             pdf_path.write_bytes(pdf_bytes)
 
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw_assets.json"
+            )
             object_store = _FakeObjectStore()
             env = {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -138,7 +142,9 @@ class RegisterRawAssetTest(unittest.TestCase):
             self.assertEqual(first.record.asset_subkind, "pdf")
             self.assertEqual(first.record.classification_confidence, 1.0)
 
-            registry_payload = json.loads((root / "registry" / "raw_assets.json").read_text(encoding="utf-8"))
+            registry_payload = json.loads(
+                (root / "registry" / "raw_assets.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(len(registry_payload), 1)
             stored = next(iter(registry_payload.values()))
             self.assertEqual(stored["raw_asset_id"], "asset:student-handbook-pdf")
@@ -147,11 +153,15 @@ class RegisterRawAssetTest(unittest.TestCase):
             self.assertEqual(stored["content_type"], "application/pdf")
             self.assertEqual(stored["asset_subkind"], "pdf")
 
-    def test_register_raw_asset_keeps_filename_identity_but_advances_version_for_changed_bytes(self) -> None:
+    def test_register_raw_asset_keeps_filename_identity_but_advances_version_for_changed_bytes(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             pdf_path = root / "student-handbook.pdf"
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw_assets.json"
+            )
             object_store = _FakeObjectStore()
             env = {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -190,7 +200,9 @@ class RegisterRawAssetTest(unittest.TestCase):
             self.assertNotEqual(first.raw_version_id, second.raw_version_id)
             self.assertEqual(len(object_store.uploads), 2)
 
-            registry_payload = json.loads((root / "registry" / "raw_assets.json").read_text(encoding="utf-8"))
+            registry_payload = json.loads(
+                (root / "registry" / "raw_assets.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(len(registry_payload), 2)
             self.assertEqual(
                 {payload["raw_asset_id"] for payload in registry_payload.values()},
@@ -207,7 +219,9 @@ class RegisterRawAssetTest(unittest.TestCase):
             png_bytes = buffer.getvalue()
             png_path.write_bytes(png_bytes)
 
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw_assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw_assets.json"
+            )
             object_store = _FakeObjectStore()
             env = {
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",

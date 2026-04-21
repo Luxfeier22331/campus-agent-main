@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from campus_ingestion_core.handbook_cleanup_shared import RUNNING_HEADER_LINES
 from campus_ingestion_core.source_truth_common import (
     detect_merged_cells,
     enrich_cross_page_continuations,
@@ -49,7 +50,9 @@ def normalize_handbook_provider_result(
             raise ValueError(f"provider result line {line_index} is not valid JSON") from exc
         if not isinstance(payload, dict):
             raise ValueError(f"provider result line {line_index} must be a JSON object")
-        page_payloads = _extract_page_payloads(payload=payload, line_index=line_index, expected_page_id=expected_page_id)
+        page_payloads = _extract_page_payloads(
+            payload=payload, line_index=line_index, expected_page_id=expected_page_id
+        )
         for page_payload in page_payloads:
             provider_page_id = page_payload["provider_page_id"]
             if provider_page_id != expected_page_id:
@@ -103,7 +106,9 @@ def _normalize_page_rows(
         text_normalized = normalize_text(text_raw)
         html = _extract_html(item)
         table_cells = _extract_table_cells(item)
-        bbox = normalize_bbox(item.get("bbox") or item.get("block_bbox") or item.get("block_polygon_points"))
+        bbox = normalize_bbox(
+            item.get("bbox") or item.get("block_bbox") or item.get("block_polygon_points")
+        )
         row_type, block_role, classification_confidence, classification_reason = _classify_block(
             item=item,
             text_normalized=text_normalized,
@@ -130,13 +135,16 @@ def _normalize_page_rows(
                 "ocr_provider": ocr_provider,
                 "ocr_model": ocr_model,
                 "provider_page_id": provider_page_id,
-                "provider_block_id": str(item.get("blockId") or item.get("block_id") or f"block-{block_index:04d}"),
+                "provider_block_id": str(
+                    item.get("blockId") or item.get("block_id") or f"block-{block_index:04d}"
+                ),
                 "provider_payload_ref": f"line:{line_index}#page:{page_in_line}#block:{block_index}",
                 "confidence": _coerce_float(item.get("confidence")),
                 "row_type": row_type,
                 "block_role": block_role,
                 "heading_level": heading_level,
-                "reading_order": _coerce_int(item.get("readingOrder") or item.get("block_order")) or block_index,
+                "reading_order": _coerce_int(item.get("readingOrder") or item.get("block_order"))
+                or block_index,
                 "bbox": bbox,
                 "text_raw": text_raw,
                 "text_normalized": text_normalized,
@@ -144,7 +152,9 @@ def _normalize_page_rows(
                 "table_cells": table_cells,
                 "is_blank": not text_normalized and not html and not table_cells,
                 "is_repeated_candidate": row_type in {"header", "footer", "page_number"},
-                "title_candidate_score": 1.0 if block_role == "title" else (0.75 if row_type == "heading" else 0.0),
+                "title_candidate_score": 1.0
+                if block_role == "title"
+                else (0.75 if row_type == "heading" else 0.0),
                 "section_hint": text_normalized if row_type == "heading" else None,
                 "classification_confidence": classification_confidence,
                 "classification_reason": classification_reason,
@@ -160,7 +170,9 @@ def _normalize_page_rows(
                 "table_row_count": infer_table_row_count(table_cells),
                 "table_column_count": infer_table_column_count(table_cells),
                 "table_has_merged_cells": detect_merged_cells(table_cells),
-                "table_caption_hint": _infer_table_caption_hint(text_normalized=text_normalized, row_type=row_type),
+                "table_caption_hint": _infer_table_caption_hint(
+                    text_normalized=text_normalized, row_type=row_type
+                ),
             }
         )
     return rows
@@ -242,19 +254,28 @@ def _classify_block(
     bbox: list[float] | None,
     page_height: float | None,
 ) -> tuple[str, str, float, str]:
-    raw_type = str(
-        item.get("blockType")
-        or item.get("blockRole")
-        or item.get("type")
-        or item.get("block_label")
-        or ""
-    ).strip().lower()
+    raw_type = (
+        str(
+            item.get("blockType")
+            or item.get("blockRole")
+            or item.get("type")
+            or item.get("block_label")
+            or ""
+        )
+        .strip()
+        .lower()
+    )
     if raw_type == "doc_title":
         return "heading", "title", 0.99, "provider_label:doc_title"
     if raw_type == "paragraph_title":
         return "heading", "heading", 0.92, "provider_label:paragraph_title"
     if raw_type in {"title", "heading"}:
-        return "heading", "title" if raw_type == "title" else "heading", 0.9, f"provider_label:{raw_type}"
+        return (
+            "heading",
+            "title" if raw_type == "title" else "heading",
+            0.9,
+            f"provider_label:{raw_type}",
+        )
     if raw_type in {"header"}:
         return "header", "header", 0.96, "provider_label:header"
     if raw_type in {"footer"}:
@@ -266,7 +287,9 @@ def _classify_block(
     if raw_type in {"page_number", "pagenumber"}:
         return "page_number", "page_number", 0.98, f"provider_label:{raw_type}"
     if raw_type == "number":
-        if _looks_like_page_number(text_normalized=text_normalized, bbox=bbox, page_height=page_height):
+        if _looks_like_page_number(
+            text_normalized=text_normalized, bbox=bbox, page_height=page_height
+        ):
             return "page_number", "page_number", 0.82, "provider_label:number:page_number_heuristic"
         return "paragraph", "body", 0.55, "provider_label:number:body_fallback"
     if raw_type in {"table"}:
@@ -346,24 +369,57 @@ def _extract_table_cells(item: dict[str, object]) -> list[list[str]] | None:
 
 def _enrich_layout_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     enrich_repeated_candidates(rows)
+    _mark_margin_running_headers(rows)
     enrich_parent_heading_hints(rows)
     enrich_cross_page_continuations(rows, textual_row_types=("paragraph", "list_item"))
     _mark_table_fragments(rows)
     return rows
 
 
+def _mark_margin_running_headers(rows: list[dict[str, object]]) -> None:
+    clusters: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        if bool(row.get("is_repeated_candidate")):
+            continue
+        text = str(row.get("text_normalized") or "").strip()
+        if text not in RUNNING_HEADER_LINES:
+            continue
+        reason = str(row.get("classification_reason") or "")
+        if not reason.startswith(("provider_label:aside_text", "provider_label:vertical_text")):
+            continue
+        clusters.setdefault(text, []).append(row)
+    for text, members in clusters.items():
+        if len(members) < 2:
+            continue
+        cluster_id = hashlib.sha1(f"margin:{text}".encode("utf-8")).hexdigest()[:12]
+        for row in members:
+            row["repeat_cluster_id"] = cluster_id
+            row["repeat_frequency"] = len(members)
+            row["repeat_position_band"] = "margin"
+            row["is_repeated_candidate"] = True
+
+
 def _mark_table_fragments(rows: list[dict[str, object]]) -> None:
     previous_table: dict[str, object] | None = None
     for row in rows:
         if str(row.get("row_type") or "") != "table":
-            previous_table = None if not bool(row.get("continues_from_previous_page")) else previous_table
+            previous_table = (
+                None if not bool(row.get("continues_from_previous_page")) else previous_table
+            )
             continue
         if previous_table is not None:
             previous_page = _coerce_int(previous_table.get("page_end"))
             current_page = _coerce_int(row.get("page_start"))
             same_shape = previous_table.get("table_column_count") == row.get("table_column_count")
-            if previous_page is not None and current_page is not None and current_page == previous_page + 1 and same_shape:
-                fragment_id = previous_table.get("table_fragment_id") or _build_table_fragment_id(previous_table)
+            if (
+                previous_page is not None
+                and current_page is not None
+                and current_page == previous_page + 1
+                and same_shape
+            ):
+                fragment_id = previous_table.get("table_fragment_id") or _build_table_fragment_id(
+                    previous_table
+                )
                 previous_table["table_fragment_id"] = fragment_id
                 row["table_fragment_id"] = fragment_id
         previous_table = row
@@ -382,7 +438,9 @@ def _infer_table_caption_hint(*, text_normalized: str, row_type: str) -> str | N
     return None
 
 
-def _looks_like_page_number(*, text_normalized: str, bbox: list[float] | None, page_height: float | None) -> bool:
+def _looks_like_page_number(
+    *, text_normalized: str, bbox: list[float] | None, page_height: float | None
+) -> bool:
     if not text_normalized.isdigit():
         return False
     if len(text_normalized) > 4:

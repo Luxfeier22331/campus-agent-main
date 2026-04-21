@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 
@@ -23,7 +23,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
 
     def _normalize_rows(self, provider_payload: dict[str, object]) -> list[dict[str, object]]:
         structured_bytes = normalize_curriculum_provider_result(
-            provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
+            provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            ),
             source_pdf="curriculum-plan.pdf",
             ocr_provider="paddleocr_vl_service",
             ocr_model="PaddleOCR-VL-1.5",
@@ -167,7 +169,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertIn("table_has_merged_cells", rows[0])
         self.assertIn("table_caption_hint", rows[0])
 
-    def test_normalize_curriculum_provider_result_falls_back_to_markdown_when_block_list_missing(self) -> None:
+    def test_normalize_curriculum_provider_result_falls_back_to_markdown_when_block_list_missing(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-002",
             "errorCode": 0,
@@ -188,7 +192,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["text_normalized"], "纯 markdown 回退文本")
         self.assertEqual(rows[0]["provider_page_id"], 1)
 
-    def test_normalize_curriculum_provider_result_keeps_unique_row_ids_when_provider_block_ids_repeat(self) -> None:
+    def test_normalize_curriculum_provider_result_keeps_unique_row_ids_when_provider_block_ids_repeat(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-003",
             "errorCode": 0,
@@ -281,7 +287,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(note_row["continuation_group_id"], table_row["row_id"])
         self.assertEqual(table_row["continuation_group_id"], table_row["row_id"])
 
-    def test_normalize_curriculum_provider_result_extracts_minimal_table_cells_contract(self) -> None:
+    def test_normalize_curriculum_provider_result_extracts_minimal_table_cells_contract(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-004b",
             "errorCode": 0,
@@ -296,8 +304,8 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
                                     "block_content": (
                                         "<table>"
                                         "<tr><th>类别</th><th>课程</th><th>学分</th></tr>"
-                                        "<tr><td rowspan=\"2\">核心课</td><td>微观经济学</td><td>3</td></tr>"
-                                        "<tr><td colspan=\"2\">宏观经济学 / 3</td></tr>"
+                                        '<tr><td rowspan="2">核心课</td><td>微观经济学</td><td>3</td></tr>'
+                                        '<tr><td colspan="2">宏观经济学 / 3</td></tr>'
                                         "</table>"
                                     ),
                                     "block_id": 31,
@@ -321,14 +329,37 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
                 {"row": 1, "col": 1, "text": "类别", "rowspan": 1, "colspan": 1, "is_header": True},
                 {"row": 1, "col": 2, "text": "课程", "rowspan": 1, "colspan": 1, "is_header": True},
                 {"row": 1, "col": 3, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
-                {"row": 2, "col": 1, "text": "核心课", "rowspan": 2, "colspan": 1, "is_header": False},
-                {"row": 2, "col": 2, "text": "微观经济学", "rowspan": 1, "colspan": 1, "is_header": False},
+                {
+                    "row": 2,
+                    "col": 1,
+                    "text": "核心课",
+                    "rowspan": 2,
+                    "colspan": 1,
+                    "is_header": False,
+                },
+                {
+                    "row": 2,
+                    "col": 2,
+                    "text": "微观经济学",
+                    "rowspan": 1,
+                    "colspan": 1,
+                    "is_header": False,
+                },
                 {"row": 2, "col": 3, "text": "3", "rowspan": 1, "colspan": 1, "is_header": False},
-                {"row": 3, "col": 2, "text": "宏观经济学 / 3", "rowspan": 1, "colspan": 2, "is_header": False},
+                {
+                    "row": 3,
+                    "col": 2,
+                    "text": "宏观经济学 / 3",
+                    "rowspan": 1,
+                    "colspan": 2,
+                    "is_header": False,
+                },
             ],
         )
 
-    def test_normalize_curriculum_provider_result_marks_continued_tables_with_shared_group(self) -> None:
+    def test_normalize_curriculum_provider_result_marks_continued_tables_with_shared_group(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-005",
             "errorCode": 0,
@@ -393,7 +424,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(second_table["table_column_count"], 2)
         self.assertEqual(first_table["table_fragment_id"], second_table["table_fragment_id"])
 
-    def test_normalize_curriculum_provider_result_marks_cross_page_repeated_candidates(self) -> None:
+    def test_normalize_curriculum_provider_result_marks_cross_page_repeated_candidates(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-009a",
             "errorCode": 0,
@@ -411,7 +444,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
                                     "block_order": 1,
                                     "block_bbox": [20, 920, 220, 950],
                                 }
-                            ]
+                            ],
                         },
                         "markdown": {"text": "ignored", "images": {}},
                     },
@@ -426,7 +459,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
                                     "block_order": 1,
                                     "block_bbox": [20, 920, 220, 950],
                                 }
-                            ]
+                            ],
                         },
                         "markdown": {"text": "ignored", "images": {}},
                     },
@@ -483,7 +516,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertTrue(bool(rows[0]["continues_to_next_page"]))
         self.assertTrue(bool(rows[1]["continues_from_previous_page"]))
 
-    def test_normalize_curriculum_provider_result_keeps_long_numeric_requirement_as_paragraph(self) -> None:
+    def test_normalize_curriculum_provider_result_keeps_long_numeric_requirement_as_paragraph(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-006",
             "errorCode": 0,
@@ -514,7 +549,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["block_role"], "text")
         self.assertEqual(rows[0]["title_candidate_score"], 0.0)
 
-    def test_normalize_curriculum_provider_result_repairs_sentence_wraps_inside_paragraph(self) -> None:
+    def test_normalize_curriculum_provider_result_repairs_sentence_wraps_inside_paragraph(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-007",
             "errorCode": 0,
@@ -540,9 +577,13 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
 
         rows = self._normalize_rows(provider_payload)
 
-        self.assertEqual(rows[0]["text_normalized"], "培养德智体美劳全面发展的社会主义建设者和接班人。")
+        self.assertEqual(
+            rows[0]["text_normalized"], "培养德智体美劳全面发展的社会主义建设者和接班人。"
+        )
 
-    def test_normalize_curriculum_provider_result_keeps_short_subsection_marker_as_heading(self) -> None:
+    def test_normalize_curriculum_provider_result_keeps_short_subsection_marker_as_heading(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-008",
             "errorCode": 0,
@@ -572,7 +613,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["heading_level"], 3)
         self.assertEqual(rows[0]["section_hint"], "subsection")
 
-    def test_normalize_curriculum_provider_result_demotes_sentence_like_subsection_to_paragraph(self) -> None:
+    def test_normalize_curriculum_provider_result_demotes_sentence_like_subsection_to_paragraph(
+        self,
+    ) -> None:
         provider_payload = {
             "logId": "log-009",
             "errorCode": 0,
@@ -603,7 +646,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["title_candidate_score"], 0.0)
 
     def test_normalize_curriculum_provider_result_provider_fixture_regression(self) -> None:
-        rows = self._normalize_fixture_rows("tests/fixtures/curriculum_plan/provider-result-sample.jsonl")
+        rows = self._normalize_fixture_rows(
+            "tests/fixtures/curriculum_plan/provider-result-sample.jsonl"
+        )
 
         self.assertEqual(len(rows), 21)
         self.assertEqual(sum(row["row_type"] == "heading" for row in rows), 4)
@@ -626,7 +671,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         second_table = next(row for row in rows if row["provider_block_id"] == "23")
         note_row = next(row for row in rows if row["provider_block_id"] == "15")
         first_continuation_paragraph = next(row for row in rows if row["provider_block_id"] == "21")
-        second_continuation_paragraph = next(row for row in rows if row["provider_block_id"] == "31")
+        second_continuation_paragraph = next(
+            row for row in rows if row["provider_block_id"] == "31"
+        )
 
         self.assertEqual(first_table["table_header_rows"], [["类别", "课程", "学分"]])
         self.assertTrue(bool(first_table["table_has_merged_cells"]))

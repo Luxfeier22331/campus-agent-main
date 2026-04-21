@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, TextIO
 
 from campus_ingestion_core.object_store import (
@@ -12,7 +12,6 @@ from campus_ingestion_core.object_store import (
     S3ObjectStoreClientFactory,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 ALLOWED_SOURCE_BUCKET_ROOT_PREFIXES = (
     "authenticated_notice_portal",
@@ -177,11 +176,11 @@ def cleanup_source_bucket_prefix(
                 file=log_output,
             )
 
-    remaining_keys = runtime_object_store.list_keys(bucket=settings.bucket_source, prefix=request.prefix)
+    remaining_keys = runtime_object_store.list_keys(
+        bucket=settings.bucket_source, prefix=request.prefix
+    )
     if remaining_keys:
-        raise ValueError(
-            f"{request.prefix} still has {len(remaining_keys)} objects after cleanup"
-        )
+        raise ValueError(f"{request.prefix} still has {len(remaining_keys)} objects after cleanup")
 
     deleted_rows_sorted = sorted(deleted_rows, key=lambda row: str(row["object_key"]))
     already_absent_rows_sorted = sorted(

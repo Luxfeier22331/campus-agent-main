@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_institutional_regulation_chunk_prep import (
+    prepare_institutional_regulation_chunks,
+)
 from campus_ingestion_core.internal_notice_regulation_projection import (
     InternalNoticeRegulationProjectedDocument,
     build_internal_notice_regulation_projected_document,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
-)
-from campus_ingestion_core.internal_notice_institutional_regulation_chunk_prep import (
-    prepare_institutional_regulation_chunks,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 
@@ -80,7 +80,9 @@ def _projected_document() -> InternalNoticeRegulationProjectedDocument:
     )
 
 
-def _record(*, projected: InternalNoticeRegulationProjectedDocument, units_key: str) -> DocumentRegistryRecord:
+def _record(
+    *, projected: InternalNoticeRegulationProjectedDocument, units_key: str
+) -> DocumentRegistryRecord:
     runtime_profile = load_runtime_profile("regulations", "institutional_regulations")
     return DocumentRegistryRecord(
         document_id=projected.document_id,
@@ -129,13 +131,15 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         record = _record(
             projected=projected,
             units_key=(
-                "regulations/documents/institutional_regulations/"
-                "guidance-2026/document-units.jsonl"
+                "regulations/documents/institutional_regulations/guidance-2026/document-units.jsonl"
             ),
         )
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", record.document_units_object_key or ""): projected.document_units_bytes,
+                (
+                    "campus-rag-derived",
+                    record.document_units_object_key or "",
+                ): projected.document_units_bytes,
             }
         )
 
@@ -152,7 +156,9 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
             manifest = json.loads(Path(report.manifest_path).read_text(encoding="utf-8"))
             self.assertEqual(manifest["target_collection"], "institutional_regulations")
 
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertTrue(validation["passed"])
             self.assertEqual(validation["missing_identity_metadata_count"], 0)
             self.assertEqual(validation["invalid_semantic_owner_lineage_count"], 0)
@@ -161,7 +167,9 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
 
             document_reports = [
                 json.loads(line)
-                for line in Path(report.document_reports_path).read_text(encoding="utf-8").splitlines()
+                for line in Path(report.document_reports_path)
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
             self.assertEqual(len(document_reports), 1)
@@ -177,7 +185,9 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
                 for line in chunks_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            self.assertTrue(all(chunk["collection"] == "institutional_regulations" for chunk in chunks))
+            self.assertTrue(
+                all(chunk["collection"] == "institutional_regulations" for chunk in chunks)
+            )
             self.assertTrue(
                 any(
                     chunk["metadata"].get("regulation_display_title")
@@ -186,7 +196,9 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
                 )
             )
 
-    def test_prepare_institutional_regulation_chunks_flags_invalid_attachment_owner_lineage(self) -> None:
+    def test_prepare_institutional_regulation_chunks_flags_invalid_attachment_owner_lineage(
+        self,
+    ) -> None:
         projected = _projected_document()
         payload = _override_first_row_metadata(
             projected.document_units_bytes,
@@ -218,7 +230,9 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
             )
 
             self.assertFalse(report.passed)
-            validation = json.loads(Path(report.validation_summary_path).read_text(encoding="utf-8"))
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
             self.assertFalse(validation["passed"])
             self.assertEqual(validation["invalid_semantic_owner_lineage_count"], 1)
             self.assertEqual(validation["failed_document_ids"], [record.document_id])

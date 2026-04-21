@@ -3,9 +3,9 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 worker = importlib.import_module("campus_ingestion_worker.smoke_authenticated_notice_bootstrap")
@@ -16,8 +16,12 @@ class SmokeAuthenticatedNoticeBootstrapWorkerCliTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             summary_path = Path(temp_dir) / "summary.json"
             with (
-                patch("campus_ingestion_worker.smoke_authenticated_notice_bootstrap.load_worker_env"),
-                patch("campus_ingestion_worker.smoke_authenticated_notice_bootstrap.import_authenticated_notice_export") as run_import,
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap.import_authenticated_notice_export"
+                ) as run_import,
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
                 run_import.return_value = {
@@ -65,8 +69,12 @@ class SmokeAuthenticatedNoticeBootstrapWorkerCliTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             summary_path = Path(temp_dir) / "failed-summary.json"
             with (
-                patch("campus_ingestion_worker.smoke_authenticated_notice_bootstrap.load_worker_env"),
-                patch("campus_ingestion_worker.smoke_authenticated_notice_bootstrap.import_authenticated_notice_export") as run_import,
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_bootstrap.import_authenticated_notice_export"
+                ) as run_import,
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
                 run_import.return_value = {

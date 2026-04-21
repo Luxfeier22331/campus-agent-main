@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
@@ -18,7 +18,9 @@ class WorkerEnvBootstrapTest(unittest.TestCase):
             current_env.write_text("OCR_BASE_URL=https://current.example/api\n", encoding="utf-8")
             root_worktree = root.parent.parent
             root_worktree.mkdir(parents=True, exist_ok=True)
-            (root_worktree / ".env").write_text("OCR_BASE_URL=https://root.example/api\n", encoding="utf-8")
+            (root_worktree / ".env").write_text(
+                "OCR_BASE_URL=https://root.example/api\n", encoding="utf-8"
+            )
 
             with patch.dict(os.environ, {}, clear=True):
                 loaded = load_worker_env(repo_root=root)
@@ -47,9 +49,13 @@ class WorkerEnvBootstrapTest(unittest.TestCase):
             root.mkdir(parents=True)
             root_worktree = root.parent.parent
             root_worktree.mkdir(parents=True, exist_ok=True)
-            (root_worktree / ".env").write_text("OCR_BASE_URL=https://root.example/api\n", encoding="utf-8")
+            (root_worktree / ".env").write_text(
+                "OCR_BASE_URL=https://root.example/api\n", encoding="utf-8"
+            )
 
-            with patch.dict(os.environ, {"OCR_BASE_URL": "https://runtime.example/api"}, clear=True):
+            with patch.dict(
+                os.environ, {"OCR_BASE_URL": "https://runtime.example/api"}, clear=True
+            ):
                 loaded = load_worker_env(repo_root=root)
                 self.assertEqual(os.environ["OCR_BASE_URL"], "https://runtime.example/api")
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import ast
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Sequence
+
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.curriculum_title_normalization import (
     canonicalize_curriculum_manifest_heading,
@@ -91,21 +92,26 @@ def build_manifest_document_rows(
             version_id=version_id,
             source_pdf=source_pdf,
             source_uri=source_uri,
-            entitlement_groups=tuple(entitlement_groups) or manifest_document.resolved_entitlement_groups(),
+            entitlement_groups=tuple(entitlement_groups)
+            or manifest_document.resolved_entitlement_groups(),
         )
         for row in selected_rows
     ]
     summary_row = dict(transformed_rows[0])
     summary_row["chunk_id"] = "document-0000"
     summary_row["clean_text"] = "\n\n".join(
-        text for text in (str(row.get("clean_text") or "").strip() for row in transformed_rows) if text
+        text
+        for text in (str(row.get("clean_text") or "").strip() for row in transformed_rows)
+        if text
     )
     summary_row["page_start"] = manifest_document.page_start
     summary_row["page_end"] = manifest_document.page_end
     return [summary_row, *transformed_rows]
 
 
-def load_historical_curriculum_documents(docs_root: Path) -> tuple[HistoricalCurriculumDocument, ...]:
+def load_historical_curriculum_documents(
+    docs_root: Path,
+) -> tuple[HistoricalCurriculumDocument, ...]:
     documents: list[HistoricalCurriculumDocument] = []
     for path in sorted(Path(docs_root).glob("*.md")):
         metadata = _load_historical_markdown_metadata(path)
@@ -127,7 +133,9 @@ def load_historical_curriculum_documents(docs_root: Path) -> tuple[HistoricalCur
                 ),
                 historical_page_start=page_start,
                 historical_page_end=page_end,
-                ocr_doc_decision_uri=_find_source_ref_uri(source_refs=source_refs, ref_type="ocr_doc_decision_v1"),
+                ocr_doc_decision_uri=_find_source_ref_uri(
+                    source_refs=source_refs, ref_type="ocr_doc_decision_v1"
+                ),
             )
         )
     return tuple(documents)
@@ -280,7 +288,9 @@ def _find_source_ref_uri(
     return default
 
 
-def _build_title_to_candidate_pages(structured_rows: Sequence[Mapping[str, object]]) -> dict[str, tuple[int, ...]]:
+def _build_title_to_candidate_pages(
+    structured_rows: Sequence[Mapping[str, object]],
+) -> dict[str, tuple[int, ...]]:
     title_to_pages: dict[str, set[int]] = {}
     for row in structured_rows:
         page_start = row.get("page_start")
@@ -295,25 +305,22 @@ def _build_title_to_candidate_pages(structured_rows: Sequence[Mapping[str, objec
         if not normalized_title:
             continue
         title_to_pages.setdefault(normalized_title, set()).add(page_start)
-    return {
-        key: tuple(sorted(value))
-        for key, value in title_to_pages.items()
-    }
+    return {key: tuple(sorted(value)) for key, value in title_to_pages.items()}
 
 
 def _normalize_split_title(value: str) -> str:
     return normalize_curriculum_title_for_match(value)
 
 
-def _resolve_historical_document_retirement_reason(document: HistoricalCurriculumDocument) -> str | None:
+def _resolve_historical_document_retirement_reason(
+    document: HistoricalCurriculumDocument,
+) -> str | None:
     return _HISTORICAL_RETIRED_DOCUMENT_REASONS.get(document.document_id)
 
 
 def _resolve_max_page(structured_rows: Sequence[Mapping[str, object]]) -> int:
     max_page = max(
-        int(row["page_end"])
-        for row in structured_rows
-        if isinstance(row.get("page_end"), int)
+        int(row["page_end"]) for row in structured_rows if isinstance(row.get("page_end"), int)
     )
     if max_page <= 0:
         raise ValueError("structured_rows must contain positive page_end values")
@@ -338,7 +345,9 @@ def _row_text(row: Mapping[str, object]) -> str:
     return ""
 
 
-def _row_belongs_to_page_range(*, row: Mapping[str, object], page_start: int, page_end: int) -> bool:
+def _row_belongs_to_page_range(
+    *, row: Mapping[str, object], page_start: int, page_end: int
+) -> bool:
     row_page_start = row.get("page_start")
     row_page_end = row.get("page_end")
     if not isinstance(row_page_start, int) or not isinstance(row_page_end, int):

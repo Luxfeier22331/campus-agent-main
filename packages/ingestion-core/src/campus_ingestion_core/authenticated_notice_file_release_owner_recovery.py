@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
-from pathlib import Path
 import re
-from typing import Any, Mapping, Sequence
 import unicodedata
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping, Sequence
 
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     AuthenticatedNoticeFileReleaseInventoryEntry,
     AuthenticatedNoticeFileReleaseInventoryStore,
 )
-
 
 _FILE_RELEASE_EXPORT_SCHEMA_VERSION = "authenticated_notice_file_release_export_v1"
 _FILE_EXTENSION_RE = re.compile(
@@ -88,9 +87,7 @@ def load_authenticated_notice_file_release_export(
 
     export_manifest: dict[str, Any] | None = None
     if manifest_path is not None:
-        export_manifest = _as_record(
-            json.loads(Path(manifest_path).read_text(encoding="utf-8"))
-        )
+        export_manifest = _as_record(json.loads(Path(manifest_path).read_text(encoding="utf-8")))
         schema_version = _optional_text(export_manifest.get("schema_version"))
         if schema_version != _FILE_RELEASE_EXPORT_SCHEMA_VERSION:
             raise ValueError(
@@ -156,9 +153,7 @@ def resolve_file_release_owner_recovery_readiness(
             reason="file_release_match_ambiguous",
             match_count=len(best_matches),
             selected_match=None,
-            ambiguous_file_release_ids=tuple(
-                sorted(item.file_release_id for item in best_matches)
-            ),
+            ambiguous_file_release_ids=tuple(sorted(item.file_release_id for item in best_matches)),
             **base_kwargs,
         )
 
@@ -277,7 +272,9 @@ def _match_file_release_record(
     best_score = -1
     best_strategy: str | None = None
     best_title: str | None = None
-    for raw_title in _title_candidates(file_release=file_release, released_file=released_file_payload):
+    for raw_title in _title_candidates(
+        file_release=file_release, released_file=released_file_payload
+    ):
         normalized_candidate = _normalize_title_for_match(raw_title)
         if not normalized_candidate:
             continue

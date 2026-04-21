@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from typing import Sequence
 
-from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_core import LocalDataRebuildReport, RebuildRequest, rebuild_local_data
+
+from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a typed local rebuild request")
-    parser.add_argument("--mode", required=True, choices=("raw_online_ocr", "provider_response_replay"))
+    parser.add_argument(
+        "--mode", required=True, choices=("raw_online_ocr", "provider_response_replay")
+    )
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--collection", required=True)
     parser.add_argument("--raw-asset-id")

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any, Protocol, Sequence
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED
-
 
 _TARGET_SCOPE = ("regulations", "institutional_regulations")
 _SCHEMA_VERSION = "internal_notice_institutional_regulation_chunk_prep_v1"
@@ -140,9 +139,7 @@ def prepare_institutional_regulation_chunks(
     bucket_derived: str = DEFAULT_BUCKET_DERIVED,
 ) -> InstitutionalRegulationChunkPrepExportReport:
     target_records = tuple(
-        record
-        for record in records
-        if (record.corpus, record.collection) == _TARGET_SCOPE
+        record for record in records if (record.corpus, record.collection) == _TARGET_SCOPE
     )
     prepared_documents = tuple(
         _prepare_target_record(
@@ -307,7 +304,9 @@ def _prepare_target_record(
     )
     title = _resolve_title(unit_rows)
     target_suffix = record.document_id.rsplit(":", 1)[-1]
-    prepared_dir = output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    prepared_dir = (
+        output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    )
     prepared_dir.mkdir(parents=True, exist_ok=True)
     document_units_path = prepared_dir / "document-units.jsonl"
     chunk_catalog_path = prepared_dir / "chunks.jsonl"
@@ -415,7 +414,8 @@ def _build_document_report(
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
     passed = not any(
-        issue in {
+        issue
+        in {
             "no_chunks_emitted",
             "missing_title_chunk",
             "missing_contextualization",
@@ -515,7 +515,10 @@ def _is_missing_metadata_field(value: object) -> bool:
 
 def _slugify_path_component(value: str) -> str:
     normalized = value.strip()
-    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-") or "institutional-regulation"
+    return (
+        "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-")
+        or "institutional-regulation"
+    )
 
 
 __all__ = [

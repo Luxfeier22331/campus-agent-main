@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from dataclasses import dataclass
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from typing import Mapping, Sequence
+
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -14,7 +15,6 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.split_manifest import SplitManifestDocument
-
 
 _FAMILY_ID = "course_family:muc.ideological_political_theory"
 _FAMILY_TITLE = "思想政治理论课"
@@ -53,7 +53,10 @@ class _CourseFactProjection:
 _CANONICAL_COURSES = (
     _CanonicalCourse("course:muc.marxist_basic_principles", "马克思主义基本原理"),
     _CanonicalCourse("course:muc.modern_chinese_history_outline", "中国近现代史纲要"),
-    _CanonicalCourse("course:muc.mao_zedong_thought_and_theoretical_system", "毛泽东思想和中国特色社会主义理论体系概论"),
+    _CanonicalCourse(
+        "course:muc.mao_zedong_thought_and_theoretical_system",
+        "毛泽东思想和中国特色社会主义理论体系概论",
+    ),
     _CanonicalCourse("course:muc.xigai", "习近平新时代中国特色社会主义思想概论"),
     _CanonicalCourse("course:muc.ideological_morality_and_rule_of_law", "思想道德与法治"),
     _CanonicalCourse("course:muc.situation_and_policy", "形势与政策"),
@@ -143,7 +146,11 @@ def build_curriculum_course_facts_scope_refresh_documents(
     import_source: str = "provider_response_replay",
 ) -> list[DocumentImportInput]:
     source_document = next(
-        (document for document in split_manifest_documents if document.document_id == _SOURCE_DOCUMENT_ID),
+        (
+            document
+            for document in split_manifest_documents
+            if document.document_id == _SOURCE_DOCUMENT_ID
+        ),
         None,
     )
     return build_curriculum_course_facts_import_documents(
@@ -157,7 +164,9 @@ def build_curriculum_course_facts_scope_refresh_documents(
     )
 
 
-def _build_course_fact_projections(structured_rows: Sequence[Mapping[str, object]]) -> tuple[_CourseFactProjection, ...]:
+def _build_course_fact_projections(
+    structured_rows: Sequence[Mapping[str, object]],
+) -> tuple[_CourseFactProjection, ...]:
     family_members = _extract_family_member_titles(structured_rows)
     audience_snippet = _extract_audience_snippet(structured_rows)
     course_semesters = _extract_course_semesters(structured_rows)
@@ -220,8 +229,13 @@ def _build_course_fact_projections(structured_rows: Sequence[Mapping[str, object
     return tuple(projections)
 
 
-def _extract_family_member_titles(structured_rows: Sequence[Mapping[str, object]]) -> tuple[str, ...]:
-    full_text = " ".join(_normalize_text(row.get("clean_text") or row.get("text_normalized")) for row in structured_rows)
+def _extract_family_member_titles(
+    structured_rows: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    full_text = " ".join(
+        _normalize_text(row.get("clean_text") or row.get("text_normalized"))
+        for row in structured_rows
+    )
     if "学校除开设" in full_text and "等6门思政课外" in full_text:
         segment = full_text.split("学校除开设", 1)[1].split("等6门思政课外", 1)[0]
         titles = tuple(
@@ -243,7 +257,9 @@ def _extract_audience_snippet(structured_rows: Sequence[Mapping[str, object]]) -
     return ""
 
 
-def _extract_course_semesters(structured_rows: Sequence[Mapping[str, object]]) -> dict[str, tuple[str, ...]]:
+def _extract_course_semesters(
+    structured_rows: Sequence[Mapping[str, object]],
+) -> dict[str, tuple[str, ...]]:
     results: dict[str, tuple[str, ...]] = {}
     for row in structured_rows:
         text = str(row.get("clean_text") or row.get("text_normalized") or "")
@@ -266,7 +282,9 @@ def _extract_exception_snippets(structured_rows: Sequence[Mapping[str, object]])
             continue
         for course in _CANONICAL_COURSES:
             if course.canonical_course_title in text:
-                results[course.canonical_course_title] = text if text.endswith("。") else f"{text}。"
+                results[course.canonical_course_title] = (
+                    text if text.endswith("。") else f"{text}。"
+                )
     return results
 
 

@@ -1,30 +1,33 @@
 from __future__ import annotations
 
-from contextlib import ExitStack
-from dataclasses import asdict, dataclass
 import json
 import os
+import zipfile
+from contextlib import ExitStack
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol
-import zipfile
 
 from campus_ingestion_core.artifacts import PROVIDER_RESPONSE_FILENAME
-from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_source_model_slug, build_source_ocr_artifact_key, infer_year_label
-from campus_ingestion_core.online_ocr_evidence import (
-    build_adjudication,
-    build_provider_summary,
-    extract_paddle_plain_text,
-)
 from campus_ingestion_core.file_asset_routing import (
-    PADDLE_ASYNC_PROVIDER,
-    RawAssetTypeRefinement,
     RawAssetTypedMetadata,
+    RawAssetTypeRefinement,
     infer_raw_asset_typed_metadata,
     refine_raw_asset_typed_metadata_with_ocr_evidence,
     select_adjudicated_image_routing,
     select_online_ocr_routing,
+)
+from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.object_store import (
+    build_source_model_slug,
+    build_source_ocr_artifact_key,
+    infer_year_label,
+)
+from campus_ingestion_core.online_ocr_evidence import (
+    build_adjudication,
+    build_provider_summary,
+    extract_paddle_plain_text,
 )
 from campus_ingestion_core.raw_ingestion import (
     DEFAULT_ONLINE_OCR_MODEL,
@@ -51,10 +54,14 @@ class OnlineOcrCompareRequest:
 
     def __post_init__(self) -> None:
         has_file_path = self.file_path is not None
-        has_raw_asset = bool((self.raw_asset_id or "").strip() or (self.raw_version_id or "").strip())
+        has_raw_asset = bool(
+            (self.raw_asset_id or "").strip() or (self.raw_version_id or "").strip()
+        )
         if has_file_path == has_raw_asset:
             raise ValueError("provide exactly one of file_path or raw_asset_id/raw_version_id")
-        if has_raw_asset and not ((self.raw_asset_id or "").strip() and (self.raw_version_id or "").strip()):
+        if has_raw_asset and not (
+            (self.raw_asset_id or "").strip() and (self.raw_version_id or "").strip()
+        ):
             raise ValueError("raw_asset_id and raw_version_id must be configured together")
 
 
@@ -90,7 +97,11 @@ def compare_online_ocr(
     request.output_dir.mkdir(parents=True, exist_ok=True)
     with ExitStack() as stack:
         reader = _build_object_store_reader(source=source, object_store=object_store)
-        registry = raw_asset_registry or build_raw_asset_registry_from_env(source) if request.raw_asset_id else raw_asset_registry
+        registry = (
+            raw_asset_registry or build_raw_asset_registry_from_env(source)
+            if request.raw_asset_id
+            else raw_asset_registry
+        )
         input_path, source_file_name, baseline_default_key, raw_asset_record = _resolve_input_path(
             request=request,
             reader=reader,
@@ -103,7 +114,9 @@ def compare_online_ocr(
             raw_asset_record=raw_asset_record,
         )
         ocr_client = online_ocr or build_online_ocr_client(settings)
-        provider_suffix = ".zip" if settings.provider == ONLINE_OCR_PROVIDER_MINERU_API else ".jsonl"
+        provider_suffix = (
+            ".zip" if settings.provider == ONLINE_OCR_PROVIDER_MINERU_API else ".jsonl"
+        )
         provider_response_path: Path | None = None
         candidate_markdown_path: Path | None = None
         candidate_text = ""
@@ -121,10 +134,12 @@ def compare_online_ocr(
             provider_response_path = request.output_dir / f"provider-response{provider_suffix}"
             provider_response_path.write_bytes(provider_result.provider_result_bytes)
             candidate_provider_response_available = True
-            candidate_text, candidate_markdown_path, candidate_error_type, candidate_error = _extract_candidate_text(
-                provider=settings.provider,
-                provider_response_bytes=provider_result.provider_result_bytes,
-                output_dir=request.output_dir / "candidate",
+            candidate_text, candidate_markdown_path, candidate_error_type, candidate_error = (
+                _extract_candidate_text(
+                    provider=settings.provider,
+                    provider_response_bytes=provider_result.provider_result_bytes,
+                    output_dir=request.output_dir / "candidate",
+                )
             )
         except Exception as exc:
             candidate_error_type = type(exc).__name__
@@ -188,12 +203,17 @@ def compare_online_ocr(
             "candidate": candidate_summary,
             "baseline": baseline_summary,
             "diff": {
-                "candidate_equals_baseline": bool(baseline_bytes) and candidate_text == baseline_text,
+                "candidate_equals_baseline": bool(baseline_bytes)
+                and candidate_text == baseline_text,
                 "candidate_text_length_delta": candidate_summary["plain_text_length"]
                 - baseline_summary["plain_text_length"],
-                "candidate_html_tag_count_delta": candidate_summary["structure_signals"]["html_tag_count"]
+                "candidate_html_tag_count_delta": candidate_summary["structure_signals"][
+                    "html_tag_count"
+                ]
                 - baseline_summary["structure_signals"]["html_tag_count"],
-                "candidate_table_row_count_delta": candidate_summary["structure_signals"]["table_row_count"]
+                "candidate_table_row_count_delta": candidate_summary["structure_signals"][
+                    "table_row_count"
+                ]
                 - baseline_summary["structure_signals"]["table_row_count"],
             },
             "adjudication": adjudication_payload,
@@ -234,8 +254,12 @@ def compare_online_ocr(
         model=settings.model,
         input_filename=source_file_name,
         output_dir=str(request.output_dir),
-        provider_response_path=str(provider_response_path) if provider_response_path is not None else "",
-        candidate_markdown_path=str(candidate_markdown_path) if candidate_markdown_path is not None else None,
+        provider_response_path=str(provider_response_path)
+        if provider_response_path is not None
+        else "",
+        candidate_markdown_path=str(candidate_markdown_path)
+        if candidate_markdown_path is not None
+        else None,
         comparison_path=str(comparison_path),
         summary_path=str(summary_path),
     )
@@ -275,9 +299,7 @@ def _resolve_input_path(
     temp_dir = Path(stack.enter_context(TemporaryDirectory()))
     input_path = temp_dir / raw_asset_record.source_filename
     source_bucket = ObjectStoreSettings.from_env(source).bucket_source
-    input_path.write_bytes(
-        reader.get_bytes(bucket=source_bucket, key=raw_asset_record.object_key)
-    )
+    input_path.write_bytes(reader.get_bytes(bucket=source_bucket, key=raw_asset_record.object_key))
     baseline_key = build_source_ocr_artifact_key(
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
@@ -302,10 +324,18 @@ def _resolve_initial_typed_metadata(
     return RawAssetTypedMetadata(
         content_type=raw_asset_record.content_type or inferred.content_type,
         file_extension=raw_asset_record.file_extension or inferred.file_extension,
-        byte_size=raw_asset_record.byte_size if raw_asset_record.byte_size is not None else inferred.byte_size,
-        page_count=raw_asset_record.page_count if raw_asset_record.page_count is not None else inferred.page_count,
-        image_width=raw_asset_record.image_width if raw_asset_record.image_width is not None else inferred.image_width,
-        image_height=raw_asset_record.image_height if raw_asset_record.image_height is not None else inferred.image_height,
+        byte_size=raw_asset_record.byte_size
+        if raw_asset_record.byte_size is not None
+        else inferred.byte_size,
+        page_count=raw_asset_record.page_count
+        if raw_asset_record.page_count is not None
+        else inferred.page_count,
+        image_width=raw_asset_record.image_width
+        if raw_asset_record.image_width is not None
+        else inferred.image_width,
+        image_height=raw_asset_record.image_height
+        if raw_asset_record.image_height is not None
+        else inferred.image_height,
         asset_kind=raw_asset_record.asset_kind or inferred.asset_kind,
         asset_subkind=raw_asset_record.asset_subkind or inferred.asset_subkind,
         classification_confidence=(

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.index_release import resolve_alias_target
+from campus_ingestion_core.scope_alias import set_scope_release_alias
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-
-from campus_ingestion_core.scope_alias import set_scope_release_alias
-from campus_ingestion_core.index_release import resolve_alias_target
 
 
 class ScopeAliasTest(unittest.TestCase):
@@ -14,7 +13,9 @@ class ScopeAliasTest(unittest.TestCase):
         qdrant_client = QdrantClient(location=":memory:")
         qdrant_client.create_collection(
             collection_name="official_web_stable_reference__r20260404_204033",
-            vectors_config=qdrant_models.VectorParams(size=1, distance=qdrant_models.Distance.COSINE),
+            vectors_config=qdrant_models.VectorParams(
+                size=1, distance=qdrant_models.Distance.COSINE
+            ),
         )
 
         report = set_scope_release_alias(
@@ -31,7 +32,9 @@ class ScopeAliasTest(unittest.TestCase):
             "official_web_stable_reference__r20260404_204033",
         )
         self.assertEqual(
-            resolve_alias_target(qdrant_client=qdrant_client, alias_name="official_web_stable_reference"),
+            resolve_alias_target(
+                qdrant_client=qdrant_client, alias_name="official_web_stable_reference"
+            ),
             "official_web_stable_reference__r20260404_204033",
         )
 
@@ -39,7 +42,9 @@ class ScopeAliasTest(unittest.TestCase):
         qdrant_client = QdrantClient(location=":memory:")
         qdrant_client.create_collection(
             collection_name="muc_public_pages__r20260404_184508",
-            vectors_config=qdrant_models.VectorParams(size=1, distance=qdrant_models.Distance.COSINE),
+            vectors_config=qdrant_models.VectorParams(
+                size=1, distance=qdrant_models.Distance.COSINE
+            ),
         )
         qdrant_client.update_collection_aliases(
             [
@@ -60,9 +65,13 @@ class ScopeAliasTest(unittest.TestCase):
         )
 
         self.assertEqual(report.action, "unpublish")
-        self.assertEqual(report.previous_physical_collection_name, "muc_public_pages__r20260404_184508")
+        self.assertEqual(
+            report.previous_physical_collection_name, "muc_public_pages__r20260404_184508"
+        )
         self.assertIsNone(report.current_physical_collection_name)
-        self.assertIsNone(resolve_alias_target(qdrant_client=qdrant_client, alias_name="muc_public_pages"))
+        self.assertIsNone(
+            resolve_alias_target(qdrant_client=qdrant_client, alias_name="muc_public_pages")
+        )
         self.assertTrue(qdrant_client.collection_exists("muc_public_pages__r20260404_184508"))
 
 

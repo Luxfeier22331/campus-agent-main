@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-import re
 
 from campus_ingestion_core.source_truth_common import looks_like_cross_page_continuation
 
@@ -34,32 +34,43 @@ class CurriculumSourceTruthValidationReport:
     passed: bool
 
 
-def scan_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> CurriculumSourceTruthValidationReport:
+def scan_curriculum_source_truth_rows(
+    rows: list[dict[str, object]],
+) -> CurriculumSourceTruthValidationReport:
     row_type_counts = Counter(str(row.get("row_type") or "") for row in rows)
     row_ids = {
-        str(row.get("row_id") or "").strip()
-        for row in rows
-        if str(row.get("row_id") or "").strip()
+        str(row.get("row_id") or "").strip() for row in rows if str(row.get("row_id") or "").strip()
     }
-    forbidden_field_count = sum(len(FORBIDDEN_SOURCE_TRUTH_FIELDS & set(row.keys())) for row in rows)
+    forbidden_field_count = sum(
+        len(FORBIDDEN_SOURCE_TRUTH_FIELDS & set(row.keys())) for row in rows
+    )
     heading_role_conflict_count = sum(1 for row in rows if _has_heading_role_conflict(row))
     page_number_leak_count = sum(
-        1 for row in rows if str(row.get("block_role") or "") == "number" and str(row.get("row_type") or "") != "page_number"
+        1
+        for row in rows
+        if str(row.get("block_role") or "") == "number"
+        and str(row.get("row_type") or "") != "page_number"
     )
     footer_leak_count = sum(
-        1 for row in rows if str(row.get("block_role") or "") == "footer" and str(row.get("row_type") or "") != "footer"
+        1
+        for row in rows
+        if str(row.get("block_role") or "") == "footer"
+        and str(row.get("row_type") or "") != "footer"
     )
     orphan_caption_count = sum(
         1
         for row in rows
-        if str(row.get("row_type") or "") == "table_caption" and not _has_valid_owner(row, row_ids=row_ids)
+        if str(row.get("row_type") or "") == "table_caption"
+        and not _has_valid_owner(row, row_ids=row_ids)
     )
     orphan_note_count = sum(
         1
         for row in rows
         if str(row.get("row_type") or "") == "note" and not _has_valid_owner(row, row_ids=row_ids)
     )
-    broken_table_continuation_count = sum(1 for row in rows if _is_broken_table_continuation(row, row_ids=row_ids))
+    broken_table_continuation_count = sum(
+        1 for row in rows if _is_broken_table_continuation(row, row_ids=row_ids)
+    )
     cross_page_continuation_miss_count = _count_cross_page_continuation_misses(rows)
     section_hint_missing_count = sum(1 for row in rows if _requires_section_hint(row))
     parent_heading_hint_missing_count = sum(1 for row in rows if _requires_parent_heading_hint(row))
@@ -153,7 +164,9 @@ def _count_cross_page_continuation_misses(rows: list[dict[str, object]]) -> int:
         current_text = str(current.get("text_normalized") or "").strip()
         next_text = str(next_row.get("text_normalized") or "").strip()
         if looks_like_cross_page_continuation(current_text=current_text, next_text=next_text):
-            if not bool(current.get("continues_to_next_page")) or not bool(next_row.get("continues_from_previous_page")):
+            if not bool(current.get("continues_to_next_page")) or not bool(
+                next_row.get("continues_from_previous_page")
+            ):
                 misses += 1
     return misses
 

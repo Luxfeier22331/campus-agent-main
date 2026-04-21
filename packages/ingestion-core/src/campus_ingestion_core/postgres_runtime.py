@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from threading import RLock
 from typing import Literal
-from urllib.parse import parse_qsl, parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
 try:
     from psycopg_pool import ConnectionPool
@@ -29,9 +29,7 @@ MANAGEMENT_DIRECT_CONNECTION_MODE = "management_direct"
 @dataclass(frozen=True, slots=True)
 class ResolvedPostgresConnection:
     database_url: str
-    connection_mode: Literal[
-        "persistent_runtime", "operator_session", "management_direct"
-    ]
+    connection_mode: Literal["persistent_runtime", "operator_session", "management_direct"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,14 +46,10 @@ def validate_persistent_postgres_runtime_url(database_url: str) -> str:
     normalized, parsed, hostname, port = _parse_postgres_runtime_url(database_url)
     if _is_supabase_session_pooler_host(hostname):
         if (port or SUPABASE_SESSION_POOLER_PORT) != SUPABASE_SESSION_POOLER_PORT:
-            raise ValueError(
-                "Supabase persistent runtime must use the session pooler on port 5432"
-            )
+            raise ValueError("Supabase persistent runtime must use the session pooler on port 5432")
         sslmode = _resolved_sslmode(parsed.query)
         if sslmode != "require":
-            raise ValueError(
-                "Supabase session pooler database url must include sslmode=require"
-            )
+            raise ValueError("Supabase session pooler database url must include sslmode=require")
         return normalized
     if _is_supabase_direct_host(hostname):
         raise ValueError(

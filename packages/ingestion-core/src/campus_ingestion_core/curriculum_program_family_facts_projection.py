@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from dataclasses import dataclass
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Sequence
+
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -14,7 +15,6 @@ from campus_ingestion_core.campusrag_ingestion_support import (
 )
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.split_manifest import SplitManifestDocument
-
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _CONFIG_PATH = (
@@ -171,7 +171,9 @@ def _build_document_id(canonical_program_family_id: str) -> str:
 
 
 def _build_version_id(*, raw_version_id: str, canonical_program_family_id: str) -> str:
-    digest = hashlib.sha256(f"{raw_version_id}|{canonical_program_family_id}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha256(
+        f"{raw_version_id}|{canonical_program_family_id}".encode("utf-8")
+    ).hexdigest()[:12]
     return f"{raw_version_id}:program-family:{digest}"
 
 

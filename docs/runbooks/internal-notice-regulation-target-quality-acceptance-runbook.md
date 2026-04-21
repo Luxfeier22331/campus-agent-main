@@ -17,7 +17,7 @@ updated: 2026-04-19
 
 - `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md` 的 promotion manifest / target materialization 执行
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md` 的 acceptance truth
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` 的 workstream 顺序
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` 的 workstream 顺序
 
 ## 当前边界
 

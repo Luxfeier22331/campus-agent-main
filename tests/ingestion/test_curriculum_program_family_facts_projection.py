@@ -213,7 +213,10 @@ class CurriculumProgramFamilyFactsProjectionTest(unittest.TestCase):
         )
         self.assertEqual(first_row["metadata"]["content_role"], "family_membership")
         self.assertEqual(first_row["metadata"]["detail_label"], "成员专业")
-        self.assertEqual(first_row["metadata"]["member_program_titles"], ["法学", "信息与计算科学", "计算机科学与技术"])
+        self.assertEqual(
+            first_row["metadata"]["member_program_titles"],
+            ["法学", "信息与计算科学", "计算机科学与技术"],
+        )
         self.assertTrue(first_row["metadata"]["is_answer_bearing"])
 
 

@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 import hashlib
-from io import BytesIO
 import json
 import tomllib
-from types import SimpleNamespace
+import unittest
+import zipfile
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
-import zipfile
 
+from campus_ingestion_core.file_asset_contract import (
+    ArtifactProvenance,
+    ExtractionOutcome,
+    FileAssetArtifactRef,
+    FileAssetDescriptor,
+    FileAssetExtractionRecord,
+    NormalizationOutcome,
+    parse_file_asset_extraction_record,
+    parse_file_asset_outcome,
+    serialize_file_asset_extraction_record,
+    serialize_file_asset_outcome,
+)
 from campus_ingestion_core.file_asset_legacy_office import (
     extract_legacy_office_text_blocks,
     normalize_legacy_office_asset,
@@ -20,27 +32,15 @@ from campus_ingestion_core.file_asset_ooxml import (
     extract_docx_text_blocks,
     extract_xlsx_text_blocks,
 )
-from campus_ingestion_core.file_asset_text_extractable import (
-    extract_text_extractable_file_asset,
-)
-from campus_ingestion_core.file_asset_contract import (
-    ArtifactProvenance,
-    ExtractionOutcome,
-    FileAssetDescriptor,
-    FileAssetExtractionRecord,
-    FileAssetArtifactRef,
-    NormalizationOutcome,
-    parse_file_asset_extraction_record,
-    parse_file_asset_outcome,
-    serialize_file_asset_extraction_record,
-    serialize_file_asset_outcome,
-)
 from campus_ingestion_core.file_asset_routing import (
     RawAssetTypedMetadata,
     infer_raw_asset_typed_metadata,
     refine_raw_asset_typed_metadata_with_ocr_evidence,
     select_adjudicated_image_routing,
     select_online_ocr_routing,
+)
+from campus_ingestion_core.file_asset_text_extractable import (
+    extract_text_extractable_file_asset,
 )
 
 
@@ -371,7 +371,9 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
         buffer = BytesIO()
         document = Document()
         document.add_paragraph("中央民族大学2021年高校新任辅导员专题网络培训教学计划")
-        document.add_paragraph("为深入学习贯彻习近平新时代中国特色社会主义思想，现将教学计划制定如下：")
+        document.add_paragraph(
+            "为深入学习贯彻习近平新时代中国特色社会主义思想，现将教学计划制定如下："
+        )
         document.add_paragraph("学习目标")
         document.add_paragraph("帮助新任辅导员提高政治理论水平和岗位适应能力。")
         document.add_paragraph("二、学习时间")
@@ -428,7 +430,9 @@ class FileAssetOoxmlExtractionTest(unittest.TestCase):
         )
         self.assertEqual(formula_cell["formula"], "SUM(B2:B2)")
 
-    def test_build_ooxml_layout_elements_bytes_only_forward_fills_leading_missing_cells(self) -> None:
+    def test_build_ooxml_layout_elements_bytes_only_forward_fills_leading_missing_cells(
+        self,
+    ) -> None:
         rows = [
             json.loads(line)
             for line in build_ooxml_layout_elements_bytes(
@@ -550,7 +554,9 @@ class FileAssetTextExtractableDispatcherTest(unittest.TestCase):
 
 class FileAssetHardeningContractTest(unittest.TestCase):
     def test_ingestion_core_dependencies_do_not_reintroduce_xlrd(self) -> None:
-        pyproject_path = Path(__file__).resolve().parents[2] / "packages/ingestion-core/pyproject.toml"
+        pyproject_path = (
+            Path(__file__).resolve().parents[2] / "packages/ingestion-core/pyproject.toml"
+        )
         payload = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
 
         dependencies = tuple(str(item) for item in payload["project"]["dependencies"])
@@ -560,10 +566,14 @@ class FileAssetHardeningContractTest(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
 
         self.assertFalse(
-            (root / "packages/ingestion-core/src/campus_ingestion_core/raw_asset_typing.py").exists()
+            (
+                root / "packages/ingestion-core/src/campus_ingestion_core/raw_asset_typing.py"
+            ).exists()
         )
         self.assertFalse(
-            (root / "packages/ingestion-core/src/campus_ingestion_core/online_ocr_routing.py").exists()
+            (
+                root / "packages/ingestion-core/src/campus_ingestion_core/online_ocr_routing.py"
+            ).exists()
         )
 
 

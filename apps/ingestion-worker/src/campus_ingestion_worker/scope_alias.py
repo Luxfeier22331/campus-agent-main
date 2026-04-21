@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from typing import Sequence
 
 from campus_ingestion_core.scope_alias import set_scope_release_alias
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

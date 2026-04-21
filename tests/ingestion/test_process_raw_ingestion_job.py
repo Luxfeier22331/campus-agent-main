@@ -1,39 +1,44 @@
 from __future__ import annotations
 
-from io import BytesIO
 import hashlib
 import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import types
 import unittest
-from unittest.mock import patch
 import zipfile
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from campus_ingestion_core.handbook_cleanup import build_handbook_doc_id
-from campus_ingestion_core.raw_ingestion import (
-    MineruApiClient,
-    OnlineOcrProviderContractError,
-    OnlineOcrSettings,
-    parse_online_ocr_bytes,
-    PaddleOcrLayoutParsingServiceClient,
-    PaddleOcrAsyncClient,
-    RawIngestionRequest,
-    RawIngestionProcessSettings,
-    build_online_ocr_client,
-)
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_processed_artifact_key,
     build_processed_asset_artifact_key,
 )
 from campus_ingestion_core.process import build_indexable_chunks_from_record
-from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
+from campus_ingestion_core.raw_ingestion import (
+    RawIngestionProcessSettings,
+    RawIngestionRequest,
+    build_online_ocr_client,
+)
+from campus_ingestion_core.raw_ingestion_online_ocr import (
+    MineruApiClient,
+    OnlineOcrProviderContractError,
+    OnlineOcrSettings,
+    PaddleOcrAsyncClient,
+    PaddleOcrLayoutParsingServiceClient,
+    parse_online_ocr_bytes,
+)
 from campus_ingestion_worker.process_raw_ingestion_job import (
     OnlineOcrProviderResult,
+)
+from campus_ingestion_worker.process_raw_ingestion_job import (
     process_raw_ingestion_job as _process_raw_ingestion_job,
 )
+
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 SOURCE_BUCKET = "campus-rag-source"
@@ -49,7 +54,8 @@ def process_raw_ingestion_job(**kwargs):
             raw_version_id=(env.get("RAW_VERSION_ID") or "").strip(),
             corpus=(env.get("INGESTION_CORPUS") or "").strip(),
             collection=(env.get("INGESTION_COLLECTION") or "").strip(),
-            artifact_mode=(env.get("RAW_INGESTION_ARTIFACT_MODE") or "normalized").strip() or "normalized",
+            artifact_mode=(env.get("RAW_INGESTION_ARTIFACT_MODE") or "normalized").strip()
+            or "normalized",
             split_manifest_path=(
                 Path(env["INGESTION_SPLIT_MANIFEST_PATH"]).resolve()
                 if (env.get("INGESTION_SPLIT_MANIFEST_PATH") or "").strip()
@@ -57,7 +63,11 @@ def process_raw_ingestion_job(**kwargs):
             ),
             report_dir=Path((env.get("IMPORT_REPORT_DIR") or "./var/import-reports").strip()),
             default_visibility_scope=(
-                (env.get("INGESTION_DEFAULT_VISIBILITY_SCOPE") or env.get("INGESTION_DEFAULT_CAMPUS_SCOPE") or "").strip()
+                (
+                    env.get("INGESTION_DEFAULT_VISIBILITY_SCOPE")
+                    or env.get("INGESTION_DEFAULT_CAMPUS_SCOPE")
+                    or ""
+                ).strip()
                 or None
             ),
         )
@@ -107,12 +117,14 @@ class _FakeOnlineOcrClient:
                             "images": {},
                         }
                     }
-                ]
+                ],
             },
             "logId": "log-001",
         }
         return OnlineOcrProviderResult(
-            provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
+            provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            ),
         )
 
 
@@ -132,12 +144,14 @@ class _VolatileFakeOnlineOcrClient:
                             "images": {},
                         }
                     }
-                ]
+                ],
             },
             "logId": f"log-{self.counter:03d}",
         }
         return OnlineOcrProviderResult(
-            provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
+            provider_result_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            ),
         )
 
 
@@ -216,7 +230,9 @@ class _StudentHandbookNormalizedFakeOnlineOcrClient:
                                         "blockType": "paragraph",
                                         "blockId": "p1-body",
                                         "readingOrder": 2,
-                                        "markdown": {"text": "第一条 奖学金评定坚持公开、公平、公正。"},
+                                        "markdown": {
+                                            "text": "第一条 奖学金评定坚持公开、公平、公正。"
+                                        },
                                     },
                                 ]
                             }
@@ -285,7 +301,9 @@ class _SuccessfulMineruCanonicalClient:
 
     def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
         self.calls.append(pdf_path)
-        return OnlineOcrProviderResult(provider_result_bytes=_build_mineru_canonical_archive_bytes())
+        return OnlineOcrProviderResult(
+            provider_result_bytes=_build_mineru_canonical_archive_bytes()
+        )
 
 
 class _FailingMineruCanonicalClient:
@@ -499,7 +517,7 @@ def _build_simple_table_paddle_provider_response_bytes() -> bytes:
                         )
                     }
                 }
-            ]
+            ],
         }
     }
     return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
@@ -509,9 +527,7 @@ def _build_weak_paddle_provider_response_bytes() -> bytes:
     payload = {
         "result": {
             "dataInfo": {"numPages": 1},
-            "layoutParsingResults": [
-                {"markdown": {"text": "课程安排说明"}}
-            ]
+            "layoutParsingResults": [{"markdown": {"text": "课程安排说明"}}],
         }
     }
     return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
@@ -521,9 +537,7 @@ def _build_sparse_map_paddle_provider_response_bytes() -> bytes:
     payload = {
         "result": {
             "dataInfo": {"numPages": 1},
-            "layoutParsingResults": [
-                {"markdown": {"text": "综合楼\n理工楼\n学生食堂"}}
-            ]
+            "layoutParsingResults": [{"markdown": {"text": "综合楼\n理工楼\n学生食堂"}}],
         }
     }
     return (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
@@ -647,7 +661,9 @@ class _LayoutParsingServiceRequestsModule:
                     "dataInfo": {"numPages": 1, "type": "image"},
                     "layoutParsingResults": [
                         {
-                            "markdown": {"text": "图片附件 OCR 正文 第一行\n图片附件 OCR 正文 第二行"},
+                            "markdown": {
+                                "text": "图片附件 OCR 正文 第一行\n图片附件 OCR 正文 第二行"
+                            },
                             "prunedResult": {
                                 "parsing_res_list": [
                                     {
@@ -663,7 +679,7 @@ class _LayoutParsingServiceRequestsModule:
                                 ]
                             },
                         }
-                    ]
+                    ],
                 }
             },
         )
@@ -747,7 +763,7 @@ class PaddleOcrAsyncClientTest(unittest.TestCase):
 
             with (
                 patch.dict("sys.modules", {"requests": requests_module}),
-                patch("campus_ingestion_core.raw_ingestion.time.sleep"),
+                patch("campus_ingestion_core.raw_ingestion_online_ocr.time.sleep"),
             ):
                 result = client.parse_file(file_path)
 
@@ -779,9 +795,9 @@ class PaddleOcrAsyncClientTest(unittest.TestCase):
 
             with (
                 patch.dict("sys.modules", {"requests": requests_module}),
-                patch("campus_ingestion_core.raw_ingestion.time.sleep"),
+                patch("campus_ingestion_core.raw_ingestion_online_ocr.time.sleep"),
                 patch(
-                    "campus_ingestion_core.raw_ingestion.time.monotonic",
+                    "campus_ingestion_core.raw_ingestion_online_ocr.time.monotonic",
                     side_effect=(0.0, 0.0, 0.5, 1.5, 1.5),
                 ),
             ):
@@ -791,7 +807,7 @@ class PaddleOcrAsyncClientTest(unittest.TestCase):
         self.assertIn("file=sample.png", str(raised.exception))
         self.assertIn("job_id=job-1", str(raised.exception))
         self.assertIn("status_code=404", str(raised.exception))
-        self.assertIn("response_text={\"code\":\"NoSuchKey\"}", str(raised.exception))
+        self.assertIn('response_text={"code":"NoSuchKey"}', str(raised.exception))
 
 
 class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
@@ -871,7 +887,9 @@ class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
         self.assertIsNotNone(settings)
         assert settings is not None
         self.assertEqual(settings.provider, "paddleocr_vl_service")
-        self.assertIsInstance(build_online_ocr_client(settings), PaddleOcrLayoutParsingServiceClient)
+        self.assertIsInstance(
+            build_online_ocr_client(settings), PaddleOcrLayoutParsingServiceClient
+        )
 
     def test_build_online_ocr_client_supports_explicit_mineru_provider_mode(self) -> None:
         settings = OnlineOcrSettings.from_env(
@@ -909,7 +927,7 @@ class MineruApiClientTest(unittest.TestCase):
 
             with (
                 patch.dict("sys.modules", {"requests": requests_module}),
-                patch("campus_ingestion_core.raw_ingestion.time.sleep"),
+                patch("campus_ingestion_core.raw_ingestion_online_ocr.time.sleep"),
             ):
                 result = client.parse_file(file_path)
 
@@ -923,7 +941,9 @@ class MineruApiClientTest(unittest.TestCase):
                     {
                         "enable_formula": True,
                         "language": "ch",
-                        "files": [{"name": "sample.pdf", "is_ocr": True, "data_id": unittest.mock.ANY}],
+                        "files": [
+                            {"name": "sample.pdf", "is_ocr": True, "data_id": unittest.mock.ANY}
+                        ],
                         "model_version": "vlm",
                     },
                 )
@@ -1053,7 +1073,9 @@ def _curriculum_raw_asset_record(
     )
 
 
-def _student_handbook_manifest_payload(*, title: str = "中央民族大学奖学金评定办法") -> dict[str, object]:
+def _student_handbook_manifest_payload(
+    *, title: str = "中央民族大学奖学金评定办法"
+) -> dict[str, object]:
     return {
         "manifest_version": "student_handbook_split_manifest_v1",
         "corpus": "regulations",
@@ -1207,7 +1229,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             raw_asset_registry.upsert(
                 _handbook_raw_asset_record(
                     raw_asset_id="asset:student-handbook-master-pdf",
@@ -1243,11 +1267,18 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
 
             self.assertEqual(report.success_count, 2)
             self.assertEqual(
-                tuple(sorted(record.document_id for record in registry.list_by_scope("campus_services", "contact_directory"))),
+                tuple(
+                    sorted(
+                        record.document_id
+                        for record in registry.list_by_scope("campus_services", "contact_directory")
+                    )
+                ),
                 ("campus_services:contact_directory:28eb517c07c83d26ca0c17d33ec46fcdf2eb5258",),
             )
 
-    def test_process_raw_ingestion_job_source_truth_only_reads_registered_raw_asset_from_object_store(self) -> None:
+    def test_process_raw_ingestion_job_source_truth_only_reads_registered_raw_asset_from_object_store(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
@@ -1269,7 +1300,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _FakeOnlineOcrClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1314,10 +1347,14 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report.document_ids, ())
             self.assertEqual(len(online_ocr.calls), 1)
             self.assertEqual(online_ocr.calls[0].name, "student-handbook.pdf")
-            self.assertEqual([upload["key"] for upload in object_store.uploads], [provider_key, layout_key])
+            self.assertEqual(
+                [upload["key"] for upload in object_store.uploads], [provider_key, layout_key]
+            )
             self.assertFalse((root / "registry" / "student_handbook_documents.json").exists())
 
-    def test_source_truth_only_routes_pdf_through_mineru_primary_and_persists_raw_zip_sidecar(self) -> None:
+    def test_source_truth_only_routes_pdf_through_mineru_primary_and_persists_raw_zip_sidecar(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 mineru primary"
@@ -1328,7 +1365,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             paddle_client = _TrackingPaddleOnlineOcrClient()
             mineru_client = _SuccessfulMineruCanonicalClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1380,9 +1419,15 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(len(paddle_client.calls), 0)
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
             self.assertTrue(any(key.endswith("/layout-elements.jsonl") for key in uploaded_keys))
-            layout_upload = next(upload for upload in object_store.uploads if str(upload["key"]).endswith("/layout-elements.jsonl"))
+            layout_upload = next(
+                upload
+                for upload in object_store.uploads
+                if str(upload["key"]).endswith("/layout-elements.jsonl")
+            )
             layout_rows = [
                 json.loads(line)
                 for line in layout_upload["data"].decode("utf-8").splitlines()
@@ -1401,7 +1446,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             mineru_client = _SuccessfulMineruCanonicalClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1445,8 +1492,14 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(len(mineru_client.calls), 1)
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
-            layout_upload = next(upload for upload in object_store.uploads if str(upload["key"]).endswith("/layout-elements.jsonl"))
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
+            layout_upload = next(
+                upload
+                for upload in object_store.uploads
+                if str(upload["key"]).endswith("/layout-elements.jsonl")
+            )
             layout_rows = [
                 json.loads(line)
                 for line in layout_upload["data"].decode("utf-8").splitlines()
@@ -1466,7 +1519,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             paddle_client = _TrackingPaddleOnlineOcrClient()
             mineru_client = _FailingMineruCanonicalClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1518,8 +1573,14 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(len(paddle_client.calls), 1)
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertFalse(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
-            layout_upload = next(upload for upload in object_store.uploads if str(upload["key"]).endswith("/layout-elements.jsonl"))
+            self.assertFalse(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
+            layout_upload = next(
+                upload
+                for upload in object_store.uploads
+                if str(upload["key"]).endswith("/layout-elements.jsonl")
+            )
             layout_rows = [
                 json.loads(line)
                 for line in layout_upload["data"].decode("utf-8").splitlines()
@@ -1528,18 +1589,24 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertTrue(layout_rows)
             self.assertTrue(all(row["ocr_provider"] == "paddleocr_async" for row in layout_rows))
 
-    def test_source_truth_only_dual_runs_generic_image_and_promotes_simple_table_to_paddle(self) -> None:
+    def test_source_truth_only_dual_runs_generic_image_and_promotes_simple_table_to_paddle(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"fake-simple-table-image"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"official_pdf/notice-table/undated/sha256/{raw_hash}/capture/notice-table.png"
+            raw_key = (
+                f"official_pdf/notice-table/undated/sha256/{raw_hash}/capture/notice-table.png"
+            )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             paddle_client = _SimpleTablePaddleImageClient()
             mineru_client = _EmptyMineruImageClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1599,21 +1666,31 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(updated_record.asset_subkind, "simple_table_image")
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertFalse(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys))
+            self.assertFalse(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
+            self.assertTrue(
+                any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys)
+            )
 
-    def test_source_truth_only_dual_runs_generic_image_and_promotes_complex_table_to_mineru(self) -> None:
+    def test_source_truth_only_dual_runs_generic_image_and_promotes_complex_table_to_mineru(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"fake-complex-table-image"
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            raw_key = f"official_pdf/wide-schedule/undated/sha256/{raw_hash}/capture/wide-schedule.png"
+            raw_key = (
+                f"official_pdf/wide-schedule/undated/sha256/{raw_hash}/capture/wide-schedule.png"
+            )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             paddle_client = _WeakPaddleImageClient()
             mineru_client = _ComplexTableMineruImageClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1673,9 +1750,17 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(updated_record.asset_subkind, "complex_table_image")
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys))
-            layout_upload = next(upload for upload in object_store.uploads if str(upload["key"]).endswith("/layout-elements.jsonl"))
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
+            self.assertTrue(
+                any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys)
+            )
+            layout_upload = next(
+                upload
+                for upload in object_store.uploads
+                if str(upload["key"]).endswith("/layout-elements.jsonl")
+            )
             layout_rows = [
                 json.loads(line)
                 for line in layout_upload["data"].decode("utf-8").splitlines()
@@ -1695,7 +1780,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             paddle_client = _SparseMapPaddleImageClient()
             mineru_client = _SpatialMineruImageClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1756,9 +1843,13 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(updated_record.asset_subkind, "spatial_image")
             uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertFalse(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertFalse(any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys))
+            self.assertFalse(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
             self.assertFalse(any(key.endswith("/layout-elements.jsonl") for key in uploaded_keys))
-            self.assertTrue(any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys))
+            self.assertTrue(
+                any(key.endswith("/ocr-routing-decision.json") for key in uploaded_keys)
+            )
 
     def test_student_handbook_normalized_raw_ingestion_requires_split_manifest(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -1806,7 +1897,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     raw_asset_registry=raw_asset_registry,
                 )
 
-    def test_process_raw_ingestion_job_normalizes_student_handbook_provider_result_into_logical_documents(self) -> None:
+    def test_process_raw_ingestion_job_normalizes_student_handbook_provider_result_into_logical_documents(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
@@ -1852,7 +1945,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _StudentHandbookNormalizedFakeOnlineOcrClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -1913,7 +2008,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
 
             upload_keys = [str(upload["key"]) for upload in object_store.uploads]
             self.assertEqual(upload_keys[0:2], [provider_key, structured_full_key])
-            self.assertEqual(len([key for key in upload_keys if key.endswith("/document-units.jsonl")]), 2)
+            self.assertEqual(
+                len([key for key in upload_keys if key.endswith("/document-units.jsonl")]), 2
+            )
             self.assertEqual(len([key for key in upload_keys if key.endswith("/canonical.md")]), 2)
             self.assertNotIn(raw_key, upload_keys)
 
@@ -1922,33 +2019,52 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             self.assertEqual(len(registry_payload), 2)
             scholarship_record = next(
-                payload for payload in registry_payload.values() if payload["document_id"] == scholarship_doc_id
+                payload
+                for payload in registry_payload.values()
+                if payload["document_id"] == scholarship_doc_id
             )
             discipline_record = next(
-                payload for payload in registry_payload.values() if payload["document_id"] == discipline_doc_id
+                payload
+                for payload in registry_payload.values()
+                if payload["document_id"] == discipline_doc_id
             )
             self.assertEqual(scholarship_record["provider_response_object_key"], provider_key)
             self.assertEqual(discipline_record["provider_response_object_key"], provider_key)
             self.assertIn(structured_full_key, scholarship_record["processed_object_keys"])
             self.assertIn(structured_full_key, discipline_record["processed_object_keys"])
-            self.assertTrue(scholarship_record["canonical_markdown_object_key"].endswith("/canonical.md"))
-            self.assertTrue(discipline_record["canonical_markdown_object_key"].endswith("/canonical.md"))
+            self.assertTrue(
+                scholarship_record["canonical_markdown_object_key"].endswith("/canonical.md")
+            )
+            self.assertTrue(
+                discipline_record["canonical_markdown_object_key"].endswith("/canonical.md")
+            )
             self.assertEqual(scholarship_record["raw_asset"]["page_start"], 1)
             self.assertEqual(scholarship_record["raw_asset"]["page_end"], 2)
             self.assertEqual(discipline_record["raw_asset"]["page_start"], 3)
             self.assertEqual(discipline_record["raw_asset"]["page_end"], 3)
-            self.assertEqual(scholarship_record["source_uri"], "https://campus.example/handbook/scholarship-policy")
-            self.assertEqual(discipline_record["source_uri"], "https://campus.example/handbook/discipline-policy")
+            self.assertEqual(
+                scholarship_record["source_uri"],
+                "https://campus.example/handbook/scholarship-policy",
+            )
+            self.assertEqual(
+                discipline_record["source_uri"], "https://campus.example/handbook/discipline-policy"
+            )
             self.assertEqual(discipline_record["entitlement_groups"], ["students"])
             self.assertEqual(discipline_record["visibility_scope"], "main")
-            self.assertEqual(scholarship_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
-            self.assertEqual(discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1")
+            self.assertEqual(
+                scholarship_record["cleaning_policy_version"], "student_handbook_cleaning_v1"
+            )
+            self.assertEqual(
+                discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1"
+            )
             self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
             self.assertEqual(discipline_record["parser_version"], "paddleocr-vl-1.5")
             self.assertEqual(scholarship_record["embedding_model"], "Qwen3-Embedding-4B")
             self.assertEqual(discipline_record["embedding_model"], "Qwen3-Embedding-4B")
 
-    def test_process_raw_ingestion_job_persists_handbook_document_artifact_keys_under_year_namespace(self) -> None:
+    def test_process_raw_ingestion_job_persists_handbook_document_artifact_keys_under_year_namespace(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook 2018"
@@ -1964,7 +2080,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2029,7 +2147,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertIn((DERIVED_BUCKET, expected_document_units_key), object_store.objects)
             self.assertIn((DERIVED_BUCKET, expected_canonical_key), object_store.objects)
 
-    def test_process_raw_ingestion_job_builds_handbook_chunks_from_persisted_document_units(self) -> None:
+    def test_process_raw_ingestion_job_builds_handbook_chunks_from_persisted_document_units(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook stable"
@@ -2044,7 +2164,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2102,10 +2224,22 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertTrue(all(chunk.metadata["root_unit_id"] for chunk in chunks))
             self.assertTrue(all(chunk.metadata["segment_index"] >= 1 for chunk in chunks))
             self.assertTrue(all(chunk.metadata["segment_total"] >= 1 for chunk in chunks))
-            self.assertTrue(all(chunk.metadata["chunk_policy_version"] == "student_handbook_semantic_v3" for chunk in chunks))
-            self.assertTrue(all(chunk.metadata["cleaning_policy_version"] == "student_handbook_cleaning_v1" for chunk in chunks))
+            self.assertTrue(
+                all(
+                    chunk.metadata["chunk_policy_version"] == "student_handbook_semantic_v3"
+                    for chunk in chunks
+                )
+            )
+            self.assertTrue(
+                all(
+                    chunk.metadata["cleaning_policy_version"] == "student_handbook_cleaning_v1"
+                    for chunk in chunks
+                )
+            )
 
-    def test_process_raw_ingestion_job_rejects_split_manifest_with_mismatched_raw_asset_id(self) -> None:
+    def test_process_raw_ingestion_job_rejects_split_manifest_with_mismatched_raw_asset_id(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
@@ -2177,7 +2311,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                     raw_asset_registry=raw_asset_registry,
                 )
 
-    def test_process_raw_ingestion_job_records_manifest_title_mismatch_without_persisting_document(self) -> None:
+    def test_process_raw_ingestion_job_records_manifest_title_mismatch_without_persisting_document(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 remote student handbook"
@@ -2219,7 +2355,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2284,7 +2422,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2345,7 +2485,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report_payload["updated_document_ids"], [])
             self.assertEqual(report_payload["skipped_document_ids"], [document_id])
 
-    def test_process_raw_ingestion_job_records_updated_document_ids_for_changed_handbook_content(self) -> None:
+    def test_process_raw_ingestion_job_records_updated_document_ids_for_changed_handbook_content(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             stable_bytes = b"%PDF-1.4 remote student handbook stable"
@@ -2365,7 +2507,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, stable_key)] = stable_bytes
             object_store.objects[(SOURCE_BUCKET, updated_key)] = updated_bytes
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2455,7 +2599,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(report_payload["updated_document_ids"], [document_id])
             self.assertEqual(report_payload["skipped_document_ids"], [])
 
-    def test_source_truth_only_reuses_registered_raw_asset_but_rewrites_provider_result(self) -> None:
+    def test_source_truth_only_reuses_registered_raw_asset_but_rewrites_provider_result(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 volatile"
@@ -2491,7 +2637,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 "IMPORT_REPORT_DIR": str(root / "reports"),
                 "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "student_handbook_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
@@ -2527,7 +2675,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(second.raw_uploaded_count, 0)
             self.assertEqual(second.raw_reused_count, 1)
             self.assertEqual(len(object_store.uploads), 4)
-            self.assertEqual([upload["key"] for upload in object_store.uploads[-2:]], [provider_key, layout_key])
+            self.assertEqual(
+                [upload["key"] for upload in object_store.uploads[-2:]], [provider_key, layout_key]
+            )
 
     def test_source_truth_only_rejects_split_manifest(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -2568,7 +2718,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
                 )
             )
 
-            with self.assertRaisesRegex(ValueError, "source_truth_only does not support split manifest ingestion"):
+            with self.assertRaisesRegex(
+                ValueError, "source_truth_only does not support split manifest ingestion"
+            ):
                 process_raw_ingestion_job(
                     env={
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
@@ -2631,7 +2783,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
             )
@@ -2669,16 +2823,32 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
 
             raw_hash = hashlib.sha256(raw_bytes).hexdigest()
             raw_version_id = f"sha256:{raw_hash}"
-            source_uri_1 = self._build_curriculum_source_locator(raw_hash=raw_hash, page_start=1, page_end=1)
-            source_uri_2 = self._build_curriculum_source_locator(raw_hash=raw_hash, page_start=2, page_end=2)
+            source_uri_1 = self._build_curriculum_source_locator(
+                raw_hash=raw_hash, page_start=1, page_end=1
+            )
+            source_uri_2 = self._build_curriculum_source_locator(
+                raw_hash=raw_hash, page_start=2, page_end=2
+            )
             digest_1 = hashlib.sha256(
                 "|".join(
-                    [raw_version_id, "curriculum_plan_split_manifest_v1", "curriculum:plan-001", "1", "1"]
+                    [
+                        raw_version_id,
+                        "curriculum_plan_split_manifest_v1",
+                        "curriculum:plan-001",
+                        "1",
+                        "1",
+                    ]
                 ).encode("utf-8")
             ).hexdigest()[:12]
             digest_2 = hashlib.sha256(
                 "|".join(
-                    [raw_version_id, "curriculum_plan_split_manifest_v1", "curriculum:plan-002", "2", "2"]
+                    [
+                        raw_version_id,
+                        "curriculum_plan_split_manifest_v1",
+                        "curriculum:plan-002",
+                        "2",
+                        "2",
+                    ]
                 ).encode("utf-8")
             ).hexdigest()[:12]
 
@@ -2781,7 +2951,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             self.assertEqual(plan_001["source_uri"], source_uri_1)
             self.assertEqual(plan_002["source_uri"], source_uri_2)
 
-    def test_process_raw_ingestion_job_supports_curriculum_plan_source_truth_only_presplit(self) -> None:
+    def test_process_raw_ingestion_job_supports_curriculum_plan_source_truth_only_presplit(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 curriculum plan"
@@ -2791,7 +2963,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
             )
@@ -2871,7 +3045,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             )
             self.assertEqual(len(raw_asset_payload), 1)
 
-    def test_process_raw_ingestion_job_source_truth_only_uses_dedicated_raw_asset_registry_env(self) -> None:
+    def test_process_raw_ingestion_job_source_truth_only_uses_dedicated_raw_asset_registry_env(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 curriculum plan"
@@ -2968,7 +3144,9 @@ class ProcessRawIngestionJobTest(unittest.TestCase):
             object_store = _FakeObjectStore()
             object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
             online_ocr = _CurriculumPlanFakeOnlineOcrClient()
-            registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "curriculum_plan_documents.json")
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
             )

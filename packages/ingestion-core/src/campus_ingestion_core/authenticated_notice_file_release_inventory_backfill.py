@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -16,9 +16,9 @@ from campus_ingestion_core.authenticated_notice_file_release_owner_recovery impo
     AuthenticatedNoticeFileReleaseExport,
     load_authenticated_notice_file_release_export,
 )
+from campus_ingestion_core.campusrag_ingestion_support import utc_now
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.registry import RawAssetRegistry, build_raw_asset_registry_from_env
-from campus_ingestion_core.campusrag_ingestion_support import utc_now
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,9 +59,12 @@ def backfill_authenticated_notice_file_release_inventory(
     manifest = dict(export.export_manifest or {})
     if not manifest:
         raise ValueError("file-release inventory backfill requires manifest_path")
-    runtime_inventory_store = inventory_store or build_authenticated_notice_file_release_inventory_store_from_env(
-        source,
-        prefer_operator=True,
+    runtime_inventory_store = (
+        inventory_store
+        or build_authenticated_notice_file_release_inventory_store_from_env(
+            source,
+            prefer_operator=True,
+        )
     )
     runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(
         source,
@@ -124,9 +127,7 @@ def backfill_authenticated_notice_file_release_inventory(
         inventory_upsert_count=len(entries),
         raw_asset_upsert_count=len(raw_records),
         reference_only_count=sum(
-            1
-            for entry in entries
-            if entry.released_file_storage_provider != "object_store"
+            1 for entry in entries if entry.released_file_storage_provider != "object_store"
         ),
         targeted_upsert=target_file_release_id is not None,
         target_file_release_id=target_file_release_id,
@@ -172,7 +173,9 @@ def inventory_entry_from_file_release_bundle_record(
         released_file_provenance_status=_optional_text(released_file.get("provenance_status")),
         updated_at=utc_now(),
         record={
-            "file_release_id": _required_int(bundle_record.get("file_release_id"), "file_release_id"),
+            "file_release_id": _required_int(
+                bundle_record.get("file_release_id"), "file_release_id"
+            ),
             "file_release": dict(file_release),
             "released_file": dict(released_file),
         },
@@ -203,9 +206,7 @@ def raw_asset_record_from_file_release_inventory_entry(
     if storage_provider != "object_store":
         return None
     if not (
-        entry.released_file_bucket
-        and entry.released_file_object_key
-        and entry.released_file_sha256
+        entry.released_file_bucket and entry.released_file_object_key and entry.released_file_sha256
     ):
         raise ValueError(
             "file-release inventory backfill requires bucket/object_key/sha256 for object_store rows"

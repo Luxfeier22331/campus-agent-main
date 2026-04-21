@@ -46,7 +46,9 @@ def _make_chunk(
         text=text,
         source_channel="official_web" if corpus == "official_web" else "pdf_ocr",
         is_current=True,
-        parser_version="official_web_projection_v1" if corpus == "official_web" else "raw-online-ocr-v1",
+        parser_version="official_web_projection_v1"
+        if corpus == "official_web"
+        else "raw-online-ocr-v1",
         embedding_model="Qwen3-Embedding-4B",
         metadata=metadata,
     )
@@ -294,7 +296,10 @@ class IndexReleaseValidationTest(unittest.TestCase):
                     collection="muc_public_pages",
                     document_id="official_web:muc_public:article:doc-002",
                     page_family="article_detail",
-                    extra_metadata={"serving_intent": "audit_only", "promotion_block_reason": "manual_review_pending"},
+                    extra_metadata={
+                        "serving_intent": "audit_only",
+                        "promotion_block_reason": "manual_review_pending",
+                    },
                 ),
             ),
         )

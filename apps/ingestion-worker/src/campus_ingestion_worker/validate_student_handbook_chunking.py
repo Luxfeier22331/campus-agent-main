@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import os
+from dataclasses import asdict
 from pathlib import Path
 
 from campus_ingestion_core import (
@@ -12,6 +12,7 @@ from campus_ingestion_core import (
     scan_student_handbook_chunking,
     validate_student_handbook_chunking,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
-
-from qdrant_client import QdrantClient
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry_scope_chunk_preparation import prepare_registry_scope_chunks
 from campus_ingestion_core.registry_scope_release import release_registry_scope
+from qdrant_client import QdrantClient
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 
@@ -219,7 +219,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
         }
 
-    def test_prepare_registry_scope_chunks_writes_chunk_prep_artifacts_without_embedding_env(self) -> None:
+    def test_prepare_registry_scope_chunks_writes_chunk_prep_artifacts_without_embedding_env(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             object_key = (
@@ -258,7 +260,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertIn(str(report.validation_summary_object_key), upload_keys)
         self.assertIn(str(report.document_report_object_key), upload_keys)
 
-    def test_prepare_registry_scope_chunks_can_use_verified_closeout_run_without_current_scope(self) -> None:
+    def test_prepare_registry_scope_chunks_can_use_verified_closeout_run_without_current_scope(
+        self,
+    ) -> None:
         closeout_run_id = "authenticated-notice-source-truth-pilot-20260409-stratified-003"
         final_object_key = (
             "campus_notices/documents/internal_notice/"
@@ -281,7 +285,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         registry = _CloseoutOnlyRegistry((record,))
         object_store = _FakeObjectStore(
             objects={
-                ("campus-rag-derived", staged_object_key): _make_internal_notice_document_units_bytes(
+                (
+                    "campus-rag-derived",
+                    staged_object_key,
+                ): _make_internal_notice_document_units_bytes(
                     document_id=record.document_id,
                     version_id=record.version_id,
                 ),
@@ -366,7 +373,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             all(chunk.metadata["internal_notice_lane"] == "notice_body" for chunk in body_chunks)
         )
         self.assertTrue(
-            all(chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2" for chunk in body_chunks)
+            all(
+                chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2"
+                for chunk in body_chunks
+            )
         )
         self.assertTrue(
             all(
@@ -474,7 +484,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     "text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
                     "raw_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
                     "clean_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 报名表.docx",
-                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "anchor": {
+                        "source_uri": record.source_uri,
+                        "attachment_ref_id": "attachment-0001",
+                    },
                     "metadata": {
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
@@ -499,7 +512,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     "text": "姓名：张三\n学院：法学院\n联系电话：12345678",
                     "raw_text": "姓名：张三\n学院：法学院\n联系电话：12345678",
                     "clean_text": "姓名：张三\n学院：法学院\n联系电话：12345678",
-                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "anchor": {
+                        "source_uri": record.source_uri,
+                        "attachment_ref_id": "attachment-0001",
+                    },
                     "metadata": {
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
@@ -521,7 +537,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             structured_jsonl_bytes=structured_payload,
         )
 
-        body_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"]
+        body_chunks = [
+            chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"
+        ]
         self.assertTrue(body_chunks)
         self.assertTrue(
             all(
@@ -530,7 +548,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             )
         )
         self.assertTrue(
-            all(chunk.metadata["strategy_name"] == "internal_notice_attachment_text_v2" for chunk in body_chunks)
+            all(
+                chunk.metadata["strategy_name"] == "internal_notice_attachment_text_v2"
+                for chunk in body_chunks
+            )
         )
         self.assertTrue(
             all(
@@ -559,7 +580,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     "text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
                     "raw_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
                     "clean_text": "关于开放2025年度拔尖创新人才证书项目第二轮报名的通知 / 附件 1 / 现场签到图.jpg",
-                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "anchor": {
+                        "source_uri": record.source_uri,
+                        "attachment_ref_id": "attachment-0001",
+                    },
                     "metadata": {
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
@@ -584,7 +608,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     "text": ocr_text,
                     "raw_text": ocr_text,
                     "clean_text": ocr_text,
-                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "anchor": {
+                        "source_uri": record.source_uri,
+                        "attachment_ref_id": "attachment-0001",
+                    },
                     "metadata": {
                         "projection_name": "internal_notice_attachment_documents",
                         "parent_document_id": "notice:muc_internal_portal:355119",
@@ -606,7 +633,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             structured_jsonl_bytes=structured_payload,
         )
 
-        body_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"]
+        body_chunks = [
+            chunk for chunk in chunks if chunk.metadata["unit_type"] == "attachment_body"
+        ]
         self.assertGreater(len(body_chunks), 1)
         self.assertTrue(
             all(
@@ -615,7 +644,10 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
             )
         )
         self.assertTrue(
-            all(chunk.metadata["strategy_name"] == "internal_notice_attachment_ocr_v2" for chunk in body_chunks)
+            all(
+                chunk.metadata["strategy_name"] == "internal_notice_attachment_ocr_v2"
+                for chunk in body_chunks
+            )
         )
         self.assertTrue(
             all(int(chunk.metadata["final_token_count"]) <= 240 for chunk in body_chunks)
@@ -653,7 +685,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
                     publish_alias=False,
                 )
 
-    def test_release_registry_scope_uses_verified_chunk_preparation_for_internal_notice(self) -> None:
+    def test_release_registry_scope_uses_verified_chunk_preparation_for_internal_notice(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             object_key = (
@@ -701,7 +735,9 @@ class InternalNoticeScopeChunkPipelineTest(unittest.TestCase):
         self.assertEqual(report.document_count, 1)
         self.assertGreater(report.point_count, 0)
 
-    def test_prepare_registry_scope_chunks_reports_record_context_on_structured_mismatch(self) -> None:
+    def test_prepare_registry_scope_chunks_reports_record_context_on_structured_mismatch(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             object_key = (

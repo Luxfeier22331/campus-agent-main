@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -43,7 +43,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     registry = InMemoryDocumentRegistry.from_json_file(Path(args.documents_json))
     records = registry.list_by_scope("regulations", "institutional_regulations")
     if args.document_ids:
-        selected_ids = {document_id.strip() for document_id in args.document_ids if document_id.strip()}
+        selected_ids = {
+            document_id.strip() for document_id in args.document_ids if document_id.strip()
+        }
         records = tuple(record for record in records if record.document_id in selected_ids)
     report = prepare_institutional_regulation_chunks(
         records=records,

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.raw_ingestion import (
+from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
 )
@@ -51,7 +51,9 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(payload["documents"][0]["handbook_section"], "国家高等教育管理有关规定")
         self.assertEqual(payload["documents"][-1]["title"], "中央民族大学学生公费医疗管理办法")
         self.assertTrue(
-            payload["documents"][-1]["source_uri"].startswith("campus-agent://regulations/student_handbook/docs/")
+            payload["documents"][-1]["source_uri"].startswith(
+                "campus-agent://regulations/student_handbook/docs/"
+            )
         )
         titles = {document["title"] for document in payload["documents"]}
         self.assertNotIn("中央民族大学校内常用电话", titles)
@@ -67,36 +69,64 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(manifest.manifest_version, "curriculum_plan_split_manifest_v1")
         self.assertEqual(manifest.raw_asset_id, "asset:curriculum-plan-2022")
         self.assertEqual(len(manifest.documents), 69)
-        self.assertEqual(manifest.documents[0].document_id, "curriculum:中央民族大学通识课程教学计划")
+        self.assertEqual(
+            manifest.documents[0].document_id, "curriculum:中央民族大学通识课程教学计划"
+        )
         self.assertEqual(manifest.documents[0].page_start, 20)
         self.assertEqual(manifest.documents[0].page_end, 21)
-        self.assertEqual(manifest.documents[1].document_id, "curriculum:中央民族大学通识课程思想政治理论课教学计划")
+        self.assertEqual(
+            manifest.documents[1].document_id,
+            "curriculum:中央民族大学通识课程思想政治理论课教学计划",
+        )
         self.assertEqual(manifest.documents[1].page_start, 22)
         self.assertEqual(manifest.documents[1].page_end, 26)
-        self.assertEqual(manifest.documents[2].document_id, "curriculum:中央民族大学通识课程“大学英语”课程教学计划")
+        self.assertEqual(
+            manifest.documents[2].document_id,
+            "curriculum:中央民族大学通识课程“大学英语”课程教学计划",
+        )
         self.assertEqual(manifest.documents[2].page_start, 27)
         self.assertEqual(manifest.documents[2].page_end, 29)
-        self.assertEqual(manifest.documents[3].document_id, "curriculum:中央民族大学通识课程“信息素养”课程教学计划")
+        self.assertEqual(
+            manifest.documents[3].document_id,
+            "curriculum:中央民族大学通识课程“信息素养”课程教学计划",
+        )
         self.assertEqual(manifest.documents[3].page_start, 30)
         self.assertEqual(manifest.documents[3].page_end, 31)
-        self.assertEqual(manifest.documents[4].document_id, "curriculum:中央民族大学通识课程“大学体育”课程教学计划")
+        self.assertEqual(
+            manifest.documents[4].document_id,
+            "curriculum:中央民族大学通识课程“大学体育”课程教学计划",
+        )
         self.assertEqual(manifest.documents[4].page_start, 32)
         self.assertEqual(manifest.documents[4].page_end, 36)
-        self.assertEqual(manifest.documents[-1].document_id, "curriculum:教育学本科第二学士学位人才培养方案")
+        self.assertEqual(
+            manifest.documents[-1].document_id, "curriculum:教育学本科第二学士学位人才培养方案"
+        )
         self.assertEqual(manifest.documents[-1].page_start, 704)
         self.assertEqual(manifest.documents[-1].page_end, 710)
         titles = {document.title for document in manifest.documents}
         self.assertNotIn("各类课程教学计划", titles)
 
-    def test_repo_curriculum_plan_manifests_use_canonical_authorization_projection_keys(self) -> None:
-        root = Path(__file__).resolve().parents[2] / "configs" / "ingestion" / "curriculum" / "curriculum_plan"
+    def test_repo_curriculum_plan_manifests_use_canonical_authorization_projection_keys(
+        self,
+    ) -> None:
+        root = (
+            Path(__file__).resolve().parents[2]
+            / "configs"
+            / "ingestion"
+            / "curriculum"
+            / "curriculum_plan"
+        )
 
         for filename in ("split-manifest.v1.json", "split-manifest.candidate.v1.json"):
             payload = json.loads((root / filename).read_text(encoding="utf-8"))
             for document in payload["documents"]:
                 self.assertNotIn("acl_groups", document, msg=f"{filename} still uses acl_groups")
-                self.assertNotIn("campus_scope", document, msg=f"{filename} still uses campus_scope")
-                self.assertIn("entitlement_groups", document, msg=f"{filename} is missing entitlement_groups")
+                self.assertNotIn(
+                    "campus_scope", document, msg=f"{filename} still uses campus_scope"
+                )
+                self.assertIn(
+                    "entitlement_groups", document, msg=f"{filename} is missing entitlement_groups"
+                )
                 if document["entitlement_groups"]:
                     self.assertIn(
                         "visibility_scope",
@@ -185,8 +215,14 @@ class SplitManifestTest(unittest.TestCase):
             collection="curriculum_plan",
         )
 
-        first_rows = [json.loads(line) for line in first_input.document_units_bytes.decode("utf-8").splitlines()]
-        second_rows = [json.loads(line) for line in second_input.document_units_bytes.decode("utf-8").splitlines()]
+        first_rows = [
+            json.loads(line)
+            for line in first_input.document_units_bytes.decode("utf-8").splitlines()
+        ]
+        second_rows = [
+            json.loads(line)
+            for line in second_input.document_units_bytes.decode("utf-8").splitlines()
+        ]
 
         self.assertEqual(first_rows[0]["doc_id"], "curriculum:国际经济与贸易本科人才培养方案")
         self.assertEqual(first_rows[0]["page_start"], 278)
@@ -231,10 +267,38 @@ class SplitManifestTest(unittest.TestCase):
                 "text_normalized": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
                 "html": "<table><tr><td>课程</td><td>学分</td></tr><tr><td>工程数学</td><td>4</td></tr></table>",
                 "table_cells": [
-                    {"row": 1, "col": 1, "text": "课程", "rowspan": 1, "colspan": 1, "is_header": True},
-                    {"row": 1, "col": 2, "text": "学分", "rowspan": 1, "colspan": 1, "is_header": True},
-                    {"row": 2, "col": 1, "text": "工程数学", "rowspan": 1, "colspan": 1, "is_header": False},
-                    {"row": 2, "col": 2, "text": "4", "rowspan": 1, "colspan": 1, "is_header": False},
+                    {
+                        "row": 1,
+                        "col": 1,
+                        "text": "课程",
+                        "rowspan": 1,
+                        "colspan": 1,
+                        "is_header": True,
+                    },
+                    {
+                        "row": 1,
+                        "col": 2,
+                        "text": "学分",
+                        "rowspan": 1,
+                        "colspan": 1,
+                        "is_header": True,
+                    },
+                    {
+                        "row": 2,
+                        "col": 1,
+                        "text": "工程数学",
+                        "rowspan": 1,
+                        "colspan": 1,
+                        "is_header": False,
+                    },
+                    {
+                        "row": 2,
+                        "col": 2,
+                        "text": "4",
+                        "rowspan": 1,
+                        "colspan": 1,
+                        "is_header": False,
+                    },
                 ],
                 "page_start": 20,
                 "page_end": 20,
@@ -273,13 +337,23 @@ class SplitManifestTest(unittest.TestCase):
         )
 
         projected_rows = [
-            json.loads(line) for line in document_input.document_units_bytes.decode("utf-8").splitlines() if line.strip()
+            json.loads(line)
+            for line in document_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
         ]
-        expected_source_uri = "campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21"
+        expected_source_uri = (
+            "campusrag://source/curriculum/curriculum-plan-2022/sha256/test/capture/pages/20-21"
+        )
 
         self.assertEqual(len(projected_rows), 3)
-        self.assertTrue(all(row["doc_id"] == manifest_document.document_id for row in projected_rows))
-        self.assertTrue(all(row["version_id"] == document_input.metadata["version_id"] for row in projected_rows))
+        self.assertTrue(
+            all(row["doc_id"] == manifest_document.document_id for row in projected_rows)
+        )
+        self.assertTrue(
+            all(
+                row["version_id"] == document_input.metadata["version_id"] for row in projected_rows
+            )
+        )
         self.assertEqual(projected_rows[0]["source_url"], expected_source_uri)
         self.assertEqual(projected_rows[1]["html"], structured_rows[1]["html"])
         self.assertEqual(projected_rows[1]["table_cells"], structured_rows[1]["table_cells"])
@@ -355,7 +429,9 @@ class SplitManifestTest(unittest.TestCase):
         )
 
         projected_rows = [
-            json.loads(line) for line in document_input.document_units_bytes.decode("utf-8").splitlines() if line.strip()
+            json.loads(line)
+            for line in document_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
         ]
 
         self.assertEqual(projected_rows[0]["row_type"], "heading")
@@ -521,7 +597,9 @@ class SplitManifestTest(unittest.TestCase):
                     expected_collection="curriculum_plan",
                 )
 
-    def test_build_split_manifest_document_input_prefers_new_authorization_projection_fields(self) -> None:
+    def test_build_split_manifest_document_input_prefers_new_authorization_projection_fields(
+        self,
+    ) -> None:
         manifest_document = SplitManifestDocument(
             document_id="curriculum:plan-002",
             title="Plan 002",
@@ -568,7 +646,9 @@ class SplitManifestTest(unittest.TestCase):
         )
         self.assertEqual(document_input.visibility_scope, "main")
 
-    def test_build_split_manifest_document_input_keeps_public_curriculum_visibility_scope_null(self) -> None:
+    def test_build_split_manifest_document_input_keeps_public_curriculum_visibility_scope_null(
+        self,
+    ) -> None:
         manifest_document = SplitManifestDocument(
             document_id="curriculum:plan-public",
             title="Plan Public",
@@ -611,7 +691,9 @@ class SplitManifestTest(unittest.TestCase):
         self.assertIsNone(document_input.metadata["visibility_scope"])
         self.assertIsNone(document_input.visibility_scope)
 
-    def test_public_curriculum_manifest_document_does_not_inherit_default_visibility_scope(self) -> None:
+    def test_public_curriculum_manifest_document_does_not_inherit_default_visibility_scope(
+        self,
+    ) -> None:
         manifest_document = SplitManifestDocument(
             document_id="curriculum:plan-public",
             title="Plan Public",

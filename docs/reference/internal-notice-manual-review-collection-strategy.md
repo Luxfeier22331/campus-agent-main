@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-11
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Internal Notice Manual-Review Collection Strategy
@@ -74,5 +74,5 @@ updated: 2026-04-20
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
-- `docs/plans/authenticated-notice-file-release-owner-recovery.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md`

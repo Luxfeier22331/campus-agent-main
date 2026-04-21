@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
-from dataclasses import asdict, dataclass
 import hashlib
 import json
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,25 +30,25 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticePreparedImport,
     prepare_authenticated_notice_bundle_records,
 )
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    SOURCE_TRUTH_REPLAY_INPUT_KIND,
+    AuthenticatedNoticeSourceTruthReplayRequest,
+    build_authenticated_notice_source_truth_replay_documents,
+)
+from campus_ingestion_core.campusrag_ingestion_artifacts import (
+    build_document_processed_object_keys,
+    resolve_document_artifact_keys,
+    serialize_document_import_stub,
+)
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.object_store import (
     build_operations_artifact_key,
     is_source_object_key,
 )
 from campus_ingestion_core.raw_ingestion import OnlineOcrClient
-from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    SOURCE_TRUTH_REPLAY_INPUT_KIND,
-    AuthenticatedNoticeSourceTruthReplayRequest,
-    build_authenticated_notice_source_truth_replay_documents,
-)
-from campus_ingestion_core.authenticated_notice_source_projections import (
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
-)
-from campus_ingestion_core.campusrag_ingestion_support import (
-    build_document_processed_object_keys,
-    resolve_document_artifact_keys,
-    serialize_document_import_stub,
-)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -234,11 +234,15 @@ class CloseoutExecutionCoordinator:
         if str(payload.get("run_id")) != run.run_id:
             raise ValueError(f"batch input run mismatch for {batch.batch_id}")
         input_kind = str(payload.get("input_kind") or run.input_kind or DEFAULT_CLOSEOUT_INPUT_KIND)
-        prepared_bundle = prepare_authenticated_notice_bundle_records(
-            request=_request_from_run(run),
-            bundle_records=tuple(payload.get("bundle_records") or ()),
-            export_manifest=self.artifacts.load_export_manifest(run),
-        ) if input_kind == DEFAULT_CLOSEOUT_INPUT_KIND else None
+        prepared_bundle = (
+            prepare_authenticated_notice_bundle_records(
+                request=_request_from_run(run),
+                bundle_records=tuple(payload.get("bundle_records") or ()),
+                export_manifest=self.artifacts.load_export_manifest(run),
+            )
+            if input_kind == DEFAULT_CLOSEOUT_INPUT_KIND
+            else None
+        )
         cleaning_policy_version = load_runtime_profile(
             run.corpus,
             run.collection,
@@ -416,9 +420,13 @@ class CloseoutExecutionCoordinator:
                 },
                 raw_record=dict(parent_snapshot["raw_record"]),
                 source_artifact_keys={
-                    "source-truth/notice-manifest.json": str(parent_snapshot["notice_manifest_key"]),
+                    "source-truth/notice-manifest.json": str(
+                        parent_snapshot["notice_manifest_key"]
+                    ),
                     "source-truth/content-blocks.jsonl": str(parent_snapshot["content_blocks_key"]),
-                    "source-truth/attachment-refs.jsonl": str(parent_snapshot["attachment_refs_key"]),
+                    "source-truth/attachment-refs.jsonl": str(
+                        parent_snapshot["attachment_refs_key"]
+                    ),
                 },
                 artifact_keys=artifact_keys,
                 documents=documents,
@@ -577,9 +585,7 @@ class CloseoutExecutionCoordinator:
                 raise ValueError(
                     f"closeout staging does not accept source-level provider response writes: {document_id}"
                 )
-            provider_hash = hashlib.sha256(
-                translated_document.provider_response_bytes
-            ).hexdigest()
+            provider_hash = hashlib.sha256(translated_document.provider_response_bytes).hexdigest()
             staged_provider_key = build_operations_artifact_key(
                 corpus=request.corpus,
                 operation=DEFAULT_CLOSEOUT_OPERATION,
@@ -642,9 +648,7 @@ class CloseoutExecutionCoordinator:
             )
         final_markdown_key = resolved_artifact_keys.canonical_markdown_key
         if translated_document.canonical_markdown_bytes is not None:
-            markdown_hash = hashlib.sha256(
-                translated_document.canonical_markdown_bytes
-            ).hexdigest()
+            markdown_hash = hashlib.sha256(translated_document.canonical_markdown_bytes).hexdigest()
             staged_markdown_key = build_operations_artifact_key(
                 corpus=request.corpus,
                 operation=DEFAULT_CLOSEOUT_OPERATION,
@@ -735,9 +739,7 @@ def _source_truth_request_from_run(
         corpus=run.corpus,
         collection=run.collection,
         source_projections_path=(
-            Path(run.source_projections_path)
-            if run.source_projections_path
-            else None
+            Path(run.source_projections_path) if run.source_projections_path else None
         ),
         default_visibility_scope=run.visibility_scope,
     )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_notice_family import (
     classify_authenticated_notice_bundle_record,

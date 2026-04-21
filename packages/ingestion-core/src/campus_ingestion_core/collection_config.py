@@ -29,7 +29,9 @@ def resolve_collection_truth_config(corpus: str, collection: str) -> CollectionT
         split_manifest_path=config_root / "split-manifest.v1.json",
         canonical_profile_path=config_root / "canonical-profile.json",
         chunk_profile_path=config_root / "chunk-profile.json",
-        source_projections_path=(source_projections_path if source_projections_path.exists() else None),
+        source_projections_path=(
+            source_projections_path if source_projections_path.exists() else None
+        ),
         notice_family_config_path=(
             notice_family_config_path if notice_family_config_path.exists() else None
         ),

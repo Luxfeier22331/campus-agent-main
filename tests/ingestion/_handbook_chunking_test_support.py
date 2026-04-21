@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from campus_ingestion_core.chunking import ChunkProfile, RegexApproxTokenCounter, build_student_handbook_chunk_profile
+from campus_ingestion_core.chunking import (
+    ChunkProfile,
+    RegexApproxTokenCounter,
+    build_student_handbook_chunk_profile,
+)
 
 
 def build_hermetic_handbook_v3_chunk_profile() -> ChunkProfile:

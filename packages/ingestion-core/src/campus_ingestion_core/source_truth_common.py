@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-from html import unescape
 import json
 import re
 import unicodedata
+from html import unescape
 from typing import Mapping, Sequence
-
 
 _TABLE_HEADER_HINTS = frozenset(
     {
@@ -89,42 +88,95 @@ def infer_list_level_hint(text: str) -> int | None:
 
 
 def infer_table_header_rows(table_cells: object) -> object:
-    if isinstance(table_cells, list) and table_cells and all(isinstance(row, list) for row in table_cells):
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(row, list) for row in table_cells)
+    ):
         first_row = table_cells[0]
         if all(isinstance(cell, str) for cell in first_row):
             if all(cell in _TABLE_HEADER_HINTS for cell in first_row):
                 return [first_row]
             if all(cell and len(cell) <= 12 for cell in first_row):
                 return [first_row]
-    if isinstance(table_cells, list) and table_cells and all(isinstance(cell, dict) for cell in table_cells):
-        header_cells = [cell for cell in table_cells if bool(cell.get("is_header")) and int(cell.get("row") or 0) == 1]
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(cell, dict) for cell in table_cells)
+    ):
+        header_cells = [
+            cell
+            for cell in table_cells
+            if bool(cell.get("is_header")) and int(cell.get("row") or 0) == 1
+        ]
         if header_cells:
-            return [[str(cell.get("text") or "") for cell in sorted(header_cells, key=lambda item: int(item.get("col") or 0))]]
+            return [
+                [
+                    str(cell.get("text") or "")
+                    for cell in sorted(header_cells, key=lambda item: int(item.get("col") or 0))
+                ]
+            ]
     return None
 
 
 def infer_table_row_count(table_cells: object) -> int | None:
-    if isinstance(table_cells, list) and table_cells and all(isinstance(row, list) for row in table_cells):
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(row, list) for row in table_cells)
+    ):
         return len(table_cells)
-    if isinstance(table_cells, list) and table_cells and all(isinstance(cell, dict) for cell in table_cells):
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(cell, dict) for cell in table_cells)
+    ):
         return max((int(cell.get("row") or 0) for cell in table_cells), default=0) or None
     return None
 
 
 def infer_table_column_count(table_cells: object) -> int | None:
-    if isinstance(table_cells, list) and table_cells and all(isinstance(row, list) for row in table_cells):
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(row, list) for row in table_cells)
+    ):
         return max((len(row) for row in table_cells), default=0) or None
-    if isinstance(table_cells, list) and table_cells and all(isinstance(cell, dict) for cell in table_cells):
-        return max((int(cell.get("col") or 0) + int(cell.get("colspan") or 1) - 1 for cell in table_cells), default=0) or None
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(cell, dict) for cell in table_cells)
+    ):
+        return (
+            max(
+                (
+                    int(cell.get("col") or 0) + int(cell.get("colspan") or 1) - 1
+                    for cell in table_cells
+                ),
+                default=0,
+            )
+            or None
+        )
     return None
 
 
 def detect_merged_cells(table_cells: object) -> bool | None:
-    if isinstance(table_cells, list) and table_cells and all(isinstance(row, list) for row in table_cells):
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(row, list) for row in table_cells)
+    ):
         widths = {len(row) for row in table_cells}
         return len(widths) > 1
-    if isinstance(table_cells, list) and table_cells and all(isinstance(cell, dict) for cell in table_cells):
-        return any(int(cell.get("rowspan") or 1) > 1 or int(cell.get("colspan") or 1) > 1 for cell in table_cells)
+    if (
+        isinstance(table_cells, list)
+        and table_cells
+        and all(isinstance(cell, dict) for cell in table_cells)
+    ):
+        return any(
+            int(cell.get("rowspan") or 1) > 1 or int(cell.get("colspan") or 1) > 1
+            for cell in table_cells
+        )
     if table_cells is None:
         return None
     return False
@@ -270,7 +322,9 @@ def extract_html_table_cells(html: str) -> list[dict[str, object]] | None:
     cells: list[dict[str, object]] = []
     occupied: dict[int, int] = {}
     for row_number, row_match in enumerate(row_matches, start=1):
-        current_occupied = {col: remaining - 1 for col, remaining in occupied.items() if remaining > 1}
+        current_occupied = {
+            col: remaining - 1 for col, remaining in occupied.items() if remaining > 1
+        }
         col_number = 1
         row_cells = list(_TABLE_CELL_RE.finditer(row_match.group(1)))
         if not row_cells:
@@ -283,7 +337,10 @@ def extract_html_table_cells(html: str) -> list[dict[str, object]] | None:
             attr_text = cell_match.group(2) or ""
             cell_html = cell_match.group(3) or ""
             text = normalize_text(unescape(_HTML_TAG_RE.sub(" ", cell_html)))
-            spans = {match.group(1).lower(): int(match.group(2)) for match in _SPAN_ATTR_RE.finditer(attr_text)}
+            spans = {
+                match.group(1).lower(): int(match.group(2))
+                for match in _SPAN_ATTR_RE.finditer(attr_text)
+            }
             rowspan = spans.get("rowspan", 1)
             colspan = spans.get("colspan", 1)
             cells.append(
@@ -317,10 +374,7 @@ def build_position_preserving_table_rows(
                 return dense_rows
         if all(isinstance(row, list) for row in table_cells):
             normalized_rows = _normalize_dense_rows(
-                tuple(
-                    tuple(normalize_text(str(cell)) for cell in row)
-                    for row in table_cells
-                )
+                tuple(tuple(normalize_text(str(cell)) for cell in row) for row in table_cells)
             )
             if normalized_rows:
                 return normalized_rows
@@ -374,7 +428,9 @@ def _normalize_dense_rows(rows: Sequence[Sequence[str]]) -> tuple[tuple[str, ...
         return ()
     normalized_rows: list[tuple[str, ...]] = []
     for row in rows:
-        padded = tuple(str(row[index]).strip() if index < len(row) else "" for index in range(width))
+        padded = tuple(
+            str(row[index]).strip() if index < len(row) else "" for index in range(width)
+        )
         if any(cell for cell in padded):
             normalized_rows.append(padded)
     return tuple(normalized_rows)

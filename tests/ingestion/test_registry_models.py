@@ -1,47 +1,48 @@
 from __future__ import annotations
 
-from dataclasses import asdict, replace
 import json
+import unittest
+from dataclasses import asdict, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
 from campus_ingestion_core.authenticated_notice_closeout_store import (
     PostgresAuthenticatedNoticeCloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
+from campus_ingestion_core.authenticated_notice_file_release_inventory import (
+    build_authenticated_notice_file_release_inventory_store_from_env,
+)
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    PostgresAuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
-from campus_ingestion_core.authenticated_notice_file_release_inventory import (
-    PostgresAuthenticatedNoticeFileReleaseInventoryStore,
-    build_authenticated_notice_file_release_inventory_store_from_env,
+from campus_ingestion_core.models import (
+    DocumentRegistryRecord,
+    RawAssetRecord,
+    RawAssetRef,
+    SourceObservation,
 )
 from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     PostgresDocumentRegistry,
     PostgresRawAssetRegistry,
-    _ensure_table_schema,
     _document_record_from_dict,
+    _ensure_table_schema,
     _raw_asset_record_from_dict,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 HANDBOOK_DOC_UNITS_KEY = (
     "regulations/documents/student_handbook/test-001--test-001/"
     "source-faithful/undated/document-units.jsonl"
 )
-HANDBOOK_PROVIDER_KEY = (
-    "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
-)
+HANDBOOK_PROVIDER_KEY = "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
 HANDBOOK_CANONICAL_KEY = (
     "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/canonical.md"
 )
@@ -51,7 +52,9 @@ CURRICULUM_DOC_UNITS_KEY = (
 )
 
 
-def _handbook_document_record(*, version_id: str, content_hash: str, ingestion_timestamp: str) -> DocumentRegistryRecord:
+def _handbook_document_record(
+    *, version_id: str, content_hash: str, ingestion_timestamp: str
+) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id="handbook:test-001",
         revision_track="source-faithful",
@@ -526,7 +529,9 @@ class RegistryModelsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported authorization projection keys"):
                 InMemoryDocumentRegistry.from_json_file(path)
 
-    def test_document_registry_payload_prefers_canonical_projection_over_conflicting_legacy_fields(self) -> None:
+    def test_document_registry_payload_prefers_canonical_projection_over_conflicting_legacy_fields(
+        self,
+    ) -> None:
         record = _document_record_from_dict(
             {
                 "document_id": "handbook:test-001",
@@ -583,7 +588,9 @@ class RegistryModelsTest(unittest.TestCase):
                 }
             )
 
-    def test_document_registry_payload_requires_explicit_corpus_collection_and_source_channel(self) -> None:
+    def test_document_registry_payload_requires_explicit_corpus_collection_and_source_channel(
+        self,
+    ) -> None:
         with self.assertRaisesRegex(ValueError, "source_channel"):
             _document_record_from_dict(
                 {
@@ -771,7 +778,9 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
-    def test_build_document_registry_from_env_prefers_operator_database_url_when_requested(self) -> None:
+    def test_build_document_registry_from_env_prefers_operator_database_url_when_requested(
+        self,
+    ) -> None:
         with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -850,7 +859,9 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
 
-    def test_build_raw_asset_registry_from_env_prefers_operator_database_url_when_requested(self) -> None:
+    def test_build_raw_asset_registry_from_env_prefers_operator_database_url_when_requested(
+        self,
+    ) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -893,7 +904,9 @@ class RegistryModelsTest(unittest.TestCase):
                     }
                 )
 
-    def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(self) -> None:
+    def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(
+        self,
+    ) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -920,7 +933,9 @@ class RegistryModelsTest(unittest.TestCase):
                     }
                 )
 
-    def test_build_closeout_store_from_env_prefers_operator_database_url_when_requested(self) -> None:
+    def test_build_closeout_store_from_env_prefers_operator_database_url_when_requested(
+        self,
+    ) -> None:
         with patch(
             "campus_ingestion_core.authenticated_notice_closeout_store.PostgresAuthenticatedNoticeCloseoutStore"
         ) as store_cls:
@@ -1064,7 +1079,9 @@ class RegistryModelsTest(unittest.TestCase):
             self.assertIsNone(registry.current_version("handbook:test-001"))
             latest_versions.assert_not_called()
 
-    def test_postgres_document_registry_list_by_scope_canonicalizes_legacy_authz_projection_keys(self) -> None:
+    def test_postgres_document_registry_list_by_scope_canonicalizes_legacy_authz_projection_keys(
+        self,
+    ) -> None:
         legacy_payload = {
             "document_id": "official_web:test-001",
             "revision_track": "source-faithful",
@@ -1162,7 +1179,9 @@ class RegistryModelsTest(unittest.TestCase):
             ),
         )
 
-    def test_postgres_document_registry_get_canonicalizes_legacy_authz_projection_keys(self) -> None:
+    def test_postgres_document_registry_get_canonicalizes_legacy_authz_projection_keys(
+        self,
+    ) -> None:
         legacy_payload = {
             "document_id": "official_web:test-001",
             "revision_track": "source-faithful",
@@ -1196,7 +1215,9 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(record.visibility_level, "restricted")
         self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
 
-    def test_postgres_document_registry_latest_versions_canonicalizes_legacy_authz_projection_keys(self) -> None:
+    def test_postgres_document_registry_latest_versions_canonicalizes_legacy_authz_projection_keys(
+        self,
+    ) -> None:
         legacy_payload = {
             "document_id": "official_web:test-003",
             "revision_track": "source-faithful",
@@ -1229,7 +1250,9 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(records[0].visibility_level, "restricted")
         self.assertEqual(records[0].policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
 
-    def test_postgres_document_registry_current_version_canonicalizes_legacy_authz_projection_keys(self) -> None:
+    def test_postgres_document_registry_current_version_canonicalizes_legacy_authz_projection_keys(
+        self,
+    ) -> None:
         legacy_payload = {
             "document_id": "official_web:test-002",
             "revision_track": "source-faithful",
@@ -1372,9 +1395,7 @@ class RegistryModelsTest(unittest.TestCase):
             )
 
         self.assertEqual(cursor.executemany_calls, [])
-        self.assertTrue(
-            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
-        )
+        self.assertTrue(any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls))
 
     def test_postgres_raw_asset_registry_upsert_many_uses_bulk_recordset_insert(self) -> None:
         class _RecordingCursor:
@@ -1432,9 +1453,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert_many((first, second))
 
         self.assertEqual(cursor.executemany_calls, [])
-        self.assertTrue(
-            any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls)
-        )
+        self.assertTrue(any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls))
 
     def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
         class _RecordingCursor:

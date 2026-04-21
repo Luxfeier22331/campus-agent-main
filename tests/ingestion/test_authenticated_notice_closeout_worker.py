@@ -3,9 +3,9 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import Mock, patch
 
 from campus_ingestion_core.authenticated_notice_closeout import (
@@ -13,8 +13,8 @@ from campus_ingestion_core.authenticated_notice_closeout import (
     CloseoutPlanner,
     InMemoryCloseoutStore,
 )
-from campus_ingestion_core.authenticated_notice_import import AuthenticatedNoticeImportRequest
 from campus_ingestion_core.settings import ObjectStoreSettings
+
 from tests.ingestion.test_authenticated_notice_import import (
     _FakeObjectStore,
     _sample_export_manifest,
@@ -23,9 +23,7 @@ from tests.ingestion.test_authenticated_notice_import import (
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-plan_worker = importlib.import_module(
-    "campus_ingestion_worker.plan_authenticated_notice_closeout"
-)
+plan_worker = importlib.import_module("campus_ingestion_worker.plan_authenticated_notice_closeout")
 run_worker = importlib.import_module(
     "campus_ingestion_worker.run_authenticated_notice_closeout_worker"
 )
@@ -36,7 +34,9 @@ promote_worker = importlib.import_module(
 repair_worker = importlib.import_module(
     "campus_ingestion_worker.repair_authenticated_notice_closeout"
 )
-watch_worker = importlib.import_module("campus_ingestion_worker.watch_authenticated_notice_closeout")
+watch_worker = importlib.import_module(
+    "campus_ingestion_worker.watch_authenticated_notice_closeout"
+)
 source_truth_plan_worker = importlib.import_module(
     "campus_ingestion_worker.plan_authenticated_notice_source_truth_replay"
 )
@@ -121,11 +121,15 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
             bundle[1]["links"][0]["final_url"] = "https://portal.example.edu/files/355120.docx"
             bundle[1]["notice_attachments"][0]["notice_id"] = 355120
             bundle[1]["attachments"][0]["attachment_id"] = 355120
-            bundle[1]["attachments"][0]["source_url"] = "https://portal.example.edu/files/355120.docx"
+            bundle[1]["attachments"][0]["source_url"] = (
+                "https://portal.example.edu/files/355120.docx"
+            )
             bundle[1]["attachments"][0]["normalized_source_url"] = (
                 "https://portal.example.edu/files/355120.docx"
             )
-            bundle[1]["attachments"][0]["final_url"] = "https://portal.example.edu/files/355120.docx"
+            bundle[1]["attachments"][0]["final_url"] = (
+                "https://portal.example.edu/files/355120.docx"
+            )
             bundle[1]["attachments"][0]["original_filename"] = "355120.docx"
             bundle[1]["attachments"][0]["object_key"] = "objects/355120.docx"
             _write_json(bundle_path, bundle)
@@ -261,11 +265,7 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
         ):
             watch_worker.main(["--run-id", "run-1", "--interval", "0", "--iterations", "2"])
 
-        rendered = [
-            json.loads(line)
-            for line in stdout.getvalue().splitlines()
-            if line.strip()
-        ]
+        rendered = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual([item["state"] for item in rendered], ["planned", "verified"])
 
     def test_run_worker_cli_spawns_parallel_worker_processes(self) -> None:

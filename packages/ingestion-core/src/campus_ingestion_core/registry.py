@@ -1,30 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from datetime import datetime
 import json
 import os
+from dataclasses import asdict
+from datetime import datetime
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
+
+from campus_ingestion_core.models import (
+    DocumentRegistryRecord,
+    RawAssetRecord,
+    RawAssetRef,
+    SourceObservation,
+)
 from campus_ingestion_core.postgres_runtime import (
     build_operator_postgres_connection_url,
-    build_management_postgres_connection_url,
     normalize_postgres_connection_url,
     open_postgres_connection,
     validate_operator_postgres_url,
-    validate_management_postgres_url,
     validate_persistent_postgres_runtime_url,
 )
-
 
 DEFAULT_REGISTRY_SCHEMA = "ingestion_registry"
 DEFAULT_DOCUMENT_REGISTRY_BASENAME = "document_registry_records"
 DEFAULT_RAW_ASSET_REGISTRY_BASENAME = "raw_asset_registry_records"
-DEFAULT_DOCUMENT_REGISTRY_TABLE = (
-    f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_DOCUMENT_REGISTRY_BASENAME}"
-)
+DEFAULT_DOCUMENT_REGISTRY_TABLE = f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_DOCUMENT_REGISTRY_BASENAME}"
 DEFAULT_RAW_ASSET_REGISTRY_TABLE = (
     f"{DEFAULT_REGISTRY_SCHEMA}.{DEFAULT_RAW_ASSET_REGISTRY_BASENAME}"
 )
@@ -118,6 +119,12 @@ class DocumentRegistry(Protocol):
     ) -> tuple[DocumentRegistryRecord, ...]: ...
 
     def latest_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]: ...
+
+    def list_versions(
         self,
         document_id: str,
         revision_track: str | None = None,
@@ -218,7 +225,9 @@ class PostgresDocumentRegistry:
         collection: str | None = None,
     ) -> tuple[DocumentRegistryRecord, ...]:
         rows = self._scan_scope_record_rows(corpus=corpus, collection=collection)
-        return tuple(_document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows)
+        return tuple(
+            _document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows
+        )
 
     def list_processed_object_keys_by_scope(
         self,
@@ -271,6 +280,29 @@ class PostgresDocumentRegistry:
         if row is None:
             return ()
         return (_document_record_from_persisted_payload(_coerce_json_payload(row[0])),)
+
+    def list_versions(
+        self,
+        document_id: str,
+        revision_track: str | None = None,
+    ) -> tuple[DocumentRegistryRecord, ...]:
+        if revision_track is None:
+            query = (
+                f"select record from {self.table_name} "
+                "where document_id = %s order by ingestion_timestamp desc"
+            )
+            params = (document_id,)
+        else:
+            query = (
+                f"select record from {self.table_name} "
+                "where document_id = %s and revision_track = %s "
+                "order by ingestion_timestamp desc"
+            )
+            params = (document_id, revision_track)
+        rows = self._fetchall(query, params)
+        return tuple(
+            _document_record_from_persisted_payload(_coerce_json_payload(row[0])) for row in rows
+        )
 
     def current_version(
         self,
@@ -413,10 +445,7 @@ class PostgresDocumentRegistry:
         rows: list[tuple[object, ...]] = []
         last_key: tuple[str, str, str] | None = None
         while True:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s "
-            )
+            query = f"select record from {self.table_name} where corpus = %s "
             params: list[object] = [corpus]
             if collection is not None:
                 query += "and collection = %s "
@@ -538,8 +567,7 @@ class PostgresRawAssetRegistry:
 
     def get(self, raw_asset_id: str, raw_version_id: str) -> RawAssetRecord | None:
         query = (
-            f"select record from {self.table_name} "
-            "where raw_asset_id = %s and raw_version_id = %s"
+            f"select record from {self.table_name} where raw_asset_id = %s and raw_version_id = %s"
         )
         row = self._fetchone(query, (raw_asset_id, raw_version_id))
         if row is None:
@@ -680,10 +708,7 @@ class PostgresRawAssetRegistry:
         rows: list[tuple[object, ...]] = []
         last_key: tuple[str, str] | None = None
         while True:
-            query = (
-                f"select record from {self.table_name} "
-                "where corpus = %s "
-            )
+            query = f"select record from {self.table_name} where corpus = %s "
             params: list[object] = [corpus]
             if collection is not None:
                 query += "and collection = %s "
@@ -792,14 +817,11 @@ def build_raw_asset_registry_from_env(
 
 
 def _required_document_registry_database_url(source: dict[str, str]) -> str:
-    database_url = (
-        (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_ENV_KEY) or "").strip()
-    )
+    database_url = (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip() or (
+        source.get(SHARED_POSTGRES_ENV_KEY) or ""
+    ).strip()
     if not database_url:
-        raise ValueError(
-            f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
-        )
+        raise ValueError(f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required")
     return validate_persistent_postgres_runtime_url(database_url)
 
 
@@ -898,11 +920,11 @@ def _document_registry_scope_scan_key(payload: object) -> tuple[str, str, str]:
     )
 
 
-def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, object]) -> dict[str, object]:
+def _canonicalize_persisted_authorization_projection_payload(
+    raw: dict[str, object],
+) -> dict[str, object]:
     legacy_keys_present = tuple(
-        key
-        for key in ("acl_groups", "campus_scope", "acl_level")
-        if raw.get(key) is not None
+        key for key in ("acl_groups", "campus_scope", "acl_level") if raw.get(key) is not None
     )
     if not legacy_keys_present:
         return raw
@@ -911,7 +933,10 @@ def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, obje
         normalized["entitlement_groups"] = normalized["acl_groups"]
     if normalized.get("visibility_scope") is None and normalized.get("campus_scope") is not None:
         normalized["visibility_scope"] = normalized["campus_scope"]
-    if not str(normalized.get("visibility_level") or "").strip() and normalized.get("acl_level") is not None:
+    if (
+        not str(normalized.get("visibility_level") or "").strip()
+        and normalized.get("acl_level") is not None
+    ):
         normalized["visibility_level"] = normalized["acl_level"]
     if not str(normalized.get("policy_projection_version") or "").strip():
         normalized["policy_projection_version"] = DEFAULT_POLICY_PROJECTION_VERSION
@@ -923,7 +948,9 @@ def _canonicalize_persisted_authorization_projection_payload(raw: dict[str, obje
 
 def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord:
     _assert_canonical_authorization_projection_payload(raw)
-    processed_object_keys = tuple(str(item) for item in list(raw.get("processed_object_keys") or []))
+    processed_object_keys = tuple(
+        str(item) for item in list(raw.get("processed_object_keys") or [])
+    )
     provider_response_object_key = (
         str(raw["provider_response_object_key"])
         if raw.get("provider_response_object_key") is not None
@@ -976,10 +1003,16 @@ def _document_record_from_dict(raw: dict[str, object]) -> DocumentRegistryRecord
         embedding_model=str(raw.get("embedding_model") or ""),
         source_channel=source_channel,
         is_current=bool(raw.get("is_current", False)),
-        effective_date=str(raw["effective_date"]) if raw.get("effective_date") is not None else None,
-        published_date=str(raw["published_date"]) if raw.get("published_date") is not None else None,
+        effective_date=str(raw["effective_date"])
+        if raw.get("effective_date") is not None
+        else None,
+        published_date=str(raw["published_date"])
+        if raw.get("published_date") is not None
+        else None,
         supersedes_version_id=(
-            str(raw["supersedes_version_id"]) if raw.get("supersedes_version_id") is not None else None
+            str(raw["supersedes_version_id"])
+            if raw.get("supersedes_version_id") is not None
+            else None
         ),
         provenance_status=str(raw.get("provenance_status") or ""),
         raw_asset=raw_asset,

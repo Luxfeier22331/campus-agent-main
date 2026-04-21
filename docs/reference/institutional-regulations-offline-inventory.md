@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Institutional Regulations Offline Inventory
@@ -27,8 +27,8 @@ updated: 2026-04-20
 
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
-- `docs/plans/authenticated-notice-file-release-owner-recovery.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
+- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md`
 
 ## Institution-Wide Current Target
 
@@ -64,11 +64,11 @@ updated: 2026-04-20
   - primary：`191176`
   - 当前只保留 source truth，不再生成第二份 regulation target
 
-### Auth-Blocked
+### Excluded
 
 - `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`
-  - 当前 frontier 继续固定为 auth-dependent `file_release` owner recovery
-  - 这条样本不再由 non-auth downstream line 继续承接
+  - 该样本已被显式排除，不再作为 auth-dependent `file_release` owner recovery target
+  - historical source truth 继续保留，但 non-auth downstream line 与 auth owner-recovery line 都不再继续承接它
 
 ## Out Of Scope For Regulation Target
 

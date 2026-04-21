@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import unittest
+from pathlib import Path
 
+from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.curriculum_source_truth_validation import (
     FORBIDDEN_SOURCE_TRUTH_FIELDS,
     scan_curriculum_source_truth_rows,
 )
-from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 
 
@@ -63,18 +63,26 @@ def _curriculum_rows_from_payload(provider_payload: dict[str, object]) -> list[d
     return [
         json.loads(line)
         for line in normalize_curriculum_provider_result(
-            provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode("utf-8"),
+            provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            ),
             source_pdf="curriculum-plan.pdf",
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
-        ).decode("utf-8").splitlines()
+        )
+        .decode("utf-8")
+        .splitlines()
         if line.strip()
     ]
 
 
 def _real_curriculum_fixture_rows() -> list[dict[str, object]]:
     fixture_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
-    return [json.loads(line) for line in fixture_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in fixture_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _provider_curriculum_fixture_rows() -> list[dict[str, object]]:
@@ -86,12 +94,16 @@ def _provider_curriculum_fixture_rows() -> list[dict[str, object]]:
             source_pdf="curriculum-plan-2022.pdf",
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
-        ).decode("utf-8").splitlines()
+        )
+        .decode("utf-8")
+        .splitlines()
         if line.strip()
     ]
 
 
-def _assert_no_forbidden_source_truth_fields(test_case: unittest.TestCase, rows: list[dict[str, object]]) -> None:
+def _assert_no_forbidden_source_truth_fields(
+    test_case: unittest.TestCase, rows: list[dict[str, object]]
+) -> None:
     for row in rows:
         test_case.assertFalse(FORBIDDEN_SOURCE_TRUTH_FIELDS & set(row.keys()), row)
 
@@ -102,8 +114,20 @@ class SourceTruthQualityGateTest(unittest.TestCase):
             source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=_handbook_batch(
                 _handbook_page(
-                    _handbook_block("doc_title", "中央民族大学学生手册", block_id="p1-title", block_order=1, block_bbox=[0, 140, 300, 180]),
-                    _handbook_block("aside_text", "学生手册", block_id="p1-header", block_order=2, block_bbox=[0, 0, 120, 18]),
+                    _handbook_block(
+                        "doc_title",
+                        "中央民族大学学生手册",
+                        block_id="p1-title",
+                        block_order=1,
+                        block_bbox=[0, 140, 300, 180],
+                    ),
+                    _handbook_block(
+                        "aside_text",
+                        "学生手册",
+                        block_id="p1-header",
+                        block_order=2,
+                        block_bbox=[0, 0, 120, 18],
+                    ),
                     _handbook_block(
                         "text",
                         "第一条 学生应当遵守学校规定，",
@@ -118,7 +142,13 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                         block_order=4,
                         block_bbox=[0, 320, 500, 520],
                     ),
-                    _handbook_block("number", "12", block_id="p1-page", block_order=5, block_bbox=[360, 1090, 420, 1130]),
+                    _handbook_block(
+                        "number",
+                        "12",
+                        block_id="p1-page",
+                        block_order=5,
+                        block_bbox=[360, 1090, 420, 1130],
+                    ),
                 ),
                 _handbook_page(
                     _handbook_block(
@@ -135,7 +165,13 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                         block_order=2,
                         block_bbox=[0, 250, 500, 450],
                     ),
-                    _handbook_block("aside_text", "学生手册", block_id="p2-header", block_order=3, block_bbox=[0, 0, 120, 18]),
+                    _handbook_block(
+                        "aside_text",
+                        "学生手册",
+                        block_id="p2-header",
+                        block_order=3,
+                        block_bbox=[0, 0, 120, 18],
+                    ),
                 ),
             ),
             ocr_provider="paddleocr_async",
@@ -165,10 +201,59 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         self.assertTrue(bool(first_paragraph["continues_to_next_page"]))
         self.assertTrue(bool(second_paragraph["continues_from_previous_page"]))
 
+    def test_handbook_quality_gate_marks_repeated_margin_running_headers(self) -> None:
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=_handbook_batch(
+                _handbook_page(
+                    _handbook_block(
+                        "aside_text",
+                        "学生手册",
+                        block_id="p1-header",
+                        block_order=1,
+                        block_bbox=[39, 220, 68, 373],
+                    ),
+                    _handbook_block(
+                        "text",
+                        "第十二条 本科学生国家奖学金按以下程序进行评选:",
+                        block_id="p1-body",
+                        block_order=2,
+                        block_bbox=[118, 190, 971, 328],
+                    ),
+                ),
+                _handbook_page(
+                    _handbook_block(
+                        "aside_text",
+                        "学生手册",
+                        block_id="p2-header",
+                        block_order=1,
+                        block_bbox=[39, 220, 68, 373],
+                    ),
+                    _handbook_block(
+                        "text",
+                        "党委学生工作部、学生处组织学校评审委员会召开评审会进行评审。",
+                        block_id="p2-body",
+                        block_order=2,
+                        block_bbox=[116, 188, 970, 330],
+                    ),
+                ),
+            ),
+            ocr_provider="paddleocr_async",
+            ocr_model="PaddleOCR-VL-1.5",
+        )
+
+        repeated_headers = [row for row in rows if row["text_normalized"] == "学生手册"]
+        self.assertEqual(len(repeated_headers), 2)
+        self.assertTrue(all(bool(row["is_repeated_candidate"]) for row in repeated_headers))
+        self.assertTrue(all(row["repeat_position_band"] == "margin" for row in repeated_headers))
+        self.assertTrue(all(row["repeat_frequency"] == 2 for row in repeated_headers))
+
     def test_handbook_quality_gate_real_fixture_regression(self) -> None:
         rows = normalize_handbook_provider_result(
             source_pdf="学生手册_2018.pdf",
-            provider_jsonl_bytes=Path("tests/fixtures/student_handbook/provider-result-updated.jsonl").read_bytes(),
+            provider_jsonl_bytes=Path(
+                "tests/fixtures/student_handbook/provider-result-updated.jsonl"
+            ).read_bytes(),
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",
         )
@@ -179,7 +264,9 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         self.assertEqual(rows[0]["row_type"], "heading")
         self.assertEqual(rows[0]["text_normalized"], "中央民族大学奖学金评定办法")
         self.assertEqual(rows[1]["row_type"], "paragraph")
-        self.assertEqual(rows[1]["text_normalized"], "第一条 奖学金评定坚持公开、公平、公正,并接受监督。")
+        self.assertEqual(
+            rows[1]["text_normalized"], "第一条 奖学金评定坚持公开、公平、公正,并接受监督。"
+        )
 
     def test_curriculum_quality_gate_covers_heading_repeat_footer_and_table_semantics(self) -> None:
         rows = _curriculum_rows_from_payload(
@@ -210,7 +297,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
                                         "block_content": (
                                             "<table>"
                                             "<tr><th>类别</th><th>课程</th><th>学分</th></tr>"
-                                            "<tr><td rowspan=\"2\">核心课</td><td>微观经济学</td><td>3</td></tr>"
+                                            '<tr><td rowspan="2">核心课</td><td>微观经济学</td><td>3</td></tr>'
                                             "</table>"
                                         ),
                                         "block_id": 14,
@@ -347,7 +434,9 @@ class SourceTruthQualityGateTest(unittest.TestCase):
 
         _assert_no_forbidden_source_truth_fields(self, rows)
         self.assertTrue(rows)
-        self.assertTrue(all(row["schema_version"] == "curriculum_layout_elements_v3" for row in rows))
+        self.assertTrue(
+            all(row["schema_version"] == "curriculum_layout_elements_v3" for row in rows)
+        )
         self.assertGreaterEqual(sum(row["row_type"] == "heading" for row in rows), 10)
         self.assertGreaterEqual(sum(bool(row["is_repeated_candidate"]) for row in rows), 2)
         self.assertGreaterEqual(sum(bool(row.get("table_fragment_id")) for row in rows), 2)

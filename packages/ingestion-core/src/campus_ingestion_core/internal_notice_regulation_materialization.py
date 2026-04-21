@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
 import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.artifacts import CANONICAL_MARKDOWN_FILENAME, DOCUMENT_UNITS_FILENAME
+
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
     build_authenticated_notice_source_truth_inventory_store_from_env,
@@ -23,18 +23,23 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_regulation_projection import (
+    _HEADING_RE,
+    InternalNoticeRegulationProjectionContext,
+    build_internal_notice_regulation_projected_document,
+)
+from campus_ingestion_core.internal_notice_regulation_projection import (
+    build_institutional_regulation_document_id as _build_institutional_regulation_document_id,
+)
+from campus_ingestion_core.internal_notice_regulation_projection import (
+    build_institutional_regulation_version_id as _build_institutional_regulation_version_id,
+)
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
     InternalNoticeRegulationPromotionDocumentReport,
     InternalNoticeRegulationPromotionRequest,
     build_internal_notice_regulation_candidate_artifact_manifest,
     build_internal_notice_regulation_promotion_manifest,
-)
-from campus_ingestion_core.internal_notice_regulation_projection import (
-    InternalNoticeRegulationProjectionContext,
-    build_institutional_regulation_document_id as _build_institutional_regulation_document_id,
-    build_institutional_regulation_version_id as _build_institutional_regulation_version_id,
-    build_internal_notice_regulation_projected_document,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key
@@ -45,7 +50,6 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-
 
 _TARGET_SCOPE = ("regulations", "institutional_regulations")
 _TARGET_SOURCE_FILENAME = "internal-notice-regulation-promotion-manifest.json"
@@ -115,12 +119,14 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         source_truth_inventory_store=runtime_inventory,
         object_store=runtime_object_store,
     )
-    _candidate_manifest, candidate_documents = build_internal_notice_regulation_candidate_artifact_manifest(
-        request=runtime_request,
-        env=source,
-        registry=runtime_registry,
-        source_truth_inventory_store=runtime_inventory,
-        object_store=runtime_object_store,
+    _candidate_manifest, candidate_documents = (
+        build_internal_notice_regulation_candidate_artifact_manifest(
+            request=runtime_request,
+            env=source,
+            registry=runtime_registry,
+            source_truth_inventory_store=runtime_inventory,
+            object_store=runtime_object_store,
+        )
     )
     candidate_documents = tuple(
         candidate_document
@@ -144,10 +150,7 @@ def materialize_institutional_regulations_from_internal_notice_scope(
     source_record_by_lineage = _index_latest_scope_records(
         runtime_registry.list_by_scope(runtime_request.corpus, runtime_request.collection)
     )
-    report_by_document_id = {
-        report.document_id: report
-        for report in promotion_report.documents
-    }
+    report_by_document_id = {report.document_id: report for report in promotion_report.documents}
     duplicate_reports_by_primary = _group_duplicate_reports(promotion_report.documents)
     aggregations: list[_CandidateAggregation] = []
     for candidate_document in candidate_documents:
@@ -251,7 +254,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             parent_document_id
                             for parent_document_id in (
                                 aggregation.primary_candidate.source_parent_document_id,
-                                *(report.source_parent_document_id for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_parent_document_id
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if parent_document_id
                         }
@@ -263,7 +269,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             attachment_ref_id
                             for attachment_ref_id in (
                                 aggregation.primary_candidate.source_attachment_ref_id,
-                                *(report.source_attachment_ref_id for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_attachment_ref_id
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if attachment_ref_id
                         }
@@ -275,7 +284,10 @@ def build_institutional_regulation_scope_refresh_documents(
                             attachment_sha256
                             for attachment_sha256 in (
                                 aggregation.primary_candidate.source_attachment_sha256,
-                                *(report.source_attachment_sha256 for report in aggregation.duplicate_reports),
+                                *(
+                                    report.source_attachment_sha256
+                                    for report in aggregation.duplicate_reports
+                                ),
                             )
                             if attachment_sha256
                         }
@@ -467,7 +479,9 @@ def _build_projection_metadata(
     duplicate_source_document_ids = tuple(
         sorted(report.document_id for report in duplicate_reports)
     )
-    published_date = _normalize_published_date(aggregation.primary_candidate.source_notice_release_time)
+    published_date = _normalize_published_date(
+        aggregation.primary_candidate.source_notice_release_time
+    )
     metadata: dict[str, object] = {
         "title": title,
         "semantic_content_hash": semantic_content_hash,
@@ -672,9 +686,7 @@ def _aggregate_notice_ids(aggregation: _CandidateAggregation) -> tuple[str, ...]
 def _build_semantic_content_hash(
     candidate: InternalNoticeRegulationCandidateArtifactDocument,
 ) -> str:
-    return hashlib.sha256(
-        _render_canonical_markdown(candidate).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(_render_canonical_markdown(candidate).encode("utf-8")).hexdigest()
 
 
 def _render_canonical_markdown(

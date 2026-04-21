@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any, Protocol, Sequence
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED
-
 
 _TARGET_SCOPE = ("regulations", "scoped_rules")
 _SCHEMA_VERSION = "internal_notice_scoped_rule_chunk_prep_v1"
@@ -137,9 +136,7 @@ def prepare_scoped_rule_chunks(
     bucket_derived: str = DEFAULT_BUCKET_DERIVED,
 ) -> ScopedRuleChunkPrepExportReport:
     scoped_rule_records = tuple(
-        record
-        for record in records
-        if (record.corpus, record.collection) == _TARGET_SCOPE
+        record for record in records if (record.corpus, record.collection) == _TARGET_SCOPE
     )
     prepared_documents = tuple(
         _prepare_scoped_rule_record(
@@ -154,13 +151,11 @@ def prepare_scoped_rule_chunks(
     validation_report = build_scoped_rule_chunk_prep_validation_report(
         prepared_documents=prepared_documents
     )
-    manifest_path, validation_path, document_reports_path = (
-        export_scoped_rule_chunk_prep_artifacts(
-            output_dir=Path(output_dir),
-            prepared_documents=prepared_documents,
-            manifest=manifest,
-            validation_report=validation_report,
-        )
+    manifest_path, validation_path, document_reports_path = export_scoped_rule_chunk_prep_artifacts(
+        output_dir=Path(output_dir),
+        prepared_documents=prepared_documents,
+        manifest=manifest,
+        validation_report=validation_report,
     )
     return ScopedRuleChunkPrepExportReport(
         manifest_path=str(manifest_path),
@@ -290,7 +285,9 @@ def _prepare_scoped_rule_record(
     output_dir: Path,
 ) -> _PreparedScopedRule:
     if not record.document_units_object_key:
-        raise ValueError(f"scoped_rules record missing document_units_object_key: {record.document_id}")
+        raise ValueError(
+            f"scoped_rules record missing document_units_object_key: {record.document_id}"
+        )
     document_units_bytes = object_store.get_bytes(
         bucket=bucket_derived,
         key=record.document_units_object_key,
@@ -302,7 +299,9 @@ def _prepare_scoped_rule_record(
     )
     title = _resolve_title(unit_rows)
     target_suffix = record.document_id.rsplit(":", 1)[-1]
-    prepared_dir = output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    prepared_dir = (
+        output_dir / "prepared-documents" / f"{_slugify_path_component(title)}--{target_suffix}"
+    )
     prepared_dir.mkdir(parents=True, exist_ok=True)
     document_units_path = prepared_dir / "document-units.jsonl"
     chunk_catalog_path = prepared_dir / "chunks.jsonl"
@@ -415,7 +414,8 @@ def _build_document_report(
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
     passed = not any(
-        issue in {
+        issue
+        in {
             "no_chunks_emitted",
             "missing_title_chunk",
             "missing_contextualization",
@@ -495,7 +495,10 @@ def _is_missing_metadata_field(value: object) -> bool:
 
 def _slugify_path_component(value: str) -> str:
     normalized = value.strip()
-    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-") or "scoped-rule"
+    return (
+        "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in normalized).strip("-")
+        or "scoped-rule"
+    )
 
 
 __all__ = [

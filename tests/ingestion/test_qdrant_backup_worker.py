@@ -21,7 +21,9 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_backup_create_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_backup_create.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_backup_create.create_snapshot_backup") as create_backup,
+            patch(
+                "campus_ingestion_worker.qdrant_backup_create.create_snapshot_backup"
+            ) as create_backup,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             create_backup.return_value = SnapshotBackupManifest(
@@ -66,7 +68,9 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_backup_restore_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_backup_restore.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_backup_restore.restore_snapshot_backup") as restore_backup,
+            patch(
+                "campus_ingestion_worker.qdrant_backup_restore.restore_snapshot_backup"
+            ) as restore_backup,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             restore_backup.return_value = SnapshotRestoreReport(
@@ -106,7 +110,9 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
     def test_gc_check_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_gc_check.load_worker_env"),
-            patch("campus_ingestion_worker.qdrant_gc_check.check_snapshot_gc_eligibility") as gc_check,
+            patch(
+                "campus_ingestion_worker.qdrant_gc_check.check_snapshot_gc_eligibility"
+            ) as gc_check,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             gc_check.return_value = CollectionGcEligibilityReport(

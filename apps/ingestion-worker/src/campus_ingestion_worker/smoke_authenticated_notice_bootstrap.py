@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -10,6 +10,7 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
@@ -33,7 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    entitlement_groups = tuple(str(item).strip() for item in args.entitlement_group if str(item).strip())
+    entitlement_groups = tuple(
+        str(item).strip() for item in args.entitlement_group if str(item).strip()
+    )
     request = AuthenticatedNoticeImportRequest(
         bundle_path=Path(args.bundle_path),
         export_manifest_path=(Path(args.manifest_path) if args.manifest_path else None),

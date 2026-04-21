@@ -4,38 +4,68 @@ from campus_ingestion_core.artifacts import (
     LAYOUT_ELEMENTS_FILENAME,
     PROVIDER_RESPONSE_FILENAME,
 )
-from campus_ingestion_core.object_store import (
-    S3ObjectStoreClientFactory,
-    build_document_artifact_key,
-    build_operations_artifact_key,
-    build_processed_asset_artifact_key,
-    build_qdrant_backup_artifact_key,
-    build_raw_asset_key,
-    build_source_provider_artifact_key,
-    build_source_ocr_artifact_key,
-    build_source_truth_artifact_key,
-    is_source_object_key,
-    parse_source_object_key,
+from campus_ingestion_core.authenticated_notice_closeout import (
+    AuthenticatedNoticeCloseoutService,
+    CloseoutBatch,
+    CloseoutBatchState,
+    CloseoutPlanner,
+    CloseoutRun,
+    CloseoutRunState,
+    CloseoutShard,
+    CloseoutShardState,
+    CloseoutVerifier,
+    CloseoutWorker,
+    CloseoutWorkerState,
+    InMemoryCloseoutStore,
+    PostgresAuthenticatedNoticeCloseoutStore,
+    build_authenticated_notice_closeout_store_from_env,
 )
-from campus_ingestion_core.collection_config import CollectionTruthConfig, resolve_collection_truth_config
+from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
+    AuthenticatedNoticeFileReleaseExport,
+    FileReleaseOwnerRecoveryMatch,
+    FileReleaseOwnerRecoveryReadinessReport,
+    FileReleaseResolvedFile,
+    load_authenticated_notice_file_release_export,
+    resolve_file_release_owner_recovery_readiness,
+)
+from campus_ingestion_core.authenticated_notice_import import (
+    AuthenticatedNoticeBundleImportResult,
+    AuthenticatedNoticeImportRequest,
+    AuthenticatedNoticePreparedImport,
+    import_authenticated_notice_bundle,
+    import_authenticated_notice_export,
+)
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AuthenticatedNoticeAttachmentProjection,
+    AuthenticatedNoticeSourceProjectionReport,
+    AuthenticatedNoticeSourceProjectionRequest,
+    AuthenticatedNoticeSourceProjectionsConfig,
+    load_authenticated_notice_source_projections_config,
+    rebuild_authenticated_notice_source_projections,
+)
+from campus_ingestion_core.authenticated_notice_source_truth_replay import (
+    AuthenticatedNoticeSourceTruthReplayInventory,
+    AuthenticatedNoticeSourceTruthReplayRequest,
+    build_authenticated_notice_source_truth_replay_documents,
+    load_authenticated_notice_source_truth_replay_inventory,
+)
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport
-from campus_ingestion_core.tokenizer_cache import (
-    HF_TOKENIZER_ALLOW_PATTERNS,
-    prefetch_hf_tokenizer,
-    resolve_prefetched_hf_tokenizer_path,
-)
 from campus_ingestion_core.chunking import (
-    DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_OVERLAP,
+    DEFAULT_CHUNK_POLICY_VERSION,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_CLEANING_POLICY_VERSION,
     DEFAULT_MAX_CHUNK_SIZE,
     DEFAULT_MIN_CHUNK_SIZE,
     ChunkProfile,
-    StudentHandbookChunkingStrategy,
     StructuredUnitChunkInput,
+    StudentHandbookChunkingStrategy,
     chunk_structured_unit,
     clean_structured_text,
+)
+from campus_ingestion_core.collection_config import (
+    CollectionTruthConfig,
+    resolve_collection_truth_config,
 )
 from campus_ingestion_core.corpus_profiles import (
     CollectionChunkProfile,
@@ -47,20 +77,23 @@ from campus_ingestion_core.corpus_profiles import (
     load_chunk_profile,
     load_runtime_profile,
 )
-from campus_ingestion_core.scope_catalog import (
-    CollectionScope,
-    QdrantIndexBinding,
-    assert_known_corpus,
-    assert_known_scope,
-    list_collection_scopes,
-    list_corpora,
-)
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     MockEmbeddingSettings,
     build_embedding_model,
     build_mock_embedding_model,
+)
+from campus_ingestion_core.handbook_chunking_validation import (
+    ChunkValidationFailure,
+    StudentHandbookChunkingScanResult,
+    StudentHandbookChunkingValidationReport,
+    StudentHandbookScannedDocument,
+    StudentHandbookValidationInputs,
+    build_student_handbook_chunking_validation_report,
+    export_student_handbook_chunk_samples,
+    scan_student_handbook_chunking,
+    validate_student_handbook_chunking,
 )
 from campus_ingestion_core.handbook_cleanup import (
     HandbookCleanupResult,
@@ -80,113 +113,6 @@ from campus_ingestion_core.handbook_source_migration import (
     StudentHandbookSourceAssetRequest,
     migrate_student_handbook_source_faithful,
 )
-from campus_ingestion_core.official_web_projection import (
-    OfficialWebProjectionDeclaration,
-    OfficialWebProjectionDeclarationsConfig,
-    OfficialWebProjectionReplayReport,
-    OfficialWebProjectionValidationReport,
-    default_official_web_projection_declarations_path,
-    load_official_web_projection_declarations,
-    replay_official_web_source_truth_local,
-    validate_official_web_projection_output,
-)
-from campus_ingestion_core.official_web_chunking_audit import (
-    OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION,
-    OfficialWebProjectionChunkingAuditDocumentReport,
-    OfficialWebProjectionChunkingAuditReport,
-    audit_official_web_projection_chunking,
-)
-from campus_ingestion_core.handbook_chunking_validation import (
-    ChunkValidationFailure,
-    StudentHandbookChunkingScanResult,
-    StudentHandbookValidationInputs,
-    StudentHandbookChunkingValidationReport,
-    StudentHandbookScannedDocument,
-    build_student_handbook_chunking_validation_report,
-    export_student_handbook_chunk_samples,
-    scan_student_handbook_chunking,
-    validate_student_handbook_chunking,
-)
-from campus_ingestion_core.internal_notice_chunking_validation import (
-    DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED,
-    InternalNoticeChunkValidationFailure,
-    InternalNoticeChunkingScanResult,
-    InternalNoticeChunkingValidationReport,
-    InternalNoticeScannedDocument,
-    InternalNoticeValidationInputs,
-    build_internal_notice_chunking_validation_report,
-    export_internal_notice_chunk_samples,
-    scan_internal_notice_chunking,
-    validate_internal_notice_chunking,
-)
-from campus_ingestion_core.internal_notice_regulation_promotion import (
-    InternalNoticeRegulationCandidateArtifactDocument,
-    InternalNoticeRegulationCandidateArtifactManifest,
-    InternalNoticeRegulationCandidateArtifactRef,
-    InternalNoticePromotionRoutingClassConfig,
-    InternalNoticePromotionRoutingConfig,
-    InternalNoticeRegulationPromotionDocumentReport,
-    InternalNoticeRegulationPromotionManifestReport,
-    InternalNoticeRegulationPromotionRequest,
-    build_internal_notice_regulation_candidate_artifact_manifest,
-    build_internal_notice_regulation_promotion_manifest,
-    export_internal_notice_regulation_candidate_artifacts,
-    export_internal_notice_regulation_promotion_manifest,
-    load_internal_notice_promotion_routing_config,
-    read_internal_notice_promotion_routing_path,
-)
-from campus_ingestion_core.internal_notice_regulation_materialization import (
-    InstitutionalRegulationMaterializationReport,
-    build_institutional_regulation_document_id,
-    build_institutional_regulation_scope_refresh_documents,
-    build_institutional_regulation_version_id,
-    materialize_institutional_regulations_from_internal_notice_scope,
-)
-from campus_ingestion_core.authenticated_notice_import import (
-    AuthenticatedNoticeBundleImportResult,
-    AuthenticatedNoticeImportRequest,
-    AuthenticatedNoticePreparedImport,
-    import_authenticated_notice_bundle,
-    import_authenticated_notice_export,
-)
-from campus_ingestion_core.authenticated_notice_file_release_owner_recovery import (
-    AuthenticatedNoticeFileReleaseExport,
-    FileReleaseOwnerRecoveryMatch,
-    FileReleaseOwnerRecoveryReadinessReport,
-    FileReleaseResolvedFile,
-    load_authenticated_notice_file_release_export,
-    resolve_file_release_owner_recovery_readiness,
-)
-from campus_ingestion_core.authenticated_notice_source_projections import (
-    AuthenticatedNoticeAttachmentProjection,
-    AuthenticatedNoticeSourceProjectionReport,
-    AuthenticatedNoticeSourceProjectionRequest,
-    AuthenticatedNoticeSourceProjectionsConfig,
-    load_authenticated_notice_source_projections_config,
-    rebuild_authenticated_notice_source_projections,
-)
-from campus_ingestion_core.authenticated_notice_source_truth_replay import (
-    AuthenticatedNoticeSourceTruthReplayInventory,
-    AuthenticatedNoticeSourceTruthReplayRequest,
-    build_authenticated_notice_source_truth_replay_documents,
-    load_authenticated_notice_source_truth_replay_inventory,
-)
-from campus_ingestion_core.authenticated_notice_closeout import (
-    AuthenticatedNoticeCloseoutService,
-    CloseoutBatch,
-    CloseoutBatchState,
-    CloseoutPlanner,
-    CloseoutRun,
-    CloseoutRunState,
-    CloseoutShard,
-    CloseoutShardState,
-    CloseoutVerifier,
-    CloseoutWorker,
-    CloseoutWorkerState,
-    InMemoryCloseoutStore,
-    PostgresAuthenticatedNoticeCloseoutStore,
-    build_authenticated_notice_closeout_store_from_env,
-)
 from campus_ingestion_core.index_release import (
     IndexReleaseArtifacts,
     IndexReleaseDocumentRef,
@@ -202,32 +128,88 @@ from campus_ingestion_core.index_release import (
     validate_scope_release,
     write_index_release_artifacts,
 )
+from campus_ingestion_core.internal_notice_chunking_validation import (
+    DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED,
+    InternalNoticeChunkingScanResult,
+    InternalNoticeChunkingValidationReport,
+    InternalNoticeChunkValidationFailure,
+    InternalNoticeScannedDocument,
+    InternalNoticeValidationInputs,
+    build_internal_notice_chunking_validation_report,
+    export_internal_notice_chunk_samples,
+    scan_internal_notice_chunking,
+    validate_internal_notice_chunking,
+)
+from campus_ingestion_core.internal_notice_regulation_materialization import (
+    InstitutionalRegulationMaterializationReport,
+    build_institutional_regulation_document_id,
+    build_institutional_regulation_scope_refresh_documents,
+    build_institutional_regulation_version_id,
+    materialize_institutional_regulations_from_internal_notice_scope,
+)
+from campus_ingestion_core.internal_notice_regulation_promotion import (
+    InternalNoticePromotionRoutingClassConfig,
+    InternalNoticePromotionRoutingConfig,
+    InternalNoticeRegulationCandidateArtifactDocument,
+    InternalNoticeRegulationCandidateArtifactManifest,
+    InternalNoticeRegulationCandidateArtifactRef,
+    InternalNoticeRegulationPromotionDocumentReport,
+    InternalNoticeRegulationPromotionManifestReport,
+    InternalNoticeRegulationPromotionRequest,
+    build_internal_notice_regulation_candidate_artifact_manifest,
+    build_internal_notice_regulation_promotion_manifest,
+    export_internal_notice_regulation_candidate_artifacts,
+    export_internal_notice_regulation_promotion_manifest,
+    load_internal_notice_promotion_routing_config,
+    read_internal_notice_promotion_routing_path,
+)
 from campus_ingestion_core.local_rebuild import (
     LocalDataRebuildReport,
     RebuildRequest,
     rebuild_local_data,
     replay_provider_response_rebuild,
 )
-from campus_ingestion_core.registry_scope_release import (
-    RegistryScopeReleaseReport,
-    release_registry_scope,
+from campus_ingestion_core.models import (
+    DocumentRegistryRecord,
+    RawAssetRecord,
+    RawAssetRef,
+    SourceObservation,
 )
-from campus_ingestion_core.registry_scope_chunk_preparation import (
-    MANDATORY_PREPARATION_SCOPES,
-    REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION,
-    RegistryScopeChunkPreparationArtifacts,
-    RegistryScopeChunkPreparationDocumentRef,
-    RegistryScopeChunkPreparationDocumentReport,
-    RegistryScopeChunkPreparationManifest,
-    RegistryScopeChunkPreparationReport,
-    default_preparation_run_id,
-    load_chunk_preparation_manifest,
-    prepare_registry_scope_chunks,
-    require_verified_chunk_preparation,
+from campus_ingestion_core.object_store import (
+    S3ObjectStoreClientFactory,
+    build_document_artifact_key,
+    build_official_web_run_artifact_key,
+    build_operations_artifact_key,
+    build_processed_asset_artifact_key,
+    build_qdrant_backup_artifact_key,
+    build_raw_asset_key,
+    build_reader_asset_artifact_key,
+    build_source_ocr_artifact_key,
+    build_source_provider_artifact_key,
+    build_source_truth_artifact_key,
+    is_source_object_key,
+    parse_source_object_key,
 )
-from campus_ingestion_core.scope_alias import (
-    ScopeAliasReport,
-    set_scope_release_alias,
+from campus_ingestion_core.official_web_chunking_audit import (
+    OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION,
+    OfficialWebProjectionChunkingAuditDocumentReport,
+    OfficialWebProjectionChunkingAuditReport,
+    audit_official_web_projection_chunking,
+)
+from campus_ingestion_core.official_web_projection import (
+    OfficialWebProjectionDeclaration,
+    OfficialWebProjectionDeclarationsConfig,
+    OfficialWebProjectionReplayReport,
+    OfficialWebProjectionValidationReport,
+    default_official_web_projection_declarations_path,
+    load_official_web_projection_declarations,
+    replay_official_web_source_truth_local,
+    validate_official_web_projection_output,
+)
+from campus_ingestion_core.process import (
+    IndexableChunk,
+    build_indexable_chunks_from_jsonl,
+    index_chunks_to_qdrant,
 )
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcCheckRequest,
@@ -240,12 +222,6 @@ from campus_ingestion_core.qdrant_backup import (
     create_snapshot_backup,
     default_backup_id,
     restore_snapshot_backup,
-)
-from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord, RawAssetRef, SourceObservation
-from campus_ingestion_core.process import (
-    IndexableChunk,
-    build_indexable_chunks_from_jsonl,
-    index_chunks_to_qdrant,
 )
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
@@ -261,6 +237,35 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.registry_scope_chunk_preparation import (
+    MANDATORY_PREPARATION_SCOPES,
+    REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION,
+    RegistryScopeChunkPreparationArtifacts,
+    RegistryScopeChunkPreparationDocumentRef,
+    RegistryScopeChunkPreparationDocumentReport,
+    RegistryScopeChunkPreparationManifest,
+    RegistryScopeChunkPreparationReport,
+    default_preparation_run_id,
+    load_chunk_preparation_manifest,
+    prepare_registry_scope_chunks,
+    require_verified_chunk_preparation,
+)
+from campus_ingestion_core.registry_scope_release import (
+    RegistryScopeReleaseReport,
+    release_registry_scope,
+)
+from campus_ingestion_core.scope_alias import (
+    ScopeAliasReport,
+    set_scope_release_alias,
+)
+from campus_ingestion_core.scope_catalog import (
+    CollectionScope,
+    QdrantIndexBinding,
+    assert_known_corpus,
+    assert_known_scope,
+    list_collection_scopes,
+    list_corpora,
+)
 from campus_ingestion_core.settings import (
     DEFAULT_BUCKET_DERIVED,
     DEFAULT_BUCKET_SOURCE,
@@ -272,7 +277,21 @@ from campus_ingestion_core.sparse import (
     build_mock_sparse_embedding_model,
     build_sparse_embedding_model,
 )
-from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument, load_split_manifest
+from campus_ingestion_core.split_manifest import (
+    SplitManifest,
+    SplitManifestDocument,
+    load_split_manifest,
+)
+from campus_ingestion_core.tokenizer_cache import (
+    HF_TOKENIZER_ALLOW_PATTERNS,
+    prefetch_hf_tokenizer,
+    resolve_prefetched_hf_tokenizer_path,
+)
+from campus_ingestion_core.version_resolution import (
+    ResolvedVersionQuery,
+    ResolvedVersionSelection,
+    resolve_version_query,
+)
 
 __all__ = [
     "DEFAULT_BUCKET_DERIVED",
@@ -294,6 +313,8 @@ __all__ = [
     "normalize_curriculum_provider_result",
     "DocumentRegistry",
     "DocumentRegistryRecord",
+    "ResolvedVersionQuery",
+    "ResolvedVersionSelection",
     "DOCUMENT_UNITS_FILENAME",
     "EmbeddingSettings",
     "HandbookCleanupResult",
@@ -309,6 +330,10 @@ __all__ = [
     "AuthenticatedNoticeBundleImportResult",
     "AuthenticatedNoticeImportRequest",
     "AuthenticatedNoticePreparedImport",
+    "AuthenticatedNoticeFileReleaseExport",
+    "FileReleaseOwnerRecoveryMatch",
+    "FileReleaseOwnerRecoveryReadinessReport",
+    "FileReleaseResolvedFile",
     "AuthenticatedNoticeAttachmentProjection",
     "AuthenticatedNoticeSourceProjectionReport",
     "AuthenticatedNoticeSourceProjectionRequest",
@@ -346,6 +371,7 @@ __all__ = [
     "cleanup_handbook_document",
     "import_authenticated_notice_bundle",
     "import_authenticated_notice_export",
+    "load_authenticated_notice_file_release_export",
     "load_authenticated_notice_source_projections_config",
     "load_authenticated_notice_source_truth_replay_inventory",
     "normalize_handbook_provider_result",
@@ -382,10 +408,12 @@ __all__ = [
     "build_indexable_chunks_from_jsonl",
     "build_release_metadata_payload",
     "build_document_artifact_key",
+    "build_official_web_run_artifact_key",
     "build_operations_artifact_key",
     "build_processed_asset_artifact_key",
     "build_raw_asset_registry_from_env",
     "build_raw_asset_key",
+    "build_reader_asset_artifact_key",
     "build_source_provider_artifact_key",
     "build_source_ocr_artifact_key",
     "build_source_truth_artifact_key",
@@ -474,6 +502,8 @@ __all__ = [
     "read_internal_notice_promotion_routing_path",
     "reset_index_binding",
     "resolve_alias_target",
+    "resolve_file_release_owner_recovery_readiness",
+    "resolve_version_query",
     "rollback_release_alias",
     "scan_internal_notice_chunking",
     "scan_student_handbook_chunking",

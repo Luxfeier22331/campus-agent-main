@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 
 from campus_ingestion_core.source_truth_common import (
     detect_merged_cells,
@@ -21,14 +21,15 @@ from campus_ingestion_core.source_truth_common import (
     serialize_layout_rows,
 )
 
-
 LAYOUT_ELEMENTS_SCHEMA_VERSION = "curriculum_layout_elements_v3"
 _CN_SECTION_RE = re.compile(r"^[一二三四五六七八九十]+、")
 _CN_SUBSECTION_RE = re.compile(r"^[（(][一二三四五六七八九十]+[)）]")
 _NUMERIC_HEADING_RE = re.compile(r"^\d+[\.．、]")
 _CHAPTER_RE = re.compile(r"^第[一二三四五六七八九十百千万〇零0-9]+[章节]")
 _SENTENCE_PUNCTUATION_RE = re.compile(r"[。！？；?!;]")
-_LIST_LIKE_LINE_RE = re.compile(r"^(?:[-*•]|[0-9]+[\.．、)]|[（(][一二三四五六七八九十]+[)）]|[一二三四五六七八九十]+、|第[一二三四五六七八九十百千万〇零0-9]+[章节])")
+_LIST_LIKE_LINE_RE = re.compile(
+    r"^(?:[-*•]|[0-9]+[\.．、)]|[（(][一二三四五六七八九十]+[)）]|[一二三四五六七八九十]+、|第[一二三四五六七八九十百千万〇零0-9]+[章节])"
+)
 _TABLE_TAG_RE = re.compile(r"<[^>]+>")
 _TABLE_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
 
@@ -40,7 +41,9 @@ def normalize_curriculum_provider_result(
     ocr_provider: str,
     ocr_model: str,
 ) -> bytes:
-    raw_lines = [line.strip() for line in provider_jsonl_bytes.decode("utf-8").splitlines() if line.strip()]
+    raw_lines = [
+        line.strip() for line in provider_jsonl_bytes.decode("utf-8").splitlines() if line.strip()
+    ]
     if not raw_lines:
         raise ValueError("curriculum provider result is empty")
 
@@ -53,21 +56,29 @@ def normalize_curriculum_provider_result(
         try:
             provider_payload = json.loads(line)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"curriculum provider result line {line_number} is not valid JSON") from exc
+            raise ValueError(
+                f"curriculum provider result line {line_number} is not valid JSON"
+            ) from exc
         if not isinstance(provider_payload, dict):
             raise ValueError(f"curriculum provider result line {line_number} must be a JSON object")
 
         result_payload = provider_payload.get("result")
         if not isinstance(result_payload, dict):
-            raise ValueError(f"curriculum provider result line {line_number} missing result payload")
+            raise ValueError(
+                f"curriculum provider result line {line_number} missing result payload"
+            )
         layout_results = result_payload.get("layoutParsingResults")
         if not isinstance(layout_results, list) or not layout_results:
-            raise ValueError(f"curriculum provider result line {line_number} missing layoutParsingResults")
+            raise ValueError(
+                f"curriculum provider result line {line_number} missing layoutParsingResults"
+            )
 
         log_id = str(provider_payload.get("logId") or f"line-{line_number}")
         for page_offset, page_payload in enumerate(layout_results, start=1):
             if not isinstance(page_payload, dict):
-                raise ValueError(f"curriculum provider page payload {line_number}:{page_offset} must be an object")
+                raise ValueError(
+                    f"curriculum provider page payload {line_number}:{page_offset} must be an object"
+                )
             page_index += 1
             parsed_rows = _normalize_page_payload(
                 page_payload=page_payload,
@@ -128,7 +139,9 @@ def _normalize_page_payload(
     markdown_text = markdown.get("text") if isinstance(markdown, dict) else None
     normalized_text = _normalize_text(markdown_text if isinstance(markdown_text, str) else "")
     if not normalized_text:
-        raise ValueError(f"curriculum provider page {provider_page_id} has neither blocks nor markdown text")
+        raise ValueError(
+            f"curriculum provider page {provider_page_id} has neither blocks nor markdown text"
+        )
     return [
         _build_row(
             source_pdf=source_pdf,
@@ -181,14 +194,18 @@ def _normalize_block(
     bbox_value = normalize_bbox(bbox)
     html = text_normalized if "<table" in text_normalized.lower() else None
     table_cells = _extract_table_cells(html) if html else None
-    row_type, block_role, heading_level, classification_confidence, classification_reason = _classify_block(
-        block_label=block_label,
-        text=text_normalized,
-        bbox=bbox_value,
-        page_height=page_height,
-        table_cells=table_cells,
+    row_type, block_role, heading_level, classification_confidence, classification_reason = (
+        _classify_block(
+            block_label=block_label,
+            text=text_normalized,
+            bbox=bbox_value,
+            page_height=page_height,
+            table_cells=table_cells,
+        )
     )
-    title_candidate_score = 1.0 if block_role == "doc_title" else (0.75 if row_type == "heading" else 0.0)
+    title_candidate_score = (
+        1.0 if block_role == "doc_title" else (0.75 if row_type == "heading" else 0.0)
+    )
     section_hint = _section_hint(text_normalized) if row_type == "heading" else None
 
     return _build_row(
@@ -322,9 +339,21 @@ def _classify_block(
     if block_label == "doc_title":
         return "heading", "doc_title", 1, 0.99, "provider_label:doc_title"
     if block_label == "paragraph_title":
-        return "heading", "paragraph_title", _infer_heading_level(text), 0.92, "provider_label:paragraph_title"
+        return (
+            "heading",
+            "paragraph_title",
+            _infer_heading_level(text),
+            0.92,
+            "provider_label:paragraph_title",
+        )
     if block_label == "text" and _looks_like_heading(text):
-        return "heading", "text_heading_candidate", _infer_heading_level(text), 0.8, "text_pattern:heading"
+        return (
+            "heading",
+            "text_heading_candidate",
+            _infer_heading_level(text),
+            0.8,
+            "text_pattern:heading",
+        )
     if table_cells:
         return "table", "table", None, 0.82, "table_cells:detected"
     return "paragraph", block_label, None, 0.78, f"provider_label:{block_label or 'unknown'}"
@@ -391,7 +420,7 @@ def _looks_like_numeric_heading(text: str) -> bool:
     match = _NUMERIC_HEADING_RE.match(text)
     if not match:
         return False
-    remainder = text[match.end():].strip()
+    remainder = text[match.end() :].strip()
     if not remainder:
         return False
     if len(remainder) > 20:
@@ -407,14 +436,17 @@ def _looks_like_subsection_heading(text: str) -> bool:
     match = _CN_SUBSECTION_RE.match(text)
     if not match:
         return False
-    remainder = text[match.end():].strip()
+    remainder = text[match.end() :].strip()
     if not remainder:
         return False
     if len(remainder) > 18:
         return False
     if _SENTENCE_PUNCTUATION_RE.search(remainder):
         return False
-    if any(token in remainder for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解")):
+    if any(
+        token in remainder
+        for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解")
+    ):
         return False
     return True
 
@@ -447,7 +479,12 @@ def _joiner_between(previous: str, current: str) -> str:
     current_head = current.lstrip()
     if not previous_tail or not current_head:
         return ""
-    if previous_tail[-1].isascii() and previous_tail[-1].isalnum() and current_head[0].isascii() and current_head[0].isalnum():
+    if (
+        previous_tail[-1].isascii()
+        and previous_tail[-1].isalnum()
+        and current_head[0].isascii()
+        and current_head[0].isalnum()
+    ):
         return " "
     return ""
 
@@ -481,7 +518,10 @@ def _enrich_relationships(rows: list[dict[str, object]]) -> None:
             owner_row_id: str | None = None
             relation_type: str | None = None
             header_signature = _table_header_signature(str(row.get("html") or ""))
-            continuation_hint = any(_is_continuation_caption(str(caption.get("text_normalized") or "")) for caption in pending_captions)
+            continuation_hint = any(
+                _is_continuation_caption(str(caption.get("text_normalized") or ""))
+                for caption in pending_captions
+            )
 
             if continuation_hint and open_table_context is not None:
                 continuation_group_id = str(open_table_context["continuation_group_id"])
@@ -602,7 +642,9 @@ def _propagate_table_caption_hints(rows: list[dict[str, object]]) -> None:
             row["table_caption_hint"] = captions_by_owner[row_id]
 
 
-def _looks_like_page_number(*, text: str, bbox: list[float] | None, page_height: float | None) -> bool:
+def _looks_like_page_number(
+    *, text: str, bbox: list[float] | None, page_height: float | None
+) -> bool:
     normalized = text.strip()
     if not normalized.isdigit():
         return False

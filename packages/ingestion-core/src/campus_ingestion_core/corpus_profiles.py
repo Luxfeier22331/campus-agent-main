@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from functools import lru_cache
-import json
 from pathlib import Path
 
 from campus_contracts import ALLOWED_REVISION_TRACKS
+
 from campus_ingestion_core.scope_catalog import (
     DEFAULT_QDRANT_DENSE_VECTOR_NAME,
     DEFAULT_QDRANT_SPARSE_VECTOR_NAME,
@@ -14,7 +15,6 @@ from campus_ingestion_core.scope_catalog import (
     default_config_root,
     list_collection_scopes,
 )
-
 
 ALLOWED_SERVING_STAGES = ("query_serving", "offline_preparation")
 ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
@@ -73,7 +73,9 @@ class CollectionRuntimeProfile:
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
     qdrant_index_binding: QdrantIndexBinding = field(
-        default_factory=lambda: QdrantIndexBinding(alias_name="unconfigured", collection_prefix="unconfigured")
+        default_factory=lambda: QdrantIndexBinding(
+            alias_name="unconfigured", collection_prefix="unconfigured"
+        )
     )
 
     def __post_init__(self) -> None:
@@ -83,7 +85,10 @@ class CollectionRuntimeProfile:
             raise ValueError("collection is required")
         if self.serving_stage not in ALLOWED_SERVING_STAGES:
             raise ValueError(f"unsupported serving_stage: {self.serving_stage}")
-        if self.serving_surface is not None and self.serving_surface not in ALLOWED_SERVING_SURFACES:
+        if (
+            self.serving_surface is not None
+            and self.serving_surface not in ALLOWED_SERVING_SURFACES
+        ):
             raise ValueError(f"unsupported serving_surface: {self.serving_surface}")
         if not self.allowed_artifact_modes:
             raise ValueError("allowed_artifact_modes must not be empty")
@@ -109,7 +114,9 @@ class CollectionRuntimeProfile:
         if self.document_support_limit <= 0:
             raise ValueError("document_support_limit must be greater than zero")
         if self.document_support_strategy not in ALLOWED_DOCUMENT_SUPPORT_STRATEGIES:
-            raise ValueError(f"unsupported document_support_strategy: {self.document_support_strategy}")
+            raise ValueError(
+                f"unsupported document_support_strategy: {self.document_support_strategy}"
+            )
         if self.freshness_max_age_hours is not None and self.freshness_max_age_hours <= 0:
             raise ValueError("freshness_max_age_hours must be greater than zero")
         for revision_track in self.serving_revision_tracks:
@@ -121,7 +128,10 @@ class CollectionRuntimeProfile:
         for page_family in self.primary_evidence_page_families:
             if not page_family.strip():
                 raise ValueError("primary_evidence_page_families must not contain empty values")
-        if self.listing_page_role is not None and self.listing_page_role not in ALLOWED_LISTING_PAGE_ROLES:
+        if (
+            self.listing_page_role is not None
+            and self.listing_page_role not in ALLOWED_LISTING_PAGE_ROLES
+        ):
             raise ValueError(f"unsupported listing_page_role: {self.listing_page_role}")
         if self.no_hit_min_top_score is not None and not 0.0 <= self.no_hit_min_top_score <= 1.0:
             raise ValueError("no_hit_min_top_score must be between zero and one")
@@ -199,18 +209,24 @@ def load_runtime_profile(
         collection=str(payload.get("collection") or ""),
         serving_stage=str(payload.get("serving_stage") or ""),
         serving_surface=_optional_text(payload.get("serving_surface")),
-        allowed_artifact_modes=tuple(str(item) for item in list(payload.get("allowed_artifact_modes") or [])),
+        allowed_artifact_modes=tuple(
+            str(item) for item in list(payload.get("allowed_artifact_modes") or [])
+        ),
         split_manifest_required=bool(payload.get("split_manifest_required")),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
         chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
-        supports_freshness_sensitive_queries=bool(payload.get("supports_freshness_sensitive_queries", False)),
+        supports_freshness_sensitive_queries=bool(
+            payload.get("supports_freshness_sensitive_queries", False)
+        ),
         freshness_max_age_hours=_optional_int(payload.get("freshness_max_age_hours")),
         live_search_fallback_allowed=bool(payload.get("live_search_fallback_allowed", False)),
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
-        serving_revision_tracks=tuple(str(item) for item in list(payload.get("serving_revision_tracks") or [])),
+        serving_revision_tracks=tuple(
+            str(item) for item in list(payload.get("serving_revision_tracks") or [])
+        ),
         required_metadata_fields=tuple(
             str(item) for item in list(payload.get("required_metadata_fields") or [])
         ),
@@ -223,12 +239,18 @@ def load_runtime_profile(
             payload.get("requires_explicit_history_intent", False)
         ),
         duplicate_collapse_required=bool(payload.get("duplicate_collapse_required", False)),
-        dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or DEFAULT_DENSE_PREFETCH_LIMIT),
-        sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or DEFAULT_SPARSE_PREFETCH_LIMIT),
+        dense_prefetch_limit=int(
+            payload.get("dense_prefetch_limit") or DEFAULT_DENSE_PREFETCH_LIMIT
+        ),
+        sparse_prefetch_limit=int(
+            payload.get("sparse_prefetch_limit") or DEFAULT_SPARSE_PREFETCH_LIMIT
+        ),
         rrf_k=int(payload.get("rrf_k") or DEFAULT_RRF_K),
         rrf_dense_weight=float(payload.get("rrf_dense_weight") or DEFAULT_RRF_DENSE_WEIGHT),
         rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or DEFAULT_RRF_SPARSE_WEIGHT),
-        document_support_limit=int(payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT),
+        document_support_limit=int(
+            payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT
+        ),
         document_support_strategy=str(
             payload.get("document_support_strategy") or DEFAULT_DOCUMENT_SUPPORT_STRATEGY
         ),
@@ -295,19 +317,19 @@ def default_query_scopes(*, config_root: Path | None = None) -> tuple[tuple[str,
     root = Path(config_root) if config_root is not None else default_config_root()
     scopes: list[tuple[str, str]] = []
     for scope in list_collection_scopes(config_root=root):
-        profile = load_runtime_profile(scope.corpus, scope.collection, config_root=root)
+        try:
+            profile = load_runtime_profile(scope.corpus, scope.collection, config_root=root)
+        except (FileNotFoundError, ValueError):
+            continue
         if profile.query_enabled_by_default:
             scopes.append((scope.corpus, scope.collection))
     return tuple(scopes)
 
 
 def is_official_web_stable_reference_like_profile(profile: CollectionRuntimeProfile) -> bool:
-    return (
-        profile.corpus == "official_web"
-        and (
-            profile.serving_surface in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES
-            or profile.collection in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS
-        )
+    return profile.corpus == "official_web" and (
+        profile.serving_surface in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES
+        or profile.collection in OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS
     )
 
 

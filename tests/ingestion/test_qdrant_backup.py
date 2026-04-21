@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import hashlib
 import json
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import unittest
+from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core.object_store import (
     build_index_release_artifact_key,
@@ -76,9 +75,7 @@ class _FakeQdrantSnapshotAdmin:
         snapshot_name: str,
         target_path: str,
     ) -> None:
-        Path(target_path).write_bytes(
-            f"snapshot:{collection_name}:{snapshot_name}".encode("utf-8")
-        )
+        Path(target_path).write_bytes(f"snapshot:{collection_name}:{snapshot_name}".encode("utf-8"))
 
     def restore_collection_snapshot(
         self,
@@ -155,7 +152,7 @@ def _seed_release_manifest(
         object_store.put_bytes(
             bucket=DERIVED_BUCKET,
             key=validation_summary_key,
-            data=b"{\"status\":\"passed\"}\n",
+            data=b'{"status":"passed"}\n',
             content_type="application/json",
         )
     return manifest_key
@@ -227,7 +224,9 @@ class QdrantBackupTest(unittest.TestCase):
 
         self.assertEqual(manifest.index_release_manifest_key, manifest_key)
         self.assertEqual(manifest.validation_summary_key, validation_summary_key)
-        self.assertEqual(manifest.alias_bindings, {"student_handbook": "student_handbook__r20260331_120000"})
+        self.assertEqual(
+            manifest.alias_bindings, {"student_handbook": "student_handbook__r20260331_120000"}
+        )
         self.assertEqual(manifest.snapshot_object_key, snapshot_key)
         self.assertIn((DERIVED_BUCKET, snapshot_key), object_store.objects)
         self.assertIn((DERIVED_BUCKET, backup_manifest_key), object_store.objects)
@@ -295,7 +294,9 @@ class QdrantBackupTest(unittest.TestCase):
                 backup_id="b20260401T010203Z",
                 filename="backup-manifest.json",
             ),
-            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
             content_type="application/json",
         )
         qdrant_admin.points_count["student_handbook__r20260331_120000"] = 20
@@ -394,7 +395,9 @@ class QdrantBackupTest(unittest.TestCase):
                 backup_id="b20260401T010203Z",
                 filename="backup-manifest.json",
             ),
-            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
             content_type="application/json",
         )
         qdrant_admin.points_count["student_handbook__r20260331_120000"] = 19
@@ -532,7 +535,9 @@ class QdrantBackupTest(unittest.TestCase):
                 backup_id="b20260401T010203Z",
                 filename="backup-manifest.json",
             ),
-            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
             content_type="application/json",
         )
         qdrant_admin.aliases["student_handbook"] = "student_handbook__r20260331_120000"

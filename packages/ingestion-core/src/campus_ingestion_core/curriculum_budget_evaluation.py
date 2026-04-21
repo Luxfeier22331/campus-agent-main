@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
+from collections import Counter
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
 from campus_ingestion_core.chunking import (
-    ChunkProfile,
     CURRICULUM_CLEANING_POLICY_VERSION,
+    ChunkProfile,
     CurriculumChunkingStrategy,
     build_chunk_text_context,
     build_curriculum_chunk_profile,
@@ -24,20 +24,28 @@ from campus_ingestion_core.curriculum_chunk_units import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.process import (
+    _build_chunk_text,
     _ChunkCandidate,
     _ChunkMember,
-    _build_chunk_text,
     _merge_adjacent_curriculum_table_candidates,
     _merge_adjacent_short_textual_candidates,
 )
-from campus_ingestion_core.raw_ingestion import _build_split_manifest_document_input, _load_layout_elements_rows
+from campus_ingestion_core.raw_ingestion import (
+    _build_split_manifest_document_input,
+    _load_layout_elements_rows,
+)
 from campus_ingestion_core.split_manifest import load_split_manifest
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_DEFAULT_SAMPLE_INDEX_PATH = _REPO_ROOT / "configs/ingestion/curriculum/curriculum_plan/samples/index.json"
-_DEFAULT_SPLIT_MANIFEST_PATH = _REPO_ROOT / "configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"
-_DEFAULT_LAYOUT_FIXTURE_PATH = _REPO_ROOT / "tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl"
+_DEFAULT_SAMPLE_INDEX_PATH = (
+    _REPO_ROOT / "configs/ingestion/curriculum/curriculum_plan/samples/index.json"
+)
+_DEFAULT_SPLIT_MANIFEST_PATH = (
+    _REPO_ROOT / "configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"
+)
+_DEFAULT_LAYOUT_FIXTURE_PATH = (
+    _REPO_ROOT / "tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl"
+)
 _DEFAULT_RUNTIME_TITLES = (
     "国际经济与贸易本科人才培养方案",
     "经济学拔尖人才创新班人才培养方案",
@@ -246,11 +254,15 @@ def build_default_curriculum_budget_candidates() -> tuple[CurriculumBudgetCandid
     )
 
 
-def load_runtime_curriculum_budget_evaluation_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+def load_runtime_curriculum_budget_evaluation_documents() -> tuple[
+    CurriculumBudgetEvaluationDocument, ...
+]:
     return _load_runtime_fixture_documents()
 
 
-def load_historical_curriculum_budget_evaluation_documents() -> tuple[CurriculumBudgetEvaluationDocument, ...]:
+def load_historical_curriculum_budget_evaluation_documents() -> tuple[
+    CurriculumBudgetEvaluationDocument, ...
+]:
     return _load_historical_sample_documents()
 
 
@@ -302,12 +314,13 @@ def _evaluate_candidate(
     documents: Sequence[CurriculumBudgetEvaluationDocument],
 ) -> CurriculumBudgetCandidateResult:
     evaluated_documents = tuple(
-        _evaluate_document(candidate=candidate, document=document)
-        for document in documents
+        _evaluate_document(candidate=candidate, document=document) for document in documents
     )
     document_results = tuple(item.result for item in evaluated_documents)
     tier_aggregates = {
-        tier: _aggregate_evaluated_documents(tuple(item for item in evaluated_documents if item.result.tier == tier))
+        tier: _aggregate_evaluated_documents(
+            tuple(item for item in evaluated_documents if item.result.tier == tier)
+        )
         for tier in sorted({document.tier for document in document_results})
     }
     return CurriculumBudgetCandidateResult(
@@ -332,7 +345,9 @@ def _evaluate_document(
     raw_candidates: list[_ChunkCandidate] = []
     unit_type_counts = Counter(unit.unit_type for unit in units)
     for unit in units:
-        profile = _resolve_profile(candidate=candidate, record=document.record, unit_type=unit.unit_type)
+        profile = _resolve_profile(
+            candidate=candidate, record=document.record, unit_type=unit.unit_type
+        )
         pieces = chunk_curriculum_unit(unit=unit, chunk_profile=profile)
         context_plan = build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
         for piece in pieces:
@@ -357,11 +372,15 @@ def _evaluate_document(
             )
     merged = _merge_adjacent_short_textual_candidates(
         chunk_candidates=tuple(raw_candidates),
-        chunk_profile=_resolve_profile(candidate=candidate, record=document.record, unit_type="section_text"),
+        chunk_profile=_resolve_profile(
+            candidate=candidate, record=document.record, unit_type="section_text"
+        ),
     )
     merged = _merge_adjacent_curriculum_table_candidates(
         chunk_candidates=merged,
-        chunk_profile=_resolve_profile(candidate=candidate, record=document.record, unit_type="table_unit"),
+        chunk_profile=_resolve_profile(
+            candidate=candidate, record=document.record, unit_type="table_unit"
+        ),
     )
     display_tokens: list[int] = []
     final_tokens: list[int] = []
@@ -447,7 +466,11 @@ def _resolve_profile(
     record: DocumentRegistryRecord,
     unit_type: str,
 ) -> ChunkProfile:
-    profile_spec = candidate.table_profile if unit_type == "table_unit" and candidate.table_profile is not None else candidate.default_profile
+    profile_spec = (
+        candidate.table_profile
+        if unit_type == "table_unit" and candidate.table_profile is not None
+        else candidate.default_profile
+    )
     base_profile = build_curriculum_chunk_profile(model_name=record.embedding_model or None)
     return ChunkProfile(
         chunk_size=profile_spec.chunk_size,
@@ -509,7 +532,11 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             document_id=manifest_document.document_id,
             revision_track="source-faithful",
             version_id=str(document_input.metadata["version_id"]),
-            source_uri=str(document_input.metadata.get("source_url") or document_input.metadata.get("source_id") or ""),
+            source_uri=str(
+                document_input.metadata.get("source_url")
+                or document_input.metadata.get("source_id")
+                or ""
+            ),
             content_hash=hashlib.sha256(document_input.document_units_bytes).hexdigest(),
             corpus="curriculum",
             collection="curriculum_plan",
@@ -524,7 +551,9 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             source_channel="pdf_ocr",
             is_current=True,
             document_units_object_key=f"curriculum/documents/{manifest_document.document_id}/document-units.jsonl",
-            processed_object_keys=(f"curriculum/documents/{manifest_document.document_id}/document-units.jsonl",),
+            processed_object_keys=(
+                f"curriculum/documents/{manifest_document.document_id}/document-units.jsonl",
+            ),
             import_source="raw_online_ocr",
         )
         documents.append(
@@ -766,14 +795,17 @@ def _evaluate_probe_cases(
     if not probe_cases:
         return ()
     ranked_candidates = tuple(
-        (index, candidate)
-        for index, candidate in enumerate(chunk_candidates, start=1)
+        (index, candidate) for index, candidate in enumerate(chunk_candidates, start=1)
     )
     results: list[CurriculumBudgetProbeResult] = []
     for probe_case in probe_cases:
         ranked = sorted(
             (
-                (index, candidate, _curriculum_probe_score(probe_case.query, candidate.chunk_assembly.text))
+                (
+                    index,
+                    candidate,
+                    _curriculum_probe_score(probe_case.query, candidate.chunk_assembly.text),
+                )
                 for index, candidate in ranked_candidates
             ),
             key=lambda item: (item[2], -item[0]),
@@ -785,7 +817,9 @@ def _evaluate_probe_cases(
         top_candidate = top_ranked[1] if top_ranked is not None else None
         top_score = round(float(top_ranked[2]), 3) if top_ranked is not None else 0.0
         keyword_hit_count = (
-            _probe_keyword_hit_count(probe_case.expected_keywords, top_candidate.chunk_assembly.text)
+            _probe_keyword_hit_count(
+                probe_case.expected_keywords, top_candidate.chunk_assembly.text
+            )
             if top_candidate is not None
             else 0
         )
@@ -838,9 +872,7 @@ def _evaluate_probe_cases(
                     ),
                 ),
                 complete_hit_at_1=(
-                    keyword_hit_at_1
-                    and required_heading_hit_at_1
-                    and preferred_unit_type_hit_at_1
+                    keyword_hit_at_1 and required_heading_hit_at_1 and preferred_unit_type_hit_at_1
                 ),
                 complete_hit_at_3=_probe_any_hit_in_ranked(
                     ranked=ranked[:3],
@@ -849,7 +881,9 @@ def _evaluate_probe_cases(
                         candidate,
                     ),
                 ),
-                top_preview=_preview_text(top_candidate.chunk_assembly.text) if top_candidate is not None else "",
+                top_preview=_preview_text(top_candidate.chunk_assembly.text)
+                if top_candidate is not None
+                else "",
             )
         )
     return tuple(results)
@@ -877,19 +911,14 @@ def _curriculum_probe_score(query: str, text: str) -> float:
 
 def _normalize_probe_text(text: str) -> str:
     return "".join(
-        char.lower()
-        for char in text
-        if char.isalnum() or ("\u4e00" <= char <= "\u9fff")
+        char.lower() for char in text if char.isalnum() or ("\u4e00" <= char <= "\u9fff")
     )
 
 
 def _build_character_ngrams(text: str, size: int) -> set[str]:
     if len(text) < size:
         return {text} if text else set()
-    return {
-        text[index:index + size]
-        for index in range(0, len(text) - size + 1)
-    }
+    return {text[index : index + size] for index in range(0, len(text) - size + 1)}
 
 
 def _probe_any_hit_in_ranked(
@@ -944,10 +973,18 @@ def _summarize_probe_results(
         total_cases=len(probe_results),
         keyword_hit_at_1_count=sum(1 for item in probe_results if item.keyword_hit_at_1),
         keyword_hit_at_3_count=sum(1 for item in probe_results if item.keyword_hit_at_3),
-        required_heading_hit_at_1_count=sum(1 for item in probe_results if item.required_heading_hit_at_1),
-        required_heading_hit_at_3_count=sum(1 for item in probe_results if item.required_heading_hit_at_3),
-        preferred_unit_type_hit_at_1_count=sum(1 for item in probe_results if item.preferred_unit_type_hit_at_1),
-        preferred_unit_type_hit_at_3_count=sum(1 for item in probe_results if item.preferred_unit_type_hit_at_3),
+        required_heading_hit_at_1_count=sum(
+            1 for item in probe_results if item.required_heading_hit_at_1
+        ),
+        required_heading_hit_at_3_count=sum(
+            1 for item in probe_results if item.required_heading_hit_at_3
+        ),
+        preferred_unit_type_hit_at_1_count=sum(
+            1 for item in probe_results if item.preferred_unit_type_hit_at_1
+        ),
+        preferred_unit_type_hit_at_3_count=sum(
+            1 for item in probe_results if item.preferred_unit_type_hit_at_3
+        ),
         complete_hit_at_1_count=sum(1 for item in probe_results if item.complete_hit_at_1),
         complete_hit_at_3_count=sum(1 for item in probe_results if item.complete_hit_at_3),
     )
@@ -960,10 +997,18 @@ def _aggregate_probe_summaries(
         total_cases=sum(item.total_cases for item in probe_summaries),
         keyword_hit_at_1_count=sum(item.keyword_hit_at_1_count for item in probe_summaries),
         keyword_hit_at_3_count=sum(item.keyword_hit_at_3_count for item in probe_summaries),
-        required_heading_hit_at_1_count=sum(item.required_heading_hit_at_1_count for item in probe_summaries),
-        required_heading_hit_at_3_count=sum(item.required_heading_hit_at_3_count for item in probe_summaries),
-        preferred_unit_type_hit_at_1_count=sum(item.preferred_unit_type_hit_at_1_count for item in probe_summaries),
-        preferred_unit_type_hit_at_3_count=sum(item.preferred_unit_type_hit_at_3_count for item in probe_summaries),
+        required_heading_hit_at_1_count=sum(
+            item.required_heading_hit_at_1_count for item in probe_summaries
+        ),
+        required_heading_hit_at_3_count=sum(
+            item.required_heading_hit_at_3_count for item in probe_summaries
+        ),
+        preferred_unit_type_hit_at_1_count=sum(
+            item.preferred_unit_type_hit_at_1_count for item in probe_summaries
+        ),
+        preferred_unit_type_hit_at_3_count=sum(
+            item.preferred_unit_type_hit_at_3_count for item in probe_summaries
+        ),
         complete_hit_at_1_count=sum(item.complete_hit_at_1_count for item in probe_summaries),
         complete_hit_at_3_count=sum(item.complete_hit_at_3_count for item in probe_summaries),
     )
@@ -983,9 +1028,13 @@ def _aggregate_evaluated_documents(
         total_chunks=sum(document.result.total_chunks for document in documents),
         chunk_delta_vs_units=sum(document.result.chunk_delta_vs_units for document in documents),
         oversize_chunk_count=sum(document.result.oversize_chunk_count for document in documents),
-        orphan_heading_only_count=sum(document.result.orphan_heading_only_count for document in documents),
+        orphan_heading_only_count=sum(
+            document.result.orphan_heading_only_count for document in documents
+        ),
         cue_only_chunk_count=sum(document.result.cue_only_chunk_count for document in documents),
-        missing_top_parent_count=sum(document.result.missing_top_parent_count for document in documents),
+        missing_top_parent_count=sum(
+            document.result.missing_top_parent_count for document in documents
+        ),
         missing_any_structural_heading_count=sum(
             document.result.missing_any_structural_heading_count for document in documents
         ),
@@ -1013,19 +1062,25 @@ def _is_cue_only_chunk(chunk_candidate: _ChunkCandidate) -> bool:
     lines = [line.strip() for line in chunk_candidate.piece.text.splitlines() if line.strip()]
     if not lines:
         return False
-    caption_lines = {str(item).strip() for item in list(metadata.get("caption_lines") or ()) if str(item).strip()}
-    note_lines = {str(item).strip() for item in list(metadata.get("note_lines") or ()) if str(item).strip()}
+    caption_lines = {
+        str(item).strip() for item in list(metadata.get("caption_lines") or ()) if str(item).strip()
+    }
+    note_lines = {
+        str(item).strip() for item in list(metadata.get("note_lines") or ()) if str(item).strip()
+    }
     header_line = str(metadata.get("table_header_line") or "").strip()
     content_lines = [
         line
         for line in lines
-        if line not in caption_lines and line not in note_lines and line != header_line and not _looks_like_curriculum_structure_heading(line)
+        if line not in caption_lines
+        and line not in note_lines
+        and line != header_line
+        and not _looks_like_curriculum_structure_heading(line)
     ]
     if content_lines:
         return False
     return any(
-        line in caption_lines or line == header_line or _is_table_cue_row(line)
-        for line in lines
+        line in caption_lines or line == header_line or _is_table_cue_row(line) for line in lines
     )
 
 
@@ -1046,9 +1101,7 @@ def _missing_any_structural_heading(chunk_candidate: _ChunkCandidate) -> bool:
 
 def _structural_section_path(anchor: dict[str, object]) -> list[str]:
     raw_path = [
-        str(item).strip()
-        for item in list(anchor.get("section_path") or [])
-        if str(item).strip()
+        str(item).strip() for item in list(anchor.get("section_path") or []) if str(item).strip()
     ]
     if len(raw_path) > 1 and not _looks_like_curriculum_structure_heading(raw_path[0]):
         raw_path = raw_path[1:]

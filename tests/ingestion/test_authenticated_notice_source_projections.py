@@ -1,19 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import base64
 import hashlib
 import json
+import unittest
+import zipfile
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
-import zipfile
 
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
     import_authenticated_notice_export,
+)
+from campus_ingestion_core.authenticated_notice_source_projections import (
+    AuthenticatedNoticeSourceProjectionRequest,
+    _build_attachment_title,
+    _classify_attachment_ref,
+    build_authenticated_notice_attachment_projection_plans,
+    load_authenticated_notice_source_projections_config,
+    rebuild_authenticated_notice_source_projections,
 )
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_attachment_capture_key,
@@ -28,16 +36,8 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.raw_ingestion import OnlineOcrProviderResult
 from campus_ingestion_core.settings import ObjectStoreSettings
-from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-from campus_ingestion_core.authenticated_notice_source_projections import (
-    AuthenticatedNoticeSourceProjectionRequest,
-    _classify_attachment_ref,
-    _build_attachment_title,
-    build_authenticated_notice_attachment_projection_plans,
-    load_authenticated_notice_source_projections_config,
-    rebuild_authenticated_notice_source_projections,
-)
+from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 SOURCE_BUCKET = "campus-rag-source"
 DERIVED_BUCKET = "campus-rag-derived"
@@ -173,7 +173,11 @@ class _FakeAttachmentStructuredOcrClient:
                                     "block_content": "时间 地点 08:00 海淀校区 17:30 丰台校区",
                                     "block_order": 3,
                                     "block_bbox": [0, 120, 512, 360],
-                                    "tableCells": [["时间", "地点"], ["08:00", "海淀校区"], ["17:30", "丰台校区"]],
+                                    "tableCells": [
+                                        ["时间", "地点"],
+                                        ["08:00", "海淀校区"],
+                                        ["17:30", "丰台校区"],
+                                    ],
                                     "markdown": {
                                         "text": "时间 | 地点\n08:00 | 海淀校区\n17:30 | 丰台校区",
                                         "html": "<table><tr><th>时间</th><th>地点</th></tr><tr><td>08:00</td><td>海淀校区</td></tr><tr><td>17:30</td><td>丰台校区</td></tr></table>",
@@ -240,7 +244,9 @@ class AuthenticatedNoticeAttachmentTitleTest(unittest.TestCase):
 
         self.assertEqual(title, "附件 4")
 
-    def test_build_attachment_title_strips_plain_attachment_prefix_without_numeric_suffix(self) -> None:
+    def test_build_attachment_title_strips_plain_attachment_prefix_without_numeric_suffix(
+        self,
+    ) -> None:
         title = _build_attachment_title(
             notice_title="关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
             attachment_ref={
@@ -254,11 +260,15 @@ class AuthenticatedNoticeAttachmentTitleTest(unittest.TestCase):
             filename="中央民族大学关于学生使用人工智能的指导意见（2026版）.docx",
         )
 
-        self.assertEqual(title, "附件 1 / 中央民族大学关于学生使用人工智能的指导意见（2026版）.docx")
+        self.assertEqual(
+            title, "附件 1 / 中央民族大学关于学生使用人工智能的指导意见（2026版）.docx"
+        )
 
 
 class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
-    def test_classify_attachment_ref_prefers_extension_bearing_fields_over_download_url_slug(self) -> None:
+    def test_classify_attachment_ref_prefers_extension_bearing_fields_over_download_url_slug(
+        self,
+    ) -> None:
         config = load_authenticated_notice_source_projections_config(
             Path(__file__).resolve().parents[2]
             / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
@@ -304,9 +314,7 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
                 "source_url": "https://portal.example.edu/files/course-plan.xlsx",
                 "normalized_source_url": "https://portal.example.edu/files/course-plan.xlsx",
                 "anchor_text": "培养方案明细.xlsx",
-                "object_key": (
-                    "attachments/aa/" "aabbccddeeff00112233445566778899/course-plan.xlsx"
-                ),
+                "object_key": ("attachments/aa/aabbccddeeff00112233445566778899/course-plan.xlsx"),
                 "content_sha256": "aabbccddeeff00112233445566778899",
                 "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "byte_size": 2048,
@@ -379,7 +387,9 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
         )
 
-    def test_attachment_projection_plan_rejects_downloaded_doc_without_explicit_extractor(self) -> None:
+    def test_attachment_projection_plan_rejects_downloaded_doc_without_explicit_extractor(
+        self,
+    ) -> None:
         config = load_authenticated_notice_source_projections_config(
             Path(__file__).resolve().parents[2]
             / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
@@ -1162,9 +1172,7 @@ def _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
     second_notice["notice_title"] = "关于第二批材料提交通知"
     second_notice["notice_link"] = "https://portal.example.edu/notice/355120"
     second_notice["notice_content"] = (
-        "<h1>关于第二批材料提交通知</h1>"
-        "<p>请按要求提交。</p>"
-        "<p>附件1：共享手册.pdf</p>"
+        "<h1>关于第二批材料提交通知</h1><p>请按要求提交。</p><p>附件1：共享手册.pdf</p>"
     )
     second_notice["categories"] = [
         {
@@ -1206,7 +1214,9 @@ def _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
     second_attachment["normalized_source_url"] = "https://portal.example.edu/files/supplement.pdf"
     second_attachment["final_url"] = "https://portal.example.edu/files/supplement.pdf"
     second_attachment["original_filename"] = "supplement.pdf"
-    second_attachment["object_key"] = _attachment_object_key(hashlib.sha256(pdf_bytes).hexdigest(), "supplement.pdf")
+    second_attachment["object_key"] = _attachment_object_key(
+        hashlib.sha256(pdf_bytes).hexdigest(), "supplement.pdf"
+    )
 
     return [first, second]
 
@@ -1220,7 +1230,9 @@ def _sample_notice_bundle_with_downloaded_spreadsheet_attachment(
     bundle = json.loads(
         json.dumps(
             _sample_notice_bundle(
-                docx_bytes=_build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段")),
+                docx_bytes=_build_minimal_docx_bytes(
+                    paragraphs=("报名表正文第一段", "报名表正文第二段")
+                ),
                 png_bytes=_build_minimal_png_bytes(),
             ),
             ensure_ascii=False,
@@ -1296,8 +1308,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1372,8 +1388,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1469,7 +1489,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             str(bundle[0]["attachments"][0]["object_key"]),
         )
 
-    def test_rebuild_authenticated_notice_source_projections_replaces_scope_and_materializes_attachment_children(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_replaces_scope_and_materializes_attachment_children(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -1482,8 +1504,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1563,10 +1589,16 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             },
         )
 
-        parent = next(record for record in records if record.document_id == "notice:muc_internal_portal:355119")
+        parent = next(
+            record
+            for record in records
+            if record.document_id == "notice:muc_internal_portal:355119"
+        )
         parent_units = [
             json.loads(line)
-            for line in object_store.get_bytes(bucket=DERIVED_BUCKET, key=str(parent.document_units_object_key))
+            for line in object_store.get_bytes(
+                bucket=DERIVED_BUCKET, key=str(parent.document_units_object_key)
+            )
             .decode("utf-8")
             .splitlines()
             if line.strip()
@@ -1616,7 +1648,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         ).decode("utf-8")
         self.assertIn("图片附件 OCR 正文 第一行", image_markdown)
 
-    def test_rebuild_authenticated_notice_source_projections_uses_shared_text_extractable_entrypoint(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_uses_shared_text_extractable_entrypoint(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -1644,8 +1678,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1778,8 +1816,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1866,7 +1908,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self,
     ) -> None:
         pdf_bytes = _build_minimal_pdf_bytes()
-        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(pdf_bytes=pdf_bytes)
+        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
+            pdf_bytes=pdf_bytes
+        )
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1876,8 +1920,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -1900,7 +1948,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
                     uploaded_keys.add(key)
                     filename = str(attachment["original_filename"])
                     if filename.endswith(".docx"):
-                        data = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+                        data = _build_minimal_docx_bytes(
+                            paragraphs=("报名表正文第一段", "报名表正文第二段")
+                        )
                         content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     elif filename.endswith(".png"):
                         data = _build_minimal_png_bytes()
@@ -1981,8 +2031,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2049,12 +2103,16 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         )
         self.assertFalse(provider_payload_bytes.startswith(b"PK"))
         provider_payload = json.loads(provider_payload_bytes.decode("utf-8").splitlines()[0])
-        blocks = provider_payload["result"]["layoutParsingResults"][0]["prunedResult"]["parsing_res_list"]
+        blocks = provider_payload["result"]["layoutParsingResults"][0]["prunedResult"][
+            "parsing_res_list"
+        ]
         self.assertEqual(blocks[0]["block_label"], "doc_title")
         self.assertEqual(blocks[0]["block_content"], "中央民族大学附件 OCR 标题")
         self.assertIn("字段", blocks[2]["block_content"])
 
-    def test_rebuild_authenticated_notice_source_projections_keeps_ocr_no_text_as_relation_only(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_keeps_ocr_no_text_as_relation_only(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -2067,8 +2125,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2125,7 +2187,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             },
         )
 
-    def test_rebuild_authenticated_notice_source_projections_materializes_structured_ocr_artifacts(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_materializes_structured_ocr_artifacts(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -2138,8 +2202,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2198,11 +2266,19 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             if line.strip()
         ]
         self.assertTrue(any(row["row_type"] == "table" for row in layout_rows))
-        self.assertTrue(any(row.get("table_cells") == [["时间", "地点"], ["08:00", "海淀校区"], ["17:30", "丰台校区"]] for row in layout_rows))
+        self.assertTrue(
+            any(
+                row.get("table_cells")
+                == [["时间", "地点"], ["08:00", "海淀校区"], ["17:30", "丰台校区"]]
+                for row in layout_rows
+            )
+        )
 
         image_units = [
             json.loads(line)
-            for line in object_store.get_bytes(bucket=DERIVED_BUCKET, key=str(image_child.document_units_object_key))
+            for line in object_store.get_bytes(
+                bucket=DERIVED_BUCKET, key=str(image_child.document_units_object_key)
+            )
             .decode("utf-8")
             .splitlines()
             if line.strip()
@@ -2210,7 +2286,11 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertIn("section_text", {row["unit_type"] for row in image_units})
         self.assertIn("table_unit", {row["unit_type"] for row in image_units})
         self.assertFalse(
-            any("<table" in str(row.get("clean_text") or "") or "<div" in str(row.get("clean_text") or "") for row in image_units)
+            any(
+                "<table" in str(row.get("clean_text") or "")
+                or "<div" in str(row.get("clean_text") or "")
+                for row in image_units
+            )
         )
 
         image_markdown = object_store.get_bytes(
@@ -2221,7 +2301,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertIn("08:00", image_markdown)
         self.assertNotIn("<table", image_markdown)
 
-    def test_rebuild_authenticated_notice_source_projections_routes_downloaded_pdf_attachments_to_ocr(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_routes_downloaded_pdf_attachments_to_ocr(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         pdf_bytes = _build_minimal_pdf_bytes()
@@ -2239,8 +2321,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2302,7 +2388,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         )
         pdf_units = [
             json.loads(line)
-            for line in object_store.get_bytes(bucket=DERIVED_BUCKET, key=str(pdf_child.document_units_object_key))
+            for line in object_store.get_bytes(
+                bucket=DERIVED_BUCKET, key=str(pdf_child.document_units_object_key)
+            )
             .decode("utf-8")
             .splitlines()
             if line.strip()
@@ -2312,15 +2400,21 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             all(row["metadata"]["extraction_class"] == "ocr_required" for row in pdf_units)
         )
         self.assertTrue(
-            all(row["metadata"]["attachment_kind"] == "ocr_document_attachment" for row in pdf_units)
+            all(
+                row["metadata"]["attachment_kind"] == "ocr_document_attachment" for row in pdf_units
+            )
         )
         self.assertTrue(
             all(row["metadata"]["attachment_filename"] == "supplement.pdf" for row in pdf_units)
         )
 
-    def test_rebuild_authenticated_notice_source_projections_reuses_ocr_result_for_shared_pdf_payloads(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_reuses_ocr_result_for_shared_pdf_payloads(
+        self,
+    ) -> None:
         pdf_bytes = _build_minimal_pdf_bytes()
-        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(pdf_bytes=pdf_bytes)
+        bundle = _sample_notice_bundle_pair_with_shared_downloaded_pdf_attachment(
+            pdf_bytes=pdf_bytes
+        )
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -2330,8 +2424,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2354,7 +2452,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
                     uploaded_keys.add(key)
                     filename = str(attachment["original_filename"])
                     if filename.endswith(".docx"):
-                        data = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
+                        data = _build_minimal_docx_bytes(
+                            paragraphs=("报名表正文第一段", "报名表正文第二段")
+                        )
                         content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     elif filename.endswith(".png"):
                         data = _build_minimal_png_bytes()
@@ -2387,7 +2487,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
         self.assertEqual(report.ocr_attachment_count, 3)
         self.assertEqual(ocr_client.calls.count("supplement.pdf"), 1)
 
-    def test_rebuild_authenticated_notice_source_projections_skips_decorative_editor_assets(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_skips_decorative_editor_assets(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         gif_bytes = _build_minimal_gif_bytes()
         bundle = _sample_notice_bundle_with_decorative_gif(
@@ -2403,8 +2505,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2463,7 +2569,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             },
         )
 
-    def test_rebuild_authenticated_notice_source_projections_routes_spatial_inline_images_to_manual_review(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_routes_spatial_inline_images_to_manual_review(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_map_like_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -2476,8 +2584,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2549,8 +2661,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2622,8 +2738,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2704,8 +2824,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2777,8 +2901,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2850,8 +2978,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2923,8 +3055,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -2996,8 +3132,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3069,8 +3209,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3142,8 +3286,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3219,8 +3367,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3294,8 +3446,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3440,7 +3596,9 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
 
         self.assertEqual(result.classification, "ocr_required")
 
-    def test_rebuild_authenticated_notice_source_projections_surfaces_attachment_context_when_ocr_fails(self) -> None:
+    def test_rebuild_authenticated_notice_source_projections_surfaces_attachment_context_when_ocr_fails(
+        self,
+    ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
         png_bytes = _build_minimal_png_bytes()
         bundle = _sample_notice_bundle(docx_bytes=docx_bytes, png_bytes=png_bytes)
@@ -3453,8 +3611,12 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
             _write_json(manifest_path, _sample_export_manifest())
 
             object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(backing_path=root / "registry" / "documents.json")
-            raw_asset_registry = InMemoryRawAssetRegistry(backing_path=root / "registry" / "raw-assets.json")
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
             import_authenticated_notice_export(
                 request=AuthenticatedNoticeImportRequest(
                     bundle_path=bundle_path,
@@ -3550,7 +3712,10 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
                     "text": "报名表.docx",
                     "raw_text": "报名表.docx",
                     "clean_text": "报名表.docx",
-                    "anchor": {"source_uri": record.source_uri, "attachment_ref_id": "attachment-0001"},
+                    "anchor": {
+                        "source_uri": record.source_uri,
+                        "attachment_ref_id": "attachment-0001",
+                    },
                     "metadata": {"block_role": "attachment_ref"},
                 },
                 ensure_ascii=False,
@@ -3633,9 +3798,16 @@ class AuthenticatedNoticeSourceProjectionsTest(unittest.TestCase):
 
         table_chunks = [chunk for chunk in chunks if chunk.metadata["unit_type"] == "table_unit"]
         self.assertGreater(len(table_chunks), 1)
-        self.assertTrue(all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in table_chunks))
+        self.assertTrue(
+            all(chunk.metadata["split_reason"] == "token_guardrail" for chunk in table_chunks)
+        )
         self.assertTrue(all(chunk.metadata["final_token_count"] <= 320 for chunk in table_chunks))
-        self.assertTrue(all(chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2" for chunk in table_chunks))
+        self.assertTrue(
+            all(
+                chunk.metadata["strategy_name"] == "internal_notice_notice_body_v2"
+                for chunk in table_chunks
+            )
+        )
 
 
 if __name__ == "__main__":

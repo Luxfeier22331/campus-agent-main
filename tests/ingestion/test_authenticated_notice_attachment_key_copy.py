@@ -4,20 +4,20 @@ import hashlib
 import importlib
 import io
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_attachment_key_copy import (
     AuthenticatedNoticeAttachmentKeyCopyRequest,
     copy_authenticated_notice_source_attachment_keys,
 )
+
 from tests.ingestion.test_authenticated_notice_import import (
     _FakeObjectStore,
     _write_json,
 )
-
 
 copy_worker = importlib.import_module(
     "campus_ingestion_worker.copy_authenticated_notice_source_attachment_keys"
@@ -41,9 +41,7 @@ def _mapping_row(
 ) -> dict[str, object]:
     sha256 = hashlib.sha256(attachment_bytes).hexdigest()
     legacy_key = f"{sha256[:2]}/{sha256}/{filename}"
-    canonical_key = (
-        f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
-    )
+    canonical_key = f"authenticated_notice_portal/attachment-{sha256[:12]}/2026/sha256/{sha256}/capture/{filename}"
     return {
         "legacy_object_key": legacy_key,
         "canonical_object_key": canonical_key,
@@ -90,9 +88,9 @@ class AuthenticatedNoticeAttachmentKeyCopyTest(unittest.TestCase):
 
             copied_rows = [
                 json.loads(line)
-                for line in (output_dir / "copied-objects.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "copied-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 
@@ -180,9 +178,9 @@ class AuthenticatedNoticeAttachmentKeyCopyTest(unittest.TestCase):
 
             copied_rows = [
                 json.loads(line)
-                for line in (output_dir / "copied-objects.jsonl").read_text(
-                    encoding="utf-8"
-                ).splitlines()
+                for line in (output_dir / "copied-objects.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
                 if line.strip()
             ]
 

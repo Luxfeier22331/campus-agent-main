@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_worker.official_web_handoff_receiver import (
@@ -227,7 +227,9 @@ class OfficialWebHandoffReceiverTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json_body["status"], "ready")
-        self.assertEqual(response.json_body["dependencies"]["officialWebHandoffToken"], "configured")
+        self.assertEqual(
+            response.json_body["dependencies"]["officialWebHandoffToken"], "configured"
+        )
         self.assertEqual(response.json_body["dependencies"]["officialWebInbox"], "configured")
 
     def test_server_settings_read_host_and_port_from_env(self) -> None:

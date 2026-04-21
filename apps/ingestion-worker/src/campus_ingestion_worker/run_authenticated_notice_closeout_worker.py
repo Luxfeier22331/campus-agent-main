@@ -1,23 +1,22 @@
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_closeout import (
     AuthenticatedNoticeCloseoutService,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Run authenticated notice closeout worker(s)"
-    )
+    parser = argparse.ArgumentParser(description="Run authenticated notice closeout worker(s)")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--worker-id")
     parser.add_argument("--parallel-workers", type=int, default=1)
@@ -94,9 +93,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     else:
         worker_id_prefix = (args.worker_id_prefix or args.worker_id or "").strip()
         if not worker_id_prefix:
-            parser.error(
-                "--worker-id-prefix is required when --parallel-workers is greater than 1"
-            )
+            parser.error("--worker-id-prefix is required when --parallel-workers is greater than 1")
         worker_ids = tuple(
             f"{worker_id_prefix}-{index + 1:02d}" for index in range(args.parallel_workers)
         )

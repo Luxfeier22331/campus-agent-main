@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from campus_ingestion_core.campusrag_ingestion_support import (
@@ -10,16 +10,23 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,
 )
-from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document, serialize_handbook_document_units, validate_handbook_manifest_title
+from campus_ingestion_core.handbook_cleanup import (
+    cleanup_handbook_document,
+    serialize_handbook_document_units,
+    validate_handbook_manifest_title,
+)
 from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
-    FLOW_GRAPH_FILENAME,
     build_handbook_service_navigation_hybrid_document,
+    build_handbook_service_navigation_hybrid_document_from_projection_artifact,
     is_handbook_service_navigation_projection,
 )
 from campus_ingestion_core.models import RawAssetRecord
-from campus_ingestion_core.object_store import build_document_artifact_key, build_processed_artifact_key
+from campus_ingestion_core.object_store import (
+    build_processed_artifact_key,
+    build_source_projection_artifact_key,
+    infer_year_label,
+)
 from campus_ingestion_core.split_manifest import SplitManifestDocument
-
 
 HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION = "student_handbook_source_projections_v1"
 
@@ -56,13 +63,22 @@ def read_handbook_source_projections_config_path(source: dict[str, str]) -> Path
     value = (source.get("HANDBOOK_SOURCE_PROJECTIONS_PATH") or "").strip()
     if value:
         return Path(value)
-    return Path(__file__).resolve().parents[4] / "configs" / "ingestion" / "regulations" / "student_handbook" / "source-projections.v1.json"
+    return (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "regulations"
+        / "student_handbook"
+        / "source-projections.v1.json"
+    )
 
 
 def load_handbook_source_projections_config(path: Path) -> HandbookSourceProjectionsConfig:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if str(payload.get("schema_version") or "") != HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION:
-        raise ValueError(f"unsupported handbook source projections schema_version: {payload.get('schema_version')!r}")
+        raise ValueError(
+            f"unsupported handbook source projections schema_version: {payload.get('schema_version')!r}"
+        )
     projections = tuple(
         HandbookSourceProjection(
             projection_name=str(item.get("projection_name") or ""),
@@ -71,18 +87,44 @@ def load_handbook_source_projections_config(path: Path) -> HandbookSourceProject
             projection_family=str(item.get("projection_family") or ""),
             replay_from_source_truth=bool(item.get("replay_from_source_truth", False)),
             derived_from=str(item.get("derived_from") or ""),
-            derived_from_document_id=(str(item["derived_from_document_id"]) if item.get("derived_from_document_id") is not None else None),
-            parent_document_id=(str(item["parent_document_id"]) if item.get("parent_document_id") is not None else None),
-            attachment_kind=str(item["attachment_kind"]) if item.get("attachment_kind") is not None else None,
-            attachment_role=str(item["attachment_role"]) if item.get("attachment_role") is not None else None,
-            target_title=str(item["target_title"]) if item.get("target_title") is not None else None,
-            migration_reason=str(item["migration_reason"]) if item.get("migration_reason") is not None else None,
-            source_title=str(item["source_title"]) if item.get("source_title") is not None else None,
-            source_handbook_section=(
-                str(item["source_handbook_section"]) if item.get("source_handbook_section") is not None else None
+            derived_from_document_id=(
+                str(item["derived_from_document_id"])
+                if item.get("derived_from_document_id") is not None
+                else None
             ),
-            source_page_start=(int(item["source_page_start"]) if item.get("source_page_start") is not None else None),
-            source_page_end=(int(item["source_page_end"]) if item.get("source_page_end") is not None else None),
+            parent_document_id=(
+                str(item["parent_document_id"])
+                if item.get("parent_document_id") is not None
+                else None
+            ),
+            attachment_kind=str(item["attachment_kind"])
+            if item.get("attachment_kind") is not None
+            else None,
+            attachment_role=str(item["attachment_role"])
+            if item.get("attachment_role") is not None
+            else None,
+            target_title=str(item["target_title"])
+            if item.get("target_title") is not None
+            else None,
+            migration_reason=str(item["migration_reason"])
+            if item.get("migration_reason") is not None
+            else None,
+            source_title=str(item["source_title"])
+            if item.get("source_title") is not None
+            else None,
+            source_handbook_section=(
+                str(item["source_handbook_section"])
+                if item.get("source_handbook_section") is not None
+                else None
+            ),
+            source_page_start=(
+                int(item["source_page_start"])
+                if item.get("source_page_start") is not None
+                else None
+            ),
+            source_page_end=(
+                int(item["source_page_end"]) if item.get("source_page_end") is not None else None
+            ),
         )
         for item in list(payload.get("projections") or [])
     )
@@ -108,15 +150,19 @@ def build_handbook_projection_import_documents(
     source_bucket: str | None = None,
     import_source: str = "provider_response_replay",
 ) -> list[DocumentImportInput]:
-    config = load_handbook_source_projections_config(config_path or read_handbook_source_projections_config_path(source))
+    config = load_handbook_source_projections_config(
+        config_path or read_handbook_source_projections_config_path(source)
+    )
     manifest_by_document_id = {
-        document.document_id: document
-        for document in split_manifest_documents
+        document.document_id: document for document in split_manifest_documents
     }
     source_pdf = raw_asset_record.source_filename
     documents: list[DocumentImportInput] = []
     for projection in config.projections:
-        if projection.target_corpus == config.source_corpus and projection.target_collection == config.source_collection:
+        if (
+            projection.target_corpus == config.source_corpus
+            and projection.target_collection == config.source_collection
+        ):
             continue
         manifest_document = _resolve_projection_source_document(
             projection=projection,
@@ -126,7 +172,9 @@ def build_handbook_projection_import_documents(
         if manifest_document is None:
             continue
         try:
-            validate_handbook_manifest_title(structured_rows=structured_rows, manifest_document=manifest_document)
+            validate_handbook_manifest_title(
+                structured_rows=structured_rows, manifest_document=manifest_document
+            )
         except ValueError:
             continue
         document_id = build_projection_target_document_id(projection=projection)
@@ -138,37 +186,84 @@ def build_handbook_projection_import_documents(
             source_page_end=projection.source_page_end,
         ):
             if reader is None or source_bucket is None:
-                raise ValueError("service navigation hybrid materialization requires reader and source_bucket")
+                raise ValueError(
+                    "service navigation hybrid materialization requires reader and source_bucket"
+                )
             resolved_hybrid_raw_asset_record = _resolve_hybrid_raw_asset_record(
                 raw_asset_record=raw_asset_record,
                 hybrid_raw_asset_record=hybrid_raw_asset_record,
                 import_source=import_source,
             )
             target_title = projection.target_title or manifest_document.title
-            document = build_handbook_service_navigation_hybrid_document(
-                source=source,
-                reader=reader,  # type: ignore[arg-type]
-                source_bucket=source_bucket,
-                raw_asset_record=resolved_hybrid_raw_asset_record,
-                source_document_id=manifest_document.document_id,
-                source_uri=manifest_document.source_uri or "",
-                source_handbook_section=manifest_document.handbook_section or manifest_document.title,
-                target_document_id=document_id,
-                target_title=target_title,
-                projection_name=projection.projection_name,
-                derived_from=projection.derived_from,
-                parent_document_id=projection.parent_document_id or manifest_document.document_id,
-                attachment_kind=projection.attachment_kind,
-                attachment_role=projection.attachment_role,
-                provider_response_key=provider_response_key,
-                layout_elements_key=layout_elements_key,
-                source_page_start=manifest_document.page_start,
-                source_page_end=manifest_document.page_end,
-                entitlement_groups=manifest_document.resolved_entitlement_groups(),
-                visibility_scope=manifest_document.resolved_visibility_scope(),
-                visibility_level=manifest_document.resolved_visibility_level(),
-                import_source=import_source,
-            )
+            if import_source == "provider_response_replay":
+                projection_artifact_key = build_source_projection_artifact_key(
+                    raw_asset_id=resolved_hybrid_raw_asset_record.raw_asset_id,
+                    raw_version_id=resolved_hybrid_raw_asset_record.raw_version_id,
+                    projection_name=projection.projection_name,
+                    filename="flow-graph.json",
+                    year=infer_year_label(resolved_hybrid_raw_asset_record.source_filename),
+                )
+                try:
+                    document = (
+                        build_handbook_service_navigation_hybrid_document_from_projection_artifact(
+                            reader=reader,  # type: ignore[arg-type]
+                            source_bucket=source_bucket,
+                            projection_artifact_key=projection_artifact_key,
+                            raw_asset_record=resolved_hybrid_raw_asset_record,
+                            source_document_id=manifest_document.document_id,
+                            source_uri=manifest_document.source_uri or "",
+                            source_handbook_section=manifest_document.handbook_section
+                            or manifest_document.title,
+                            target_document_id=document_id,
+                            target_title=target_title,
+                            projection_name=projection.projection_name,
+                            derived_from=projection.derived_from,
+                            parent_document_id=projection.parent_document_id
+                            or manifest_document.document_id,
+                            attachment_kind=projection.attachment_kind,
+                            attachment_role=projection.attachment_role,
+                            provider_response_key=provider_response_key,
+                            layout_elements_key=layout_elements_key,
+                            source_page_start=manifest_document.page_start,
+                            source_page_end=manifest_document.page_end,
+                            entitlement_groups=manifest_document.resolved_entitlement_groups(),
+                            visibility_scope=manifest_document.resolved_visibility_scope(),
+                            visibility_level=manifest_document.resolved_visibility_level(),
+                            import_source=import_source,
+                        )
+                    )
+                except Exception as exc:
+                    raise ValueError(
+                        "missing handbook service navigation projection artifact: "
+                        f"{projection_artifact_key}"
+                    ) from exc
+            else:
+                document = build_handbook_service_navigation_hybrid_document(
+                    source=source,
+                    reader=reader,  # type: ignore[arg-type]
+                    source_bucket=source_bucket,
+                    raw_asset_record=resolved_hybrid_raw_asset_record,
+                    source_document_id=manifest_document.document_id,
+                    source_uri=manifest_document.source_uri or "",
+                    source_handbook_section=manifest_document.handbook_section
+                    or manifest_document.title,
+                    target_document_id=document_id,
+                    target_title=target_title,
+                    projection_name=projection.projection_name,
+                    derived_from=projection.derived_from,
+                    parent_document_id=projection.parent_document_id
+                    or manifest_document.document_id,
+                    attachment_kind=projection.attachment_kind,
+                    attachment_role=projection.attachment_role,
+                    provider_response_key=provider_response_key,
+                    layout_elements_key=layout_elements_key,
+                    source_page_start=manifest_document.page_start,
+                    source_page_end=manifest_document.page_end,
+                    entitlement_groups=manifest_document.resolved_entitlement_groups(),
+                    visibility_scope=manifest_document.resolved_visibility_scope(),
+                    visibility_level=manifest_document.resolved_visibility_level(),
+                    import_source=import_source,
+                )
             metadata = load_metadata_from_bytes(document.document_units_bytes)
             metadata["title"] = target_title
             apply_authorization_projection_metadata(
@@ -228,7 +323,8 @@ def build_handbook_projection_import_documents(
                 "derived_from_document_id": manifest_document.document_id,
                 "derived_from_raw_asset_id": raw_asset_record.raw_asset_id,
                 "derived_from_raw_version_id": raw_asset_record.raw_version_id,
-                "parent_document_id": projection.parent_document_id or manifest_document.document_id,
+                "parent_document_id": projection.parent_document_id
+                or manifest_document.document_id,
                 "attachment_kind": projection.attachment_kind,
                 "attachment_role": projection.attachment_role,
                 "migration_reason": projection.migration_reason,
@@ -239,7 +335,9 @@ def build_handbook_projection_import_documents(
                 "migration_source_raw_version_id": raw_asset_record.raw_version_id,
                 "migration_source_provider_response_key": provider_response_key,
             },
-            body=_retitle_markdown_heading(cleanup_result.canonical_markdown, cleanup_result.title, target_title),
+            body=_retitle_markdown_heading(
+                cleanup_result.canonical_markdown, cleanup_result.title, target_title
+            ),
         )
         document_units_bytes = _build_handbook_derived_document_units_bytes(
             cleanup_result_document_units=cleanup_result.document_units,
@@ -295,7 +393,10 @@ def build_declared_projection_processed_keys(
     keys: list[str] = []
     year = _infer_year(source_pdf)
     for projection in config.projections:
-        if projection.target_corpus == config.source_corpus and projection.target_collection == config.source_collection:
+        if (
+            projection.target_corpus == config.source_corpus
+            and projection.target_collection == config.source_collection
+        ):
             continue
         document_id = build_projection_target_document_id(projection=projection)
         title = projection.target_title or projection.source_title
@@ -325,25 +426,6 @@ def build_declared_projection_processed_keys(
                 year=year,
             )
         )
-        if is_handbook_service_navigation_projection(
-            projection_name=projection.projection_name,
-            target_collection=projection.target_collection,
-            attachment_role=projection.attachment_role,
-            source_page_start=projection.source_page_start,
-            source_page_end=projection.source_page_end,
-        ):
-            keys.append(
-                build_document_artifact_key(
-                    corpus=projection.target_corpus,
-                    collection=projection.target_collection,
-                    document_id=document_id,
-                    revision_track="source-faithful",
-                    version_id=_build_projection_placeholder_version_id(projection),
-                    filename=FLOW_GRAPH_FILENAME,
-                    title=title,
-                    year=year,
-                )
-            )
     return tuple(dict.fromkeys(keys))
 
 
@@ -363,7 +445,12 @@ def build_projection_target_document_id(*, projection: HandbookSourceProjection)
 def build_handbook_projection_source_document_id(*, projection: HandbookSourceProjection) -> str:
     if projection.source_title is None:
         raise ValueError("projection source_title is required")
-    return "handbook:" + hashlib.sha1(_normalize_projection_source_title(projection.source_title).encode("utf-8")).hexdigest()
+    return (
+        "handbook:"
+        + hashlib.sha1(
+            _normalize_projection_source_title(projection.source_title).encode("utf-8")
+        ).hexdigest()
+    )
 
 
 def _resolve_projection_source_document(
@@ -393,11 +480,20 @@ def _match_projection_source_document_from_selector(
     for document in split_manifest_documents:
         if projection.source_title != document.title:
             continue
-        if projection.source_handbook_section is not None and projection.source_handbook_section != document.handbook_section:
+        if (
+            projection.source_handbook_section is not None
+            and projection.source_handbook_section != document.handbook_section
+        ):
             continue
-        if projection.source_page_start is not None and projection.source_page_start != document.page_start:
+        if (
+            projection.source_page_start is not None
+            and projection.source_page_start != document.page_start
+        ):
             continue
-        if projection.source_page_end is not None and projection.source_page_end != document.page_end:
+        if (
+            projection.source_page_end is not None
+            and projection.source_page_end != document.page_end
+        ):
             continue
         return document
     if projection.source_page_start is None or projection.source_page_end is None:
@@ -459,7 +555,9 @@ def _build_handbook_derived_document_units_bytes(
     raw_asset_record: RawAssetRecord,
 ) -> bytes:
     original_bytes = serialize_handbook_document_units(cleanup_result_document_units)
-    original_rows = [json.loads(line) for line in original_bytes.decode("utf-8").splitlines() if line.strip()]
+    original_rows = [
+        json.loads(line) for line in original_bytes.decode("utf-8").splitlines() if line.strip()
+    ]
     original_version_id = str(original_rows[0]["version_id"])
     version_id = f"{original_version_id}:projection:{projection.projection_name}"
     rows: list[dict[str, object]] = []

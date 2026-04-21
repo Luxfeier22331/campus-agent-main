@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import html
 import json
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Sequence
 
 from campus_ingestion_core.collection_config import resolve_collection_truth_config
@@ -76,7 +76,10 @@ def load_authenticated_notice_notice_family_config(
     path: Path,
 ) -> AuthenticatedNoticeNoticeFamilyConfig:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if str(payload.get("schema_version") or "") != AUTHENTICATED_NOTICE_NOTICE_FAMILY_SCHEMA_VERSION:
+    if (
+        str(payload.get("schema_version") or "")
+        != AUTHENTICATED_NOTICE_NOTICE_FAMILY_SCHEMA_VERSION
+    ):
         raise ValueError(
             "unsupported authenticated notice notice-family schema_version: "
             f"{payload.get('schema_version')!r}"

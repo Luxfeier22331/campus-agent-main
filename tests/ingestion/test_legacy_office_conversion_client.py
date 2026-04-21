@@ -36,7 +36,9 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         normalized_bytes = b"normalized-docx-binary"
         captured: dict[str, object] = {}
 
-        def fake_urlopen(request: urllib_request.Request, timeout: float | None = None) -> _FakeResponse:
+        def fake_urlopen(
+            request: urllib_request.Request, timeout: float | None = None
+        ) -> _FakeResponse:
             self.assertEqual(timeout, 42.0)
             captured["url"] = request.full_url
             captured["method"] = request.get_method()
@@ -72,7 +74,9 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(captured["url"], "http://127.0.0.1:8091/api/internal/legacy-office/conversions")
+        self.assertEqual(
+            captured["url"], "http://127.0.0.1:8091/api/internal/legacy-office/conversions"
+        )
         self.assertEqual(captured["method"], "POST")
         self.assertEqual(captured["content_type"], "application/json")
         self.assertEqual(captured["internal_auth"], "internal-secret")

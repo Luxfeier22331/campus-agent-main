@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 import json
 from pathlib import Path
 from typing import Sequence
@@ -110,10 +109,7 @@ def _build_local_snapshot_runtime(
     inventory_payload = json.loads(Path(source_truth_inventory_json).read_text(encoding="utf-8"))
     rows = inventory_payload.values() if isinstance(inventory_payload, dict) else inventory_payload
     inventory_store.upsert_many(
-        tuple(
-            AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row))
-            for row in rows
-        )
+        tuple(AuthenticatedNoticeSourceTruthInventoryEntry.from_dict(dict(row)) for row in rows)
     )
     object_store = ReadonlyLocalFilesystemObjectStore(Path(object_store_root))
     return {

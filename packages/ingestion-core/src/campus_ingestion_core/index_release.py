@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 import hashlib
 import json
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from typing import Any, Protocol, Sequence
 
 from qdrant_client import QdrantClient
@@ -168,7 +168,7 @@ def reset_index_binding(
     binding: QdrantIndexBinding,
 ) -> tuple[str, ...]:
     deleted: list[str] = []
-    current_alias_target = unpublish_release_alias(
+    unpublish_release_alias(
         qdrant_client=qdrant_client,
         binding=binding,
     )
@@ -206,7 +206,9 @@ def build_index_release_manifest(
             version_id=record.version_id,
             document_units_object_key=record.document_units_object_key,
         )
-        for record in sorted(records, key=lambda item: (item.document_id, item.revision_track, item.version_id))
+        for record in sorted(
+            records, key=lambda item: (item.document_id, item.revision_track, item.version_id)
+        )
     )
     return IndexReleaseManifest(
         release_id=release_id,
@@ -225,7 +227,9 @@ def build_index_release_manifest(
         document_version_ids_hash=_hash_values(
             f"{item.document_id}|{item.revision_track}|{item.version_id}" for item in document_refs
         ),
-        document_units_keys_hash=_hash_values(item.document_units_object_key or "" for item in document_refs),
+        document_units_keys_hash=_hash_values(
+            item.document_units_object_key or "" for item in document_refs
+        ),
         validation_status=validation.status,
         validation_summary_object_key=validation_summary_object_key,
         documents=document_refs,
@@ -250,7 +254,9 @@ def write_index_release_artifacts(
         writer.put_bytes(
             bucket=bucket,
             key=validation_summary_object_key,
-            data=(json.dumps(validation_summary, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            data=(json.dumps(validation_summary, ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
             content_type="application/json",
         )
     runtime_manifest = manifest
@@ -284,7 +290,9 @@ def write_index_release_artifacts(
     writer.put_bytes(
         bucket=bucket,
         key=manifest_object_key,
-        data=(json.dumps(asdict(runtime_manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        data=(json.dumps(asdict(runtime_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+            "utf-8"
+        ),
         content_type="application/json",
     )
     return IndexReleaseArtifacts(
@@ -327,7 +335,9 @@ def _validate_default_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseV
     token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
     summary = {
         "chunk_count": len(chunks),
-        "unit_type_counts": _count_by_value(str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks),
+        "unit_type_counts": _count_by_value(
+            str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks
+        ),
         "token_summary": {
             "min": min(token_counts) if token_counts else 0,
             "max": max(token_counts) if token_counts else 0,
@@ -337,10 +347,16 @@ def _validate_default_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseV
     return IndexReleaseValidationResult(status="passed", summary=summary)
 
 
-def _validate_official_web_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseValidationResult:
+def _validate_official_web_release(
+    chunks: Sequence[IndexableChunk],
+) -> IndexReleaseValidationResult:
     token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
-    page_family_counts = _count_by_value(str(chunk.metadata.get("page_family") or "unknown") for chunk in chunks)
-    serving_intent_counts = _count_by_value(str(chunk.metadata.get("serving_intent") or "unknown") for chunk in chunks)
+    page_family_counts = _count_by_value(
+        str(chunk.metadata.get("page_family") or "unknown") for chunk in chunks
+    )
+    serving_intent_counts = _count_by_value(
+        str(chunk.metadata.get("serving_intent") or "unknown") for chunk in chunks
+    )
     disallowed_page_family_chunks = sum(
         count
         for page_family, count in page_family_counts.items()
@@ -363,7 +379,9 @@ def _validate_official_web_release(chunks: Sequence[IndexableChunk]) -> IndexRel
         "missing_page_family_chunks": missing_page_family_chunks,
         "page_family_counts": page_family_counts,
         "serving_intent_counts": serving_intent_counts,
-        "unit_type_counts": _count_by_value(str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks),
+        "unit_type_counts": _count_by_value(
+            str(chunk.metadata.get("unit_type") or "unknown") for chunk in chunks
+        ),
         "token_summary": {
             "min": min(token_counts) if token_counts else 0,
             "max": max(token_counts) if token_counts else 0,
@@ -386,7 +404,9 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
     for chunk in chunks:
         lines = [line.strip() for line in chunk.text.splitlines() if line.strip()]
         leading = _leading_curriculum_heading_lines(lines)
-        structural = _normalize_curriculum_structural_path(list(chunk.anchor.get("section_path") or []))
+        structural = _normalize_curriculum_structural_path(
+            list(chunk.anchor.get("section_path") or [])
+        )
         first_heading = leading[0] if leading else None
         rows.append(
             {
@@ -404,7 +424,12 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
                     and first_heading != structural[0]
                 ),
                 "multiple_top_level_heading_chunks": bool(
-                    sum(1 for heading in leading if heading and heading[:1] in "一二三四五六七八九十" and "、" in heading) >= 2
+                    sum(
+                        1
+                        for heading in leading
+                        if heading and heading[:1] in "一二三四五六七八九十" and "、" in heading
+                    )
+                    >= 2
                 ),
                 "allowed_tiny_chunk": _curriculum_is_allowed_tiny_chunk(
                     chunk=chunk,
@@ -412,8 +437,13 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
                     leading=leading,
                     structural=structural,
                 ),
-                "course_map_chunk": bool((chunk.anchor.get("section_path") or [])[-1:] == [_CURRICULUM_COURSE_MAP_HEADING]),
-                "topology_leak": "拓扑图" in chunk.text and (chunk.anchor.get("section_path") or [])[-1:] != [_CURRICULUM_COURSE_MAP_HEADING],
+                "course_map_chunk": bool(
+                    (chunk.anchor.get("section_path") or [])[-1:]
+                    == [_CURRICULUM_COURSE_MAP_HEADING]
+                ),
+                "topology_leak": "拓扑图" in chunk.text
+                and (chunk.anchor.get("section_path") or [])[-1:]
+                != [_CURRICULUM_COURSE_MAP_HEADING],
             }
         )
     summary = {
@@ -421,14 +451,22 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
         "duplicated_heading_chunks": sum(1 for row in rows if row["duplicated_heading"]),
         "path_mismatch_chunks": sum(1 for row in rows if row["path_mismatch"]),
         "first_heading_mismatch_chunks": sum(1 for row in rows if row["first_heading_mismatch"]),
-        "multiple_top_level_heading_chunks": sum(1 for row in rows if row["multiple_top_level_heading_chunks"]),
-        "tiny_chunks_lt24": sum(1 for row in rows if int(row["tokens"]) < 24 and not row["allowed_tiny_chunk"]),
+        "multiple_top_level_heading_chunks": sum(
+            1 for row in rows if row["multiple_top_level_heading_chunks"]
+        ),
+        "tiny_chunks_lt24": sum(
+            1 for row in rows if int(row["tokens"]) < 24 and not row["allowed_tiny_chunk"]
+        ),
         "course_map_chunks": sum(1 for row in rows if row["course_map_chunk"]),
         "topology_leaks": sum(1 for row in rows if row["topology_leak"]),
     }
     status = (
         "passed"
-        if all(int(value) == 0 for key, value in summary.items() if key not in {"chunk_count", "course_map_chunks"})
+        if all(
+            int(value) == 0
+            for key, value in summary.items()
+            if key not in {"chunk_count", "course_map_chunks"}
+        )
         else "failed"
     )
     return IndexReleaseValidationResult(status=status, summary=summary)
@@ -461,11 +499,12 @@ def _curriculum_is_allowed_tiny_chunk(
     if (chunk.anchor.get("section_path") or [])[-1:] == [_CURRICULUM_COURSE_MAP_HEADING]:
         if not lines or len(lines) > 3:
             return False
-        remainder = lines[len(leading):] if leading else lines
+        remainder = lines[len(leading) :] if leading else lines
         if not remainder:
             return True
         if any(
-            _looks_like_curriculum_structure_heading(line) and line != _CURRICULUM_COURSE_MAP_HEADING
+            _looks_like_curriculum_structure_heading(line)
+            and line != _CURRICULUM_COURSE_MAP_HEADING
             for line in remainder
         ):
             return False
@@ -480,7 +519,7 @@ def _curriculum_is_allowed_tiny_chunk(
         return True
     if not leading:
         return False
-    remainder = lines[len(leading):]
+    remainder = lines[len(leading) :]
     if not remainder or len(remainder) > 2:
         return False
     if any(_looks_like_curriculum_structure_heading(line) for line in remainder):

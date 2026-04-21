@@ -41,17 +41,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     legacy_manifest = load_authenticated_notice_export_manifest(
         Path(args.manifest_path) if args.manifest_path else None
     )
-    selected_notice_ids = tuple(
-        str(item).strip() for item in args.notice_ids if str(item).strip()
-    )
+    selected_notice_ids = tuple(str(item).strip() for item in args.notice_ids if str(item).strip())
     if args.selection_path:
         selected_notice_ids = tuple(
             dict.fromkeys(
                 [
                     *selected_notice_ids,
-                    *load_authenticated_notice_selection_notice_ids(
-                        Path(args.selection_path)
-                    ),
+                    *load_authenticated_notice_selection_notice_ids(Path(args.selection_path)),
                 ]
             )
         )

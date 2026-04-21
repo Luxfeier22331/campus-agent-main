@@ -1,29 +1,30 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
 import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Protocol
 
+from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
+
+from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
     apply_authorization_projection_metadata,
     collect_import_document_stats,
     load_metadata_from_bytes,
 )
-from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
 from campus_ingestion_core.collection_config import resolve_collection_truth_config
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_raw_asset_key,
     infer_year_label,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,
@@ -31,9 +32,8 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 from campus_ingestion_core.source_truth_common import build_position_preserving_table_rows
-
+from campus_ingestion_core.split_manifest import SplitManifestDocument, load_split_manifest
 
 _SEMESTER_LABEL_TO_INDEX = {
     "第一学期": "1",
@@ -201,11 +201,15 @@ def materialize_curriculum_program_semester_facts_from_canonical_scope(
 ) -> CurriculumProgramSemesterFactsMaterializationReport:
     source = dict(env if env is not None else os.environ)
     object_store_settings = ObjectStoreSettings.from_env(source)
-    runtime_object_store = object_store or _build_materialization_object_store(object_store_settings)
+    runtime_object_store = object_store or _build_materialization_object_store(
+        object_store_settings
+    )
     runtime_registry = registry or build_document_registry_from_env(source)
     runtime_raw_asset_registry = raw_asset_registry or build_raw_asset_registry_from_env(source)
-    runtime_split_manifest_documents, split_manifest_raw_asset_id = _resolve_split_manifest_documents(
-        split_manifest_documents=split_manifest_documents,
+    runtime_split_manifest_documents, split_manifest_raw_asset_id = (
+        _resolve_split_manifest_documents(
+            split_manifest_documents=split_manifest_documents,
+        )
     )
     runtime_split_manifest_documents = _filter_split_manifest_documents(
         split_manifest_documents=runtime_split_manifest_documents,
@@ -219,13 +223,15 @@ def materialize_curriculum_program_semester_facts_from_canonical_scope(
             bucket=object_store_settings.bucket_derived,
         )
     )
-    all_rows, canonical_source_pdf, canonical_raw_asset_record = _load_canonical_curriculum_plan_rows(
-        object_store=runtime_object_store,
-        bucket=object_store_settings.bucket_derived,
-        split_manifest_documents=runtime_split_manifest_documents,
-        source_document_units_keys=runtime_source_document_units_keys,
-        raw_asset_record=raw_asset_record,
-        split_manifest_raw_asset_id=split_manifest_raw_asset_id,
+    all_rows, canonical_source_pdf, canonical_raw_asset_record = (
+        _load_canonical_curriculum_plan_rows(
+            object_store=runtime_object_store,
+            bucket=object_store_settings.bucket_derived,
+            split_manifest_documents=runtime_split_manifest_documents,
+            source_document_units_keys=runtime_source_document_units_keys,
+            raw_asset_record=raw_asset_record,
+            split_manifest_raw_asset_id=split_manifest_raw_asset_id,
+        )
     )
     runtime_raw_asset_registry.upsert(canonical_raw_asset_record)
     documents = build_curriculum_program_semester_facts_scope_refresh_documents(
@@ -301,8 +307,12 @@ def _build_program_semester_projections(
             source_document=source_document,
             semester_label=semester_label,
             course_titles=tuple(course_titles),
-            page_start=page_bounds_by_semester.get(semester_label, (source_document.page_start, source_document.page_end))[0],
-            page_end=page_bounds_by_semester.get(semester_label, (source_document.page_start, source_document.page_end))[1],
+            page_start=page_bounds_by_semester.get(
+                semester_label, (source_document.page_start, source_document.page_end)
+            )[0],
+            page_end=page_bounds_by_semester.get(
+                semester_label, (source_document.page_start, source_document.page_end)
+            )[1],
         )
         for semester_label, course_titles in sorted(
             course_titles_by_semester.items(),
@@ -344,6 +354,7 @@ def _extract_semester_course_titles(
         for semester_label, course_titles in course_titles_by_semester.items()
         if course_titles
     }
+
 
 def _extract_table_rows(row: Mapping[str, object]) -> tuple[tuple[str, ...], ...]:
     text = _row_text(row)
@@ -426,10 +437,7 @@ def _row_within_document(
 ) -> bool:
     page_start = _row_page_start(row, fallback=0)
     page_end = _row_page_end(row, fallback=page_start)
-    return (
-        page_start >= source_document.page_start
-        and page_end <= source_document.page_end
-    )
+    return page_start >= source_document.page_start and page_end <= source_document.page_end
 
 
 def _row_text(row: Mapping[str, object]) -> str:
@@ -460,7 +468,9 @@ def _build_version_id(
     source_document_id: str,
     semester_label: str,
 ) -> str:
-    digest = hashlib.sha256(f"{raw_version_id}|{source_document_id}|{semester_label}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha256(
+        f"{raw_version_id}|{source_document_id}|{semester_label}".encode("utf-8")
+    ).hexdigest()[:12]
     return f"{raw_version_id}:program-semester:{digest}"
 
 
@@ -563,15 +573,17 @@ def _filter_split_manifest_documents(
 ) -> tuple[SplitManifestDocument, ...]:
     if not source_document_ids:
         return tuple(split_manifest_documents)
-    requested_ids = tuple(dict.fromkeys(document_id for document_id in source_document_ids if document_id))
+    requested_ids = tuple(
+        dict.fromkeys(document_id for document_id in source_document_ids if document_id)
+    )
     selected_documents = tuple(
-        document
-        for document in split_manifest_documents
-        if document.document_id in requested_ids
+        document for document in split_manifest_documents if document.document_id in requested_ids
     )
     if len(selected_documents) != len(requested_ids):
         available_ids = {document.document_id for document in split_manifest_documents}
-        missing_ids = tuple(document_id for document_id in requested_ids if document_id not in available_ids)
+        missing_ids = tuple(
+            document_id for document_id in requested_ids if document_id not in available_ids
+        )
         raise ValueError(
             "unknown curriculum source_document_ids for program_semester_facts rematerialization: "
             + ", ".join(missing_ids)
@@ -604,9 +616,7 @@ def _resolve_curriculum_plan_document_units_keys(
         prefix="curriculum/documents/curriculum_plan/",
     )
     return {
-        _parse_doc_id_from_document_units_rows(
-            object_store.get_bytes(bucket=bucket, key=key)
-        ): key
+        _parse_doc_id_from_document_units_rows(object_store.get_bytes(bucket=bucket, key=key)): key
         for key in keys
         if key.endswith(f"/{DOCUMENT_UNITS_FILENAME}")
     }
@@ -631,9 +641,7 @@ def _load_canonical_curriculum_plan_rows(
             raise ValueError(
                 f"missing curriculum_plan document-units key for {document.document_id}"
             )
-        rows = _load_document_unit_rows(
-            object_store.get_bytes(bucket=bucket, key=source_key)
-        )
+        rows = _load_document_unit_rows(object_store.get_bytes(bucket=bucket, key=source_key))
         if not rows:
             raise ValueError(f"curriculum_plan document-units is empty: {source_key}")
         if first_row is None:
@@ -713,10 +721,9 @@ def _load_document_unit_rows(document_units_bytes: bytes) -> list[dict[str, obje
 
 
 def _read_embedding_model_name(source: Mapping[str, str]) -> str:
-    model = (
-        str(source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or "")
-        .strip()
-    )
+    model = str(
+        source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or ""
+    ).strip()
     if not model:
         raise ValueError("INGESTION_EMBEDDING_MODEL or EMBEDDING_MODEL is required")
     return model

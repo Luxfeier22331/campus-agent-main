@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 import importlib
 import io
 import json
+import unittest
+from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
 )
-
 
 worker = importlib.import_module(
     "campus_ingestion_worker.prepare_internal_notice_regulation_candidate_chunks"

@@ -1,51 +1,66 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
-import hashlib
-import json
 from pathlib import Path
-import re
-from typing import Literal, Protocol
+from typing import Protocol
 
-from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
-from campus_ingestion_core.artifacts import (
-    CANONICAL_MARKDOWN_FILENAME,
-    DOCUMENT_UNITS_FILENAME,
-    LAYOUT_ELEMENTS_FILENAME,
-    PROVIDER_RESPONSE_FILENAME,
+from campus_ingestion_core.campusrag_ingestion_artifacts import (
+    ProcessedArtifactInput,
+    build_document_processed_object_keys,
+    resolve_document_artifact_keys,
+)
+from campus_ingestion_core.campusrag_ingestion_authorization import (
+    apply_authorization_projection_metadata,
+    assert_canonical_authorization_metadata,
+    load_metadata_from_bytes,
+    normalize_optional_text,
+    resolve_entitlement_groups,
+    resolve_policy_projection_version,
+    resolve_status,
+    resolve_visibility_level,
+    resolve_visibility_scope,
+)
+from campus_ingestion_core.campusrag_ingestion_metadata import (
+    ResolvedRawAsset,
+    derive_document_title,
+    derive_document_year,
+    derive_source_uri,
+    resolve_registry_raw_asset_ref,
+    resolved_raw_asset,
+)
+from campus_ingestion_core.campusrag_ingestion_refresh import (
+    artifact_bucket_for_key,
+    registry_record_needs_refresh,
+)
+from campus_ingestion_core.campusrag_ingestion_registry_state import (
+    apply_current_promotion,
+    group_documents_by_scope,
+    index_scope_records_by_lineage,
+    prefetch_existing_scope_records,
+    record_scope_refresh_candidate,
+    replace_prefetched_lineage_record,
+    write_registry_records,
+)
+from campus_ingestion_core.campusrag_ingestion_reporting import (
+    ImportReport,
+    utc_now,
+    write_import_report,
+)
+from campus_ingestion_core.campusrag_ingestion_sources import (
+    build_source_observation,
+    document_semantic_hash,
+    find_equivalent_scope_record,
+    merge_equivalent_source_record,
 )
 from campus_ingestion_core.models import (
     DocumentRegistryRecord,
     RawAssetRecord,
     RawAssetRef,
-    SourceObservation,
 )
-from campus_ingestion_core.object_store import (
-    build_document_artifact_key,
-    build_raw_asset_key,
-    is_source_object_key,
-)
+from campus_ingestion_core.object_store import is_source_object_key
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
-
-
-@dataclass(frozen=True, slots=True)
-class ImportReport:
-    import_mode: str
-    success_count: int
-    skipped_count: int
-    failed_count: int
-    raw_uploaded_count: int
-    raw_reused_count: int
-    document_ids: tuple[str, ...]
-    unresolved_source_pdfs: tuple[str, ...]
-    errors: tuple[str, ...]
-    report_path: str
-    created_document_ids: tuple[str, ...] = ()
-    updated_document_ids: tuple[str, ...] = ()
-    skipped_document_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,291 +102,11 @@ class DocumentImportInput:
     layout_elements_bytes: bytes | None = None
     layout_elements_object_key: str | None = None
     additional_processed_object_keys: tuple[str, ...] = field(default_factory=tuple)
-    additional_processed_artifacts: tuple["ProcessedArtifactInput", ...] = field(default_factory=tuple)
+    additional_processed_artifacts: tuple["ProcessedArtifactInput", ...] = field(
+        default_factory=tuple
+    )
     title: str | None = None
     year: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ProcessedArtifactInput:
-    object_key: str
-    data: bytes
-    content_type: str
-
-    def __post_init__(self) -> None:
-        if not self.object_key.strip():
-            raise ValueError("object_key is required")
-        if not self.content_type.strip():
-            raise ValueError("content_type is required")
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedRawAsset:
-    raw_asset_id: str
-    raw_version_id: str
-    source_filename: str
-    path: Path
-    raw_source_uri: str
-    content_hash: str
-    object_key: str
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedDocumentArtifactKeys:
-    document_units_key: str
-    provider_response_key: str | None = None
-    layout_elements_key: str | None = None
-    canonical_markdown_key: str | None = None
-
-
-def serialize_document_import_stub(document: DocumentImportInput) -> dict[str, object]:
-    return {
-        "source_label": document.source_label,
-        "metadata": dict(document.metadata),
-        "import_source": document.import_source,
-        "revision_track": document.revision_track,
-        "source_channel": document.source_channel,
-        "is_current": document.is_current,
-        "corpus": document.corpus,
-        "collection": document.collection,
-        "visibility_scope": document.visibility_scope,
-        "status": document.status,
-        "raw_source_uri": document.raw_source_uri,
-        "raw_asset_id": document.raw_asset_id,
-        "raw_version_id": document.raw_version_id,
-        "provider_response_object_key": document.provider_response_object_key,
-        "layout_elements_object_key": document.layout_elements_object_key,
-        "additional_processed_object_keys": list(document.additional_processed_object_keys),
-        "title": document.title,
-        "year": document.year,
-    }
-
-
-def parse_document_import_stub(payload: Mapping[str, object]) -> DocumentImportInput:
-    return DocumentImportInput(
-        source_label=str(payload["source_label"]),
-        document_units_bytes=b"",
-        provider_response_bytes=None,
-        canonical_markdown_bytes=None,
-        metadata=dict(payload["metadata"]),
-        import_source=str(payload["import_source"]),
-        revision_track=str(payload["revision_track"]),
-        source_channel=str(payload["source_channel"]),
-        is_current=bool(payload.get("is_current", False)),
-        corpus=str(payload["corpus"]),
-        collection=str(payload["collection"]),
-        visibility_scope=(
-            None if payload.get("visibility_scope") is None else str(payload["visibility_scope"])
-        ),
-        status=str(payload.get("status") or "active"),
-        raw_source_uri=(
-            None if payload.get("raw_source_uri") is None else str(payload["raw_source_uri"])
-        ),
-        raw_asset_id=(
-            None if payload.get("raw_asset_id") is None else str(payload["raw_asset_id"])
-        ),
-        raw_version_id=(
-            None if payload.get("raw_version_id") is None else str(payload["raw_version_id"])
-        ),
-        provider_response_object_key=(
-            None
-            if payload.get("provider_response_object_key") is None
-            else str(payload["provider_response_object_key"])
-        ),
-        layout_elements_object_key=(
-            None
-            if payload.get("layout_elements_object_key") is None
-            else str(payload["layout_elements_object_key"])
-        ),
-        additional_processed_object_keys=tuple(
-            str(item) for item in payload.get("additional_processed_object_keys") or ()
-        ),
-        additional_processed_artifacts=(),
-        title=None if payload.get("title") is None else str(payload["title"]),
-        year=None if payload.get("year") is None else str(payload["year"]),
-    )
-
-
-def build_document_processed_object_keys(
-    *,
-    document_units_key: str | None = None,
-    provider_response_key: str | None = None,
-    layout_elements_key: str | None = None,
-    canonical_markdown_key: str | None = None,
-    additional_keys: Iterable[str | None] = (),
-) -> tuple[str, ...]:
-    return tuple(
-        dict.fromkeys(
-            key
-            for key in (
-                provider_response_key,
-                layout_elements_key,
-                canonical_markdown_key,
-                document_units_key,
-                *additional_keys,
-            )
-            if key is not None
-        )
-    )
-
-
-def resolve_document_artifact_keys(
-    *,
-    document: DocumentImportInput,
-    document_id: str,
-    version_id: str,
-    title: str | None,
-    year: str | None,
-    corpus: str | None = None,
-    collection: str | None = None,
-) -> ResolvedDocumentArtifactKeys:
-    resolved_corpus = corpus or document.corpus
-    resolved_collection = collection or document.collection
-    provider_response_key = document.provider_response_object_key
-    if document.provider_response_bytes is not None and provider_response_key is None:
-        provider_response_key = build_document_artifact_key(
-            corpus=resolved_corpus,
-            collection=resolved_collection,
-            document_id=document_id,
-            revision_track=document.revision_track,
-            version_id=version_id,
-            filename=PROVIDER_RESPONSE_FILENAME,
-            title=title,
-            year=year,
-        )
-    layout_elements_key = document.layout_elements_object_key
-    if document.layout_elements_bytes is not None and layout_elements_key is None:
-        layout_elements_key = build_document_artifact_key(
-            corpus=resolved_corpus,
-            collection=resolved_collection,
-            document_id=document_id,
-            revision_track=document.revision_track,
-            version_id=version_id,
-            filename=LAYOUT_ELEMENTS_FILENAME,
-            title=title,
-            year=year,
-        )
-    canonical_markdown_key = None
-    if document.canonical_markdown_bytes is not None:
-        canonical_markdown_key = build_document_artifact_key(
-            corpus=resolved_corpus,
-            collection=resolved_collection,
-            document_id=document_id,
-            revision_track=document.revision_track,
-            version_id=version_id,
-            filename=CANONICAL_MARKDOWN_FILENAME,
-            title=title,
-            year=year,
-        )
-    document_units_key = build_document_artifact_key(
-        corpus=resolved_corpus,
-        collection=resolved_collection,
-        document_id=document_id,
-        revision_track=document.revision_track,
-        version_id=version_id,
-        filename=DOCUMENT_UNITS_FILENAME,
-        title=title,
-        year=year,
-    )
-    return ResolvedDocumentArtifactKeys(
-        document_units_key=document_units_key,
-        provider_response_key=provider_response_key,
-        layout_elements_key=layout_elements_key,
-        canonical_markdown_key=canonical_markdown_key,
-    )
-
-
-def build_registry_record_from_stage_payload(
-    stage_payload: Mapping[str, object],
-    *,
-    artifact_source: Literal["staged", "final"] = "final",
-    timestamp: str | None = None,
-) -> DocumentRegistryRecord:
-    document_payload = dict(stage_payload["document"])
-    staged_object_keys = {
-        str(key): str(value)
-        for key, value in dict(stage_payload.get("staged_object_keys") or {}).items()
-        if value is not None
-    }
-    final_object_keys = {
-        str(key): str(value)
-        for key, value in dict(stage_payload.get("final_object_keys") or {}).items()
-        if value is not None
-    }
-    artifact_keys = staged_object_keys if artifact_source == "staged" else final_object_keys
-    if "document_units" not in artifact_keys:
-        raise ValueError(
-            f"staged document is missing {artifact_source} document_units key: "
-            f"{document_payload.get('document_id')!r}"
-        )
-    document_stub = parse_document_import_stub(document_payload)
-    provider_response_key = artifact_keys.get("provider_response") or document_stub.provider_response_object_key
-    layout_elements_key = artifact_keys.get("layout_elements") or document_stub.layout_elements_object_key
-    canonical_markdown_key = artifact_keys.get("canonical_markdown")
-    return _build_registry_record(
-        document_id=str(document_payload["document_id"]),
-        version_id=str(document_payload["version_id"]),
-        metadata=dict(document_stub.metadata),
-        content_hash=str(stage_payload["content_hash"]),
-        document=document_stub,
-        default_visibility_scope=document_stub.visibility_scope,
-        parser_version=str(document_payload["parser_version"]),
-        embedding_model=str(document_payload["embedding_model"]),
-        cleaning_policy_version=str(document_payload["cleaning_policy_version"]),
-        raw_asset=None,
-        document_units_key=str(artifact_keys["document_units"]),
-        provider_response_key=provider_response_key,
-        layout_elements_key=layout_elements_key,
-        canonical_markdown_key=canonical_markdown_key,
-        processed_object_keys=_resolve_stage_payload_processed_object_keys(
-            artifact_source=artifact_source,
-            artifact_keys=artifact_keys,
-            document_payload=document_payload,
-        ),
-        timestamp=timestamp or utc_now(),
-    )
-
-
-def _resolve_stage_payload_processed_object_keys(
-    *,
-    artifact_source: Literal["staged", "final"],
-    artifact_keys: Mapping[str, str],
-    document_payload: Mapping[str, object],
-) -> tuple[str, ...]:
-    if artifact_source == "staged":
-        return build_document_processed_object_keys(
-            document_units_key=artifact_keys.get("document_units"),
-            provider_response_key=artifact_keys.get("provider_response"),
-            layout_elements_key=artifact_keys.get("layout_elements"),
-            canonical_markdown_key=artifact_keys.get("canonical_markdown"),
-            additional_keys=(
-                str(item)
-                for item in document_payload.get("additional_processed_object_keys") or ()
-            ),
-        )
-    values = [
-        *[str(item) for item in document_payload.get("processed_object_keys") or ()],
-        *[
-            str(item)
-            for item in document_payload.get("additional_processed_object_keys") or ()
-        ],
-    ]
-    if values:
-        return build_document_processed_object_keys(additional_keys=values)
-    return build_document_processed_object_keys(
-        document_units_key=artifact_keys.get("document_units"),
-        provider_response_key=artifact_keys.get("provider_response"),
-        layout_elements_key=artifact_keys.get("layout_elements"),
-        canonical_markdown_key=artifact_keys.get("canonical_markdown"),
-    )
-
-
-DEFAULT_SOURCE_PREFERENCE = {
-    "current-effective": ("official_web", "manual_curated", "pdf_ocr"),
-    "source-faithful": ("pdf_ocr", "manual_curated", "official_web"),
-    "editorial": ("manual_curated", "official_web", "pdf_ocr"),
-}
-OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS = frozenset({"official_web"})
 
 
 class ObjectStoreWriter(Protocol):
@@ -424,296 +159,8 @@ class S3ObjectStoreWriter:
         return self._factory.create()
 
 
-def _build_source_observation(
-    *,
-    document: DocumentImportInput,
-    metadata: dict[str, object],
-    raw_asset: ResolvedRawAsset | None,
-    is_primary: bool,
-) -> SourceObservation:
-    return SourceObservation(
-        source_channel=document.source_channel,
-        source_uri=derive_source_uri(metadata),
-        raw_asset=_resolve_registry_raw_asset_ref(
-            raw_asset=raw_asset,
-            document=document,
-            metadata=metadata,
-        ),
-        is_primary=is_primary,
-        import_source=document.import_source,
-    )
-
-
-def _record_source_observations(record: DocumentRegistryRecord) -> tuple[SourceObservation, ...]:
-    if record.source_observations:
-        return record.source_observations
-    return (
-        SourceObservation(
-            source_channel=record.source_channel,
-            source_uri=record.source_uri,
-            raw_asset=record.raw_asset,
-            is_primary=True,
-            import_source=record.import_source,
-        ),
-    )
-
-
-def _source_observation_identity(observation: SourceObservation) -> tuple[str, str, str, str]:
-    raw_asset = observation.raw_asset
-    return (
-        observation.source_channel,
-        observation.source_uri,
-        raw_asset.raw_asset_id if raw_asset is not None else "",
-        raw_asset.raw_version_id if raw_asset is not None else "",
-    )
-
-
-def _source_priority(*, revision_track: str, source_channel: str) -> int:
-    preferences = DEFAULT_SOURCE_PREFERENCE.get(revision_track, ("manual_curated", "official_web", "pdf_ocr"))
-    try:
-        return len(preferences) - preferences.index(source_channel)
-    except ValueError:
-        return 0
-
-
-def _document_semantic_hash(*, document: DocumentImportInput) -> str:
-    explicit_hash = normalize_optional_text(document.metadata.get("semantic_content_hash"))
-    if explicit_hash is not None:
-        return explicit_hash
-    return hashlib.sha256(document.document_units_bytes).hexdigest()
-
-
-def _merge_source_observation(existing: SourceObservation, candidate: SourceObservation) -> SourceObservation:
-    return SourceObservation(
-        source_channel=existing.source_channel,
-        source_uri=existing.source_uri,
-        raw_asset=candidate.raw_asset if candidate.raw_asset is not None else existing.raw_asset,
-        is_primary=existing.is_primary or candidate.is_primary,
-        import_source=candidate.import_source or existing.import_source,
-    )
-
-
-def _choose_primary_observation(
-    *,
-    revision_track: str,
-    observations: tuple[SourceObservation, ...],
-) -> SourceObservation:
-    existing_primary_identity = next(
-        (
-            _source_observation_identity(observation)
-            for observation in observations
-            if observation.is_primary
-        ),
-        None,
-    )
-    return max(
-        observations,
-        key=lambda observation: (
-            _source_priority(revision_track=revision_track, source_channel=observation.source_channel),
-            existing_primary_identity == _source_observation_identity(observation),
-        ),
-    )
-
-
-def _merge_equivalent_source_record(
-    *,
-    existing: DocumentRegistryRecord,
-    document: DocumentImportInput,
-    metadata: dict[str, object],
-    raw_asset: ResolvedRawAsset | None,
-    timestamp: str,
-) -> DocumentRegistryRecord:
-    candidate_observation = _build_source_observation(
-        document=document,
-        metadata=metadata,
-        raw_asset=raw_asset,
-        is_primary=False,
-    )
-    observations_by_identity: dict[tuple[str, str, str, str], SourceObservation] = {}
-    for observation in _record_source_observations(existing):
-        observations_by_identity[_source_observation_identity(observation)] = observation
-    candidate_identity = _source_observation_identity(candidate_observation)
-    existing_candidate = observations_by_identity.get(candidate_identity)
-    observations_by_identity[candidate_identity] = (
-        _merge_source_observation(existing_candidate, candidate_observation)
-        if existing_candidate is not None
-        else candidate_observation
-    )
-    chosen_primary = _choose_primary_observation(
-        revision_track=existing.revision_track,
-        observations=tuple(observations_by_identity.values()),
-    )
-    normalized_observations = tuple(
-        sorted(
-            (
-                replace(
-                    observation,
-                    is_primary=_source_observation_identity(observation) == _source_observation_identity(chosen_primary),
-                )
-                for observation in observations_by_identity.values()
-            ),
-            key=_source_observation_identity,
-        )
-    )
-    return replace(
-        existing,
-        source_uri=chosen_primary.source_uri,
-        source_channel=chosen_primary.source_channel,
-        raw_asset=chosen_primary.raw_asset,
-        source_observations=normalized_observations,
-        is_current=existing.is_current or document.is_current,
-        status="active" if existing.is_current or document.is_current else existing.status,
-        ingestion_timestamp=timestamp,
-        import_source=(
-            document.import_source
-            if _source_observation_identity(chosen_primary) == candidate_identity
-            else existing.import_source
-        ),
-    )
-
-
 def _is_source_level_artifact_key(key: str) -> bool:
     return is_source_object_key(key)
-
-
-def load_metadata_from_bytes(file_bytes: bytes) -> dict[str, object]:
-    first_line = file_bytes.decode("utf-8").splitlines()[0]
-    raw = json.loads(first_line)
-    document_id = str(raw.get("doc_id") or "")
-    version_id = str(raw.get("version_id") or "")
-    if not document_id or not version_id:
-        raise ValueError("doc_id and version_id are required in OCR JSONL")
-    _assert_canonical_row_authorization_metadata(raw)
-    source = raw.get("source") or {}
-    nested_metadata = raw.get("metadata") or {}
-    nested_metadata_dict = nested_metadata if isinstance(nested_metadata, dict) else {}
-    source_url = raw.get("source_url")
-    if not isinstance(source_url, str) or not source_url.strip():
-        source_url = nested_metadata_dict.get("source_url")
-    entitlement_groups = _resolve_row_entitlement_groups(raw)
-    visibility_scope = normalize_optional_text(raw.get("visibility_scope"))
-    visibility_level = _resolve_row_visibility_level(
-        raw=raw,
-        entitlement_groups=entitlement_groups,
-    )
-    policy_projection_version = (
-        normalize_optional_text(raw.get("policy_projection_version"))
-        or DEFAULT_POLICY_PROJECTION_VERSION
-    )
-    return {
-        "document_id": document_id,
-        "version_id": version_id,
-        "revision_track": str(raw.get("revision_track") or "source-faithful"),
-        "source_url": source_url,
-        "source_md": raw.get("source_md"),
-        "source_id": source.get("id"),
-        "source_pdf": normalize_optional_text(raw.get("source_pdf")),
-        "raw_page_start": normalize_optional_int(raw.get("page_start")),
-        "raw_page_end": normalize_optional_int(raw.get("page_end")),
-        "semantic_content_hash": normalize_optional_text(nested_metadata_dict.get("semantic_content_hash")),
-        "title": normalize_optional_text(nested_metadata_dict.get("title")),
-        "page_family": normalize_optional_text(nested_metadata_dict.get("page_family")),
-        "serving_intent": normalize_optional_text(nested_metadata_dict.get("serving_intent")),
-        "content_role": normalize_optional_text(nested_metadata_dict.get("content_role")),
-        "entitlement_groups": entitlement_groups,
-        "visibility_scope": visibility_scope,
-        "visibility_level": visibility_level,
-        "policy_projection_version": policy_projection_version,
-    }
-
-
-def apply_authorization_projection_metadata(
-    metadata: dict[str, object],
-    *,
-    entitlement_groups: tuple[str, ...] | list[str],
-    visibility_scope: str | None,
-    visibility_level: str | None = None,
-    policy_projection_version: str = DEFAULT_POLICY_PROJECTION_VERSION,
-) -> None:
-    _assert_canonical_authorization_metadata(metadata)
-    normalized_groups = _normalize_group_values(entitlement_groups)
-    normalized_scope = normalize_optional_text(visibility_scope)
-    normalized_visibility_level = normalize_optional_text(visibility_level)
-    resolved_visibility_level = (
-        normalized_visibility_level
-        or ("restricted" if normalized_groups else "public")
-    )
-    normalized_policy_projection_version = (
-        normalize_optional_text(policy_projection_version)
-        or DEFAULT_POLICY_PROJECTION_VERSION
-    )
-
-    metadata["entitlement_groups"] = list(normalized_groups)
-    metadata["visibility_scope"] = normalized_scope
-    metadata["visibility_level"] = resolved_visibility_level
-    metadata["policy_projection_version"] = normalized_policy_projection_version
-
-
-def _resolve_entitlement_groups(metadata: dict[str, object]) -> tuple[str, ...]:
-    return _normalize_group_values(metadata.get("entitlement_groups"))
-
-
-def _resolve_visibility_scope(
-    *,
-    metadata: dict[str, object],
-    document: DocumentImportInput,
-    default_visibility_scope: str | None,
-) -> str | None:
-    metadata_scope = normalize_optional_text(metadata.get("visibility_scope"))
-    if metadata_scope is not None:
-        return metadata_scope
-    if document.visibility_scope is not None:
-        return document.visibility_scope
-    return default_visibility_scope
-
-
-def _resolve_visibility_level(
-    *,
-    metadata: dict[str, object],
-    entitlement_groups: tuple[str, ...],
-) -> str:
-    metadata_visibility_level = normalize_optional_text(metadata.get("visibility_level"))
-    if metadata_visibility_level is not None:
-        return metadata_visibility_level
-    return "restricted" if entitlement_groups else "public"
-
-
-def _resolve_policy_projection_version(metadata: dict[str, object]) -> str:
-    return (
-        normalize_optional_text(metadata.get("policy_projection_version"))
-        or DEFAULT_POLICY_PROJECTION_VERSION
-    )
-
-
-def _normalize_group_values(value: object) -> tuple[str, ...]:
-    if not isinstance(value, (list, tuple)):
-        return ()
-    normalized: list[str] = []
-    for item in value:
-        text = normalize_optional_text(item)
-        if text is not None:
-            normalized.append(text)
-    return tuple(normalized)
-
-
-def _resolve_row_entitlement_groups(raw: dict[str, object]) -> tuple[str, ...]:
-    return _normalize_group_values(raw.get("entitlement_groups"))
-
-
-def _resolve_row_visibility_level(
-    *,
-    raw: dict[str, object],
-    entitlement_groups: tuple[str, ...],
-) -> str:
-    visibility_level = normalize_optional_text(raw.get("visibility_level"))
-    if visibility_level is not None:
-        return visibility_level
-    return "restricted" if entitlement_groups else "public"
-
-
-def _assert_canonical_row_authorization_metadata(raw: dict[str, object]) -> None:
-    if raw.get("acl") is not None:
-        raise ValueError("legacy row authorization metadata is not allowed: acl")
 
 
 def persist_import_documents(
@@ -785,8 +232,8 @@ def collect_import_document_stats(
     unresolved_source_pdfs: tuple[str, ...] = (),
     initial_errors: list[str] | None = None,
     scope_refresh: tuple[str, str] | None = None,
+    scope_refresh_preserve_existing: Callable[[DocumentRegistryRecord], bool] | None = None,
 ) -> PersistImportStats:
-    resolved_default_scope = default_visibility_scope or default_campus_scope
     success_count = 0
     skipped_count = 0
     failed_count = len(initial_errors or [])
@@ -799,9 +246,9 @@ def collect_import_document_stats(
     errors = list(initial_errors or [])
     timestamp = utc_now()
     uploaded_raw_assets: set[tuple[str, str]] = set()
-    documents_by_scope = _group_documents_by_scope(documents)
+    documents_by_scope = group_documents_by_scope(documents)
     existing_records_by_scope = {
-        scope: _prefetch_existing_scope_records(
+        scope: prefetch_existing_scope_records(
             registry=registry,
             scope=scope,
             scope_refresh=scope_refresh,
@@ -814,14 +261,21 @@ def collect_import_document_stats(
         if len(documents_by_scope) > 1:
             raise ValueError("scope_refresh only supports a single imported scope")
     existing_records_by_lineage = {
-        scope: _index_scope_records_by_lineage(records)
+        scope: index_scope_records_by_lineage(records)
         for scope, records in existing_records_by_scope.items()
     }
     pending_records: list[DocumentRegistryRecord] = []
-    scope_records_for_refresh: dict[tuple[str, str], dict[tuple[str, str, str], DocumentRegistryRecord]] = {
-        scope: {}
-        for scope in documents_by_scope
-    }
+    scope_records_for_refresh: dict[
+        tuple[str, str], dict[tuple[str, str, str], DocumentRegistryRecord]
+    ] = {scope: {} for scope in documents_by_scope}
+    if scope_refresh is not None and scope_refresh_preserve_existing is not None:
+        preserved_records = {
+            (record.document_id, record.revision_track, record.version_id): record
+            for record in existing_records_by_scope.get(scope_refresh, ())
+            if scope_refresh_preserve_existing(record)
+        }
+        if preserved_records:
+            scope_records_for_refresh.setdefault(scope_refresh, {}).update(preserved_records)
 
     for document in documents:
         metadata = document.metadata
@@ -865,9 +319,14 @@ def collect_import_document_stats(
                     raw_uploaded_count += 1
 
             document_units_bytes = document.document_units_bytes
-            content_hash = _document_semantic_hash(document=document)
-            title = document.title or _derive_document_title(metadata=metadata, document_id=document_id)
-            year = document.year or _derive_document_year(metadata=metadata)
+            content_hash = document_semantic_hash(
+                document_units_bytes=document.document_units_bytes,
+                semantic_content_hash=document.metadata.get("semantic_content_hash"),
+            )
+            title = document.title or derive_document_title(
+                metadata=metadata, document_id=document_id
+            )
+            year = document.year or derive_document_year(metadata=metadata)
             scope = (document.corpus, document.collection)
             document_records = existing_records_by_lineage.get(scope, {}).get(
                 (document_id, document.revision_track),
@@ -878,13 +337,18 @@ def collect_import_document_stats(
                 None,
             )
             if matching_content_record is None:
-                matching_content_record = _find_equivalent_scope_record(
+                matching_content_record = find_equivalent_scope_record(
                     existing_records_by_lineage=existing_records_by_lineage,
                     scope=scope,
-                    document=document,
+                    source_channel=document.source_channel,
+                    revision_track=document.revision_track,
                     content_hash=content_hash,
                 )
-            effective_version_id = matching_content_record.version_id if matching_content_record is not None else version_id
+            effective_version_id = (
+                matching_content_record.version_id
+                if matching_content_record is not None
+                else version_id
+            )
             incoming_source_uri = derive_source_uri(metadata)
             artifact_keys = resolve_document_artifact_keys(
                 document=document,
@@ -901,7 +365,9 @@ def collect_import_document_stats(
                 and _is_source_level_artifact_key(provider_response_key)
             ):
                 writer.put_bytes(
-                    bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
+                    bucket=artifact_bucket_for_key(
+                        object_store=object_store, key=provider_response_key
+                    ),
                     key=provider_response_key,
                     data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
@@ -912,14 +378,18 @@ def collect_import_document_stats(
                 and _is_source_level_artifact_key(layout_elements_key)
             ):
                 writer.put_bytes(
-                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    bucket=artifact_bucket_for_key(
+                        object_store=object_store, key=layout_elements_key
+                    ),
                     key=layout_elements_key,
                     data=document.layout_elements_bytes,
                     content_type="application/x-ndjson",
                 )
             for artifact in document.additional_processed_artifacts:
                 writer.put_bytes(
-                    bucket=_artifact_bucket_for_key(object_store=object_store, key=artifact.object_key),
+                    bucket=artifact_bucket_for_key(
+                        object_store=object_store, key=artifact.object_key
+                    ),
                     key=artifact.object_key,
                     data=artifact.data,
                     content_type=artifact.content_type,
@@ -935,11 +405,20 @@ def collect_import_document_stats(
                 additional_keys=document.additional_processed_object_keys,
             )
             if matching_content_record is not None:
-                merged_equivalent_record = _merge_equivalent_source_record(
+                merged_equivalent_record = merge_equivalent_source_record(
                     existing=matching_content_record,
-                    document=document,
-                    metadata=metadata,
-                    raw_asset=raw_asset,
+                    candidate_observation=build_source_observation(
+                        source_channel=document.source_channel,
+                        source_uri=derive_source_uri(metadata),
+                        raw_asset=resolve_registry_raw_asset_ref(
+                            raw_asset=raw_asset,
+                            document=document,
+                            metadata=metadata,
+                        ),
+                        is_primary=False,
+                        import_source=document.import_source,
+                    ),
+                    candidate_is_current=document.is_current,
                     timestamp=timestamp,
                 )
                 artifact_refresh_supported = (
@@ -947,7 +426,7 @@ def collect_import_document_stats(
                     and matching_content_record.source_channel == document.source_channel
                     and matching_content_record.source_uri == incoming_source_uri
                 )
-                if artifact_refresh_supported and _registry_record_needs_refresh(
+                if artifact_refresh_supported and registry_record_needs_refresh(
                     existing=matching_content_record,
                     document_units_bytes=document_units_bytes,
                     document_units_key=document_units_key,
@@ -967,7 +446,9 @@ def collect_import_document_stats(
                         and not _is_source_level_artifact_key(provider_response_key)
                     ):
                         writer.put_bytes(
-                            bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
+                            bucket=artifact_bucket_for_key(
+                                object_store=object_store, key=provider_response_key
+                            ),
                             key=provider_response_key,
                             data=document.provider_response_bytes,
                             content_type="application/x-ndjson",
@@ -978,12 +459,17 @@ def collect_import_document_stats(
                         and not _is_source_level_artifact_key(layout_elements_key)
                     ):
                         writer.put_bytes(
-                            bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                            bucket=artifact_bucket_for_key(
+                                object_store=object_store, key=layout_elements_key
+                            ),
                             key=layout_elements_key,
                             data=document.layout_elements_bytes,
                             content_type="application/x-ndjson",
                         )
-                    if document.canonical_markdown_bytes is not None and canonical_markdown_key is not None:
+                    if (
+                        document.canonical_markdown_bytes is not None
+                        and canonical_markdown_key is not None
+                    ):
                         writer.put_bytes(
                             bucket=object_store.bucket_derived,
                             key=canonical_markdown_key,
@@ -1025,65 +511,65 @@ def collect_import_document_stats(
                         import_source=merged_equivalent_record.import_source,
                         supersedes_version_id=merged_equivalent_record.supersedes_version_id,
                     )
-                    refreshed_record, demoted_records = _apply_current_promotion(
+                    refreshed_record, demoted_records = apply_current_promotion(
                         existing_records_by_lineage=existing_records_by_lineage,
                         scope=scope,
                         record=refreshed_record,
                     )
                     pending_records.append(refreshed_record)
                     pending_records.extend(demoted_records)
-                    _replace_prefetched_lineage_record(
+                    replace_prefetched_lineage_record(
                         existing_records_by_lineage=existing_records_by_lineage,
                         scope=scope,
                         record=refreshed_record,
                     )
-                    _record_scope_refresh_candidate(
+                    record_scope_refresh_candidate(
                         scope_records_for_refresh=scope_records_for_refresh,
                         scope=scope,
                         record=refreshed_record,
                     )
                     for demoted_record in demoted_records:
-                        _replace_prefetched_lineage_record(
+                        replace_prefetched_lineage_record(
                             existing_records_by_lineage=existing_records_by_lineage,
                             scope=scope,
                             record=demoted_record,
                         )
-                        _record_scope_refresh_candidate(
+                        record_scope_refresh_candidate(
                             scope_records_for_refresh=scope_records_for_refresh,
                             scope=scope,
                             record=demoted_record,
                         )
                 elif merged_equivalent_record != matching_content_record:
-                    merged_equivalent_record, demoted_records = _apply_current_promotion(
+                    merged_equivalent_record, demoted_records = apply_current_promotion(
                         existing_records_by_lineage=existing_records_by_lineage,
                         scope=scope,
                         record=merged_equivalent_record,
                     )
                     pending_records.append(merged_equivalent_record)
                     pending_records.extend(demoted_records)
-                    _replace_prefetched_lineage_record(
+                    replace_prefetched_lineage_record(
                         existing_records_by_lineage=existing_records_by_lineage,
                         scope=scope,
                         record=merged_equivalent_record,
                     )
-                    _record_scope_refresh_candidate(
+                    record_scope_refresh_candidate(
                         scope_records_for_refresh=scope_records_for_refresh,
                         scope=scope,
                         record=merged_equivalent_record,
                     )
                     for demoted_record in demoted_records:
-                        _replace_prefetched_lineage_record(
+                        replace_prefetched_lineage_record(
                             existing_records_by_lineage=existing_records_by_lineage,
                             scope=scope,
                             record=demoted_record,
                         )
-                        _record_scope_refresh_candidate(
+                        record_scope_refresh_candidate(
                             scope_records_for_refresh=scope_records_for_refresh,
                             scope=scope,
                             record=demoted_record,
                         )
                 elif scope_refresh is not None:
-                    _record_scope_refresh_candidate(
+                    record_scope_refresh_candidate(
                         scope_records_for_refresh=scope_records_for_refresh,
                         scope=scope,
                         record=matching_content_record,
@@ -1098,7 +584,9 @@ def collect_import_document_stats(
                 and not _is_source_level_artifact_key(provider_response_key)
             ):
                 writer.put_bytes(
-                    bucket=_artifact_bucket_for_key(object_store=object_store, key=provider_response_key),
+                    bucket=artifact_bucket_for_key(
+                        object_store=object_store, key=provider_response_key
+                    ),
                     key=provider_response_key,
                     data=document.provider_response_bytes,
                     content_type="application/x-ndjson",
@@ -1109,7 +597,9 @@ def collect_import_document_stats(
                 and not _is_source_level_artifact_key(layout_elements_key)
             ):
                 writer.put_bytes(
-                    bucket=_artifact_bucket_for_key(object_store=object_store, key=layout_elements_key),
+                    bucket=artifact_bucket_for_key(
+                        object_store=object_store, key=layout_elements_key
+                    ),
                     key=layout_elements_key,
                     data=document.layout_elements_bytes,
                     content_type="application/x-ndjson",
@@ -1145,30 +635,30 @@ def collect_import_document_stats(
                 processed_object_keys=processed_object_keys,
                 timestamp=timestamp,
             )
-            new_record, demoted_records = _apply_current_promotion(
+            new_record, demoted_records = apply_current_promotion(
                 existing_records_by_lineage=existing_records_by_lineage,
                 scope=scope,
                 record=new_record,
             )
             pending_records.append(new_record)
             pending_records.extend(demoted_records)
-            _replace_prefetched_lineage_record(
+            replace_prefetched_lineage_record(
                 existing_records_by_lineage=existing_records_by_lineage,
                 scope=scope,
                 record=new_record,
             )
-            _record_scope_refresh_candidate(
+            record_scope_refresh_candidate(
                 scope_records_for_refresh=scope_records_for_refresh,
                 scope=scope,
                 record=new_record,
             )
             for demoted_record in demoted_records:
-                _replace_prefetched_lineage_record(
+                replace_prefetched_lineage_record(
                     existing_records_by_lineage=existing_records_by_lineage,
                     scope=scope,
                     record=demoted_record,
                 )
-                _record_scope_refresh_candidate(
+                record_scope_refresh_candidate(
                     scope_records_for_refresh=scope_records_for_refresh,
                     scope=scope,
                     record=demoted_record,
@@ -1195,14 +685,18 @@ def collect_import_document_stats(
             replace_scope(scope_refresh[0], scope_refresh[1], refreshed_records)
         else:
             registry.delete_by_scope(scope_refresh[0], scope_refresh[1])
-            _write_registry_records(registry=registry, records=refreshed_records)
+            write_registry_records(registry=registry, records=refreshed_records)
     else:
-        _write_registry_records(
+        write_registry_records(
             registry=registry,
             records=tuple(
                 sorted(
                     pending_records,
-                    key=lambda record: (record.document_id, record.revision_track, record.version_id),
+                    key=lambda record: (
+                        record.document_id,
+                        record.revision_track,
+                        record.version_id,
+                    ),
                 )
             ),
         )
@@ -1223,37 +717,6 @@ def collect_import_document_stats(
     )
 
 
-def _prefetch_existing_scope_records(
-    *,
-    registry: DocumentRegistry,
-    scope: tuple[str, str],
-    scope_refresh: tuple[str, str] | None,
-) -> tuple[DocumentRegistryRecord, ...]:
-    list_importable_scope_records = getattr(registry, "list_importable_scope_records_by_scope", None)
-    if callable(list_importable_scope_records):
-        return tuple(list_importable_scope_records(scope[0], scope[1]))
-    try:
-        return registry.list_by_scope(scope[0], scope[1])
-    except ValueError as exc:
-        if scope_refresh == scope and _can_recover_scope_refresh_from_legacy_registry_rows(
-            registry=registry,
-            exc=exc,
-        ):
-            return ()
-        raise
-
-
-def _can_recover_scope_refresh_from_legacy_registry_rows(
-    *,
-    registry: DocumentRegistry,
-    exc: ValueError,
-) -> bool:
-    list_processed_object_keys = getattr(registry, "list_processed_object_keys_by_scope", None)
-    return callable(list_processed_object_keys) and (
-        "registry payload contains unsupported authorization projection keys" in str(exc)
-    )
-
-
 def build_registered_raw_asset_ref(
     *,
     raw_asset_id: str,
@@ -1267,72 +730,6 @@ def build_registered_raw_asset_ref(
         page_start=page_start,
         page_end=page_end,
     )
-
-
-def resolved_raw_asset(
-    *,
-    raw_path: Path | None,
-    raw_source_uri: str | None,
-    corpus: str,
-    raw_asset_id_override: str | None = None,
-) -> ResolvedRawAsset | None:
-    if raw_path is None:
-        return None
-    raw_hash = hashlib.sha256(raw_path.read_bytes()).hexdigest()
-    raw_asset_id = raw_asset_id_override or build_raw_asset_id(raw_path.name)
-    raw_version_id = f"sha256:{raw_hash}"
-    object_key = build_raw_asset_key(
-        corpus=corpus,
-        raw_asset_id=raw_asset_id,
-        raw_version_id=raw_version_id,
-        filename=raw_path.name,
-    )
-    return ResolvedRawAsset(
-        raw_asset_id=raw_asset_id,
-        raw_version_id=raw_version_id,
-        source_filename=raw_path.name,
-        path=raw_path,
-        raw_source_uri=raw_source_uri or f"file://{raw_path.resolve()}",
-        content_hash=raw_hash,
-        object_key=object_key,
-    )
-
-
-def resolve_raw_path(raw_root: Path, source_pdf: str) -> Path | None:
-    for candidate_name in raw_filename_candidates(source_pdf):
-        candidate = raw_root / candidate_name
-        if candidate.exists() and candidate.is_file():
-            return candidate
-    return None
-
-
-def raw_filename_candidates(source_pdf: str) -> tuple[str, ...]:
-    exact = source_pdf.strip()
-    candidates = [exact]
-    return tuple(dict.fromkeys(name for name in candidates if name))
-
-
-def build_raw_asset_id(filename: str) -> str:
-    return f"asset:{slugify_label(filename)}"
-
-
-def slugify_label(value: str) -> str:
-    normalized = value.strip().lower()
-    slug = "".join(ch if ch.isalnum() else "-" for ch in normalized).strip("-")
-    while "--" in slug:
-        slug = slug.replace("--", "-")
-    return slug or "asset"
-
-
-def derive_source_uri(metadata: dict[str, object]) -> str:
-    source_url = metadata.get("source_url")
-    if isinstance(source_url, str) and source_url:
-        return source_url
-    for candidate in (metadata.get("source_md"), metadata.get("source_id")):
-        relative = extract_canonical_relative_path(candidate)
-        if relative is not None:
-            return f"campusrag://canonical/{relative}"
-    return f"campusrag://import/{metadata['document_id']}/{metadata['version_id']}"
 
 
 def _build_registry_record(
@@ -1354,24 +751,24 @@ def _build_registry_record(
     processed_object_keys: tuple[str, ...],
     timestamp: str,
 ) -> DocumentRegistryRecord:
-    _assert_canonical_authorization_metadata(metadata)
+    assert_canonical_authorization_metadata(metadata)
     source_uri = derive_source_uri(metadata)
-    registry_raw_asset = _resolve_registry_raw_asset_ref(
+    registry_raw_asset = resolve_registry_raw_asset_ref(
         raw_asset=raw_asset,
         document=document,
         metadata=metadata,
     )
-    entitlement_groups = _resolve_entitlement_groups(metadata)
-    visibility_scope = _resolve_visibility_scope(
+    entitlement_groups = resolve_entitlement_groups(metadata)
+    visibility_scope = resolve_visibility_scope(
         metadata=metadata,
         document=document,
         default_visibility_scope=default_visibility_scope,
     )
-    visibility_level = _resolve_visibility_level(
+    visibility_level = resolve_visibility_level(
         metadata=metadata,
         entitlement_groups=entitlement_groups,
     )
-    policy_projection_version = _resolve_policy_projection_version(metadata)
+    policy_projection_version = resolve_policy_projection_version(metadata)
     return DocumentRegistryRecord(
         document_id=document_id,
         revision_track=document.revision_track,
@@ -1385,7 +782,7 @@ def _build_registry_record(
         visibility_scope=visibility_scope,
         visibility_level=visibility_level,
         policy_projection_version=policy_projection_version,
-        status=_resolve_status(metadata=metadata, document=document),
+        status=resolve_status(metadata=metadata, document=document),
         ingestion_timestamp=timestamp,
         parser_version=parser_version,
         embedding_model=embedding_model,
@@ -1395,7 +792,7 @@ def _build_registry_record(
         published_date=normalize_optional_text(metadata.get("published_date")),
         raw_asset=registry_raw_asset,
         source_observations=(
-            SourceObservation(
+            build_source_observation(
                 source_channel=document.source_channel,
                 source_uri=source_uri,
                 raw_asset=registry_raw_asset,
@@ -1410,434 +807,3 @@ def _build_registry_record(
         processed_object_keys=processed_object_keys,
         import_source=document.import_source,
     )
-
-
-def _assert_canonical_authorization_metadata(metadata: dict[str, object]) -> None:
-    unsupported_keys = tuple(
-        key
-        for key in metadata
-        if _looks_like_authorization_projection_key(key)
-        and key not in _SUPPORTED_AUTHORIZATION_METADATA_KEYS
-    )
-    if unsupported_keys:
-        joined = ", ".join(unsupported_keys)
-        raise ValueError(
-            f"unsupported authorization metadata keys are not allowed: {joined}"
-        )
-
-
-_SUPPORTED_AUTHORIZATION_METADATA_KEYS = frozenset(
-    {
-        "entitlement_groups",
-        "visibility_scope",
-        "visibility_level",
-        "policy_projection_version",
-    }
-)
-
-
-def _looks_like_authorization_projection_key(key: str) -> bool:
-    return (
-        key.startswith("entitlement_")
-        or key.startswith("visibility_")
-        or key.startswith("policy_projection_")
-        or key.endswith("_groups")
-        or key.endswith("_scope")
-        or key.endswith("_level")
-    )
-
-
-def _resolve_registry_raw_asset_ref(
-    *,
-    raw_asset: ResolvedRawAsset | None,
-    document: DocumentImportInput,
-    metadata: dict[str, object],
-) -> RawAssetRef | None:
-    if raw_asset is not None:
-        return RawAssetRef(
-            raw_asset_id=raw_asset.raw_asset_id,
-            raw_version_id=raw_asset.raw_version_id,
-            page_start=metadata.get("raw_page_start"),
-            page_end=metadata.get("raw_page_end"),
-        )
-    if document.raw_asset_id and document.raw_version_id:
-        return RawAssetRef(
-            raw_asset_id=document.raw_asset_id,
-            raw_version_id=document.raw_version_id,
-            page_start=metadata.get("raw_page_start"),
-            page_end=metadata.get("raw_page_end"),
-        )
-    return None
-
-
-def _registry_record_needs_refresh(
-    *,
-    existing: DocumentRegistryRecord,
-    document_units_bytes: bytes,
-    document_units_key: str,
-    provider_response_bytes: bytes | None,
-    provider_response_key: str | None,
-    layout_elements_bytes: bytes | None,
-    layout_elements_key: str | None,
-    canonical_markdown_bytes: bytes | None,
-    canonical_markdown_key: str | None,
-    processed_object_keys: tuple[str, ...],
-    writer: ObjectStoreWriter,
-    object_store: ObjectStoreSettings,
-) -> bool:
-    if existing.document_units_object_key != document_units_key:
-        return True
-    if existing.provider_response_object_key != provider_response_key:
-        return True
-    if existing.layout_elements_object_key != layout_elements_key:
-        return True
-    if existing.canonical_markdown_object_key != canonical_markdown_key:
-        return True
-    if tuple(existing.processed_object_keys) != processed_object_keys:
-        return True
-    if _missing_processed_object_keys(
-        writer=writer,
-        object_store=object_store,
-        object_keys=processed_object_keys,
-    ):
-        return True
-    if _stored_artifact_payload_differs(
-        writer=writer,
-        object_store=object_store,
-        key=document_units_key,
-        expected_bytes=document_units_bytes,
-    ):
-        return True
-    if _stored_artifact_payload_differs(
-        writer=writer,
-        object_store=object_store,
-        key=provider_response_key,
-        expected_bytes=provider_response_bytes,
-    ):
-        return True
-    if _stored_artifact_payload_differs(
-        writer=writer,
-        object_store=object_store,
-        key=layout_elements_key,
-        expected_bytes=layout_elements_bytes,
-    ):
-        return True
-    return _stored_artifact_payload_differs(
-        writer=writer,
-        object_store=object_store,
-        key=canonical_markdown_key,
-        expected_bytes=canonical_markdown_bytes,
-    )
-
-
-def _missing_processed_object_keys(
-    *,
-    writer: ObjectStoreWriter,
-    object_store: ObjectStoreSettings,
-    object_keys: tuple[str, ...],
-) -> bool:
-    get_bytes = getattr(writer, "get_bytes", None)
-    if not callable(get_bytes):
-        return False
-    for key in object_keys:
-        try:
-            get_bytes(bucket=_artifact_bucket_for_key(object_store=object_store, key=key), key=key)
-        except Exception:
-            return True
-    return False
-
-
-def _stored_artifact_payload_differs(
-    *,
-    writer: ObjectStoreWriter,
-    object_store: ObjectStoreSettings,
-    key: str | None,
-    expected_bytes: bytes | None,
-) -> bool:
-    if key is None or expected_bytes is None:
-        return False
-    get_bytes = getattr(writer, "get_bytes", None)
-    if not callable(get_bytes):
-        return False
-    try:
-        stored_bytes = get_bytes(
-            bucket=_artifact_bucket_for_key(object_store=object_store, key=key),
-            key=key,
-        )
-    except Exception:
-        return True
-    return stored_bytes != expected_bytes
-
-
-def _artifact_bucket_for_key(*, object_store: ObjectStoreSettings, key: str) -> str:
-    if is_source_object_key(key):
-        return object_store.bucket_source
-    return object_store.bucket_derived
-
-
-def _group_documents_by_scope(
-    documents: list[DocumentImportInput],
-) -> dict[tuple[str, str], tuple[DocumentImportInput, ...]]:
-    grouped: dict[tuple[str, str], list[DocumentImportInput]] = {}
-    for document in documents:
-        grouped.setdefault((document.corpus, document.collection), []).append(document)
-    return {
-        scope: tuple(scope_documents)
-        for scope, scope_documents in grouped.items()
-    }
-
-
-def _find_equivalent_scope_record(
-    *,
-    existing_records_by_lineage: dict[
-        tuple[str, str],
-        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
-    ],
-    scope: tuple[str, str],
-    document: DocumentImportInput,
-    content_hash: str,
-) -> DocumentRegistryRecord | None:
-    if document.source_channel not in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS:
-        return None
-    scope_records = existing_records_by_lineage.get(scope, {})
-    candidates = [
-        record
-        for lineage_records in scope_records.values()
-        for record in lineage_records
-        if record.revision_track == document.revision_track
-        and record.content_hash == content_hash
-        and record.source_channel in OFFICIAL_WEB_EQUIVALENT_SOURCE_CHANNELS
-    ]
-    if not candidates:
-        return None
-    current_candidates = [record for record in candidates if record.is_current]
-    ranked_candidates = current_candidates or candidates
-    return max(
-        ranked_candidates,
-        key=lambda record: (
-            record.is_current,
-            record.ingestion_timestamp,
-            record.document_id,
-            record.version_id,
-        ),
-    )
-
-
-def _index_scope_records_by_lineage(
-    records: tuple[DocumentRegistryRecord, ...],
-) -> dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]]:
-    indexed: dict[tuple[str, str], list[DocumentRegistryRecord]] = {}
-    for record in records:
-        indexed.setdefault((record.document_id, record.revision_track), []).append(record)
-    return {
-        lineage: tuple(lineage_records)
-        for lineage, lineage_records in indexed.items()
-    }
-
-
-def _record_scope_refresh_candidate(
-    *,
-    scope_records_for_refresh: dict[tuple[str, str], dict[tuple[str, str, str], DocumentRegistryRecord]],
-    scope: tuple[str, str],
-    record: DocumentRegistryRecord,
-) -> None:
-    scope_records_for_refresh.setdefault(scope, {})[
-        (record.document_id, record.revision_track, record.version_id)
-    ] = record
-
-
-def _apply_current_promotion(
-    *,
-    existing_records_by_lineage: dict[
-        tuple[str, str],
-        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
-    ],
-    scope: tuple[str, str],
-    record: DocumentRegistryRecord,
-) -> tuple[DocumentRegistryRecord, tuple[DocumentRegistryRecord, ...]]:
-    if not record.is_current:
-        return record, ()
-    lineage_records = existing_records_by_lineage.get(scope, {}).get((record.document_id, record.revision_track), ())
-    prior_current_records = tuple(
-        candidate
-        for candidate in lineage_records
-        if candidate.version_id != record.version_id and candidate.is_current
-    )
-    promoted_record = record
-    if prior_current_records and record.supersedes_version_id is None:
-        latest_prior_current = max(prior_current_records, key=lambda candidate: candidate.ingestion_timestamp)
-        promoted_record = replace(record, supersedes_version_id=latest_prior_current.version_id)
-    demoted_records = tuple(
-        replace(
-            candidate,
-            is_current=False,
-            status="superseded" if candidate.status == "active" else candidate.status,
-        )
-        for candidate in prior_current_records
-    )
-    return promoted_record, demoted_records
-
-
-def _replace_prefetched_lineage_record(
-    *,
-    existing_records_by_lineage: dict[
-        tuple[str, str],
-        dict[tuple[str, str], tuple[DocumentRegistryRecord, ...]],
-    ],
-    scope: tuple[str, str],
-    record: DocumentRegistryRecord,
-) -> None:
-    lineage_key = (record.document_id, record.revision_track)
-    lineage_records = {
-        candidate.version_id: candidate
-        for candidate in existing_records_by_lineage.setdefault(scope, {}).get(lineage_key, ())
-    }
-    lineage_records[record.version_id] = record
-    existing_records_by_lineage[scope][lineage_key] = tuple(lineage_records.values())
-
-
-def _write_registry_records(
-    *,
-    registry: DocumentRegistry,
-    records: tuple[DocumentRegistryRecord, ...],
-) -> None:
-    if not records:
-        return
-    upsert_many = getattr(registry, "upsert_many", None)
-    if callable(upsert_many):
-        upsert_many(records)
-        return
-    for record in records:
-        registry.upsert(record)
-
-
-def _derive_document_title(*, metadata: dict[str, object], document_id: str) -> str:
-    for key in ("title", "document_title"):
-        title = normalize_optional_text(metadata.get(key))
-        if title is not None:
-            return title
-    return document_id.split(":")[-1]
-
-
-def _derive_document_year(*, metadata: dict[str, object]) -> str | None:
-    for key in ("published_date", "effective_date", "year", "source_pdf", "source_doc", "source_label"):
-        year = _extract_year_label(metadata.get(key))
-        if year is not None:
-            return year
-    return None
-
-
-def _extract_year_label(value: object) -> str | None:
-    text = normalize_optional_text(value)
-    if text is None:
-        return None
-    match = re.search(r"(?<!\d)((?:19|20)\d{2})(?!\d)", text)
-    if match is None:
-        return None
-    return match.group(1)
-
-
-def normalize_optional_text(value: object) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized or None
-
-
-def _resolve_campus_scope(
-    *,
-    metadata: dict[str, object],
-    document: DocumentImportInput,
-    default_visibility_scope: str | None,
-) -> str | None:
-    return _resolve_visibility_scope(
-        metadata=metadata,
-        document=document,
-        default_visibility_scope=default_visibility_scope,
-    )
-
-
-def _resolve_status(*, metadata: dict[str, object], document: DocumentImportInput) -> str:
-    metadata_status = normalize_optional_text(metadata.get("status"))
-    if metadata_status is not None:
-        return metadata_status
-    return document.status
-
-
-def normalize_optional_int(value: object) -> int | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, bool):
-        raise ValueError("boolean is not a valid page number")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str):
-        return int(value)
-    raise ValueError(f"invalid integer value: {value!r}")
-
-
-def extract_canonical_relative_path(value: object) -> str | None:
-    if not isinstance(value, str) or not value:
-        return None
-    normalized = value.replace("\\", "/")
-    marker = "rag-data/canonical/"
-    if marker not in normalized:
-        return None
-    return normalized.split(marker, 1)[1].lstrip("/")
-
-
-def write_import_report(
-    *,
-    import_mode: str,
-    report_dir: Path,
-    report_prefix: str,
-    success_count: int,
-    skipped_count: int,
-    failed_count: int,
-    raw_uploaded_count: int,
-    raw_reused_count: int,
-    document_ids: tuple[str, ...],
-    unresolved_source_pdfs: tuple[str, ...],
-    errors: tuple[str, ...],
-    timestamp: str,
-    created_document_ids: tuple[str, ...] = (),
-    updated_document_ids: tuple[str, ...] = (),
-    skipped_document_ids: tuple[str, ...] = (),
-) -> ImportReport:
-    report_dir.mkdir(parents=True, exist_ok=True)
-    safe_timestamp = timestamp.replace(":", "").replace("+", "_plus_")
-    report_path = report_dir / f"{report_prefix}-{safe_timestamp}.json"
-    payload = {
-        "import_mode": import_mode,
-        "success_count": success_count,
-        "skipped_count": skipped_count,
-        "failed_count": failed_count,
-        "raw_uploaded_count": raw_uploaded_count,
-        "raw_reused_count": raw_reused_count,
-        "document_ids": list(document_ids),
-        "created_document_ids": list(created_document_ids),
-        "updated_document_ids": list(updated_document_ids),
-        "skipped_document_ids": list(skipped_document_ids),
-        "unresolved_source_pdfs": list(unresolved_source_pdfs),
-        "errors": list(errors),
-    }
-    report_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return ImportReport(
-        import_mode=import_mode,
-        success_count=success_count,
-        skipped_count=skipped_count,
-        failed_count=failed_count,
-        raw_uploaded_count=raw_uploaded_count,
-        raw_reused_count=raw_reused_count,
-        document_ids=document_ids,
-        report_path=str(report_path),
-        created_document_ids=created_document_ids,
-        updated_document_ids=updated_document_ids,
-        skipped_document_ids=skipped_document_ids,
-        unresolved_source_pdfs=unresolved_source_pdfs,
-        errors=errors,
-    )
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()

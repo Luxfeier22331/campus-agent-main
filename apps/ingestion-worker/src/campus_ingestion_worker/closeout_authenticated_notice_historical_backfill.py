@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import sys
 import threading
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Sequence, TypeVar
 
 from campus_ingestion_core.authenticated_notice_import import (
@@ -21,9 +21,9 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.smoke_authenticated_notice_bootstrap import build_smoke_summary
-
 
 DEFAULT_CLOSEOUT_CHECKPOINT_SIZES = (240, 1000, 3000)
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30.0
@@ -187,11 +187,7 @@ def resolve_checkpoint_sizes(
     if total_count <= 0:
         raise ValueError("total_count must be positive")
     source = requested_sizes or DEFAULT_CLOSEOUT_CHECKPOINT_SIZES
-    sizes = {
-        int(size)
-        for size in source
-        if int(size) > 0 and int(size) < total_count
-    }
+    sizes = {int(size) for size in source if int(size) > 0 and int(size) < total_count}
     sizes.add(total_count)
     return tuple(sorted(sizes))
 
@@ -214,7 +210,8 @@ def build_frozen_input(
         "bundle_notice_count": bundle_notice_count,
         "manifest_schema_version": (
             str(export_manifest.get("schema_version"))
-            if isinstance(export_manifest, dict) and export_manifest.get("schema_version") is not None
+            if isinstance(export_manifest, dict)
+            and export_manifest.get("schema_version") is not None
             else None
         ),
         "manifest_export_scope": (
@@ -534,9 +531,7 @@ def build_closeout_summary(
     closeout_started_at: str,
 ) -> dict[str, Any]:
     checkpoint_failures = [
-        run["checkpoint_size"]
-        for run in checkpoint_runs
-        if not bool(run["summary"].get("ok"))
+        run["checkpoint_size"] for run in checkpoint_runs if not bool(run["summary"].get("ok"))
     ]
     final_rerun_ok = final_rerun is None or bool(final_rerun["summary"].get("ok"))
     ok = (
