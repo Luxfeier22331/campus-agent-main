@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
+import subprocess
 from dataclasses import asdict
 from hashlib import sha1
 from pathlib import Path
@@ -10,6 +11,7 @@ from .shared import (
     _COURSE_MAP_EXTENSION_KEYWORDS,
     _COURSE_MAP_FOUNDATION_KEYWORDS,
     _COURSE_MAP_PRACTICE_KEYWORDS,
+    REPO_ROOT,
     CourseMapDocEmbed,
     CurriculumDoc,
     _format_js_object_literal,
@@ -58,7 +60,13 @@ def _sync_curriculum_course_map_artifacts(
                 )
             image_path = image_dir / Path(block.image_object_key).name
             image_path.write_bytes(image_bytes)
-        _write_text(generated_dir / data_module_name, _build_course_map_data_module(data_payload))
+        _write_text(
+            generated_dir / data_module_name,
+            _build_course_map_data_module(
+                data_payload,
+                biome_file_path=f"apps/public-docs/docs/.generated/course-maps/{data_module_name}",
+            ),
+        )
         expected_data_files.add(data_module_name)
         expected_public_dirs.add(doc.slug)
         embeds[doc.slug] = CourseMapDocEmbed(
@@ -86,8 +94,12 @@ def _build_course_map_data_import_name(slug: str) -> str:
     return head + "".join(part[:1].upper() + part[1:] for part in tail) + "Data"
 
 
-def _build_course_map_data_module(payload: dict[str, object]) -> str:
-    return "\n".join(
+def _build_course_map_data_module(
+    payload: dict[str, object],
+    *,
+    biome_file_path: str,
+) -> str:
+    content = "\n".join(
         [
             "const data = " + _format_js_object_literal(payload) + " as const;",
             "",
@@ -95,6 +107,29 @@ def _build_course_map_data_module(payload: dict[str, object]) -> str:
             "",
         ]
     )
+    return _format_with_biome(content, biome_file_path=biome_file_path)
+
+
+def _format_with_biome(content: str, *, biome_file_path: str) -> str:
+    completed = subprocess.run(
+        [
+            "pnpm",
+            "exec",
+            "biome",
+            "format",
+            "--stdin-file-path",
+            biome_file_path,
+        ],
+        cwd=REPO_ROOT,
+        input=content,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip() or "unknown biome error"
+        raise RuntimeError(f"failed to format {biome_file_path} with Biome: {stderr}")
+    return completed.stdout
 
 
 def _build_course_map_data_payload(*, surface, public_slug: str) -> dict[str, object]:

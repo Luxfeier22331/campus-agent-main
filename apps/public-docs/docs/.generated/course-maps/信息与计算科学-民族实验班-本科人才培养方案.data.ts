@@ -14,19 +14,15 @@ const data = {
 			rowId: "page-0460-block-mineru-block-0006-0006",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科一年级",
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科一年级", "本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"图中未见课程节点之间清晰可辨的箭头连线；仅有编辑选中框/控制点样式，未据此推断边。",
 				"图例中的“学科基础教育、专业核心课程、专业选修课、专业个性化培养、实操课程”可见，但各具体课程与图例颜色对应关系在该裁剪中不作为稳定类别提取，category_label留空。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/信息与计算科学-民族实验班-本科人才培养方案/page-0460-page-0460-block-mineru-block-0006-0006-map-01.png",
+			imageSrc:
+				"/course-maps/信息与计算科学-民族实验班-本科人才培养方案/page-0460-page-0460-block-mineru-block-0006-0006-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -34,7 +30,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -42,7 +38,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -50,7 +46,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数学分析",
@@ -58,7 +54,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高等代数",
@@ -66,7 +62,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "空间解析几何",
@@ -74,7 +70,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学科导论",
@@ -82,7 +78,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -90,7 +86,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -98,7 +94,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -106,7 +102,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数学分析",
@@ -114,7 +110,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "概率论基础",
@@ -122,7 +118,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "程序设计基础",
@@ -130,7 +126,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -138,7 +134,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -146,7 +142,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -154,7 +150,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实变函数",
@@ -162,7 +158,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "应用数理统计",
@@ -170,7 +166,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "运筹学基础",
@@ -178,7 +174,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数学建模",
@@ -186,7 +182,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实践环节",
@@ -194,7 +190,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -202,7 +198,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本硕贯通课",
@@ -210,7 +206,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "计算方法",
@@ -218,7 +214,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学年论文",
@@ -226,7 +222,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -234,12 +230,12 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
-			edges: []
-		}
-	]
+			edges: [],
+		},
+	],
 } as const;
 
 export default data;

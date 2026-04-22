@@ -22,16 +22,17 @@ const data = {
 				"五学期",
 				"六学期",
 				"七学期",
-				"八学期"
+				"八学期",
 			],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"右侧六至八学期区域仅在全图中较小可见，部分课程连线存在但箭头方向不清，未收录。",
 				"未输出六学期到七/八学期之间，以及三条黄色横向培养模块与其他课程之间的不清晰连线。",
 				"个别课程间存在跨层弯折连线，但因局部箭头不够清楚，仅保留箭头方向明确者。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/教育学本科人才培养方案/page-0637-page-0637-block-mineru-block-0002-0002-map-01.png",
+			imageSrc:
+				"/course-maps/教育学本科人才培养方案/page-0637-page-0637-block-mineru-block-0002-0002-map-01.png",
 			nodes: [
 				{
 					node_label: "普通心理学",
@@ -39,7 +40,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "中国教育史",
@@ -47,7 +48,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教育学原理",
@@ -55,7 +56,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教学四上",
@@ -63,7 +64,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "习近平总书记关于教育的重要论述研究",
@@ -71,7 +72,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中国近现代史纲要",
@@ -79,7 +80,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语一",
@@ -87,7 +88,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "体育一",
@@ -95,7 +96,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "信息素养一",
@@ -103,7 +104,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "发展心理学",
@@ -111,7 +112,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "外国教育史",
@@ -119,7 +120,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "德育原理",
@@ -127,7 +128,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教学四下",
@@ -135,7 +136,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思想道德修养与法律基础",
@@ -143,7 +144,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语二",
@@ -151,7 +152,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "体育二",
@@ -159,7 +160,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "信息素养二",
@@ -167,7 +168,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "教育心理学",
@@ -175,7 +176,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教育哲学",
@@ -183,7 +184,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 3,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "现代教育技术学",
@@ -191,7 +192,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教育统计学",
@@ -199,7 +200,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "马克思主义基本原理概论",
@@ -207,7 +208,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语三",
@@ -215,7 +216,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "体育三",
@@ -223,7 +224,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "课程与教学论",
@@ -231,7 +232,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "教育社会学",
@@ -239,7 +240,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 3
+					outgoing_count: 3,
 				},
 				{
 					node_label: "特殊教育学",
@@ -247,7 +248,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "教育测量与评价",
@@ -255,7 +256,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "毛泽东思想和中国特色社会主义理论体系概论",
@@ -263,7 +264,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语四",
@@ -271,7 +272,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "体育四",
@@ -279,7 +280,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "教育管理学",
@@ -287,7 +288,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "民族教育学",
@@ -295,7 +296,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "专业论文写作",
@@ -303,7 +304,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "教育研究方法",
@@ -311,7 +312,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "习近平中国特色社会主义思想概论",
@@ -319,7 +320,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "比较教育学",
@@ -327,7 +328,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "教育经济学",
@@ -335,7 +336,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高等教育学",
@@ -343,7 +344,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "铸牢中华民族共同体意识教育专题",
@@ -351,7 +352,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业实习",
@@ -359,7 +360,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学年论文",
@@ -367,7 +368,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -375,7 +376,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修、个性化培养",
@@ -383,7 +384,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "创新创业培养（参加各类创新创业项目、竞赛）",
@@ -391,7 +392,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "社会实践（学校规定的社会实践、讲座报告、志愿者、社团活动等）",
@@ -399,133 +400,133 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "普通心理学",
-					target_label: "发展心理学"
+					target_label: "发展心理学",
 				},
 				{
 					source_label: "中国教育史",
-					target_label: "外国教育史"
+					target_label: "外国教育史",
 				},
 				{
 					source_label: "教育学原理",
-					target_label: "德育原理"
+					target_label: "德育原理",
 				},
 				{
 					source_label: "教学四上",
-					target_label: "教学四下"
+					target_label: "教学四下",
 				},
 				{
 					source_label: "中国近现代史纲要",
-					target_label: "思想道德修养与法律基础"
+					target_label: "思想道德修养与法律基础",
 				},
 				{
 					source_label: "英语一",
-					target_label: "英语二"
+					target_label: "英语二",
 				},
 				{
 					source_label: "体育一",
-					target_label: "体育二"
+					target_label: "体育二",
 				},
 				{
 					source_label: "信息素养一",
-					target_label: "信息素养二"
+					target_label: "信息素养二",
 				},
 				{
 					source_label: "外国教育史",
-					target_label: "教育哲学"
+					target_label: "教育哲学",
 				},
 				{
 					source_label: "教学四下",
-					target_label: "教育统计学"
+					target_label: "教育统计学",
 				},
 				{
 					source_label: "思想道德修养与法律基础",
-					target_label: "马克思主义基本原理概论"
+					target_label: "马克思主义基本原理概论",
 				},
 				{
 					source_label: "英语二",
-					target_label: "英语三"
+					target_label: "英语三",
 				},
 				{
 					source_label: "体育二",
-					target_label: "体育三"
+					target_label: "体育三",
 				},
 				{
 					source_label: "发展心理学",
-					target_label: "教育心理学"
+					target_label: "教育心理学",
 				},
 				{
 					source_label: "德育原理",
-					target_label: "教育哲学"
+					target_label: "教育哲学",
 				},
 				{
 					source_label: "现代教育技术学",
-					target_label: "教育哲学"
+					target_label: "教育哲学",
 				},
 				{
 					source_label: "教育心理学",
-					target_label: "课程与教学论"
+					target_label: "课程与教学论",
 				},
 				{
 					source_label: "教育哲学",
-					target_label: "教育社会学"
+					target_label: "教育社会学",
 				},
 				{
 					source_label: "教育社会学",
-					target_label: "课程与教学论"
+					target_label: "课程与教学论",
 				},
 				{
 					source_label: "教育社会学",
-					target_label: "特殊教育学"
+					target_label: "特殊教育学",
 				},
 				{
 					source_label: "教育统计学",
-					target_label: "教育测量与评价"
+					target_label: "教育测量与评价",
 				},
 				{
 					source_label: "马克思主义基本原理概论",
-					target_label: "毛泽东思想和中国特色社会主义理论体系概论"
+					target_label: "毛泽东思想和中国特色社会主义理论体系概论",
 				},
 				{
 					source_label: "英语三",
-					target_label: "英语四"
+					target_label: "英语四",
 				},
 				{
 					source_label: "体育三",
-					target_label: "体育四"
+					target_label: "体育四",
 				},
 				{
 					source_label: "教育社会学",
-					target_label: "民族教育学"
+					target_label: "民族教育学",
 				},
 				{
 					source_label: "教育测量与评价",
-					target_label: "教育研究方法"
+					target_label: "教育研究方法",
 				},
 				{
 					source_label: "教育管理学",
-					target_label: "民族教育学"
+					target_label: "民族教育学",
 				},
 				{
 					source_label: "民族教育学",
-					target_label: "专业论文写作"
+					target_label: "专业论文写作",
 				},
 				{
 					source_label: "专业论文写作",
-					target_label: "教育研究方法"
+					target_label: "教育研究方法",
 				},
 				{
 					source_label: "毛泽东思想和中国特色社会主义理论体系概论",
-					target_label: "习近平中国特色社会主义思想概论"
-				}
-			]
-		}
-	]
+					target_label: "习近平中国特色社会主义思想概论",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -739,35 +740,101 @@ class PublicDocsSyncTest(unittest.TestCase):
             '[\n\t"index",\n\t"law-ethnic-experimental-program"\n]\n',
         )
 
-    def test_build_course_map_data_module_emits_biome_friendly_object_literal(self) -> None:
+    def test_build_course_map_data_module_formats_with_biome(self) -> None:
         module = self.module
 
-        content = module._build_course_map_data_module(
-            {
-                "generatedAt": "2026-04-22T00:00:00+00:00",
-                "blocks": [
-                    {
-                        "blockId": "page-0001-row-1-map-01",
-                        "nodes": [
-                            {
-                                "node_label": "数据结构",
-                                "stage_label": "一年级",
-                                "category_label": "",
-                            }
-                        ],
-                    }
-                ],
-            }
+        expected = '\n'.join(
+            [
+                "const data = {",
+                '\tgeneratedAt: "2026-04-22T00:00:00+00:00",',
+                '\tblocks: [{ blockId: "page-0001-row-1-map-01", nodes: [{ node_label: "数据结构", stage_label: "一年级", category_label: "" }] }],',
+                "} as const;",
+                "",
+                "export default data;",
+                "",
+            ]
         )
 
-        self.assertIn("const data = {\n\tgeneratedAt:", content)
-        self.assertIn('\n\tblocks: [\n\t\t{\n\t\t\tblockId: "page-0001-row-1-map-01",', content)
-        self.assertIn(
-            '\n\t\t\t\t\tnode_label: "数据结构",\n\t\t\t\t\tstage_label: "一年级",\n\t\t\t\t\tcategory_label: ""\n',
-            content,
-        )
-        self.assertNotIn('"generatedAt":', content)
-        self.assertNotIn('"blockId":', content)
+        with patch("_sync_real_docs.course_map.subprocess", create=True) as subprocess_mock:
+            def _fake_run(
+                argv: list[str],
+                *,
+                cwd: Path,
+                input: str,
+                text: bool,
+                capture_output: bool,
+                check: bool,
+            ) -> subprocess.CompletedProcess[str]:
+                self.assertEqual(
+                    argv,
+                    [
+                        "pnpm",
+                        "exec",
+                        "biome",
+                        "format",
+                        "--stdin-file-path",
+                        "apps/public-docs/docs/.generated/course-maps/mock.data.ts",
+                    ],
+                )
+                self.assertEqual(cwd, module.REPO_ROOT)
+                self.assertTrue(text)
+                self.assertTrue(capture_output)
+                self.assertFalse(check)
+                self.assertIn("const data = {\n\tgeneratedAt:", input)
+                self.assertIn(
+                    '\n\tblocks: [\n\t\t{\n\t\t\tblockId: "page-0001-row-1-map-01",',
+                    input,
+                )
+                self.assertIn(
+                    '\n\t\t\t\t\tnode_label: "数据结构",\n\t\t\t\t\tstage_label: "一年级",\n\t\t\t\t\tcategory_label: ""\n',
+                    input,
+                )
+                self.assertNotIn('"generatedAt":', input)
+                self.assertNotIn('"blockId":', input)
+                return subprocess.CompletedProcess(argv, 0, stdout=expected, stderr="")
+
+            subprocess_mock.run.side_effect = _fake_run
+
+            content = module._build_course_map_data_module(
+                {
+                    "generatedAt": "2026-04-22T00:00:00+00:00",
+                    "blocks": [
+                        {
+                            "blockId": "page-0001-row-1-map-01",
+                            "nodes": [
+                                {
+                                    "node_label": "数据结构",
+                                    "stage_label": "一年级",
+                                    "category_label": "",
+                                }
+                            ],
+                        }
+                    ],
+                },
+                biome_file_path="apps/public-docs/docs/.generated/course-maps/mock.data.ts",
+            )
+
+        self.assertEqual(content, expected)
+
+    def test_build_course_map_data_module_raises_on_biome_failure(self) -> None:
+        module = self.module
+
+        with patch("_sync_real_docs.course_map.subprocess", create=True) as subprocess_mock:
+            subprocess_mock.run.return_value = subprocess.CompletedProcess(
+                args=["pnpm"],
+                returncode=1,
+                stdout="",
+                stderr="formatter failed",
+            )
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "apps/public-docs/docs/.generated/course-maps/mock.data.ts",
+            ):
+                module._build_course_map_data_module(
+                    {"generatedAt": "2026-04-22T00:00:00+00:00", "blocks": []},
+                    biome_file_path="apps/public-docs/docs/.generated/course-maps/mock.data.ts",
+                )
 
     def test_collection_index_pages_do_not_inline_document_titles(self) -> None:
         module = self.module

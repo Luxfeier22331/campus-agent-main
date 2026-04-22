@@ -14,20 +14,16 @@ const data = {
 			rowId: "page-0476-block-mineru-block-0002-0002",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科一年级",
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科一年级", "本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"右侧本科三年级后半部分与本科四年级部分在给定切片中不完整，未纳入不清晰节点与连线。",
 				"图例颜色对应类别可见，已据此填写学科基础教育、专业核心课程、专业选修课；‘思政课/基本素养课/综合素养课’未见明确图例类别，置空。",
 				"部分连线在本科三年级区域交叉密集，只有箭头方向清晰可见者被保留。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/电子信息类本科人才培养方案/page-0476-page-0476-block-mineru-block-0002-0002-map-01.png",
+			imageSrc:
+				"/course-maps/电子信息类本科人才培养方案/page-0476-page-0476-block-mineru-block-0002-0002-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -35,7 +31,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -43,7 +39,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -51,7 +47,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "大学物理（1、2）",
@@ -59,7 +55,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高等数学（1、2）",
@@ -67,7 +63,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "工程实习实践",
@@ -75,7 +71,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学科认知课程",
@@ -83,7 +79,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "C语言程序设计",
@@ -91,7 +87,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "电路分析",
@@ -99,7 +95,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "线性代数",
@@ -107,7 +103,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "工程制图",
@@ -115,7 +111,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -123,7 +119,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -131,7 +127,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -139,7 +135,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "C++语言程序设计",
@@ -147,7 +143,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 3
+					outgoing_count: 3,
 				},
 				{
 					node_label: "微机原理与接口技术",
@@ -155,7 +151,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "数字电路与逻辑设计",
@@ -163,7 +159,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "数学物理方法",
@@ -171,7 +167,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "模拟电子线路",
@@ -179,7 +175,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "概率论与数理统计",
@@ -187,7 +183,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "Python语言程序设计",
@@ -195,7 +191,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "Java语言程序设计",
@@ -203,7 +199,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "数据结构",
@@ -211,7 +207,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "人工智能导论",
@@ -219,7 +215,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "电磁场与电磁波",
@@ -227,7 +223,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "信号与系统",
@@ -235,7 +231,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "半导体器件物理",
@@ -243,7 +239,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思政课",
@@ -251,7 +247,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -259,7 +255,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "嵌入式系统原理与应用",
@@ -267,7 +263,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数字信号处理",
@@ -275,7 +271,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "数字图像处理",
@@ -283,7 +279,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "计算机系统设计",
@@ -291,7 +287,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数字集成电路设计",
@@ -299,7 +295,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "微波技术与天线",
@@ -307,7 +303,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高频电子线路",
@@ -315,7 +311,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "模拟CMOS集成电路设计",
@@ -323,7 +319,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 3,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "语音信号处理",
@@ -331,7 +327,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "计算机视觉",
@@ -339,7 +335,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "通信原理",
@@ -347,7 +343,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "模拟电路版图设计",
@@ -355,123 +351,123 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "C语言程序设计",
-					target_label: "C++语言程序设计"
+					target_label: "C++语言程序设计",
 				},
 				{
 					source_label: "C语言程序设计",
-					target_label: "微机原理与接口技术"
+					target_label: "微机原理与接口技术",
 				},
 				{
 					source_label: "电路分析",
-					target_label: "模拟电子线路"
+					target_label: "模拟电子线路",
 				},
 				{
 					source_label: "线性代数",
-					target_label: "模拟电子线路"
+					target_label: "模拟电子线路",
 				},
 				{
 					source_label: "线性代数",
-					target_label: "概率论与数理统计"
+					target_label: "概率论与数理统计",
 				},
 				{
 					source_label: "C++语言程序设计",
-					target_label: "Python语言程序设计"
+					target_label: "Python语言程序设计",
 				},
 				{
 					source_label: "C++语言程序设计",
-					target_label: "数据结构"
+					target_label: "数据结构",
 				},
 				{
 					source_label: "微机原理与接口技术",
-					target_label: "数据结构"
+					target_label: "数据结构",
 				},
 				{
 					source_label: "数字电路与逻辑设计",
-					target_label: "微机原理与接口技术"
+					target_label: "微机原理与接口技术",
 				},
 				{
 					source_label: "数字电路与逻辑设计",
-					target_label: "人工智能导论"
+					target_label: "人工智能导论",
 				},
 				{
 					source_label: "数学物理方法",
-					target_label: "电磁场与电磁波"
+					target_label: "电磁场与电磁波",
 				},
 				{
 					source_label: "模拟电子线路",
-					target_label: "信号与系统"
+					target_label: "信号与系统",
 				},
 				{
 					source_label: "电磁场与电磁波",
-					target_label: "微波技术与天线"
+					target_label: "微波技术与天线",
 				},
 				{
 					source_label: "电磁场与电磁波",
-					target_label: "高频电子线路"
+					target_label: "高频电子线路",
 				},
 				{
 					source_label: "信号与系统",
-					target_label: "高频电子线路"
+					target_label: "高频电子线路",
 				},
 				{
 					source_label: "信号与系统",
-					target_label: "模拟CMOS集成电路设计"
+					target_label: "模拟CMOS集成电路设计",
 				},
 				{
 					source_label: "半导体器件物理",
-					target_label: "模拟CMOS集成电路设计"
+					target_label: "模拟CMOS集成电路设计",
 				},
 				{
 					source_label: "C++语言程序设计",
-					target_label: "嵌入式系统原理与应用"
+					target_label: "嵌入式系统原理与应用",
 				},
 				{
 					source_label: "Python语言程序设计",
-					target_label: "数字信号处理"
+					target_label: "数字信号处理",
 				},
 				{
 					source_label: "Python语言程序设计",
-					target_label: "数字图像处理"
+					target_label: "数字图像处理",
 				},
 				{
 					source_label: "Java语言程序设计",
-					target_label: "数字信号处理"
+					target_label: "数字信号处理",
 				},
 				{
 					source_label: "数据结构",
-					target_label: "计算机系统设计"
+					target_label: "计算机系统设计",
 				},
 				{
 					source_label: "人工智能导论",
-					target_label: "数字集成电路设计"
+					target_label: "数字集成电路设计",
 				},
 				{
 					source_label: "数字信号处理",
-					target_label: "语音信号处理"
+					target_label: "语音信号处理",
 				},
 				{
 					source_label: "数字信号处理",
-					target_label: "计算机视觉"
+					target_label: "计算机视觉",
 				},
 				{
 					source_label: "高频电子线路",
-					target_label: "通信原理"
+					target_label: "通信原理",
 				},
 				{
 					source_label: "高频电子线路",
-					target_label: "模拟CMOS集成电路设计"
+					target_label: "模拟CMOS集成电路设计",
 				},
 				{
 					source_label: "模拟CMOS集成电路设计",
-					target_label: "模拟电路版图设计"
-				}
-			]
+					target_label: "模拟电路版图设计",
+				},
+			],
 		},
 		{
 			blockId: "page-0477-page-0477-block-mineru-block-0001-0001-map-01",
@@ -482,20 +478,16 @@ const data = {
 			rowId: "page-0477-block-mineru-block-0001-0001",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科一年级",
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科一年级", "本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"图中部分跨列长连线起点经过折线汇合，个别先修关系可能存在歧义；仅保留了箭头方向清晰可见的边。",
 				"若同名通识节点（如“思政课”“基本素养课”）在不同年级重复出现，已分别按年级记录。",
 				"右侧本科四年级课程在本图中未见清晰箭头连接，因此未输出相关边。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/电子信息类本科人才培养方案/page-0477-page-0477-block-mineru-block-0001-0001-map-01.png",
+			imageSrc:
+				"/course-maps/电子信息类本科人才培养方案/page-0477-page-0477-block-mineru-block-0001-0001-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -503,7 +495,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -511,7 +503,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -519,7 +511,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "工程制图",
@@ -527,7 +519,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "C/C++语言程序设计",
@@ -535,7 +527,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 3
+					outgoing_count: 3,
 				},
 				{
 					node_label: "高等数学（1、2）",
@@ -543,7 +535,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "离散数学",
@@ -551,7 +543,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "线性代数",
@@ -559,7 +551,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "大学物理（1、2）",
@@ -567,7 +559,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "工程实习实践",
@@ -575,7 +567,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "电路分析",
@@ -583,7 +575,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "学科认知课程",
@@ -591,7 +583,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "概率论与数理统计",
@@ -599,7 +591,7 @@ const data = {
 					category_label: "学科基础教育",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思政课",
@@ -607,7 +599,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -615,7 +607,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -623,7 +615,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "Python语言程序设计",
@@ -631,7 +623,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "Java语言程序设计",
@@ -639,7 +631,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数据结构与算法",
@@ -647,7 +639,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "数学物理方法",
@@ -655,7 +647,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数字电路与逻辑设计",
@@ -663,7 +655,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "模拟电子线路",
@@ -671,7 +663,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 2,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "微处理器原理与接口技术",
@@ -679,7 +671,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "电子线路课程设计",
@@ -687,7 +679,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "电磁场与电磁波",
@@ -695,7 +687,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "信号与系统",
@@ -703,7 +695,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思政课",
@@ -711,7 +703,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -719,7 +711,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "计算机网络",
@@ -727,7 +719,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "信息论与编码",
@@ -735,7 +727,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "微波与天线",
@@ -743,7 +735,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "通信原理",
@@ -751,7 +743,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "数字信号处理",
@@ -759,7 +751,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "随机信号分析",
@@ -767,7 +759,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 3,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "机器学习",
@@ -775,7 +767,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 2
+					outgoing_count: 2,
 				},
 				{
 					node_label: "计算机网络课程设计",
@@ -783,7 +775,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "光纤通信",
@@ -791,7 +783,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "现代交换",
@@ -799,7 +791,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "移动通信",
@@ -807,7 +799,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "卫星通信",
@@ -815,7 +807,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "通信电子线路",
@@ -823,7 +815,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "DSP技术及其应用",
@@ -831,7 +823,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "语音信号处理",
@@ -839,7 +831,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "阵列信号处理",
@@ -847,7 +839,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "光纤通信课程设计",
@@ -855,7 +847,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "无线通信课程设计",
@@ -863,7 +855,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "射频电路设计原理",
@@ -871,7 +863,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "信号处理类课程设计",
@@ -879,7 +871,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "统计学基础及应用",
@@ -887,7 +879,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -895,7 +887,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -903,7 +895,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "随机过程",
@@ -911,7 +903,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "FPGA与SOPC原理与应用",
@@ -919,7 +911,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "无线互联网络技术",
@@ -927,7 +919,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "通信系统综合课程设计",
@@ -935,7 +927,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -943,7 +935,7 @@ const data = {
 					category_label: "专业核心课程",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "通信工程项目管理",
@@ -951,153 +943,153 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "C/C++语言程序设计",
-					target_label: "Python语言程序设计"
+					target_label: "Python语言程序设计",
 				},
 				{
 					source_label: "C/C++语言程序设计",
-					target_label: "Java语言程序设计"
+					target_label: "Java语言程序设计",
 				},
 				{
 					source_label: "C/C++语言程序设计",
-					target_label: "数据结构与算法"
+					target_label: "数据结构与算法",
 				},
 				{
 					source_label: "离散数学",
-					target_label: "数据结构与算法"
+					target_label: "数据结构与算法",
 				},
 				{
 					source_label: "数据结构与算法",
-					target_label: "微处理器原理与接口技术"
+					target_label: "微处理器原理与接口技术",
 				},
 				{
 					source_label: "高等数学（1、2）",
-					target_label: "数学物理方法"
+					target_label: "数学物理方法",
 				},
 				{
 					source_label: "线性代数",
-					target_label: "大学物理（1、2）"
+					target_label: "大学物理（1、2）",
 				},
 				{
 					source_label: "高等数学（1、2）",
-					target_label: "大学物理（1、2）"
+					target_label: "大学物理（1、2）",
 				},
 				{
 					source_label: "大学物理（1、2）",
-					target_label: "数字电路与逻辑设计"
+					target_label: "数字电路与逻辑设计",
 				},
 				{
 					source_label: "电路分析",
-					target_label: "数字电路与逻辑设计"
+					target_label: "数字电路与逻辑设计",
 				},
 				{
 					source_label: "数字电路与逻辑设计",
-					target_label: "模拟电子线路"
+					target_label: "模拟电子线路",
 				},
 				{
 					source_label: "电路分析",
-					target_label: "模拟电子线路"
+					target_label: "模拟电子线路",
 				},
 				{
 					source_label: "数字电路与逻辑设计",
-					target_label: "电磁场与电磁波"
+					target_label: "电磁场与电磁波",
 				},
 				{
 					source_label: "模拟电子线路",
-					target_label: "信号与系统"
+					target_label: "信号与系统",
 				},
 				{
 					source_label: "电磁场与电磁波",
-					target_label: "电子线路课程设计"
+					target_label: "电子线路课程设计",
 				},
 				{
 					source_label: "数据结构与算法",
-					target_label: "计算机网络"
+					target_label: "计算机网络",
 				},
 				{
 					source_label: "微处理器原理与接口技术",
-					target_label: "微波与天线"
+					target_label: "微波与天线",
 				},
 				{
 					source_label: "电磁场与电磁波",
-					target_label: "通信原理"
+					target_label: "通信原理",
 				},
 				{
 					source_label: "信号与系统",
-					target_label: "随机信号分析"
+					target_label: "随机信号分析",
 				},
 				{
 					source_label: "机器学习",
-					target_label: "随机信号分析"
+					target_label: "随机信号分析",
 				},
 				{
 					source_label: "数字信号处理",
-					target_label: "随机信号分析"
+					target_label: "随机信号分析",
 				},
 				{
 					source_label: "通信原理",
-					target_label: "卫星通信"
+					target_label: "卫星通信",
 				},
 				{
 					source_label: "计算机网络",
-					target_label: "计算机网络课程设计"
+					target_label: "计算机网络课程设计",
 				},
 				{
 					source_label: "信息论与编码",
-					target_label: "光纤通信"
+					target_label: "光纤通信",
 				},
 				{
 					source_label: "信息论与编码",
-					target_label: "现代交换"
+					target_label: "现代交换",
 				},
 				{
 					source_label: "微波与天线",
-					target_label: "移动通信"
+					target_label: "移动通信",
 				},
 				{
 					source_label: "通信原理",
-					target_label: "通信电子线路"
+					target_label: "通信电子线路",
 				},
 				{
 					source_label: "随机信号分析",
-					target_label: "DSP技术及其应用"
+					target_label: "DSP技术及其应用",
 				},
 				{
 					source_label: "机器学习",
-					target_label: "语音信号处理"
+					target_label: "语音信号处理",
 				},
 				{
 					source_label: "随机信号分析",
-					target_label: "阵列信号处理"
+					target_label: "阵列信号处理",
 				},
 				{
 					source_label: "光纤通信",
-					target_label: "光纤通信课程设计"
+					target_label: "光纤通信课程设计",
 				},
 				{
 					source_label: "移动通信",
-					target_label: "无线通信课程设计"
+					target_label: "无线通信课程设计",
 				},
 				{
 					source_label: "通信电子线路",
-					target_label: "射频电路设计原理"
+					target_label: "射频电路设计原理",
 				},
 				{
 					source_label: "DSP技术及其应用",
-					target_label: "信号处理类课程设计"
+					target_label: "信号处理类课程设计",
 				},
 				{
 					source_label: "概率论与数理统计",
-					target_label: "统计学基础及应用"
-				}
-			]
-		}
-	]
+					target_label: "统计学基础及应用",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;

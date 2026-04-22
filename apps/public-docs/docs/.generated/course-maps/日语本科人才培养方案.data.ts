@@ -14,21 +14,17 @@ const data = {
 			rowId: "page-0227-block-mineru-block-0009-0009",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科一年级",
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科一年级", "本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"左侧本科一年级区域有部分节点被裁切，‘日本概况’左边框附近显示不全，但课程名可辨认。",
 				"若干虚线框表示课程分组或模块，非箭头关系，未输出为edges。",
 				"仅保留图中箭头方向清晰可见的连接；一些可能存在但在裁切处或重叠处不够清楚的关系未纳入。",
 				"category_label图例颜色可见，但单个节点与类别对应关系在局部可能存在歧义，因此统一留空以保证稳定性。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/日语本科人才培养方案/page-0227-page-0227-block-mineru-block-0009-0009-map-01.png",
+			imageSrc:
+				"/course-maps/日语本科人才培养方案/page-0227-page-0227-block-mineru-block-0009-0009-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -36,7 +32,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -44,7 +40,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -52,7 +48,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日本概况",
@@ -60,7 +56,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基础日语1",
@@ -68,7 +64,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "基础日语2",
@@ -76,7 +72,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语会话1",
@@ -84,7 +80,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语会话2",
@@ -92,7 +88,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语视听说1",
@@ -100,7 +96,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语视听说2",
@@ -108,7 +104,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思政课",
@@ -116,7 +112,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -124,7 +120,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -132,7 +128,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语演讲与辩论",
@@ -140,7 +136,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基础日语3",
@@ -148,7 +144,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "基础日语4",
@@ -156,7 +152,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日本社会与文化",
@@ -164,7 +160,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语阅读1",
@@ -172,7 +168,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语阅读2",
@@ -180,7 +176,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语语言学概论",
@@ -188,7 +184,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日本文学概论",
@@ -196,7 +192,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语会话3",
@@ -204,7 +200,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语会话4",
@@ -212,7 +208,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语基础写作1",
@@ -220,7 +216,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语基础写作2",
@@ -228,7 +224,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语视听说3",
@@ -236,7 +232,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日语视听说4",
@@ -244,7 +240,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中日企业文化比较",
@@ -252,7 +248,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "国际日本学研究",
@@ -260,7 +256,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "跨文化交际",
@@ -268,7 +264,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语语用与语篇",
@@ -276,7 +272,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高级日语1.2",
@@ -284,7 +280,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "日本文学专题研讨",
@@ -292,7 +288,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日本近现代文学作品选读",
@@ -300,7 +296,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高级写作1.2",
@@ -308,7 +304,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学年论文",
@@ -316,7 +312,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -324,7 +320,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -332,7 +328,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中华文化概要",
@@ -340,7 +336,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中华民族共同体概论（日语）",
@@ -348,7 +344,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "当代中国外交",
@@ -356,7 +352,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中日关系史",
@@ -364,7 +360,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日语词汇学",
@@ -372,7 +368,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "笔译理论与实践1",
@@ -380,7 +376,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "笔译理论与实践2",
@@ -388,7 +384,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "商务日语",
@@ -396,7 +392,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "旅游日语",
@@ -404,7 +400,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "口译理论与实践1",
@@ -412,7 +408,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "口译理论与实践2",
@@ -420,7 +416,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实践环节",
@@ -428,7 +424,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本硕贯通课",
@@ -436,7 +432,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中日文化比较研究",
@@ -444,7 +440,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学术写作与研究方法",
@@ -452,7 +448,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高级日语3",
@@ -460,7 +456,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "日汉语言对比研究",
@@ -468,7 +464,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "全球胜任力课",
@@ -476,7 +472,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -484,77 +480,77 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "基础日语1",
-					target_label: "基础日语2"
+					target_label: "基础日语2",
 				},
 				{
 					source_label: "基础日语2",
-					target_label: "基础日语3"
+					target_label: "基础日语3",
 				},
 				{
 					source_label: "基础日语3",
-					target_label: "基础日语4"
+					target_label: "基础日语4",
 				},
 				{
 					source_label: "基础日语4",
-					target_label: "高级日语1.2"
+					target_label: "高级日语1.2",
 				},
 				{
 					source_label: "日语会话1",
-					target_label: "日语会话2"
+					target_label: "日语会话2",
 				},
 				{
 					source_label: "日语会话2",
-					target_label: "日语会话3"
+					target_label: "日语会话3",
 				},
 				{
 					source_label: "日语会话3",
-					target_label: "日语会话4"
+					target_label: "日语会话4",
 				},
 				{
 					source_label: "日语视听说1",
-					target_label: "日语视听说2"
+					target_label: "日语视听说2",
 				},
 				{
 					source_label: "日语视听说2",
-					target_label: "日语视听说3"
+					target_label: "日语视听说3",
 				},
 				{
 					source_label: "日语视听说3",
-					target_label: "日语视听说4"
+					target_label: "日语视听说4",
 				},
 				{
 					source_label: "日语基础写作1",
-					target_label: "日语基础写作2"
+					target_label: "日语基础写作2",
 				},
 				{
 					source_label: "日语基础写作2",
-					target_label: "高级写作1.2"
+					target_label: "高级写作1.2",
 				},
 				{
 					source_label: "日本社会与文化",
-					target_label: "跨文化交际"
+					target_label: "跨文化交际",
 				},
 				{
 					source_label: "中华民族共同体概论（日语）",
-					target_label: "中日文化比较研究"
+					target_label: "中日文化比较研究",
 				},
 				{
 					source_label: "高级日语1.2",
-					target_label: "学术写作与研究方法"
+					target_label: "学术写作与研究方法",
 				},
 				{
 					source_label: "日语词汇学",
-					target_label: "高级日语3"
-				}
-			]
-		}
-	]
+					target_label: "高级日语3",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;

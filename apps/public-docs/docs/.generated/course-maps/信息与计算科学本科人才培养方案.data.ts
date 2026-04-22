@@ -14,21 +14,17 @@ const data = {
 			rowId: "page-0409-block-mineru-block-0003-0003",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科一年级",
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科一年级", "本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"图中仅清晰可见一条箭头：‘概率论与数理统计’指向‘数据分析’。",
 				"其余课程之间未见明确箭头方向，故未输出边。",
 				"同名节点在不同年级重复出现，按原图分别保留。",
 				"底部图例可见但各课程与图例类别对应关系未逐一明确标注，category_label统一置空。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/信息与计算科学本科人才培养方案/page-0409-page-0409-block-mineru-block-0003-0003-map-01.png",
+			imageSrc:
+				"/course-maps/信息与计算科学本科人才培养方案/page-0409-page-0409-block-mineru-block-0003-0003-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -36,7 +32,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -44,7 +40,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -52,7 +48,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数学分析",
@@ -60,7 +56,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "高等代数",
@@ -68,7 +64,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "空间解析几何",
@@ -76,7 +72,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业导论",
@@ -84,7 +80,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "Python语言",
@@ -92,7 +88,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "程序设计基础",
@@ -100,7 +96,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -108,7 +104,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -116,7 +112,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -124,7 +120,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "概率论与数理统计",
@@ -132,7 +128,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "数据分析",
@@ -140,7 +136,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数据结构",
@@ -148,7 +144,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "数学建模",
@@ -156,7 +152,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "常微分方程",
@@ -164,7 +160,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -172,7 +168,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -180,7 +176,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -188,7 +184,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "复变函数",
@@ -196,7 +192,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实变函数",
@@ -204,7 +200,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "最优化理论与方法",
@@ -212,7 +208,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "信息论基础",
@@ -220,7 +216,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "计算方法",
@@ -228,7 +224,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实践环节",
@@ -236,7 +232,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -244,7 +240,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本硕贯通课",
@@ -252,7 +248,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学年论文",
@@ -260,7 +256,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -268,17 +264,17 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "概率论与数理统计",
-					target_label: "数据分析"
-				}
-			]
-		}
-	]
+					target_label: "数据分析",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;

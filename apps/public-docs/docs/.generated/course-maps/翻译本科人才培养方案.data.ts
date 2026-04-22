@@ -14,20 +14,17 @@ const data = {
 			rowId: "page-0237-block-mineru-block-0009-0009",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"图中仅截取到本科二年级至本科四年级，本科一年级未完整纳入，故未提取相关节点与连线。",
 				"部分课程框颜色可见，但图例类别文字与节点一一对应关系不够明确，category_label 统一置空。",
 				"仅保留了箭头方向清晰可见的连线；未推断可能存在但在裁剪区域内未完整显示的跨阶段连线。",
 				"本科四年级中的“本硕贯通课”未见明确入边或出边箭头。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/翻译本科人才培养方案/page-0237-page-0237-block-mineru-block-0009-0009-map-01.png",
+			imageSrc:
+				"/course-maps/翻译本科人才培养方案/page-0237-page-0237-block-mineru-block-0009-0009-map-01.png",
 			nodes: [
 				{
 					node_label: "思政课",
@@ -35,7 +32,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -43,7 +40,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -51,7 +48,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -59,7 +56,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "古代汉语",
@@ -67,7 +64,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "现代汉语与写作",
@@ -75,7 +72,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合英语（三）",
@@ -83,7 +80,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "综合英语（四）",
@@ -91,7 +88,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "翻译概论",
@@ -99,7 +96,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "笔译基础",
@@ -107,7 +104,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语文学导读",
@@ -115,7 +112,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "联络口译",
@@ -123,7 +120,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语国家概况",
@@ -131,7 +128,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英汉对比与翻译",
@@ -139,7 +136,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "中国文化概要",
@@ -147,7 +144,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "语言学导论",
@@ -155,7 +152,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "英语写作（二）",
@@ -163,7 +160,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语写作（三）",
@@ -171,7 +168,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "思政课",
@@ -179,7 +176,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -187,7 +184,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -195,7 +192,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -203,7 +200,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "文学翻译",
@@ -211,7 +208,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "翻译技术",
@@ -219,7 +216,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "应用文体翻译（一）",
@@ -227,7 +224,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "应用文体翻译（二）",
@@ -235,7 +232,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "交替传译",
@@ -243,7 +240,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "专题口译",
@@ -251,7 +248,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "翻译与民族文化",
@@ -259,7 +256,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "跨文化交际",
@@ -267,7 +264,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实习",
@@ -275,7 +272,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "学年论文",
@@ -283,7 +280,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 1
+					outgoing_count: 1,
 				},
 				{
 					node_label: "英语写作（四）",
@@ -291,7 +288,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本硕贯通课",
@@ -299,7 +296,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "跨学科交叉课",
@@ -307,7 +304,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -315,7 +312,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "行业领域协同课",
@@ -323,7 +320,7 @@ const data = {
 					category_label: "",
 					route_group: "extension",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业设计",
@@ -331,81 +328,81 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 1,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "古代汉语",
-					target_label: "现代汉语与写作"
+					target_label: "现代汉语与写作",
 				},
 				{
 					source_label: "综合英语（三）",
-					target_label: "综合英语（四）"
+					target_label: "综合英语（四）",
 				},
 				{
 					source_label: "翻译概论",
-					target_label: "笔译基础"
+					target_label: "笔译基础",
 				},
 				{
 					source_label: "英语文学导读",
-					target_label: "联络口译"
+					target_label: "联络口译",
 				},
 				{
 					source_label: "英语国家概况",
-					target_label: "英汉对比与翻译"
+					target_label: "英汉对比与翻译",
 				},
 				{
 					source_label: "中国文化概要",
-					target_label: "语言学导论"
+					target_label: "语言学导论",
 				},
 				{
 					source_label: "英语写作（二）",
-					target_label: "英语写作（三）"
+					target_label: "英语写作（三）",
 				},
 				{
 					source_label: "笔译基础",
-					target_label: "应用文体翻译（一）"
+					target_label: "应用文体翻译（一）",
 				},
 				{
 					source_label: "联络口译",
-					target_label: "交替传译"
+					target_label: "交替传译",
 				},
 				{
 					source_label: "英汉对比与翻译",
-					target_label: "翻译与民族文化"
+					target_label: "翻译与民族文化",
 				},
 				{
 					source_label: "英语写作（三）",
-					target_label: "英语写作（四）"
+					target_label: "英语写作（四）",
 				},
 				{
 					source_label: "应用文体翻译（一）",
-					target_label: "应用文体翻译（二）"
+					target_label: "应用文体翻译（二）",
 				},
 				{
 					source_label: "交替传译",
-					target_label: "专题口译"
+					target_label: "专题口译",
 				},
 				{
 					source_label: "应用文体翻译（二）",
-					target_label: "跨学科交叉课"
+					target_label: "跨学科交叉课",
 				},
 				{
 					source_label: "专题口译",
-					target_label: "专业选修课"
+					target_label: "专业选修课",
 				},
 				{
 					source_label: "实习",
-					target_label: "行业领域协同课"
+					target_label: "行业领域协同课",
 				},
 				{
 					source_label: "学年论文",
-					target_label: "毕业设计"
-				}
-			]
-		}
-	]
+					target_label: "毕业设计",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;

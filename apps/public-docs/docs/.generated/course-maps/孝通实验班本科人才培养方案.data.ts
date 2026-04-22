@@ -14,20 +14,17 @@ const data = {
 			rowId: "page-0101-block-mineru-block-0003-0003",
 			mapIndex: 1,
 			parentHeadingHint: "六、课程地图",
-			displayStageLabels: [
-				"本科二年级",
-				"本科三年级",
-				"本科四年级"
-			],
+			displayStageLabels: ["本科二年级", "本科三年级", "本科四年级"],
 			extractionNotes: [
 				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
 				"该裁剪区域左侧被截断，本科一年级部分未完整纳入，故未提取。",
 				"图中从标题到年级分支的连线可见，但课程框之间未见明确箭头方向，因此未输出课程之间的边。",
 				"底部图例“专业基础课/专业选修课/专业实践课/个性化培养课程”用于辅助判定类别，部分顶层课程如思政课、基本素养课、综合素养课、实践环节未见明确图例类别，category_label置空。",
 				"边的source_label使用了图内可见标题“孝通实验班本科课程拓扑图”，但该标题未作为节点输出；如需严格节点闭合，建议人工复核。",
-				"至少有一个检测到的课程地图区域标题不够清晰。"
+				"至少有一个检测到的课程地图区域标题不够清晰。",
 			],
-			imageSrc: "/course-maps/孝通实验班本科人才培养方案/page-0101-page-0101-block-mineru-block-0003-0003-map-01.png",
+			imageSrc:
+				"/course-maps/孝通实验班本科人才培养方案/page-0101-page-0101-block-mineru-block-0003-0003-map-01.png",
 			nodes: [
 				{
 					node_label: "本科二年级",
@@ -35,7 +32,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -43,7 +40,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "基本素养课",
@@ -51,7 +48,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "综合素养课",
@@ -59,7 +56,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "现代社会理论",
@@ -67,7 +64,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "社会统计与应用",
@@ -75,7 +72,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "马克思主义民族理论与民族政策",
@@ -83,7 +80,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中国考古学（1）",
@@ -91,7 +88,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "田野调查与民族志写作",
@@ -99,7 +96,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "社会分层与流动",
@@ -107,7 +104,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "亲属与社会组织",
@@ -115,7 +112,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "中国民族学史",
@@ -123,7 +120,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -131,7 +128,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业实习",
@@ -139,7 +136,7 @@ const data = {
 					category_label: "专业实践课",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "个性化培养课程",
@@ -147,7 +144,7 @@ const data = {
 					category_label: "个性化培养课程",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本科三年级",
@@ -155,7 +152,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "思政课",
@@ -163,7 +160,7 @@ const data = {
 					category_label: "",
 					route_group: "foundation",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实践环节",
@@ -171,7 +168,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "民族社会学",
@@ -179,7 +176,7 @@ const data = {
 					category_label: "专业基础课",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -187,7 +184,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "个性化培养课程",
@@ -195,7 +192,7 @@ const data = {
 					category_label: "个性化培养课程",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "学年论文",
@@ -203,7 +200,7 @@ const data = {
 					category_label: "专业实践课",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业实习",
@@ -211,7 +208,7 @@ const data = {
 					category_label: "专业实践课",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "本科四年级",
@@ -219,7 +216,7 @@ const data = {
 					category_label: "",
 					route_group: "core",
 					incoming_count: 1,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "实践环节",
@@ -227,7 +224,7 @@ const data = {
 					category_label: "",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "专业选修课",
@@ -235,7 +232,7 @@ const data = {
 					category_label: "专业选修课",
 					route_group: "extension",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "个性化培养课程",
@@ -243,7 +240,7 @@ const data = {
 					category_label: "个性化培养课程",
 					route_group: "core",
 					incoming_count: 0,
-					outgoing_count: 0
+					outgoing_count: 0,
 				},
 				{
 					node_label: "毕业论文",
@@ -251,25 +248,25 @@ const data = {
 					category_label: "专业实践课",
 					route_group: "practice",
 					incoming_count: 0,
-					outgoing_count: 0
-				}
+					outgoing_count: 0,
+				},
 			],
 			edges: [
 				{
 					source_label: "孝通实验班本科课程拓扑图",
-					target_label: "本科二年级"
+					target_label: "本科二年级",
 				},
 				{
 					source_label: "孝通实验班本科课程拓扑图",
-					target_label: "本科三年级"
+					target_label: "本科三年级",
 				},
 				{
 					source_label: "孝通实验班本科课程拓扑图",
-					target_label: "本科四年级"
-				}
-			]
-		}
-	]
+					target_label: "本科四年级",
+				},
+			],
+		},
+	],
 } as const;
 
 export default data;
