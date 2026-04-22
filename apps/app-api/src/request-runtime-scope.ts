@@ -1,6 +1,5 @@
 import type { Env } from "./config";
 import {
-	createRuntimeDatabase,
 	createScopedRuntimeDbGetter,
 	type RuntimeDatabase,
 	type RuntimeDatabaseConsistency,
@@ -35,7 +34,7 @@ function createScopedDbGetter(
 
 	let dbPromise: Promise<RuntimeDatabase> | null = null;
 	return () => {
-		dbPromise ??= input.createRuntimeDatabase!(env, { consistency });
+		dbPromise ??= input.createRuntimeDatabase?.(env, { consistency });
 		return dbPromise;
 	};
 }

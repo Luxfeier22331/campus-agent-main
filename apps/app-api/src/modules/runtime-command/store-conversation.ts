@@ -64,8 +64,7 @@ export function buildStoredIdempotentRequest(input: {
 					kind: "error" as const,
 					message: assistantMessage.text,
 					errorCode: input.executionRow.errorCode ?? "internal_error",
-					retryable:
-						assistantMessage.retryable ?? (input.executionRow.status === "error" ? true : false),
+					retryable: assistantMessage.retryable ?? input.executionRow.status === "error",
 					requestId: input.executionRow.requestId,
 					traceId: input.executionRow.traceId,
 				}

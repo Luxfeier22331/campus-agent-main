@@ -79,12 +79,15 @@ export function createCollectedPageArtifactForTest(input: {
 	});
 	const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
 	expect(hostPolicy).not.toBeNull();
+	if (!hostPolicy) {
+		throw new Error("hostPolicy is required");
+	}
 
 	const buildCollectedPageArtifacts = getBuildCollectedPageArtifacts();
 	return buildCollectedPageArtifacts({
 		bundle,
 		plan,
-		hostPolicy: hostPolicy!,
+		hostPolicy,
 		requestedUrl: input.requestedUrl,
 		finalUrl: input.finalUrl,
 		declaredCanonicalUrl: input.declaredCanonicalUrl,

@@ -15,7 +15,6 @@ import type {
 	OfficialWebRunIntent,
 } from "../official-web-command";
 import type {
-	NormalizedOfficialWebRunListFilters,
 	OfficialWebFreshnessPageRecord,
 	OfficialWebPageChangeRecord,
 	OfficialWebQueryStore,
@@ -394,15 +393,16 @@ export function createPgOfficialWebQueryStore(
 			if (filters.cursor) {
 				const cursor = decodeCursor(filters.cursor);
 				if (cursor) {
-					conditions.push(
-						or(
-							lt(officialWebRunProjection.startedAt, new Date(cursor.startedAt)),
-							and(
-								eq(officialWebRunProjection.startedAt, new Date(cursor.startedAt)),
-								lt(officialWebRunProjection.runId, cursor.runId),
-							),
-						)!,
+					const cursorCondition = or(
+						lt(officialWebRunProjection.startedAt, new Date(cursor.startedAt)),
+						and(
+							eq(officialWebRunProjection.startedAt, new Date(cursor.startedAt)),
+							lt(officialWebRunProjection.runId, cursor.runId),
+						),
 					);
+					if (cursorCondition) {
+						conditions.push(cursorCondition);
+					}
 				}
 			}
 

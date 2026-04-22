@@ -13,11 +13,7 @@ import {
 import type { ChatConversation } from "../chat";
 import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../safety-ops-policy";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
-import {
-	buildStoredIdempotentRequest,
-	toChatConversation,
-	toChatMessage,
-} from "./store-conversation";
+import { buildStoredIdempotentRequest, toChatConversation } from "./store-conversation";
 import {
 	buildAcceptRequestExecutionInsertValues,
 	buildChatMessageInsertValues,

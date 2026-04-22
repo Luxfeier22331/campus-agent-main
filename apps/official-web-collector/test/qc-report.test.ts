@@ -155,8 +155,12 @@ describe("official-web-collector qc report", () => {
 				issues: Array<{ code: string; severity: string; message: string }>;
 			}>;
 		};
-		auditPayload.pages[0]!.status = "fail";
-		auditPayload.pages[0]!.issues = [
+		const [firstPage] = auditPayload.pages;
+		if (!firstPage) {
+			throw new Error("audit payload page is required");
+		}
+		firstPage.status = "fail";
+		firstPage.issues = [
 			{
 				code: "listing_family_without_listing_signal",
 				severity: "fail",

@@ -12,7 +12,15 @@ import {
 } from "../scripts/adopt-shared-database.mjs";
 
 const migrationContext = loadMigrationContext();
-const snapshot0000 = migrationContext.snapshots.get("0000_funny_tiger_shark")!;
+function requireSnapshot(key: string) {
+	const snapshot = migrationContext.snapshots.get(key);
+	if (!snapshot) {
+		throw new Error(`Missing snapshot ${key}`);
+	}
+	return snapshot;
+}
+
+const snapshot0000 = requireSnapshot("0000_funny_tiger_shark");
 const snapshotLatest = migrationContext.latestSnapshot;
 const snapshot0000Specs = buildExpectedTableSpecs(snapshot0000);
 const latestSpecs = buildExpectedTableSpecs(snapshotLatest);

@@ -1,3 +1,4 @@
+import type { HtmlDomApi, HtmlDomSelection } from "./page-artifacts-helpers.ts";
 import {
 	looksLikeDateText,
 	normalizeOptionalString,
@@ -5,7 +6,7 @@ import {
 	stripKnownTrackingResidue,
 } from "./page-artifacts-helpers.ts";
 
-export function extractElementText($: any, element: unknown): string | null {
+export function extractElementText($: HtmlDomApi, element: unknown): string | null {
 	const tagName = String((element as { tagName?: unknown }).tagName ?? "").toLowerCase();
 	if (tagName === "a") {
 		const preferredStructuredText = resolvePreferredStructuredAnchorText($, element);
@@ -20,13 +21,13 @@ export function extractElementText($: any, element: unknown): string | null {
 	return normalizeOptionalString(stripKnownTrackingResidue(clone.text()));
 }
 
-export function extractElementHtmlFragment($: any, element: unknown): string | null {
+export function extractElementHtmlFragment($: HtmlDomApi, element: unknown): string | null {
 	const clone = $(element).clone();
 	clone.find("script,style,noscript,template").remove();
 	return normalizeOptionalString($.html(clone));
 }
 
-export function shouldSuppressVisuallyHiddenElement($: any, element: unknown): boolean {
+export function shouldSuppressVisuallyHiddenElement($: HtmlDomApi, element: unknown): boolean {
 	const candidates = [element, ...($(element).parents().toArray() as unknown[])];
 	return candidates.some(
 		(candidate) =>
@@ -35,7 +36,10 @@ export function shouldSuppressVisuallyHiddenElement($: any, element: unknown): b
 	);
 }
 
-export function resolvePreferredStructuredAnchorText($: any, element: unknown): string | null {
+export function resolvePreferredStructuredAnchorText(
+	$: HtmlDomApi,
+	element: unknown,
+): string | null {
 	const anchor = $(element);
 	const structuredDescendants = anchor
 		.find("h1,h2,h3,h4,h5,h6,p,span,time,strong,em")
@@ -82,7 +86,7 @@ export function resolvePreferredStructuredAnchorText($: any, element: unknown): 
 	return best != null && best.score > 0 ? best.text : null;
 }
 
-export function buildDomPath($: any, element: unknown): string | null {
+export function buildDomPath($: HtmlDomApi, element: unknown): string | null {
 	const segments: string[] = [];
 	let current = $(element);
 	while (current.length > 0) {
@@ -100,11 +104,11 @@ export function buildDomPath($: any, element: unknown): string | null {
 	return segments.length > 0 ? segments.join(" > ") : null;
 }
 
-export function hasTagAncestor($: any, element: unknown, tagName: string): boolean {
+export function hasTagAncestor($: HtmlDomApi, element: unknown, tagName: string): boolean {
 	return $(element).parents(tagName).length > 0;
 }
 
-export function hasMainContentAncestorCue($: any, element: unknown): boolean {
+export function hasMainContentAncestorCue($: HtmlDomApi, element: unknown): boolean {
 	if (hasTagAncestor($, element, "main") || hasTagAncestor($, element, "article")) {
 		return true;
 	}
@@ -129,7 +133,7 @@ export function hasMainContentAncestorCue($: any, element: unknown): boolean {
 	});
 }
 
-export function hasNavigationAncestor($: any, element: unknown): boolean {
+export function hasNavigationAncestor($: HtmlDomApi, element: unknown): boolean {
 	if ($(element).parents("nav,header,footer").length > 0) {
 		return true;
 	}
@@ -159,7 +163,7 @@ export function hasNavigationAncestor($: any, element: unknown): boolean {
 	return hasNavigationKeyword || hasBreadcrumbPositionKeyword;
 }
 
-export function hasBoilerplateRegionAncestor($: any, element: unknown): boolean {
+export function hasBoilerplateRegionAncestor($: HtmlDomApi, element: unknown): boolean {
 	if ($(element).parents("aside").length > 0) {
 		return true;
 	}
@@ -185,7 +189,7 @@ export function hasBoilerplateRegionAncestor($: any, element: unknown): boolean 
 	);
 }
 
-export function extractTableCells($: any, element: unknown): string[][] {
+export function extractTableCells($: HtmlDomApi, element: unknown): string[][] {
 	return $(element)
 		.find("tr")
 		.toArray()
@@ -197,7 +201,7 @@ export function extractTableCells($: any, element: unknown): string[][] {
 		);
 }
 
-export function hasDateLikeDescendant($: any, element: unknown): boolean {
+export function hasDateLikeDescendant($: HtmlDomApi, element: unknown): boolean {
 	const descendants = $(element).find("time,span").toArray() as unknown[];
 	return descendants.some((candidate) => {
 		const text = normalizeText($(candidate).text());
@@ -208,7 +212,7 @@ export function hasDateLikeDescendant($: any, element: unknown): boolean {
 	});
 }
 
-export function hasDirectoryRosterContext($: any, element: unknown): boolean {
+export function hasDirectoryRosterContext($: HtmlDomApi, element: unknown): boolean {
 	const listItem = $(element).closest("li,dt");
 	if (listItem.length === 0) {
 		return false;
@@ -242,7 +246,7 @@ export function hasDirectoryRosterContext($: any, element: unknown): boolean {
 	);
 }
 
-export function hasCardLikeStructure($: any, element: unknown): boolean {
+export function hasCardLikeStructure($: HtmlDomApi, element: unknown): boolean {
 	const candidate = $(element);
 	if (candidate.find("img,picture,video,svg").length > 0) {
 		return true;
@@ -273,7 +277,7 @@ export function isGenericDetailLinkText(text: string): boolean {
 	return /^(查看详情|详情|更多|more|read more|learn more)\s*>?$/i.test(text.trim());
 }
 
-function hydratePreferredAnchorTitleText($: any, root: any): void {
+function hydratePreferredAnchorTitleText($: HtmlDomApi, root: HtmlDomSelection): void {
 	const anchors = [
 		...(root.is("a[title]") ? [root[0]] : []),
 		...(root.find("a[title]").toArray() as unknown[]),
@@ -295,7 +299,7 @@ function hydratePreferredAnchorTitleText($: any, root: any): void {
 	}
 }
 
-function resolvePreferredAnchorTitleText($: any, anchor: any): string | null {
+function resolvePreferredAnchorTitleText(_$: HtmlDomApi, anchor: HtmlDomSelection): string | null {
 	const titleText = normalizeText(String(anchor.attr("title") ?? ""));
 	if (titleText == null) {
 		return null;
@@ -326,7 +330,7 @@ function resolvePreferredAnchorTitleText($: any, anchor: any): string | null {
 	return null;
 }
 
-function isDirectlyVisuallyHiddenElement($: any, element: unknown): boolean {
+function isDirectlyVisuallyHiddenElement($: HtmlDomApi, element: unknown): boolean {
 	const candidate = $(element);
 	if (candidate.attr("hidden") != null) {
 		return true;
@@ -353,7 +357,7 @@ function isDirectlyVisuallyHiddenElement($: any, element: unknown): boolean {
 	return hidesOverflowText;
 }
 
-function isSuppressedMediaOverlayElement($: any, element: unknown): boolean {
+function isSuppressedMediaOverlayElement($: HtmlDomApi, element: unknown): boolean {
 	return $(element).is(
 		"#audioDiv, #videoDiv, .grid-music-container, .grid-video-container, .m-music-lyric-wrap, .js-music-lyric-content",
 	);

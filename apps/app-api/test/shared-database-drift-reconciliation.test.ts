@@ -10,7 +10,15 @@ import {
 import { buildSharedDatabaseDriftReconcilePlan } from "../scripts/reconcile-shared-db-drift.mjs";
 
 const migrationContext = loadMigrationContext();
-const snapshot0009 = migrationContext.snapshots.get("0009_melted_nightmare")!;
+function requireSnapshot(key: string) {
+	const snapshot = migrationContext.snapshots.get(key);
+	if (!snapshot) {
+		throw new Error(`Missing snapshot ${key}`);
+	}
+	return snapshot;
+}
+
+const snapshot0009 = requireSnapshot("0009_melted_nightmare");
 const latestSpecs = buildExpectedTableSpecs(migrationContext.latestSnapshot);
 const snapshot0009Specs = buildExpectedTableSpecs(snapshot0009);
 

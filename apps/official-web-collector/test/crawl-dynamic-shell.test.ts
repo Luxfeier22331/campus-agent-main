@@ -35,9 +35,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 			vi.doMock("crawlee", async () => {
 				const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
 
-				class FakeConfiguration {
-					constructor(_input: unknown) {}
-				}
+				class FakeConfiguration {}
 
 				class FakeRequestQueue {
 					readonly seen = new Set<string>();
@@ -261,10 +259,11 @@ describe("official-web-collector dynamic shell crawl", () => {
 				),
 			).toBe(false);
 			expect(result.artifactPaths["dynamic-shell-discovery-audit.jsonl"]).toBeDefined();
-			const auditLines = readFileSync(
-				result.artifactPaths["dynamic-shell-discovery-audit.jsonl"]!,
-				"utf-8",
-			)
+			const auditPath = result.artifactPaths["dynamic-shell-discovery-audit.jsonl"];
+			if (!auditPath) {
+				throw new Error("dynamic-shell-discovery-audit.jsonl path is required");
+			}
+			const auditLines = readFileSync(auditPath, "utf-8")
 				.trim()
 				.split("\n")
 				.map((line) => JSON.parse(line)) as Array<{

@@ -135,11 +135,15 @@ export function buildSafetyAlerts(input: {
 			if (matchingRows.length < SAFETY_ALERT_THRESHOLD) {
 				continue;
 			}
+			const earliestRow = matchingRows[0];
+			if (!earliestRow) {
+				continue;
+			}
 
 			const earliestStartedAt = matchingRows.reduce(
 				(earliest, row) =>
 					row.startedAt.valueOf() < earliest.valueOf() ? row.startedAt : earliest,
-				matchingRows[0]!.startedAt,
+				earliestRow.startedAt,
 			);
 			alerts.push({
 				alertId: buildSafetyAlertId({

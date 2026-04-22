@@ -16,6 +16,7 @@ import {
 } from "./page-artifacts-extraction-recovery-containers.ts";
 import {
 	containsDateLikeText,
+	type HtmlDomApi,
 	normalizePageTitle,
 	normalizeText,
 	resolveAnchorTargetUrl,
@@ -30,7 +31,7 @@ export function extractRecoveryBlockCandidates(input: {
 	baseUrl: string;
 	siteDisplayName: string;
 }): ExtractedBlockCandidate[] {
-	const $ = input.html as any;
+	const $: HtmlDomApi = input.html;
 	const containers = selectRecoverableContentContainers(
 		$,
 		analyzeVisibleContentContainers(input.html),
@@ -139,7 +140,7 @@ export function looksLikeStructuralShell(html: CheerioCrawlingContext["$"]): boo
 }
 
 function shouldRecoverElement(
-	$: any,
+	$: HtmlDomApi,
 	element: unknown,
 	tagName: string,
 	container: VisibleContentContainerStats,

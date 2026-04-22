@@ -835,7 +835,8 @@ function deriveOriginalFilename(finalUrl: string, linkText: string | null): stri
 
 function extractUrlScheme(value: string): string | null {
 	const match = value.match(/^([a-zA-Z][a-zA-Z\d+\-.]*):/);
-	return match ? match[1]!.toLowerCase() : null;
+	const scheme = match?.[1];
+	return scheme ? scheme.toLowerCase() : null;
 }
 
 function decodeHtmlAttribute(value: string): string {

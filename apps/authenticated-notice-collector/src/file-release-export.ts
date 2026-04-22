@@ -20,7 +20,6 @@ import { createApiContextFromStorageState } from "./portal";
 import type {
 	ApiRequestContextLike,
 	BundleFileReleaseRecord,
-	BundleReleasedFileObservation,
 	CollectorFileReleaseExportMetadata,
 	DisposableApiContextLike,
 	FileReleaseCodeTypeListResponse,

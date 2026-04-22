@@ -223,7 +223,11 @@ describe("official-web-collector validate", () => {
 			"content-blocks.jsonl",
 		);
 		unlinkSync(contentBlocksPath);
-		bundlePayload.pages[0]!.contentBlocksObjectKey = "official_web/bad/object-key.jsonl";
+		const [firstBundlePage] = bundlePayload.pages;
+		if (!firstBundlePage) {
+			throw new Error("bundle payload page is required");
+		}
+		firstBundlePage.contentBlocksObjectKey = "official_web/bad/object-key.jsonl";
 		writeFileSync(bundlePath, JSON.stringify(bundlePayload, null, 2));
 
 		const report = await validateCollectorOutput(outputDir);
@@ -343,8 +347,12 @@ describe("official-web-collector validate", () => {
 				issues: Array<{ code: string; severity: string; message: string }>;
 			}>;
 		};
-		auditPayload.pages[0]!.status = "review";
-		auditPayload.pages[0]!.issues = [
+		const [firstAuditPage] = auditPayload.pages;
+		if (!firstAuditPage) {
+			throw new Error("audit payload page is required");
+		}
+		firstAuditPage.status = "review";
+		firstAuditPage.issues = [
 			{
 				code: "manual_review_signal",
 				severity: "review",

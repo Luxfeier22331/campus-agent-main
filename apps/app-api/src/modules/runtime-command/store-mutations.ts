@@ -1,9 +1,4 @@
-import {
-	type conversations,
-	type messages,
-	requestObservabilityFact,
-	type sessionSlots,
-} from "../../db/schema";
+import type { conversations, messages, sessionSlots } from "../../db/schema";
 import type {
 	AcceptRequestWrite,
 	FinalizeRequestWrite,

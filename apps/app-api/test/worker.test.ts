@@ -3,7 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
-import worker, { createWorkerRuntime } from "../src/index";
+import { createWorkerRuntime } from "../src/index";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {

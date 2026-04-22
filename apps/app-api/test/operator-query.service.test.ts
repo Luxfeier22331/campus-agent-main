@@ -94,7 +94,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.getQualitySummary({
 			filters: {
@@ -169,7 +169,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.getSafetySummary({
 			filters: {
@@ -240,7 +240,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.getCostSummary({
 			filters: {
@@ -285,7 +285,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.listAudit({
 			filters: {
@@ -351,7 +351,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.getQualityTimeseries({
 			filters: {
@@ -396,7 +396,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		await expect(
 			service.getQualityTimeseries({
@@ -434,7 +434,7 @@ describe("operator query service aggregate summaries", () => {
 		};
 		const service = buildOperatorQueryService({
 			store: store as never,
-		}) as any;
+		});
 
 		const result = await service.listQualityBadcases({
 			filters: {

@@ -7,13 +7,13 @@ import {
 	hasTagAncestor,
 	isGenericDetailLinkText,
 } from "./page-artifacts-extraction-dom.ts";
-import { containsDateLikeText, normalizeText } from "./page-artifacts-helpers.ts";
+import { containsDateLikeText, type HtmlDomApi, normalizeText } from "./page-artifacts-helpers.ts";
 import type { VisibleContentContainerStats } from "./page-artifacts-types.ts";
 
 export function analyzeVisibleContentContainers(
 	html: CheerioCrawlingContext["$"],
 ): VisibleContentContainerStats[] {
-	const $ = html as any;
+	const $: HtmlDomApi = html;
 	const candidateSelectors = [
 		"#vsb_content",
 		"#maincontent",
@@ -114,7 +114,7 @@ export function analyzeVisibleContentContainers(
 }
 
 export function selectRecoverableContentContainers(
-	$: any,
+	$: HtmlDomApi,
 	containers: VisibleContentContainerStats[],
 ): VisibleContentContainerStats[] {
 	const strongContainers = containers.filter(
@@ -162,7 +162,7 @@ export function isListingLikeRecoveryContainer(container: VisibleContentContaine
 	);
 }
 
-function isBoilerplateContainer($: any, element: unknown): boolean {
+function isBoilerplateContainer($: HtmlDomApi, element: unknown): boolean {
 	return (
 		hasNavigationAncestor($, element) ||
 		hasBoilerplateRegionAncestor($, element) ||
@@ -172,11 +172,11 @@ function isBoilerplateContainer($: any, element: unknown): boolean {
 	);
 }
 
-function looksLikeRepeatedCardClusterContainer($: any, element: unknown): boolean {
+function looksLikeRepeatedCardClusterContainer($: HtmlDomApi, element: unknown): boolean {
 	return countRepeatedCardChildren($, element) >= 2;
 }
 
-function countRepeatedCardChildren($: any, element: unknown): number {
+function countRepeatedCardChildren($: HtmlDomApi, element: unknown): number {
 	const counts = new Map<string, number>();
 
 	for (const child of $(element).children("div,section,article,li,dt,dd").toArray() as unknown[]) {
@@ -191,7 +191,7 @@ function countRepeatedCardChildren($: any, element: unknown): number {
 	return [...counts.values()].reduce((max, count) => Math.max(max, count), 0);
 }
 
-function looksLikeRecoverableCardChild($: any, element: unknown): boolean {
+function looksLikeRecoverableCardChild($: HtmlDomApi, element: unknown): boolean {
 	const candidate = $(element);
 	const textNormalized = normalizeText(extractElementText($, element));
 	if (textNormalized == null) {
@@ -222,7 +222,7 @@ function looksLikeRecoverableCardChild($: any, element: unknown): boolean {
 	);
 }
 
-function buildRepeatedChildSignature($: any, element: unknown): string {
+function buildRepeatedChildSignature($: HtmlDomApi, element: unknown): string {
 	const tagName = String($(element)[0]?.tagName ?? "").toLowerCase();
 	const classTokens = String($(element).attr("class") ?? "")
 		.toLowerCase()

@@ -17,9 +17,7 @@ describe("official-web-collector robots handling", () => {
 		vi.doMock("crawlee", async () => {
 			const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
 
-			class FakeConfiguration {
-				constructor(_input: unknown) {}
-			}
+			class FakeConfiguration {}
 
 			class FakeCheerioCrawler {
 				private readonly options: {

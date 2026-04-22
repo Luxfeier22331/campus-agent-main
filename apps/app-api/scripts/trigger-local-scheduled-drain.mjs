@@ -1,7 +1,7 @@
 import process from "node:process";
 
 function parseBaseUrl(argv) {
-	const flagIndex = argv.findIndex((value) => value === "--base-url");
+	const flagIndex = argv.indexOf("--base-url");
 	if (flagIndex >= 0) {
 		const rawValue = argv[flagIndex + 1]?.trim();
 		if (!rawValue) {

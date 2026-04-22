@@ -220,8 +220,9 @@ export function createMetricStoreHandlers(runtime: OperatorQueryRuntime) {
 						},
 					);
 
+					const bucketEnd = bucketRows[0]?.bucketEnd ?? new Date(bucketStart);
 					return {
-						bucketEnd: bucketRows[0]!.bucketEnd.toISOString(),
+						bucketEnd: bucketEnd.toISOString(),
 						bucketStart,
 						citationMissRate:
 							metrics.citationEligibleCount > 0

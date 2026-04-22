@@ -1,7 +1,5 @@
 import type { CheerioCrawlingContext } from "crawlee";
 import {
-	admitOfficialWebUrl,
-	buildOfficialWebDiscoveredLinkRecord,
 	buildOfficialWebPageManifest,
 	buildOfficialWebProviderPageExtraction,
 	buildOfficialWebUrlIdentity,

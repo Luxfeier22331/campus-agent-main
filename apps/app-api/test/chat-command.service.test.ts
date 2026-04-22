@@ -8,7 +8,6 @@ import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { ChatMessage } from "../src/modules/chat";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
 import {
-	AppApiRouteError,
 	buildChatCommandService,
 	type ChatCommandStore,
 	type ChatConversationStore,

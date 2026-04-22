@@ -31,7 +31,7 @@ function quoteIdentifier(identifier) {
 	return `"${identifier.replaceAll('"', '""')}"`;
 }
 
-function qualifyName(schema, name) {
+function _qualifyName(schema, name) {
 	return `${schema}.${name}`;
 }
 

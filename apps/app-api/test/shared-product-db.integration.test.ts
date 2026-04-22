@@ -9,11 +9,7 @@ import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
-import {
-	buildChatCommandService,
-	createPgChatCommandStore,
-	type SupervisorTransportError,
-} from "../src/modules/runtime-command";
+import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
 import {
 	buildSharedDbIntegrationEnv,
 	convergeSharedDbForAppApiIntegration,

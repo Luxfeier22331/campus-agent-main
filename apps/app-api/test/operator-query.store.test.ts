@@ -261,7 +261,7 @@ describe("pg operator query store", () => {
 				status: "error",
 				traceAvailable: true,
 			},
-		] as Array<any>);
+		]);
 		const from = vi.fn(() => ({
 			where,
 		}));

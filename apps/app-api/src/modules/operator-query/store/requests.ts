@@ -1,7 +1,6 @@
 import { and, desc, eq, ilike, lt, or } from "drizzle-orm";
 
 import {
-	qualityGradeProjection,
 	requestAuditProjection,
 	requestObservabilityFact,
 	requestProjection,
@@ -23,7 +22,6 @@ import {
 } from "./cursors";
 import type { OperatorQueryRuntime } from "./runtime";
 import {
-	buildGradeBucketMap,
 	escapeLikePattern,
 	toAuditListItem,
 	toIsoString,
@@ -200,16 +198,17 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 
 			if (filters.q) {
 				const pattern = `%${escapeLikePattern(filters.q)}%`;
-				conditions.push(
-					or(
-						ilike(requestProjection.requestId, pattern),
-						ilike(requestProjection.questionPreview, pattern),
-						ilike(requestProjection.principalId, pattern),
-						ilike(requestProjection.principalLabel, pattern),
-						ilike(requestProjection.conversationId, pattern),
-						ilike(requestProjection.errorCode, pattern),
-					)!,
+				const searchCondition = or(
+					ilike(requestProjection.requestId, pattern),
+					ilike(requestProjection.questionPreview, pattern),
+					ilike(requestProjection.principalId, pattern),
+					ilike(requestProjection.principalLabel, pattern),
+					ilike(requestProjection.conversationId, pattern),
+					ilike(requestProjection.errorCode, pattern),
 				);
+				if (searchCondition) {
+					conditions.push(searchCondition);
+				}
 			}
 			if (filters.status) {
 				conditions.push(eq(requestProjection.status, filters.status));
@@ -227,15 +226,16 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.cursor) {
 				const cursor = decodeRequestCursor(filters.cursor);
 				if (cursor) {
-					conditions.push(
-						or(
-							lt(requestProjection.startedAt, new Date(cursor.startedAt)),
-							and(
-								eq(requestProjection.startedAt, new Date(cursor.startedAt)),
-								lt(requestProjection.requestId, cursor.requestId),
-							),
-						)!,
+					const cursorCondition = or(
+						lt(requestProjection.startedAt, new Date(cursor.startedAt)),
+						and(
+							eq(requestProjection.startedAt, new Date(cursor.startedAt)),
+							lt(requestProjection.requestId, cursor.requestId),
+						),
 					);
+					if (cursorCondition) {
+						conditions.push(cursorCondition);
+					}
 				}
 			}
 
@@ -295,15 +295,16 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.cursor) {
 				const cursor = decodeAuditCursor(filters.cursor);
 				if (cursor) {
-					conditions.push(
-						or(
-							lt(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
-							and(
-								eq(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
-								lt(requestAuditProjection.auditEventId, cursor.auditEventId),
-							),
-						)!,
+					const cursorCondition = or(
+						lt(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
+						and(
+							eq(requestAuditProjection.occurredAt, new Date(cursor.occurredAt)),
+							lt(requestAuditProjection.auditEventId, cursor.auditEventId),
+						),
 					);
+					if (cursorCondition) {
+						conditions.push(cursorCondition);
+					}
 				}
 			}
 

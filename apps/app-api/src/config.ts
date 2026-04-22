@@ -186,24 +186,59 @@ export function readPublicChatOrigin(env: Pick<Env, "PUBLIC_CHAT_WEB_ORIGIN">): 
 	return new URL(origin).origin;
 }
 
+function readRequiredTrimmedValue(value: string | null | undefined, key: string): string {
+	const normalized = value?.trim();
+	if (!normalized) {
+		throw new Error(`${key} is required.`);
+	}
+	return normalized;
+}
+
 export function readAppApiConfig(env: Env): AppApiConfig {
 	const missing = getMissingRuntimeConfig(env);
 	if (missing.length > 0) {
 		throw new Error(`Missing runtime configuration: ${missing.join(", ")}`);
 	}
 
+	const betterAuthSecret = readRequiredTrimmedValue(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
+	const authTurnstileSecretKey = readRequiredTrimmedValue(
+		env.AUTH_TURNSTILE_SECRET_KEY,
+		"AUTH_TURNSTILE_SECRET_KEY",
+	);
+	const resendApiKey = readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY");
+	const authResetEmailFrom = readRequiredTrimmedValue(
+		env.AUTH_RESET_EMAIL_FROM,
+		"AUTH_RESET_EMAIL_FROM",
+	);
+	const databaseConnectionString = readRequiredTrimmedValue(
+		env.APP_API_DB?.connectionString,
+		"APP_API_DB.connectionString",
+	);
+	const internalSharedSecret = readRequiredTrimmedValue(
+		env.APP_API_INTERNAL_SHARED_SECRET,
+		"APP_API_INTERNAL_SHARED_SECRET",
+	);
+	const supervisorApiBaseUrl = readRequiredTrimmedValue(
+		env.SUPERVISOR_API_BASE_URL,
+		"SUPERVISOR_API_BASE_URL",
+	);
+	const supervisorApiSharedSecret = readRequiredTrimmedValue(
+		env.SUPERVISOR_API_SHARED_SECRET,
+		"SUPERVISOR_API_SHARED_SECRET",
+	);
+
 	return {
 		appName: resolveAppName(env),
 		environment: resolveEnvironment(env),
-		betterAuthSecret: env.BETTER_AUTH_SECRET!.trim(),
-		authTurnstileSecretKey: env.AUTH_TURNSTILE_SECRET_KEY!.trim(),
-		resendApiKey: env.RESEND_API_KEY!.trim(),
-		authResetEmailFrom: env.AUTH_RESET_EMAIL_FROM!.trim(),
+		betterAuthSecret,
+		authTurnstileSecretKey,
+		resendApiKey,
+		authResetEmailFrom,
 		authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
 		publicChatOrigin: readPublicChatOrigin(env),
-		databaseConnectionString: env.APP_API_DB!.connectionString!.trim(),
+		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
-		internalSharedSecret: env.APP_API_INTERNAL_SHARED_SECRET!.trim(),
+		internalSharedSecret,
 		operatorDatabaseUrl:
 			env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
 			env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
@@ -214,8 +249,8 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
 			item.toLowerCase(),
 		),
-		supervisorApiBaseUrl: env.SUPERVISOR_API_BASE_URL!.trim(),
-		supervisorApiSharedSecret: env.SUPERVISOR_API_SHARED_SECRET!.trim(),
+		supervisorApiBaseUrl,
+		supervisorApiSharedSecret,
 		operatorEmailAllowlist: parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
 			item.toLowerCase(),
 		),

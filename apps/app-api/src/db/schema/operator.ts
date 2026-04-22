@@ -36,12 +36,6 @@ interface QualityBadcaseGradeJson {
 	score: number | null;
 }
 
-interface QualityGradeProjectionVerdictJson {
-	graderVersion: string;
-	result: string;
-	score: number | null;
-}
-
 export const requestProjection = operator.table(
 	"request_projection",
 	{

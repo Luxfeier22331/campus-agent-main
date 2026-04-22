@@ -3,7 +3,6 @@ import {
 	admitOfficialWebUrl,
 	buildOfficialWebDiscoveredLinkRecord,
 	type OfficialWebConfigBundle,
-	type OfficialWebContentBlockRow,
 	type OfficialWebDiscoveredLinkRecord,
 	type OfficialWebHostPolicy,
 } from "./official-web-core.ts";
@@ -32,6 +31,7 @@ import {
 } from "./page-artifacts-extraction-dom.ts";
 import {
 	compactHeadingPath,
+	type HtmlDomApi,
 	normalizeOptionalString,
 	normalizePageTitle,
 	normalizeText,
@@ -50,7 +50,7 @@ export function extractBlockCandidates(input: {
 	baseUrl: string;
 	siteDisplayName: string;
 }): ExtractedBlockCandidate[] {
-	const $ = input.html as any;
+	const $: HtmlDomApi = input.html;
 	const selector = [
 		"title",
 		"body h1",
@@ -187,7 +187,7 @@ export function extractDiscoveredLinks(input: {
 	rawAssetId: string;
 	rawVersionId: string;
 }): OfficialWebDiscoveredLinkRecord[] {
-	const $ = input.html as any;
+	const $: HtmlDomApi = input.html;
 	const anchors = $("a[href]").toArray() as unknown[];
 
 	return anchors.map((element, index) => {

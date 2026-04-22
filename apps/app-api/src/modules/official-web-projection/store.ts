@@ -20,9 +20,7 @@ import type {
 	OfficialWebArtifactSummary,
 	OfficialWebProjectionProjectorStore,
 	OfficialWebRunOutboxEvent,
-	OfficialWebRunProjectionMaterialization,
 	OfficialWebRunProjectionSource,
-	OfficialWebSiteProjectionMaterialization,
 	OfficialWebSiteProjectionSource,
 } from "./service";
 
@@ -226,15 +224,15 @@ export function createPgOfficialWebProjectionStore(
 			const rows = await db
 				.select()
 				.from(crawlRuns)
-				.where(
-					and(
-						inArray(crawlRuns.status, ["accepted", "running"]),
-						or(
-							and(isNull(crawlRuns.lastHeartbeatAt), lte(crawlRuns.startedAt, cutoff)),
-							lte(crawlRuns.lastHeartbeatAt, cutoff),
-						)!,
-					),
-				);
+				.where(() => {
+					const abandonedCondition = or(
+						and(isNull(crawlRuns.lastHeartbeatAt), lte(crawlRuns.startedAt, cutoff)),
+						lte(crawlRuns.lastHeartbeatAt, cutoff),
+					);
+					return abandonedCondition
+						? and(inArray(crawlRuns.status, ["accepted", "running"]), abandonedCondition)
+						: inArray(crawlRuns.status, ["accepted", "running"]);
+				});
 
 			for (const row of rows) {
 				const eventId = `owevt_abandoned_${randomUUID().replace(/-/g, "")}`;

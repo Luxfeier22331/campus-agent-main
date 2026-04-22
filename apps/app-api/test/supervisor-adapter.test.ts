@@ -53,6 +53,14 @@ function createContext(turnCount = 0) {
 	};
 }
 
+function readMockRequestBody(fetchImplementation: ReturnType<typeof vi.fn>, index: number): string {
+	const body = fetchImplementation.mock.calls[index]?.[1]?.body;
+	if (typeof body !== "string") {
+		throw new Error(`Missing request body for call ${index}`);
+	}
+	return body;
+}
+
 describe("supervisor execution adapter", () => {
 	afterEach(() => {
 		vi.useRealTimers();
@@ -117,7 +125,7 @@ describe("supervisor execution adapter", () => {
 				method: "POST",
 			}),
 		);
-		expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toEqual({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			context: {
 				actor: {
 					cohort: "2024",
@@ -435,7 +443,7 @@ describe("supervisor execution adapter", () => {
 			userGoal: "习概哪个学院开，第几学期开",
 		});
 
-		expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toMatchObject({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toMatchObject({
 			requested_scope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -727,7 +735,7 @@ describe("supervisor execution adapter", () => {
 			userGoal: "民族学本科人才培养方案总学分要求是多少？",
 		});
 
-		expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).not.toHaveProperty(
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).not.toHaveProperty(
 			"requested_scope",
 		);
 		expect(result.observability).toMatchObject({

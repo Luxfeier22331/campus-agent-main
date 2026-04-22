@@ -14,7 +14,6 @@ import {
 import type {
 	ProjectionOutboxEvent,
 	RequestExecutionProjectionSource,
-	RequestProjectionMaterialization,
 	RequestProjectionProjectorStore,
 } from "./service";
 

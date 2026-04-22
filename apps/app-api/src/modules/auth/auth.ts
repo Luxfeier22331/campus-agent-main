@@ -72,7 +72,7 @@ function normalizeAllowedEmail(value: string | null | undefined): string | null 
 	}
 
 	const normalized = value.trim().toLowerCase();
-	if (!normalized || !normalized.includes("@")) {
+	if (!normalized.includes("@")) {
 		return null;
 	}
 
@@ -308,7 +308,7 @@ function constantTimeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
 
 	let diff = 0;
 	for (let index = 0; index < left.byteLength; index += 1) {
-		diff |= left[index]! ^ right[index]!;
+		diff |= left[index] ?? 0 ^ right[index] ?? 0;
 	}
 
 	return diff === 0;

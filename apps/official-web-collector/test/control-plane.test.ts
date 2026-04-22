@@ -7,6 +7,14 @@ import {
 	OfficialWebControlPlaneTransportError,
 } from "../src/control-plane";
 
+function readMockRequestBody(fetchImplementation: ReturnType<typeof vi.fn>, index: number): string {
+	const body = fetchImplementation.mock.calls[index]?.[1]?.body;
+	if (typeof body !== "string") {
+		throw new Error(`Missing request body for call ${index}`);
+	}
+	return body;
+}
+
 describe("official-web control plane client", () => {
 	it("sends start, heartbeat, and finalize requests using the frozen HTTP contract", async () => {
 		const fetchImplementation = vi
@@ -203,7 +211,7 @@ describe("official-web control plane client", () => {
 				},
 			}),
 		);
-		expect(JSON.parse(fetchImplementation.mock.calls[0]![1]!.body as string)).toEqual({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			siteId: "campus_public",
 			schedulerRunKey: "cron-2026-03-29T08:00:00Z",
 			runIntent: "baseline",
@@ -222,7 +230,7 @@ describe("official-web control plane client", () => {
 				method: "POST",
 			}),
 		);
-		expect(JSON.parse(fetchImplementation.mock.calls[1]![1]!.body as string)).toEqual({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
 			hostFilter: ["www.example.edu"],
 			maxPagesPerHost: 20,
 			maxTotalPages: 80,
@@ -237,7 +245,7 @@ describe("official-web control plane client", () => {
 				method: "POST",
 			}),
 		);
-		expect(JSON.parse(fetchImplementation.mock.calls[2]![1]!.body as string)).toEqual({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 2))).toEqual({
 			sequence: 3,
 			observedAt: "2026-03-29T08:05:00.000Z",
 			counts: {
@@ -255,7 +263,7 @@ describe("official-web control plane client", () => {
 				method: "POST",
 			}),
 		);
-		expect(JSON.parse(fetchImplementation.mock.calls[3]![1]!.body as string)).toEqual({
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 3))).toEqual({
 			terminalStatus: "completed_with_errors",
 			finishedAt: "2026-03-29T08:17:32.000Z",
 			pageObservations: [

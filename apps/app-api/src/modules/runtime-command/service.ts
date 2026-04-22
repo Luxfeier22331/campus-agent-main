@@ -14,9 +14,6 @@ import {
 	resolveValidatedPayload,
 } from "./service/normalize";
 import {
-	type ChatCommandPayload,
-	type ChatCommandResponse,
-	type ChatCommandResult,
 	type ChatCommandService,
 	type ChatCommandServiceDependencies,
 	NEW_CONVERSATION_FINGERPRINT_SCOPE,

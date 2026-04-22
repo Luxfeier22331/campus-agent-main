@@ -5,10 +5,7 @@ import type {
 	OfficialWebControlPlaneHeartbeatResponse,
 	OfficialWebControlPlanePlanResponse,
 	OfficialWebControlPlaneStartResponse,
-	OfficialWebFinalizeInput,
-	OfficialWebHeartbeatInput,
 	OfficialWebResolvePlanInput,
-	OfficialWebRunStartInput,
 } from "./control-plane-types.ts";
 
 export { OfficialWebControlPlaneTransportError } from "./control-plane-transport.ts";

@@ -56,9 +56,7 @@ function mockCrawlee(
 	vi.doMock("crawlee", async () => {
 		const actual = await vi.importActual<typeof import("crawlee")>("crawlee");
 
-		class FakeConfiguration {
-			constructor(_input: unknown) {}
-		}
+		class FakeConfiguration {}
 
 		class FakeRequestQueue {
 			readonly seen = new Set<string>();

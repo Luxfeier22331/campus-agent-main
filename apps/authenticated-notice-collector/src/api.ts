@@ -256,7 +256,7 @@ export async function fetchAttachmentBinary(
 				contentDisposition: normalizeHeaderValue(
 					response.headers?.()["content-disposition"] ?? null,
 				),
-				etag: normalizeHeaderValue(response.headers?.()["etag"] ?? null),
+				etag: normalizeHeaderValue(response.headers?.().etag ?? null),
 				statusCode: response.status(),
 			};
 		} catch (error) {
@@ -479,7 +479,7 @@ async function parseJsonResponse<T extends object>(
 	return (await response.json()) as T;
 }
 
-async function readBinaryResponse(response: ApiResponseLike, operation: string): Promise<Buffer> {
+async function readBinaryResponse(response: ApiResponseLike, _operation: string): Promise<Buffer> {
 	if (typeof response.body === "function") {
 		return Buffer.from(await response.body());
 	}

@@ -3,7 +3,7 @@ import { defaultRuntimeReadinessProbe } from "./app/readiness";
 import { createRequestScopeFactory } from "./app/request-scope";
 import { resolveRequestSurface } from "./app/request-utils";
 import { registerAppRoutes } from "./app/routes";
-import type { AppDependencies, AppRuntimeReadinessResult } from "./app/types";
+import type { AppDependencies } from "./app/types";
 import type { Env } from "./config";
 import { AppApiRouteError, errorEnvelope, jsonResponse, routeErrorResponse } from "./http";
 import { handleAuthRequest, resolveRequestPrincipal } from "./modules/auth";

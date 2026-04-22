@@ -115,10 +115,6 @@ function subtractHours(input: Date, hours: number): string {
 	return new Date(input.valueOf() - hours * 60 * 60 * 1000).toISOString();
 }
 
-function subtractMinutes(input: Date, minutes: number): string {
-	return new Date(input.valueOf() - minutes * 60 * 1000).toISOString();
-}
-
 function toHttpDate(input: string): string {
 	return new Date(input).toUTCString();
 }
@@ -284,8 +280,12 @@ export async function seedOfficialWebSmokeSamples(input: {
 	const siteId = input.args.siteId;
 	const host = "www.muc.edu.cn";
 	const baseSeedKey = `official-web-smoke-${now.toISOString()}`;
+	const internalSharedSecret = runtime.env.APP_API_INTERNAL_SHARED_SECRET;
+	if (!internalSharedSecret) {
+		throw new Error("APP_API_INTERNAL_SHARED_SECRET is required.");
+	}
 	const operatorHeaders = createOperatorHeaders({
-		internalSharedSecret: runtime.env.APP_API_INTERNAL_SHARED_SECRET!,
+		internalSharedSecret,
 		operatorEmail: runtime.operatorEmail,
 	});
 

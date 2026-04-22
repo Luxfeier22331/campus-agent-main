@@ -9,7 +9,7 @@ export function registerRuntimeRoutes(input: {
 	env: Env;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 }) {
-	input.app.get("/healthz", (c) =>
+	input.app.get("/healthz", (_c) =>
 		jsonResponse({
 			status: "ok",
 			app: resolveAppName(input.env),
