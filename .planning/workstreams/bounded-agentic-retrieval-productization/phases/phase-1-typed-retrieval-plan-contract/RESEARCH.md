@@ -70,7 +70,7 @@ updated: 2026-04-21
 
 ### Structured runtime tools are explicitly outside generic retrieval planning
 
-- `docs/architecture/execution-and-specialists-architecture.md` 与
+- `docs/architecture/execution-and-agents-architecture.md` 与
   `docs/architecture/agentic-retrieval-architecture.md` 都已固定：
   - `service_status_lookup`
   - `transport_schedule_lookup`

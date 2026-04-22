@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-22
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Workstream: Repo-wide Codebase Decomposition
@@ -13,8 +13,8 @@ updated: 2026-04-22
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 5`
-- current focus: app surfaces / collector tranche，以及后续 residual monolith mapping
+- current phase: `Phase 8`
+- current focus: ingestion test decomposition tranche II 仍只剩 `tests/ingestion/test_registry_models.py` 与 `tests/ingestion/test_campusrag_ingestion_support.py`，但这两个 Phase 8 admission 仍被并发脏写占用；clean-lane fallback 已继续推进到 Phase 9，`packages/ingestion-core/src/campus_ingestion_core/curriculum_budget_evaluation.py` 已完成 façade + `*_shared.py` / `*_documents.py` / `*_probe.py` / `*_reporting.py` 收口，下一文件为 `packages/ingestion-core/src/campus_ingestion_core/curriculum_chunk_units.py`
 
 ## Native Planning Truth
 

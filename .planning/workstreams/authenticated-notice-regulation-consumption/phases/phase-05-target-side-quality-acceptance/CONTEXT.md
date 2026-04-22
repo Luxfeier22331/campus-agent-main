@@ -9,7 +9,7 @@ status: active
 
 ## Goal
 
-在不扩 scope 的前提下，完成 `institutional_regulations` / `scoped_rules` 的 target-side chunk、metadata 与 quality acceptance。
+在不扩 scope 的前提下，完成 `institutional_rules` / `scoped_rules` 的 target-side chunk、metadata 与 quality acceptance。
 
 ## Current Truth
 

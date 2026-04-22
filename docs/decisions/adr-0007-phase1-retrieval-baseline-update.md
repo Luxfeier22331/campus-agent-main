@@ -20,7 +20,7 @@ updated: 2026-04-03
 
 ## 决策
 
-当前 `student_handbook` retrieval accepted baseline 更新为：
+当前 `student_rules` retrieval accepted baseline 更新为：
 
 - embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`
 - embedding provider baseline 固定为 `gitee` OpenAI-compatible embeddings 接口，并显式请求 `dimensions=2560`
@@ -35,7 +35,7 @@ updated: 2026-04-03
 - 当前 sparse baseline 固定为 `Qdrant native BM25`，handbook 中文语料的起始 analyzer 配置为 `tokenizer=multilingual`、`language=none`
 - metadata pre-filter（`corpus`、`collection`、serving metadata，以及 `visibility_*` / `entitlement_*` projection carrier）仍为必做前置条件
 - retrieval 输出仍然必须通过 `DocumentRegistry` 回链形成 `EvidenceBundle`
-- `student_handbook` 当前 runtime profile 默认返回 `8` 个 retrieval candidates；最终回答最多引用 `3` 条证据
+- `student_rules` 当前 runtime profile 默认返回 `8` 个 retrieval candidates；最终回答最多引用 `3` 条证据
 
 ## 不作为当前默认主路径的能力
 

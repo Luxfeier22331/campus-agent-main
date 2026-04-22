@@ -19,7 +19,7 @@ updated: 2026-04-21
 
 - `Phase 1` 冻结后的 source family / layering truth
 - runtime tool 级 shared contract
-- `scoped_rules` / `institutional_regulations` 的一批 downstream metadata pattern
+- `scoped_rules` / `institutional_rules` 的一批 downstream metadata pattern
 
 当前 repo 还没有：
 
@@ -90,7 +90,7 @@ updated: 2026-04-21
 6. `target_surface` 固定是 repo-owned downstream target hint，而不是 opened-surface truth；当前至少允许：
    - `notice_runtime`
    - `regulations/scoped_rules`
-   - `regulations/institutional_regulations`
+   - `regulations/institutional_rules`
    - `service_status_runtime`
    - `publication_surface_candidate`
 7. `temporal_policy` 固定独立于 runtime query mode，至少要能表达：

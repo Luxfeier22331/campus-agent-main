@@ -56,7 +56,7 @@ updated: 2026-04-20
 - `campus_notices/internal_notice` 属于 source-triage collection
 - `regulations/*`、`curriculum/*` 属于 semantic-owner collection
 - `campus_services/contact_directory` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference` 的别名
-- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference`、`student_handbook` 或 generic RAG 的别名
+- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference`、`student_rules` 或 generic RAG 的别名
 - 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为 regulation member
 
 补充说明：
@@ -78,7 +78,7 @@ updated: 2026-04-20
 
 说明：
 
-- 当前 query-enabled scope 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled scope 是 `regulations/student_rules` 与 `curriculum/curriculum_plan`
 - `campus_services/*` 当前仍是 `offline_preparation`
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed bridge，不应误读成长期最终 serving scope
 

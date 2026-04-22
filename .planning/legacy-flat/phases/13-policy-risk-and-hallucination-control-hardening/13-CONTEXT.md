@@ -86,7 +86,7 @@ Phase 13 closes a product-path hardening gap that is already visible in the repo
 
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `packages/supervisor-core/src/campus_supervisor_core/scope_policy.py`
 - `packages/supervisor-core/src/campus_supervisor_core/policy.py`

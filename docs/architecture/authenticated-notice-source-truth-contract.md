@@ -278,7 +278,7 @@ notice source asset 的 identity 固定为“稳定 notice 资源”，而不是
 - 不能引入 document/chunk 或 serving 语义
 - 必须在 collection-specific README 或 strategy doc 中显式记录
 
-当前 `internal_notice -> regulations/institutional_regulations` promotion 边界固定补充以下 source-level extension fields，用于在 attachment relation 缺失时保留“semantic owner 应存在”的上游证据：
+当前 `internal_notice -> regulations/institutional_rules` promotion 边界固定补充以下 source-level extension fields，用于在 attachment relation 缺失时保留“semantic owner 应存在”的上游证据：
 
 - `owner_expectation_count`
 - `owner_expectations`

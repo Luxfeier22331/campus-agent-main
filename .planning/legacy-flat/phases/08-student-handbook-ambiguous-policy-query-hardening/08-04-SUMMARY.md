@@ -30,7 +30,7 @@
 - `apps/protected-panel-web/src/panel/requests/request-show.tsx`
   - detail view 显示 resolved policy / rewritten query / reason code / retrieved titles
 - `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/data/app-api-schema.md`
 - `.planning/ROADMAP.md`

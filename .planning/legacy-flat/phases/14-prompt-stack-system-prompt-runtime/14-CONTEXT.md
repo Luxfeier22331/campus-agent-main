@@ -110,7 +110,7 @@ Phase 14 closes a repo-level execution gap that now sits between landed prompt s
 - `.planning/PROJECT.md`
 - `.planning/STATE.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/plans/prompt-grounding-and-hallucination-hardening-plan.md`
 - `apps/supervisor-api/src/campus_supervisor_api/app.py`
 - `apps/supervisor-api/src/campus_supervisor_api/api.py`

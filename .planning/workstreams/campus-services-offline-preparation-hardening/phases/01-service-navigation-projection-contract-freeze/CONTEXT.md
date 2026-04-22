@@ -33,7 +33,7 @@ status: planned
 <current_truth>
 ## Current Truth
 
-- `configs/ingestion/regulations/student_handbook/source-projections.v1.json` 已经声明 `handbook_navigation_service_catalog`，selector 固定为：
+- `configs/ingestion/regulations/student_rules/source-projections.v1.json` 已经声明 `handbook_navigation_service_catalog`，selector 固定为：
   - `source_title=中央民族大学公寓及公费医疗管理规定`
   - `source_handbook_section=中央民族大学公寓及公费医疗管理规定`
   - `source_page_start=252`
@@ -81,7 +81,7 @@ status: planned
 - `.planning/workstreams/campus-services-offline-preparation-hardening/STATE.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/ROADMAP.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/REQUIREMENTS.md`
-- `configs/ingestion/regulations/student_handbook/source-projections.v1.json`
+- `configs/ingestion/regulations/student_rules/source-projections.v1.json`
 - `configs/ingestion/campus_services/service_catalog/README.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py`

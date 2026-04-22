@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-22
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Workstream: Authenticated Notice Regulation Consumption
@@ -13,8 +13,8 @@ updated: 2026-04-22
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 6`
-- current focus: `institutional_regulations` target chunk-prep parity，随后进入 `11` 条 admitted target rerun 与 acceptance evidence freeze
+- current phase: `Phase 7`
+- current focus: `11` 条 admitted target acceptance rerun 与 gap closure，随后进入 acceptance evidence freeze
 
 ## Native Planning Truth
 

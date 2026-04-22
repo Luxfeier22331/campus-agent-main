@@ -103,7 +103,7 @@ The phase does not:
 - `.planning/PROJECT.md`
 - `.planning/ROADMAP.md`
 - `.planning/STATE.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/reference/eval-gold-truth-model.md`
 - `docs/reference/curriculum-plan-eval-metrics.md`

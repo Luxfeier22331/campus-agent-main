@@ -38,7 +38,7 @@ status: planned
   - `retrieval_enabled = false`
   - `query_enabled_by_default = false`
 - `contact_directory` 当前是 semantic-owner collection，不是 product-path query-enabled surface。
-- handbook 电话页已不再保留为 `regulations/student_handbook` 的 split truth，而是后续应派生进入 `campus_services/contact_directory`。
+- handbook 电话页已不再保留为 `regulations/student_rules` 的 split truth，而是后续应派生进入 `campus_services/contact_directory`。
 - `official_web/stable_reference` 长期也能承接公开说明页、院系概况与联系方式页面，但它是 stable-reference RAG surface，不自动替代 `contact_directory_lookup` 的 structured tool truth。
 - `Phase 5` 已冻结：首发 `4` 个 tool 的 opening gate 仍保持 closed until backing truth + release-gate evidence ready。
 
@@ -77,7 +77,7 @@ status: planned
 - `configs/ingestion/campus_services/contact_directory/README.md`
 - `configs/ingestion/campus_services/contact_directory/runtime-profile.json`
 - `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/policies/official-web-cleaning-and-chunking-policy.md`
 - `docs/reference/student-handbook-normalization-strategy.md`

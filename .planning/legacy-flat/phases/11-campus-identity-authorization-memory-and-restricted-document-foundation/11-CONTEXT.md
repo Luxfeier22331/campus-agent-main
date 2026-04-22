@@ -64,13 +64,13 @@ Its job is narrower:
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/plans/intent-memory-acl-foundation.md`
 - `docs/plans/campus-identity-and-restricted-document-foundation.md`
-- `docs/plans/restricted-document-rollout-and-verification.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`
 
 ### Current code truth
 

@@ -223,7 +223,7 @@ registry / control-plane database 与对象存储长期分层。
 
 当前 data plane 已支撑以下 canonical scope：
 
-- `regulations/student_handbook`
+- `regulations/student_rules`
 - `curriculum/curriculum_plan`
 - `curriculum/course_facts`
 - `curriculum/program_family_facts`

@@ -47,7 +47,7 @@ updated: 2026-04-19
      - `curriculum/program_family_facts`
      - `curriculum/course_facts`
    - `T1`
-     - `regulations/student_handbook`
+     - `regulations/student_rules`
      - canonical institution documents in authenticated / restricted corpora
    - `T2`
      - `official_web/stable_reference`
@@ -93,7 +93,7 @@ updated: 2026-04-19
 - handbook canonical claims
   - claim families: `procedure_step` / `material_requirement` / `eligibility_requirement` / `time_or_deadline`
   - minimum tier: `T1`
-  - allowed surfaces: `regulations/student_handbook`，以及从同一 canonical handbook truth 派生出的 deterministic protected-path backing facts (`T0`)
+  - allowed surfaces: `regulations/student_rules`，以及从同一 canonical handbook truth 派生出的 deterministic protected-path backing facts (`T0`)
 - `authorization_sensitive_claim`
   - minimum tier: not applicable
   - rule: 继续由 authz / serving-surface / restricted deny semantics 决定，不因 tier 命中而放行

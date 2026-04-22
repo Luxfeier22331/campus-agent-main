@@ -33,7 +33,7 @@ target inventory、target-side acceptance runbook 与 fail-close metrics 之上�
 
 ### 1. 当前 rerun scope 已经被 offline inventory 冻结为 `11` 条 admitted target
 
-- `institutional_regulations`
+- `institutional_rules`
   - 只保留 institution-wide stable regulation target
 - `scoped_rules`
   - 只保留 annual/time-bound holding target

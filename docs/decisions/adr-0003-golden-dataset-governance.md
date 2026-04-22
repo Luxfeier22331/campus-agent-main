@@ -18,7 +18,7 @@ updated: 2026-03-22
 
 本 ADR 不冻结以下内容：
 
-- `student_handbook` 第一批具体题目或样本数量
+- `student_rules` 第一批具体题目或样本数量
 - 具体指标家族与 split 门禁指标组合
 - 某次迭代的 CI 分数阈值或 release gate 数值
 - 某个 scorer、评测服务或第三方框架的接入步骤

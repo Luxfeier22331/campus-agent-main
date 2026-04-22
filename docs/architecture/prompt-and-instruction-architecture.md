@@ -777,7 +777,7 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 
 第一版直接复用现有 repo eval truth：
 
-- `student_handbook` live accept
+- `student_rules` live accept
 - `curriculum_plan` live accept
 - alias / family ambiguity regression
 - restricted deny / fail-close regression

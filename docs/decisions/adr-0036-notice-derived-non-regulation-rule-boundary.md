@@ -16,7 +16,7 @@ Accepted on 2026-04-11.
 
 `authenticated_notice_portal -> campus_notices/internal_notice -> regulation promotion`
 这条线在 2026-04-11 已经冻结出一批明确不应进入
-`regulations/institutional_regulations` 的文档：
+`regulations/institutional_rules` 的文档：
 
 - 年度 / 项目制招生实施细则
 - 假期期间运营规则
@@ -29,15 +29,15 @@ Accepted on 2026-04-11.
 
 因此，当前真正需要冻结的不是“再把这些文档硬塞进哪个 collection”，而是：
 
-- 它们为什么不能进入 `regulations/institutional_regulations`
+- 它们为什么不能进入 `regulations/institutional_rules`
 - 它们在 dedicated semantic-owner surface 尚未存在前应停在哪一层
 - 未来如果要开放新的 collection，应满足什么条件
 
 ## 决策
 
-### 决策 1：`annual_cycle_rule` 与 `time_bound_operational_rule` 不进入 `regulations/institutional_regulations`
+### 决策 1：`annual_cycle_rule` 与 `time_bound_operational_rule` 不进入 `regulations/institutional_rules`
 
-以下 document nature 固定排除在 `regulations/institutional_regulations` 之外：
+以下 document nature 固定排除在 `regulations/institutional_rules` 之外：
 
 - `annual_cycle_rule`
   - 年度、批次、项目制、学院制招生/推免/硕博连读/英才计划规则
@@ -93,7 +93,7 @@ Accepted on 2026-04-11.
 
 但这不直接决定：
 
-- 是否进入 `institutional_regulations`
+- 是否进入 `institutional_rules`
 - 是否只能 manual-review
 
 真正决定 collection membership 的仍然是：
@@ -106,7 +106,7 @@ Accepted on 2026-04-11.
 
 直接结果如下：
 
-- `regulations/institutional_regulations` 的边界进一步明确为“稳定正式规章正文”
+- `regulations/institutional_rules` 的边界进一步明确为“稳定正式规章正文”
 - `internal_notice` 的 `manual_review_required` 现在具备清晰含义，不再是 catch-all
 - 未来如果要消费招生实施细则或运营规则，必须先定义 dedicated semantic-owner surface 和 query policy，而不是反向污染 `regulations/*`
 

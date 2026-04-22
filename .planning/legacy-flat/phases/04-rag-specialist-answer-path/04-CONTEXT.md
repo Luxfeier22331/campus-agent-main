@@ -95,7 +95,7 @@ The phase delivers four things:
 
 ### Architecture and retrieval truth
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `docs/architecture/retrieval-serving-architecture.md`

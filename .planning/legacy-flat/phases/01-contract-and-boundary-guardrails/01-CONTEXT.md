@@ -58,7 +58,7 @@ The phase delivers three things:
 
 ### Architecture and phase-1 decisions
 - `docs/architecture/target-architecture.md` — long-term package boundaries and system layering
-- `docs/architecture/execution-and-specialists-architecture.md` — supervisor long-term role, current-design module split, and current execution engine boundary
+- `docs/architecture/execution-and-agents-architecture.md` — supervisor long-term role, current-design module split, and current execution engine boundary
 - `docs/plans/supervisor-current-design-implementation.md` — supervisor current-design implementation order, file targets, and acceptance criteria
 
 ### Shared contract and current code

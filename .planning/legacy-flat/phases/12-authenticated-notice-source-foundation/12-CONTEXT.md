@@ -100,7 +100,7 @@ Its job is narrower:
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/plans/authenticated-notice-source-foundation.md`
-- `docs/plans/restricted-document-rollout-and-verification.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
 
 ### Current code truth

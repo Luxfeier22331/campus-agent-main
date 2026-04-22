@@ -94,7 +94,7 @@ status: planned
   - app-api / protected-panel-web / evals / tests 中的 `rag-specialist`、`navigation-specialist`
 - active docs / planning
   - `docs/architecture/current-architecture.md`
-  - `docs/architecture/execution-and-specialists-architecture.md`
+  - `docs/architecture/execution-and-agents-architecture.md`
   - `docs/architecture/target-architecture.md`
   - active workstream docs 与 repo entry docs
 
@@ -109,7 +109,7 @@ status: planned
 - `.planning/workstreams/execution-capability-family-convergence/phases/phase-4-package-and-runtime-rename-decision/SUMMARY.md`
 - `docs/plans/execution-capability-family-convergence.md`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/supervisor-core/src/campus_supervisor_core/agent.py`

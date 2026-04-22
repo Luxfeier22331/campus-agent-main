@@ -69,7 +69,7 @@ non-goal 边界，避免这条 workstream 继续悬空。
 3. `attachment_rule_body` adoption 固定回流到：
    - deferred `authenticated-notice-regulation-consumption`
    - 其中 target split 继续遵循：
-     - stable formal rule body -> `regulations/institutional_regulations`
+     - stable formal rule body -> `regulations/institutional_rules`
      - annual/time-bound scoped rule body -> `regulations/scoped_rules`
 4. `annual_cycle_rule` / `time_bound_operational_rule` adoption 固定回流到：
    - deferred `authenticated-notice-regulation-consumption`

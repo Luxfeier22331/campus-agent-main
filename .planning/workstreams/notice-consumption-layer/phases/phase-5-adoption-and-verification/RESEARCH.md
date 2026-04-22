@@ -46,7 +46,7 @@ status: completed
 
 - `authenticated-notice -> regulation downstream consumption` 已是 repo 级 deferred workstream。
 - 它已经覆盖：
-  - `regulations/institutional_regulations`
+  - `regulations/institutional_rules`
   - `regulations/scoped_rules`
   的 target-side hardening。
 - 因此 notice consumption layer 不需要再承担 regulation target implementation；只要把 `attachment_rule_body`、`annual_cycle_rule`、`time_bound_operational_rule` 的 adoption route 写回这条 workstream 即可。

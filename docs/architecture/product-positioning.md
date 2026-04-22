@@ -88,7 +88,7 @@ updated: 2026-04-21
 
 当前已进入公开查询面的重点仍以：
 
-- `student_handbook`
+- `student_rules`
 - `curriculum_plan`
 
 为主。

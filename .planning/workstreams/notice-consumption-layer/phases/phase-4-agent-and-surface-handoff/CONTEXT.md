@@ -64,7 +64,7 @@ status: planned
 - ADR-0036 / ADR-0037 已冻结：
   - `annual_cycle_rule`
   - `time_bound_operational_rule`
-  不进入 `regulations/institutional_regulations`
+  不进入 `regulations/institutional_rules`
   - 它们的 holding target 是 `regulations/scoped_rules`
   - `regulations/scoped_rules` 当前仍是 `offline_preparation + query_disabled`
 
@@ -90,7 +90,7 @@ status: planned
   - `reference_only`
   - `not_answerable`
 - **04-06:** `body_only_answerable` 固定继续留在 `notice_runtime`；它最多支持 notice-runtime explanation，不得直接推进到 `regulations/*` 或 `service_status_runtime`。
-- **04-07:** `target_surface=regulations/institutional_regulations` 只保留给稳定 formal rule body；`annual_cycle_rule` 与 `time_bound_operational_rule` 固定不进入这里。
+- **04-07:** `target_surface=regulations/institutional_rules` 只保留给稳定 formal rule body；`annual_cycle_rule` 与 `time_bound_operational_rule` 固定不进入这里。
 - **04-08:** `target_surface=regulations/scoped_rules` 固定承接：
   - `annual_cycle_rule`
   - `time_bound_operational_rule`
@@ -108,7 +108,7 @@ status: planned
   - `attachment_form_template` -> `notice_runtime`
   不因与规则/服务问题相关而直接切给别的 agent。
 - **04-12:** `attachment_rule_body` 的 downstream target 由 semantic nature 决定：
-  - 稳定 formal rule body -> `regulations/institutional_regulations`
+  - 稳定 formal rule body -> `regulations/institutional_rules`
   - annual / time-bound scoped rule body -> `regulations/scoped_rules`
   但两种情况都要求 `complete + answerable`，否则继续停在 notice lane。
 - **04-13:** `internal_notice_restricted` 与 `official_web_public_notice` 共享同一 semantic handoff contract，但不共享 opening posture；restricted family 的 query path 是否可用仍需单独 admission。
@@ -140,7 +140,7 @@ status: planned
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/RESEARCH.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/PLAN.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`

@@ -67,7 +67,7 @@ status: planned
   - `cycle_year`
   - `school_unit_name`
   - `campus_site`
-- 这些字段已经在 `internal_notice -> scoped_rules` 与 `internal_notice -> institutional_regulations` 里部分成立，但 repo 还没有一层更上游、source-family-neutral 的 consumption unit schema。
+- 这些字段已经在 `internal_notice -> scoped_rules` 与 `internal_notice -> institutional_rules` 里部分成立，但 repo 还没有一层更上游、source-family-neutral 的 consumption unit schema。
 
 </current_truth>
 
@@ -112,7 +112,7 @@ status: planned
 - **02-07:** `target_surface` 是 repo-owned downstream target hint，不等于已 opened surface；当前至少需要支持：
   - `notice_runtime`
   - `regulations/scoped_rules`
-  - `regulations/institutional_regulations`
+  - `regulations/institutional_rules`
   - `service_status_runtime`
   - `publication_surface_candidate`
 - **02-08:** `temporal_policy` 必须独立于 runtime query mode，至少能表达：
@@ -155,7 +155,7 @@ status: planned
 - `.planning/workstreams/notice-consumption-layer/phases/phase-1-source-family-boundary/PLAN.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`

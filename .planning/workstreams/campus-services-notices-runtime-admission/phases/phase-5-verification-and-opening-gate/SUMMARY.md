@@ -26,13 +26,13 @@ status: completed
   - 缺 regression / eval evidence 或缺 typed observability summary 时也不能 opening
 - 把这些 truth 写回 repo-level 长期文档，而不只留在 phase plan：
   - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-  - `docs/architecture/execution-and-specialists-architecture.md`
+  - `docs/architecture/execution-and-agents-architecture.md`
   - `docs/architecture/operator-observability-architecture.md`
   - `docs/contracts/app-api-supervisor-execution.md`
 
 ## Fresh Evidence
 
-- `git diff --check -- docs/plans/archive/completed/campus-services-notices-runtime-admission.md docs/architecture/execution-and-specialists-architecture.md docs/architecture/operator-observability-architecture.md docs/contracts/app-api-supervisor-execution.md .planning/workstreams/campus-services-notices-runtime-admission/ROADMAP.md .planning/workstreams/campus-services-notices-runtime-admission/STATE.md .planning/WORKSTREAMS.md .planning/workstreams/campus-services-notices-runtime-admission/phases/phase-5-verification-and-opening-gate/SUMMARY.md`
+- `git diff --check -- docs/plans/archive/completed/campus-services-notices-runtime-admission.md docs/architecture/execution-and-agents-architecture.md docs/architecture/operator-observability-architecture.md docs/contracts/app-api-supervisor-execution.md .planning/workstreams/campus-services-notices-runtime-admission/ROADMAP.md .planning/workstreams/campus-services-notices-runtime-admission/STATE.md .planning/WORKSTREAMS.md .planning/workstreams/campus-services-notices-runtime-admission/phases/phase-5-verification-and-opening-gate/SUMMARY.md`
 
 ## Handoff
 

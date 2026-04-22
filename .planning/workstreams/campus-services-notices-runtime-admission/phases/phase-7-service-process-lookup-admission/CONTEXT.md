@@ -19,7 +19,7 @@ status: planned
 - 冻结 `service_process_lookup` 作为 later-wave `campus-services-agent` tool 的准入边界
 - 明确哪些校园服务办理步骤 / 材料 / 入口类问题在具备足够 normalized truth 后可进入 structured runtime
 - 冻结 `campus_services/service_catalog` 作为 process-oriented semantic-owner truth 的前向 runtime owner
-- 明确它与 `rag-specialist`、`contact_directory_lookup`、`service_status_lookup`、`official_web/stable_reference`、`regulations/student_handbook` 的边界
+- 明确它与 `rag-specialist`、`contact_directory_lookup`、`service_status_lookup`、`official_web/stable_reference`、`regulations/student_rules` 的边界
 
 它不负责：
 
@@ -65,7 +65,7 @@ status: planned
 - repo 当前还没有 `service_process_lookup` shared contract。
 - 还没有把“哪些流程问题继续留在 `rag-specialist`，哪些未来可迁入 structured tool”写成明确规则。
 - 还没有 `service_catalog` process projection 的 canonical field set、related contact linkage 与 fail-close semantics。
-- 还没有把 handbook-derived flow graph、future official-web 办事说明页与 `regulations/student_handbook` 条款边界统一写成 later-wave runtime truth。
+- 还没有把 handbook-derived flow graph、future official-web 办事说明页与 `regulations/student_rules` 条款边界统一写成 later-wave runtime truth。
 
 </specifics>
 
@@ -81,7 +81,7 @@ status: planned
 - `configs/ingestion/campus_services/service_catalog/runtime-profile.json`
 - `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/STATE.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`

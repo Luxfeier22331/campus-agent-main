@@ -8,7 +8,7 @@ updated: 2026-03-31
 
 # ADR-0019 Qdrant Physical Collection Retention And Expiration
 
-适用范围：所有已进入 release-managed lifecycle 的 Qdrant collection，包括当前 `query_serving` 的 `student_handbook`、`curriculum_plan`，以及当前仍处于 `offline_preparation` 的 collection
+适用范围：所有已进入 release-managed lifecycle 的 Qdrant collection，包括当前 `query_serving` 的 `student_rules`、`curriculum_plan`，以及当前仍处于 `offline_preparation` 的 collection
 
 ## 背景
 

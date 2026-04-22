@@ -2,16 +2,16 @@
 doc_type: phase_plan
 phase: "6"
 phase_name: "Institutional Regulations Target Chunk-Prep Parity"
-status: planned
+status: completed
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # Phase 6 Plan
 
 ## Objective
 
-把 `regulations/institutional_regulations` 的 target-side chunk-prep / validation 收口到与
+把 `regulations/institutional_rules` 的 target-side chunk-prep / validation 收口到与
 `regulations/scoped_rules` 同级的 repo-native acceptance seam，固定 shared operator path、
 artifact triplet、collection-specific validation truth，并把整个 workstream 正式恢复到
 `Phase 7` 可执行状态。
@@ -20,7 +20,7 @@ artifact triplet、collection-specific validation truth，并把整个 workstrea
 
 当前 repo 已经有：
 
-- `institutional_regulations` chunk-prep core + worker + tests
+- `institutional_rules` chunk-prep core + worker + tests
 - `scoped_rules` chunk-prep core + worker + tests
 - target-side acceptance runbook
 - `offline_preparation` stop point
@@ -39,9 +39,9 @@ artifact triplet、collection-specific validation truth，并把整个 workstrea
 
 ## Locked Inputs
 
-- 目标 scope 固定为 `regulations/institutional_regulations` + `regulations/scoped_rules`
+- 目标 scope 固定为 `regulations/institutional_rules` + `regulations/scoped_rules`
 - stop point 固定为 `offline_preparation`
-- `institutional_regulations` 继续保留 identity / semantic-owner lineage fail-close
+- `institutional_rules` 继续保留 identity / semantic-owner lineage fail-close
 - `scoped_rules` 继续保留 `document_nature` / `cycle_year` / `school_unit_name` fail-close
 - 不重开：
   - source replay
@@ -123,6 +123,6 @@ artifact triplet、collection-specific validation truth，并把整个 workstrea
 
 Phase 6 完成后，repo 应达到：
 
-- `institutional_regulations` 与 `scoped_rules` 的 target-side acceptance seam 已正式对齐
+- `institutional_rules` 与 `scoped_rules` 的 target-side acceptance seam 已正式对齐
 - collection-specific validation truth 仍显式保留
 - `Phase 7` 可以直接做 `11` 条 target 的 full rerun，而不必再争论 operator parity

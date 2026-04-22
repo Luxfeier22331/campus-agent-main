@@ -14,7 +14,7 @@ status: pending
 ## Current Truth
 
 - 当前 lane 固定为 `11` 条 admitted target，不扩到更宽 source scope
-- acceptance rerun 需要同时覆盖 `institutional_regulations` 与 `scoped_rules`
+- acceptance rerun 需要同时覆盖 `institutional_rules` 与 `scoped_rules`
 - 重点 fail-close 指标固定包括 title、contextualization、identity metadata、semantic-owner lineage、wrapper leak、front matter leak
 
 ## Guardrails

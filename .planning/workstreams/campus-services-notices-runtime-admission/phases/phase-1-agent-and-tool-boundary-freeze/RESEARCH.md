@@ -35,7 +35,7 @@ status: completed
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/agentic-retrieval-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`

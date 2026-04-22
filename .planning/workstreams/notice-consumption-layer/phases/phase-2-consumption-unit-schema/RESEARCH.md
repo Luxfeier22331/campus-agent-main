@@ -27,7 +27,7 @@ status: completed
 - `.planning/workstreams/notice-consumption-layer/phases/phase-1-source-family-boundary/PLAN.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
@@ -97,7 +97,7 @@ status: completed
   - `campus-services-agent`
   是 forward family labels
 - 但这些 label 不自动等于 runtime opening，也不自动等于 semantic owner。
-- 同理，`regulations/scoped_rules` / `regulations/institutional_regulations` 是 target collection / surface hints，不应被写成已开放事实。
+- 同理，`regulations/scoped_rules` / `regulations/institutional_rules` 是 target collection / surface hints，不应被写成已开放事实。
 
 ### 7. `completeness_status` 与 `answerability` 必须先入 schema，再在 Phase 3 定义规则
 

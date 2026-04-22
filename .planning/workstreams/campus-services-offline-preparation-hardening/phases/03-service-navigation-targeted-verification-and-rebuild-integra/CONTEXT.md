@@ -61,7 +61,7 @@ status: pending
 - `.planning/workstreams/campus-services-offline-preparation-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/02-bounded-handbook-service-navigation-ocr-materialization/PLAN.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/02-bounded-handbook-service-navigation-ocr-materialization/SUMMARY.md`
-- `configs/ingestion/regulations/student_handbook/source-projections.v1.json`
+- `configs/ingestion/regulations/student_rules/source-projections.v1.json`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_service_navigation_hybrid_materialization.py`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py`
 - `packages/ingestion-core/src/campus_ingestion_core/local_rebuild.py`

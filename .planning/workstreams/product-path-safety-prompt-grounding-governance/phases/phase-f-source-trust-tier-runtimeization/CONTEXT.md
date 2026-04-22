@@ -13,7 +13,7 @@ status: pending
 
 ## Current Truth
 
-- A-E baseline 已完成并保持 passing；latest `student_handbook` artifact 继续作为 reopen anchor
+- A-E baseline 已完成并保持 passing；latest `student_rules` artifact 继续作为 reopen anchor
 - repo 当前有 `source_channel`，但还没有显式的 `source-trust tier` contract 和 `claim type x source tier x freshness` 的裁决真相
 - 后续 remote-content safety 与 abuse governance 都依赖这一层先冻结
 

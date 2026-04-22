@@ -95,7 +95,7 @@ updated: 2026-04-21
 - update active architecture/docs entrypoints：
   - `README.md`
   - `docs/architecture/current-architecture.md`
-  - `docs/architecture/execution-and-specialists-architecture.md`
+  - `docs/architecture/execution-and-agents-architecture.md`
   - `docs/architecture/target-architecture.md`
   - 其他 active supporting architecture / contract docs 若仍把 `rag-specialist` / `navigation-specialist` 写成 current truth
 - update active planning truth：

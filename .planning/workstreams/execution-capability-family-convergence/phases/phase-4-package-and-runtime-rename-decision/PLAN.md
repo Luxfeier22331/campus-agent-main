@@ -109,7 +109,7 @@ updated: 2026-04-21
 - `docs/plans/execution-capability-family-convergence.md`
 - 如 phase 执行后进入 full rename implementation，再更新：
   - `docs/architecture/current-architecture.md`
-  - `docs/architecture/execution-and-specialists-architecture.md`
+  - `docs/architecture/execution-and-agents-architecture.md`
   - `docs/architecture/target-architecture.md`
   - 必要的 repo planning truth
   - workspace package dirs / `pyproject.toml`

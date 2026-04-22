@@ -41,7 +41,7 @@ status: planned
 ## Current Truth
 
 - 当前 accepted merged truth 的 query-enabled surface 仍只有：
-  - `regulations/student_handbook`
+  - `regulations/student_rules`
   - `curriculum/curriculum_plan`
 - `campus_services/*` 当前仍是 `offline_preparation`；`service_catalog` runtime profile 仍是：
   - `retrieval_enabled=false`
@@ -106,7 +106,7 @@ status: planned
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/agentic-retrieval-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`

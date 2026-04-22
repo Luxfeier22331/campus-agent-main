@@ -18,7 +18,7 @@ Accepted on 2026-04-14.
 
 - `notice`、`attachment`、`regulation` 不是同一层资源
 - `campus_notices/internal_notice` 是 source-triage collection，不是 regulation owner
-- `regulations/institutional_regulations` 只接可独立消费的 canonical regulation text
+- `regulations/institutional_rules` 只接可独立消费的 canonical regulation text
 - `file_release` 可以成为 regulation owner body 的来源层，但不能伪装成 `notice`
 
 但在实际样本里，还存在大量“有价值、但不应进入 regulation”的受限文档：
@@ -70,7 +70,7 @@ Accepted on 2026-04-14.
 
 - 即使 attachment 标题中出现 `办法`、`实施办法`、`指导意见`
 - 也只有在它确实是当前学校 semantic owner 的 canonical text 时，才允许进入 `regulations/*`
-- 外部机构奖项申报办法、提名手册、项目操作手册，不因标题像制度就进入 `regulations/institutional_regulations`
+- 外部机构奖项申报办法、提名手册、项目操作手册，不因标题像制度就进入 `regulations/institutional_rules`
 
 ### 决策 2：已认证用户的“附件库 / 文档站”应作为独立资源层存在
 
@@ -178,7 +178,7 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - `中央民族大学网上报账系统使用手册`
 - `中央民族大学财务事项你问我答`
 
-这些内容当前都不进入 `regulations/institutional_regulations`。
+这些内容当前都不进入 `regulations/institutional_rules`。
 
 它们的正确落点是：
 

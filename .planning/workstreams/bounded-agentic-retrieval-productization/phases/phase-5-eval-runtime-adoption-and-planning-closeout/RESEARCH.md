@@ -103,7 +103,7 @@ Evals guidance 的核心不是单一总分，而是围绕明确任务切片做�
 - `app-api` internal eval ingress
   - 已能为 current-mode acceptance artifact 提供 canonical `request_id / trace_id`
 - `.planning/PROJECT.md` 当前已记录：
-  - `student_handbook` latest accepted live artifact
+  - `student_rules` latest accepted live artifact
   - `curriculum_plan` latest accepted live artifact
 
 固定结论：

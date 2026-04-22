@@ -82,7 +82,7 @@ status: planned
 - `.planning/workstreams/campus-services-notices-runtime-admission/ROADMAP.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/STATE.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-4-internal-query-service-and-supervisor-handoff-wiring/SUMMARY.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`

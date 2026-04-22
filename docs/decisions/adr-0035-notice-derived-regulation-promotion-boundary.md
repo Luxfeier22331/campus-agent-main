@@ -89,11 +89,11 @@ promotion boundary 至少负责判断：
 - promoted regulation 必须显式保留 `source_notice_ids`、`source_attachment_ref_id` 等 provenance
 - regulation identity / version 不得继续用 `notice_id` 充当长期主身份
 
-### 决策 5：repo-tracked target collection 固定为 `regulations/institutional_regulations`
+### 决策 5：repo-tracked target collection 固定为 `regulations/institutional_rules`
 
 对这条 source-channel 的第一条 notice-derived regulation target，repo 级命名固定为：
 
-- `regulations/institutional_regulations`
+- `regulations/institutional_rules`
 
 原因：
 

@@ -29,7 +29,7 @@ updated: 2026-04-21
 
 当前默认公开 query-enabled surface 仍限于：
 
-- `regulations/student_handbook`
+- `regulations/student_rules`
 - `curriculum/curriculum_plan`
 
 当前还存在若干 internal retrieval surface，但它们不因此自动成为默认公开 query-serving collection：

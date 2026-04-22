@@ -46,7 +46,7 @@ updated: 2026-04-22
   - public/restricted notice source family、authority / completeness / answerability 与 agent/surface handoff 已冻结
   - exemplar `关于启动2026届推荐优秀应届本科毕业生免试攻读研究生工作的通知` 已写实 current-state / future-state 双路由
 - adoption route 已收口为：
-  - `attachment_rule_body` -> `authenticated-notice-regulation-consumption` -> `regulations/institutional_regulations`
+  - `attachment_rule_body` -> `authenticated-notice-regulation-consumption` -> `regulations/institutional_rules`
   - `annual_cycle_rule` / `time_bound_operational_rule` -> `authenticated-notice-regulation-consumption` -> `regulations/scoped_rules`
   - public-source `lecture_activity` / publication-like unit -> backlog `official-web-source-channel-news-opening`
   - `service_status_override` 与 `attachment_form_template` 只冻结 future adoption direction，不编造 native implementation workstream

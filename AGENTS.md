@@ -6,7 +6,7 @@
 
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-agent -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平 tool
-- 当前 accepted merged truth 已具备 `student_handbook` 与 `curriculum_plan` 两条受控 query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；但它仍不是完整产品实现
+- 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控 query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前只对 `apps/app-api` 明确冻结为 Worker，其余边界尤其 `apps/supervisor-api` 不要为了实现便利提前绑定到单一 HTTP 框架
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史

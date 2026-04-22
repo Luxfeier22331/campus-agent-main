@@ -257,7 +257,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 当前 repo 级 target collection 命名固定为：
 
-- `regulations/institutional_regulations`
+- `regulations/institutional_rules`
 
 ## Restricted Document Center And Original Resource Boundary
 
@@ -281,7 +281,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 因此：
 
 - “对已认证用户有价值”不再自动等于“应进入 regulation collection”
-- research notice / operational notice 中的大量附件，可以进入 document center 或后续 owner-specific collection，而不是污染 `regulations/institutional_regulations`
+- research notice / operational notice 中的大量附件，可以进入 document center 或后续 owner-specific collection，而不是污染 `regulations/institutional_rules`
 - `讲座预告 / 论坛 / 讲堂 / 读书会` 这类 `lecture_publicity` 内容不规划进入 document center；如用户需要，仍回官方门户查看
 - `名单公示 / 成绩公示 / 结果公示 / 立项名单` 这类 `roster_publication` 内容不规划进入 document center；如用户需要，仍回官方门户查看
 - regulation / retrieval 只能消费 document center 或 source-triage 层投影出来的 owner text 与 metadata，不能反向充当原始附件下载真相层
@@ -300,7 +300,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 对当前 internal notice 派生制度导入批次，固定补充规则为：
 
-- `document_nature=institutional_regulation / annual_cycle_rule / time_bound_operational_rule` 都可以进入同一个 `regulations/institutional_regulations`
+- `document_nature=institutional_regulation / annual_cycle_rule / time_bound_operational_rule` 都可以进入同一个 `regulations/institutional_rules`
 - `annual_cycle_rule` 与 `time_bound_operational_rule` 只作为 metadata 区分，不再因为时间范围或项目范围而被分流到另一条主导入 collection
 - 真正继续留在 `campus_notices/internal_notice` 的，仍然是 `wrapper_notice_only`、draft/consultation、明确非制度 owner 的 source-triage 结果
 
@@ -324,7 +324,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 ## Semantic Owner Resolution
 
-对当前 `internal_notice -> regulations/institutional_regulations` 导入批次，固定再补一层 `semantic owner` 解析。
+对当前 `internal_notice -> regulations/institutional_rules` 导入批次，固定再补一层 `semantic owner` 解析。
 
 这层回答的不是：
 
@@ -348,7 +348,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 
 - `notice family` 只控制处理优先级，不决定 semantic owner
 - `attachment typed routing` 只控制提取路径，不决定 semantic owner
-- 只有 owner 已恢复出的 canonical 正文，才允许进入 `regulations/institutional_regulations`
+- 只有 owner 已恢复出的 canonical 正文，才允许进入 `regulations/institutional_rules`
 - wrapper notice 永远继续保留在 `campus_notices/internal_notice`
 
 当前批次固定采用 fail-close：

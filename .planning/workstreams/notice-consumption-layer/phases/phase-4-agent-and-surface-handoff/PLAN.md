@@ -51,7 +51,7 @@ route 与 worked example closeout 提供稳定输入。
     - `transport_schedule_lookup`
   - `rag-agent`
     - default retrieval-oriented knowledge owner
-- `regulations/institutional_regulations` / `regulations/scoped_rules` split 已由 ADR-0036 / ADR-0037 冻结。
+- `regulations/institutional_rules` / `regulations/scoped_rules` split 已由 ADR-0036 / ADR-0037 冻结。
 - 本 phase 不 admission 新 tool、新 runtime family、新 opening gate。
 
 ## Decisions To Freeze
@@ -67,7 +67,7 @@ route 与 worked example closeout 提供稳定输入。
    - `semantic_owner` 已稳定，不是 `wrapper_notice` / `authority_pending`
    - `completeness_status=complete`
    - `answerability=answerable`
-   - `target_surface` 是 `regulations/institutional_regulations` 或 `regulations/scoped_rules`
+   - `target_surface` 是 `regulations/institutional_rules` 或 `regulations/scoped_rules`
 5. `default_agent=future campus-services-agent` 只允许在以下条件同时成立时出现：
    - `primary_role` 与 service runtime 语义相容
    - `semantic_owner` 已稳定
@@ -95,7 +95,7 @@ route 与 worked example closeout 提供稳定输入。
     直到 dedicated publication runtime 被单独 admission
 12. `internal_notice_restricted` 的 `lecture_activity` / `roster_publication` 当前不构成产品 adoption candidate；它们继续停在 source-triage / provenance truth，不推进 query-facing surface。
 13. `attachment_rule_body` 固定映射为：
-    - stable formal rule body -> `regulations/institutional_regulations`
+    - stable formal rule body -> `regulations/institutional_rules`
     - scoped annual/time-bound rule body -> `regulations/scoped_rules`
     - 但两者都要求 `complete + answerable` 才能离开 notice lane
 14. `attachment_form_template` 第一版固定继续留在：

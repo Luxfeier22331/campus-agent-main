@@ -8,7 +8,7 @@ updated: 2026-03-31
 
 # ADR-0020 Qdrant Cloud Backup Restore And Object-Store Transition
 
-适用范围：所有已进入 release-managed lifecycle 的 Qdrant Cloud collection，包括当前 `student_handbook`、`curriculum_plan`、`service_catalog`、`contact_directory`
+适用范围：所有已进入 release-managed lifecycle 的 Qdrant Cloud collection，包括当前 `student_rules`、`curriculum_plan`、`service_catalog`、`contact_directory`
 
 ## 背景
 

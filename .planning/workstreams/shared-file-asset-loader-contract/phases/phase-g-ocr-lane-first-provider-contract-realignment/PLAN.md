@@ -44,7 +44,7 @@ updated: 2026-04-20
   - `docs/architecture/file-asset-loader-architecture.md`
   - `docs/architecture/authenticated-notice-source-architecture.md`
   - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
-  - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/REQUIREMENTS.md`
 - 明确写清：
   - `pdf`
   - simple/generic image
@@ -87,7 +87,7 @@ updated: 2026-04-20
 - `docs/environment/provider-and-secret-inventory.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-pilot-runbook.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/REQUIREMENTS.md`
 - `.env.example`
 - `env/commands/process-raw-ingestion-job.env.example`
 - `tests/ingestion/test_online_ocr_routing.py`

@@ -42,7 +42,7 @@ updated: 2026-04-22
 - regulation adoption route：
   - stable formal `attachment_rule_body`
     - -> `authenticated-notice-regulation-consumption`
-    - -> `regulations/institutional_regulations`
+    - -> `regulations/institutional_rules`
   - `annual_cycle_rule` / `time_bound_operational_rule`
     - -> `authenticated-notice-regulation-consumption`
     - -> `regulations/scoped_rules`

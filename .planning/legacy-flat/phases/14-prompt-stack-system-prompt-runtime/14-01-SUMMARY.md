@@ -31,7 +31,7 @@
   - `tests/api/test_supervisor_api.py`
   - `apps/supervisor-api/README.md`
   - `docs/architecture/prompt-and-instruction-architecture.md`
-  - `docs/architecture/execution-and-specialists-architecture.md`
+  - `docs/architecture/execution-and-agents-architecture.md`
 
 ## Verification
 

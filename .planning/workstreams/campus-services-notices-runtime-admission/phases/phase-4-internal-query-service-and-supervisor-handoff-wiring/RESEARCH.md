@@ -27,7 +27,7 @@ status: completed
 ## Repo Pattern Readings
 
 - `docs/contracts/app-api-supervisor-execution.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/supervisor-core/src/campus_supervisor_core/context.py`
 - `packages/supervisor-core/src/campus_supervisor_core/routing.py`

@@ -57,8 +57,8 @@ Execution rule: repo 可以同时存在多条 active workstream；每条 workstr
 
 | Workstream | Status | Entry | Current Slice |
 |------------|--------|-------|---------------|
-| `authenticated-notice -> regulation downstream consumption` | active | `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` | 当前固定维持 `11` 条 admitted regulation target + `scoped_rules` holding collection 的 non-auth bounded lane；继续收口 target-side metadata/quality gate，不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release，也不再混入 auth-window `file_release` owner recovery |
-| `authenticated-notice file_release owner recovery` | active | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | 当前前向切片固定为 `351119` 的 targeted `file_release` capture -> bounded owner body recovery -> promotion/materialization re-entry；不扩成 full export、source-wide replay 或 collector foundation 重写 |
+| `authenticated-notice -> regulation downstream consumption` | active | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | 当前固定维持 `11` 条 admitted regulation target + `scoped_rules` holding collection 的 non-auth bounded lane；继续收口 target-side metadata/quality gate，不做 unfiltered source-wide materialization，不碰 embedding/Qdrant/release，也不再混入 auth-window `file_release` owner recovery |
+| `authenticated-notice file_release owner recovery` | active | `docs/plans/authenticated-notice-file-release-owner-recovery.md` | `351119` 已被显式排除；当前前向切片改为“等待 admission 一个新的 non-excluded target，再执行 targeted `file_release` capture -> bounded owner body recovery -> promotion/materialization re-entry”；不扩成 full export、source-wide replay 或 collector foundation 重写 |
 | `product-path safety / prompt / grounding governance` | active | `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` | 当前前向切片是 live artifact rerun replacement 与持续 release-gate 治理；敏感问题拦截 / system prompt / grounding runtime / eval artifact refresh 继续只作为同一条线的顺序子层 |
 | `shared product surfaces acceptance / hardening` | active | `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` | 当前本地 Phase A-C baseline 已 fresh 通过：`app-api` type/test/worker/shared-db integration、`public-chat-web` type/test/build、`protected-panel-web` type/test/build；下一步是 browser smoke 和 Phase D integrated acceptance，固定顺序仍是 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout` |
 
@@ -72,19 +72,19 @@ Execution rule: repo 可以同时存在多条 active workstream；每条 workstr
 | `official-web source channel / news opening` | backlog `999.4` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
 | `campus navigation rollout / place_card / map consumption` | backlog `999.2` | 等待校园地图实际上线后再恢复 |
 
-- `authenticated-notice live portal / authenticated control-plane` 的唯一入口是 `docs/plans/authenticated-notice-live-portal-control-plane.md`
+- `authenticated-notice live portal / authenticated control-plane` 的唯一入口是 `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md`
 - 这条 deferred lane 覆盖 repo-native authenticated collector、live `notice` / `file_release` capture、scheduler/incremental sync、run ledger、artifact refs 与 source-channel control-plane
 - 它恢复后仍保持单一 workstream，内部固定顺序为 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout`
-- `operator observability / control-plane` 的唯一入口是 `docs/plans/operator-observability-control-plane-foundation.md`
+- `operator observability / control-plane` 的唯一入口是 `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`
 - 这条 deferred lane 覆盖 app-owned request observability fact、audit/quality/safety/cost read model、panel 新域与 sink participation
 - 它恢复后仍保持单一 workstream，内部固定顺序为 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout`
-- `restricted document rollout / verification` 的唯一入口是 `docs/plans/restricted-document-rollout-and-verification.md`
+- `restricted document rollout / verification` 的唯一入口是 `.planning/workstreams/restricted-document-rollout-verification/README.md`
 - 这条 deferred lane 覆盖 restricted collection / release posture、public/operator/service surface behavior、allow/deny matrix 与泄露防护验证
 - 它恢复后仍保持单一 workstream，内部固定顺序为 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout`
-- `official-web source channel / news opening` 的唯一入口是 `docs/plans/official-web-source-channel-news-opening.md`
+- `official-web source channel / news opening` 的唯一入口是 `docs/plans/archive/historical/official-web-source-channel-news-opening.md`
 - 这条 backlog lane 覆盖 `official_web` source/control-plane follow-up、`stable_reference` maintenance，以及 `fresh_news` / `news_archive` opening execution / acceptance
 - 它恢复后仍保持单一 workstream，内部固定顺序为 `source/control-plane -> stable_reference maintenance -> fresh_news opening -> news_archive opening -> acceptance closeout`
-- `campus navigation rollout / place_card / map consumption` 的唯一入口是 `docs/plans/campus-navigation-rollout-map-consumption.md`
+- `campus navigation rollout / place_card / map consumption` 的唯一入口是 `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md`
 - 这条 backlog lane 覆盖地图上线后的 `place_lookup` 产品路径恢复、`place_card` / map consumption，以及 staging/manual acceptance
 - 它恢复后仍保持单一 workstream，内部固定顺序为 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout`
 
@@ -239,7 +239,7 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 - Phase 1000 `1000-01` 与 `1000-02` 的当前有效结论已更新：canonical/source-unit evidence contract 已冻结，`课程设置` / `修读建议` 继续走 `curriculum_lookup` 非 procedure 路径；`课程地图` 已因真实 OCR 抽样证据不足被收回当前业务范围，runtime 现已对这类 query fail-close，不再进入 retrieval/support selection
 - Phase 1000 `1000-03` 已完成：`program_semester_facts` 现已改为 position-preserving table normalization，`大学英语(四)` 类 sparse-row data loss 已有 deterministic coverage，worker/local-rebuild 也已支持按 canonical `source_document_id` 做 targeted rematerialization
 - Phase 1000 `1000-04` 已完成：raw retrieved candidates 与 final supporting evidence 现已在 supervisor / eval / app-api / operator 全链路拆分；targeted rematerialization 已配合 fresh `program_semester_facts` publish release `r20260413_042533` 完成，curriculum live accept artifact 已刷新为 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000/`
-- `docs/plans/post-closeout-follow-up-execution-plan.md` 已转为 deferred reference：Wave A/B/D/E 主体完成，Wave C 只剩 switched-provider historical artifact replacement rerun
+- `docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md` 已转为 deferred reference：Wave A/B/D/E 主体完成，Wave C 只剩 switched-provider historical artifact replacement rerun
 - Phase 1001 `1001-01` 已完成：官方 map / campus-tour authoritative source inventory、first-batch candidate inventory、`seed_ready` vs `park_pending_geometry` admission posture，以及 clarification-first ambiguity family 现已 repo-tracked
 - Phase 1001 `1001-02` 已完成：`place_catalog` 现已接受 nullable geometry posture，first-batch seed 已从 `7` 条扩到 `12` 条；generic `图书馆` 现会 clarification-first，campus-qualified alias 保持 direct completion，official-label-backed row 即使无 point geometry 也能稳定产出 place truth
 - 2026-04-14 已新增 backlog `999.2`：地图实际上线前，不把 `place_card` / map consumption 或 staging/manual acceptance 继续写成当前执行项；当前 supervisor 产品路径已对 `place_lookup` fail-close
@@ -253,6 +253,7 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 - 2026-04-18 已将 shared product surfaces acceptance / hardening 注册为当前 active product workstream：`apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 必须按 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout` 顺序推进，同一 workstream 内不再并发
 - 2026-04-18 已将 authenticated-notice 数据面 follow-up 拆成两条 workstream：非认证的 `authenticated-notice -> regulation downstream consumption` 只负责已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening；需要认证窗口的 `authenticated-notice file_release owner recovery` 单独承接 `351119` 的 targeted capture、owner body recovery 与回接 promotion/materialization
 - 2026-04-19 已冻结 `authenticated-notice live portal / authenticated control-plane` 为单条 deferred workstream：repo-native authenticated collector、live `notice` / `file_release` capture、scheduler/incremental sync、run ledger 与 source-channel control-plane 都只作为顺序子层推进；恢复前继续保持 deferred
+- 2026-04-21 operator 已显式排除 `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`，它不再是 auth-window `file_release` capture 或 owner recovery 的默认/备选 target；后续如果恢复这条线，必须先 admission 一个新的 non-excluded target
 - 2026-04-18 已冻结 `product-path safety / prompt / grounding governance` 为单条 active workstream：`敏感问题拦截`、`system prompt`、`grounding runtime`、`eval/operator artifact refresh` 都只作为顺序子层推进；当前前向切片是 live artifact rerun replacement 与持续 release-gate 治理
 - 2026-04-19 已冻结 `operator observability / control-plane` 为单条 deferred workstream：request-scoped observability fact、audit/quality/safety/cost read model、panel 新域与 sink participation 都只作为顺序子层推进；恢复前继续保持 deferred
 - 2026-04-18 已冻结 `restricted document rollout / verification` 为单条 deferred workstream：restricted collection rollout、public/operator/service surface behavior、allow/deny matrix 与 leakage-hardening evidence 都只作为顺序子层推进；恢复前继续保持 deferred
@@ -261,17 +262,17 @@ Decision history now lives in `PROJECT.md` Key Decisions。
 
 ### Pending Todos
 
-- 推进 `authenticated-notice -> regulation downstream consumption` 的会话，统一以 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` 为唯一入口；当前只处理已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening，不再混入 auth-window `file_release` capture
+- 推进 `authenticated-notice -> regulation downstream consumption` 的会话，统一以 `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` 为唯一入口；当前只处理已捕获 corpus 的 admitted regulation / `scoped_rules` downstream hardening，不再混入 auth-window `file_release` capture
 - 上述 non-auth regulation downstream workstream 的近端 follow-up 已登记为 `.planning/todos/pending/2026-04-18-internal-notice-legacy-office-downstream-metadata-truth.md`；固定顺序是 `文档真相刷新 -> legacy Office normalization contract -> worker-owned normalizer/provenance -> 可盘点 fail-close/backlog 语义`，不扩到 auth owner recovery 或 query-serving reopen
 - 推进 `authenticated-notice file_release owner recovery` 的会话，统一以 `docs/plans/authenticated-notice-file-release-owner-recovery.md` 为唯一入口；固定顺序保持 `auth-window targeted capture -> source-byte verification -> owner body recovery -> promotion/materialization re-entry -> bounded validation`
-- 如果认证窗口恢复或产品决定重开 authenticated source-channel live portal / control-plane，统一以 `docs/plans/authenticated-notice-live-portal-control-plane.md` 为唯一入口；恢复后固定顺序保持 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout`
+- 如果认证窗口恢复或产品决定重开 authenticated source-channel live portal / control-plane，统一以 `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` 为唯一入口；恢复后固定顺序保持 `collector runtime/repo migration truth refresh -> auth bootstrap/live capture policy/scheduling -> run ledger/artifact refs/auth readiness -> live-historical reconcile -> operator control-plane/bounded APIs -> planning closeout`
 - 推进 `product-path safety / prompt / grounding governance` 的会话，统一以 `docs/plans/archive/completed/hallucination-governance-and-grounded-generation-execution-plan.md` 为唯一入口；不再拆成敏感问题拦截 / system prompt / grounding / eval artifact 多条并发线
 - 推进 `shared product surfaces acceptance / hardening` 的会话，统一以 `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` 为唯一入口；固定顺序保持 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance -> staging closeout`
 - 当 `shared product surfaces` workstream 进入 Phase E 时，按新的 `deploy:preflight:staging` / release-scoped evidence contract 执行真实 deploy closeout
-- 如果产品范围决定恢复 operator observability / control-plane，统一以 `docs/plans/operator-observability-control-plane-foundation.md` 为唯一入口；恢复后固定顺序保持 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout`
-- 如果产品范围决定恢复 restricted rollout，统一以 `docs/plans/restricted-document-rollout-and-verification.md` 为唯一入口；恢复后固定顺序保持 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout`
-- 如果校园地图实际上线、导航产品路径需要恢复，统一以 `docs/plans/campus-navigation-rollout-map-consumption.md` 为唯一入口；恢复后固定顺序保持 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout`
-- 如果 `official_web` 新闻面后续重新进入产品优先级，统一以 `docs/plans/official-web-source-channel-news-opening.md` 为唯一入口；恢复后固定顺序保持 `source/control-plane -> stable_reference maintenance -> fresh_news opening -> news_archive opening -> acceptance closeout`
+- 如果产品范围决定恢复 operator observability / control-plane，统一以 `docs/plans/archive/completed/operator-observability-control-plane-foundation.md` 为唯一入口；恢复后固定顺序保持 `request-scoped observability foundation -> audit projection -> metric rollup/APIs -> panel domain expansion -> sink participation/grading backflow -> planning closeout`
+- 如果产品范围决定恢复 restricted rollout，统一以 `.planning/workstreams/restricted-document-rollout-verification/README.md` 为唯一入口；恢复后固定顺序保持 `authorization/release posture -> restricted collection rollout -> surface behavior -> verification/leakage hardening -> planning closeout`
+- 如果校园地图实际上线、导航产品路径需要恢复，统一以 `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` 为唯一入口；恢复后固定顺序保持 `map-launch preconditions -> place_lookup runtime recovery -> place_card/map consumption -> staging/manual acceptance -> planning closeout`
+- 如果 `official_web` 新闻面后续重新进入产品优先级，统一以 `docs/plans/archive/historical/official-web-source-channel-news-opening.md` 为唯一入口；恢复后固定顺序保持 `source/control-plane -> stable_reference maintenance -> fresh_news opening -> news_archive opening -> acceptance closeout`
 - 等待地图实际上线后，再从 backlog `999.2` promote 导航产品路径、`place_card` / map consumption 与 staging/manual acceptance
 
 ### Blockers/Concerns

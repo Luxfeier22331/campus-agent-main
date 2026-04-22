@@ -25,7 +25,7 @@ updated: 2026-04-10
 - `docs/decisions/adr-0002-local-minio-conventions.md` 的 bucket / object-store 不变量
 - `docs/architecture/data-plane-architecture.md` 的 repo 级 data-plane chain
 - `docs/architecture/authenticated-notice-source-truth-contract.md` 的 `notice` source-truth contract
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md` 的规章制度消费与 promotion 方案
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` 的规章制度消费与 promotion 方案
 
 ## 当前问题
 
@@ -265,7 +265,7 @@ post-cleanup fresh local audit：
 - `docs/architecture/data-plane-architecture.md`
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 
 ## 外部参考

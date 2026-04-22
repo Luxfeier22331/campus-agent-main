@@ -91,8 +91,8 @@ The phase does not:
 
 ### Architecture and policy boundaries
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`

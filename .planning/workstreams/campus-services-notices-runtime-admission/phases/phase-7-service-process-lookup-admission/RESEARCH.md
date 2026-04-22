@@ -64,7 +64,7 @@ status: completed
   - repo 当前已验证 handbook-derived `service_navigation_document` hybrid materialization，可产出 `flow-graph.json`、`canonical.md`、`document-units.jsonl`。
   - 这证明 structured process truth 的方向成立，但也说明当前 coverage 仍不足以把所有流程问题都迁出 `rag-specialist`。
 - service process and policy text are related but not identical
-  - `student_handbook` / `official_web/stable_reference` 仍承接制度条款、说明性文本与办事说明正文。
+  - `student_rules` / `official_web/stable_reference` 仍承接制度条款、说明性文本与办事说明正文。
   - 如果 future `service_process_lookup` 被 admission，它应优先承接“有明确服务边界、步骤、材料、入口、受众”的 process facts，而不是把所有制度条款都结构化搬走。
 - contact remains a neighboring but separate truth owner
   - `service_process_lookup` 可以返回 related contact refs，但 canonical contact truth 仍应由 `contact_directory_lookup` / `campus_services/contact_directory` 拥有。

@@ -29,7 +29,7 @@ status: completed
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/RESEARCH.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/PLAN.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
@@ -75,17 +75,17 @@ status: completed
 - `annual_cycle_rule` / `time_bound_operational_rule` 的 future query contract 也要求显式 metadata / filter / temporal policy
 - 因此 `body_only_answerable` 不能成为 `rag-agent` / `campus-services-agent` 的 adoption ticket。
 
-### 5. `regulations/institutional_regulations` 与 `regulations/scoped_rules` 的 target-surface split 已有明确真相
+### 5. `regulations/institutional_rules` 与 `regulations/scoped_rules` 的 target-surface split 已有明确真相
 
 - `ADR-0036` 已明确：
   - `annual_cycle_rule`
   - `time_bound_operational_rule`
-  不进入 `regulations/institutional_regulations`
+  不进入 `regulations/institutional_rules`
 - `ADR-0037` 已明确：
   - 这两类文档的 holding target 是 `regulations/scoped_rules`
   - 该 surface 当前仍是 `offline_preparation + query_disabled`
 - 因此 `Phase 4` 可以直接冻结：
-  - stable formal rule body -> future `rag-agent` + `regulations/institutional_regulations`
+  - stable formal rule body -> future `rag-agent` + `regulations/institutional_rules`
   - annual/time-bound scoped rule body -> future `rag-agent` + `regulations/scoped_rules`
 
 ### 6. `service_status_runtime` 需要比“看起来像运营通知”更强的 handoff 条件
@@ -131,7 +131,7 @@ status: completed
 2. 显式 notice task 的第一入口始终是 `notice-agent`。
 3. 只有 `complete + answerable` units 才有资格成为 future `rag-agent` / `campus-services-agent` candidate。
 4. `body_only_answerable` / `manual_review_required` / `reference_only` / `not_answerable` 都不得 handoff 给下游 semantic-owner agent。
-5. `annual_cycle_rule` / `time_bound_operational_rule` 的 canonical future target 是 `regulations/scoped_rules`，不是 `institutional_regulations`。
+5. `annual_cycle_rule` / `time_bound_operational_rule` 的 canonical future target 是 `regulations/scoped_rules`，不是 `institutional_rules`。
 6. `service_status_runtime` 只接已经 service-shaped 的 current-effective override truth。
 7. `publication_surface_candidate` 在 dedicated runtime 缺席时，默认继续由 `notice-agent` 承接；internal restricted `lecture_activity` / `roster_publication` 不进入当前产品 adoption。
 8. restricted source family 的 runtime opening 继续独立受 gate 约束。
@@ -151,7 +151,7 @@ status: completed
 
 - 如果把 `default_agent` / `target_surface` 重新写成 runtime admission 事实，会和已完成的 runtime-admission workstream 冲突。
 - 如果允许 `body_only_answerable` 直接 handoff 到 `rag-agent` / `campus-services-agent`，wrapper notice 会重新污染 semantic-owner surface。
-- 如果不区分 `regulations/institutional_regulations` 与 `regulations/scoped_rules`，`annual_cycle_rule` / `time_bound_operational_rule` 的边界会再次回退。
+- 如果不区分 `regulations/institutional_rules` 与 `regulations/scoped_rules`，`annual_cycle_rule` / `time_bound_operational_rule` 的边界会再次回退。
 - 如果把 `publication_surface_candidate` 误写成已开放 surface，会提前制造不存在的产品入口。
 
 ## Conclusions For Phase 4

@@ -12,7 +12,7 @@
 
 该仓库当前的核心约束包括：
 
-- 当前 query-enabled surface 是 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled surface 是 `regulations/student_rules` 与 `curriculum/curriculum_plan`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
 - `apps/supervisor-api` 是 internal execution engine，不是产品后端
 - online query path 与 offline data plane 持续分层
@@ -104,10 +104,12 @@ pnpm install
 pnpm lint
 pnpm web:lint
 pnpm docs:lint
+pnpm editorconfig:lint
 pnpm env:lint
 pnpm yaml:lint
 pnpm toml:lint
 pnpm shell:lint
+pnpm docker:lint
 uv run --all-packages python -m unittest discover -s tests -t .
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
@@ -118,7 +120,7 @@ pnpm web:test:integration
 pnpm web:build
 ```
 
-其中 `pnpm lint` 是仓库级 live-surface lint gate：默认只覆盖 tracked 的源码、tests、repo-owned config、active docs、tracked `.env.example`、tracked YAML/TOML、tracked shell scripts，不进入 `.planning/`、archive/historical 文档、vendor、generated、未跟踪草稿与本地 runtime 产物。
+其中 `pnpm lint` 是仓库级 live-surface lint gate：默认覆盖 tracked 的源码、tests、repo-owned config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked `.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked YAML/TOML、tracked shell scripts，不进入 `.planning/`、archive/historical 文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 是独立 Dockerfile lane，默认不并入 `pnpm lint`。
 
 更细的验证 lane 与 smoke 路径见：
 

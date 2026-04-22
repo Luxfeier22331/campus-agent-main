@@ -82,7 +82,7 @@ status: planned
 - **05-04:** adoption routing 固定按 role family 收口：
   - stable formal `attachment_rule_body`
     - -> deferred `authenticated-notice -> regulation downstream consumption`
-    - -> `regulations/institutional_regulations`
+    - -> `regulations/institutional_rules`
   - `annual_cycle_rule` / `time_bound_operational_rule`
     - -> deferred `authenticated-notice -> regulation downstream consumption`
     - -> `regulations/scoped_rules`

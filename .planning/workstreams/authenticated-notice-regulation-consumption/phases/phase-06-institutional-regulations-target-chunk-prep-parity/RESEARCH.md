@@ -12,7 +12,7 @@ status: completed
 
 把 `Phase 6: Institutional Regulations Target Chunk-Prep Parity` 建立在三类事实之上：
 
-- repo 已经存在的 `institutional_regulations` / `scoped_rules` target-side chunk-prep code 与测试
+- repo 已经存在的 `institutional_rules` / `scoped_rules` target-side chunk-prep code 与测试
 - 当前 `offline_preparation` stop point 与 target-side acceptance runbook
 - 官方向量检索产品对显式 metadata / filtering / ranking 的当前建议
 
@@ -52,7 +52,7 @@ status: completed
 
 ### 1. repo 已经具备双 lane 的 core worker + CLI worker + targeted tests
 
-- `institutional_regulations` 已有：
+- `institutional_rules` 已有：
   - core prep function
   - CLI worker
   - core unit tests
@@ -71,7 +71,7 @@ status: completed
   - `validation-summary.json`
   - `document-reports.jsonl`
 - 但它们保留不同的 fail-close truth：
-  - `institutional_regulations`
+  - `institutional_rules`
     - identity metadata
     - semantic-owner lineage
   - `scoped_rules`
@@ -83,7 +83,7 @@ status: completed
   - shared artifact shape
   - collection-specific validation counters
 
-### 3. `institutional_regulations` 的 owner-lineage 检查是 acceptance truth，不是 parity 异常
+### 3. `institutional_rules` 的 owner-lineage 检查是 acceptance truth，不是 parity 异常
 
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md` 已明确要求：
   - `source_notice_document_id`
@@ -111,7 +111,7 @@ status: completed
   - `source_notice_release_time`
   - year / temporal hints
   应继续保留为 metadata / future query policy input，
-  但不能反向改写当前 `institutional_regulations` 与 `scoped_rules` 的 collection membership。
+  但不能反向改写当前 `institutional_rules` 与 `scoped_rules` 的 collection membership。
 
 ### 6. 当前正确 stop point 仍是 isolated local snapshot 下的 `offline_preparation`
 
@@ -131,7 +131,7 @@ status: completed
 ### 7. 先完成 parity，再做 11-target rerun，顺序是对的
 
 - 当前 repo 已经明确 `Phase 7` 要对现有 `11` 条 admitted target 做 full rerun。
-- 如果先不把 `institutional_regulations` lane 的 parity seam 写清，后续 rerun 的失败会混成：
+- 如果先不把 `institutional_rules` lane 的 parity seam 写清，后续 rerun 的失败会混成：
   - acceptance 真失败
   - operator path 不一致
   - artifact contract 不一致
@@ -139,8 +139,8 @@ status: completed
 
 ## Phase-6 Decisions To Freeze
 
-1. `institutional_regulations` 与 `scoped_rules` 的 parity 基线是 shared operator/artifact seam，不是 identical validation counters。
-2. `institutional_regulations` 的 identity / lineage fail-close 检查继续保持 collection-specific truth。
+1. `institutional_rules` 与 `scoped_rules` 的 parity 基线是 shared operator/artifact seam，不是 identical validation counters。
+2. `institutional_rules` 的 identity / lineage fail-close 检查继续保持 collection-specific truth。
 3. `documents.json + object-store-root + output-dir + artifact triplet` 固定是双 lane 的 shared operator seam。
 4. `cycle_year`、`school_unit_name`、`document_nature`、`source_notice_ids`、`semantic_owner_document_id` 等 metadata 继续在 `offline_preparation` 阶段显式保留。
 5. `source_notice_release_time` 等时间字段继续只作为 metadata / future ranking or filter input，不回写当前 collection membership truth。

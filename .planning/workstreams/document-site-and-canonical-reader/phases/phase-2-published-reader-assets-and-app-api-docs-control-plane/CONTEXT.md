@@ -84,7 +84,7 @@ status: planned
   - `highlightRootUnitIds`
   不得返回 raw chunk locator 或 operator compact source trace。
 - **02-07:** `Phase 2` 默认先覆盖当前两条默认公开 query-enabled collection：
-  - `regulations/student_handbook`
+  - `regulations/student_rules`
   - `curriculum/curriculum_plan`
   但实现必须保留 corpus/collection 级扩展能力，不写死到单 collection。
 - **02-08:** deploy sync manifest 必须由 app-owned truth 产生；前端 deploy 不允许直接扫描对象存储自行猜测应发布哪些文档版本。

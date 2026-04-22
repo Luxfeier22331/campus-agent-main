@@ -39,7 +39,7 @@ status: completed
 - `tests/supervisor/test_supervisor_query_policy.py`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-1-agent-and-tool-boundary-freeze/PLAN.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 
 ## Standard Stack

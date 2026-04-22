@@ -89,7 +89,7 @@ GSD 当前 phase dir 仍是：
 - `.planning/workstreams/campus-services-offline-preparation-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/01-service-navigation-projection-contract-freeze/PLAN.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/01.1-bounded-service-navigation-multimodal-probe-and-admission/SUMMARY.md`
-- `configs/ingestion/regulations/student_handbook/source-projections.v1.json`
+- `configs/ingestion/regulations/student_rules/source-projections.v1.json`
 - `docs/architecture/file-asset-loader-architecture.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py`

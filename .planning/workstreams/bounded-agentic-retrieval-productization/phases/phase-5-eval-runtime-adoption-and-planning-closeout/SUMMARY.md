@@ -48,7 +48,7 @@ updated: 2026-04-22
 - `app-api` internal eval ingress
   - current-mode acceptance artifact 的 canonical `request_id / trace_id`
 - `.planning/PROJECT.md`
-  - 已记录的 `student_handbook` accepted live artifact
+  - 已记录的 `student_rules` accepted live artifact
   - 已记录的 `curriculum_plan` accepted live artifact
 
 固定结论：

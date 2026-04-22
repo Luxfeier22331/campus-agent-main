@@ -55,7 +55,7 @@ updated: 2026-04-22
   - `retrieval-core` 已执行 `freshness_gate`，在 local freshness 不满足时 fail-close 并短路 indexed lookup
   - `build_ordered_retrieval_plan(...)` 已按 collection/query-mode 发出 source-trust policy：
     - `curriculum/* -> T0`
-    - `student_handbook -> T1`
+    - `student_rules -> T1`
     - `stable_reference -> T2`
     - `freshness_sensitive / live_assisted -> T3`
   - `retrieval-core` 已把 source-trust prefilter 前移到 merged evidence，但当前只对 `freshness_sensitive / live_assisted` branch 生效

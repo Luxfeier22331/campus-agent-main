@@ -14,7 +14,7 @@ Accepted on 2026-04-14.
 
 ## 背景
 
-`internal_notice -> regulations/institutional_regulations` 这条 regulation promotion 线已经冻结了以下边界：
+`internal_notice -> regulations/institutional_rules` 这条 regulation promotion 线已经冻结了以下边界：
 
 - `notice`、`attachment`、`regulation` 是不同层级
 - wrapper notice 继续留在 `campus_notices/internal_notice`
@@ -44,7 +44,7 @@ Accepted on 2026-04-14.
 
 ### 决策 1：regulation 标题固定拆成 work / edition / display 三层
 
-对 `regulations/institutional_regulations`，长期正确的标题字段固定拆为：
+对 `regulations/institutional_rules`，长期正确的标题字段固定拆为：
 
 - `regulation_work_title`
   - 制度作品标题，不包含年份版次、最新版等版本标签
@@ -210,8 +210,8 @@ Accepted on 2026-04-14.
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/architecture/authenticated-notice-source-architecture.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
-- `configs/ingestion/regulations/institutional_regulations/canonical-profile.json`
-- `configs/ingestion/regulations/institutional_regulations/source-projections.v1.json`
+- `configs/ingestion/regulations/institutional_rules/canonical-profile.json`
+- `configs/ingestion/regulations/institutional_rules/source-projections.v1.json`
 
 ## External References
 

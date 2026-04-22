@@ -761,14 +761,14 @@ Plans:
 Plans:
 - [ ] TBD (promote with `$gsd-review-backlog` after map launch)
 
-### Phase 999.3: 认证窗口内补齐 351119 file_release capture 与 regulation owner recovery 输入物 (BACKLOG)
+### Phase 999.3: 认证窗口内重定向 file_release owner recovery 目标（351119 已排除） (BACKLOG)
 
-**Goal:** 待下次可用认证窗口到来时，对 `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知` 执行 bounded `file_release` capture，补齐 regulation owner recovery 所需的 bundle / manifest / source bytes 输入物。
+**Goal:** `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知` 已被显式排除，不再作为 auth-window capture 或 owner recovery 目标。待产品重新提升这条线优先级时，先 admission 一个新的 non-excluded target，再执行 bounded `file_release` capture 与 regulation owner recovery 输入物准备。
 **Requirements:** TBD
 **Plans:** 0 plans
 
 Plans:
-- [ ] TBD (promote with `$gsd-review-backlog` when the next authenticated file_release export window is available)
+- [ ] TBD (promote with `$gsd-review-backlog` after a new non-excluded owner-recovery target is explicitly admitted)
 
 ### Phase 999.4: Official Web 新闻面 opening execution / acceptance deferred backlog (BACKLOG)
 
@@ -787,6 +787,24 @@ Plans:
 
 Plans:
 - [ ] TBD (promote with `$gsd-review-backlog` when authenticated notice scope expansion is prioritized)
+
+### Phase 999.6: 认证通知附件负结果 ledger 与 completeness 补采 (BACKLOG)
+
+**Goal:** 为 authenticated notice attachment 当前残留的 `404` / `reference_only` 缺口补一条 repo-tracked backlog：冻结负结果 ledger、bounded re-acquisition gate 与 completeness truth，让 `attachments_declared / attachments_captured / negative_result` 明确分层；它与 `999.3` 的 targeted `file_release` capture 并行，但不替代 `file_release` owner recovery。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when attachment negative-result replay or completeness repair is prioritized)
+
+### Phase 999.7: source bucket versioning / retention hardening deferred backlog (BACKLOG)
+
+**Goal:** 将 `campus-rag-source` 的 versioning / retention / immutability 硬化明确降为后置技术债：当前 auth-window 主线继续优先保障 capture throughput、exclusion truth、negative-result ledger 与 owner-recovery 输入物准备；只有当 source bucket 进入审计回滚、生命周期清理或多 writer 运维阶段时，再恢复这条 backlog 评估是否需要开启 object-store versioning、retention 或 object lock。
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `$gsd-review-backlog` when source-bucket audit recovery or lifecycle hardening becomes a real priority)
 
 ### Phase 1001: Campus Navigation Place Catalog Expansion And Acceptance Evidence (PAUSED)
 

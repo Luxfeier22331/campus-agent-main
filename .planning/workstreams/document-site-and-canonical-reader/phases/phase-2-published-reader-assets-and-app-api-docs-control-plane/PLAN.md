@@ -45,7 +45,7 @@ updated: 2026-04-21
 - `anchor + rootUnitId` 是用户态定位与高亮 contract
 - public / restricted reader 共用同一 payload/model，但 delivery mode 必须分化
 - 本 phase 的首发覆盖范围默认是：
-  - `regulations/student_handbook`
+  - `regulations/student_rules`
   - `curriculum/curriculum_plan`
 
 ## Decisions To Freeze
@@ -125,7 +125,7 @@ updated: 2026-04-21
   - resolve/search contract tests
   - visibility / delivery-mode tests
 - 如需要最小 smoke harness：
-  - 为 `student_handbook` 与 `curriculum_plan` 增加 sample publish fixtures
+  - 为 `student_rules` 与 `curriculum_plan` 增加 sample publish fixtures
 - 明确 fail-close 断言：
   - restricted version 不得伪装成 public static path
   - response 不得泄漏 `chunkId`、object key、raw source locator

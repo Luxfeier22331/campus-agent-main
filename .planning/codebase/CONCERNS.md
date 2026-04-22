@@ -24,7 +24,7 @@
 
 ## Known Bugs
 
-No current query-scope crash is recorded here: the old `student_handbook`-only routing bug has been removed, and query-serving scope is now enforced through runtime-profile-backed supervisor policy with structured fail-closed errors.
+No current query-scope crash is recorded here: the old `student_rules`-only routing bug has been removed, and query-serving scope is now enforced through runtime-profile-backed supervisor policy with structured fail-closed errors.
 
 ## Security Considerations
 

@@ -22,7 +22,7 @@ Accepted on 2026-04-11.
 
 同时，本轮仍保持不变的前提有两条：
 
-- 它们不能进入 `regulations/institutional_regulations`
+- 它们不能进入 `regulations/institutional_rules`
 - 它们也不应该继续留在 source-triage 层冒充“只是没看完”
 
 因此需要一个更小、更符合当前阶段的 repo truth：
@@ -93,11 +93,11 @@ repo 新增统一 target collection：
 - detailed query semantics 不是 `scoped_rules` import gate
 - 如果后续要把 `scoped_rules` 从 `offline_preparation` 推进到 query-serving，再单独冻结 query-planning / filter policy / eval
 
-### 决策 5：`institutional_regulations` 的边界保持不变
+### 决策 5：`institutional_rules` 的边界保持不变
 
 本 ADR 不改写以下既有真相：
 
-- `regulations/institutional_regulations` 仍只收稳定正式规章正文
+- `regulations/institutional_rules` 仍只收稳定正式规章正文
 - `campus_notices/internal_notice` 仍是 source-triage collection
 - wrapper notice 继续留在 `internal_notice`
 

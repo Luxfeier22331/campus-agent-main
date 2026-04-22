@@ -105,7 +105,7 @@ status: planned
 - `.planning/workstreams/campus-services-notices-runtime-admission/STATE.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-3-structured-truth-admission-and-query-projection-freeze/SUMMARY.md`
 - `docs/contracts/app-api-supervisor-execution.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/supervisor-core/src/campus_supervisor_core/context.py`
 - `packages/supervisor-core/src/campus_supervisor_core/routing.py`

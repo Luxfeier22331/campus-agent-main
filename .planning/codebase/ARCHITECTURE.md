@@ -8,7 +8,7 @@
 
 **Key Characteristics:**
 - Policy-driven multi-agent path: the current forward product topology is `public-chat-web -> app-api -> supervisor-api` for public chat and `protected-panel-web -> app-api` for operator read surfaces; `apps/supervisor-api` then frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or `packages/availability-specialist` through the shared `SupervisorRequest` / `SpecialistRequest` / `SupervisorResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/target-architecture.md`.
-- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_handbook`/`curriculum_plan`, most of which is described in `docs/architecture/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
+- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_rules`/`curriculum_plan`, most of which is described in `docs/architecture/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
 ## Layers

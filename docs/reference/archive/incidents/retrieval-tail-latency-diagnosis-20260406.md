@@ -86,7 +86,7 @@ Wave 2 的历史决策是：
 
 - Wave 1 已完成：
   - `CollectionRuntimeProfile` 增加 `document_support_strategy`
-  - `student_handbook` 与 `curriculum_plan` 已切到 `targeted_overfetch`
+  - `student_rules` 与 `curriculum_plan` 已切到 `targeted_overfetch`
   - 已解析单文档请求会跳过 follow-up support `query_points`
 - Wave 2 已完成：
   - `ingestion-core` 新增 `curriculum_program_semester_facts_projection.py`

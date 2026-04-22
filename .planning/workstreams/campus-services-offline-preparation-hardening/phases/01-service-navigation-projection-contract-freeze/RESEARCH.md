@@ -24,7 +24,7 @@ status: completed
 
 ## Repo Pattern Readings
 
-- `configs/ingestion/regulations/student_handbook/source-projections.v1.json`
+- `configs/ingestion/regulations/student_rules/source-projections.v1.json`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_cleanup.py`
