@@ -1,0 +1,24 @@
+{
+	"name": "public-docs",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "rspress build",
+		"dev": "rspress dev --host 127.0.0.1 --port 5177",
+		"preview": "rspress preview --host 127.0.0.1 --port 4177",
+		"sync:real-docs": "uv run --all-packages python scripts/sync_real_docs.py"
+	},
+	"dependencies": {
+		"@rspress/core": "^2.0.9",
+		"@xyflow/react": "^12.10.2",
+		"dagre": "^0.8.5"
+	},
+	"devDependencies": {
+		"@types/node": "^22.8.1",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4"
+	}
+}

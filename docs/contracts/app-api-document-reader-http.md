@@ -4,12 +4,12 @@ status: active
 created: 2026-04-21
 updated: 2026-04-21
 ---
-
 # App API Document Reader HTTP Contract
 
 ## 文档边界
 
-本文冻结 shared `apps/app-api` 对未来 `public-docs-web` 暴露的 browser-facing docs control-plane HTTP contract。
+本文冻结 shared `apps/app-api` 对未来 `public-docs` 暴露的 browser-facing docs
+control-plane HTTP contract。
 
 它回答的是：
 
@@ -27,15 +27,18 @@ updated: 2026-04-21
 
 补充约束：
 
-- 当前 `app-api` browser-facing 核心 contract 仍以 `docs/contracts/app-api-http.md` 为准；本文是 docs site 的 forward contract
-- restricted visibility 与 version mode 规则分别服从 `docs/architecture/identity-and-authorization-architecture.md` 与 `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+- 当前 `app-api` browser-facing 核心 contract 仍以 `docs/contracts/app-api-http.md`
+  为准；本文是 docs site 的 forward contract
+- restricted visibility 与 version mode 规则分别服从
+  `docs/architecture/system/identity-and-authorization-architecture.md` 与
+  `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 
 ## 适用范围
 
 长期调用形态固定为：
 
-- `browser -> public-docs-web static reader assets`
-- `browser -> public-docs-web same-site /api/docs/* -> app-api`
+- `browser -> public-docs static reader assets`
+- `browser -> public-docs same-site /api/docs/* -> app-api`
 - `browser -> public-chat-web same-site /api/* -> app-api`
 
 因此：
@@ -49,8 +52,10 @@ updated: 2026-04-21
 
 - JSON body 使用 `camelCase`
 - `corpus` / `collection` / `versionMode` 使用小写语义值
-- control-plane contract 不返回 raw chunk payload、source bucket key、provider artifact path 或 raw retrieval trace
-- public published reader content 默认由 static reader assets 承载，而不是由 `/api/docs/*` 承载整篇正文
+- control-plane contract 不返回 raw chunk payload、source bucket key、provider
+  artifact path 或 raw retrieval trace
+- public published reader content 默认由 static reader assets 承载，而不是由 `/api/docs/*`
+  承载整篇正文
 - current version 是默认语义；historical version 必须显式指定
 - restricted admission 失败时直接 fail-close，不返回“伪装成不存在”的高亮内容片段
 
@@ -59,8 +64,10 @@ updated: 2026-04-21
 - `GET /api/docs/collections/:corpus/:collection/navigation`
 - `GET /api/docs/collections/:corpus/:collection/search`
 - `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
-- `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
-- `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
+- `GET
+  /api/docs/collections/:corpus/:collection/documents/:documentSlug/versions`
+- `GET
+  /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
 
 ## Navigation Contract
 
@@ -200,11 +207,12 @@ updated: 2026-04-21
   - `gated_asset`
 - `anchor` 是稳定导航单位
 - response 不返回 `chunkId`、`score`、`sourceUnitKey`、raw snippet dump
-- `gated_asset` 的默认 URL 继续保持 same-site，由 `public-docs-web` 受控代理交付
-- `gated_asset` 的 v1 delivery 默认要求 `public-docs-web` 逐请求向 `app-api` 做 authz 校验
+- `gated_asset` 的默认 URL 继续保持 same-site，由 `public-docs` 受控代理交付
+- `gated_asset` 的 v1 delivery 默认要求 `public-docs` 逐请求向 `app-api` 做 authz 校验
 - `gated_asset` 不应把对象存储 endpoint、presigned URL 或 bucket key 暴露给 browser
 - short-lived grant token / local verification 不属于当前默认 contract
-- future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static path
+- future restricted delivery 可以继续使用同一格式，但 `deliveryMode` 不得伪装成匿名 public static
+  path
 
 ## Docs Search Contract
 
@@ -281,7 +289,7 @@ chat 与 docs search 共用如下最小 citation target 形态：
 ## 相关稳定文档
 
 - `docs/contracts/app-api-http.md`
-- `docs/architecture/document-site-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

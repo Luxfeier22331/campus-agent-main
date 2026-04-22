@@ -1,0 +1,420 @@
+const data = {
+	generatedAt: "2026-04-22T22:51:01.182905+00:00",
+	documentTitle: "中国少数民族语言文学本科人才培养方案",
+	documentId: "curriculum:中国少数民族语言文学本科人才培养方案",
+	rawAssetId: "asset:curriculum-plan-2022",
+	rawVersionId: "sha256:0416e3d70c48d86238d2869c477ab60407ddbb9a09a76bee57aaeb0c97ab3f67",
+	blocks: [
+		{
+			blockId: "page-0115-page-0115-block-mineru-block-0005-0005-map-01",
+			title: "中国少数民族语言文学（普通班）专业本科课程结构拓扑图",
+			status: "partial",
+			titleConfidence: "partial",
+			pageNumber: 115,
+			rowId: "page-0115-block-mineru-block-0005-0005",
+			mapIndex: 1,
+			parentHeadingHint: "六、课程地图",
+			displayStageLabels: [
+				"本科一年级",
+				"本科二年级",
+				"本科三年级",
+				"本科四年级"
+			],
+			extractionNotes: [
+				"当前裁切区域仅识别到 1 张完整课程地图，未拆分出更多独立子图。",
+				"图中多处文字较小，部分课程名辨识不完全确定，尤其本科三年级右上黄色课程名可能存在误读。",
+				"本科二年级中有两门均显示为“中国少数民族语言通论”，左右列可能实际课程名不同，但图中分辨率下无法稳定区分，故按可见文字原样保留。",
+				"仅保留了箭头方向清晰可见的连线；大量仅见折线连接但未清楚显示箭头方向的关系未输出。",
+				"图例中的类别名称可见，但各节点与类别的一一对应关系不够稳定，category_label统一留空。",
+				"至少有一个检测到的课程地图区域标题不够清晰。"
+			],
+			imageSrc: "/course-maps/中国少数民族语言文学本科人才培养方案/page-0115-page-0115-block-mineru-block-0005-0005-map-01.png",
+			nodes: [
+				{
+					node_label: "思政课",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "基本素养课",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "综合素养课",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "语言学概论",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 1
+				},
+				{
+					node_label: "专业方向导论",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 0
+				},
+				{
+					node_label: "现代汉语",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 1
+				},
+				{
+					node_label: "古代汉语",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 1,
+					outgoing_count: 0
+				},
+				{
+					node_label: "大学写作",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国当代文学",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 2
+				},
+				{
+					node_label: "中国古代文学",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 0
+				},
+				{
+					node_label: "文学理论",
+					stage_label: "本科一年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 1
+				},
+				{
+					node_label: "思政课",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "基本素养课",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "综合素养课",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族语言概论",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "语言文学研究方法",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "专业选修课",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "extension",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "个性化培养课程",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族文学概论",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "民族语基础（一）",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 1
+				},
+				{
+					node_label: "民族语基础（二）",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 1
+				},
+				{
+					node_label: "中国少数民族语言通论",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 2
+				},
+				{
+					node_label: "中国少数民族语言通论",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 2
+				},
+				{
+					node_label: "社会语言学",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族古代文学",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族当代文学",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族古代文学",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "外国文学",
+					stage_label: "本科二年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 1,
+					outgoing_count: 0
+				},
+				{
+					node_label: "思政课",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "综合素养课",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "语言调查",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 2,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族民间文学概论",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "中国少数民族语言杂文献学",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "语言学专题",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "语言文字信息处理",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "双语少数民族语言翻译理论与实践",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "practice",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "民族文写作",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "专业选修课",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "extension",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "个性化培养课程",
+					stage_label: "本科三年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "综合素养",
+					stage_label: "本科四年级",
+					category_label: "",
+					route_group: "foundation",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "实践环节",
+					stage_label: "本科四年级",
+					category_label: "",
+					route_group: "practice",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "专业选修课",
+					stage_label: "本科四年级",
+					category_label: "",
+					route_group: "extension",
+					incoming_count: 0,
+					outgoing_count: 0
+				},
+				{
+					node_label: "个性化培养课程",
+					stage_label: "本科四年级",
+					category_label: "",
+					route_group: "core",
+					incoming_count: 0,
+					outgoing_count: 0
+				}
+			],
+			edges: [
+				{
+					source_label: "语言学概论",
+					target_label: "专业方向导论"
+				},
+				{
+					source_label: "现代汉语",
+					target_label: "古代汉语"
+				},
+				{
+					source_label: "中国当代文学",
+					target_label: "中国古代文学"
+				},
+				{
+					source_label: "中国当代文学",
+					target_label: "文学理论"
+				},
+				{
+					source_label: "文学理论",
+					target_label: "外国文学"
+				},
+				{
+					source_label: "民族语基础（一）",
+					target_label: "民族语基础（二）"
+				},
+				{
+					source_label: "中国少数民族语言通论",
+					target_label: "中国少数民族语言通论"
+				},
+				{
+					source_label: "中国少数民族语言通论",
+					target_label: "语言调查"
+				},
+				{
+					source_label: "民族语基础（二）",
+					target_label: "语言调查"
+				}
+			]
+		}
+	]
+} as const;
+
+export default data;

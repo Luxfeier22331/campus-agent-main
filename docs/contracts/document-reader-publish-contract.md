@@ -4,7 +4,6 @@ status: active
 created: 2026-04-21
 updated: 2026-04-21
 ---
-
 # Document Reader Publish Contract
 
 ## 文档边界
@@ -15,7 +14,7 @@ updated: 2026-04-21
 
 - published reader assets 的长期真相应该放在哪里
 - 对象存储里的 reader asset package 应采用什么 object key 形式
-- `public-docs-web` deploy-time sync 应如何从对象存储取公开子集
+- `public-docs` deploy-time sync 应如何从对象存储取公开子集
 - public / restricted / historical reader 在静态交付上如何分层
 
 它不负责：
@@ -27,9 +26,12 @@ updated: 2026-04-21
 
 补充约束：
 
-- canonical data-plane chain 仍以 `docs/architecture/data-plane-architecture.md` 为准
-- `public-docs-web` / `app-api` 的产品分层仍以 `docs/architecture/document-site-architecture.md` 为准
-- browser-facing docs control-plane contract 仍以 `docs/contracts/app-api-document-reader-http.md` 为准
+- canonical data-plane chain 仍以 `docs/architecture/system/data-plane-architecture.md`
+  为准
+- `public-docs` / `app-api` 的产品分层仍以
+  `docs/architecture/system/document-site-architecture.md` 为准
+- browser-facing docs control-plane contract 仍以
+  `docs/contracts/app-api-document-reader-http.md` 为准
 
 ## Core Conclusion
 
@@ -41,14 +43,15 @@ published reader assets 的长期语义固定拆成两层：
 这意味着：
 
 - 对象存储是长期 publish artifact owner
-- `public-docs-web` static assets 只是公开子集的部署期复制品
+- `public-docs` static assets 只是公开子集的部署期复制品
 - repo `assets/` 目录或源码目录下的静态文件不承担长期 reader truth
 
 ## Publish Source Of Truth
 
 reader asset package 的真相源固定为：
 
-`canonical document artifacts -> reader projection -> object storage reader asset package`
+`canonical document artifacts -> reader projection -> object storage reader
+asset package`
 
 固定规则：
 
@@ -63,15 +66,21 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 
 长期 object key 形态固定为：
 
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/reader.json`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/outline.json`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/meta.json`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/asset-manifest.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/reader.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/outline.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/meta.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/asset-manifest.json`
 
 必要时允许在同一 `reader-assets/` 目录下增加 surface-specific supplement，例如：
 
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/course-maps.json`
-- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/course-maps/<block-id>.png`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/course-maps.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year
+  }/reader-assets/course-maps/<block-id>.png`
 
 说明：
 
@@ -103,13 +112,15 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - `reader.json` / `outline.json` / `meta.json` 是发布对象
 - `asset-manifest.json` 是 package 自描述清单
 - browser URL 不直接暴露 object key
-- browser-facing `contentUrl` / `outlineUrl` 来自 deploy sync 后的 Worker static path，而不是对象存储路径
+- browser-facing `contentUrl` / `outlineUrl` 来自 deploy sync 后的 Worker static
+  path，而不是对象存储路径
 
 ## Deploy-Time Sync Contract
 
-`public-docs-web` 的 deploy pipeline 固定走：
+`public-docs` 的 deploy pipeline 固定走：
 
-`app-api / control-plane truth -> deploy sync manifest -> object storage fetch -> local generated static dir -> Worker static assets deploy`
+`app-api / control-plane truth -> deploy sync manifest -> object storage fetch
+-> local generated static dir -> Worker static assets deploy`
 
 这里固定拆成两个输入：
 
@@ -122,7 +133,7 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 补充解释：
 
 - 这里的对象存储输入只存在于 publish/deploy pipeline
-- `public-docs-web` browser runtime 不直连对象存储
+- `public-docs` browser runtime 不直连对象存储
 - browser 运行时只读取：
   - same-site `/api/docs/*` control-plane seam
   - deploy sync 后落到 `/_docs/...` 的 static assets
@@ -141,7 +152,7 @@ deploy sync manifest 的最小逻辑形态固定为：
 
 ```json
 {
-  "surface": "public_docs_web",
+  "surface": "public_docs",
   "generatedAt": "2026-04-21T10:00:00.000Z",
   "entries": [
     {
@@ -175,7 +186,7 @@ deploy sync manifest 的最小逻辑形态固定为：
 reader asset package 的 content format 可以统一，但 delivery mode 必须显式区分：
 
 - `public_static_asset`
-  - 允许进入 `public-docs-web` static bundle
+  - 允许进入 `public-docs` static bundle
 - `gated_asset`
   - 不进入匿名 public static bundle
 - `withheld`
@@ -188,16 +199,18 @@ reader asset package 的 content format 可以统一，但 delivery mode 必须�
 - restricted 文档默认不能进入匿名 public static bundle
 - `gated_asset` 可以与 public 使用同一 asset format，但不能共用同一路径曝光模型
 - `gated_asset` 的默认交付路径固定为 same-site controlled proxy，而不是对象存储 presigned URL
-- `gated_asset` 返回给 browser 的 URL 应保持在 `public-docs-web` hostname 下
+- `gated_asset` 返回给 browser 的 URL 应保持在 `public-docs` hostname 下
 - v1 proxy 层必须先完成逐请求 `app-api` authz 校验，再读取对象存储 bytes
-- short-lived grant token / local verification 只保留为 future optimization，不作为默认交付 contract
-- direct presigned URL 只允许作为 future optimization / explicit exception，不作为默认 contract
+- short-lived grant token / local verification 只保留为 future optimization，不作为默认交付
+  contract
+- direct presigned URL 只允许作为 future optimization / explicit exception，不作为默认
+  contract
 
 ## Local Staging Directory
 
 deploy 期间允许在 repo 内生成临时目录，例如：
 
-- `apps/public-docs-web/.generated/static/_docs/...`
+- `apps/public-docs/.generated/static/_docs/...`
 
 固定规则：
 
@@ -212,7 +225,7 @@ deploy sync 前必须至少验证：
 - manifest 中所有 object key 都存在
 - `asset-manifest.json` 的 hash / size 与 source object 一致
 - target path 不发生冲突
-- 当前发布子集满足 `public-docs-web` 平台限制
+- 当前发布子集满足 `public-docs` 平台限制
 - `gated_asset` / `withheld` 没有误入 public static bundle
 
 ## Forbidden Shapes
@@ -226,8 +239,8 @@ deploy sync 前必须至少验证：
 
 ## 相关稳定文档
 
-- `docs/architecture/document-site-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
 - `docs/contracts/app-api-document-reader-http.md`
 - `docs/data/canonical-document-reader-model.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`

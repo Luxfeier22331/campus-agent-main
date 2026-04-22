@@ -4,7 +4,6 @@ status: active
 created: 2026-04-21
 updated: 2026-04-21
 ---
-
 # Canonical Document Reader Model
 
 ## 文档边界
@@ -26,7 +25,8 @@ updated: 2026-04-21
 
 ## Goal
 
-在不改写 repo canonical chain 的前提下，为文档阅读、版本切换、docs search、静态 reader asset 发布与 chat citation jump 提供统一的 reader-facing model。
+在不改写 repo canonical chain 的前提下，为文档阅读、版本切换、docs search、静态 reader asset 发布与 chat
+citation jump 提供统一的 reader-facing model。
 
 固定目标：
 
@@ -39,16 +39,19 @@ updated: 2026-04-21
 
 reader model 的长期位置固定为：
 
-`source truth -> declared projections -> canonical document artifacts -> reader projection -> published reader assets`
+`source truth -> declared projections -> canonical document artifacts -> reader
+projection -> published reader assets`
 
-`source truth -> declared projections -> canonical document artifacts -> document-units -> chunks -> index`
+`source truth -> declared projections -> canonical document artifacts ->
+document-units -> chunks -> index`
 
 因此：
 
 - reader projection 的语义 owner 是 canonical document layer
 - published reader assets 是 reader projection 的发布产物，不是新的 truth layer
 - chunk/index 只是检索派生物，不是 reader truth owner
-- reader projection 可以复用 `document-units` 的稳定字段，但不等于原始 `document-units.jsonl` 文件逐行直出
+- reader projection 可以复用 `document-units` 的稳定字段，但不等于原始 `document-units.jsonl`
+  文件逐行直出
 
 ## Core Conclusion
 
@@ -245,7 +248,7 @@ docs search 与 chat 共享的最小公共子集固定为：
 
 ## 相关稳定文档
 
-- `docs/architecture/document-site-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

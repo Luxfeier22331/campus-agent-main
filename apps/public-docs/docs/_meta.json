@@ -1,0 +1,13 @@
+[
+	"index",
+	{
+		"type": "dir",
+		"name": "student-handbook",
+		"label": "学生手册"
+	},
+	{
+		"type": "dir",
+		"name": "curriculum-plan",
+		"label": "培养方案"
+	}
+]
