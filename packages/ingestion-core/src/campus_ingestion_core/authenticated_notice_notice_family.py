@@ -3,9 +3,10 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.collection_config import resolve_collection_truth_config
 

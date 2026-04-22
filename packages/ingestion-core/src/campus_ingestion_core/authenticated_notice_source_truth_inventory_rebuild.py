@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_projections import (
     _find_processed_key,

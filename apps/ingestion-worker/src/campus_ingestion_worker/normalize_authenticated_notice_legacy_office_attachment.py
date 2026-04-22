@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.file_asset_contract import serialize_file_asset_outcome
 from campus_ingestion_core.file_asset_legacy_office import (

@@ -49,9 +49,11 @@ public class LegacyOfficeConversionController {
     } catch (final LegacyOfficeConversionService.ConversionBadRequestException ex) {
       return buildError(HttpStatus.BAD_REQUEST, "invalid_request", ex.getMessage(), false);
     } catch (final LegacyOfficeConversionService.ConversionUnavailableException ex) {
-      return buildError(HttpStatus.SERVICE_UNAVAILABLE, "runtime_unavailable", ex.getMessage(), true);
+      return buildError(
+          HttpStatus.SERVICE_UNAVAILABLE, "runtime_unavailable", ex.getMessage(), true);
     } catch (final LegacyOfficeConversionService.DeterministicConversionFailureException ex) {
-      return buildError(HttpStatus.UNPROCESSABLE_ENTITY, "conversion_failed", ex.getMessage(), false);
+      return buildError(
+          HttpStatus.UNPROCESSABLE_ENTITY, "conversion_failed", ex.getMessage(), false);
     }
   }
 
@@ -68,19 +70,15 @@ public class LegacyOfficeConversionController {
   }
 
   public record ConversionRequestPayload(
-      @JsonProperty("source_media_type")
-      @NotBlank(message = "source_media_type is required")
-      String sourceMediaType,
-      @JsonProperty("target_format")
-      @NotBlank(message = "target_format is required")
-      String targetFormat,
-      @JsonProperty("source_sha256")
-      @NotBlank(message = "source_sha256 is required")
-      String sourceSha256,
+      @JsonProperty("source_media_type") @NotBlank(message = "source_media_type is required")
+          String sourceMediaType,
+      @JsonProperty("target_format") @NotBlank(message = "target_format is required")
+          String targetFormat,
+      @JsonProperty("source_sha256") @NotBlank(message = "source_sha256 is required")
+          String sourceSha256,
       @NotBlank(message = "filename is required") String filename,
-      @JsonProperty("source_bytes_b64")
-      @NotBlank(message = "source_bytes_b64 is required")
-      String sourceBytesB64) {}
+      @JsonProperty("source_bytes_b64") @NotBlank(message = "source_bytes_b64 is required")
+          String sourceBytesB64) {}
 
   public record ConversionResponsePayload(
       String target_format,

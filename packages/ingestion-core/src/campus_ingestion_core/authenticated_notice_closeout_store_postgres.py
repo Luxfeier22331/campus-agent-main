@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_closeout_models import (
     CloseoutBatch,

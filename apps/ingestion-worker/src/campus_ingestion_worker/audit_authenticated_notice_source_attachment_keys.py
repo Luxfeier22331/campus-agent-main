@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth import (
     build_authenticated_notice_attachment_capture_key,

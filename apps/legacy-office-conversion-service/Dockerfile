@@ -1,9 +1,14 @@
-FROM maven:3.9.11-eclipse-temurin-21 AS unit-tests
+FROM maven:3.9.11-eclipse-temurin-21 AS deps
 WORKDIR /build
 
 COPY apps/legacy-office-conversion-service/pom.xml ./pom.xml
 RUN mvn -B -q -DskipTests dependency:go-offline
 
+FROM deps AS lint
+COPY apps/legacy-office-conversion-service/src ./src
+RUN mvn -B -q spotless:check
+
+FROM deps AS unit-tests
 COPY apps/legacy-office-conversion-service/src ./src
 RUN mvn -B -q test
 

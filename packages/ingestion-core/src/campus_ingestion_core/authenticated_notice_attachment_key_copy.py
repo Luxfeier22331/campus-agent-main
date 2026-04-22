@@ -299,7 +299,7 @@ def _process_candidate(
             raise ValueError(
                 f"{candidate.canonical_object_key} byte_size mismatch after copy: "
                 f"source={source_byte_size}, target={target_byte_size}"
-            )
+            ) from None
         return _candidate_result(
             candidate=candidate,
             status="copied",

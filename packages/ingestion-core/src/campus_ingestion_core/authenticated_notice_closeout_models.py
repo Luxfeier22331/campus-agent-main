@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta, timezone
-from enum import Enum
-from typing import Any, Sequence
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
@@ -27,11 +28,11 @@ DEFAULT_CLOSEOUT_LEASE_SECONDS = 300
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def utc_now_dt() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def lease_expires_at(lease_seconds: int) -> str:
@@ -48,7 +49,7 @@ def coerce_non_negative(value: int) -> int:
     return max(0, int(value))
 
 
-class CloseoutRunState(str, Enum):
+class CloseoutRunState(StrEnum):
     PLANNING = "planning"
     PLANNED = "planned"
     RUNNING = "running"
@@ -59,28 +60,28 @@ class CloseoutRunState(str, Enum):
     FAILED = "failed"
 
 
-class CloseoutShardState(str, Enum):
+class CloseoutShardState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutBatchState(str, Enum):
+class CloseoutBatchState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutWorkerState(str, Enum):
+class CloseoutWorkerState(StrEnum):
     IDLE = "idle"
     RUNNING = "running"
     DONE = "done"
     FAILED = "failed"
 
 
-class CloseoutPromotionBatchState(str, Enum):
+class CloseoutPromotionBatchState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"

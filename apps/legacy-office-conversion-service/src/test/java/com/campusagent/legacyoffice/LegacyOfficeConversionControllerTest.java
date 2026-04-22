@@ -86,7 +86,9 @@ class LegacyOfficeConversionControllerTest {
   @Test
   void mapsBadRequestFailures() throws Exception {
     when(conversionService.convert(any()))
-        .thenThrow(new LegacyOfficeConversionService.ConversionBadRequestException("unsupported target_format"));
+        .thenThrow(
+            new LegacyOfficeConversionService.ConversionBadRequestException(
+                "unsupported target_format"));
 
     mockMvc
         .perform(

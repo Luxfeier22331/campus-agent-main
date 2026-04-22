@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_source_truth import (
     AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
@@ -50,7 +51,7 @@ def normalize_authenticated_notice_legacy_export(
     missing_notice_ids = tuple(
         notice_id for notice_id in normalized_ids if notice_id not in found_ids
     )
-    exported_timestamp = exported_at or datetime.now(timezone.utc).isoformat()
+    exported_timestamp = exported_at or datetime.now(UTC).isoformat()
     normalized_manifest = build_authenticated_notice_legacy_normalized_manifest(
         legacy_manifest=legacy_manifest,
         site_id=site_id,

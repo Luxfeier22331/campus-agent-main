@@ -4,9 +4,10 @@ import argparse
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 

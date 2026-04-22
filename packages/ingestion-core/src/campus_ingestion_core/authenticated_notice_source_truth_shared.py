@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -182,7 +182,7 @@ def _exported_at(export_manifest: dict[str, Any] | None) -> str:
     candidate = _optional_text((export_manifest or {}).get("exported_at"))
     if candidate is not None:
         return candidate
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _content_kind_for_relation(

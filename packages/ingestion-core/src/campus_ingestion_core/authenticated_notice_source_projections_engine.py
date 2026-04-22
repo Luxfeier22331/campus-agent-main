@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from campus_ingestion_core.authenticated_notice_attachment_ocr import (
     build_authenticated_notice_ocr_attachment_artifacts,

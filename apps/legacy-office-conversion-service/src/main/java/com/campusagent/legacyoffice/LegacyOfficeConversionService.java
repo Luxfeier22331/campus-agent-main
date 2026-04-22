@@ -40,7 +40,8 @@ public class LegacyOfficeConversionService {
   private volatile String engineVersion = "unknown";
 
   public LegacyOfficeConversionService(
-      @Value("${LIBREOFFICE_SERVICE_WORKDIR:/tmp/legacy-office-conversion}") final String workingDir,
+      @Value("${LIBREOFFICE_SERVICE_WORKDIR:/tmp/legacy-office-conversion}")
+          final String workingDir,
       @Value("${LIBREOFFICE_HOME:}") final String officeHome,
       @Value("${LIBREOFFICE_SERVICE_TASK_TIMEOUT_MS:120000}") final long taskTimeoutMs,
       @Value("${LIBREOFFICE_SERVICE_QUEUE_TIMEOUT_MS:150000}") final long queueTimeoutMs,
@@ -64,7 +65,8 @@ public class LegacyOfficeConversionService {
     final var actualSourceSha = sha256Hex(decodedBytes);
     if (!actualSourceSha.equals(command.sourceSha256())) {
       throw new ConversionBadRequestException(
-          "source_sha256 mismatch: expected %s but got %s".formatted(command.sourceSha256(), actualSourceSha));
+          "source_sha256 mismatch: expected %s but got %s"
+              .formatted(command.sourceSha256(), actualSourceSha));
     }
 
     final var sourceFormat = resolveSourceFormat(command.filename(), command.sourceMediaType());
@@ -72,7 +74,8 @@ public class LegacyOfficeConversionService {
 
     try (final var inputStream = new ByteArrayInputStream(decodedBytes);
         final var outputStream = new ByteArrayOutputStream()) {
-      final DocumentConverter converter = LocalConverter.builder().officeManager(officeManager).build();
+      final DocumentConverter converter =
+          LocalConverter.builder().officeManager(officeManager).build();
       converter.convert(inputStream).as(sourceFormat).to(outputStream).as(targetFormat).execute();
       final var normalizedBytes = outputStream.toByteArray();
       return new ConversionResult(
@@ -84,7 +87,8 @@ public class LegacyOfficeConversionService {
           engineVersion,
           List.of());
     } catch (final OfficeException | IOException ex) {
-      throw new DeterministicConversionFailureException("legacy Office conversion failed: " + ex.getMessage(), ex);
+      throw new DeterministicConversionFailureException(
+          "legacy Office conversion failed: " + ex.getMessage(), ex);
     }
   }
 
@@ -142,7 +146,8 @@ public class LegacyOfficeConversionService {
 
   private void validateCommand(final ConversionCommand command) {
     if (!TARGET_MEDIA_TYPES.containsKey(command.targetFormat())) {
-      throw new ConversionBadRequestException("unsupported target_format: " + command.targetFormat());
+      throw new ConversionBadRequestException(
+          "unsupported target_format: " + command.targetFormat());
     }
   }
 
@@ -161,7 +166,8 @@ public class LegacyOfficeConversionService {
     return switch (targetFormat) {
       case "docx" -> DefaultDocumentFormatRegistry.DOCX;
       case "xlsx" -> DefaultDocumentFormatRegistry.XLSX;
-      default -> throw new ConversionBadRequestException("unsupported target_format: " + targetFormat);
+      default ->
+          throw new ConversionBadRequestException("unsupported target_format: " + targetFormat);
     };
   }
 

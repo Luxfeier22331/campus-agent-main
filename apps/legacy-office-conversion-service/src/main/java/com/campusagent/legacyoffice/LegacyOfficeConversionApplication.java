@@ -15,7 +15,8 @@ public class LegacyOfficeConversionApplication {
   }
 
   private static Map<String, Object> resolveBindProperties() {
-    final var bind = System.getenv().getOrDefault("LIBREOFFICE_SERVICE_BIND", "0.0.0.0:8091").trim();
+    final var bind =
+        System.getenv().getOrDefault("LIBREOFFICE_SERVICE_BIND", "0.0.0.0:8091").trim();
     final var separator = bind.lastIndexOf(':');
     final var properties = new HashMap<String, Object>();
     if (separator > 0 && separator < bind.length() - 1) {

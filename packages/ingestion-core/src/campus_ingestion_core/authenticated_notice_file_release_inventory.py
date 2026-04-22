@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from threading import RLock
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
 from campus_ingestion_core.postgres_runtime import (

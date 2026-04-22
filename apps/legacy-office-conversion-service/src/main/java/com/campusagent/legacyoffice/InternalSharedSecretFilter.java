@@ -32,7 +32,8 @@ public class InternalSharedSecretFilter extends OncePerRequestFilter {
       final FilterChain filterChain)
       throws ServletException, IOException {
     if (expectedSecret.isEmpty()) {
-      response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "internal shared secret is not configured");
+      response.sendError(
+          HttpServletResponse.SC_SERVICE_UNAVAILABLE, "internal shared secret is not configured");
       return;
     }
     final var provided = request.getHeader("x-app-internal-auth");

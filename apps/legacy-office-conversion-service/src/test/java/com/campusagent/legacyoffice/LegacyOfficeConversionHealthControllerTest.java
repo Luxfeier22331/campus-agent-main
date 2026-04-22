@@ -20,7 +20,8 @@ class LegacyOfficeConversionHealthControllerTest {
   void setUp() {
     conversionService = mock(LegacyOfficeConversionService.class);
     mockMvc =
-        MockMvcBuilders.standaloneSetup(new LegacyOfficeConversionHealthController(conversionService))
+        MockMvcBuilders.standaloneSetup(
+                new LegacyOfficeConversionHealthController(conversionService))
             .build();
   }
 

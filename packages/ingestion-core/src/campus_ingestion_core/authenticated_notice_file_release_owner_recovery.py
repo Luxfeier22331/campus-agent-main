@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_file_release_inventory import (
     AuthenticatedNoticeFileReleaseInventoryEntry,

@@ -5,10 +5,10 @@ import hashlib
 import json
 import math
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
     CloseoutArtifactManager,

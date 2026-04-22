@@ -12,7 +12,8 @@ public class LegacyOfficeConversionHealthController {
 
   private final LegacyOfficeConversionService conversionService;
 
-  public LegacyOfficeConversionHealthController(final LegacyOfficeConversionService conversionService) {
+  public LegacyOfficeConversionHealthController(
+      final LegacyOfficeConversionService conversionService) {
     this.conversionService = conversionService;
   }
 

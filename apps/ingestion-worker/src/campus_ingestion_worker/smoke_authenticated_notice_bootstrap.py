@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
@@ -52,7 +53,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         result=result,
         expected_notice_count=args.expect_notice_count,
         execution={
-            "summary_generated_at": datetime.now(timezone.utc).isoformat(),
+            "summary_generated_at": datetime.now(UTC).isoformat(),
             "bundle_path": str(request.bundle_path),
             "manifest_path": (
                 str(request.export_manifest_path)

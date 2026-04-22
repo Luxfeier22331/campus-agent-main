@@ -559,11 +559,15 @@ def _transition_ratio(grid: list[list[int]]) -> float:
     max_row_transitions = 0
     max_col_transitions = 0
     for row in grid:
-        row_transitions += sum(1 for left, right in zip(row, row[1:]) if left != right)
+        row_transitions += sum(
+            1 for left, right in zip(row, row[1:], strict=False) if left != right
+        )
         max_row_transitions += len(row) - 1
     for col_index in range(size):
         column = [grid[row_index][col_index] for row_index in range(size)]
-        col_transitions += sum(1 for top, bottom in zip(column, column[1:]) if top != bottom)
+        col_transitions += sum(
+            1 for top, bottom in zip(column, column[1:], strict=False) if top != bottom
+        )
         max_col_transitions += len(column) - 1
     if max_row_transitions <= 0 or max_col_transitions <= 0:
         return 0.0
