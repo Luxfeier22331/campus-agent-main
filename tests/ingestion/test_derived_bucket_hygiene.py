@@ -46,7 +46,7 @@ class DerivedBucketHygieneTest(unittest.TestCase):
             output_dir = Path(temp_dir) / "audit"
             object_store = _FakeDerivedBucketObjectStore(
                 keys=(
-                    "regulations/documents/student_handbook/学生手册--abc12345/source-faithful/2018/canonical.md",
+                    "regulations/documents/student_rules/学生手册--abc12345/source-faithful/2018/canonical.md",
                     "curriculum/archive/curriculum_plan/example.json",
                     "scratch/tmp.json",
                 )

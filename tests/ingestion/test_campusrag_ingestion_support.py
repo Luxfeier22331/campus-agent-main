@@ -83,7 +83,7 @@ def _document_input(
         source_channel=source_channel,
         is_current=is_current,
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         title=document_id.split(":")[-1],
         year="2026",
     )
@@ -109,8 +109,8 @@ def _record(
         source_uri=source_uri or f"campusrag://import/{document_id}/{version_id}",
         content_hash=content_hash,
         corpus="regulations",
-        collection="student_handbook",
-        cleaning_policy_version="student_handbook_cleaning_v1",
+        collection="student_rules",
+        cleaning_policy_version="student_rules_cleaning_v1",
         entitlement_groups=(),
         visibility_scope=None,
         status=status,
@@ -119,9 +119,9 @@ def _record(
         embedding_model="Qwen3-Embedding-4B",
         source_channel=source_channel,
         is_current=is_current,
-        document_units_object_key=f"regulations/documents/student_handbook/{document_id}/{version_id}/document-units.jsonl",
+        document_units_object_key=f"regulations/documents/student_rules/{document_id}/{version_id}/document-units.jsonl",
         processed_object_keys=(
-            f"regulations/documents/student_handbook/{document_id}/{version_id}/document-units.jsonl",
+            f"regulations/documents/student_rules/{document_id}/{version_id}/document-units.jsonl",
         ),
         import_source=import_source,
     )
@@ -445,11 +445,11 @@ class CampusragIngestionRegistryStateTest(unittest.TestCase):
 
         promoted, demoted = apply_current_promotion(
             existing_records_by_lineage={
-                ("regulations", "student_handbook"): {
+                ("regulations", "student_rules"): {
                     ("handbook:doc-current", "current-effective"): (prior_current,),
                 }
             },
-            scope=("regulations", "student_handbook"),
+            scope=("regulations", "student_rules"),
             record=new_current,
         )
 
@@ -549,7 +549,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             revision_track="source-faithful",
             source_channel="pdf_ocr",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             provider_response_object_key="source/provider.json",
             layout_elements_bytes=b'{"layout":true}\n',
             layout_elements_object_key=None,
@@ -796,12 +796,12 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
         )
 
         self.assertEqual(stats.success_count, 2)
-        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_rules")])
         self.assertEqual(len(registry.upsert_calls), 0)
         self.assertEqual(len(registry.upsert_many_calls), 1)
         self.assertEqual(
@@ -847,16 +847,16 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
-            scope_refresh=("regulations", "student_handbook"),
+            scope_refresh=("regulations", "student_rules"),
         )
 
         self.assertEqual(stats.success_count, 1)
         self.assertEqual(stats.skipped_count, 1)
         self.assertEqual(stats.updated_document_ids, ("handbook:doc-new",))
         self.assertEqual(stats.skipped_document_ids, ("handbook:doc-keep",))
-        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_rules")])
         self.assertEqual(len(registry.upsert_calls), 0)
         self.assertEqual(len(registry.upsert_many_calls), 0)
         self.assertEqual(len(registry.replace_scope_calls), 1)
@@ -888,14 +888,14 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
-            scope_refresh=("regulations", "student_handbook"),
+            scope_refresh=("regulations", "student_rules"),
         )
 
         self.assertEqual(stats.success_count, 2)
         self.assertEqual(stats.failed_count, 0)
-        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_rules")])
         self.assertEqual(len(registry.replace_scope_calls), 1)
         self.assertEqual(
             tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
@@ -918,12 +918,12 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
         )
 
         self.assertEqual(stats.success_count, 1)
-        self.assertEqual(registry.importable_scope_calls, [("regulations", "student_handbook")])
+        self.assertEqual(registry.importable_scope_calls, [("regulations", "student_rules")])
         self.assertEqual(registry.list_by_scope_calls, [])
 
     def test_collect_import_document_stats_demotes_prior_current_version_when_new_current_is_imported(
@@ -955,9 +955,9 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
-            scope_refresh=("regulations", "student_handbook"),
+            scope_refresh=("regulations", "student_rules"),
         )
 
         self.assertEqual(stats.success_count, 1)
@@ -1005,7 +1005,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
         )
 
@@ -1146,12 +1146,12 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
         )
 
         expected_key = (
-            "regulations/documents/student_handbook/doc-a--doc-a/"
+            "regulations/documents/student_rules/doc-a--doc-a/"
             "source-faithful/2026/document-units.jsonl"
         )
         self.assertEqual(stats.success_count, 0)
@@ -1177,7 +1177,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
         )
         registry = _SpyDocumentRegistry(records=(existing,))
         expected_key = (
-            "regulations/documents/student_handbook/doc-b--doc-b/"
+            "regulations/documents/student_rules/doc-b--doc-b/"
             "source-faithful/2026/document-units.jsonl"
         )
         writer = _FakeWriter(existing_objects=((self.object_store.bucket_derived, expected_key),))
@@ -1193,7 +1193,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope=None,
         )
 
@@ -1241,17 +1241,17 @@ class CampusragIngestionSupportTest(unittest.TestCase):
                 object_store=self.object_store,
                 parser_version="campusrag-import-v1",
                 embedding_model="Qwen3-Embedding-4B",
-                cleaning_policy_version="student_handbook_cleaning_v1",
+                cleaning_policy_version="student_rules_cleaning_v1",
                 default_visibility_scope=None,
                 import_mode="test",
                 report_dir=Path("/tmp/test-import-report"),
                 report_prefix="test-import",
-                scope_refresh=("regulations", "student_handbook"),
+                scope_refresh=("regulations", "student_rules"),
             )
 
         self.assertEqual(
             collect_stats.call_args.kwargs["scope_refresh"],
-            ("regulations", "student_handbook"),
+            ("regulations", "student_rules"),
         )
 
     def test_collect_import_document_stats_prefers_new_authorization_projection_metadata(
@@ -1279,7 +1279,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope="fallback-campus",
         )
 
@@ -1319,7 +1319,7 @@ class CampusragIngestionSupportTest(unittest.TestCase):
             object_store=self.object_store,
             parser_version="campusrag-import-v1",
             embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            cleaning_policy_version="student_rules_cleaning_v1",
             default_visibility_scope="fallback-campus",
         )
 

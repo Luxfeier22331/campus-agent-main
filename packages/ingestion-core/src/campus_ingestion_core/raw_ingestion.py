@@ -45,6 +45,7 @@ from campus_ingestion_core.raw_ingestion_online_ocr import (
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
+    OnlineOcrRawArtifact,
     OnlineOcrProviderResult,
     OnlineOcrSettings,
     build_online_ocr_client,
@@ -275,7 +276,7 @@ def process_raw_ingestion_job(
             provider_result=provider_result,
         )
 
-        if settings.collection == "student_handbook":
+        if settings.collection == "student_rules":
             handbook_documents, handbook_errors = _build_handbook_split_manifest_documents(
                 raw_asset_record=raw_asset_record,
                 provider_result=provider_result,
@@ -522,10 +523,25 @@ def _execute_source_truth_only_generic_image_dual_run(
         )
         if provider_settings is None:  # pragma: no cover
             raise RuntimeError("mineru provider settings are required")
-        provider_response_bytes = adapt_mineru_archive_to_canonical_provider_payload(mineru_bytes)
-        raw_provider_response_bytes = (
-            mineru_bytes if route_decision.persist_raw_provider_artifact else None
+        normalized_mineru_result = _normalize_online_ocr_provider_result(
+            provider=ONLINE_OCR_PROVIDER_MINERU_API,
+            provider_result=OnlineOcrProviderResult(
+                provider_result_bytes=mineru_bytes,
+                raw_provider_artifacts=(
+                    (
+                        OnlineOcrRawArtifact(
+                            filename=RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
+                            content_type="application/zip",
+                            data=mineru_bytes,
+                        ),
+                    )
+                    if route_decision.persist_raw_provider_artifact
+                    else ()
+                ),
+            ),
         )
+        provider_response_bytes = normalized_mineru_result.provider_result_bytes
+        raw_provider_artifacts = normalized_mineru_result.raw_provider_artifacts
         resolved_provider = mineru_provider
     else:
         if paddle_bytes is None:
@@ -537,7 +553,7 @@ def _execute_source_truth_only_generic_image_dual_run(
         if provider_settings is None:  # pragma: no cover
             raise RuntimeError("paddle provider settings are required")
         provider_response_bytes = paddle_bytes
-        raw_provider_response_bytes = None
+        raw_provider_artifacts = ()
         resolved_provider = paddle_provider
 
     layout_elements_bytes = _build_source_truth_layout_elements_bytes(
@@ -553,7 +569,7 @@ def _execute_source_truth_only_generic_image_dual_run(
         layout_elements_bytes=layout_elements_bytes,
         ocr_provider=normalize_online_ocr_provider_label(resolved_provider),
         ocr_model=provider_settings.model,
-        raw_provider_response_bytes=raw_provider_response_bytes,
+        raw_provider_artifacts=raw_provider_artifacts,
         routing_decision_bytes=routing_decision_bytes,
         refined_raw_asset_record=refined_raw_asset_record,
     )
@@ -620,16 +636,24 @@ def _execute_source_truth_only_routed_online_ocr(
                 ocr_client=ocr_client,
             )
             provider_response_bytes = provider_result.provider_result_bytes
-            raw_provider_response_bytes = None
             if provider == ONLINE_OCR_PROVIDER_MINERU_API:
-                raw_provider_response_bytes = (
-                    provider_response_bytes
-                    if route_decision.persist_raw_provider_artifact
-                    else None
+                provider_result = OnlineOcrProviderResult(
+                    provider_result_bytes=provider_result.provider_result_bytes,
+                    metadata=provider_result.metadata,
+                    raw_provider_artifacts=(
+                        provider_result.raw_provider_artifacts
+                        if route_decision.persist_raw_provider_artifact
+                        else ()
+                    ),
                 )
-                provider_response_bytes = adapt_mineru_archive_to_canonical_provider_payload(
-                    provider_response_bytes
+                provider_result = _normalize_online_ocr_provider_result(
+                    provider=provider,
+                    provider_result=provider_result,
                 )
+                provider_response_bytes = provider_result.provider_result_bytes
+                raw_provider_artifacts = provider_result.raw_provider_artifacts
+            else:
+                raw_provider_artifacts = ()
             layout_elements_bytes = _build_source_truth_layout_elements_bytes(
                 collection=settings.collection,
                 source_pdf=raw_asset_record.source_filename,
@@ -643,7 +667,7 @@ def _execute_source_truth_only_routed_online_ocr(
                 layout_elements_bytes=layout_elements_bytes,
                 ocr_provider=normalize_online_ocr_provider_label(provider),
                 ocr_model=provider_settings.model,
-                raw_provider_response_bytes=raw_provider_response_bytes,
+                raw_provider_artifacts=raw_provider_artifacts,
                 refined_raw_asset_record=raw_asset_record,
             )
         except Exception as exc:
@@ -710,19 +734,19 @@ def _persist_source_truth_only_ocr_results(
             data=execution.provider_response_bytes,
             content_type="application/x-ndjson",
         )
-        if execution.raw_provider_response_bytes is not None:
+        for raw_provider_artifact in execution.raw_provider_artifacts:
             raw_provider_response_key = build_source_ocr_artifact_key(
                 raw_asset_id=raw_asset_record.raw_asset_id,
                 raw_version_id=raw_asset_record.raw_version_id,
-                filename=RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
+                filename=raw_provider_artifact.filename,
                 model_slug=build_source_model_slug(execution.ocr_model),
                 year=infer_year_label(raw_asset_record.source_filename),
             )
             writer.put_bytes(
                 bucket=settings.object_store.bucket_source,
                 key=raw_provider_response_key,
-                data=execution.raw_provider_response_bytes,
-                content_type="application/zip",
+                data=raw_provider_artifact.data,
+                content_type=raw_provider_artifact.content_type,
             )
         layout_elements_key = build_source_truth_artifact_key(
             raw_asset_id=raw_asset_record.raw_asset_id,

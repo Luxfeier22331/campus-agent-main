@@ -90,7 +90,7 @@ def build_student_handbook_v3_token_counter(model_name: str) -> TokenCounter:
     normalized_model_name = normalize_embedding_model_name(model_name)
     if normalized_model_name != QWEN3_EMBEDDING_MODEL:
         raise ValueError(
-            "student_handbook_semantic_v3 requires embedding model "
+            "student_rules_semantic_v3 requires embedding model "
             f"{QWEN3_EMBEDDING_MODEL}, got {model_name or '<empty>'}"
         )
     return HuggingFaceTokenCounter(

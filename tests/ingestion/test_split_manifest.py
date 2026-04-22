@@ -35,15 +35,15 @@ class SplitManifestTest(unittest.TestCase):
             / "configs"
             / "ingestion"
             / "regulations"
-            / "student_handbook"
+            / "student_rules"
             / "split-manifest.v1.json"
         )
 
         payload = json.loads(path.read_text(encoding="utf-8"))
 
-        self.assertEqual(payload["manifest_version"], "student_handbook_split_manifest_v1")
+        self.assertEqual(payload["manifest_version"], "student_rules_split_manifest_v1")
         self.assertEqual(payload["corpus"], "regulations")
-        self.assertEqual(payload["collection"], "student_handbook")
+        self.assertEqual(payload["collection"], "student_rules")
         self.assertEqual(payload["raw_asset_id"], "asset:student-handbook-pdf")
         self.assertIn("documents", payload)
         self.assertEqual(len(payload["documents"]), 46)
@@ -52,7 +52,7 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(payload["documents"][-1]["title"], "中央民族大学学生公费医疗管理办法")
         self.assertTrue(
             payload["documents"][-1]["source_uri"].startswith(
-                "campus-agent://regulations/student_handbook/docs/"
+                "campus-agent://regulations/student_rules/docs/"
             )
         )
         titles = {document["title"] for document in payload["documents"]}
@@ -532,9 +532,9 @@ class SplitManifestTest(unittest.TestCase):
             path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-pdf",
                         "documents": [
                             {
@@ -542,7 +542,7 @@ class SplitManifestTest(unittest.TestCase):
                                 "title": "制度标题",
                                 "page_start": 1,
                                 "page_end": 1,
-                                "source_uri": "campus-agent://regulations/student_handbook/docs/handbook:test-001",
+                                "source_uri": "campus-agent://regulations/student_rules/docs/handbook:test-001",
                             }
                         ],
                     },
@@ -556,7 +556,7 @@ class SplitManifestTest(unittest.TestCase):
                 load_split_manifest(
                     path,
                     expected_corpus="regulations",
-                    expected_collection="student_handbook",
+                    expected_collection="student_rules",
                 )
 
     def test_load_split_manifest_rejects_overlapping_page_ranges(self) -> None:

@@ -56,7 +56,7 @@ from tests.ingestion._handbook_chunking_test_support import build_hermetic_handb
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_rules"
 
 SOURCE_BUCKET = "campus-rag-source"
 
@@ -140,7 +140,7 @@ def _handbook_raw_asset_record(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         raw_source_uri=raw_source_uri,
         content_hash=content_hash,
         source_filename=source_filename,
@@ -185,9 +185,9 @@ def _student_handbook_manifest_payload(
     *, title: str = "中央民族大学奖学金评定办法"
 ) -> dict[str, object]:
     return {
-        "manifest_version": "student_handbook_split_manifest_v1",
+        "manifest_version": "student_rules_split_manifest_v1",
         "corpus": "regulations",
-        "collection": "student_handbook",
+        "collection": "student_rules",
         "raw_asset_id": "asset:student-handbook-master-pdf",
         "documents": [
             {

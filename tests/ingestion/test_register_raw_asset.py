@@ -60,7 +60,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 "--corpus",
                 "regulations",
                 "--collection",
-                "student_handbook",
+                "student_rules",
             ]
         )
         legacy_args = parser.parse_args(
@@ -72,7 +72,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 "--corpus",
                 "regulations",
                 "--collection",
-                "student_handbook",
+                "student_rules",
             ]
         )
 
@@ -97,14 +97,14 @@ class RegisterRawAssetTest(unittest.TestCase):
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "INGESTION_CORPUS": "regulations",
-                "INGESTION_COLLECTION": "student_handbook",
+                "INGESTION_COLLECTION": "student_rules",
             }
 
             first = register_raw_asset(
                 file_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -113,7 +113,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 file_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -168,7 +168,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
                 "INGESTION_CORPUS": "regulations",
-                "INGESTION_COLLECTION": "student_handbook",
+                "INGESTION_COLLECTION": "student_rules",
             }
 
             first_bytes = b"%PDF-1.4 handbook source v1"
@@ -178,7 +178,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 file_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,
@@ -189,7 +189,7 @@ class RegisterRawAssetTest(unittest.TestCase):
                 file_path=pdf_path,
                 raw_source_uri="https://campus.example/student-handbook.pdf",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 env=env,
                 object_store=object_store,
                 raw_asset_registry=raw_asset_registry,

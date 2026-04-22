@@ -349,6 +349,34 @@ def resolve_internal_notice_unit_chunk_profile(
     )
 
 
+def resolve_institutional_regulation_lane(
+    *, record: DocumentRegistryRecord, unit: StructuredUnit
+) -> str:
+    promotion_class = str(unit.metadata.get("promotion_class") or "").strip()
+    if promotion_class:
+        return promotion_class
+    raise ValueError(
+        "institutional_rules unit requires promotion_class for lane resolution: "
+        f"{record.document_id}#{unit.source_chunk_id or unit.root_unit_id}"
+    )
+
+
+def resolve_institutional_regulation_unit_chunk_profile(
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    unit: StructuredUnit,
+    use_collection_unit_profiles: bool,
+) -> ChunkProfile:
+    if not use_collection_unit_profiles:
+        return runtime_profile
+    if (record.corpus, record.collection) != ("regulations", "institutional_rules"):
+        return runtime_profile
+    return build_collection_lane_chunk_profile(
+        record=record,
+        lane=resolve_institutional_regulation_lane(record=record, unit=unit),
+    )
+
+
 def resolve_scoped_rule_lane(*, record: DocumentRegistryRecord, unit: StructuredUnit) -> str:
     document_nature = str(unit.metadata.get("document_nature") or "").strip()
     if document_nature:
@@ -498,6 +526,8 @@ __all__ = [
     "resolve_curriculum_unit_chunk_profile",
     "resolve_default_unit_chunk_profile",
     "resolve_effective_visibility_level",
+    "resolve_institutional_regulation_lane",
+    "resolve_institutional_regulation_unit_chunk_profile",
     "resolve_internal_notice_lane",
     "resolve_internal_notice_unit_chunk_profile",
     "resolve_scoped_rule_lane",

@@ -39,12 +39,12 @@ from campus_ingestion_core.registry import (
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 HANDBOOK_DOC_UNITS_KEY = (
-    "regulations/documents/student_handbook/test-001--test-001/"
+    "regulations/documents/student_rules/test-001--test-001/"
     "source-faithful/undated/document-units.jsonl"
 )
 HANDBOOK_PROVIDER_KEY = "official_pdf/student-handbook/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl"
 HANDBOOK_CANONICAL_KEY = (
-    "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/canonical.md"
+    "regulations/documents/student_rules/test-001--test-001/source-faithful/undated/canonical.md"
 )
 CURRICULUM_DOC_UNITS_KEY = (
     "curriculum/documents/curriculum_plan/plan-001--plan-001/"
@@ -59,11 +59,11 @@ def _handbook_document_record(
         document_id="handbook:test-001",
         revision_track="source-faithful",
         version_id=version_id,
-        source_uri="campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+        source_uri="campusrag://canonical/regulations/student_rules/docs/test-001.md",
         content_hash=content_hash,
         corpus="regulations",
-        collection="student_handbook",
-        cleaning_policy_version="student_handbook_cleaning_v1",
+        collection="student_rules",
+        cleaning_policy_version="student_rules_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope=None,
         status="active",
@@ -122,8 +122,8 @@ def _handbook_raw_asset_record() -> RawAssetRecord:
         raw_asset_id="asset:student-handbook-pdf",
         raw_version_id="sha256:raw-001",
         corpus="regulations",
-        collection="student_handbook",
-        raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+        collection="student_rules",
+        raw_source_uri="campusrag://raw/regulations/student_rules/student-handbook.pdf",
         content_hash="raw-001",
         source_filename="student-handbook.pdf",
         object_key="official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
@@ -170,8 +170,8 @@ class RegistryModelsTest(unittest.TestCase):
         self.assertEqual(payload["document_id"], "handbook:test-001")
         self.assertEqual(payload["revision_track"], "source-faithful")
         self.assertEqual(payload["corpus"], "regulations")
-        self.assertEqual(payload["collection"], "student_handbook")
-        self.assertEqual(payload["cleaning_policy_version"], "student_handbook_cleaning_v1")
+        self.assertEqual(payload["collection"], "student_rules")
+        self.assertEqual(payload["cleaning_policy_version"], "student_rules_cleaning_v1")
         self.assertEqual(payload["entitlement_groups"], ("students",))
         self.assertEqual(payload["visibility_scope"], None)
         self.assertEqual(payload["visibility_level"], "restricted")
@@ -266,7 +266,7 @@ class RegistryModelsTest(unittest.TestCase):
                 source_observations=(
                     SourceObservation(
                         source_channel="pdf_ocr",
-                        source_uri="campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                        source_uri="campusrag://canonical/regulations/student_rules/docs/test-001.md",
                         raw_asset=record.raw_asset,
                         is_primary=False,
                         import_source="raw_online_ocr",
@@ -306,7 +306,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert(v1)
             registry.upsert(v2)
 
-            records = registry.list_by_scope("regulations", "student_handbook")
+            records = registry.list_by_scope("regulations", "student_rules")
             latest = registry.latest_versions("handbook:test-001")
 
             self.assertEqual(records, (v1, v2))
@@ -370,10 +370,10 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert(handbook_old)
             registry.upsert(curriculum_record)
 
-            registry.replace_scope("regulations", "student_handbook", (handbook_new,))
+            registry.replace_scope("regulations", "student_rules", (handbook_new,))
 
             self.assertEqual(
-                registry.list_by_scope("regulations", "student_handbook"),
+                registry.list_by_scope("regulations", "student_rules"),
                 (handbook_new,),
             )
             self.assertEqual(
@@ -398,7 +398,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert(handbook_record)
             registry.upsert(curriculum_record)
 
-            registry.delete_by_scope("regulations", "student_handbook")
+            registry.delete_by_scope("regulations", "student_rules")
 
             self.assertIsNone(registry.get("handbook:test-001", "source-faithful", "v1:test-001"))
             self.assertEqual(
@@ -452,11 +452,11 @@ class RegistryModelsTest(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                            "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                             "content_hash": "sha256:test-001",
                             "corpus": "regulations",
-                            "collection": "student_handbook",
-                            "cleaning_policy_version": "student_handbook_cleaning_v1",
+                            "collection": "student_rules",
+                            "cleaning_policy_version": "student_rules_cleaning_v1",
                             "entitlement_groups": ["students"],
                             "visibility_scope": None,
                             "status": "active",
@@ -466,9 +466,9 @@ class RegistryModelsTest(unittest.TestCase):
                             "source_channel": "pdf_ocr",
                             "raw_asset": None,
                             "processed_object_keys": [
-                                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/provider-response.jsonl",
-                                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/canonical.md",
-                                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl",
+                                "student_rules/documents/handbook/test-001/tracks/source-faithful/v1/test-001/provider-response.jsonl",
+                                "student_rules/documents/handbook/test-001/tracks/source-faithful/v1/test-001/canonical.md",
+                                "student_rules/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl",
                             ],
                             "import_source": "raw_online_ocr",
                         }
@@ -484,8 +484,8 @@ class RegistryModelsTest(unittest.TestCase):
 
             self.assertIsNone(loaded.provider_response_object_key)
             self.assertEqual(loaded.corpus, "regulations")
-            self.assertEqual(loaded.collection, "student_handbook")
-            self.assertEqual(loaded.cleaning_policy_version, "student_handbook_cleaning_v1")
+            self.assertEqual(loaded.collection, "student_rules")
+            self.assertEqual(loaded.cleaning_policy_version, "student_rules_cleaning_v1")
             self.assertIsNone(loaded.canonical_markdown_object_key)
             self.assertIsNone(loaded.document_units_object_key)
             self.assertEqual(len(loaded.source_observations), 1)
@@ -502,11 +502,11 @@ class RegistryModelsTest(unittest.TestCase):
                             "document_id": "handbook:test-001",
                             "revision_track": "source-faithful",
                             "version_id": "v1:test-001",
-                            "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                            "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                             "content_hash": "sha256:test-001",
                             "corpus": "regulations",
-                            "collection": "student_handbook",
-                            "cleaning_policy_version": "student_handbook_cleaning_v1",
+                            "collection": "student_rules",
+                            "cleaning_policy_version": "student_rules_cleaning_v1",
                             "acl_groups": ["students"],
                             "campus_scope": "main",
                             "status": "active",
@@ -516,7 +516,7 @@ class RegistryModelsTest(unittest.TestCase):
                             "source_channel": "pdf_ocr",
                             "raw_asset": None,
                             "processed_object_keys": [
-                                "student_handbook/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl"
+                                "student_rules/documents/handbook/test-001/tracks/source-faithful/v1/test-001/document-units.jsonl"
                             ],
                             "import_source": "raw_online_ocr",
                         }
@@ -537,11 +537,11 @@ class RegistryModelsTest(unittest.TestCase):
                 "document_id": "handbook:test-001",
                 "revision_track": "source-faithful",
                 "version_id": "v1:test-001",
-                "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                 "content_hash": "sha256:test-001",
                 "corpus": "regulations",
-                "collection": "student_handbook",
-                "cleaning_policy_version": "student_handbook_cleaning_v1",
+                "collection": "student_rules",
+                "cleaning_policy_version": "student_rules_cleaning_v1",
                 "entitlement_groups": ["students"],
                 "visibility_scope": "main",
                 "visibility_level": "restricted",
@@ -567,11 +567,11 @@ class RegistryModelsTest(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
-                    "collection": "student_handbook",
-                    "cleaning_policy_version": "student_handbook_cleaning_v1",
+                    "collection": "student_rules",
+                    "cleaning_policy_version": "student_rules_cleaning_v1",
                     "entitlement_groups": ["students"],
                     "visibility_scope": "main",
                     "visibility_level": "restricted",
@@ -597,7 +597,7 @@ class RegistryModelsTest(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "status": "active",
@@ -613,10 +613,10 @@ class RegistryModelsTest(unittest.TestCase):
                 {
                     "document_id": "handbook:test-001",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                     "status": "active",
                     "ingestion_timestamp": "2026-03-22T10:00:00+00:00",
                     "parser_version": "campusrag-import-v1",
@@ -632,7 +632,7 @@ class RegistryModelsTest(unittest.TestCase):
                     "document_id": "handbook:test-001",
                     "revision_track": "source-faithful",
                     "version_id": "v1:test-001",
-                    "source_uri": "campusrag://canonical/regulations/student_handbook/docs/test-001.md",
+                    "source_uri": "campusrag://canonical/regulations/student_rules/docs/test-001.md",
                     "content_hash": "sha256:test-001",
                     "corpus": "regulations",
                     "status": "active",
@@ -651,7 +651,7 @@ class RegistryModelsTest(unittest.TestCase):
                     "raw_asset_id": "asset:student-handbook-pdf",
                     "raw_version_id": "sha256:raw-001",
                     "corpus": "regulations",
-                    "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                    "raw_source_uri": "campusrag://raw/regulations/student_rules/student-handbook.pdf",
                     "content_hash": "raw-001",
                     "source_filename": "student-handbook.pdf",
                     "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
@@ -666,8 +666,8 @@ class RegistryModelsTest(unittest.TestCase):
                 "raw_asset_id": "asset:student-handbook-pdf",
                 "raw_version_id": "sha256:raw-001",
                 "corpus": "regulations",
-                "collection": "student_handbook",
-                "raw_source_uri": "campusrag://raw/regulations/student_handbook/student-handbook.pdf",
+                "collection": "student_rules",
+                "raw_source_uri": "campusrag://raw/regulations/student_rules/student-handbook.pdf",
                 "content_hash": "raw-001",
                 "source_filename": "student-handbook.pdf",
                 "object_key": "official_pdf/student-handbook/undated/sha256/raw-001/capture/student-handbook.pdf",
@@ -707,7 +707,7 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert(handbook_record)
             registry.upsert(curriculum_record)
 
-            registry.delete_by_scope("regulations", "student_handbook")
+            registry.delete_by_scope("regulations", "student_rules")
 
             self.assertIsNone(registry.get("asset:student-handbook-pdf", "sha256:raw-001"))
             self.assertEqual(
@@ -725,8 +725,8 @@ class RegistryModelsTest(unittest.TestCase):
                 raw_asset_id="asset:student-handbook-pdf-v2",
                 raw_version_id="sha256:raw-003",
                 corpus="regulations",
-                collection="student_handbook",
-                raw_source_uri="campusrag://raw/regulations/student_handbook/student-handbook-v2.pdf",
+                collection="student_rules",
+                raw_source_uri="campusrag://raw/regulations/student_rules/student-handbook-v2.pdf",
                 content_hash="raw-003",
                 source_filename="student-handbook-v2.pdf",
                 object_key="official_pdf/student-handbook/undated/sha256/raw-003/capture/student-handbook-v2.pdf",
@@ -736,10 +736,10 @@ class RegistryModelsTest(unittest.TestCase):
             registry.upsert(handbook_record)
             registry.upsert(curriculum_record)
 
-            registry.replace_scope("regulations", "student_handbook", (handbook_replacement,))
+            registry.replace_scope("regulations", "student_rules", (handbook_replacement,))
 
             self.assertEqual(
-                registry.list_by_scope("regulations", "student_handbook"),
+                registry.list_by_scope("regulations", "student_rules"),
                 (handbook_replacement,),
             )
             self.assertEqual(
@@ -1128,7 +1128,7 @@ class RegistryModelsTest(unittest.TestCase):
             ),
             document_id="handbook:test-002",
             version_id="v1:test-002",
-            source_uri="campusrag://canonical/regulations/student_handbook/docs/test-002.md",
+            source_uri="campusrag://canonical/regulations/student_rules/docs/test-002.md",
             content_hash="sha256:test-002",
             document_units_object_key=HANDBOOK_DOC_UNITS_KEY.replace("test-001", "test-002"),
             provider_response_object_key=HANDBOOK_PROVIDER_KEY.replace("raw-001", "raw-002"),
@@ -1157,12 +1157,12 @@ class RegistryModelsTest(unittest.TestCase):
             patch("campus_ingestion_core.registry.DEFAULT_DOCUMENT_REGISTRY_SCAN_PAGE_SIZE", 1),
             patch.object(registry, "_fetchall", side_effect=_fetchall),
         ):
-            records = registry.list_by_scope("regulations", "student_handbook")
+            records = registry.list_by_scope("regulations", "student_rules")
 
         self.assertEqual(records, (first, second))
         self.assertEqual(len(fetchall_calls), 3)
         self.assertIn("limit %s", fetchall_calls[0][0].lower())
-        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_handbook", 1))
+        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_rules", 1))
         self.assertIn(
             "(document_id, revision_track, version_id) > (%s, %s, %s)",
             fetchall_calls[1][0],
@@ -1171,7 +1171,7 @@ class RegistryModelsTest(unittest.TestCase):
             fetchall_calls[1][1],
             (
                 "regulations",
-                "student_handbook",
+                "student_rules",
                 first.document_id,
                 first.revision_track,
                 first.version_id,
@@ -1318,12 +1318,12 @@ class RegistryModelsTest(unittest.TestCase):
             patch("campus_ingestion_core.registry.DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE", 1),
             patch.object(registry, "_fetchall", side_effect=_fetchall),
         ):
-            records = registry.list_by_scope("regulations", "student_handbook")
+            records = registry.list_by_scope("regulations", "student_rules")
 
         self.assertEqual(records, (first, second))
         self.assertEqual(len(fetchall_calls), 3)
         self.assertIn("limit %s", fetchall_calls[0][0].lower())
-        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_handbook", 1))
+        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_rules", 1))
         self.assertIn(
             "(raw_asset_id, raw_version_id) > (%s, %s)",
             fetchall_calls[1][0],
@@ -1332,7 +1332,7 @@ class RegistryModelsTest(unittest.TestCase):
             fetchall_calls[1][1],
             (
                 "regulations",
-                "student_handbook",
+                "student_rules",
                 first.raw_asset_id,
                 first.raw_version_id,
                 1,
@@ -1390,7 +1390,7 @@ class RegistryModelsTest(unittest.TestCase):
         ):
             registry.replace_scope(
                 "regulations",
-                "student_handbook",
+                "student_rules",
                 (handbook_record, curriculum_record),
             )
 

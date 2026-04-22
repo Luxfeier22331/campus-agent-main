@@ -145,7 +145,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
             source_uri="https://campus.example/handbook/test-authz",
             content_hash="sha256:test-authz",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             entitlement_groups=("students",),
             visibility_scope="main",
             status="active",
@@ -155,7 +155,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
             source_channel="pdf_ocr",
             document_units_object_key=build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id="handbook:test-authz",
                 revision_track="source-faithful",
                 version_id="v1:test-authz",
@@ -166,7 +166,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
             processed_object_keys=(
                 build_processed_artifact_key(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     document_id="handbook:test-authz",
                     revision_track="source-faithful",
                     version_id="v1:test-authz",
@@ -300,7 +300,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
             chunk_id="handbook:test-authz:source-faithful:v1:test-authz:chunk-0001",
             chunk_order=1,
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             source_uri="https://campus.example/handbook/test-authz",
             source_chunk_id="legacy-chunk-001",
             anchor={"page_start": 1, "page_end": 1},

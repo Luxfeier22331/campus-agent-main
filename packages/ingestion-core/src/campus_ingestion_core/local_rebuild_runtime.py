@@ -82,10 +82,7 @@ def _resolve_rebuild_target_qdrant_bindings(
             collection=request.collection,
         )
     ]
-    if (
-        request.import_mode == "provider_response_replay"
-        and request.collection == "student_handbook"
-    ):
+    if request.import_mode == "provider_response_replay" and request.collection == "student_rules":
         projections_config = load_handbook_source_projections_config(
             collection_config.source_projections_path
         )
@@ -478,7 +475,7 @@ def _extra_processed_rebuild_keys(
     import_mode: str,
     registry: DocumentRegistry,
 ) -> tuple[str, ...]:
-    if import_mode != "provider_response_replay" or collection != "student_handbook":
+    if import_mode != "provider_response_replay" or collection != "student_rules":
         return ()
     return _declared_projection_processed_keys(
         source=source,
@@ -625,7 +622,7 @@ def _processed_bucket_exclude_keys(
     collection: str,
     import_mode: str,
 ) -> tuple[str, ...]:
-    if import_mode != "provider_response_replay" or collection != "student_handbook":
+    if import_mode != "provider_response_replay" or collection != "student_rules":
         return ()
     raw_version_id = _read_required_env(source, "RAW_VERSION_ID")
     collection_config = _resolve_runtime_collection_config(
@@ -660,7 +657,7 @@ def _processed_bucket_exclude_keys(
 
 
 def _should_delete_document_registry_scope(*, collection: str, import_mode: str) -> bool:
-    return not (collection == "student_handbook" and import_mode == "provider_response_replay")
+    return not (collection == "student_rules" and import_mode == "provider_response_replay")
 
 
 def _should_index_qdrant_for_replay(source: dict[str, str]) -> bool:

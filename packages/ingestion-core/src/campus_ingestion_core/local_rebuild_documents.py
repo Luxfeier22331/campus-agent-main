@@ -109,7 +109,7 @@ def _load_replay_source_artifacts(
     ocr_provider = normalize_online_ocr_provider_label(
         (source.get("OCR_PROVIDER_MODE") or "").strip() or DEFAULT_ONLINE_OCR_PROVIDER
     )
-    if collection == "student_handbook":
+    if collection == "student_rules":
         structured_rows = normalize_handbook_provider_result(
             source_pdf=source_pdf,
             provider_jsonl_bytes=provider_response_bytes,
@@ -179,7 +179,7 @@ def _build_replay_documents(
     source_bucket: str | None = None,
     replay_raw_asset_record: RawAssetRecord | None = None,
 ) -> list[DocumentImportInput]:
-    if collection == "student_handbook":
+    if collection == "student_rules":
         documents = [
             _build_handbook_replay_document_input(
                 source_label=f"{provider_response_key}#{manifest_document.document_id}",
@@ -233,7 +233,7 @@ def _build_replay_documents(
         ingestion_timestamp="1970-01-01T00:00:00+00:00",
         import_source="provider_response_replay",
     )
-    if collection == "student_handbook":
+    if collection == "student_rules":
         documents.extend(
             build_handbook_projection_import_documents(
                 source=source,

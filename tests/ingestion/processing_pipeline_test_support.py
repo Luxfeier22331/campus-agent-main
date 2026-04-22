@@ -36,7 +36,7 @@ def _make_registry_record() -> DocumentRegistryRecord:
         source_uri="https://campus.example/handbook/test-001",
         content_hash="sha256:test-001",
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         entitlement_groups=("students", "staff"),
         visibility_scope=None,
         status="active",
@@ -46,7 +46,7 @@ def _make_registry_record() -> DocumentRegistryRecord:
         source_channel="pdf_ocr",
         document_units_object_key=build_processed_artifact_key(
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             document_id="handbook:test-001",
             revision_track="source-faithful",
             version_id="v1:test-001",
@@ -57,7 +57,7 @@ def _make_registry_record() -> DocumentRegistryRecord:
         processed_object_keys=(
             build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id="handbook:test-001",
                 revision_track="source-faithful",
                 version_id="v1:test-001",
@@ -78,7 +78,7 @@ def _make_public_registry_record() -> DocumentRegistryRecord:
         source_uri="https://campus.example/handbook/test-public",
         content_hash="sha256:test-public",
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         entitlement_groups=(),
         visibility_scope=None,
         status="active",
@@ -88,7 +88,7 @@ def _make_public_registry_record() -> DocumentRegistryRecord:
         source_channel="pdf_ocr",
         document_units_object_key=build_processed_artifact_key(
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             document_id="handbook:test-public",
             revision_track="source-faithful",
             version_id="v1:test-public",
@@ -99,7 +99,7 @@ def _make_public_registry_record() -> DocumentRegistryRecord:
         processed_object_keys=(
             build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id="handbook:test-public",
                 revision_track="source-faithful",
                 version_id="v1:test-public",
@@ -183,7 +183,7 @@ def _handbook_source_row(
     return {
         "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
-        "collection": "student_handbook",
+        "collection": "student_rules",
         "source_artifact_id": "asset:student-handbook-master-pdf",
         "source_pdf": "student-handbook.pdf",
         "page_start": page,
@@ -249,5 +249,6 @@ def _structured_unit_row(
         "metadata": metadata or {},
         "acl": {"level": "public", "allow_groups": []},
     }
+
 
 __all__ = [name for name in globals() if not name.startswith("__")]

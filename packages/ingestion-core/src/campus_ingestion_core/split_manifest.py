@@ -215,11 +215,11 @@ def _resolved_manifest_visibility_scope(item: dict[str, object]) -> str | None:
 def _validate_student_handbook_manifest(manifest: SplitManifest) -> None:
     for document in manifest.documents:
         if not document.handbook_section:
-            raise ValueError("student_handbook split manifest requires handbook_section")
+            raise ValueError("student_rules split manifest requires handbook_section")
         if not document.source_uri:
-            raise ValueError("student_handbook split manifest requires source_uri")
+            raise ValueError("student_rules split manifest requires source_uri")
 
 
 _SPLIT_MANIFEST_VALIDATORS: dict[tuple[str, str], SplitManifestValidator] = {
-    ("regulations", "student_handbook"): _validate_student_handbook_manifest,
+    ("regulations", "student_rules"): _validate_student_handbook_manifest,
 }

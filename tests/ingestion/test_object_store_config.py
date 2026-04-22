@@ -86,7 +86,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
     def test_build_processed_artifact_key_uses_document_namespace(self) -> None:
         object_key = build_processed_artifact_key(
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             document_id="handbook:test-001",
             revision_track="source-faithful",
             version_id="v1:test-001",
@@ -95,7 +95,7 @@ class ObjectStoreConfigTest(unittest.TestCase):
 
         self.assertEqual(
             object_key,
-            "regulations/documents/student_handbook/test-001--test-001/source-faithful/undated/document-units.jsonl",
+            "regulations/documents/student_rules/test-001--test-001/source-faithful/undated/document-units.jsonl",
         )
 
     def test_build_raw_asset_key_uses_asset_namespace(self) -> None:

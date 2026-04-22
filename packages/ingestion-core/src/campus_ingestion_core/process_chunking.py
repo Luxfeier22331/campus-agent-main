@@ -15,6 +15,7 @@ from campus_ingestion_core.process_candidate_aggregation import build_collection
 from campus_ingestion_core.process_candidate_postprocess import (
     postprocess_curriculum_chunk_candidates,
     postprocess_default_chunk_candidates,
+    postprocess_institutional_regulation_chunk_candidates,
     postprocess_internal_notice_chunk_candidates,
     postprocess_scoped_rule_chunk_candidates,
 )
@@ -31,6 +32,7 @@ from campus_ingestion_core.process_loading import (
     resolve_curriculum_unit_chunk_profile,
     resolve_default_unit_chunk_profile,
     resolve_effective_visibility_level,
+    resolve_institutional_regulation_unit_chunk_profile,
     resolve_internal_notice_unit_chunk_profile,
     resolve_scoped_rule_unit_chunk_profile,
     should_skip_curriculum_unit,
@@ -58,7 +60,7 @@ _DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
 )
 
 _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = {
-    ("regulations", "student_handbook"): _CollectionChunkStrategy(
+    ("regulations", "student_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_handbook_chunk_profile,
         load_structured_units=load_default_structured_units,
         build_unit_pieces=build_default_unit_pieces,
@@ -89,6 +91,14 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         resolve_unit_chunk_profile=resolve_internal_notice_unit_chunk_profile,
         should_skip_unit=should_skip_internal_notice_unit,
         postprocess_candidates=postprocess_internal_notice_chunk_candidates,
+    ),
+    ("regulations", "institutional_rules"): _CollectionChunkStrategy(
+        build_chunk_profile=build_generic_runtime_chunk_profile,
+        load_structured_units=load_default_structured_units,
+        build_unit_pieces=build_default_unit_pieces,
+        resolve_unit_chunk_profile=resolve_institutional_regulation_unit_chunk_profile,
+        should_skip_unit=should_skip_generic_unit,
+        postprocess_candidates=postprocess_institutional_regulation_chunk_candidates,
     ),
     ("regulations", "scoped_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_generic_runtime_chunk_profile,

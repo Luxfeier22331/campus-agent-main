@@ -8,6 +8,7 @@ from campus_ingestion_core.curriculum_provider_normalize import normalize_curric
 from campus_ingestion_core.file_asset_routing import (
     MINERU_ADAPTED_PARSER_VERSION,
     PADDLE_PARSER_VERSION,
+    RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
     RawAssetTypedMetadata,
     adapt_mineru_archive_to_canonical_provider_payload,
 )
@@ -20,6 +21,7 @@ from campus_ingestion_core.raw_ingestion_online_ocr import (
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
+    OnlineOcrRawArtifact,
     OnlineOcrProviderResult,
     OnlineOcrSettings,
     build_online_ocr_client,
@@ -53,7 +55,7 @@ class SourceTruthOnlyOcrExecutionResult:
     layout_elements_bytes: bytes
     ocr_provider: str
     ocr_model: str
-    raw_provider_response_bytes: bytes | None = None
+    raw_provider_artifacts: tuple[OnlineOcrRawArtifact, ...] = ()
     routing_decision_bytes: bytes | None = None
     refined_raw_asset_record: RawAssetRecord | None = None
 
@@ -148,11 +150,25 @@ def _normalize_online_ocr_provider_result(
 ) -> OnlineOcrProviderResult:
     if provider != ONLINE_OCR_PROVIDER_MINERU_API:
         return provider_result
+    if _looks_like_zip_archive(provider_result.provider_result_bytes):
+        return OnlineOcrProviderResult(
+            provider_result_bytes=adapt_mineru_archive_to_canonical_provider_payload(
+                provider_result.provider_result_bytes
+            ),
+            metadata=provider_result.metadata,
+            raw_provider_artifacts=provider_result.raw_provider_artifacts
+            or (
+                OnlineOcrRawArtifact(
+                    filename=RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
+                    content_type="application/zip",
+                    data=provider_result.provider_result_bytes,
+                ),
+            ),
+        )
     return OnlineOcrProviderResult(
-        provider_result_bytes=adapt_mineru_archive_to_canonical_provider_payload(
-            provider_result.provider_result_bytes
-        ),
+        provider_result_bytes=provider_result.provider_result_bytes,
         metadata=provider_result.metadata,
+        raw_provider_artifacts=provider_result.raw_provider_artifacts,
     )
 
 
@@ -172,7 +188,7 @@ def _build_source_truth_layout_elements_bytes(
             ocr_provider=ocr_provider,
             ocr_model=ocr_model,
         )
-    if collection == "student_handbook":
+    if collection == "student_rules":
         return serialize_handbook_layout_elements(
             normalize_handbook_provider_result(
                 source_pdf=source_pdf,
@@ -260,3 +276,7 @@ class S3ObjectStoreClient(S3ObjectStoreWriter):
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         response = self._client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
+
+
+def _looks_like_zip_archive(payload: bytes) -> bool:
+    return len(payload) >= 4 and payload[:4] == b"PK\x03\x04"

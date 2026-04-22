@@ -170,7 +170,7 @@ def _build_handbook_split_manifest_documents(
             )
         except Exception as exc:
             errors.append(f"{raw_asset_record.object_key}#{manifest_document.document_id}: {exc}")
-    if collection == "student_handbook":
+    if collection == "student_rules":
         try:
             documents.extend(
                 build_handbook_projection_import_documents(

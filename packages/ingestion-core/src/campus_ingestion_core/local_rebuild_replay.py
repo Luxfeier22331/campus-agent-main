@@ -52,10 +52,8 @@ def replay_provider_response_rebuild(
     collection_config = _resolve_runtime_collection_config(
         source=source, corpus=corpus, collection=collection
     )
-    if collection not in {"student_handbook", "curriculum_plan"}:
-        raise ValueError(
-            "provider_response_replay only supports student_handbook or curriculum_plan"
-        )
+    if collection not in {"student_rules", "curriculum_plan"}:
+        raise ValueError("provider_response_replay only supports student_rules or curriculum_plan")
     runtime_raw_asset_registry = raw_asset_registry or _build_raw_asset_registry_for_rebuild(
         source, corpus
     )
