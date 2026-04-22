@@ -1,6 +1,7 @@
 # `campus_notices/file_release_capture`
 
-该 scope 只承载 `authenticated_notice_portal/file_release` 的 PG capture ledger 与 raw-asset truth。
+该 scope 只承载 `authenticated_notice_portal/file_release` 的 PG capture ledger 与
+raw-asset truth。
 
 固定边界：
 

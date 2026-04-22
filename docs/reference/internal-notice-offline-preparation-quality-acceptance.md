@@ -4,7 +4,6 @@ status: active
 created: 2026-04-06
 updated: 2026-04-09
 ---
-
 # Internal Notice Offline Preparation Quality Acceptance
 
 ## 文档边界
@@ -20,15 +19,19 @@ updated: 2026-04-09
 
 它不替代：
 
-- `docs/reference/internal-notice-offline-preparation-strategy.md` 的 lane strategy
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 replay / prep 操作流程
-- `docs/architecture/authenticated-notice-source-architecture.md` 的 repo-level boundary
+- `docs/reference/internal-notice-offline-preparation-strategy.md` 的 lane
+  strategy
+- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 replay /
+  prep 操作流程
+- `docs/architecture/domains/authenticated-notice/architecture.md` 的 repo-level
+  boundary
 
 ## 核心结论
 
 对 `internal_notice`：
 
-- `prepare_registry_scope_chunks` 通过，只代表选定 document set 能完成 `document-units -> chunks` 的结构性 preparation
+- `prepare_registry_scope_chunks` 通过，只代表选定 document set 能完成 `document-units ->
+  chunks` 的结构性 preparation
 - 这不等于 attachment extraction、cleanup、chunk quality 已经通过
 - 在显式质量验收完成之前，不允许把这批 preparation 继续送进 embedding、Qdrant 或 alias publish
 
@@ -76,7 +79,8 @@ updated: 2026-04-09
 repo 当前的只读质量验收入口固定为：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.validate_internal_notice_chunking \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.validate_internal_notice_chunking
   --preparation-run-id <prep_id> \
   --sample-dir <output_dir>
 ```
@@ -84,15 +88,20 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 其中：
 
 - 不传任何 selector 时，validator 读取 current registry scope
-- 传入 `--preparation-run-id` 时，validator 读取 frozen preparation manifest 对应的 document set
-- 传入 `--closeout-run-id` 时，validator 直接读取 verified closeout run 的 staged `document-units.jsonl`
+- 传入 `--preparation-run-id` 时，validator 读取 frozen preparation manifest 对应的
+  document set
+- 传入 `--closeout-run-id` 时，validator 直接读取 verified closeout run 的 staged
+  `document-units.jsonl`
 - `--mode samples` 只导出样本，不产出 full validation verdict
 
 对尚未 promote 到 current scope 的 verified replay pilot：
 
-- 可以先用 `--closeout-run-id` 对 staged `document-units.jsonl` 做只读 sample / quality 审查
-- 也可以基于同一个 verified closeout run 先生成正式 `preparation_run_id`，再用 `--preparation-run-id` 做 canonical preparation 验收
-- 直接 `--closeout-run-id` 的 staged 审查只用于判断 lane-quality 是否可接受；它本身不能直接作为后续 release gate
+- 可以先用 `--closeout-run-id` 对 staged `document-units.jsonl` 做只读 sample / quality
+  审查
+- 也可以基于同一个 verified closeout run 先生成正式 `preparation_run_id`，再用
+  `--preparation-run-id` 做 canonical preparation 验收
+- 直接 `--closeout-run-id` 的 staged 审查只用于判断 lane-quality 是否可接受；它本身不能直接作为后续 release
+  gate
 
 ## Lane-Specific Acceptance
 
@@ -130,7 +139,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 必须满足：
 
 - materialized attachment document 至少有可消费的 `attachment_body`
-- chunk 保留 attachment lineage metadata，例如 `parent_document_id`、`attachment_ref_id`、`attachment_filename`
+- chunk 保留 attachment lineage metadata，例如
+  `parent_document_id`、`attachment_ref_id`、`attachment_filename`
 - chunk 带稳定 `title`
 - 清洗后不残留明显 HTML / 标签泄漏
 
@@ -157,8 +167,10 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - OCR chunk 没有被标题 header 完全压住正文
 - 明显噪声块会被 validator 标出来，而不是混在“通过”里
 - materialized OCR attachment 必须能回链到 `layout-elements.jsonl`
-- OCR attachment 的 document units 至少应包含 `attachment_title` 与 `section_text` / `table_unit` 之一，不接受“只有标题 + 原样 OCR 大段文本”的退化 truth
-- canonical markdown 与最终 document units 不得直接泄漏 raw `<table>` / `<div>` / `<tr>` markup
+- OCR attachment 的 document units 至少应包含 `attachment_title` 与 `section_text` /
+  `table_unit` 之一，不接受“只有标题 + 原样 OCR 大段文本”的退化 truth
+- canonical markdown 与最终 document units 不得直接泄漏 raw `<table>` / `<div>` / `<tr>`
+  markup
 
 必须失败的情况：
 
@@ -196,7 +208,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.valid
 - raw html / xml 标签直接进入最终正文
 - 只有装饰符号、分隔线或重复垃圾行的 chunk 被当成有效正文
 
-`notice_body` 与 `attachment_text_extractable` 的标准应高于 OCR lane，但 OCR lane 也不能因为“本来就脏”而放弃显式失败。
+`notice_body` 与 `attachment_text_extractable` 的标准应高于 OCR lane，但 OCR lane
+也不能因为“本来就脏”而放弃显式失败。
 
 ## Chunk Acceptance
 
@@ -237,7 +250,8 @@ chunk 级验收固定关注四类问题：
 
 - `manual_review_required` 是 attachment outcome，不是 chunk validator document lane
 - 因此空间导览图 / 位置图不会直接导出成 chunk sample
-- 这类内容在当前阶段只能通过 `notice-risk-spatial` / `notice-risk-mixed-high-risk` 样本，以及 sample markdown 里的 notice risk metadata 暴露出来
+- 这类内容在当前阶段只能通过 `notice-risk-spatial` / `notice-risk-mixed-high-risk` 样本，以及
+  sample markdown 里的 notice risk metadata 暴露出来
 
 sample export 至少应包含：
 
@@ -288,7 +302,8 @@ validator summary 如果成功解析到 risk profile，还应显式记录：
 
 当前 canonical 顺序固定为：
 
-`source-truth replay -> document build -> split / cleanup / chunk -> quality acceptance -> explicit approval -> embedding / Qdrant / release`
+`source-truth replay -> document build -> split / cleanup / chunk -> quality
+acceptance -> explicit approval -> embedding / Qdrant / release`
 
 在显式批准前，固定禁止：
 
@@ -300,5 +315,5 @@ validator summary 如果成功解析到 risk profile，还应显式记录：
 
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `configs/ingestion/campus_notices/internal_notice/README.md`

@@ -15,8 +15,10 @@ updated: 2026-04-20
 
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
+- `workstream-agent-harness-contract.md`
 - `testing-and-verification-lanes.md`
 - `eval-gold-truth-model.md`
+- `eval-benchmark-artifact-contract.md`
 - `golden-dataset-case-matrix.md`
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`

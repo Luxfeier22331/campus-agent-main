@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-28
 updated: 2026-03-30
 ---
-
 # ADR-0017 Supervisor Internal Execution Admission
 
 ## 状态
@@ -39,34 +38,51 @@ Accepted on 2026-03-28.
 ## 决策
 
 1. `apps/app-api` 是唯一的 product-layer identity owner。
-2. `apps/app-api` 负责 auth、session、principal mapping，并显式把 `actor` 交给 `apps/supervisor-api`。
-3. `apps/supervisor-api` 只负责 internal execution caller admission，不再承担 user-auth 语义。
-4. canonical request projection 采用 database outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是第一 durable truth，`operator.request_projection` 由 outbox 物化。
-5. Better Auth runtime 落在 `apps/app-api` 内部；repo-owned auth schema 固定为 `app_auth.*`，并显式区分 shared Postgres 上的 shared-product bootstrap owner 与 Drizzle migration owner：`apps/app-api` bootstrap 负责 `app_auth.*` / `chat.*`，`drizzle.app_api_migrations` 负责 `runtime.*` / `operator.*` / `official_web.*`。
-6. Worker runtime 的数据库访问走 Hyperdrive；schema migration 与管理动作使用 direct database management connection，而不是 Hyperdrive runtime binding。
+1. `apps/app-api` 负责 auth、session、principal mapping，并显式把 `actor` 交给
+   `apps/supervisor-api`。
+1. `apps/supervisor-api` 只负责 internal execution caller admission，不再承担 user-auth
+   语义。
+1. canonical request projection 采用 database
+   outbox-first：`runtime.request_execution` 与 `runtime.projection_outbox` 是第一
+   durable truth，`operator.request_projection` 由 outbox 物化。
+1. Better Auth runtime 落在 `apps/app-api` 内部；repo-owned auth schema 固定为
+   `app_auth.*`，并显式区分 shared Postgres 上的 shared-product bootstrap owner 与
+   Drizzle migration owner：`apps/app-api` bootstrap 负责 `app_auth.*` /
+   `chat.*`，`drizzle.app_api_migrations` 负责 `runtime.*` / `operator.*` /
+   `official_web.*`。
+1. Worker runtime 的数据库访问走 Hyperdrive；schema migration 与管理动作使用 direct database
+   management connection，而不是 Hyperdrive runtime binding。
 
 ## 边界约束
 
 这项决策同时冻结以下约束：
 
-- `apps/supervisor-api` 不从 Access JWT、edge header 或 browser-facing session 恢复最终业务 actor
-- `actor` 是 `app-api -> supervisor-api` execution contract 的显式字段，而不是 runtime side inference
+- `apps/supervisor-api` 不从 Access JWT、edge header 或 browser-facing session
+  恢复最终业务 actor
+- `actor` 是 `app-api -> supervisor-api` execution contract 的显式字段，而不是 runtime
+  side inference
 - queue 可以在 outbox 之后作为加速或 fan-out 手段，但不是 canonical request truth
-- panel 不直接消费 `runtime.request_execution`、audit log、telemetry sink 或 `apps/supervisor-api`
-- Better Auth adapter-owned 表仍需遵守适配器约定，但 shared DB owner 之间不得再隐式共用同一 migration journal
+- panel 不直接消费 `runtime.request_execution`、audit log、telemetry sink 或
+  `apps/supervisor-api`
+- Better Auth adapter-owned 表仍需遵守适配器约定，但 shared DB owner 之间不得再隐式共用同一 migration
+  journal
 
 ## 结果
 
 直接结果如下：
 
 - `apps/supervisor-api` 文档应从“auth”改写为“internal caller admission”
-- `app-api` contract / lifecycle / schema 文档应明确 `actor` 显式传递与 outbox-first projection
-- request projection 的第一版实现应优先采用同库 outbox + scheduled/internal consumer，而不是 queue-first
-- `apps/app-api` 实施时需要把 Better Auth runtime、shared DB ownership 与 Drizzle journal ownership 一并固定清楚
+- `app-api` contract / lifecycle / schema 文档应明确 `actor` 显式传递与 outbox-first
+  projection
+- request projection 的第一版实现应优先采用同库 outbox + scheduled/internal consumer，而不是
+  queue-first
+- `apps/app-api` 实施时需要把 Better Auth runtime、shared DB ownership 与 Drizzle
+  journal ownership 一并固定清楚
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` ingress 形态，用于 repo-local dev 和历史 runtime 兼容。
+当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` ingress 形态，用于
+repo-local dev 和历史 runtime 兼容。
 
 这些模式现在应被理解为：
 
@@ -84,5 +100,7 @@ Accepted on 2026-03-28.
 
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`

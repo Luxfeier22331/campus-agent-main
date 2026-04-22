@@ -4,7 +4,6 @@ status: active
 created: 2026-04-19
 updated: 2026-04-20
 ---
-
 # Shared File Asset Loader Architecture
 
 ## 文档边界
@@ -30,7 +29,8 @@ updated: 2026-04-20
 
 repo 要统一的是：
 
-`asset typing -> optional normalization -> extraction -> terminal outcome -> provenance`
+`asset typing -> optional normalization -> extraction -> terminal outcome ->
+provenance`
 
 不是：
 
@@ -54,14 +54,18 @@ repo 要统一的是：
 
 对 file-like assets，repo 级 canonical chain 固定补充一条 shared subchain：
 
-`raw/source object -> source-truth relation or file descriptor -> optional normalization -> extraction/provider artifacts -> terminal outcome or canonical child document artifacts -> document-units -> chunks -> index`
+`raw/source object -> source-truth relation or file descriptor -> optional
+normalization -> extraction/provider artifacts -> terminal outcome or canonical
+child document artifacts -> document-units -> chunks -> index`
 
 固定规则：
 
 - 这条 subchain 只处理 file-like asset，不替代 source-specific source unit
 - `official_web` 继续先有 page-level source-truth
-- `authenticated_notice_portal` 继续先有 notice-level source-truth 与 attachment relation truth
-- shared loader 只在 source-specific relation truth 已成立之后，负责 admitted file asset 的 normalization / extraction / terminal outcome
+- `authenticated_notice_portal` 继续先有 notice-level source-truth 与 attachment
+  relation truth
+- shared loader 只在 source-specific relation truth 已成立之后，负责 admitted file asset 的
+  normalization / extraction / terminal outcome
 
 ## Canonical Contract Vocabulary
 
@@ -75,7 +79,8 @@ shared loader 至少要显式暴露以下 repo-owned nouns：
 
 最低 contract 语义固定为：
 
-- 输入必须携带稳定的 asset family、source storage ref、mime/extension hints 与 upstream provenance
+- 输入必须携带稳定的 asset family、source storage ref、mime/extension hints 与 upstream
+  provenance
 - 输出必须明确区分：
   - 是否发生 normalization
   - 是否产生可消费 extraction artifacts
@@ -118,8 +123,10 @@ canonical 处理方式固定为：
 固定规则：
 
 - `docx` 保留 heading / paragraph / list / table / hyperlink / embedded-image refs
-- `xlsx` 保留 workbook / sheet / table range / headers / merged cells / formula / displayed value
-- `xlsx` 的 retrieval / chunk view 以 sheet 或 table range 为主，不把整份 workbook 压平成单一长文本
+- `xlsx` 保留 workbook / sheet / table range / headers / merged cells / formula /
+  displayed value
+- `xlsx` 的 retrieval / chunk view 以 sheet 或 table range 为主，不把整份 workbook
+  压平成单一长文本
 
 ### PDF
 
@@ -147,7 +154,8 @@ canonical 处理方式固定为：
 
 - 普通图片 / 简单 OCR：`Paddle` 主 lane
 - 复杂表格图 / 文档图 / 版式敏感图片：`MinerU` 主 lane
-- 多模态大模型 lane：只用于 `semantic image` enrichment，不替代 document image 的 OCR / layout parser
+- 多模态大模型 lane：只用于 `semantic image` enrichment，不替代 document image 的 OCR / layout
+  parser
 
 固定禁止：
 
@@ -192,7 +200,9 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 
 当前 repo-owned runtime contract：
 
-- worker/core caller 只消费 `LEGACY_OFFICE_CONVERSION_BASE_URL`、`LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET` 与 optional `LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`
+- worker/core caller 只消费 `LEGACY_OFFICE_CONVERSION_BASE_URL`、`LEGACY_OFFICE_CONV
+  ERSION_INTERNAL_SHARED_SECRET` 与 optional
+  `LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`
 - admitted service routes 固定为：
   - `POST /api/internal/legacy-office/conversions`
   - `GET /healthz`
@@ -210,7 +220,8 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 固定规则：
 
 - 原始对象始终保留为 source truth 的上游输入，不因 normalization 被覆盖
-- 由 legacy binary Office conversion 生成的 `docx/xlsx` 只是 normalization artifact，不是新的 source truth
+- 由 legacy binary Office conversion 生成的 `docx/xlsx` 只是 normalization
+  artifact，不是新的 source truth
 - 任何 lane 无法高置信完成时，都必须显式落到 repo-owned terminal outcome
 
 当前 repo 级 terminal outcome family 继续允许包括：
@@ -232,13 +243,17 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 
 - page-level source-truth 继续留在 `official_web` source channel
 - page parser 不承担 linked/downloaded file asset 的长期 parser owner
-- 如果 downstream 需要消费 page-linked file assets，必须进入 shared file asset loader contract
+- 如果 downstream 需要消费 page-linked file assets，必须进入 shared file asset loader
+  contract
 
 ### Authenticated Notice
 
-- notice-level source-truth 与 attachment relation truth 继续留在 `authenticated_notice_portal`
-- attachment objects 的 normalization / extraction / terminal outcome 不再属于 collector 私有逻辑
-- `authenticated_notice` attachment migration 是 shared loader 的首个优先接入面，但不反向改写 notice source unit
+- notice-level source-truth 与 attachment relation truth 继续留在
+  `authenticated_notice_portal`
+- attachment objects 的 normalization / extraction / terminal outcome 不再属于
+  collector 私有逻辑
+- `authenticated_notice` attachment migration 是 shared loader 的首个优先接入面，但不反向改写
+  notice source unit
 - 当前已落盘的 authenticated notice admitted attachment default lane 只覆盖：
   - `doc`
   - `docx`
@@ -246,8 +261,12 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
   - `xlsx`
   - `pdf`
   - image OCR / terminal-outcome families
-- `doc` / `xls` 先走 service-backed legacy Office normalization，再进入 deterministic OOXML extraction；生成的 `.docx/.xlsx` 继续只是 normalization artifact，不改写 source truth
-- `file_asset_routing.py` 已是 PDF / image typed routing 的 canonical owner；历史 `raw_asset_typing.py` / `online_ocr_routing.py` shim 已删除，不再保留 forward import surface
+- `doc` / `xls` 先走 service-backed legacy Office normalization，再进入 deterministic
+  OOXML extraction；生成的 `.docx/.xlsx` 继续只是 normalization artifact，不改写 source
+  truth
+- `file_asset_routing.py` 已是 PDF / image typed routing 的 canonical owner；历史
+  `raw_asset_typing.py` / `online_ocr_routing.py` shim 已删除，不再保留 forward import
+  surface
 
 ## 非默认主干
 
@@ -263,8 +282,8 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 ## 相关稳定文档
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/official-web-architecture.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/domains/official-web/architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/runbooks/legacy-office-conversion-runtime.md`

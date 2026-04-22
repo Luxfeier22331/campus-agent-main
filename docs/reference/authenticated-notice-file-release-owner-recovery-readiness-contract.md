@@ -4,18 +4,21 @@ status: active
 created: 2026-04-14
 updated: 2026-04-22
 ---
-
 # Authenticated Notice File-Release Owner-Recovery Readiness Contract
 
 ## 文档边界
 
-本文冻结 `regulations/institutional_rules` 当前对 `authenticated_notice_portal/file_release` 的下游 readiness contract。
+本文冻结 `regulations/institutional_rules` 当前对
+`authenticated_notice_portal/file_release` 的下游 readiness contract。
 
 它回答的是：
 
-- downstream 如何读取 `file-releases-bundle-*.json` / `file-releases-manifest-*.json`，或本地 PG `campus_notices/file_release_capture` ledger
+- downstream 如何读取 `file-releases-bundle-*.json` /
+  `file-releases-manifest-*.json`，或本地 PG `campus_notices/file_release_capture`
+  ledger
 - `owner_title_hint` 应如何与 `file_release` 记录做 bounded matching
-- matching 结果如何分成 `ready / missing_capture / missing_source_bytes / ambiguous_match`
+- matching 结果如何分成 `ready / missing_capture / missing_source_bytes /
+  ambiguous_match`
 
 它不负责：
 
@@ -25,9 +28,12 @@ updated: 2026-04-22
 
 对应文档：
 
-- collector export contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
-- auth-window runbook：`docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
-- regulation acceptance：`docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+- collector export
+  contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
+- auth-window runbook：`docs/runbooks/authenticated-notice-file-release-auth-wind
+  ow-runbook.md`
+- regulation acceptance：`docs/reference/institutional-regulations-promotion-qual
+  ity-acceptance.md`
 
 ## 当前定位
 
@@ -41,7 +47,7 @@ repo 当前已经具备一条 bounded downstream consumer：
 它的职责只有两步：
 
 1. 读取 `file_release` export bundle / manifest
-2. 回答某个 `owner_title_hint` 当前是否已经具备可恢复正文的 source locator
+1. 回答某个 `owner_title_hint` 当前是否已经具备可恢复正文的 source locator
 
 当前它还不会：
 
@@ -51,7 +57,8 @@ repo 当前已经具备一条 bounded downstream consumer：
 
 ## 当前落地形态
 
-当前 repo 已把 `authenticated_notice_portal/file_release` 的 repo-tracked export materialize 成一条 capture-only local PG ledger：
+当前 repo 已把 `authenticated_notice_portal/file_release` 的 repo-tracked export
+materialize 成一条 capture-only local PG ledger：
 
 - `corpus/collection = campus_notices/file_release_capture`
 - `ingestion_projection.authenticated_notice_file_release_inventory`
@@ -84,16 +91,21 @@ repo 当前仍严格保持：
 1. 两份 collector artifact：
    - `file-releases-bundle-<timestamp>.json`
    - `file-releases-manifest-<timestamp>.json`
-2. 本地 PG `campus_notices/file_release_capture` inventory rows
+1. 本地 PG `campus_notices/file_release_capture` inventory rows
    - 从 `ingestion_projection.authenticated_notice_file_release_inventory` 读取
-   - 如需 recoverable source locator，则同 scope raw-asset truth 仍以 `ingestion_registry.raw_asset_registry_records` 为准
+   - 如需 recoverable source locator，则同 scope raw-asset truth 仍以
+     `ingestion_registry.raw_asset_registry_records` 为准
 
 当前代码入口：
 
-- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.load_authenticated_notice_file_release_export`
-- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness`
-- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness_from_inventory_entries`
-- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolve_file_release_owner_recovery_readiness_from_inventory_store`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.load_a
+  uthenticated_notice_file_release_export`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolv
+  e_file_release_owner_recovery_readiness`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolv
+  e_file_release_owner_recovery_readiness_from_inventory_entries`
+- `campus_ingestion_core.authenticated_notice_file_release_owner_recovery.resolv
+  e_file_release_owner_recovery_readiness_from_inventory_store`
 - `campus_ingestion_worker.check_authenticated_notice_file_release_readiness`
 
 ## Matching Contract
@@ -115,8 +127,8 @@ repo 当前仍严格保持：
 当前优先级固定为：
 
 1. `exact_normalized_title`
-2. `owner_hint_contained_in_candidate`
-3. `candidate_contained_in_owner_hint`
+1. `owner_hint_contained_in_candidate`
+1. `candidate_contained_in_owner_hint`
 
 固定 fail-close 规则：
 
@@ -183,9 +195,15 @@ repo 当前仍严格保持：
 
 当前分层设计参考以下官方术语：
 
-- DCMI `source`：<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/source/>
-- DCMI `hasPart`：<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/hasPart/>
-- DCMI `isPartOf`：<https://www.dublincore.org/specifications/dublin-core/dcmi-terms/terms/isPartOf/>
+- DCMI
+  `source`：<<https://www.dublincore.org/specifications/dublin-core/dcmi-term>
+  s/terms/source/>
+- DCMI
+  `hasPart`：<<https://www.dublincore.org/specifications/dublin-core/dcmi-ter>
+  ms/terms/hasPart/>
+- DCMI
+  `isPartOf`：<<https://www.dublincore.org/specifications/dublin-core/dcmi-te>
+  rms/terms/isPartOf/>
 - DataCite Versioning：<https://support.datacite.org/docs/versioning>
 
 repo 对这些术语的当前解释是：

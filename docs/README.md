@@ -2,12 +2,12 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-22
+updated: 2026-04-23
 ---
-
 # Docs
 
-`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的架构、ADR、contract、data、policy、reference、runbook，以及已归档的历史 plan。
+`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的 architecture、ADR、contract、data、
+policy、reference、runbook，以及已归档的历史 plan。
 
 ## Canonical Entry Points
 
@@ -25,7 +25,11 @@ updated: 2026-04-22
 ## Documentation Areas
 
 - [architecture/README.md](./architecture/README.md)
-  - 产品定位、merged truth、supporting architecture
+  - repo-entry truth 与 supporting architecture 总入口
+- [architecture/system/README.md](./architecture/system/README.md)
+  - 跨域 supporting architecture
+- [architecture/domains/README.md](./architecture/domains/README.md)
+  - 领域 supporting architecture
 - [decisions/README.md](./decisions/README.md)
   - ADR、接受原因与 supersession lifecycle
 - [contracts/README.md](./contracts/README.md)
@@ -48,6 +52,8 @@ updated: 2026-04-22
 ## Reading Model
 
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
+- 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
+  `architecture/system/capability-routing-and-admission-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
@@ -57,8 +63,12 @@ updated: 2026-04-22
 ## Docs And Planning
 
 - `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
-- `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature branch 进度
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；先看这里，再进入 `STATE / ROADMAP / REQUIREMENTS`
-- `docs/plans/` 已全部视为 archive namespace；当前 forward execution truth 固定在 `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`
+- `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature
+  branch 进度
+- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；先看这里，再进入
+  `STATE / ROADMAP / REQUIREMENTS`
+- `docs/plans/` 已全部视为 archive namespace；当前 forward execution truth 固定在
+  `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`
 - `plans/`、`reference/`、`runbooks/` 的非默认入口材料应优先收进各自 `archive/` 子目录，而不是继续堆在根层命名空间
-- `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级 workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`
+- `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级
+  workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`

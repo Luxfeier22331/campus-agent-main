@@ -4,12 +4,12 @@ status: active
 created: 2026-04-02
 updated: 2026-04-19
 ---
-
 # Identity And Authorization Architecture
 
 ## 文档边界
 
-本文冻结 canonical identity、authorization、memory 与 retrieval filter projection 的 supporting architecture。
+本文冻结 canonical identity、authorization、memory 与 retrieval filter projection 的
+supporting architecture。
 
 它回答的是：
 
@@ -30,7 +30,8 @@ updated: 2026-04-19
 其中：
 
 - 前四层由 `apps/app-api` 拥有 canonical truth
-- `institutional knowledge` 由 document / retrieval / evidence stack 拥有 canonical truth
+- `institutional knowledge` 由 document / retrieval / evidence stack 拥有 canonical
+  truth
 
 ## Accepted Ownership Posture
 
@@ -46,13 +47,17 @@ identity / authz / memory supporting architecture 当前已经明确：
 - memory / personalization productization
 - legacy ACL carrier sunset
 
-这些是后续 productization / rollout gap，不应倒推为“authz truth 尚未归属”，也不应把旧 foundation plan 直接当成当前 merged truth。
+这些是后续 productization / rollout gap，不应倒推为“authz truth 尚未归属”，也不应把旧 foundation plan
+直接当成当前 merged truth。
 
 补充说明：
 
 - identity / restricted foundation 本身已在 Phase 11 收口
-- 当前若继续推进这条域，默认应把 rollout / sunset 看作 deferred follow-up，而不是重新打开 foundation ownership 讨论
-- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-memory.md`、`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
+- 当前若继续推进这条域，默认应把 rollout / sunset 看作 deferred follow-up，而不是重新打开 foundation
+  ownership 讨论
+- 当前 active/deferred lifecycle 与 pending work 统一看 `docs/domains/identity-authz-m
+  emory.md`、`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
+  `STATE.md`
 
 ## Ownership Model
 
@@ -84,7 +89,8 @@ authorization truth 至少覆盖：
 - resource ownership truth
 - approval truth
 
-当前 retrieval-side ACL metadata 只是 transitional projection carrier，不是 canonical authz schema。
+当前 retrieval-side ACL metadata 只是 transitional projection carrier，不是 canonical
+authz schema。
 
 ## Visibility Vs Applicability
 
@@ -113,11 +119,13 @@ execution path 的长期规则：
 - memory 不能授予 restricted visibility
 - restricted resource family 不能靠 prompt-only 软约束实现
 
-当前如果 restricted rollout 尚未完成，也只能表现为“能力未上线”或 fail-close；不能反向把 authz 解释权交给 retrieval、prompt 或 panel。
+当前如果 restricted rollout 尚未完成，也只能表现为“能力未上线”或 fail-close；不能反向把 authz 解释权交给
+retrieval、prompt 或 panel。
 
 ## Operator Access
 
-operator access 也属于 authz truth 的一部分，但 protected surface 的 runtime shell 仍由 `docs/architecture/product-runtime-architecture.md` 负责。
+operator access 也属于 authz truth 的一部分，但 protected surface 的 runtime shell 仍由
+`docs/architecture/system/product-runtime-architecture.md` 负责。
 
 这里的硬约束只有：
 
@@ -127,25 +135,32 @@ operator access 也属于 authz truth 的一部分，但 protected surface 的 r
 
 ## Human Verification And Auth Admission
 
-Turnstile 这类 human verification 属于 auth admission hardening，不属于 canonical identity / authz truth。
+Turnstile 这类 human verification 属于 auth admission hardening，不属于 canonical
+identity / authz truth。
 
 边界固定为：
 
 - verification 失败只代表 auth-family request 在 admission 处 fail-close
-- verification 成功也不会变成 principal、profile、entitlement 或 retrieval visibility truth
-- interactive challenge escalation 属于 product runtime / edge provider posture，不下沉到 supervisor、retrieval 或 panel
-- raw captcha token、provider-specific risk signal 与 challenge state 不进入 execution path、retrieval path 或 operator read model
+- verification 成功也不会变成 principal、profile、entitlement 或 retrieval visibility
+  truth
+- interactive challenge escalation 属于 product runtime / edge provider
+  posture，不下沉到 supervisor、retrieval 或 panel
+- raw captcha token、provider-specific risk signal 与 challenge state 不进入
+  execution path、retrieval path 或 operator read model
 
 ## Forbidden Shapes
 
 - 不把 memory 提升成授权来源
 - 不把 raw JWT / raw session 洩漏给 supervisor / agent / retrieval
-- 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization truth
+- 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization
+  truth
 - 不把 retrieval payload ACL 字段误读成 canonical authz truth
 - 不让 operator panel 旁路 `app-api` 直接做授权解释
 
 ## 相关稳定文档
 
 - `docs/domains/identity-authz-memory.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
+  .md`

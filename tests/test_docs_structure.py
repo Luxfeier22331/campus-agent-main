@@ -179,6 +179,28 @@ class DocsStructureTest(unittest.TestCase):
         self.assertIn("environment/README.md", docs_index)
         self.assertIn("domains/README.md", docs_index)
 
+    def test_contracts_index_lists_eval_ingress_contract(self) -> None:
+        contracts_index = (DOCS_ROOT / "contracts" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("app-api-eval-benchmark-http.md", contracts_index)
+
+    def test_reference_index_lists_eval_benchmark_artifact_contract(self) -> None:
+        reference_index = (DOCS_ROOT / "reference" / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("eval-benchmark-artifact-contract.md", reference_index)
+
+    def test_testing_reference_matches_current_repo_lint_semantics(self) -> None:
+        verification_reference = (
+            DOCS_ROOT / "reference" / "testing-and-verification-lanes.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("pnpm coverage:lint", verification_reference)
+        self.assertIn("pnpm html:lint", verification_reference)
+        self.assertIn("tracked +", verification_reference)
+        self.assertIn("untracked 文件", verification_reference)
+        self.assertIn("PowerShell 继续保留为 supplemental lane", verification_reference)
+        self.assertIn("不并入默认 `pnpm lint`", verification_reference)
+
     def test_decision_ids_are_unique(self) -> None:
         decision_ids: dict[str, Path] = {}
 

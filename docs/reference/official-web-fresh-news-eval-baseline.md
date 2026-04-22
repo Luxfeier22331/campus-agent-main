@@ -4,7 +4,6 @@ status: active
 created: 2026-04-05
 updated: 2026-04-20
 ---
-
 # Official Web Fresh News Eval Baseline
 
 ## 目的
@@ -30,11 +29,10 @@ repo-tracked 基线入口固定为：
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
 - retrieval qrels:
   `packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json`
-- deterministic live gate:
-  `packages/evals/src/campus_evals/scenarios.py` ->
+- deterministic live gate: `packages/evals/src/campus_evals/scenarios.py` ->
   `official_web_fresh_news_release_gate_cases()`
-- live benchmark entry:
-  `uv run --all-packages python -m campus_evals.official_web_live_benchmark ... --official-web-scope fresh_news`
+- live benchmark entry: `uv run --all-packages python -m
+  campus_evals.official_web_live_benchmark ... --official-web-scope fresh_news`
 
 基线分母：
 
@@ -65,11 +63,15 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 
 ## 基线解释
 
-- 这组 baseline 只覆盖 handoff seed set 的 exact-title retrieval / answer path，不覆盖“今天 / 最新 / 最近”这类 freshness-sensitive 问法
+- 这组 baseline 只覆盖 handoff seed set 的 exact-title retrieval / answer path，不覆盖“今天
+  / 最新 / 最近”这类 freshness-sensitive 问法
 - `fresh_news` 在该基线下仍是 `offline_preparation` 语义，不应被写成默认 query-serving surface
-- cross-host duplicate 跳过说明 routed import 已具备基础去重能力，但不等于 `news_archive` 或持续增量采集策略已经闭合
-- 原始首次执行中关于 shared Postgres 饱和、临时 registry 路径等运行面细节，属于历史排障背景，不再保留在 active baseline
-- 真正 opening 仍需按 `docs/reference/official-web-news-surface-opening-checklist.md` 继续验证 opening gate
+- cross-host duplicate 跳过说明 routed import 已具备基础去重能力，但不等于 `news_archive`
+  或持续增量采集策略已经闭合
+- 原始首次执行中关于 shared Postgres 饱和、临时 registry 路径等运行面细节，属于历史排障背景，不再保留在 active
+  baseline
+- 真正 opening 仍需按 `docs/reference/official-web-news-surface-opening-checklist.md`
+  继续验证 opening gate
 
 ## 维护规则
 
@@ -84,6 +86,10 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 ## 验证命令
 
 - retrieval benchmark：
-  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json --qdrant-collection-name <collection> --format json --output <results.json>`
+  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark
+    --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json
+    --qdrant-collection-name <collection> --format json --output <results.json>`
 - deterministic live gate：
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --official-web-scope fresh_news --qdrant-collection-name <collection> --output-dir <output_dir>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
+    run --official-web-scope fresh_news --qdrant-collection-name <collection>
+    --output-dir <output_dir>`

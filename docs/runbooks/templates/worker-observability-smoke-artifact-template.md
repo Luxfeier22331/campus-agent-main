@@ -4,7 +4,6 @@ status: active
 created: 2026-04-02
 updated: 2026-04-20
 ---
-
 # Worker Observability Smoke Artifact Template
 
 ## 用途
@@ -19,7 +18,8 @@ updated: 2026-04-20
 - `.tmp/observability-smoke/<timestamp>-<environment>-<release>/SUMMARY.md`
 - `.tmp/observability-smoke/<timestamp>-<environment>-<release>/chat-trace.md`
 - `.tmp/observability-smoke/<timestamp>-<environment>-<release>/panel-trace.md`
-- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/app-api-runtime-event.md`
+- `.tmp/observability-smoke/<timestamp>-<environment>-<release>/app-api-runtime-
+  event.md`
 
 如果当前还没有真实部署环境，也照样落 `SUMMARY.md`，并把最终状态写成 `post-deploy verification pending`。
 
@@ -52,8 +52,11 @@ updated: 2026-04-20
 
 - `check_worker_observability_env --json`:
 - `pnpm --dir apps/app-api test:worker -- --reporter=verbose`:
-- `pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t "smokes a chat request through public-chat-web into app-api"`:
-- `pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes request queries through protected-panel-web into app-api with internal caller admission"`:
+- `pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t
+  "smokes a chat request through public-chat-web into app-api"`:
+- `pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t
+  "smokes request queries through protected-panel-web into app-api with
+  internal caller admission"`:
 
 ## Post-Deploy Verification
 

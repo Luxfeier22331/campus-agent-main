@@ -1,7 +1,7 @@
-## stable_reference collection config
+# stable_reference collection config
 
-This directory holds the repo-tracked runtime profile for the
-`stable_reference` collection within the `official_web` corpus.
+This directory holds the repo-tracked runtime profile for the `stable_reference`
+collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
   `configs/sources/official_web/muc_public/`
@@ -16,7 +16,8 @@ Current runtime truth:
 - freshness-sensitive queries supported: `false`
 - live-search fallback allowed: `false`
 - required metadata fields: `none`
-- primary evidence page families: `repo policy decides by stable-reference semantics; not restricted to news-only detail pages`
+- primary evidence page families: `repo policy decides by stable-reference
+  semantics; not restricted to news-only detail pages`
 - listing-page role: `n/a`
 - serving alias: `official_web_stable_reference`
 - collection prefix: `official_web_stable_reference`
@@ -36,6 +37,6 @@ Boundary notes:
   `news_archive` remain explicitly out of the default online answer path
 - it is not a mirror for formal regulations or formal curriculum documents;
   those continue to belong to `regulations/*` and `curriculum/*`
-- `official_web/muc_public_pages` remains the mixed bridge for replay, QC,
-  and regression truth; it is no longer the forward-facing official-web query
+- `official_web/muc_public_pages` remains the mixed bridge for replay, QC, and
+  regression truth; it is no longer the forward-facing official-web query
   surface

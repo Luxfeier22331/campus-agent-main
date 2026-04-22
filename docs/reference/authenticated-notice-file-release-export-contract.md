@@ -4,7 +4,6 @@ status: active
 created: 2026-04-12
 updated: 2026-04-21
 ---
-
 # Authenticated Notice File-Release Export Contract
 
 ## 文档边界
@@ -27,10 +26,14 @@ updated: 2026-04-21
 
 对应文档：
 
-- source-channel 边界：`docs/architecture/authenticated-notice-source-architecture.md`
-- notice source-truth contract：`docs/architecture/authenticated-notice-source-truth-contract.md`
-- auth-window 执行步骤：`docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
-- downstream readiness：`docs/reference/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
+- source-channel
+  边界：`docs/architecture/domains/authenticated-notice/architecture.md`
+- notice source-truth
+  contract：`docs/data/authenticated-notice-source-truth-schema.md`
+- auth-window
+  执行步骤：`docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
+- downstream readiness：`docs/reference/authenticated-notice-file-release-owner-r
+  ecovery-readiness-contract.md`
 
 ## 核心定位
 
@@ -70,7 +73,8 @@ updated: 2026-04-21
 
 ## Portal Selector Snapshot
 
-除了 list/detail/download-url 记录外，collector 在每次 export 时还会快照当前 portal 的 selector truth：
+除了 list/detail/download-url 记录外，collector 在每次 export 时还会快照当前 portal 的 selector
+truth：
 
 - `/comsys-prompt-portlet-web/getFileType`
   - `observed_file_types`
@@ -82,7 +86,8 @@ updated: 2026-04-21
 这些字段的作用是：
 
 - 冻结本次 export 看到的 `file_release` 分类与说明部门全集
-- 让后续 owner recovery / downstream triage 可以基于真实 portal taxonomy，而不是只看当前 bundle rows 中碰巧出现的子集
+- 让后续 owner recovery / downstream triage 可以基于真实 portal taxonomy，而不是只看当前 bundle
+  rows 中碰巧出现的子集
 - 明确 `制度汇编/制度管理` 这类管理视图依然属于 `file_release` family，而不是新的第三 source family
 
 ## Schema Version
@@ -225,9 +230,11 @@ collector metadata 固定包括：
 
 collector 当前固定行为：
 
-- 未设置 `target_file_release_id` 时，继续按现有 full export / quantity-bounded export 语义执行
+- 未设置 `target_file_release_id` 时，继续按现有 full export / quantity-bounded export
+  语义执行
 - 设置 `target_file_release_id` 时，只允许导出该 `file_release_id` 对应的 bundle row
-- 如果 traversed export scope 内没有命中目标 `file_release_id`，collector 必须 fail-close，不能写出空 bundle 的伪成功结果
+- 如果 traversed export scope 内没有命中目标 `file_release_id`，collector 必须
+  fail-close，不能写出空 bundle 的伪成功结果
 
 ### `observed_file_types`
 
@@ -310,11 +317,13 @@ released file 的 capture 结果只允许两种解释：
 
 当 released file 被写入 source bucket 时，object key 固定采用：
 
-`authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/{filename}`
+`authenticated_notice_portal/file-release-{id}/{year}/sha256-{digest}/capture/{f
+ilename}`
 
 示例：
 
-`authenticated_notice_portal/file-release-646/2026/sha256-<digest>/capture/中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf`
+`authenticated_notice_portal/file-release-646/2026/sha256-<digest>/capture/中央民族大
+学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf`
 
 约束：
 

@@ -4,22 +4,30 @@ status: active
 created: 2026-04-03
 updated: 2026-04-22
 ---
-
 # App API Operator Observability HTTP Contract
 
 ## 文档边界
 
-这份文档冻结 `apps/app-api` 暴露给 `protected-panel-web` 的 operator observability query contract。
+这份文档冻结 `apps/app-api` 暴露给 `protected-panel-web` 的 operator observability query
+contract。
 
 它补充但不替代以下文档：
 
 - browser-facing app contract：`docs/contracts/app-api-http.md`
-- request lifecycle 与 request projection：`docs/contracts/app-api-request-lifecycle.md`
-- product/control-plane ownership：`docs/architecture/product-runtime-architecture.md`
-- operator observability supporting architecture：`docs/architecture/operator-observability-architecture.md`
+- request lifecycle 与 request
+  projection：`docs/contracts/app-api-request-lifecycle.md`
+- eval benchmark ingress 与 publish
+  correlation：`docs/contracts/app-api-eval-benchmark-http.md`
+- product/control-plane
+  ownership：`docs/architecture/system/product-runtime-architecture.md`
+- operator observability supporting
+  architecture：`docs/architecture/system/operator-observability-architecture.md`
 - 领域导航：`docs/domains/operator-observability.md`
-- ownership / sink participation 决策：`docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- ownership / sink participation 决策：`docs/decisions/adr-0023-operator-observabil
+  ity-control-plane-and-sink-participation.md`
 - 当前 merged-truth schema：`docs/data/app-api-schema.md`
+- shared eval artifact
+  contract：`docs/reference/eval-benchmark-artifact-contract.md`
 
 这份文档不冻结：
 
@@ -41,8 +49,10 @@ updated: 2026-04-22
 
 - operator principal admission 继续复用 shared `app-api` operator access model
 - panel 继续只消费 runtime-owned projections / rollups
-- `Sentry`、`Axiom`、sampled grading / eval tooling 继续只是 sink 或输入来源，不直接充当 query backend
-- grader / sink 如果要让 panel 消费结果，必须先通过 `app-api` owned internal ingest seam 写入 projection
+- `Sentry`、`Axiom`、sampled grading / eval tooling 继续只是 sink 或输入来源，不直接充当 query
+  backend
+- grader / sink 如果要让 panel 消费结果，必须先通过 `app-api` owned internal ingest seam 写入
+  projection
 
 ## Contract 与实现范围说明
 
@@ -57,12 +67,16 @@ updated: 2026-04-22
 
 - JSON body 使用 `camelCase`
 - 时间戳使用 ISO 8601 UTC 字符串
-- enum / code value 使用小写语义值，例如 `completed`、`citation_missing`、`projection_lag_spike`
+- enum / code value 使用小写语义值，例如
+  `completed`、`citation_missing`、`projection_lag_spike`
 - 所有错误响应继续使用 `docs/contracts/app-api-error-model.md` 中定义的统一 envelope
 - `requestId` 是业务级 correlation id；`traceId` 是 runtime trace correlation id
-- panel-facing sink backlink 只允许返回安全的 deep link / fingerprint，不返回 raw sink event blob
-- token / model / retrieval / citation / ACL facts 必须来自 execution-side typed telemetry seam 或 app-owned runtime fact family，不得由 panel query path 反推
-- 所有 summary / timeseries / queue 都必须由 `app-api` owned projection、rollup 或 grade projection 提供；panel 不得直接查询 sink
+- panel-facing sink backlink 只允许返回安全的 deep link / fingerprint，不返回 raw sink event
+  blob
+- token / model / retrieval / citation / ACL facts 必须来自 execution-side typed
+  telemetry seam 或 app-owned runtime fact family，不得由 panel query path 反推
+- 所有 summary / timeseries / queue 都必须由 `app-api` owned projection、rollup 或 grade
+  projection 提供；panel 不得直接查询 sink
 
 ### Common Query Parameters
 
@@ -93,8 +107,11 @@ list endpoints 额外支持：
 - `window` 与 `granularity` 的非法组合返回 `400 validation_failed`
 - 未传 filter 时表示查询当前 operator 可见范围内的全量 app-owned aggregate
 - 过滤只作用于 app-owned projection / rollup 维度，不隐式回源 raw sink
-- `selectedTarget` 继续只表示 current runtime target filter，不表示 forward family label，也不直接承担 localized display wording
-- 如果 operator surface 需要 capability family 或 display wording，必须通过独立 projection field / mapping 提供；不得把 `rag-agent`、`navigation-agent` 之类派生标签直接写回 `selectedTarget`
+- `selectedTarget` 继续只表示 current runtime target filter，不表示 forward family
+  label，也不直接承担 localized display wording
+- 如果 operator surface 需要 capability family 或 display wording，必须通过独立 projection
+  field / mapping 提供；不得把 `rag-agent`、`navigation-agent` 之类派生标签直接写回
+  `selectedTarget`
 
 ## Endpoint Summary
 
@@ -274,7 +291,8 @@ list endpoints 额外支持：
 规则：
 
 - `requestCount` 表示同一 `safety_identifier` 在告警窗口内的命中请求数
-- `incidentBackfill.required=true` 表示 operator closeout 不能停在 dashboard annotation，必须回灌 golden governance 的 `incident_backfill`
+- `incidentBackfill.required=true` 表示 operator closeout 不能停在 dashboard
+  annotation，必须回灌 golden governance 的 `incident_backfill`
 - `incidentBackfill.mode=null` 表示这是纯产品侧 abuse control 告警，不自动要求 eval backfill
 
 规则：
@@ -302,6 +320,11 @@ list endpoints 额外支持：
     "status": "completed",
     "requestedCapability": "knowledge",
     "requestedScope": null,
+    "versionQuery": {
+      "mode": "compare",
+      "versionId": "v2024-student-rules",
+      "compareToVersionId": "v2025-student-rules"
+    },
     "resolvedScope": {
       "corpus": "curriculum",
       "collection": "curriculum_plan"
@@ -325,6 +348,8 @@ list endpoints 额外支持：
     "failClosed": false,
     "retrievalAdequacyVerdict": "sufficient",
     "retrievalAdequacyReason": "sufficient",
+    "versionQueryMode": "compare",
+    "versionQuerySummary": "compare:v2024-student-rules->v2025-student-rules",
     "retrievalPlan": {
       "planId": "curriculum:curriculum_plan:current",
       "queryMode": "current",
@@ -423,18 +448,38 @@ list endpoints 额外支持：
 规则：
 
 - 这是 request-scoped observability summary，不是 raw execution dump
-- 不返回 raw prompt、raw answer、raw transcript、raw auth material、raw retrieval payload
+- 不返回 raw prompt、raw answer、raw transcript、raw auth material、raw retrieval
+  payload
 - `requestedScope` 反映 accept 时上游是否显式约束 scope，可为 `null`
-- `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality / collection 归因的真相源
-- `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution seam 或 app-owned runtime fact family
-- `sourceTrace.retrieved` 表示 bounded raw retrieval candidate trace；`sourceTrace.supporting` 表示最终 answer-facing support set
-- `sourceTrace.*` 只允许返回 operator-safe compact identity fields，例如 `docId`、`chunkId`、`score`、`collection`、canonical / source-unit identity；不得返回 raw snippet dump
-- `sourceTrace.supporting[*].canonicalSourceId` 与 `sourceTrace.supporting[*].sourceUnitKey` 用于显式区分 canonical curriculum identity 与物理 projection-unit hit
-- `retrievalAdequacyVerdict` / `retrievalAdequacyReason` 用于区分 retrieval base 不足与 post-generation grounding downgrade
-- `retrievalPlan` 只暴露 compact plan / step execution summary，例如 `planId`、`queryMode`、`replanCount`、`terminalState` 与 step-level `status` / `latencyMs` / `candidateCount`
-- `retrievalPlan` 的来源固定为 request projection 中的 `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是 raw planner trace 或 provider debug payload
-- `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim type、unsupported field；不返回 raw `claim_supports`、support snippet 或 provider-native citation/support blob
-- `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw prompt
+- `request.versionQuery` 反映调用方显式提交的 raw version query；缺失时表示 caller 没有显式覆盖
+  current
+- `resolvedScope` 反映 execution side 最终命中的 serving surface，是 panel 侧 quality /
+  collection 归因的真相源
+- `observability.versionQueryMode` / `versionQuerySummary` 是 operator-safe
+  摘要，用于区分 `current`、`historical`、`as_of`、`compare` 等请求形态；它们不是 raw planner trace
+- `retrievalAttempted`、`citationExpected`、`aclDecision` 必须来自 typed execution
+  seam 或 app-owned runtime fact family
+- `sourceTrace.retrieved` 表示 bounded raw retrieval candidate
+  trace；`sourceTrace.supporting` 表示最终 answer-facing support set
+- `sourceTrace.*` 只允许返回 operator-safe compact identity fields，例如
+  `docId`、`chunkId`、`score`、`collection`、canonical / source-unit identity；不得返回
+  raw snippet dump
+- `sourceTrace.supporting[*].canonicalSourceId` 与
+  `sourceTrace.supporting[*].sourceUnitKey` 用于显式区分 canonical curriculum identity
+  与物理 projection-unit hit
+- `retrievalAdequacyVerdict` / `retrievalAdequacyReason` 用于区分 retrieval base 不足与
+  post-generation grounding downgrade
+- `retrievalPlan` 只暴露 compact plan / step execution summary，例如
+  `planId`、`queryMode`、`replanCount`、`terminalState` 与 step-level `status` /
+  `latencyMs` / `candidateCount`
+- `retrievalPlan` 的来源固定为 request projection 中的
+  `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是
+  raw planner trace 或 provider debug payload
+- `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim
+  type、unsupported field；不返回 raw `claim_supports`、support snippet 或
+  provider-native citation/support blob
+- `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw
+  prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query
 
@@ -535,9 +580,11 @@ list endpoints 额外支持：
 
 - timeseries bucket 只返回 app-owned aggregate，不内嵌 raw request rows
 - sampled grade 相关曲线允许出现 `null`，表示该 bucket 没有足够样本
-- 当前已冻结的第一版 contract 由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRate`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
+- 当前已冻结的第一版 contract 由 `operator.metric_rollup` 重建 `requestCount`、`emptyRecallRa
+  te`、`citationMissRate`、`noAnswerRate`、`needsClarificationRate`
 - 当前已冻结的第一版 contract 中，`sampledGroundingPassRate` 固定为 `null`
-- forward contract 上，`sampledGroundingPassRate` 的上游固定为 `operator.quality_grade_projection` 与 request bucket join
+- forward contract 上，`sampledGroundingPassRate` 的上游固定为
+  `operator.quality_grade_projection` 与 request bucket join
 
 ### `GET /api/operator/quality/badcases`
 
@@ -587,11 +634,14 @@ list endpoints 额外支持：
 
 - 这是 app-owned badcase queue，不是 grader 原始输出列表
 - `summary` 必须是安全摘要，不暴露 raw prompt / answer
-- 当前已冻结的第一版 contract 只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink backlink 或 grader 结果过滤
+- 当前已冻结的第一版 contract 只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink
+  backlink 或 grader 结果过滤
 - 当前已冻结的第一版 contract 中，`detectedBy` 固定来自 `runtime_monitor`
 - 当前已冻结的第一版 contract 中，`causeClass` 仅已落地 `citation_missing`、`empty_recall`
 - 当前已冻结的第一版 contract 中，`grade` 与 `links` 允许全部为 `null`
-- forward contract 上，`grade` 的上游固定为 `operator.quality_grade_projection`，`links.*` 的上游固定为 `operator.trace_backlink_projection`
+- forward contract 上，`grade` 的上游固定为
+  `operator.quality_grade_projection`，`links.*` 的上游固定为
+  `operator.trace_backlink_projection`
 
 ## Safety/Authz Endpoints
 
@@ -635,7 +685,8 @@ list endpoints 额外支持：
 
 规则：
 
-- `decisionDistribution` 基于 app-owned authz projection / request observability fact
+- `decisionDistribution` 基于 app-owned authz projection / request observability
+  fact
 - `aclAnomalyRate` 只计入显式 anomaly code，不用 query path 推测
 
 ### `GET /api/operator/safety/anomalies`
@@ -728,7 +779,8 @@ list endpoints 额外支持：
 规则：
 
 - 第一版返回 near-real-time estimated cost
-- provider reconciled cost 可以后续作为独立 aggregate block 加入，但不得覆盖 request-scoped runtime estimated cost
+- provider reconciled cost 可以后续作为独立 aggregate block 加入，但不得覆盖 request-scoped
+  runtime estimated cost
 
 ### `GET /api/operator/cost/timeseries`
 
@@ -803,8 +855,11 @@ list endpoints 额外支持：
 
 - 返回 curated audit timeline summary，不是 raw JSONL replay
 - `summary` 必须是 governance-safe 文本，不回显 raw auth material 或 raw answer
-- 当前已冻结的第一版 contract 事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`request.approval_required`、`request.rejected`
-- 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner 模型的前提下追加，但不能回退成 raw log query
+- 当前已冻结的第一版 contract 事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.
+  completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`
+  request.approval_required`、`request.rejected`
+- 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner
+  模型的前提下追加，但不能回退成 raw log query
 
 ### `GET /api/operator/audit/:auditEventId`
 
@@ -843,7 +898,8 @@ list endpoints 额外支持：
 
 规则：
 
-- detail 允许比 list 多出 `entitlementSnapshotId`、`policyProjectionVersion`、`diagnostics`
+- detail 允许比 list 多出
+  `entitlementSnapshotId`、`policyProjectionVersion`、`diagnostics`
 - 仍不返回 raw JWT、raw cookies、raw prompt、raw answer、raw retrieval payload
 - 第一版 `links` 允许全部为 `null`；后续再把 `Sentry`/sink backlink 稳定接入 detail 面
 - `links.*` 稳定接入后也必须继续经过 app-owned projection，不允许 detail route 直接查询 sink
@@ -858,7 +914,8 @@ list endpoints 额外支持：
 适用前提：
 
 - 调用方必须携带 `x-app-internal-auth`
-- 这是 internal producer（grader worker / sink reconciliation worker）写入 projection 的入口
+- 这是 internal producer（grader worker / sink reconciliation worker）写入 projection
+  的入口
 - 这些 endpoint 不向 panel 暴露，不支持 ad-hoc query
 
 ### `POST /api/internal/operator/quality/grades`
@@ -886,7 +943,8 @@ list endpoints 额外支持：
 规则：
 
 - `requestId` 必须已存在于 app-owned request truth
-- 调用时允许只传最小 grading payload；route/service 可以通过 app-owned request fact family 回填 `surface`、`collection`、`modelName` 等维度
+- 调用时允许只传最小 grading payload；route/service 可以通过 app-owned request fact family 回填
+  `surface`、`collection`、`modelName` 等维度
 - 不接受 raw grader transcript、raw prompt、raw answer、raw span payload
 
 ### `POST /api/internal/operator/trace-backlinks`
@@ -915,7 +973,8 @@ list endpoints 额外支持：
 
 ## Explicit Non-Goals
 
-- 不把 `Sentry`、`Axiom`、OpenAI trace / eval tooling 提升成 panel canonical query backend
+- 不把 `Sentry`、`Axiom`、OpenAI trace / eval tooling 提升成 panel canonical query
+  backend
 - 不让 `apps/supervisor-api` 暴露 operator observability HTTP surface
 - 不让 panel BFF 查询数据库、audit JSONL 或 sink 后再自己拼 aggregate
 - 不把 request observability detail 退化成 raw execution / trace dump

@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-06
 updated: 2026-04-06
 ---
-
 # ADR-0030 Institution-Scoped Product Path And Explicit Open-Domain Admission
 
 ## 状态
@@ -20,7 +19,8 @@ Accepted on 2026-04-06.
 - 当前 campus path 不接受隐式 general web / world knowledge fallback
 - `out_of_scope`、`policy_refusal`、`unsupported_by_evidence` 必须在产品语义、评测与可观测性上显式区分
 
-但在完成 Domain-Bounded Answering And Refusal Foundation 的 Wave 1-5 之后，repo 仍缺一条更高层的正式决策：
+但在完成 Domain-Bounded Answering And Refusal Foundation 的 Wave 1-5 之后，repo
+仍缺一条更高层的正式决策：
 
 - 未来是否要把开放域 generalist / web capability 接入主产品路径
 - 如果以后真的要做，这件事应以什么边界进入，而不是偷渡成临时 fallback
@@ -42,7 +42,8 @@ Accepted on 2026-04-06.
 
 - `campus-agent` 当前不是开放域 general assistant
 - 当前主路径不以“世界知识也可以顺手回答”为产品目标
-- 产品扩展优先继续沿校园能力面推进，例如 campus service、place finding、navigation、identity-aware assistance
+- 产品扩展优先继续沿校园能力面推进，例如 campus service、place finding、navigation、identity-aware
+  assistance
 
 ### 决策 2：campus path 内不允许隐式 general web / world fallback
 
@@ -56,7 +57,8 @@ Accepted on 2026-04-06.
 
 ### 决策 3：Wave 1-5 收口出的拒答语义保持独立，不被未来 fallback 语义稀释
 
-当前已建立的 `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_access_denied` 语义继续保持独立。
+当前已建立的 `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`restricted_acc
+ess_denied` 语义继续保持独立。
 
 直接含义：
 
@@ -106,6 +108,6 @@ Accepted on 2026-04-06.
 
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`

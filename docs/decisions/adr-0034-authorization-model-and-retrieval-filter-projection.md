@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-29
 updated: 2026-04-10
 ---
-
 # ADR-0034 授权模型与检索过滤投影
 
 ## 状态
@@ -25,7 +24,8 @@ Accepted on 2026-03-29.
 - 把 `acl_level`、`acl_groups`、`campus_scope` 误当成 canonical authorization truth
 - 把 Cloudflare / edge token claims 误当成最终 entitlement truth
 - 把 applicability / personalization 与 visibility 混在同一过滤字段里
-- 让 panel、conversation ownership、memory visibility 与 document visibility 继续分裂成多套局部规则
+- 让 panel、conversation ownership、memory visibility 与 document visibility
+  继续分裂成多套局部规则
 
 因此需要在长期边界上明确：授权真相源在哪、检索过滤字段是什么语义、当前实现哪些只是过渡态。
 
@@ -33,9 +33,12 @@ Accepted on 2026-03-29.
 
 长期上：
 
-- `apps/app-api` 拥有 canonical principal mapping、entitlement truth、resource ownership truth 与 approval truth
-- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 与 `packages/retrieval-core` 只消费最小化 typed authz projection
-- edge / Worker / Cloudflare Access 侧身份材料只属于 boundary input，不等于 canonical authorization truth
+- `apps/app-api` 拥有 canonical principal mapping、entitlement truth、resource
+  ownership truth 与 approval truth
+- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 与
+  `packages/retrieval-core` 只消费最小化 typed authz projection
+- edge / Worker / Cloudflare Access 侧身份材料只属于 boundary input，不等于 canonical
+  authorization truth
 
 ## 决策 2：长期授权模型必须覆盖 `subject / action / resource / context`
 
@@ -48,13 +51,15 @@ Accepted on 2026-03-29.
 - `resource`
 - `context`
 
-允许在实现层组合使用 RBAC、ABAC、ReBAC、ownership rule 或审批状态，但不允许继续把纯 group filter 写成长期完整授权模型。
+允许在实现层组合使用 RBAC、ABAC、ReBAC、ownership rule 或审批状态，但不允许继续把纯 group filter
+写成长期完整授权模型。
 
 ## 决策 3：retrieval index 中的 ACL metadata 只是 filter projection
 
 长期上：
 
-- document registry、chunk metadata 与 vector index 中的 ACL 字段属于 search-time filter projection
+- document registry、chunk metadata 与 vector index 中的 ACL 字段属于 search-time filter
+  projection
 - 这些字段服务于 retrieval pre-filter 的高性能执行
 - 它们不是 canonical authorization truth store
 
@@ -91,10 +96,8 @@ Accepted on 2026-03-29.
 
 长期上：
 
-- `visibility`
-  表示 principal 是否有权读取某资源
-- `applicability`
-  表示某条制度或答案是否适用于该用户背景
+- `visibility` 表示 principal 是否有权读取某资源
+- `applicability` 表示某条制度或答案是否适用于该用户背景
 
 因此：
 
@@ -152,13 +155,15 @@ Accepted on 2026-03-29.
 - 后续 identity / memory / personalization 文档只负责上下文和个性化边界，不再独自承担完整授权模型定义
 - retrieval 文档必须区分 serving filter、authorization filter 与 applicability hint
 - `app-api` 文档必须显式承担 principal / entitlement / ownership / approval ownership
-- ingestion / registry / chunk metadata 文档必须明确区分 canonical authz truth 与 search-time projection
+- ingestion / registry / chunk metadata 文档必须明确区分 canonical authz truth 与
+  search-time projection
 - 新实现若要增加 panel、memory 或 conversation 权限逻辑，必须对齐同一 authz model，而不是再发明局部 ACL
 
 ## 相关文档
 
-- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`

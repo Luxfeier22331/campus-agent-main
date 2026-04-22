@@ -12,5 +12,6 @@
 ## Terminology Posture
 
 - 当前 accepted package / runtime / contract truth 继续使用 `navigation-agent`
-- target-side architecture / planning 文档可以使用 `navigation-agent` 作为 forward family label
+- target-side architecture / planning 文档可以使用 `navigation-agent` 作为 forward
+  family label
 - 在 repo-wide convergence phase 真正迁移前，这个 package 目录与 current-truth label 不变

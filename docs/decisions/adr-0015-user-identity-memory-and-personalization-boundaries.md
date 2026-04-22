@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-28
 updated: 2026-04-03
 ---
-
 # ADR-0015 用户身份、长期记忆与个性化边界
 
 ## 状态
@@ -29,7 +28,8 @@ Accepted on 2026-03-28.
 - 把“用户曾经说过的话”直接当成已验证身份
 - 让 profile memory 直接扩大 ACL、query scope 或 approval 权限
 - 把 institutional knowledge 与个人记忆塞进同一 retrieval truth store
-- 让 `supervisor` / `rag-agent` 跨边界直接读取 raw auth、raw memory 或 raw conversation state
+- 让 `supervisor` / `rag-agent` 跨边界直接读取 raw auth、raw memory 或 raw conversation
+  state
 
 因此这里要先固定：身份、长期记忆、会话记忆、个性化与授权边界到底分别属于哪一层，并且哪些能力以后不允许再摇摆。
 
@@ -38,8 +38,10 @@ Accepted on 2026-03-28.
 长期上：
 
 - canonical app identity 由 `apps/app-api` 拥有
-- browser cookie、Access JWT、Worker admission 或 edge trust material 只属于 runtime-boundary input
-- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 只消费 `app-api` 投影后的 typed actor context
+- browser cookie、Access JWT、Worker admission 或 edge trust material 只属于
+  runtime-boundary input
+- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 只消费
+  `app-api` 投影后的 typed actor context
 
 这意味着：
 
@@ -51,14 +53,11 @@ Accepted on 2026-03-28.
 
 长期上，回答链路相关的用户上下文固定拆成以下四层：
 
-- `verified identity`
-  由 canonical account / identity truth 支撑的已验证 claims，例如 cohort、major、program、campus、role
-- `profile memory`
-  用户长期偏好、稳定目标、显式声明且允许持久化的背景信息，例如“最近在咨询保研”“偏好先看官方条文”
-- `session memory`
-  当前会话内的短期工作记忆、摘要、已确认槽位和上下文承接
-- `institutional knowledge`
-  校园制度、培养方案、官网内容等机构知识真相
+- `verified identity` 由 canonical account / identity truth 支撑的已验证 claims，例如
+  cohort、major、program、campus、role
+- `profile memory` 用户长期偏好、稳定目标、显式声明且允许持久化的背景信息，例如“最近在咨询保研”“偏好先看官方条文”
+- `session memory` 当前会话内的短期工作记忆、摘要、已确认槽位和上下文承接
+- `institutional knowledge` 校园制度、培养方案、官网内容等机构知识真相
 
 四层语义固定如下：
 
@@ -72,7 +71,8 @@ Accepted on 2026-03-28.
 长期硬约束如下：
 
 - memory 只能帮助个性化，不能授予权限
-- `profile memory` 与 `session memory` 不得直接扩大 ACL、serving scope、approval 权限或 tool permission
+- `profile memory` 与 `session memory` 不得直接扩大 ACL、serving scope、approval 权限或 tool
+  permission
 - 未经验证的用户自述、模型推断、session summary 或 inferred memory 不得升级为 authorization truth
 
 允许的影响范围：
@@ -84,12 +84,14 @@ Accepted on 2026-03-28.
 
 不允许的影响范围：
 
-- authorization filter projection，包括受限文档 retrieval 的 `visibility_*` / `entitlement_*` projection
+- authorization filter projection，包括受限文档 retrieval 的 `visibility_*` /
+  `entitlement_*` projection
 - runtime-profile-driven serving surface
 - approval-required capability 的 deterministic gate
 - 历史版本选择、跨 corpus 放开或未开放 collection 的静默路由
 
-完整 authorization model、retrieval filter projection 与 `visibility` / `applicability` 拆分由 `ADR-0034` 单独定义；本文只冻结“memory 不得授权”这条长期边界。
+完整 authorization model、retrieval filter projection 与 `visibility` /
+`applicability` 拆分由 `ADR-0034` 单独定义；本文只冻结“memory 不得授权”这条长期边界。
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
@@ -115,7 +117,8 @@ Accepted on 2026-03-28.
 
 长期上：
 
-- institutional knowledge 继续位于 document registry、chunk metadata 与 vector index 所表达的 retrieval truth store
+- institutional knowledge 继续位于 document registry、chunk metadata 与 vector index
+  所表达的 retrieval truth store
 - verified identity / profile memory 属于 app-layer profile truth store
 - session memory 属于 chat/session truth store
 
@@ -160,42 +163,47 @@ Accepted on 2026-03-28.
 
 ## 决策 8：文档分层关系
 
-- `docs/architecture/target-architecture.md`
-  负责 repo 级 identity / memory / knowledge truth 分层
-- `docs/architecture/identity-and-authorization-architecture.md`
-  负责 canonical authz truth、retrieval filter projection 与 visibility / applicability 分层
-- `docs/architecture/product-runtime-architecture.md`
-  负责 canonical identity、authorization 与 memory ownership 所在的 app boundary
-- `docs/architecture/execution-and-agents-architecture.md`
-  负责 supervisor 如何消费 typed identity / authorization / memory projection
-- `docs/architecture/execution-and-agents-architecture.md`
-  负责 retrieval-specific personalization 与 `RagIntentFrame`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
-  负责长期 authorization model 与 retrieval filter projection 决策
-- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-  负责 identity / memory telemetry 的最小化规则
-- `docs/decisions/adr-0004-evaluation-metrics.md`
-  负责 personalization / memory / authorization 相关 gate 指标
-- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
-  负责某一轮 identity / authorization / memory / personalization 实现波次、文件落点与验收标准
+- `docs/architecture/target-architecture.md` 负责 repo 级 identity / memory /
+  knowledge truth 分层
+- `docs/architecture/system/identity-and-authorization-architecture.md` 负责 canonical
+  authz truth、retrieval filter projection 与 visibility / applicability 分层
+- `docs/architecture/system/product-runtime-architecture.md` 负责 canonical
+  identity、authorization 与 memory ownership 所在的 app boundary
+- `docs/architecture/system/execution-and-agents-architecture.md`
+  负责 supervisor 如何消费 typed identity / authorization / memory
+  projection
+- `docs/architecture/system/execution-and-agents-architecture.md` 负责 retrieval-specific
+  personalization 与 `RagIntentFrame`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
+  d` 负责长期 authorization model 与 retrieval filter projection 决策
+- `docs/decisions/adr-0010-observability-and-telemetry-stack.md` 负责 identity /
+  memory telemetry 的最小化规则
+- `docs/decisions/adr-0004-evaluation-metrics.md` 负责 personalization / memory /
+  authorization 相关 gate 指标
+- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md` 负责某一轮
+  identity / authorization / memory / personalization 实现波次、文件落点与验收标准
 
 ## 结果
 
 直接结果如下：
 
 - 后续个性化能力必须以 `app-api` 为 canonical identity / authorization / memory owner
-- `supervisor` 负责 top-level intent framing 时可以参考 typed personal context，但不能把 personal context 当作权限源
-- `rag-agent` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过 retrieval pre-filter
-- retrieval 与 workflow path 消费的 authz 语义必须来自 app-layer projection，而不是 raw token claims 或 memory 推断
+- `supervisor` 负责 top-level intent framing 时可以参考 typed personal context，但不能把
+  personal context 当作权限源
+- `rag-agent` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过
+  retrieval pre-filter
+- retrieval 与 workflow path 消费的 authz 语义必须来自 app-layer projection，而不是 raw token
+  claims 或 memory 推断
 - memory 系统与 RAG 系统的 join 点必须可审计、可最小化、可回收
 
 ## 相关文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
+  d`

@@ -1,12 +1,12 @@
-## news_archive collection config
+# news_archive collection config
 
 This directory holds the repo-tracked runtime profile for the `news_archive`
 collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
   `configs/sources/official_web/muc_public/`
-- this collection is the future archive surface for historical official-web
-  news content
+- this collection is the future archive surface for historical official-web news
+  content
 
 Current runtime truth:
 

@@ -4,7 +4,6 @@ status: active
 created: 2026-04-12
 updated: 2026-04-18
 ---
-
 # Authenticated Notice File-Release Auth-Window Runbook
 
 ## 文档边界
@@ -16,8 +15,10 @@ updated: 2026-04-18
 它不替代：
 
 - `docs/reference/authenticated-notice-file-release-export-contract.md` 的导出契约
-- `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md` 的 notice bootstrap import smoke
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 replay / preparation 路径
+- `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md` 的 notice
+  bootstrap import smoke
+- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 replay /
+  preparation 路径
 
 ## 适用范围
 
@@ -98,7 +99,8 @@ pnpm --dir apps/authenticated-notice-collector auth:check
 
 ### 3. 先做 targeted export
 
-如果当前 auth window 已经 admission 某个 non-excluded target，这里默认走 targeted export，不再用“随便抓 1 条”的数量 smoke 代替。
+如果当前 auth window 已经 admission 某个 non-excluded target，这里默认走 targeted
+export，不再用“随便抓 1 条”的数量 smoke 代替。
 
 前提：
 
@@ -127,7 +129,8 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - manifest `filters.target_file_release_id` 必须等于目标 id
 - manifest `run.items_inserted` 必须为 `1`
 - bundle 首行的 `file_release_id` 必须等于目标 id
-- 如果 collector 报 `target file_release_id <id> was not found in file_release export scope`，按 fail-close 处理，本轮不接受空成功产物
+- 如果 collector 报 `target file_release_id <id> was not found in file_release
+  export scope`，按 fail-close 处理，本轮不接受空成功产物
 
 ### 4. 可选的通用 bounded smoke
 
@@ -155,7 +158,8 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 ### 5. 再做 full export
 
-只有在明确需要 broader file-release inventory 时，才在 targeted export / bounded smoke 通过后继续 full export：
+只有在明确需要 broader file-release inventory 时，才在 targeted export / bounded smoke
+通过后继续 full export：
 
 ```bash
 pnpm --dir apps/authenticated-notice-collector file-release:export
@@ -220,18 +224,18 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 1. `auth:check`
    - 如果 notice 成功但 `file_release` 失败，不继续导出
-2. `file-releases-manifest-*.json`
+1. `file-releases-manifest-*.json`
    - 看 `run.pages_fetched`
    - 看 `run.items_seen`
    - 看 `run.items_inserted`
    - 看 `run.file_urls_resolved`
    - 看 `collector.file_storage_mode`
    - targeted export 时再看 `filters.target_file_release_id`
-3. bundle 首行
+1. bundle 首行
    - 确认 `source_surface=file_release`
    - targeted export 时确认 `file_release_id` 与目标一致
    - 确认 `released_file` 是 `reference_only` 还是 `object_store`
-4. source bucket
+1. source bucket
    - 若预期 materialized，但没有对象，直接视为本轮未完成 capture
 
 ## 固定禁止

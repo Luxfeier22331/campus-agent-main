@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-12
 updated: 2026-04-22
 ---
-
 # ADR-0038 Documentation Information Architecture And Lifecycle
 
 ## 状态
@@ -57,9 +56,11 @@ Accepted on 2026-04-12.
 - `runbooks/`
   - how-to oriented 可重复操作步骤
 - `docs/plans/archive/`
-  - archived implementation snapshots、supporting references 与 superseded predecessor
+  - archived implementation snapshots、supporting references 与 superseded
+    predecessor
 - `.planning/`
-  - live execution state、native workstream entry、phase artefacts 与 worktree-local execution context
+  - live execution state、native workstream entry、phase artefacts 与
+    worktree-local execution context
 
 这意味着：
 
@@ -92,15 +93,19 @@ Accepted on 2026-04-12.
 
 补充规则：
 
-- 文档 front matter 的 `status` 只表达该文档自己的 lifecycle，不表达 repo 级 workstream registry state
-- `.planning/WORKSTREAMS.md` 中的 `active / deferred / backlog / legacy` 是 planning registry 语义，不是 `docs/plans/*.md` 的第二套 front matter 枚举
-- 因此 backlog entry plan 继续使用 `status: deferred`；`backlog` 只在 registry、索引说明和正文解释里出现，不新增为 plan front matter status
+- 文档 front matter 的 `status` 只表达该文档自己的 lifecycle，不表达 repo 级 workstream registry
+  state
+- `.planning/WORKSTREAMS.md` 中的 `active / deferred / backlog / legacy` 是
+  planning registry 语义，不是 `docs/plans/*.md` 的第二套 front matter 枚举
+- 因此 backlog entry plan 继续使用 `status: deferred`；`backlog` 只在
+  registry、索引说明和正文解释里出现，不新增为 plan front matter status
 
 ### 决策 4：已完成或历史性计划必须退出默认阅读路径
 
 native workstream 的 live entry 固定迁到 `.planning/workstreams/<slug>/README.md`。
 
-`docs/plans/` 不再承载 active / deferred workstream entry；根层只保留索引页，archive namespace 默认分成：
+`docs/plans/` 不再承载 active / deferred workstream entry；根层只保留索引页，archive namespace
+默认分成：
 
 - `completed`
 - `historical`
@@ -108,9 +113,11 @@ native workstream 的 live entry 固定迁到 `.planning/workstreams/<slug>/READ
 
 这些 archived plan 不再进入根入口与默认阅读路径。
 
-`docs/plans/README.md` 只负责解释 archive contract，不再扮演 repo 级 active/deferred workstream registry。
+`docs/plans/README.md` 只负责解释 archive contract，不再扮演 repo 级 active/deferred
+workstream registry。
 
-当 archived plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担 archive 角色。
+当 archived plan 累积到会污染根层命名空间时，应优先物理下沉到 `docs/plans/archive/`，而不是继续让根层目录承担
+archive 角色。
 
 历史证据型 `reference` 和历史操作型 `runbook` 可以继续保留在 `docs/` 下，但必须：
 

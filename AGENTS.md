@@ -5,16 +5,21 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前主路径是 `supervisor-api -> supervisor-core -> rag-agent -> retrieval-core`
-- 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平 tool
-- 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控 query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；但它仍不是完整产品实现
+- 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
+  tool
+- 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控
+  query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个
+  Worker app 的前向产品形态；但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
-- runtime 选择尚未 repo-wide 冻结；当前只对 `apps/app-api` 明确冻结为 Worker，其余边界尤其 `apps/supervisor-api` 不要为了实现便利提前绑定到单一 HTTP 框架
+- runtime 选择尚未 repo-wide 冻结；当前只对 `apps/app-api` 明确冻结为 Worker，其余边界尤其
+  `apps/supervisor-api` 不要为了实现便利提前绑定到单一 HTTP 框架
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model
 
 - `develop` 是长期集成分支，`main` 是稳定分支
-- 讨论“当前 merged truth”时，默认指已合入 `develop` 的状态；如果讨论当前 worktree / feature branch，必须显式写明
+- 讨论“当前 merged truth”时，默认指已合入 `develop` 的状态；如果讨论当前 worktree / feature
+  branch，必须显式写明
 - 独立 worktree 中尚未回 `develop` 的实现进度，不得冒充 merged truth
 
 ## Source Of Truth
@@ -26,26 +31,29 @@
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-architecture.md`
-- `docs/architecture/official-web-source-truth-contract.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/domains/navigation/architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/architecture.md`
+- `docs/data/official-web-source-truth-schema.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
+  .md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
@@ -59,11 +67,18 @@
 - `AGENTS.md` 只负责仓库入口约束、目录导航和工作协议，不重复深层设计文档
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和 `docs/` 视为实现与架构的参考材料
 - 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
-- 当前 accepted merged-truth topology 与已开放 serving surface 以 `docs/architecture/current-architecture.md` 为准
-- 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应 `docs/` 文档为准
-- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 `.planning/workstreams/<slug>/` 为准
-- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；`docs/plans/` 只保留 archive namespace，不再承载 active/deferred workstream entry
-- 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD 进度板；当前真相看 `current-architecture.md`，当前执行状态看 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
+- 当前 accepted merged-truth topology 与已开放 serving surface 以
+  `docs/architecture/current-architecture.md` 为准
+- 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应
+  `docs/` 文档为准
+- 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应
+  `.planning/workstreams/<slug>/` 为准
+- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live
+  入口；`docs/plans/` 只保留 archive namespace，不再承载 active/deferred workstream entry
+- 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD
+  进度板；当前真相看 `current-architecture.md`，当前执行状态看
+  `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
 
@@ -81,14 +96,10 @@
 
 - 先判断用户在问哪一类问题，再决定是否需要调用架构约束。
 - 至少区分以下几类：
-  - `architecture truth`
-    例如仓库当前 accepted topology、merged truth、长期边界是否已冻结
-  - `deployment substrate`
-    例如某个 app 先跑在 Docker、Worker、VM、本机进程还是 tunnel 后面
-  - `local dev / test path`
-    例如为了联调、验证或 smoke，临时怎样把链路跑通
-  - `implementation change`
-    例如是否需要改代码、改 contract、改 docs、改 runtime shell
+  - `architecture truth` 例如仓库当前 accepted topology、merged truth、长期边界是否已冻结
+  - `deployment substrate` 例如某个 app 先跑在 Docker、Worker、VM、本机进程还是 tunnel 后面
+  - `local dev / test path` 例如为了联调、验证或 smoke，临时怎样把链路跑通
+  - `implementation change` 例如是否需要改代码、改 contract、改 docs、改 runtime shell
 - 不要把 `deployment substrate` 自动解释成 `architecture truth` 变更。
 - 不要把 `local dev / test path` 自动解释成用户在主张修改 forward topology。
 - 不要把“我自己怎么部署 / 怎么联调”自动解释成“仓库应该把这个部署方式冻结为长期真相”。
@@ -132,10 +143,10 @@
 当用户表达存在歧义时，按以下顺序理解：
 
 1. 用户原话的自然语义
-2. 仓库内已落盘文档中的同名概念
-3. 当前代码与实现上下文
-4. 明确标注的风险扩展解释
-5. 个人推断
+1. 仓库内已落盘文档中的同名概念
+1. 当前代码与实现上下文
+1. 明确标注的风险扩展解释
+1. 个人推断
 
 禁止跳过 1-3，直接用 4 或 5 覆盖用户原意。
 
@@ -196,7 +207,8 @@
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
 - 任何实现都应先尊重已冻结的 contract 和 package 边界，再考虑 runtime 或框架便利性
-- query-serving surface 由 collection runtime profile 显式控制；如需新增或收缩 serving surface，必须同步更新决策/计划文档并保持范围显式
+- query-serving surface 由 collection runtime profile 显式控制；如需新增或收缩 serving
+  surface，必须同步更新决策/计划文档并保持范围显式
 
 ### Architecture Over Patchwork
 
@@ -205,7 +217,8 @@
 - 不要为了短期通过测试而新增临时兼容层、双路径逻辑、一次性适配层或“以后再删”的过渡代码，除非存在明确外部迁移约束
 - 当实现方案和长期正确方案冲突时，默认选择长期正确方案；若选择兼容层，必须有明确外部依赖理由
 - 不要沿着现有 hack 继续扩建；现有坏边界不是新增坏边界的理由
-- `smoke`、`typecheck`、`build`、截图或 staging 可用性默认只是验证证据，不得反向定义实现策略；对于 donor transplant、产品壳迁移、边界纠偏和架构收口任务，不能因为“先跑通”而接受腐烂设计
+- `smoke`、`typecheck`、`build`、截图或 staging 可用性默认只是验证证据，不得反向定义实现策略；对于 donor
+  transplant、产品壳迁移、边界纠偏和架构收口任务，不能因为“先跑通”而接受腐烂设计
 - 这些规则不能作为误解、放大或改写用户原问题的理由
 
 ## Execution Protocol
@@ -215,12 +228,17 @@
 - 做结构性改动前，先读 `Source Of Truth` 中对应文档
 - 优先在边界内修改；跨多个 package 改动时，先确认 `packages/contracts` 是否需要先冻结或先调整
 - 仓库当前默认处于验收收口 / 上线前硬化阶段；默认优先正确边界、发布质量、真实部署一致性与验收口径对齐
-- 不做“未来也许会用到”的泛化设计；但除数据面或明确隔离的后置能力外，也不得把“先跑通”或“最小可验证闭环”当作前端 donor parity、产品壳迁移、架构纠偏或 runtime 收口任务的默认策略
+- 不做“未来也许会用到”的泛化设计；但除数据面或明确隔离的后置能力外，也不得把“先跑通”或“最小可验证闭环”当作前端 donor
+  parity、产品壳迁移、架构纠偏或 runtime 收口任务的默认策略
 - Node / Worker app 默认使用 `pnpm`，不再新增或维护 `package-lock.json`
-- 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关 `docs/architecture` 或 `docs/decisions` 是否需要更新
+- 如果变更触及长期边界、当前 accepted retrieval/data-plane 约束或对象存储/ingestion 不变量，同步检查相关
+  `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
-- 多人并发推进不同 workstream 时，默认使用 repo-owned claim workflow：`uv run --all-packages python -m scripts.workstream_claim session shell <slug>` 或 `session start <slug> -- <cmd...>`；不要把运行时认领状态写回 tracked planning 文档
+- 多人并发推进不同 workstream 时，默认使用 repo-owned harness workflow： `uv run --all-packages
+  python -m scripts.workstream_harness codex shell <slug>` 或 `codex exec <slug>
+  -- "<task>"`； `workstream_claim session shell/start` 只保留为恢复与非-Codex runtime 的
+  低层 escape hatch；不要把运行时认领状态写回 tracked planning 文档
 
 ### Git Commit Title Rules
 
@@ -229,7 +247,8 @@
 - 冒号后优先写中文结果描述，直接说明这次提交完成了什么，不写空泛过程词
 - 标题优先使用动宾结构，例如：`添加`、`完成`、`修复`、`重构`、`明确`、`迁移`、`简化`、`调整`
 - 需要补充阶段、任务号或关键上下文时，放在标题末尾括号内，不要喧宾夺主
-- 默认参考仓库已有中文提交风格，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice + navigation_mode）`
+- 默认参考仓库已有中文提交风格，例如：`feat: 完成 Phase 2A 工作流补全（resume/apply-choice +
+  navigation_mode）`
 - 避免使用纯英文或无信息量标题，例如：`init`、`init again`、`update stuff`
 
 ### Subagent Guidance
@@ -237,8 +256,10 @@
 优先把可独立处理的子任务拆开处理，但前提是任务天然可并行、边界清晰、责任可分配。
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
-- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-agent` / `supervisor-core`、`evals`
-- 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan 为准
+- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-agent` /
+  `supervisor-core`、`evals`
+- 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan
+  为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
 - `contracts` 未冻结前，不要并行推进依赖它的接口形状；关键 contract 变更统一由主代理收口
 - 复杂任务可以并行探索或分工实现，但主代理负责最终取舍、集成和验证
@@ -312,11 +333,16 @@ pnpm web:build:affected
 
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
-- JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
-- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run --all-packages ruff ...` 执行
+- JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app
+  验证拆回各自目录手动串行运行
+- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm
+  docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run
+  --all-packages ruff ...` 执行
 - `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
-- `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration` 是显式外部依赖 integration lane
-- `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与 `test:shared-db-integration` 必须显式调用
+- `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration`
+  是显式外部依赖 integration lane
+- `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与
+  `test:shared-db-integration` 必须显式调用
 - 如果新增局部测试或检查命令，只记录仓库里真实存在、可重复执行的命令
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断
@@ -328,7 +354,9 @@ pnpm web:build:affected
 - `packages/supervisor-core`: supervisor 的路由、委派、答案组装与升级逻辑
 - `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的 query/answer/confidence 逻辑
 - `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
-- `packages/ingestion-core`: ingestion/data plane 的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
-- `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享 schema；不要泄漏运行时或基础设施类型
+- `packages/ingestion-core`: ingestion/data plane
+  的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
+- `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享
+  schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口
 - `packages/shared`: 轻量共享常量和工具；不要演变成业务逻辑垃圾桶

@@ -2,17 +2,16 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-21
+updated: 2026-04-23
 ---
-
 # Contracts
 
-`contracts/` 保存稳定的 HTTP 与 runtime seam。
-它回答“边界上的输入输出长什么样”“状态如何流转”“哪些字段不能从下游倒推”。
+`contracts/` 保存稳定的 HTTP 与 runtime seam。 它回答“边界上的输入输出长什么样”“状态如何流转”“哪些字段不能从下游倒推”。
 
 ## App API 核心 contract
 
 - `app-api-http.md`
+- `app-api-eval-benchmark-http.md`
 - `app-api-document-reader-http.md`
 - `document-reader-publish-contract.md`
 - `app-api-error-model.md`
@@ -37,4 +36,8 @@ updated: 2026-04-21
 
 - contract 只写稳定 seam，不写执行历史
 - request/response shape 的 current truth 以这里为准，不以 panel UI 或 sink payload 为准
-- contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane / pending work / closeout 状态说明
+- contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane /
+  pending work / closeout 状态说明
+- 当 supporting architecture 已冻结 forward design，但 current wire shape
+  尚未切换时，contract 必须显式区分 `current truth` 与 `forward evolution`，不得把 future routing
+  shape 写成现状

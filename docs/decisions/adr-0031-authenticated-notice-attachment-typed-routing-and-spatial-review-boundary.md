@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-08
 updated: 2026-04-20
 ---
-
 # ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
 
 ## 状态
@@ -14,7 +13,8 @@ Accepted on 2026-04-08.
 
 ## 背景
 
-`authenticated_notice_portal -> campus_notices/internal_notice` 这条链路已经明确暴露出一个长期边界问题：
+`authenticated_notice_portal -> campus_notices/internal_notice`
+这条链路已经明确暴露出一个长期边界问题：
 
 - notice 正文整体较干净，主要噪声集中在 attachments
 - 同一条 notice 往往混有多种附件形态，而不是单一类型
@@ -42,7 +42,8 @@ Accepted on 2026-04-08.
 - 把 notice 级标签误当成 attachment 执行路由
 - 把空间图伪装成 OCR candidate
 - 把 attachment 噪声反向传播为 parent notice 的全局 chunk 策略
-- 在 `manual_review_required`、`unsupported_binary`、`no_extractable_text` 上做静默 fallback
+- 在 `manual_review_required`、`unsupported_binary`、`no_extractable_text` 上做静默
+  fallback
 
 ## 决策
 
@@ -73,7 +74,8 @@ Accepted on 2026-04-08.
 
 - parent notice 只消费正文结构单元
 - attachment refs 继续留在 source-truth relation truth
-- attachments 如需进入 document/chunk pipeline，必须先 materialize 为 repo-owned child documents
+- attachments 如需进入 document/chunk pipeline，必须先 materialize 为 repo-owned child
+  documents
 - attachment 的噪声、失败和例外，不得反向驱动 parent notice body 的全局策略
 
 ### 决策 3：attachment typed routing 固定采用五类终态
@@ -89,7 +91,8 @@ Accepted on 2026-04-08.
 补充要求：
 
 - `ocr_required` lane 内部仍允许产生 `materialized_document` 或 `no_extractable_text`
-- `manual_review_required`、`reference_only`、`no_extractable_text` 都属于显式 terminal outcome
+- `manual_review_required`、`reference_only`、`no_extractable_text` 都属于显式 terminal
+  outcome
 - 不允许把 terminal outcome 伪装成“成功进入可检索 child document”
 
 ### 决策 4：空间关系主导图片固定进入 `manual_review_required`
@@ -155,7 +158,8 @@ Accepted on 2026-04-08.
 
 - 这些标签是 inventory / replay / closeout read model 的派生字段
 - 它们由 attachment composition 派生，不回写 source-truth contract
-- 后续如需引入 title / `notice_type_names` / 正文关键词等更强 notice-level heuristics，也只能增强 risk labeling，不能替代 attachment routing
+- 后续如需引入 title / `notice_type_names` / 正文关键词等更强 notice-level heuristics，也只能增强
+  risk labeling，不能替代 attachment routing
 
 ### 决策 7：禁止静默 fallback 与全局劣化
 
@@ -175,15 +179,17 @@ Accepted on 2026-04-08.
 
 直接结果如下：
 
-- `authenticated_notice_portal` 的 typed routing 需要先做 attachment inventory，再做 extraction lane 决策
+- `authenticated_notice_portal` 的 typed routing 需要先做 attachment inventory，再做
+  extraction lane 决策
 - `internal_notice` 的 notice-level classification 只作为辅助 read model，不是主执行模型
 - 空间关系主导图片继续留在 relation truth + manual outcome，不进入当前 chunk / retrieval truth
-- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-agent` / spatial truth 方向另开能力，而不是继续加大 OCR lane
+- 后续如果要支持校园导览图、位置图的自动理解，应沿 `navigation-agent` / spatial truth 方向另开能力，而不是继续加大 OCR
+  lane
 
 ## Related Docs
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`

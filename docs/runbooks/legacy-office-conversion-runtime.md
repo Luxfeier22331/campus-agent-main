@@ -4,7 +4,6 @@ status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Legacy Office Conversion Runtime
 
 ## Scope
@@ -49,32 +48,37 @@ Optional service env:
 
 Canonical override template:
 
-- [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
+- [`env/commands/legacy-office-conversion-service.env.example`](../../env/comman
+  ds/legacy-office-conversion-service.env.example)
 
 ## Local Bootstrap
 
 1. Load the canonical local env template into the current shell.
-2. Start the repo-owned runtime:
+1. Start the repo-owned runtime:
 
 ```bash
-docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build
+docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up \
+  -d --build
 ```
 
-3. Probe health:
+1. Probe health:
 
 ```bash
 curl -sS http://127.0.0.1:8091/healthz
 curl -sS http://127.0.0.1:8091/readyz
 ```
 
-`/healthz` 只表示 service 进程仍在；`/readyz` 必须返回 `200` 才表示 `JODConverter + LibreOffice` 真正可接单。
+`/healthz` 只表示 service 进程仍在；`/readyz` 必须返回 `200` 才表示 `JODConverter +
+LibreOffice` 真正可接单。
 
 ## Worker Consumption
 
 Thin worker shell:
 
 ```bash
-uv run --all-packages campus-ingestion-normalize-authenticated-notice-legacy-office-attachment --help
+uv run --all-packages \
+  campus-ingestion-normalize-authenticated-notice-legacy-office-attachment \
+  --help
 ```
 
 Behavior contract:
@@ -89,7 +93,8 @@ Behavior contract:
 Repo-owned verification helper:
 
 ```bash
-uv run --all-packages python -m scripts.verify_legacy_office_conversion_runtime \
+uv run --all-packages python -m \
+  scripts.verify_legacy_office_conversion_runtime
   --output-dir .tmp/phase-h-libreoffice-runtime-productization \
   --json
 ```
@@ -103,7 +108,9 @@ Expected artifacts:
 - `.tmp/phase-h-libreoffice-runtime-productization/xls/result.json`
 - `.tmp/phase-h-libreoffice-runtime-productization/SUMMARY.md`
 
-The helper auto-discovers one real `.doc` and one real `.xls` from the authenticated notice source bucket. If operators need deterministic sample selection, pass explicit `--doc-object-key` and `--xls-object-key`.
+The helper auto-discovers one real `.doc` and one real `.xls` from the
+authenticated notice source bucket. If operators need deterministic sample
+selection, pass explicit `--doc-object-key` and `--xls-object-key`.
 
 ## Readiness Gate
 
@@ -113,7 +120,8 @@ Before using the worker lane, run:
 uv run --all-packages python -m scripts.doctor_env ingestion --json
 ```
 
-`ingestion` is not ready unless the OCR/object-store/registry prerequisites and the legacy Office conversion seam are all present.
+`ingestion` is not ready unless the OCR/object-store/registry prerequisites and
+the legacy Office conversion seam are all present.
 
 ## Shutdown
 

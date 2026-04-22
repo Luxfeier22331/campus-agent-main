@@ -4,7 +4,6 @@ status: active
 created: 2026-03-28
 updated: 2026-04-12
 ---
-
 # Curriculum Plan Eval Metrics
 
 ## 目的
@@ -18,7 +17,8 @@ updated: 2026-04-12
 
 边界：
 
-- live rebuild 与线上 collection 验收步骤仍以 `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
+- live rebuild 与线上 collection 验收步骤仍以
+  `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
 - 本文不承担当前执行状态板
 - 本文不把单次 `.tmp` 目录提升为默认 canonical 入口
 
@@ -32,13 +32,17 @@ updated: 2026-04-12
   - workflow/status golden cases
   - deterministic error gate cases
 - fresh live release gate
-  - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate 样本
-  - 产出 schema、points count、query results、workflow summary 与 deterministic 汇总 artifact
+  - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate
+    样本
+  - 产出 schema、points count、query results、workflow summary 与 deterministic 汇总
+    artifact
 
 长期实现约束：
 
-- `campus_evals.curriculum_live_benchmark` 通过 shared `campus_evals.live_benchmark.BenchmarkProfile` core 运行
-- live gate policy fixture 固定为 `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
+- `campus_evals.curriculum_live_benchmark` 通过 shared
+  `campus_evals.live_benchmark.BenchmarkProfile` core 运行
+- live gate policy fixture 固定为
+  `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
 - 该 policy 只消费：
   - `ragas.faithfulness`
   - `ragas.answer_relevancy`
@@ -54,16 +58,12 @@ updated: 2026-04-12
   - total cases：`25`
   - `smoke = 16`
   - `regression_locked = 9`
-- hybrid live query fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
+- hybrid live query
+  fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
   - total cases：`12`
-  - categories：
-    - `policy_title_exact_match`
-    - `fixed_phrase_sparse_win`
-    - `short_fact_section`
-    - `table_retrieval`
-    - `semantic_dense_win`
-    - `needs_clarification`
-    - `no_hit`
+  - categories： - `policy_title_exact_match` - `fixed_phrase_sparse_win` -
+    `short_fact_section` - `table_retrieval` - `semantic_dense_win` -
+    `needs_clarification` - `no_hit`
 - workflow/status golden cases：`packages/evals/src/campus_evals/scenarios.py`
   - release gate：`14`
   - smoke：`10`
@@ -114,12 +114,14 @@ updated: 2026-04-12
   - family/member/audience/schedule answer 改为直接事实句
   - 原始 `curriculum_plan` 短事实问句优先走 direct fact shaping
 - 历史 live acceptance snapshot 仍有参考价值，但不再通过 repo-tracked `.tmp` 链接长期暴露
-- 若后续 fresh rerun 遇到 supplemental provider contract regression，应先标记为运行面阻塞，而不是 curriculum truth gap
+- 若后续 fresh rerun 遇到 supplemental provider contract regression，应先标记为运行面阻塞，而不是
+  curriculum truth gap
 
 补充约束：
 
 - `基地班` 一类 family alias 不允许再通过伪 top1 canonical truth 维持通过
-- `强基有哪些专业`、`二学位有哪些专业`、`实验班有哪些` 这类 membership query 可以进入 `program_family_facts` completed truth
+- `强基有哪些专业`、`二学位有哪些专业`、`实验班有哪些` 这类 membership query 可以进入 `program_family_facts`
+  completed truth
 - `verified identity` 只在 query 自身带 deictic 语义且候选唯一时进入 completed truth
 - `profile memory` 只进入 ranking/clarification 语义，不进入 canonical qrels collapse
 
@@ -157,16 +159,23 @@ updated: 2026-04-12
 
 repo-tracked 自动化基线：
 
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
+  tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
+  tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist
+  tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 
 retrieval benchmark scorer：
 
-- `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results <run-results.json>`
+- `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
+  packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
+  <run-results.json>`
 
 case-level context diagnostics：
 
-- `uv run --all-packages python -m campus_evals.context_diagnostics --case-results <run-XX-case-results.json> --scenario-set curriculum_live_gate --format json`
+- `uv run --all-packages python -m campus_evals.context_diagnostics
+  --case-results <run-XX-case-results.json> --scenario-set curriculum_live_gate
+  --format json`
 
 ## 维护规则
 

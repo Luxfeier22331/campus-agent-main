@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-23
 ---
 
 # Decisions
@@ -40,6 +40,7 @@ updated: 2026-04-20
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
+- `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 
 ## Identity、authz 与 operator control plane
 

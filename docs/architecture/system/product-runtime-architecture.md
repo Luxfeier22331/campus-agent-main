@@ -2,14 +2,14 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-04-23
 ---
-
 # Product Runtime Architecture
 
 ## 文档边界
 
-本文冻结 public chat、protected panel、shared `app-api` 与 delivery/runtime seam 的 supporting architecture。
+本文冻结 public chat、protected panel、shared `app-api` 与 delivery/runtime seam 的
+supporting architecture。
 
 它回答的是：
 
@@ -24,33 +24,59 @@ updated: 2026-04-19
 
 `browser -> public-chat-web -> app-api -> supervisor-api`
 
-`browser -> protected-panel-web -> app-api -> request projection / operator read model`
+`browser -> public-docs`
+
+`browser -> protected-panel-web -> app-api -> request projection / operator read
+model`
 
 这意味着：
 
-- `apps/public-chat-web` 与 `apps/protected-panel-web` 是两个 browser surface
+- 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
+- `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
+  不自动升级成整个产品的顶层 IA
+- `apps/public-docs` 是独立 docs-first browser surface
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/supervisor-api` 是 internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+
+补充结论：
+
+- 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
+- 它不等于整个产品的长期入口语义
+- capability-neutral routing 与 surface capability policy 统一由 shared
+  product/runtime + supervisor supporting architecture 表达
 
 ## Accepted Surface Shape
 
 产品/runtime supporting architecture 当前已经冻结到以下粒度：
 
 - `public-chat-web`
-  - 已是公开产品入口，不再以旧 `public-consumer-chat` 为 forward truth
+  - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
+- `public-docs`
+  - 已是正式公开文档站 app；当前 docs shell 已落地，但仍在 document-site workstream 下继续收口 published
+    reader assets、same-site docs control-plane 与 canonical reader 对齐
 - `protected-panel-web`
-  - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted shape
+  - 当前只承接 app-owned operator domains；`Requests` 与 `Official Web` 已是 accepted
+    shape
   - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
 
+前向约束：
+
+- 未来可以继续增加 `服务状态`、`校园地图` 等并列 public surface
+- 新增 surface 不得改写 shared `app-api` 的 auth / principal / request / operator
+  ownership
+- repo 级产品入口架构与某个 surface 自己的首页/导航信息架构必须分开表达
+
 补充约束：
 
 - 当前 merged truth 以 `docs/architecture/current-architecture.md` 为准
-- release hardening supporting architecture 统一看 `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`
-- staging runbook、Cloudflare Access 执行细节与 rollout closeout 证据统一看 runbooks 与 `.planning/`
+- release hardening supporting architecture 统一看
+  `docs/architecture/system/runtime-delivery-and-release-hardening-architecture.md`
+- staging runbook、Cloudflare Access 执行细节与 rollout closeout 证据统一看 runbooks 与
+  `.planning/`
 
 ## Surface Responsibilities
 
@@ -70,11 +96,30 @@ updated: 2026-04-19
 ### `apps/app-api`
 
 - auth / session / principal mapping
+- surface capability policy
 - conversation 与 chat ingress
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
+
+## Surface Capability Policy
+
+surface capability policy 的长期 owner 固定为 `apps/app-api`。
+
+直接含义：
+
+- `public-chat-web` 当前只开放 `knowledge`，是 current surface posture
+- `public-docs` 是非执行 surface，不自动进入 capability routing
+- future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
+- `apps/supervisor-api` 不拥有 browser-facing capability allowlist truth
+
+固定规则：
+
+- 不把某个 surface 当前开放的 capability 直接写成整个 repo 的长期入口原则
+- surface policy 先于 execution routing
+- `app-api` 负责把 surface policy、identity / authz projection 与 request truth 组装为最小
+  execution input
 
 ### `apps/supervisor-api`
 
@@ -103,15 +148,18 @@ future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
 - panel 只能读取 runtime-owned projection / aggregate APIs
-- `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为 canonical panel read model
+- `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
+  canonical panel read model
 
-更完整的 operator observability supporting architecture 不在本文展开，统一看 `docs/architecture/operator-observability-architecture.md`。
+更完整的 operator observability supporting architecture 不在本文展开，统一看
+`docs/architecture/system/operator-observability-architecture.md`。
 
 ## Protected Surface And Operator Access
 
 protected panel 的长期 access model 固定为：
 
-`approved operator principal -> upstream protected access -> origin admission -> minimal operator context -> runtime APIs`
+`approved operator principal -> upstream protected access -> origin admission ->
+minimal operator context -> runtime APIs`
 
 关键约束：
 
@@ -124,16 +172,22 @@ protected panel 的长期 access model 固定为：
 
 public auth family 的 runtime/product posture 固定为：
 
-- `public-chat-web` 拥有 `/login`、`/register`、`/forgot-password`、`/reset-password` 这组 browser route shell
-- `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side verification
-- auth family 的 human verification transport 固定走 same-site `public-chat-web -> /api/auth/* -> app-api`
+- `public-chat-web` 拥有 `/login`、`/register`、`/forgot-password`、`/reset-password`
+  这组 browser route shell
+- `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side
+  verification
+- auth family 的 human verification transport 固定走 same-site `public-chat-web ->
+  /api/auth/* -> app-api`
 
 长期 abuse-control 规则固定为：
 
 - `sign-in`、`sign-up`、`request-password-reset` 采用 always-on verification
-- `reset-password` token consumption 继续保持 fixed same-site token flow，不额外叠第二层 challenge
-- interactive challenge escalation 固定由 Cloudflare managed/adaptive posture 决定，不引入 repo-owned “只有遇到攻击才手动打开 challenge” 开关
-- public auth shell 必须保留显式 runtime config seam，允许在不分叉 auth flow 逻辑的前提下配置 Turnstile widget posture
+- `reset-password` token consumption 继续保持 fixed same-site token flow，不额外叠第二层
+  challenge
+- interactive challenge escalation 固定由 Cloudflare managed/adaptive posture
+  决定，不引入 repo-owned “只有遇到攻击才手动打开 challenge” 开关
+- public auth shell 必须保留显式 runtime config seam，允许在不分叉 auth flow 逻辑的前提下配置
+  Turnstile widget posture
 
 环境 posture 固定为：
 
@@ -145,7 +199,8 @@ public auth family 的 runtime/product posture 固定为：
 - `production`
   - 默认采用 Cloudflare `Managed` posture；仅在 risk elevated 时自适应提升到交互 challenge
 
-这里的环境差异只影响 widget posture 与 delivery/runtime 配置，不允许分叉 auth owner、same-site contract 或 auth family route/endpoint truth。
+这里的环境差异只影响 widget posture 与 delivery/runtime 配置，不允许分叉 auth owner、same-site
+contract 或 auth family route/endpoint truth。
 
 ## Runtime / Delivery Posture
 
@@ -167,12 +222,15 @@ public auth family 的 runtime/product posture 固定为：
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/contracts/app-api-supervisor-execution.md`
+- `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/data/app-api-schema.md`
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
-- `docs/architecture/operator-observability-architecture.md`
-- `docs/architecture/runtime-delivery-and-release-hardening-architecture.md`
+- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
+  pation.md`
+- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/runtime-delivery-and-release-hardening-architecture.md`

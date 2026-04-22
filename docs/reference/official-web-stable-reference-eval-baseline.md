@@ -4,7 +4,6 @@ status: active
 created: 2026-04-05
 updated: 2026-04-20
 ---
-
 # Official Web Stable Reference Eval Baseline
 
 ## 目的
@@ -30,11 +29,11 @@ repo-tracked 基线入口固定为：
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
 - retrieval qrels:
   `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json`
-- deterministic live gate:
-  `packages/evals/src/campus_evals/scenarios.py` ->
+- deterministic live gate: `packages/evals/src/campus_evals/scenarios.py` ->
   `official_web_stable_reference_release_gate_cases()`
-- live benchmark entry:
-  `uv run --all-packages python -m campus_evals.official_web_live_benchmark ... --official-web-scope stable_reference`
+- live benchmark entry: `uv run --all-packages python -m
+  campus_evals.official_web_live_benchmark ... --official-web-scope
+  stable_reference`
 
 基线分母：
 
@@ -47,7 +46,8 @@ repo-tracked 基线入口固定为：
 
 accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 
-- validated physical collection：`official_web_stable_reference__r20260404_204033`
+- validated physical
+  collection：`official_web_stable_reference__r20260404_204033`
 - later published alias：`official_web_stable_reference`
 - retrieval baseline：
   - `total_cases = 9`
@@ -69,8 +69,10 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 
 - `no_answer = 2` 是预期的 fail-close 行为，不应误判为 gate 漏测
 - `precision_at_5 < 1.0` 在这里不构成失败，因为 stable reference 允许多条高相关说明型页面共同进入前五
-- 这组指标的意义是：stable-reference split 已具备稳定 retrieval 排序和 answer-path gate，而不是已经默认开放为 query-serving surface
-- 物理 collection 与 alias 路径只要承载同一份 validated document set，本基线可沿用；真正的 rebuild / publish 操作仍应看 runbook
+- 这组指标的意义是：stable-reference split 已具备稳定 retrieval 排序和 answer-path
+  gate，而不是已经默认开放为 query-serving surface
+- 物理 collection 与 alias 路径只要承载同一份 validated document set，本基线可沿用；真正的 rebuild /
+  publish 操作仍应看 runbook
 
 ## 维护规则
 
@@ -85,6 +87,11 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 ## 验证命令
 
 - retrieval benchmark：
-  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark --qrels packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json --qdrant-collection-name <collection> --format json --output <results.json>`
+  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark
+    --qrels
+    packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json
+    --qdrant-collection-name <collection> --format json --output <results.json>`
 - deterministic live gate：
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark run --official-web-scope stable_reference --qdrant-collection-name <collection> --output-dir <output_dir>`
+  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
+    run --official-web-scope stable_reference --qdrant-collection-name
+    <collection> --output-dir <output_dir>`

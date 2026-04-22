@@ -4,7 +4,6 @@ status: active
 created: 2026-04-02
 updated: 2026-04-19
 ---
-
 # Official Web Architecture
 
 ## 文档边界
@@ -19,22 +18,34 @@ updated: 2026-04-19
 
 补充约束：
 
-- 当前 merged truth 与 runtime opening posture 以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 与 `.planning/` 为准
+- 当前 merged truth 与 runtime opening posture 以
+  `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 与
+  `.planning/` 为准
 - 本文不维护 `fresh_news` / `news_archive` 的当前开放状态、单轮执行进度或 closeout 证据
-- `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与 freshness gate 统一看 `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- repo-level opening contract 与 artifact checklist 统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
+- `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与
+  freshness gate 统一看
+  `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- repo-level opening contract 与 artifact checklist 统一看
+  `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## Core Topology
 
-`external scheduler -> official-web collector -> object storage + app-api official_web control plane -> app-api ledger/outbox/read model -> ingestion-worker -> document/chunk/index`
+`external scheduler -> official-web collector -> object storage + app-api
+official_web control plane -> app-api ledger/outbox/read model ->
+ingestion-worker -> document/chunk/index`
 
 关键边界：
 
 - collector 负责 crawl / fetch / normalize / upload / report
-- `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与 ingestion handoff
+- `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与
+  ingestion handoff
 - `apps/ingestion-worker` 继续只是 offline executor
 - protected panel 通过 `apps/app-api` 消费 `official_web` operator surfaces
-- collector 写入 source bucket 的对象同时包含 page-level `capture/`、`provider/`、`source-truth/` artifacts，以及 `official_web/{site_id}/runs/{run_id}/...` run artifacts
+- collector 写入 source bucket 的对象同时包含 page-level
+  `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
+  projection artifact，则继续写入同一 source prefix 下的
+  `projection/<projection_name>/...`；此外还会写
+  `official_web/{site_id}/runs/{run_id}/...` run artifacts
 
 ## Source Channel Rules
 
@@ -42,16 +53,20 @@ updated: 2026-04-19
 - crawl scope 的长期规则留在 policy 文档
 - page-level source-truth schema 留在 contract 文档
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
-- downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果 downstream 要消费它们，必须进入 shared file asset loader contract
+- downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果
+  downstream 要消费它们，必须进入 shared file asset loader contract
 
 ## Policy And Contract Split
 
 - crawl policy：`docs/policies/official-web-crawl-policy.md`
-- source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
-- repo-level data-plane contract：`docs/architecture/data-plane-architecture.md`
-- shared file asset loader：`docs/architecture/file-asset-loader-architecture.md`
-- serving split / news retrieval strategy：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- freshness / incremental crawling strategy：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
+- source-truth
+  contract：`docs/data/official-web-source-truth-schema.md`
+- repo-level data-plane contract：`docs/architecture/system/data-plane-architecture.md`
+- shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
+- serving split / news retrieval strategy：`docs/architecture/official-web-servin
+  g-and-news-retrieval-strategy.md`
+- freshness / incremental crawling strategy：`docs/architecture/official-web-fres
+  hness-and-incremental-crawling.md`
 
 ## Control-Plane Ownership
 

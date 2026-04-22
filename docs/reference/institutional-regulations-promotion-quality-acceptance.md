@@ -4,12 +4,12 @@ status: active
 created: 2026-04-11
 updated: 2026-04-20
 ---
-
 # Institutional Regulations Promotion Quality Acceptance
 
 ## 文档边界
 
-本文冻结 `campus_notices/internal_notice -> regulations/institutional_rules` promotion/materialization 的 acceptance truth。
+本文冻结 `campus_notices/internal_notice -> regulations/institutional_rules`
+promotion/materialization 的 acceptance truth。
 
 它回答的是：
 
@@ -27,7 +27,8 @@ updated: 2026-04-20
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
 - `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
+  `
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 
 ## Scope Boundary
@@ -49,7 +50,8 @@ updated: 2026-04-20
 
 固定要求：
 
-- target `document_id` 必须由 `regulation_work_title + issuing_org + semantic scope` 派生
+- target `document_id` 必须由 `regulation_work_title + issuing_org + semantic
+  scope` 派生
 - `notice_id` 只保留在 provenance metadata
 
 ### 2. Title / version metadata 必须显式分层
@@ -154,6 +156,7 @@ updated: 2026-04-20
 
 ## Usage Rule
 
-- 需要看当前 target bucket 与 blocked frontier，读 `institutional-regulations-offline-inventory.md`
+- 需要看当前 target bucket 与 blocked frontier，读
+  `institutional-regulations-offline-inventory.md`
 - 需要看 target quality acceptance 与 identity rules，读本文
 - 需要看 operator path，读对应 runbook

@@ -4,7 +4,6 @@ status: active
 created: 2026-04-14
 updated: 2026-04-21
 ---
-
 # Institutional Regulations Offline Inventory
 
 ## 文档边界
@@ -28,11 +27,13 @@ updated: 2026-04-21
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
 - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
-- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md`
+- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
+  .md`
 
 ## Institution-Wide Current Target
 
-当前仍属于 `regulations/institutional_rules` 的 target 只保留 institution-wide stable regulation，例如：
+当前仍属于 `regulations/institutional_rules` 的 target 只保留 institution-wide stable
+regulation，例如：
 
 - `中央民族大学采购工作管理办法`
 - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
@@ -68,7 +69,8 @@ updated: 2026-04-21
 
 - `351119 / 关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知`
   - 该样本已被显式排除，不再作为 auth-dependent `file_release` owner recovery target
-  - historical source truth 继续保留，但 non-auth downstream line 与 auth owner-recovery line 都不再继续承接它
+  - historical source truth 继续保留，但 non-auth downstream line 与 auth
+    owner-recovery line 都不再继续承接它
 
 ## Out Of Scope For Regulation Target
 
@@ -84,5 +86,7 @@ updated: 2026-04-21
 ## Usage Rule
 
 - 需要看“哪些 title 当前在哪个 target bucket”，读本文
-- 需要看 identity / provenance / materialization acceptance，读 `institutional-regulations-promotion-quality-acceptance.md`
-- 需要看 current frontier 的 execution status，读 `.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
+- 需要看 identity / provenance / materialization acceptance，读
+  `institutional-regulations-promotion-quality-acceptance.md`
+- 需要看 current frontier 的 execution status，读 `.planning/WORKSTREAMS.md` 与对应
+  workstream `STATE.md`

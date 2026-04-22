@@ -4,7 +4,6 @@ status: active
 created: 2026-04-21
 updated: 2026-04-22
 ---
-
 # Retrieval Query Activity Model
 
 ## 文档边界
@@ -28,8 +27,8 @@ supporting evidence 的逻辑数据模型。
 
 ## Goal
 
-在不把 raw retrieval trace 直接暴露给上层的前提下，为后续 multi-step executor、
-operator observability、supporting evidence selection 与 grounded synthesis 提供统一数据面。
+在不把 raw retrieval trace 直接暴露给上层的前提下，为后续 multi-step executor、 operator
+observability、supporting evidence selection 与 grounded synthesis 提供统一数据面。
 
 固定目标：
 
@@ -42,7 +41,8 @@ operator observability、supporting evidence selection 与 grounded synthesis �
 
 这组逻辑对象在长期链路中的位置固定为：
 
-`RetrievalPlan -> StepResult[] -> candidate set merge -> supporting evidence selection -> source card / reader target -> answer synthesis`
+`RetrievalPlan -> StepResult[] -> candidate set merge -> supporting evidence
+selection -> source card / reader target -> answer synthesis`
 
 因此：
 
@@ -69,8 +69,8 @@ operator observability、supporting evidence selection 与 grounded synthesis �
 
 ## Current Admitted Operator Projection
 
-当前已 admission 到 operator observability 的不是整份 `QueryActivity`，而是它的一个
-受控子集 `retrieval_plan_summary`：
+当前已 admission 到 operator observability 的不是整份 `QueryActivity`，而是它的一个 受控子集
+`retrieval_plan_summary`：
 
 - `plan_id`
 - `query_mode`
@@ -91,7 +91,8 @@ operator observability、supporting evidence selection 与 grounded synthesis �
 固定约束：
 
 - 这是 operator-safe typed summary，不是 raw query trace
-- 不在 panel 返回 step query text、raw filter payload、raw snippets 或 provider-native debug fields
+- 不在 panel 返回 step query text、raw filter payload、raw snippets 或 provider-native
+  debug fields
 - 它与 `sourceTrace.retrieved` / `sourceTrace.supporting` 互补，不互相替代
 
 ## Logical Objects
@@ -190,8 +191,8 @@ GroundingCandidate
 
 - `GroundingCandidate` 仍属于 execution truth，不直接等于最终 supporting evidence
 - `score_bucket` 只允许使用归一化 bucket 或 rank，不暴露 raw vendor score payload
-- `source_kind=admitted_live` 不表示自动成为 answer-bearing evidence；仍受 source-trust
-  与 freshness policy 约束
+- `source_kind=admitted_live` 不表示自动成为 answer-bearing evidence；仍受 source-trust 与
+  freshness policy 约束
 
 ### CanonicalReference
 
@@ -307,7 +308,8 @@ FailureRecord
 固定约束：
 
 - operator projection 不直接暴露 raw vendor payload
-- browser projection 不直接暴露 raw candidate trace、query text history 或 failure internals
+- browser projection 不直接暴露 raw candidate trace、query text history 或 failure
+  internals
 - browser source card 只能从 `SupportingEvidence + CanonicalReference` 派生
 
 ## Derivation Rules

@@ -1,8 +1,7 @@
-## muc_public_pages collection config
+# muc_public_pages collection config
 
 This directory holds the repo-tracked runtime profile and retrieval fixture
-manifest for the `muc_public_pages` collection within the `official_web`
-corpus.
+manifest for the `muc_public_pages` collection within the `official_web` corpus.
 
 - source-level crawl ownership remains under
   `configs/sources/official_web/muc_public/`
@@ -28,9 +27,12 @@ release-managed indexing all operate against an explicit repo-tracked
 
 Current serving-surface interpretation:
 
-- the collection still mixes stable-reference-like pages and future fresh-news candidates
-- it is therefore a local QC / replay / forced-validation collection, not a freshness-ready answer surface
-- `今天` / `最新` / `最近` style asks must fail closed under the current runtime truth instead of being treated as supported official-web answers
+- the collection still mixes stable-reference-like pages and future fresh-news
+  candidates
+- it is therefore a local QC / replay / forced-validation collection, not a
+  freshness-ready answer surface
+- `今天` / `最新` / `最近` style asks must fail closed under the current runtime truth
+  instead of being treated as supported official-web answers
 - its long-term successors are `official_web/stable_reference`,
   `official_web/fresh_news`, and `official_web/news_archive`
 - formal regulations and formal curriculum documents still belong to

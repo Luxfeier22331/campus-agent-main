@@ -24,7 +24,8 @@ Phase 1001 source inventory / admission posture:
 ## 约束
 
 - geometry 使用 `EPSG:4326`
-- 允许 `point_geometry = null`；当官方来源只足以支持 canonical label 与 coarse location description 时，不伪造精确坐标
+- 允许 `point_geometry = null`；当官方来源只足以支持 canonical label 与 coarse location
+  description 时，不伪造精确坐标
 - provider id / provider schema 不进入 seed truth
 - `verification_state` 用来标记人工确认状态；未做 field verification 的点位也必须显式标记
 - 官方校园地图当前只用于 canonical label / campus-scope admission，不得直接反推精确 geometry

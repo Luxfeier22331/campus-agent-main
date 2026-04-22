@@ -7,11 +7,13 @@
 这个目录承载 `RAG agent` 的局部实现边界。
 
 - 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
-- 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence collection`、`evidence normalization`、`confidence` 返回
+- 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence
+  collection`、`evidence normalization`、`confidence` 返回
 - 返回 `SpecialistResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
 - 当前默认 query-serving retrieval agent 仍是 `rag-agent`
 
-当前 bootstrap 入口是 `src/campus_rag_agent/service.py` 中的 `delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 agent 逻辑散落到别处。
+当前 bootstrap 入口是 `src/campus_rag_agent/service.py` 中的
+`delegate_to_rag_agent(...)`。优先沿着这个 service 边界演进，不要把 agent 逻辑散落到别处。
 
 ## Source Of Truth
 
@@ -19,8 +21,8 @@
 
 - `../../AGENTS.md`
 - `../../docs/architecture/target-architecture.md`
-- `../../docs/architecture/data-plane-architecture.md`
-- `../../docs/architecture/retrieval-serving-architecture.md`
+- `../../docs/architecture/system/data-plane-architecture.md`
+- `../../docs/architecture/system/retrieval-serving-architecture.md`
 - `../../docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `../../docs/reference/runtime-serving-and-index-terms.md`
 - `../../docs/architecture/target-architecture.md`
@@ -43,13 +45,15 @@
 
 边界规则：
 
-- 如果一个改动需要修改 index/object store/registry 语义，优先去 `packages/retrieval-core` 或 `packages/ingestion-core`
+- 如果一个改动需要修改 index/object store/registry 语义，优先去 `packages/retrieval-core` 或
+  `packages/ingestion-core`
 - 不要把 `Agno`、retrieval backend 或对象存储 SDK 类型泄漏进 `packages/contracts`
 - `confidence` 逻辑属于 agent 层，不是 retrieval backend 原始输出的直接透传
 
 ## Current Serving Constraints
 
-- 当前 query-serving scope 由 collection runtime profile 决定；默认开放 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- 当前 query-serving scope 由 collection runtime profile 决定；默认开放
+  `regulations/student_rules` 与 `curriculum/curriculum_plan`
 - 已冻结但未放开的 corpus 应通过显式 fail-closed 路径返回，而不是在 agent 内静默扩面
 - 不要在此目录自行维护 query-enabled scope truth；范围判断以 supervisor 与 runtime profile 为准
 - 不要在此目录提前引入多 corpus fan-out 或并行检索逻辑

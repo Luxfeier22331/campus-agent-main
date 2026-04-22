@@ -5,18 +5,20 @@ status: accepted
 created: 2026-04-03
 updated: 2026-04-03
 ---
-
 # ADR-0024 Authenticated Notice Source Channel
 
-适用范围：登录态、机构内部通知采集器的 source-channel 建模、bootstrap 接入、runtime ownership 与 restricted rollout 边界
+适用范围：登录态、机构内部通知采集器的 source-channel 建模、bootstrap 接入、runtime ownership 与
+restricted rollout 边界
 
 ## 背景
 
 当前仓库已经冻结了以下长期边界：
 
-- repo 级 canonical data plane 固定为 `raw asset -> provider output -> source truth -> declared projections -> document/chunk/index`
+- repo 级 canonical data plane 固定为 `raw asset -> provider output -> source truth
+  -> declared projections -> document/chunk/index`
 - `official_web` 是 public HTML source channel，不默认纳入登录态页面或应用壳
-- restricted institutional documents 的 canonical authorization truth 由 `apps/app-api` 拥有
+- restricted institutional documents 的 canonical authorization truth 由
+  `apps/app-api` 拥有
 - 对象存储长期语义始终是 `S3-compatible object storage`
 
 但对于“需要登录才能访问的内部通知系统”，仓库还缺一条明确规则：
@@ -79,7 +81,8 @@ updated: 2026-04-03
 原因：
 
 - 当前最先需要收口的是 source-truth、document registry 与 restricted rollout
-- 先行要求 control plane 会把工作重心错误地放到 admission / operator workflow，而不是 data-plane contract
+- 先行要求 control plane 会把工作重心错误地放到 admission / operator workflow，而不是 data-plane
+  contract
 
 ## 决策 4：collector runtime 应作为独立 `apps/*` runtime shell 迁入 repo
 
@@ -118,7 +121,9 @@ updated: 2026-04-03
 
 直接要求：
 
-- repo 内长期 truth 必须重建为 `capture/ -> provider/ -> source-truth/`
+- repo 内长期 truth 必须先重建为 `capture/ -> provider/ -> source-truth/`；如后续 materialize
+  source-side persisted projection artifact，则继续落在同一 source prefix 下的
+  `projection/<projection_name>/...`
 - `local_path` 不得进入 canonical source-truth
 - `object_key` 可以继续作为对象身份与存储定位语义
 
@@ -163,7 +168,8 @@ updated: 2026-04-03
 - 需要新增一份 authenticated notice source architecture 文档
 - 需要新增一份 notice source-truth contract
 - 需要在 `packages/ingestion-core` 实现 bootstrap importer 与 source-truth builder
-- 需要在 `configs/ingestion/` 下为 `campus_notices/internal_notice` 新增 runtime/canonical/chunk config
+- 需要在 `configs/ingestion/` 下为 `campus_notices/internal_notice` 新增
+  runtime/canonical/chunk config
 - 需要在 collector 迁入 repo 时把 SQLite 降级为 app 内 runtime state，而不是系统间 truth
 
 明确不做：
@@ -177,8 +183,9 @@ updated: 2026-04-03
 
 这项决策 complements：
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/architecture/data-plane-architecture.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
+  .md`
 - `.planning/workstreams/restricted-document-rollout-verification/README.md`

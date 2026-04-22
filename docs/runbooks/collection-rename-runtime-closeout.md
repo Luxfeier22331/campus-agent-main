@@ -4,7 +4,6 @@ status: active
 created: 2026-04-22
 updated: 2026-04-23
 ---
-
 # Collection Rename Runtime Closeout
 
 ## 文档边界
@@ -36,7 +35,8 @@ updated: 2026-04-23
 先核对 object store release family 和 Qdrant alias / physical collection family：
 
 ```bash
-uv run --package campus-ingestion-worker campus-ingestion-audit-collection-runtime-state
+uv run --package campus-ingestion-worker \
+  campus-ingestion-audit-collection-runtime-state
 ```
 
 输出会按 target 给出：
@@ -73,7 +73,8 @@ pnpm --dir apps/app-api collection-rename:audit
 确认 audit 后执行回填：
 
 ```bash
-pnpm --dir apps/app-api collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
+pnpm --dir apps/app-api collection-rename:apply -- --write-report \
+  .tmp/collection-rename-apply.json
 ```
 
 行为：
@@ -88,13 +89,15 @@ pnpm --dir apps/app-api collection-rename:apply -- --write-report .tmp/collectio
 如果需要从 `runtime.*` 重新跑一次 request projection，可使用 apply report：
 
 ```bash
-pnpm --dir apps/app-api collection-rename:replay -- --report .tmp/collection-rename-apply.json
+pnpm --dir apps/app-api collection-rename:replay -- --report \
+  .tmp/collection-rename-apply.json
 ```
 
 也可以直接指定 request id：
 
 ```bash
-pnpm --dir apps/app-api collection-rename:replay -- --request-id req_01 --request-id req_02
+pnpm --dir apps/app-api collection-rename:replay -- --request-id req_01 \
+  --request-id req_02
 ```
 
 固定规则：
@@ -109,20 +112,23 @@ pnpm --dir apps/app-api collection-rename:replay -- --request-id req_01 --reques
 先 audit：
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.collection_rename_registry_backfill audit
+uv run --all-packages python -m \
+  campus_ingestion_worker.collection_rename_registry_backfill audit
 ```
 
 确认后 apply：
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.collection_rename_registry_backfill apply
+uv run --all-packages python -m \
+  campus_ingestion_worker.collection_rename_registry_backfill apply
 ```
 
 固定规则：
 
 - 同时检查 `document_registry` 与 `raw_asset_registry`
 - 同时修正标量 `collection` 列与 `record.collection`
-- 这是 `student_rules` replay release 的前置条件；否则本地 replay 可能会因为 legacy scope row 直接 fail-close
+- 这是 `student_rules` replay release 的前置条件；否则本地 replay 可能会因为 legacy scope row 直接
+  fail-close
 
 ## 6. student_rules release closeout
 
@@ -153,8 +159,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_index \
 补充约束：
 
 - handbook replay 会 fail-close 消费 repo-tracked downstream projection；如果缺少
-  `projection/handbook_navigation_service_catalog/flow-graph.json`，先补齐 source projection artifact，
-  再继续 `student_rules` release
+  `projection/handbook_navigation_service_catalog/flow-graph.json`，先补齐 source
+  projection artifact， 再继续 `student_rules` release
 - `scoped_rules` 继续保持 `query_enabled=false`
 
 ## 7. `institutional_rules`

@@ -4,7 +4,6 @@ status: active
 created: 2026-04-20
 updated: 2026-04-21
 ---
-
 # Agentic Retrieval Architecture
 
 ## 文档边界
@@ -24,13 +23,12 @@ updated: 2026-04-21
 - 某个 provider / SDK / vendor API 的具体接法
 
 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 与
-`docs/architecture/retrieval-serving-architecture.md` 为准。本文描述的是长期
-target architecture，不得把它误读成当前已开放产品 truth。
+`docs/architecture/system/retrieval-serving-architecture.md` 为准。本文描述的是长期 target
+architecture，不得把它误读成当前已开放产品 truth。
 
 ## Core Conclusion
 
-`campus-agent` 的长期 retrieval 目标不是继续停留在 single-shot hybrid query，
-而是演进为：
+`campus-agent` 的长期 retrieval 目标不是继续停留在 single-shot hybrid query， 而是演进为：
 
 `bounded campus agentic retrieval`
 
@@ -48,7 +46,8 @@ target architecture，不得把它误读成当前已开放产品 truth。
 - 开放域 general web fallback
 - prompt 内隐式工具调用黑盒
 - 让 retrieval backend 自行决定产品 scope 的自治代理
-- 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进 retrieval planner
+- 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进
+  retrieval planner
 
 ## Why Agentic Retrieval Exists Here
 
@@ -65,14 +64,19 @@ target architecture，不得把它误读成当前已开放产品 truth。
 
 同时固定保留一个并列结论：
 
-- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/get` 这类结构化 runtime capability 不属于 agentic retrieval 本身
-- 它们应通过 projection-backed internal query service + domain-agent tool adapter 提供，而不是伪装成 retrieval step
+- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/ge
+  t` 这类结构化 runtime capability 不属于 agentic retrieval 本身
+- 它们应通过 projection-backed internal query service + domain-agent tool adapter
+  提供，而不是伪装成 retrieval step
 
 ## Long-Term Execution Shape
 
 长期主链路中的 retrieval 片段固定为：
 
-`supervisor admission -> rag-agent scope resolution -> rag-agent retrieval planner -> typed retrieval plan -> retrieval-core executor -> query activity / step results -> supporting evidence selection -> rag-agent synthesis -> grounding validation -> supervisor finalization`
+`supervisor admission -> rag-agent scope resolution -> rag-agent retrieval
+planner -> typed retrieval plan -> retrieval-core executor -> query activity /
+step results -> supporting evidence selection -> rag-agent synthesis ->
+grounding validation -> supervisor finalization`
 
 其中：
 
@@ -173,8 +177,8 @@ target architecture，不得把它误读成当前已开放产品 truth。
   - 面向课程、方案家族、制度对象、地点等实体分辨
 - `scope_follow_up`
   - 在已 admitted 的 capability 内切换到 internal retrieval surface
-  - 只保留给 future explicit admission；首轮稳定 contract 可以先把它作为 reserved value，而不是
-    初始 executor 必须支持的 execution value
+  - 只保留给 future explicit admission；首轮稳定 contract 可以先把它作为 reserved value，而不是 初始
+    executor 必须支持的 execution value
 - `historical_version_lookup`
   - 显式 historical / `as_of` 版本定位
 - `compare_pair_lookup`
@@ -195,14 +199,14 @@ target architecture，不得把它误读成当前已开放产品 truth。
 长期 plan lifecycle 固定为：
 
 1. query framing
-2. policy / scope / authz admission
-3. query mode resolution
-4. plan emission
-5. step execution
-6. optional bounded replan
-7. candidate merge / rerank / threshold
-8. supporting evidence selection
-9. synthesis + grounding validation
+1. policy / scope / authz admission
+1. query mode resolution
+1. plan emission
+1. step execution
+1. optional bounded replan
+1. candidate merge / rerank / threshold
+1. supporting evidence selection
+1. synthesis + grounding validation
 
 ## Budget Model
 
@@ -235,7 +239,8 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 固定规则：
 
 - planner 不能把 `offline_preparation` surface 当作默认可答 surface
-- freshness-sensitive query 在 local freshness 不足时，只能走 admitted live branch 或 fail-close
+- freshness-sensitive query 在 local freshness 不足时，只能走 admitted live branch 或
+  fail-close
 - 低信任 remote evidence 不能直接成为 answer-bearing evidence
 
 ## Candidate Set Vs Supporting Evidence
@@ -313,8 +318,8 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 - freshness branch outcome
 - live retrieval outcome
 
-这些 execution-side truth 用于 operator observability、quality grading 与 release gate，
-但不应直接暴露 raw snippets 或 vendor payload。
+这些 execution-side truth 用于 operator observability、quality grading 与 release
+gate， 但不应直接暴露 raw snippets 或 vendor payload。
 
 ## Evaluation Model
 
@@ -338,10 +343,10 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 ## 相关稳定文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/rag-agent-retrieval-plan-contract.md`
 - `docs/data/retrieval-query-activity-model.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

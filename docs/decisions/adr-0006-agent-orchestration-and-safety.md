@@ -5,7 +5,6 @@ status: accepted
 created: 2026-03-25
 updated: 2026-04-22
 ---
-
 # ADR-0006 编排模式与安全边界
 
 适用范围：`campus-agent` v2 的长期 supervisor-led orchestration、agent 扩展方式，以及跨边界安全控制
@@ -33,14 +32,15 @@ updated: 2026-04-22
 
 ## 决策 1：长期采用 Hybrid Orchestration
 
-`campus-agent` 的长期编排采用 `hybrid orchestration`，而不是把所有控制都交给 LLM，也不是把所有行为预先冻结成声明式大图。
+`campus-agent` 的长期编排采用 `hybrid orchestration`，而不是把所有控制都交给
+LLM，也不是把所有行为预先冻结成声明式大图。
 
 边界固定如下：
 
-- `code orchestration`
-  负责 auth、ACL / policy gate、approval hook、timeout / retry、deterministic stop condition、结构化输入输出校验、审计与 trace 投影
-- `LLM orchestration`
-  负责意图框定、开放式任务拆解、query rewriting、evidence synthesis、clarification / refusal wording 与其他非确定性推理
+- `code orchestration` 负责 auth、ACL / policy gate、approval hook、timeout /
+  retry、deterministic stop condition、结构化输入输出校验、审计与 trace 投影
+- `LLM orchestration` 负责意图框定、开放式任务拆解、query rewriting、evidence
+  synthesis、clarification / refusal wording 与其他非确定性推理
 
 长期约束：
 
@@ -52,10 +52,8 @@ updated: 2026-04-22
 
 长期允许两类编排模式并存：
 
-- `manager-managed agent`
-  supervisor 保持顶层控制，向 agent 委派受限子任务
-- `explicit handoff`
-  在确有必要时，把后续一个或多个回合的主导权显式交给 agent
+- `manager-managed agent` supervisor 保持顶层控制，向 agent 委派受限子任务
+- `explicit handoff` 在确有必要时，把后续一个或多个回合的主导权显式交给 agent
 
 长期默认规则：
 
@@ -134,18 +132,18 @@ updated: 2026-04-22
 
 ## 决策 7：文档分层关系
 
-- `docs/architecture/target-architecture.md`
-  负责长期编排边界、角色分工与系统形态
-- `docs/architecture/execution-and-agents-architecture.md`
-  负责 supervisor 如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-  负责 identity / memory / personalization 如何作为 typed context 进入编排，而不稀释 ACL 或权限边界
-- `docs/architecture/data-plane-architecture.md`
-  负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant 组合理由
-- 本 ADR
-  负责长期编排模式、agent 准入与安全边界
-- `docs/decisions/adr-0004-evaluation-metrics.md`
-  负责与编排变更相关的 workflow / safety / gate 指标语义
+- `docs/architecture/target-architecture.md` 负责长期编排边界、角色分工与系统形态
+- `docs/architecture/system/execution-and-agents-architecture.md` 负责 supervisor
+  如何承接这些长期规则，以及当前 execution engine runtime / Agno 集成边界
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d` 负责 identity / memory / personalization 如何作为 typed context 进入编排，而不稀释 ACL
+  或权限边界
+- `docs/architecture/system/data-plane-architecture.md`
+  负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant
+  组合理由
+- 本 ADR 负责长期编排模式、agent 准入与安全边界
+- `docs/decisions/adr-0004-evaluation-metrics.md` 负责与编排变更相关的 workflow / safety /
+  gate 指标语义
 - `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
   负责某一轮文档刷新或实现落地的任务分解、文件落点和验收标准
 

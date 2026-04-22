@@ -4,17 +4,18 @@ status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Internal Notice PDF Chunk Tuning Sample-Set Contract
 
 ## 文档边界
 
-本文冻结 `campus_notices/internal_notice` 在 `attachment_ocr_required` lane 上做 PDF chunk tuning 时的样本集 contract。
+本文冻结 `campus_notices/internal_notice` 在 `attachment_ocr_required` lane 上做 PDF
+chunk tuning 时的样本集 contract。
 
 它回答的是：
 
 - PDF chunk tuning 应冻结哪一层 truth
-- raw PDF、provider response、`layout-elements.jsonl`、`document-units.jsonl` 各自扮演什么角色
+- raw PDF、provider response、`layout-elements.jsonl`、`document-units.jsonl`
+  各自扮演什么角色
 - 样本集应落在哪个 operations 前缀
 - `sample-set-manifest.json`、`sample-manifest.json` 与 query truth 应至少包含什么字段
 
@@ -29,7 +30,7 @@ updated: 2026-04-20
 
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 
 ## 适用范围
 
@@ -135,7 +136,8 @@ sample set 固定属于 operations truth，不属于 documents truth，也不属
 
 推荐前缀：
 
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/`
 
 其中：
 
@@ -144,14 +146,23 @@ sample set 固定属于 operations truth，不属于 documents truth，也不属
 
 推荐对象布局：
 
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/sample-set-manifest.json`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/queries.jsonl`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/sample-manifest.json`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/raw.pdf`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/provider-response.jsonl`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/layout-elements.jsonl`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/canonical.md`
-- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/internal_notice/attachment_ocr_required/samples/{sample_id}/document-units.jsonl`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/sample-set-manifest.json`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/queries.jsonl`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/sample-manifest.json`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/raw.pdf`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/provider-response.jsonl
+  `
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/layout-elements.jsonl`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/canonical.md`
+- `campus_notices/operations/chunk-tuning-sample-sets/{sample_set_version}/inter
+  nal_notice/attachment_ocr_required/samples/{sample_id}/document-units.jsonl`
 
 固定禁止：
 
@@ -187,7 +198,8 @@ sample set 固定属于 operations truth，不属于 documents truth，也不属
 
 - manifest 只描述这批 sample 的 frozen input truth
 - 它不记录某次 chunk 参数试验的胜负结果
-- 如果 parser/provider、`document-units` schema 或 lane semantics 变更到会影响 chunk 输入边界，必须产生新的 `sample_set_version`
+- 如果 parser/provider、`document-units` schema 或 lane semantics 变更到会影响 chunk
+  输入边界，必须产生新的 `sample_set_version`
 
 ## `sample-manifest.json`
 
@@ -224,7 +236,8 @@ sample set 固定属于 operations truth，不属于 documents truth，也不属
 
 - `sample_id` 是 sample-set 内稳定主键，不依赖 document title slug
 - `risk_bucket` 用于确保分桶覆盖，不替代 document semantics
-- `raw_pdf_object_key` 继续回指真实上游对象；sample-set 内复制的 `raw.pdf` 只是调参与回归的 frozen mirror
+- `raw_pdf_object_key` 继续回指真实上游对象；sample-set 内复制的 `raw.pdf` 只是调参与回归的 frozen
+  mirror
 
 ## `queries.jsonl`
 
@@ -256,7 +269,8 @@ chunk tuning 不能只看 chunk 文本外观，必须同时冻结 query truth。
 
 - `gold_evidence` 应尽量引用 page / section / snippet，而不是只写抽象答案
 - `must_not_retrieve` 用于暴露 header-dominant、封面页抢占、目录页抢占等常见 PDF 失败形态
-- 如果 query 集发生语义级扩面，应显式 bump `sample_set_version` 或为同一 sample set 补一个新的 query-set version
+- 如果 query 集发生语义级扩面，应显式 bump `sample_set_version` 或为同一 sample set 补一个新的
+  query-set version
 
 ## 样本分桶
 
@@ -308,7 +322,8 @@ sample set 不接受“纯随机抓取 PDF”。
 
 推荐前缀：
 
-- `campus_notices/operations/chunk-tuning-evals/{eval_run_id}/internal_notice/attachment_ocr_required/`
+- `campus_notices/operations/chunk-tuning-evals/{eval_run_id}/internal_notice/at
+  tachment_ocr_required/`
 
 这里允许写入：
 
@@ -347,4 +362,4 @@ sample set 不接受“纯随机抓取 PDF”。
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/reference/restricted-document-center-artifact-contract.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`

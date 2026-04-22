@@ -5,10 +5,10 @@ status: accepted
 created: 2026-03-28
 updated: 2026-04-10
 ---
-
 # ADR-0016 App API Request Projection And Panel Query Ownership
 
-适用范围：operator-facing request list/detail、shared `app-api` request projection、panel `Requests` domain 的长期 ownership
+适用范围：operator-facing request list/detail、shared `app-api` request
+projection、panel `Requests` domain 的长期 ownership
 
 ## 背景
 
@@ -19,7 +19,8 @@ updated: 2026-04-10
 - `packages/supervisor-core` 已能产出最小 audit record
 - `apps/supervisor-api` 当前仍会把该 audit record 持久化到 JSONL
 - chat conversation history 会记录 `request_id`
-- protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward web-surface 名称为 `apps/protected-panel-web`
+- protected panel 已冻结为 `runtime APIs only` 的 protected Worker shell；forward
+  web-surface 名称为 `apps/protected-panel-web`
 
 但仓库仍缺一条长期清晰规则：
 
@@ -32,7 +33,7 @@ updated: 2026-04-10
 - `packages/supervisor-core` 被反向扩成 request read-model host
 - `apps/supervisor-api` 顺手继续长成 panel query backend
 
-## 决策 1：canonical request facts 与 projection input 在 shared `app-api` command path 内一次产出
+## 决策 1：canonical request facts 与 projection input 一次产出
 
 结论：
 
@@ -42,7 +43,8 @@ updated: 2026-04-10
 
 原因：
 
-- `app-api` 同时拥有产品层 request identity、principal、conversation correlation、execution correlation 与 request status 的闭环上下文
+- `app-api` 同时拥有产品层 request identity、principal、conversation
+  correlation、execution correlation 与 request status 的闭环上下文
 - 在这条链路内一次产出，能避免多处拼装、多真相源和时序错位
 
 ## 决策 2：第一 owner 冻结为 `apps/app-api`
@@ -57,7 +59,8 @@ updated: 2026-04-10
 
 原因：
 
-- `apps/app-api` 是 public chat 与 protected panel 的 shared application/control-plane backend
+- `apps/app-api` 是 public chat 与 protected panel 的 shared
+  application/control-plane backend
 - 它负责 chat ingress，并且是最适合收口 request ledger / query surface 的边界
 - 该决策不要求把 request projection host 下沉到 `packages/*`
 
@@ -111,7 +114,8 @@ updated: 2026-04-10
 
 结论：
 
-- `apps/protected-panel-web` 的 `Requests` domain 只能读 `apps/app-api` 暴露的 request projection APIs
+- `apps/protected-panel-web` 的 `Requests` domain 只能读 `apps/app-api` 暴露的 request
+  projection APIs
 - panel Worker-local BFF 不得扫描 log、会话表或 telemetry sink 来拼 request list/detail
 
 原因：
@@ -123,7 +127,8 @@ updated: 2026-04-10
 
 直接结果：
 
-- `GET /api/operator/requests` / `GET /api/operator/requests/:requestId` 应由 `apps/app-api` 或其继任 shared app boundary 提供
+- `GET /api/operator/requests` / `GET /api/operator/requests/:requestId` 应由
+  `apps/app-api` 或其继任 shared app boundary 提供
 - panel `Requests` 的合法数据源固定为这些 runtime-owned APIs
 - chat 会话可以继续记录 `request_id` 用于 UX 关联，但不承担 operator-facing request truth
 
@@ -136,7 +141,7 @@ updated: 2026-04-10
 
 ## 相关文档
 
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`

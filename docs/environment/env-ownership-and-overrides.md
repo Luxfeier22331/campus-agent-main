@@ -4,7 +4,6 @@ status: active
 created: 2026-04-20
 updated: 2026-04-20
 ---
-
 # Environment Ownership And Overrides
 
 ## 文档边界
@@ -49,8 +48,8 @@ updated: 2026-04-20
 
 ### Command-scoped override template
 
-默认 operator override 放在 `env/commands/*.env.example`。
-历史 closeout / narrow recovery 模板继续放在 `env/commands/historical/*.env.example`。
+默认 operator override 放在 `env/commands/*.env.example`。 历史 closeout / narrow
+recovery 模板继续放在 `env/commands/historical/*.env.example`。
 
 ## Ownership Matrix
 
@@ -61,31 +60,47 @@ updated: 2026-04-20
 
 ### App-local env
 
-- [`apps/app-api/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/app-api/.dev.vars.example)
+- [`apps/app-api/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/app-
+  api/.dev.vars.example)
   - `app-api` Worker runtime string env
-- [`apps/app-api/.env.example`](/home/reptilian/code/campus-agent/apps/app-api/.env.example)
+- [`apps/app-api/.env.example`](/home/reptilian/code/campus-agent/apps/app-api/.
+  env.example)
   - `app-api` Wrangler / Drizzle process env
-- [`apps/official-web-collector/.env.example`](/home/reptilian/code/campus-agent/apps/official-web-collector/.env.example)
+- [`apps/official-web-collector/.env.example`](/home/reptilian/code/campus-agent
+  /apps/official-web-collector/.env.example)
   - `official-web-collector` runtime env
-- [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/public-chat-web/.dev.vars.example)
+- [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/a
+  pps/public-chat-web/.dev.vars.example)
   - `public-chat-web` Worker string env
-- [`apps/protected-panel-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/protected-panel-web/.dev.vars.example)
+- [`apps/protected-panel-web/.dev.vars.example`](/home/reptilian/code/campus-age
+  nt/apps/protected-panel-web/.dev.vars.example)
   - `protected-panel-web` Worker string env
 
 ### Command-scoped override
 
-- [`env/commands/process-raw-ingestion-job.env.example`](/home/reptilian/code/campus-agent/env/commands/process-raw-ingestion-job.env.example)
-- [`env/commands/compare-online-ocr.env.example`](/home/reptilian/code/campus-agent/env/commands/compare-online-ocr.env.example)
-- [`env/commands/rebuild-local-data.env.example`](/home/reptilian/code/campus-agent/env/commands/rebuild-local-data.env.example)
-- [`env/commands/official-web-handoff-receiver.env.example`](/home/reptilian/code/campus-agent/env/commands/official-web-handoff-receiver.env.example)
-- [`env/commands/official-web-handoff-consumer.env.example`](/home/reptilian/code/campus-agent/env/commands/official-web-handoff-consumer.env.example)
-- [`env/commands/release-registry-scope.env.example`](/home/reptilian/code/campus-agent/env/commands/release-registry-scope.env.example)
-- [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
+- [`env/commands/process-raw-ingestion-job.env.example`](/home/reptilian/code/ca
+  mpus-agent/env/commands/process-raw-ingestion-job.env.example)
+- [`env/commands/compare-online-ocr.env.example`](/home/reptilian/code/campus-ag
+  ent/env/commands/compare-online-ocr.env.example)
+- [`env/commands/rebuild-local-data.env.example`](/home/reptilian/code/campus-ag
+  ent/env/commands/rebuild-local-data.env.example)
+- [`env/commands/official-web-handoff-receiver.env.example`](/home/reptilian/cod
+  e/campus-agent/env/commands/official-web-handoff-receiver.env.example)
+- [`env/commands/official-web-handoff-consumer.env.example`](/home/reptilian/cod
+  e/campus-agent/env/commands/official-web-handoff-consumer.env.example)
+- [`env/commands/release-registry-scope.env.example`](/home/reptilian/code/campu
+  s-agent/env/commands/release-registry-scope.env.example)
+- [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/
+  code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
 
 ### Historical / narrow-use override
 
-- [`env/commands/historical/migrate-student-handbook.env.example`](/home/reptilian/code/campus-agent/env/commands/historical/migrate-student-handbook.env.example)
-- [`env/commands/historical/official-web-history-backfill.env.example`](/home/reptilian/code/campus-agent/env/commands/historical/official-web-history-backfill.env.example)
+- [`env/commands/historical/migrate-student-handbook.env.example`](/home/reptili
+  an/code/campus-agent/env/commands/historical/migrate-student-handbook.env.exam
+  ple)
+- [`env/commands/historical/official-web-history-backfill.env.example`](/home/re
+  ptilian/code/campus-agent/env/commands/historical/official-web-history-backfil
+  l.env.example)
 
 ## Override Rules
 
@@ -93,26 +108,32 @@ updated: 2026-04-20
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
 - `OCR_PROVIDER_MODE` 必须显式设置，不依赖 `OCR_BASE_URL` 推断 provider
-- `OCR_MINERU_*` 只表示附加 MinerU lane config，不表示 repo 级“second provider canonical truth”
-- `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection` 等任务输入优先走 CLI args
+- `OCR_MINERU_*` 只表示附加 MinerU lane config，不表示 repo 级“second provider canonical
+  truth”
+- `RAW_ASSET_ID`、`RAW_VERSION_ID`、`REPLAY_SOURCE_PDF`、`--corpus`、`--collection`
+  等任务输入优先走 CLI args
 
 ## App API Local Runtime
 
 - `apps/app-api` 本地 `pnpm dev` 固定走 `wrangler dev -e local`
 - `apps/app-api/.env` 负责 Wrangler / Drizzle process env
 - `apps/app-api/.dev.vars` 负责 Worker runtime string env
-- `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane seam
+- `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane
+  seam
 
 ## Convenience Scripts
 
 - `uv run --all-packages python -m scripts.sync_worker_observability_env`
-- `uv run --all-packages python -m scripts.check_worker_observability_env --json`
+- `uv run --all-packages python -m scripts.check_worker_observability_env
+  --json`
 - `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
 - `uv run --all-packages python -m scripts.restore_local_postgres_dev --execute`
-- `uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute --json`
+- `uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute
+  --json`
 - `uv run --all-packages python -m scripts.restore_shared_postgres_dev --json`
-- `uv run --all-packages python -m scripts.link_worktree_app_local_env --repo-root <current-worktree-root>`
+- `uv run --all-packages python -m scripts.link_worktree_app_local_env
+  --repo-root <current-worktree-root>`
 
 对应 runbook：
 

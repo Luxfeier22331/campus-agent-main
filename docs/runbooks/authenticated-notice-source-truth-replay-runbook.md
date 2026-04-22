@@ -4,12 +4,12 @@ status: active
 created: 2026-04-05
 updated: 2026-04-20
 ---
-
 # Authenticated Notice Source-Truth Replay Runbook
 
 ## 文档边界
 
-这份 runbook 只描述 authenticated notice historical source-truth 的 canonical replay / preparation operator path。
+这份 runbook 只描述 authenticated notice historical source-truth 的 canonical replay /
+preparation operator path。
 
 它负责：
 
@@ -35,9 +35,10 @@ updated: 2026-04-20
 authenticated notice historical replay 固定按以下顺序推进：
 
 1. source projection / routing 变更时，先做 bounded pilot
-2. full replay planning 前，先重建 source-truth inventory
-3. replay -> staged validation -> chunk preparation -> preparation validation
-4. verified preparation 之后，如需继续 release，下一步固定是 `release_registry_scope --no-publish-alias`
+1. full replay planning 前，先重建 source-truth inventory
+1. replay -> staged validation -> chunk preparation -> preparation validation
+1. verified preparation 之后，如需继续 release，下一步固定是 `release_registry_scope
+   - -no-publish-alias`
 
 固定 operator 规则：
 
@@ -66,7 +67,8 @@ pilot 固定要求：
 pilot 或 targeted replay 前，先重建 scoped inventory：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory
   --corpus campus_notices \
   --collection internal_notice \
   --notice-id <notice_id_1> \
@@ -83,7 +85,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebui
 bounded pilot：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_authenticated_notice_source_truth_replay \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.plan_authenticated_notice_source_truth_replay
   --run-id authenticated-notice-source-truth-pilot-<yyyymmdd-hhmmss> \
   --corpus campus_notices \
   --collection internal_notice \
@@ -105,7 +108,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.plan_
 ## Step 3: Run Worker
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.run_authenticated_notice_closeout_worker \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.run_authenticated_notice_closeout_worker
   --run-id <run_id> \
   --worker-id <worker_id>
 ```
@@ -138,12 +142,14 @@ verified chunk preparation 之后，固定 stop point 为：
 
 ## Source Object Completeness Repair
 
-如果 replay attachment child document 时出现 `NoSuchKey`，优先按 source bucket completeness 缺失处理，而不是当成 replay 重试问题。
+如果 replay attachment child document 时出现 `NoSuchKey`，优先按 source bucket
+completeness 缺失处理，而不是当成 replay 重试问题。
 
 repo-owned repair 入口：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backfill_authenticated_notice_attachment_objects \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.backfill_authenticated_notice_attachment_objects
   --bundle-path /path/to/notices-bundle.json \
   --blob-root /path/to/blob-store \
   --max-concurrency 8
@@ -152,7 +158,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backf
 可选精确回填：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backfill_authenticated_notice_attachment_objects \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.backfill_authenticated_notice_attachment_objects
   --bundle-path /path/to/notices-bundle.json \
   --blob-root /path/to/blob-store \
   --notice-id <notice_id_1> \
@@ -170,8 +177,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.backf
 OCR triage 固定顺序：
 
 1. 先确认 attachment 是否本来就应进入 `ocr_required`
-2. 再检查图片内容与 notice 上下文
-3. 只有在线性文本 / 表格 OCR candidate 已确认成立时，才把 provider 结果缺失认定为 provider breach
+1. 再检查图片内容与 notice 上下文
+1. 只有在线性文本 / 表格 OCR candidate 已确认成立时，才把 provider 结果缺失认定为 provider breach
 
 固定禁止：
 
@@ -180,5 +187,4 @@ OCR triage 固定顺序：
 
 ## Handoff Rule
 
-pilot 的旧独立 runbook 现在只保留历史对照。
-当前默认 operator 入口始终以本文为准。
+pilot 的旧独立 runbook 现在只保留历史对照。 当前默认 operator 入口始终以本文为准。

@@ -4,7 +4,6 @@ status: active
 created: 2026-03-26
 updated: 2026-04-12
 ---
-
 # Student Handbook Hybrid Rebuild Checklist
 
 ## 目标
@@ -33,16 +32,18 @@ updated: 2026-04-12
 
 ## 前置真相源
 
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `.planning/WORKSTREAMS.md`
 - `packages/evals/fixtures/student_handbook_hybrid_queries.json`
 
 补充边界：
 
-- `student_handbook_hybrid_queries.json` 当前只承担 live rebuild 后的抽样查询验收，不是 retrieval qrels 的 canonical truth 文件
-- 后续用于 `Hit@K` / `Recall@K` / `Precision@K` / `MRR@K` 的 retrieval ground truth，应独立维护在 `packages/evals/fixtures/` 下的专用 qrels fixture 中
+- `student_handbook_hybrid_queries.json` 当前只承担 live rebuild 后的抽样查询验收，不是
+  retrieval qrels 的 canonical truth 文件
+- 后续用于 `Hit@K` / `Recall@K` / `Precision@K` / `MRR@K` 的 retrieval ground
+  truth，应独立维护在 `packages/evals/fixtures/` 下的专用 qrels fixture 中
 
 ## 实现完成后 Code Review Checklist
 
@@ -51,7 +52,8 @@ updated: 2026-04-12
 - `index_chunks_to_qdrant()` 不再依赖 `QdrantVectorStore.add()` 单向量默认行为
 - retrieval 不再走本地 lexical fallback，不再用 `scroll + local sparse score`
 - retrieval query 已使用 Qdrant native `prefetch + RrfQuery(...)`
-- payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、`entitlement_groups`、`visibility_scope`、`visibility_level`、`anchor`
+- payload contract 未丢失：`document_id`、`revision_track`、`version_id`、`chunk_id`、`e
+  ntitlement_groups`、`visibility_scope`、`visibility_level`、`anchor`
 - `DocumentRegistry` 回链仍是最终 source shaping 的真相源
 
 ## Live Rebuild 前检查
@@ -72,8 +74,9 @@ updated: 2026-04-12
   - `rrf_sparse_weight`
   - `document_support_limit`
 - remote Qdrant client 必须启用 `cloud_inference=True`
-- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` / vector binding /
-  `retrieval_top_k=8` / hybrid runtime knobs 必须对齐本轮目标索引，不与旧 dense-only target 混用
+- handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` /
+  vector binding / `retrieval_top_k=8` / hybrid runtime knobs 必须对齐本轮目标索引，不与旧
+  dense-only target 混用
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 alias family 可以被新 schema 重建
 - replay indexing 现在是 fail-closed：
@@ -83,10 +86,10 @@ updated: 2026-04-12
 ## Live Rebuild 执行顺序
 
 1. 校验 `.env`、serving alias 和目标 physical collection 前缀。
-2. 执行 rebuild。
-3. 确认 collection schema 为 named `dense` + named `sparse`。
-4. 记录点数、payload 样本和 registry back-link 样本。
-5. 使用 fixtures 抽样查询做 Gate 3 / Gate 4 验收。
+1. 执行 rebuild。
+1. 确认 collection schema 为 named `dense` + named `sparse`。
+1. 记录点数、payload 样本和 registry back-link 样本。
+1. 使用 fixtures 抽样查询做 Gate 3 / Gate 4 验收。
 
 ## Formal Benchmark 验收入口
 
@@ -99,7 +102,9 @@ updated: 2026-04-12
   - `APP_API_EVAL_USER_EMAIL`
 - 其中 `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
 - `set -a && source .env && set +a`
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl .tmp/evals/student-handbook-runtime-events.jsonl`
+- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m
+  campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl
+  .tmp/evals/student-handbook-runtime-events.jsonl`
 
 accept flow 语义：
 
@@ -123,11 +128,13 @@ accept flow 语义：
 如果使用 `--log-jsonl`：
 
 - `accept` 会把 base path 自动拆成 `<base>.run.jsonl` 与 `<base>.repair.jsonl`
-- `--verbose` 会直接打印 preflight、retrying、recovered、breaker 等高信号事件，便于现场确认 provider 瞬时失败是否已自动重试
+- `--verbose` 会直接打印 preflight、retrying、recovered、breaker 等高信号事件，便于现场确认 provider
+  瞬时失败是否已自动重试
 
 ## Historical Artifact Pointer
 
-具体数值快照、acceptance 结论与历史 artifact 解释统一看 [student-handbook-eval-metrics.md](/home/reptilian/code/campus-agent/docs/reference/student-handbook-eval-metrics.md)。
+具体数值快照、acceptance 结论与历史 artifact 解释统一看 [student-handbook-eval-metrics.md](/home/
+reptilian/code/campus-agent/docs/reference/student-handbook-eval-metrics.md)。
 
 这份 runbook 只维护 rebuild 与 live acceptance 的操作顺序、证据模板和命令入口。
 
@@ -148,41 +155,44 @@ accept flow 语义：
   - `visibility_level`
   - `entitlement_groups`
   - `anchor`
-- 任意抽样命中回链后，`canonical_url` / `latest_url` / `is_current` 必须来自 registry truth，而不是直接取 Qdrant payload
+- 任意抽样命中回链后，`canonical_url` / `latest_url` / `is_current` 必须来自 registry
+  truth，而不是直接取 Qdrant payload
 
 ## 常见故障签名
 
-- 如果 handbook live query 返回 `status=error`，且底层异常包含
-  `Bad request: Index required but not found for "entitlement_groups"`：
+- 如果 handbook live query 返回 `status=error`，且底层异常包含 `Bad request: Index required
+  but not found for "entitlement_groups"`：
   - 先不要把它归因到 LLM provider 或 supplemental adapter
-  - 这表示当前 serving alias 指向的 remote Qdrant collection 缺少 authorization projection 需要的 payload index
-  - 当前 ingestion/indexing 代码对 remote Qdrant 已要求创建
-    `entitlement_groups` / `visibility_scope` / `visibility_level` / `policy_projection_version`
-    等 payload index；出现该错误通常意味着 alias 仍指向旧 schema collection
-  - 正确处置是核对 serving alias、physical collection 和最近一次 release manifest，必要时重做 release-managed rebuild / publish
-  - 当前 retrieval 代码已经避免在 `entitlement_groups=()` 的 public-only 请求上额外发送空 group 谓词，但这不替代 serving collection 应具备的完整 authorization projection schema
+  - 这表示当前 serving alias 指向的 remote Qdrant collection 缺少 authorization projection
+    需要的 payload index
+  - 当前 ingestion/indexing 代码对 remote Qdrant 已要求创建 `entitlement_groups` /
+    `visibility_scope` / `visibility_level` / `policy_projection_version` 等
+    payload index；出现该错误通常意味着 alias 仍指向旧 schema collection
+  - 正确处置是核对 serving alias、physical collection 和最近一次 release manifest，必要时重做
+    release-managed rebuild / publish
+  - 当前 retrieval 代码已经避免在 `entitlement_groups=()` 的 public-only 请求上额外发送空 group
+    谓词，但这不替代 serving collection 应具备的完整 authorization projection schema
 
 ## Query 抽样验收
 
 优先使用 `packages/evals/fixtures/student_handbook_hybrid_queries.json` 中的样本，至少覆盖：
 
-- `article_number_exact_match`
-  条款号、章节号、标题号检索必须稳定命中对应制度片段
-- `policy_title_exact_match`
-  唯一制度名 exact-match 不应被相邻制度噪声压掉
-- `fixed_phrase_sparse_win`
-  handbook 当前真实存在的固定措辞、规章术语、表述复现类问题应由 sparse 信号稳定召回
-- `semantic_dense_win`
-  不含标题原文措辞的语义问法仍应有 dense 命中能力
-- `no_hit`
-  无命中时返回空 `EvidenceBundle`，不得回退到不受控的本地 repair
+- `article_number_exact_match` 条款号、章节号、标题号检索必须稳定命中对应制度片段
+- `policy_title_exact_match` 唯一制度名 exact-match 不应被相邻制度噪声压掉
+- `fixed_phrase_sparse_win` handbook 当前真实存在的固定措辞、规章术语、表述复现类问题应由 sparse 信号稳定召回
+- `semantic_dense_win` 不含标题原文措辞的语义问法仍应有 dense 命中能力
+- `no_hit` 无命中时返回空 `EvidenceBundle`，不得回退到不受控的本地 repair
 
 当前 handbook live fixture 额外约束：
 
-- 样本必须只覆盖当前 `regulations/student_rules` collection 的真实语料边界，不把 `campus_services` 或历史 handbook 服务/导航页样本混入
-- 如果当前 handbook manifest 不包含 `entitlement_groups` 或 `visibility_scope` 真相，官方 handbook live fixture 不应继续保留 restricted filter case
-- `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 样本必须至少能回连到当前 handbook manifest 的标题关键词，避免出现 collection 已纯化但旧样本未更新的 fixture drift
-- 如需验证 restricted entitlement 或 `visibility_scope` 检索行为，应在真实承载这些 payload 维度的 collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里
+- 样本必须只覆盖当前 `regulations/student_rules` collection 的真实语料边界，不把 `campus_services`
+  或历史 handbook 服务/导航页样本混入
+- 如果当前 handbook manifest 不包含 `entitlement_groups` 或 `visibility_scope` 真相，官方
+  handbook live fixture 不应继续保留 restricted filter case
+- `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 样本必须至少能回连到当前 handbook
+  manifest 的标题关键词，避免出现 collection 已纯化但旧样本未更新的 fixture drift
+- 如需验证 restricted entitlement 或 `visibility_scope` 检索行为，应在真实承载这些 payload 维度的
+  collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里
 
 ## Gate 3 / Gate 4 证据模板
 

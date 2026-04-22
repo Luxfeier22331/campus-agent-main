@@ -4,7 +4,6 @@ status: active
 created: 2026-04-11
 updated: 2026-04-14
 ---
-
 # Navigation Place Finding Contract
 
 ## 文档边界
@@ -14,7 +13,8 @@ updated: 2026-04-14
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `packages/supervisor-core -> packages/navigation-agent` 的 capability / target 语义
+- `packages/supervisor-core -> packages/navigation-agent` 的 capability / target
+  语义
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/public-chat-web` 对地点卡片的消费形态
 
@@ -223,7 +223,7 @@ updated: 2026-04-14
 
 ## Related Docs
 
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
+- `docs/architecture/domains/navigation/architecture.md`
 - `docs/domains/navigation.md`
 - `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

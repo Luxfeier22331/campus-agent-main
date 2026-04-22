@@ -4,14 +4,14 @@ status: active
 created: 2026-04-11
 updated: 2026-04-20
 ---
-
 # Internal Notice Regulation Promotion Runbook
 
 ## 文档边界
 
 这份 runbook 只描述一件事：
 
-- 如何把 `campus_notices/internal_notice` 中已经通过 promotion gate 的 canonical regulation text 物化到 regulation target
+- 如何把 `campus_notices/internal_notice` 中已经通过 promotion gate 的 canonical
+  regulation text 物化到 regulation target
 
 它不替代：
 
@@ -23,7 +23,8 @@ updated: 2026-04-20
 
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/institutional-regulations-offline-inventory.md`
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
+  `
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 
@@ -38,7 +39,8 @@ updated: 2026-04-20
 ## Step 1: Build Promotion Manifest
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
   --corpus campus_notices \
   --collection internal_notice
 ```
@@ -62,10 +64,12 @@ operator 目标：
 
 ## Step 2: Optional Targeted Source Projection Rebuild
 
-当某条 notice 已确认应该由 attachment owner 推进，但当前 source scope 缺少对应 child document 时，先执行：
+当某条 notice 已确认应该由 attachment owner 推进，但当前 source scope 缺少对应 child document
+时，先执行：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebuild_authenticated_notice_source_projections \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.rebuild_authenticated_notice_source_projections
   --corpus campus_notices \
   --collection internal_notice \
   --notice-id <notice_id>
@@ -79,7 +83,8 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.rebui
 ## Step 3: Materialize Accepted Candidates
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates
   --corpus campus_notices \
   --collection internal_notice
 ```
@@ -102,9 +107,11 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.mater
 如果需要脱离 env backend，用隔离 snapshot 运行：
 
 ```bash
-uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates \
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates
   --documents-json /tmp/internal-notice-documents.json \
-  --source-truth-inventory-json /tmp/internal-notice-source-truth-inventory.json \
+  --source-truth-inventory-json \
+    /tmp/internal-notice-source-truth-inventory.json
   --object-store-root /tmp/object-store-root
 ```
 
@@ -125,6 +132,7 @@ operator 规则：
 
 manifest build 与 target materialization 完成后，下一步固定进入：
 
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
+  `
 
 不要在本文内继续扩成 chunk preparation、embedding 或 release。

@@ -2,9 +2,8 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-22
+updated: 2026-04-23
 ---
-
 # Execution And Agents Architecture
 
 ## 文档边界
@@ -21,22 +20,24 @@ updated: 2026-04-22
 
 当前与长期都遵循：
 
-`app-api -> supervisor-api -> supervisor-core -> agent -> retrieval-core -> evidence -> supervisor response`
+`app-api -> supervisor-api -> supervisor-core -> agent -> retrieval-core ->
+evidence -> supervisor response`
 
 边界固定如下：
 
 - `apps/supervisor-api` 负责 internal execution admission 与 transport
-- `packages/supervisor-core` 负责 policy-driven orchestration
+- `packages/supervisor-core` 负责 policy-driven orchestration、admission / routing
+  与 finalization
 - agent 负责能力边界内的 planning / evidence consumption / answer shaping
-- `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval execution 与 query activity，不负责顶层产品编排
+- `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval
+  execution 与 query activity，不负责顶层产品编排
 
 ## Supervisor Responsibilities
 
 supervisor 长期负责：
 
-- intent framing
-- risk / safety gate
-- agent routing
+- admission / guardrails
+- capability routing
 - handoff shaping
 - response finalization
 - fail-close terminal semantics
@@ -47,6 +48,29 @@ supervisor 不负责：
 - collection-specific ingestion logic
 - product-layer auth/session ownership
 - 将 agent 降级成扁平 tool bundle
+
+补充约束：
+
+- supervisor 是 neutral capability router，不是默认的 knowledge / `rag-agent` router
+- `public chat` 当前 knowledge-only 只是 surface posture，不反向定义 supervisor 的长期角色
+
+## Capability-Neutral Routing Model
+
+长期 execution path 固定采用：
+
+`surface intake -> admission / guardrails -> capability routing -> specialist
+handoff -> specialist-owned execution -> supervisor finalization`
+
+固定规则：
+
+- 顶层先判 capability family，再判 family 内部 execution path
+- `requested_scope` 只属于 knowledge-family path，不是顶层所有请求共享的默认字段
+- `routing clarification` 由 supervisor 拥有，`specialist clarification` 由
+  specialist 拥有
+- 当前 merged truth 仍可以保持“公开主路径以 knowledge 为主”，但这不表示长期入口必须 `RAG-first`
+
+更完整的 routing / admission 分层，统一看
+`docs/architecture/system/capability-routing-and-admission-architecture.md`。
 
 ## Agent Model
 
@@ -77,24 +101,29 @@ agent 是稳定能力边界，不等于某个底层框架对象。
   - `campus-services-agent`
   - `notice-agent`
 - 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`
-- 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain capability，需要先冻结 family label，再决定其 package/runtime admission 形态
-- 当前 shared contract seam 仍保留 `SpecialistRequest` / `SpecialistResponse` 等 legacy DTO 名称；这些类型名暂不代表 canonical runtime vocabulary。
+- 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain
+  capability，需要先冻结 family label，再决定其 package/runtime admission 形态
+- 当前 shared contract seam 仍保留 `SpecialistRequest` / `SpecialistResponse` 等
+  legacy DTO 名称；这些类型名暂不代表 canonical runtime vocabulary。
 
-## Structured Service And Notice Runtime Pattern
+## Structured Runtime Families
 
-长期上，部分校园问题不是 generic retrieval 问答，而是 projection-backed structured runtime query。
+长期上，部分校园问题不是 generic retrieval 问答，而是 projection-backed structured runtime
+query。
 
-当前已收口的前向 family 包括：
+当前已冻结的前向 family 包括：
 
 - `campus-services-agent`
-  - 负责 `transport_schedule_lookup`、`service_status_lookup`
-  - 回答班车/接驳车班次、上下车点、服务开放时间、临时关闭与运营 override
-  - later-wave `contact_directory_lookup` 负责部门电话、办公电话、邮箱、办公地点与联系人联系方式
-  - later-wave `service_process_lookup` 负责办理步骤、材料、入口、适用人群与前提条件
+  - 承接 `transport_schedule_lookup`、`service_status_lookup`，以及 later-wave
+    `contact_directory_lookup`、`service_process_lookup`
+  - 详细领域边界、projection owner 与 opening gate 统一看
+    `docs/architecture/domains/campus-services/architecture.md`
 - `notice-agent`
-  - 负责 `campus_notice_discover`、`campus_notice_get`
-  - 回答 notice 发现、canonical notice 正文读取，以及 current-year miss 时的 historical downgrade
-  - future source family 至少显式区分 public `official_web` notice-like pages 与 restricted `campus_notices/internal_notice`
+  - 承接 `campus_notice_discover`、`campus_notice_get`
+  - 回答 notice 发现、canonical notice 正文读取，以及 current-year miss 时的 historical
+    downgrade
+  - future source family 至少显式区分 public `official_web` notice-like pages 与
+    restricted `campus_notices/internal_notice`
 - `navigation-agent`
   - 当前 accepted runtime / package / ADR label 已统一为 `navigation-agent`
   - 可消费 transport point refs / service point refs
@@ -107,50 +136,48 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 
 - tool 只是 domain-agent 持有的 thin adapter
 - tool 后面必须是 repo-owned internal query service，而不是 browser-facing API
-- internal query service 只消费 projection / normalized truth，不在 query 时回扫 raw notice/source bundle
-- supervisor 负责 routing / terminal semantics，但不直接拥有这些 domain tools
-- `current/latest/effective/current-year miss` 这类 temporal semantics 必须是 code-owned routing / contract truth，而不是 prompt 或 retrieval 层的事后补救
+- internal query service 只消费 projection / normalized truth，不在 query 时回扫 raw
+  source bundle
+- supervisor 负责 routing / terminal semantics，但不直接拥有这些 domain tools，也不默认通过
+  `rag-agent` 代持这些 domain capability
+- `current/latest/effective/current-year miss` 这类 temporal semantics 必须是
+  code-owned routing / contract truth，而不是 prompt 或 retrieval 层的事后补救
 
 projection owner 继续显式分层：
 
-- `service_status_lookup`
-  - 只读 current-effective status projection
-  - 不把 `service_catalog` 文本检索或 generic RAG 当作 runtime query seam
-- `transport_schedule_lookup`
-  - 只读 route / service window / stop ref projection
-  - `navigation-agent` 只消费 point refs，不拥有 timetable truth
+- campus services family
+  - 只读 `campus_services/*` semantic-owner projection
+  - timetable truth、service-status truth、contact truth 与 process truth 不回退成 generic
+    RAG seam
 - `campus_notice_discover`
   - 只读 source-family-aware notice discovery projection
-  - public `official_web` notice-like pages 与 restricted `campus_notices/internal_notice` 继续先分 projection，再由 `notice-agent` 收口
+  - public `official_web` notice-like pages 与 restricted
+    `campus_notices/internal_notice` 继续先分 projection，再由 `notice-agent` 收口
 - `campus_notice_get`
   - 只读 canonical notice body projection
   - 不得在 query time 拼 raw notice/source bundle 或退化成 link-only read
-- later-wave `contact_directory_lookup`
-  - 只读 `campus_services/contact_directory` 的 contact entity / entity-group projection
-  - handbook 电话页、official-web 联系方式页与 future directory page 只作为 provenance/source-family 上游
-  - 明确 contact fact lookup 进入 structured runtime 时，不再由 generic RAG chunk 充当 canonical answer seam
-  - alias ambiguity -> clarification；currentness 不可证或 source 冲突 -> fail-close / unavailable
-- later-wave `service_process_lookup`
-  - 只读 `campus_services/service_catalog` 的 process-oriented projection
-  - handbook flow page、official-web 办事说明页与 future service entry page 只作为 provenance/source-family 上游
-  - 明确 process fact lookup 进入 structured runtime 时，不再由 generic RAG chunk 或说明性正文充当 canonical answer seam
-  - service / audience / process variant ambiguity -> clarification；缺 process/materials/entry truth -> fail-close / unavailable
-  - related contact refs 可以进入结果，但 canonical contact truth 仍由 `contact_directory_lookup` 拥有
 
 ## Structured Runtime Opening Gate
 
-`campus-services-agent` / `notice-agent` 的 owner package、thin adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
+`campus-services-agent` / `notice-agent` 的 owner package、thin
+adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
 
 固定规则：
 
-- opening gate 默认保持 closed，直到 backing query implementation、release-gate regression / eval evidence 与 app-owned typed observability summary 同时满足
-- 在 gate 仍关闭时，产品主路径只能保持当前 routing truth 或 deterministic fail-close；不得通过 stub / unavailable adapter 伪装成“能力已上线”
-- historical downgrade 与 stable-RAG boundary 属于 opening criteria，不是后续 prompt polish 或 operator 文案问题
+- opening gate 默认保持 closed，直到 backing query implementation、release-gate
+  regression / eval evidence 与 app-owned typed observability summary 同时满足
+- 在 gate 仍关闭时，产品主路径只能保持当前 routing truth 或 deterministic fail-close；不得通过 stub /
+  unavailable adapter 伪装成“能力已上线”
+- historical downgrade 与 stable-RAG boundary 属于 opening criteria，不是后续 prompt
+  polish 或 operator 文案问题
+- `campus-services-agent` 的领域 opening 规则与 projection owner 细节，统一看
+  `docs/architecture/domains/campus-services/architecture.md`
 
 ## RAG Family Responsibilities
 
 `packages/rag-agent` 是当前 `rag-agent` family 的 runtime package owner；它当前与长期负责：
 
+- knowledge-family 内部 intent / ambiguity handling
 - retrieval-oriented request framing
 - ambiguity handling
 - clarification / no-answer / completed policy
@@ -204,8 +231,10 @@ projection owner 继续显式分层：
 
 这意味着：
 
-- `curriculum_plan` 可以按 repo truth 进入 `course_facts`、`program_family_facts`、`program_semester_facts`
-- historical / compare / freshness-sensitive branch 只能进入显式 admitted retrieval mode
+- `curriculum_plan` 可以按 repo truth 进入
+  `course_facts`、`program_family_facts`、`program_semester_facts`
+- historical / compare / freshness-sensitive branch 只能进入显式 admitted retrieval
+  mode
 - live retrieval 只能命中 repo-owned source channel
 
 长期禁止：
@@ -220,11 +249,13 @@ projection owner 继续显式分层：
 - retrieval / infra types 不进入 shared contract
 - `ContextProjection` / `SupervisorResponse` 是当前 merged truth 的 shared seam
 - future agent growth 只能在这个 seam 之后扩张
-- target-state agentic retrieval 必须继续通过 typed plan / query activity / evidence summary seam 扩张，而不是退回 hidden prompt state
+- target-state agentic retrieval 必须继续通过 typed plan / query activity / evidence
+  summary seam 扩张，而不是退回 hidden prompt state
 
 ## Runtime Posture
 
-`apps/supervisor-api` 表示 execution engine boundary，不代表 repo-wide HTTP/runtime freeze。
+`apps/supervisor-api` 表示 execution engine boundary，不代表 repo-wide HTTP/runtime
+freeze。
 
 当前重要的是：
 
@@ -236,33 +267,41 @@ projection owner 继续显式分层：
 
 execution path 的 prompt / instruction 继续遵循 package-owned ownership：
 
-- `packages/supervisor-core`
-  owns supervisor role instructions、clarification / reject / approval / out-of-scope wording prompt families
-- `packages/rag-agent`
-  owns answer / clarify / no-answer / unsupported prompt families
-- `packages/retrieval-core`
-  不拥有 top-level task prompt；只拥有 evidence retrieval 与 serialization helper
-- `apps/supervisor-api`
-  不拥有长期 prompt truth；只负责 request packaging 与 execution admission
+- `packages/supervisor-core` owns supervisor role instructions、clarification /
+  reject / approval / out-of-scope wording prompt families
+- `packages/rag-agent` owns answer / clarify / no-answer / unsupported prompt
+  families
+- `packages/retrieval-core` 不拥有 top-level task prompt；只拥有 evidence retrieval 与
+  serialization helper
+- `apps/supervisor-api` 不拥有长期 prompt truth；只负责 request packaging 与 execution
+  admission
 
-prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal semantics。
+prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal
+semantics。
 
 execution path 的最终 prompt stack 也固定为：
 
-`repo-global developer invariants -> package-owned role prompt -> typed task/evidence packet -> code-side finalization`
+`repo-global developer invariants -> package-owned role prompt -> typed
+task/evidence packet -> code-side finalization`
 
 补充约束：
 
-- `apps/supervisor-api` 与后续 product runtime 只负责装配与执行，不拥有新的 monolithic mega system prompt
-- 当前 repo-default runtime assembly seam 已收口到 `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py`；它必须把 trusted developer/task layers 与 untrusted user/evidence layers 分开表达
-- `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level prompt truth
-- `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets 表达
+- `apps/supervisor-api` 与后续 product runtime 只负责装配与执行，不拥有新的 monolithic mega
+  system prompt
+- 当前 repo-default runtime assembly seam 已收口到
+  `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py`；它必须把 trusted
+  developer/task layers 与 untrusted user/evidence layers 分开表达
+- `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level
+  prompt truth
+- `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets
+  表达
 
 ## Forbidden Shapes
 
 - 不把 supervisor 重新写成被动转发层
 - 不把 agent 重新降级成 `campusRAG` 式扁平 tool
-- 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic RAG 或单一 mega-tool router
+- 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic
+  RAG 或单一 mega-tool router
 - 不把 retrieval implementation 细节塞回 `packages/supervisor-core`
 - 不让 `apps/supervisor-api` 恢复 product backend、operator query 或 browser API 责任
 - 不让 execution path 为了取 service/notice truth 而回调 `app-api` loopback HTTP
@@ -275,6 +314,9 @@ execution path 的最终 prompt stack 也固定为：
 
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/architecture/agentic-retrieval-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-cap
+  ability-policy.md`
+- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

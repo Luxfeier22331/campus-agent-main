@@ -2,9 +2,8 @@
 doc_type: reference
 status: active
 created: 2026-03-28
-updated: 2026-04-20
+updated: 2026-04-23
 ---
-
 # Runtime Serving And Index Terms
 
 ## 文档边界
@@ -12,11 +11,16 @@ updated: 2026-04-20
 这份文档只负责解释当前运行面里最容易被混用的 serving / indexing 术语。
 
 - 不重复长期 package 边界：`docs/architecture/target-architecture.md`
-- 不重复数据平面全景：`docs/architecture/data-plane-architecture.md`
+- 不重复 capability routing / admission supporting
+  truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
+- 不重复数据平面全景：`docs/architecture/system/data-plane-architecture.md`
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
-- 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
-- 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
-- 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
+- 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical
+  -collection-retention-and-expiration.md`
+- 不重复 Qdrant Cloud 备份 / 恢复策略：`docs/decisions/adr-0020-qdrant-cloud-backup-restor
+  e-and-object-store-transition.md`
+- 不承担当前执行状态真相：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
+  `STATE.md`
 - 早期 `phase-1` 文档只作为历史背景或约束来源，不再单独承担当前 phase truth
 
 ## 术语
@@ -36,17 +40,22 @@ updated: 2026-04-20
 说明：
 
 - `source channel` 不等于 `corpus/collection`
+- `corpus/collection` 不是顶层产品意图分类；只有当请求已经进入 knowledge-family path 后，这个 scope
+  才开始承担 serving/runtime 语义
 - 同一个 source channel 可以 fan-out 到多个 `corpus/collection` scope
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
-- `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`
-- 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的 `regulations/*`、`curriculum/*`
+- `official_web` 未来应拆成独立 serving scope，例如 `official_web/stable_reference`、`offic
+  ial_web/fresh_news`、`official_web/news_archive`
+- 正式规章与正式培养方案若已有更强语义 owner，应继续进入与 `official_web` 并列的
+  `regulations/*`、`curriculum/*`
 
 ### Source-Triage Collection / Semantic-Owner Collection
 
 定义：
 
 - `source-triage collection`
-  - 主要承接某个 source channel 的 replay、wrapper document、attachment outcome、manual-review truth 与 provenance
+  - 主要承接某个 source channel 的 replay、wrapper document、attachment
+    outcome、manual-review truth 与 provenance
 - `semantic-owner collection`
   - 只承接某个知识域下可独立消费的 canonical 文档正文
 
@@ -55,14 +64,22 @@ updated: 2026-04-20
 - 这两个角色可以都存在于同一个 data plane，但它们不是同一层
 - `campus_notices/internal_notice` 属于 source-triage collection
 - `regulations/*`、`curriculum/*` 属于 semantic-owner collection
-- `campus_services/contact_directory` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference` 的别名
-- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是 `offline_preparation`，它的长期角色也不是 `official_web/stable_reference`、`student_rules` 或 generic RAG 的别名
-- 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为 regulation member
+- `campus_services/contact_directory` 也是 semantic-owner collection；即使当前仍是
+  `offline_preparation`，它的长期角色也不是 `official_web/stable_reference` 的别名
+- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是
+  `offline_preparation`，它的长期角色也不是
+  `official_web/stable_reference`、`student_rules` 或 generic RAG 的别名
+- 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为
+  regulation member
 
 补充说明：
 
-- 如果联系方式问题后续被 admission 为 `contact_directory_lookup` structured runtime tool，该 tool 应读取 `campus_services/contact_directory` semantic-owner projection，而不是直接读取 public-web stable-reference chunk 或 handbook 原始页段
-- 如果服务流程问题后续被 admission 为 `service_process_lookup` structured runtime tool，该 tool 应读取 `campus_services/service_catalog` semantic-owner projection，而不是直接读取 public-web stable-reference chunk、handbook 原始页段或 generic RAG retrieval result
+- 如果联系方式问题后续被 admission 为 `contact_directory_lookup` structured runtime tool，该
+  tool 应读取 `campus_services/contact_directory` semantic-owner projection，而不是直接读取
+  public-web stable-reference chunk 或 handbook 原始页段
+- 如果服务流程问题后续被 admission 为 `service_process_lookup` structured runtime tool，该
+  tool 应读取 `campus_services/service_catalog` semantic-owner projection，而不是直接读取
+  public-web stable-reference chunk、handbook 原始页段或 generic RAG retrieval result
 
 ### Query-Enabled Scope
 
@@ -78,9 +95,75 @@ updated: 2026-04-20
 
 说明：
 
-- 当前 query-enabled scope 是 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled scope 是 `regulations/student_rules` 与
+  `curriculum/curriculum_plan`
 - `campus_services/*` 当前仍是 `offline_preparation`
-- 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed bridge，不应误读成长期最终 serving scope
+- 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
+  bridge，不应误读成长期最终 serving scope
+
+### Capability Family
+
+定义：
+
+- supervisor 在 specialist-owned execution 之前识别的顶层能力类别
+
+说明：
+
+- capability family 用于 surface admission、routing、guardrails 与 routing
+  clarification
+- capability family 不等于 `corpus/collection`，也不要求与 `selected_target` 1:1 同名
+- 这里描述的是分类层，不在本文新增新的 capability 枚举命名
+
+### Surface Capability Allowlist
+
+定义：
+
+- 某个 product surface 当前 admission 的 capability family 集合
+
+说明：
+
+- surface capability allowlist 先于 knowledge-family scope 生效
+- `public-chat-web` 当前 knowledge-only 是 current surface posture，不是长期产品架构原则
+- 某条 capability 暂未在某个 surface 开放，不等于该 capability 已从长期产品架构里删除
+
+### Knowledge-Family-Specific Scope
+
+定义：
+
+- 仅在请求已经进入 knowledge-family path 后，用来约束 serving surface 的 scope hint 或 resolved
+  scope
+
+说明：
+
+- 当前常见承载形态是 `requestedScope` / `requested_scope` 与 `resolvedScope`
+- 它可以映射到 `corpus/collection`，但它不是顶层产品意图分类
+- 非 knowledge path 不应为了兼容旧心智而伪造等价字段
+
+### Routing Clarification
+
+定义：
+
+- supervisor 为了判定 admission、capability route 或 handoff path，在 specialist-owned
+  execution 之前发起的澄清
+
+说明：
+
+- routing clarification 解决的是“请求应该进入哪个 admitted path”
+- 它不应退化成 collection picker；如果问题本质上仍是 capability family 未决，就不应直接要求用户选
+  `corpus/collection`
+- 某些 surface 当前可以选择 fail-close，而不是把 routing clarification 直接暴露给终端用户
+
+### Specialist Clarification
+
+定义：
+
+- 在 capability route 已确定后，由 specialist 为本域缺失参数、歧义或约束信息发起的澄清
+
+说明：
+
+- specialist clarification 属于 specialist-owned execution，不属于顶层 routing gate
+- knowledge-family specialist 可以用它补全时间、院系、版本或制度对象等 domain-specific slots
+- 不同 specialist 的 clarification shape 可以不同，但都不应回退成顶层 capability routing 代理
 
 ### Retrieval Plan
 
@@ -90,7 +173,8 @@ updated: 2026-04-20
 
 说明：
 
-- `RetrievalPlan` 属于 target-state contract，不表示当前所有 query path 都已采用 planner-first execution
+- `RetrievalPlan` 属于 target-state contract，不表示当前所有 query path 都已采用 planner-first
+  execution
 - plan 必须在 admitted scope、authz、version mode、freshness gate 之内生成
 - 细节冻结见 `docs/contracts/rag-agent-retrieval-plan-contract.md`
 
@@ -150,7 +234,8 @@ updated: 2026-04-20
 说明：
 
 - supporting evidence 必须来自 candidate set 的受控子集
-- citation、grounding、answer shaping 都围绕 supporting evidence 而不是 raw candidate trace
+- citation、grounding、answer shaping 都围绕 supporting evidence 而不是 raw candidate
+  trace
 - 细节冻结见 `docs/data/retrieval-query-activity-model.md`
 
 ### Freshness Gate
@@ -173,7 +258,8 @@ updated: 2026-04-20
 说明：
 
 - live evidence 不是 general web fallback
-- live evidence 是否能成为 answer-bearing evidence，受 source-trust 与 freshness policy 约束
+- live evidence 是否能成为 answer-bearing evidence，受 source-trust 与 freshness policy
+  约束
 
 ### Execution Metadata
 
@@ -200,7 +286,8 @@ updated: 2026-04-20
 
 - serving alias 是 runtime-facing 稳定句柄，不等于某次具体发布生成的 physical collection
 - query-serving collection 必须通过 serving alias 暴露
-- `offline_preparation` collection 只要已经纳入 release-managed lifecycle，也应提前通过 serving alias 暴露，避免后续上线时再做一次 collection rename / alias 迁移
+- `offline_preparation` collection 只要已经纳入 release-managed lifecycle，也应提前通过
+  serving alias 暴露，避免后续上线时再做一次 collection rename / alias 迁移
 - retrieval 默认只读取 serving alias，不直接绑定某次离线发布生成的 physical collection 名称
 
 ### Collection Prefix
@@ -254,13 +341,15 @@ updated: 2026-04-20
 
 定义：
 
-- 某个 collection 在 document truth 之后、index release 之前执行的一次 `split -> cleanup -> chunk -> validation` 离线准备动作
+- 某个 collection 在 document truth 之后、index release 之前执行的一次 `split -> cleanup ->
+  chunk -> validation` 离线准备动作
 
 说明：
 
 - `chunk preparation` 不产生 embedding，不写 Qdrant，不发布 serving alias
 - `chunk preparation` 产生的是 preparation truth，不是 release truth
-- 某些 `offline_preparation` collection 可以把 verified chunk preparation 作为 release gate
+- 某些 `offline_preparation` collection 可以把 verified chunk preparation 作为 release
+  gate
 
 ### Chunk Preparation Manifest
 
@@ -270,9 +359,12 @@ updated: 2026-04-20
 
 对象存储位置：
 
-- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/chunk-preparation.json`
-- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/validation-summary.json`
-- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{collection}/document-reports.jsonl`
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{co
+  llection}/chunk-preparation.json`
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{co
+  llection}/validation-summary.json`
+- `{corpus}/operations/registry-scope-chunk-preparation/{preparation_run_id}/{co
+  llection}/document-reports.jsonl`
 
 说明：
 
@@ -283,13 +375,15 @@ updated: 2026-04-20
 
 定义：
 
-- 一次完整的 `embedding -> indexing -> alias publish` 发布动作；对 preparation-gated scope，它发生在 verified chunk preparation 之后
+- 一次完整的 `embedding -> indexing -> alias publish` 发布动作；对 preparation-gated
+  scope，它发生在 verified chunk preparation 之后
 
 说明：
 
 - 一个 index release 对应一个 `release_id`
 - 一个 release 会生成新的 physical collection，并在校验通过后发布 serving alias
-- `index release` 可以依赖既有 chunk truth，但不应隐式承担 collection-specific chunk preparation 的 operator 语义
+- `index release` 可以依赖既有 chunk truth，但不应隐式承担 collection-specific chunk
+  preparation 的 operator 语义
 
 ### Release Manifest
 
@@ -327,13 +421,15 @@ updated: 2026-04-20
 对象存储位置：
 
 - `{corpus}/backups/{collection}/{release_id}/{backup_id}/backup-manifest.json`
-- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_name}.snapshot`
+- `{corpus}/backups/{collection}/{release_id}/{backup_id}/{physical_collection_n
+  ame}.snapshot`
 - `{corpus}/backups/{collection}/{release_id}/{backup_id}/restore-report.json`
 
 说明：
 
 - snapshot bundle 至少包含 snapshot 文件和 `backup-manifest.json`
-- 因为 collection snapshot 不包含 aliases，`backup-manifest.json` 必须记录 `alias_bindings`
+- 因为 collection snapshot 不包含 aliases，`backup-manifest.json` 必须记录
+  `alias_bindings`
 - snapshot bundle 是恢复材料，不是在线 chunk truth
 
 ### Source Truth
@@ -350,19 +446,27 @@ updated: 2026-04-20
 ## 当前约束
 
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
+- surface capability allowlist 先于 knowledge-family scope 生效；`corpus/collection`
+  不是顶层产品意图分类
 - source channel、corpus、collection、serving surface 是不同层；命名相近不表示必须一一对应
-- source-triage collection 与 semantic-owner collection 也是不同层；不得把 wrapper notice collection 冒充成 regulation corpus
+- source-triage collection 与 semantic-owner collection 也是不同层；不得把 wrapper notice
+  collection 冒充成 regulation corpus
 - physical collection 由 index release 生成，不由 env 或手写固定 collection 名直接指定
-- 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是 `offline_preparation`，都应使用稳定 alias + versioned physical collection
+- 已进入 release-managed lifecycle 的 collection 不论当前是 `query_serving` 还是
+  `offline_preparation`，都应使用稳定 alias + versioned physical collection
 - preparation-gated scope 必须先拿到 verified chunk preparation，再进入 index release
-- 旧 physical collection 默认先进入 `current / previous / migration_baseline / archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除
-- 对象存储保留 source/document artifact、release manifest，以及 `Free` tier 过渡期的 snapshot backup bundle
+- 旧 physical collection 默认先进入 `current / previous / migration_baseline /
+  archive_candidate` 角色判断，再决定是否删除；不允许仅按年龄直接删除
+- 对象存储保留 source/document artifact、release manifest，以及 `Free` tier 过渡期的 snapshot
+  backup bundle
 - chunk preparation artifacts 落在 operations prefix，不落在 release prefix
 - Qdrant 承载 chunk 文本、向量与检索 payload
 
 ## 易错点
 
 - 不要把 serving alias 和 physical collection 混为一谈
+- 不要把 `corpus/collection` 或 `requestedScope` 误当成 capability routing 的代理字段
+- 不要把 routing clarification 和 specialist clarification 混为一谈
 - 不要把 chunk preparation manifest 误读成 index release manifest
 - 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant Cloud”
 - 不要把 release manifest 当成 chunk store

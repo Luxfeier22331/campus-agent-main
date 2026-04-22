@@ -1,4 +1,4 @@
-## internal_notice collection config
+# internal_notice collection config
 
 This directory holds the repo-tracked config contract for
 `campus_notices/internal_notice`.
@@ -19,17 +19,21 @@ It does not carry:
 ## Active config files
 
 - `runtime-profile.json`
-  - canonical runtime gate for import posture, serving stage, and query/retrieval admission
+  - canonical runtime gate for import posture, serving stage, and
+    query/retrieval admission
 - `canonical-profile.json`
   - primary source unit, collection identity, and source-truth projection notes
 - `chunk-profile.json`
   - current generic chunk-preparation runtime defaults
 - `source-projections.v1.json`
-  - source-truth replay contract for parent notices and derived attachment documents
+  - source-truth replay contract for parent notices and derived attachment
+    documents
 - `notice-family-classification.v1.json`
-  - read-only notice-family admission metadata used by inventory/replay/operator read models
+  - read-only notice-family admission metadata used by inventory/replay/operator
+    read models
 - `promotion-routing.v1.json`
-  - downstream routing scaffold for `regulations/institutional_rules` and `regulations/scoped_rules`
+  - downstream routing scaffold for `regulations/institutional_rules` and
+    `regulations/scoped_rules`
 
 ## Active runtime posture
 
@@ -48,19 +52,28 @@ Current interpretation is:
 - `internal_notice` remains a source-channel-first triage collection
 - it is not the canonical regulation corpus
 - replay and chunk preparation truth stay separate from release / alias publish
-- downstream regulation materialization consumes promoted candidates and does not rewrite this collection
+- downstream regulation materialization consumes promoted candidates and does
+  not rewrite this collection
 
 ## Worker / materialization consumers
 
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest ...`
-  - read-only promotion manifest builder for `candidate / hold / manual_review_required`
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
+  ...`
+  - read-only promotion manifest builder for `candidate / hold /
+    manual_review_required`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`
-- `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
   - target-collection materializer for `regulations/scoped_rules`
 
-These entrypoints support repo-local snapshot mode via
-`--documents-json --source-truth-inventory-json --object-store-root`.
+These entrypoints support repo-local snapshot mode via:
+
+- `--documents-json`
+- `--source-truth-inventory-json`
+- `--object-store-root`
 
 ## Non-default supporting inputs
 

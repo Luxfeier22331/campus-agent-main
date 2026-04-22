@@ -24,6 +24,20 @@ Optional env:
 Local build/test via Docker:
 
 ```bash
-docker build -f apps/legacy-office-conversion-service/Dockerfile --target unit-tests -t campus-legacy-office-conversion:test .
-docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up -d --build
+pnpm java:lint
+docker build -f apps/legacy-office-conversion-service/Dockerfile --target lint \
+  -t campus-legacy-office-conversion:lint .
+docker build -f apps/legacy-office-conversion-service/Dockerfile --target \
+  unit-tests -t campus-legacy-office-conversion:test .
+docker compose -f infra/local/docker-compose.legacy-office-conversion.yml up \
+  -d --build
 ```
+
+Docker targets:
+
+- `lint`
+  - 运行 `spotless:check`，用于 Java source lint
+- `unit-tests`
+  - 运行 Maven 单测
+- `package`
+  - 产出运行时 jar

@@ -1,6 +1,7 @@
 # campus-notice-agent
 
-`packages/notice-agent` 是 `campus-agent` 中首发 structured runtime notice capability 的 owner package。
+`packages/notice-agent` 是 `campus-agent` 中首发 structured runtime notice
+capability 的 owner package。
 
 它负责：
 
@@ -15,4 +16,5 @@
 - browser-facing API、`app-api` loopback HTTP 或 query-time raw notice/source scan
 - source-truth / normalized-truth ingestion owner
 
-当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter seam；真正的 projected notice query implementation 仍可在后续 phase 内补齐。
+当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
+seam；真正的 projected notice query implementation 仍可在后续 phase 内补齐。

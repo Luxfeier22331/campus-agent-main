@@ -4,12 +4,12 @@ status: active
 created: 2026-04-03
 updated: 2026-04-04
 ---
-
 # `official_web` Cleaning 与 Chunking 规则
 
 ## 目标
 
-把当前 `official_web/muc_public_pages` 在当前 scope 下的清洗、structured-unit 产出、chunking 与 promote/release 约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
+把当前 `official_web/muc_public_pages` 在当前 scope 下的清洗、structured-unit 产出、chunking 与
+promote/release 约束冻结为 repo truth，避免后续继续从零散 helper、临时抽样和 release 失败结果反推规则。
 
 本文覆盖：
 
@@ -28,16 +28,19 @@ updated: 2026-04-04
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-architecture.md`
-- serving / news retrieval 语义：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- projection replay 流程：`docs/runbooks/official-web-source-truth-projection-replay.md`
+- source channel 边界：`docs/architecture/domains/official-web/architecture.md`
+- serving / news retrieval
+  语义：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- projection replay
+  流程：`docs/runbooks/official-web-source-truth-projection-replay.md`
 
 ## 适用范围
 
 - corpus: `official_web`
 - collection: `muc_public_pages`
 - current serving stage: `offline_preparation`
-- current work focus: improve current scope quality before any retrieval-opening discussion
+- current work focus: improve current scope quality before any retrieval-opening
+  discussion
 
 当前 policy 的适用前提固定为：
 
@@ -59,12 +62,13 @@ updated: 2026-04-04
 因此：
 
 - “能 replay 出 document” 不等于 “能进入 promote/release”
-- `listing_page`、portal-like `generic_content_page`、稀疏 link hub 与 shell family 只能作为 staged audit truth
+- `listing_page`、portal-like `generic_content_page`、稀疏 link hub 与 shell family
+  只能作为 staged audit truth
 - 当前 scope 下，部分低价值 `article_detail` 也必须停留在 staged audit truth，而不是默认 promotable
 
 ## Page Family Cleaning Lane
 
-### `article_detail`
+### `article_detail` chunking
 
 目标：保留标题、结构 heading、连续正文、联系方式和有效表格，使单篇详情页能够直接形成 answer-bearing chunk。
 
@@ -88,7 +92,8 @@ updated: 2026-04-04
 
 当前 scope 的额外收口规则：
 
-- 招聘 / 采购 / 公示类 `article_detail` 如果主要承载低价值 public notice，而不是可长期消费的事实正文，必须标记为 `serving_intent = audit_only`
+- 招聘 / 采购 / 公示类 `article_detail` 如果主要承载低价值 public notice，而不是可长期消费的事实正文，必须标记为
+  `serving_intent = audit_only`
 - 这类页面当前固定使用 `promotion_block_reason = low_value_public_notice_audit_only`
 - 它们允许进入 replay / validator / chunk audit，但不得进入 promote / release truth
 - 当前已确认落在这条规则下的页面包括：
@@ -102,7 +107,7 @@ updated: 2026-04-04
 - section path 不能整体塌缩成单一 portal headline
 - chunk audit 不得出现 `ellipsis_truncation`、`headline_only_fragments`
 
-### `directory_page`
+### `directory_page` chunking
 
 目标：把目录、通讯录、师资名单、院系联系方式等页面转换成稳定参考页，而不是保留成整页导航聚合。
 
@@ -123,9 +128,10 @@ updated: 2026-04-04
 
 - 最小 structured unit 应优先对应“一个人 / 一个办公室 / 一个联系方式实体组”
 - 不允许把整页长名单压成单个巨型 unit
-- portal-style homepage / site hub 即使被上游 source-truth 暂时分类成 `directory_page`，也必须降到 staged-only / manual-review
+- portal-style homepage / site hub 即使被上游 source-truth 暂时分类成
+  `directory_page`，也必须降到 staged-only / manual-review
 
-### 稳定 `generic_content_page`
+### 稳定 `generic_content_page` chunking
 
 目标：承接说明页、简介页、办事说明页等“不是新闻列表，也不是纯目录”的稳定正文。
 
@@ -147,7 +153,7 @@ updated: 2026-04-04
 - teaser / 摘要截断行
 - 正文主体后的 headline-only fragment
 
-### `listing_page`
+### `listing_page` chunking
 
 目标：作为 staged audit / discovery / navigation truth 保留，而不是作为 release truth。
 
@@ -222,7 +228,8 @@ updated: 2026-04-04
 - `entity_key`
 - `entity_group`
 
-对 `article_detail` / 稳定 `generic_content_page` 的 `content_role`，当前 repo truth 额外固定为：
+对 `article_detail` / 稳定 `generic_content_page` 的 `content_role`，当前 repo truth
+额外固定为：
 
 - answer-bearing
   - `primary_content`
@@ -237,7 +244,8 @@ updated: 2026-04-04
 
 - `semantic_content_hash` 用于同一 scope 内跨 host 等价正文的逻辑归并
 - 它必须只表达正文语义，不得把 host、canonical URL、`raw_version_id` 编进 hash
-- 当前 `official_web/muc_public_pages` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份 current document
+- 当前 `official_web/muc_public_pages` 的 release truth 不允许把 `news` / `xxgk` 同文扩成两份
+  current document
 - support-only role 可以保留在 structured-unit truth 中做审计与来源追溯，但：
   - 不进入 canonical markdown
   - 不计入 semantic hash 正文语义
@@ -281,8 +289,9 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 当前 promotable official-web header contract 固定为：
 
 1. 如果 `section_path` 在 title-dedupe 之后仍有有效 leaf，header 必须保留 `标题：... | 章节：...`
-2. 如果 `section_path` 在 title-dedupe 之后塌缩为空，允许退化到 `标题：...`
-3. `compact_identity` 只允许留给非 promotable / 非 official-web 主路径，不得重新回到当前 promotable chunk path
+1. 如果 `section_path` 在 title-dedupe 之后塌缩为空，允许退化到 `标题：...`
+1. `compact_identity` 只允许留给非 promotable / 非 official-web 主路径，不得重新回到当前 promotable
+   chunk path
 
 固定约束：
 
@@ -321,9 +330,11 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `retain_inventory_only`
   - 保留在 current truth / audit truth 中，但当前 scope 下不再尝试升格 release gate
 - `current_scope_follow_up_candidate`
-  - 仍留在 `inventory_only`，但允许在当前 `muc_public_pages` scope 内继续做 cleaning / chunking / answer-compression 治理
+  - 仍留在 `inventory_only`，但允许在当前 `muc_public_pages` scope 内继续做 cleaning /
+    chunking / answer-compression 治理
 - `future_fresh_news_surface`
-  - 当前保留在 current truth 仅用于 regression / audit / local validation，不进入当前 stable-reference gate
+  - 当前保留在 current truth 仅用于 regression / audit / local validation，不进入当前
+    stable-reference gate
   - 后续如要开放 query-serving，应转到 `fresh_news` / `news_archive` 语义下处理，而不是继续塞回当前 gate
 
 当前 repo-tracked triage 固定为：
@@ -332,13 +343,16 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
   - `访问学者`
   - `干部人事`
 - `current_scope_follow_up_candidate`
-  - 当前为空；`学术名流` 已在 biography/entity 压缩与 same-doc support 收口后升格进入 `release_gate_required`
+  - 当前为空；`学术名流` 已在 biography/entity 压缩与 same-doc support 收口后升格进入
+    `release_gate_required`
 - `future_fresh_news_surface`
-  - 当前 `8` 条 news 页面，包括 `中央民族大学与北京丰台人才集团共建就业实习实践基地` 这类已用于 cross-host regression 的新闻页
+  - 当前 `8` 条 news 页面，包括 `中央民族大学与北京丰台人才集团共建就业实习实践基地` 这类已用于 cross-host regression
+    的新闻页
 
 对应 machine-checkable fixture：
 
-- `packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory.json`
+- `packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory
+  .json`
 
 ## Promote / Release Truth
 
@@ -346,9 +360,11 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 
 - document set 主要由高信号正文页组成
 - `listing_page` 与 staged-only generic 不进入 current truth
-- 低价值 recruitment / procurement / public-notice `article_detail` 不进入 current truth
+- 低价值 recruitment / procurement / public-notice `article_detail` 不进入 current
+  truth
 - `future_fresh_news_surface` 文档不得绕回当前 stable-reference release gate
-- 只有显式标记为 `current_scope_follow_up_candidate` 的 `inventory_only` 页面，才允许进入下一轮 current-scope gate 评估
+- 只有显式标记为 `current_scope_follow_up_candidate` 的 `inventory_only` 页面，才允许进入下一轮
+  current-scope gate 评估
 - chunk 质量通过 official-web chunk audit
 - current release 不得再表现为“headline fragment 主导”的 dataset
 

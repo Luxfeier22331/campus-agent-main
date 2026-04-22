@@ -1,15 +1,14 @@
 ---
-doc_type: architecture
+doc_type: data
 status: active
 created: 2026-03-28
 updated: 2026-04-12
 ---
-
-# Official Web Source-Truth Contract
+# Official Web Source-Truth Schema
 
 ## 文档边界
 
-本文冻结 `official_web` source channel 的 canonical source-truth contract。
+本文冻结 `official_web` source channel 的 canonical source-truth schema。
 
 它回答的是：
 
@@ -27,29 +26,57 @@ updated: 2026-04-12
 
 对应文档：
 
-- source channel 边界：`docs/architecture/official-web-architecture.md`
+- source channel 边界：`docs/architecture/domains/official-web/architecture.md`
 - crawl policy：`docs/policies/official-web-crawl-policy.md`
-- freshness / 增量采集：`docs/architecture/official-web-freshness-and-incremental-crawling.md`
-- shared replay / rebuild boundary：`docs/architecture/data-plane-architecture.md`
+- freshness /
+  增量采集：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
+- shared replay / rebuild
+  boundary：`docs/architecture/system/data-plane-architecture.md`
 
 ## 目标
 
-网页 source-truth 的目标是把“某次 crawl 获取到的网页”稳定地吸收成可 replay、可 fan-out、可审计的 canonical upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或直接反复回源抓取。
+网页 source-truth 的目标是把“某次 crawl 获取到的网页”稳定地吸收成可 replay、可 fan-out、可审计的 canonical
+upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或直接反复回源抓取。
 
 ## 核心结论
 
-- web source-truth 是 parser-agnostic 的页面内容与结构真相，不是浏览器 DOM dump，也不是 document/chunk truth。
-- 同一页面的 retained snapshot 与 source-truth 只应对同一内容版本持久化一次；后续 projection / rebuild 不得返回原网页重新抓取。
+- web source-truth 是 parser-agnostic 的页面内容与结构真相，不是浏览器 DOM dump，也不是
+  document/chunk truth。
+- 同一页面的 retained snapshot 与 source-truth 只应对同一内容版本持久化一次；后续 projection / rebuild
+  不得返回原网页重新抓取。
 - web source-truth 的 ownership 在 source asset，不在任何 collection。
-- web source-truth 必须同时保留 URL identity、fetch provenance、page manifest 与 block rows。
-- `official_web` source-truth 允许服务多个下游 collection / corpus，但不得提前携带 document、chunk、retrieval 或 serving 语义。
-- 这些下游 collection / corpus 可以是 `official_web/stable_reference`、`official_web/fresh_news`、`official_web/news_archive`，也可以是与 `official_web` 并列的 `regulations/*`、`curriculum/*`；具体归属由 projection / document truth 决定，而不是由 source-truth 预写死。
-- page-level family classification 与 provider-level page signals 可以作为 source-level hints 保留，用于批次审计与 projection 选择，但它们不是 chunk / retrieval contract。
-- page freshness、crawl cadence、lane priority 与 downstream dispatch status 不属于 source-truth contract；它们属于 control-plane truth。
+- web source-truth 必须同时保留 URL identity、fetch provenance、page manifest 与 block
+  rows。
+- `official_web` source-truth 允许服务多个下游 collection / corpus，但不得提前携带
+  document、chunk、retrieval 或 serving 语义。
+- 这些下游 collection / corpus 可以是 `official_web/stable_reference`、`official_web/fre
+  sh_news`、`official_web/news_archive`，也可以是与 `official_web` 并列的
+  `regulations/*`、`curriculum/*`；具体归属由 projection / document truth 决定，而不是由
+  source-truth 预写死。
+- page-level family classification 与 provider-level page signals 可以作为
+  source-level hints 保留，用于批次审计与 projection 选择，但它们不是 chunk / retrieval contract。
+- page freshness、crawl cadence、lane priority 与 downstream dispatch status 不属于
+  source-truth schema；它们属于 control-plane truth。
 
 ## Canonical 形态
 
-`retained page snapshot -> parser-specific provider output -> web source-truth -> declared projections -> canonical document artifacts -> document-units -> chunks -> index`
+source-truth pipeline:
+
+- retained page snapshot
+- parser-specific provider output
+- web source-truth
+- declared projections
+- canonical document artifacts
+- document-units
+- chunks
+- index
+
+补充说明：
+
+- 本文中的 source-truth schema 只冻结 `capture/`、`provider/`、`source-truth/` 三层
+  source-owned artifacts
+- 如果后续有持久化 source-side projection artifact，它们落在同一 source prefix 下的 sibling
+  `projection/<projection_name>/...`，但不属于本文的 source-truth schema 本体
 
 ## Artifact 分层
 
@@ -80,7 +107,8 @@ updated: 2026-04-12
 
 说明：
 
-- `page-extraction.json` 可以包含 DOM-to-content extraction、boilerplate map、title extraction、main-content heuristic 等 provider 细节
+- `page-extraction.json` 可以包含 DOM-to-content extraction、boilerplate map、title
+  extraction、main-content heuristic 等 provider 细节
 - `discovered-links.jsonl` 保存本页发现的出链与 link context，供 frontier 审计与 replay 使用
 - provider artifact 不得直接被下游 collection 当作长期 contract
 
@@ -260,7 +288,8 @@ updated: 2026-04-12
 
 ## Provider-Level Structured Hints
 
-`provider/<parser_slug>/page-extraction.json` 除了 block candidates 外，还应保留 parser-specific 但对批次审计有价值的结构提示。
+`provider/<parser_slug>/page-extraction.json` 除了 block candidates 外，还应保留
+parser-specific 但对批次审计有价值的结构提示。
 
 第一版固定保留：
 
@@ -310,7 +339,8 @@ updated: 2026-04-12
 
 ## Collection Extension Fields
 
-某个下游 collection 若确有 source-level 需求，可以在 web source-truth 上补 extension fields，但必须满足：
+某个下游 collection 若确有 source-level 需求，可以在 web source-truth 上补 extension
+fields，但必须满足：
 
 - 不能污染 core schema
 - 不能引入 document/chunk 层语义
@@ -318,7 +348,7 @@ updated: 2026-04-12
 
 ## 明确禁止的字段
 
-以下字段不属于 web source-truth contract：
+以下字段不属于 web source-truth schema：
 
 - `document_id`
 - `doc_id`
@@ -344,14 +374,10 @@ updated: 2026-04-12
 
 为避免与 serving 层混淆，命名固定如下：
 
-- `requested_url`
-  crawler 发起请求的 URL
-- `final_url`
-  redirect 后最终返回内容的 URL
-- `declared_canonical_url`
-  页面通过 HTML 或 HTTP header 声明的 canonical URL
-- `normalized_canonical_url`
-  按 crawl policy 规范化后用于 source identity 的 URL
+- `requested_url` crawler 发起请求的 URL
+- `final_url` redirect 后最终返回内容的 URL
+- `declared_canonical_url` 页面通过 HTML 或 HTTP header 声明的 canonical URL
+- `normalized_canonical_url` 按 crawl policy 规范化后用于 source identity 的 URL
 
 禁止在 source-truth 层直接使用：
 
@@ -387,7 +413,8 @@ updated: 2026-04-12
 
 当 canonical web source-truth 已存在时：
 
-- projection / rebuild 必须从 `source-truth/page-manifest.json` 与 `source-truth/content-blocks.jsonl` 开始
+- projection / rebuild 必须从 `source-truth/page-manifest.json` 与
+  `source-truth/content-blocks.jsonl` 开始
 - later projection 不得返回原网页重新抓取
 - provider artifact 只作为排障与 source-truth 重建输入，不作为长期下游 contract
 
@@ -399,8 +426,10 @@ web source-truth 不等于逻辑文档真相。
 
 - 页面 source-truth 可以投影成一个 document，也可以投影成多个 document
 - 多个网页 source-truth 也可以被清洗为同一逻辑 document family
-- 文档边界、`document_id`、`revision_track`、`version_id` 由下游 projection / document registry 决定
-- 如果官网页面承载的是正式规章或正式培养方案，下游 document 可以进入与 `official_web` 并列的 `regulations/*` 或 `curriculum/*`，而不是被 URL 来源强行锁死在 `official_web/*`
+- 文档边界、`document_id`、`revision_track`、`version_id` 由下游 projection / document
+  registry 决定
+- 如果官网页面承载的是正式规章或正式培养方案，下游 document 可以进入与 `official_web` 并列的 `regulations/*` 或
+  `curriculum/*`，而不是被 URL 来源强行锁死在 `official_web/*`
 
 ## 非目标
 
@@ -411,13 +440,17 @@ web source-truth 不等于逻辑文档真相。
 
 ## 与其他文档的关系
 
-- source channel 运行边界：`docs/architecture/official-web-architecture.md`
+- source channel 运行边界：`docs/architecture/domains/official-web/architecture.md`
 - crawl scope 与 URL policy：`docs/policies/official-web-crawl-policy.md`
-- shared source-truth principles：`docs/architecture/data-plane-architecture.md`
+- shared source-truth principles：`docs/architecture/system/data-plane-architecture.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`
 
 ## 参考
 
-- Google canonical URL guidance: https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls
-- Google crawl budget guidance: https://developers.google.com/search/docs/crawling-indexing/large-site-managing-crawl-budget
-- RFC 9309 Robots Exclusion Protocol: https://www.rfc-editor.org/rfc/rfc9309
+- Google canonical URL guidance:
+  <<https://developers.google.com/search/docs/craw>
+  ling-indexing/consolidate-duplicate-urls>
+- Google crawl budget guidance:
+  <<https://developers.google.com/search/docs/crawl>
+  ing-indexing/large-site-managing-crawl-budget>
+- RFC 9309 Robots Exclusion Protocol: <https://www.rfc-editor.org/rfc/rfc9309>

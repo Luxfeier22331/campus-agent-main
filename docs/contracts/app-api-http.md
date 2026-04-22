@@ -2,22 +2,27 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-19
+updated: 2026-04-23
 ---
-
 # App API HTTP Contract
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的 browser-facing HTTP contract。
+这份文档冻结 shared `apps/app-api` 对 `public-chat-web` 与 `protected-panel-web` 暴露的
+browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/product-runtime-architecture.md`
-- `app-api` runtime 与内部边界：`docs/architecture/product-runtime-architecture.md`
-- `app-api -> supervisor-api` 内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
-- operator observability query contract：`docs/contracts/app-api-operator-observability-http.md`
-- `official_web` collector/control-plane HTTP contract：`docs/contracts/app-api-official-web-http.md`
+- shared product topology：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api -> supervisor-api`
+  内部执行契约：`docs/contracts/app-api-supervisor-execution.md`
+- internal eval benchmark
+  ingress：`docs/contracts/app-api-eval-benchmark-http.md`
+- operator observability query
+  contract：`docs/contracts/app-api-operator-observability-http.md`
+- `official_web` collector/control-plane HTTP
+  contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
@@ -44,7 +49,8 @@ updated: 2026-04-19
 - browser 默认不直连 `app-api` public hostname
 - web surface 可以做 route proxy / BFF
 - 但 proxy 后的 contract 必须保持与这里一致
-- `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见 `docs/contracts/app-api-official-web-http.md`
+- `official_web` collector command surface 与 app-owned run APIs 不属于本文范围，另见
+  `docs/contracts/app-api-official-web-http.md`
 
 ## Cross-Cutting Rules
 
@@ -87,7 +93,8 @@ updated: 2026-04-19
 - `GET /api/operator/requests/:requestId`
 - `GET /api/operator/requests/:requestId/observability`
 
-expanded observability / quality / safety / cost / audit query surfaces 另见 `docs/contracts/app-api-operator-observability-http.md`
+expanded observability / quality / safety / cost / audit query surfaces 另见
+`docs/contracts/app-api-operator-observability-http.md`
 
 第一版不冻结：
 
@@ -156,6 +163,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
     "corpus": "regulations",
     "collection": "student_rules"
   },
+  "versionQuery": {
+    "mode": "historical",
+    "versionId": "v2024-student-rules"
+  },
   "resolvedScope": {
     "corpus": "regulations",
     "collection": "student_rules"
@@ -175,8 +186,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 补充约束：
 
 - `selectedTarget` 始终表示 request finalized 后的 current runtime target。
-- 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing localized wording。
-- 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer 派生，而不是重载这个字段。
+- 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
+  localized wording。
+- 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer
+  派生，而不是重载这个字段。
 
 ## System Endpoints
 
@@ -211,7 +224,8 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 
 当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
 
-当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed` 中列出失败 probe，例如：
+当 config 已齐但实际依赖未 ready 时，返回 `503 dependency_not_ready`，并在 `details.failed`
+中列出失败 probe，例如：
 
 ```json
 {
@@ -263,10 +277,12 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 规则：
 
 - 已登录 end-user 默认投影为 `campus_member`
-- `session.sessionId` 是当前 end-user path 的 canonical app-owned session identifier；它来自 typed auth projection，不来自 browser 自造 conversation id
+- `session.sessionId` 是当前 end-user path 的 canonical app-owned session
+  identifier；它来自 typed auth projection，不来自 browser 自造 conversation id
 - `operator` 使用 protected surface trusted identity bridge
 - v1 不要求单独的 operator 用户系统或 operator session 表
-- 当前 chat routes 继续要求 resolved principal；无 principal 请求返回 `session_required`，不会创建 anonymous chat conversation
+- 当前 chat routes 继续要求 resolved principal；无 principal 请求返回
+  `session_required`，不会创建 anonymous chat conversation
 
 ## Chat Endpoints
 
@@ -342,11 +358,18 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 - `messageId` 必须属于该 conversation
 - 服务端删除范围是 `createdAt >= 目标 message.createdAt`
 - 这个接口只负责截断现有对话尾部，不负责写入编辑后的新 user message
-- 编辑后的新 user message 仍由后续 `POST /api/chat/requests` 在 canonical command path 中生成新 answer
+- 编辑后的新 user message 仍由后续 `POST /api/chat/requests` 在 canonical command path
+  中生成新 answer
 
 ### `POST /api/chat/requests`
 
 这是 public chat 的同步命令入口。
+
+当前 `public-chat-web` 只 admission `knowledge` capability。这里描述的是该 surface 当前开放的
+capability allowlist，不是长期产品入口原则；前向 routing 语义见
+`docs/architecture/system/capability-routing-and-admission-architecture.md` 与 `docs/dec
+isions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-pol
+icy.md`。
 
 请求 headers：
 
@@ -362,6 +385,10 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
   "requestedScope": {
     "corpus": "regulations",
     "collection": "student_rules"
+  },
+  "versionQuery": {
+    "mode": "as_of",
+    "asOf": "2024-06-01"
   }
 }
 ```
@@ -369,11 +396,24 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 字段规则：
 
 - `conversationId` 可选；如果提供且已属于当前 user，则继续向该 conversation 追加消息
-- `conversationId` 可选；如果提供但当前 user 还没有这个 conversation，`app-api` 会在同一条 command path 内用这个 id 建立首轮 conversation
-- 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create conversation，并返回 canonical conversation id
+- `conversationId` 可选；如果提供但当前 user 还没有这个 conversation，`app-api` 会在同一条 command
+  path 内用这个 id 建立首轮 conversation
+- 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create
+  conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestedCapability` 可选；当前 public chat 只接受 `knowledge`
-- `requestedScope` 可选；未提供时 `app-api` 不得伪造默认 serving surface，最终 scope 由 downstream specialist 解析，并在 finalized projection / observability 中回填 `resolvedScope`
+- `requestedCapability` 可选；当前 public chat 只接受 `knowledge`。这是 current surface
+  posture，不表示长期产品入口必须 `knowledge-only` 或 `RAG-first`
+- `requestedScope` 可选；它只属于 knowledge-family path。未提供时 `app-api` 不得伪造默认 serving
+  surface，最终 scope 由 downstream specialist 解析，并在 finalized projection /
+  observability 中回填 `resolvedScope`
+- `versionQuery` 可选；它只属于 knowledge-family path，用 `camelCase` 传
+  `mode`、`asOf`、`versionId`、`compareToVersionId`
+- `versionQuery.mode` 允许 `current`、`historical`、`as_of`、`compare`
+- `versionQuery.asOf` 只允许与 `mode=as_of` 一起出现；`versionQuery.versionId` 只允许与
+  `historical|compare` 一起出现；`compareToVersionId` 只允许与 `compare` 一起出现，且要求同时提供
+  `versionId`
+- `versionQuery` 参与 `Idempotency-Key` 对应的 request fingerprint；同一 prompt/scope
+  但不同 version query 不能共享同一个幂等结果
 
 成功响应：
 
@@ -399,19 +439,16 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 
 `result.kind` 允许以下分支：
 
-- `answer`
-  返回 `text`
-- `clarification`
-  返回 `text`
-- `no_answer`
-  返回 `text`
-- `error`
-  返回 `message`、`errorCode`、`retryable`
+- `answer` 返回 `text`
+- `clarification` 返回 `text`
+- `no_answer` 返回 `text`
+- `error` 返回 `message`、`errorCode`、`retryable`
 
 规则：
 
 - v1 不做 streaming；这个接口默认同步返回最终 chat-visible 结果
-- 请求一旦被接受并分配 canonical `requestId`，后续执行失败仍通过 `200 + result.kind=error` 返回，以保留 correlation 与 durable request record
+- 请求一旦被接受并分配 canonical `requestId`，后续执行失败仍通过 `200 + result.kind=error` 返回，以保留
+  correlation 与 durable request record
 - pre-accept 拒绝仍走统一 error envelope
 
 ## Operator Endpoints
@@ -483,7 +520,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
 规则：
 
 - 这是 projection detail，不是 raw execution dump
-- `requestedScope` 表示调用方显式请求的 scope，可为 `null`
+- `requestedScope` 表示调用方显式请求的 knowledge-family scope，可为 `null`
 - `resolvedScope` 表示 specialist 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
 - v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 specialist-internal payload

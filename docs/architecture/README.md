@@ -2,15 +2,14 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-22
+updated: 2026-04-23
 ---
-
 # Architecture
 
-`architecture/` 负责解释产品定位、当前 merged truth、长期目标与 supporting architecture。
-它回答“系统是什么”“为什么这样分层”“哪些边界不能退回”。
+`architecture/` 负责解释产品定位、当前 merged truth、长期目标与 supporting
+architecture。它回答“系统是什么”“为什么这样分层”“哪些边界不能退回”。
 
-## 核心入口
+## Repo Entry Truth
 
 - `product-positioning.md`
   - 产品定位、目标用户与产品边界
@@ -19,51 +18,32 @@ updated: 2026-04-22
 - `target-architecture.md`
   - 长期目标架构与不可退回的硬约束
 
-## 跨域 supporting architecture
+## Supporting Architecture Layout
 
-- `product-runtime-architecture.md`
-  - public/protected surface、shared `app-api` 与 runtime ownership
-- `document-site-architecture.md`
-  - docs-first 文档站、canonical reader 与 source-card jump 的前向 architecture
-- `runtime-delivery-and-release-hardening-architecture.md`
-  - staging baseline、release identity、deploy gate 与 post-deploy evidence closure
-- `execution-and-agents-architecture.md`
-  - supervisor-led orchestration、agent boundary 与 prompt assembly seam
-- `prompt-and-instruction-architecture.md`
-  - prompt hierarchy、trusted/untrusted zoning 与 grounded generation path
-- `identity-and-authorization-architecture.md`
-  - identity、memory、authz 与 retrieval filter projection 的边界
-- `retrieval-serving-architecture.md`
-  - query-serving、version mode 与 evidence-oriented retrieval 形态
-- `agentic-retrieval-architecture.md`
-  - full agentic RAG 的 planner/executor/step/query-activity target shape
-- `data-plane-architecture.md`
-  - source truth、document truth、chunk/index 与 replay/rebuild 分层
-- `file-asset-loader-architecture.md`
-  - file-like asset 的 shared contract、family matrix 与 provider/deployment posture
-- `operator-observability-architecture.md`
-  - panel observability domain、read-model family 与 sink participation
+- `system/README.md`
+  - 跨域 supporting architecture；负责 runtime、execution、retrieval、data plane
+    等 repo-wide supporting truth
+- `domains/README.md`
+  - 领域 supporting architecture；负责 navigation、official-web、authenticated
+    notice、campus services 等领域边界
 
-## 领域 supporting architecture
+补充说明：
 
-### Navigation
+- `docs/architecture/domains/` 是 architecture-only 目录
+- `docs/domains/` 是跨文档类型的领域 hub
+- source-truth schema 已迁到 `docs/data/`，不继续留在 `architecture/`
 
-- `navigation-and-wayfinding-architecture.md`
+## Source-Truth Schema
 
-### Official Web
-
-- `official-web-architecture.md`
-- `official-web-source-truth-contract.md`
-- `official-web-freshness-and-incremental-crawling.md`
-- `official-web-serving-and-news-retrieval-strategy.md`
-
-### Authenticated Notice
-
-- `authenticated-notice-source-architecture.md`
-- `authenticated-notice-source-truth-contract.md`
+- `../data/official-web-source-truth-schema.md`
+- `../data/authenticated-notice-source-truth-schema.md`
 
 ## 使用规则
 
 - `current-architecture.md` 只写 merged truth，不写 worktree-local 进度
 - `target-architecture.md` 只写长期目标，不写当前 phase 顺序
 - supporting architecture 负责解释某个边界，不承接一次性 plan 或执行历史
+- 跨域 supporting architecture 放进 `system/`
+- 领域 supporting architecture 放进 `domains/`
+- canonical source-truth artifact/schema 放进 `docs/data/`，不伪装成 explanation-oriented
+  architecture

@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-14
 updated: 2026-04-15
 ---
-
 # ADR-0041 Authenticated Document Center And Regulation Layer Split
 
 ## 状态
@@ -17,7 +16,8 @@ Accepted on 2026-04-14.
 `authenticated_notice_portal` 这条 source channel 目前已经冻结了几条关键边界：
 
 - `notice`、`attachment`、`regulation` 不是同一层资源
-- `campus_notices/internal_notice` 是 source-triage collection，不是 regulation owner
+- `campus_notices/internal_notice` 是 source-triage collection，不是 regulation
+  owner
 - `regulations/institutional_rules` 只接可独立消费的 canonical regulation text
 - `file_release` 可以成为 regulation owner body 的来源层，但不能伪装成 `notice`
 
@@ -116,15 +116,18 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 
 - `notice/file_release -> document center/originals`
 - `notice/attachment/file_release -> semantic owner recovery -> regulations/*`
-- `document center -> retrieval/regulation` 只通过显式 projection / metadata / owner recovery 消费
+- `document center -> retrieval/regulation` 只通过显式 projection / metadata / owner
+  recovery 消费
 
 固定禁止：
 
 - 让 `regulations/*` 反向充当 original file access truth
 - 让 retrieval corpus 反向充当附件下载站
 - 用 regulation collection 直接承载各类模板、表格、FAQ 原件
-- 用 document center 镜像承接 `讲座预告 / 论坛 / 讲堂 / 读书会` 这类 official-portal-owned information surface
-- 用 document center 镜像承接 `名单公示 / 成绩公示 / 结果公示 / 立项名单` 这类 official-portal-owned information surface
+- 用 document center 镜像承接 `讲座预告 / 论坛 / 讲堂 / 读书会` 这类 official-portal-owned
+  information surface
+- 用 document center 镜像承接 `名单公示 / 成绩公示 / 结果公示 / 立项名单` 这类 official-portal-owned
+  information surface
 
 ### 决策 4：document center 必须按受限资源 fail-close 开放
 
@@ -196,31 +199,38 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 - `lecture_publicity` 这类官方门户宣传面被显式排除在 document center 的 planned scope 之外
 - `roster_publication` 这类官方门户公示面被显式排除在 document center 的 planned scope 之外
 - 已认证用户下载原件与 RAG/regulation 语义消费不再混层
-- 后续扩大 authenticated notice / file release 采集时，不再需要把“是否对用户有价值”错误改写成“是否应进入 regulation”
+- 后续扩大 authenticated notice / file release 采集时，不再需要把“是否对用户有价值”错误改写成“是否应进入
+  regulation”
 
 ## Supporting Rationale
 
-- OWASP Authorization Cheat Sheet 明确要求 deny-by-default、least privilege，并把授权校验视为每个资源访问的硬要求：
-  - https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
+- OWASP Authorization Cheat Sheet 明确要求 deny-by-default、least
+  privilege，并把授权校验视为每个资源访问的硬要求：
+  - <https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html>
 - NIST SP 800-207 Zero Trust Architecture 强调每次资源访问都应显式认证和授权，而不是因网络位置或已有会话做宽放：
-  - https://csrc.nist.gov/pubs/sp/800/207/final
-- Microsoft SharePoint / Microsoft 365 官方文档把 content types、metadata search、ACL trimming 分开建模，这支持“originals catalog / metadata / authz projection”独立存在，而不是直接等同语义文档集合：
-  - https://learn.microsoft.com/en-us/sharepoint/create-customize-content-type
-  - https://learn.microsoft.com/en-us/microsoft-365/documentprocessing/metadata-search?view=o365-worldwide
-  - https://learn.microsoft.com/en-us/azure/search/search-indexer-sharepoint-access-control-lists
+  - <https://csrc.nist.gov/pubs/sp/800/207/final>
+- Microsoft SharePoint / Microsoft 365 官方文档把 content types、metadata search、ACL
+  trimming 分开建模，这支持“originals catalog / metadata / authz
+  projection”独立存在，而不是直接等同语义文档集合：
+  - <https://learn.microsoft.com/en-us/sharepoint/create-customize-content-type>
+  - <https://learn.microsoft.com/en-us/microsoft-365/documentprocessing/metadata-search?view=o365-worldwide>
+  - <https://learn.microsoft.com/en-us/azure/search/search-indexer-sharepoint-access-control-lists>
 
 基于这些官方资料的推断是：
 
 - 对 repo 当前场景，更合理的形态不是“开放一个大而混的 regulation+附件下载库”
-- 而是“document center 持有 originals 与 access truth，semantic collections 持有 canonical text 与 retrieval truth”
+- 而是“document center 持有 originals 与 access truth，semantic collections 持有
+  canonical text 与 retrieval truth”
 
 ## Related Docs
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
+  tial-review-boundary.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 - `docs/reference/restricted-document-center-artifact-contract.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
-- `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
+- `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-con
+  tract.md`

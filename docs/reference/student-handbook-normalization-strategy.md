@@ -4,12 +4,16 @@ status: active
 created: 2026-03-22
 updated: 2026-03-28
 ---
-
 # Student Handbook Normalization Strategy
 
 ## 目标
 
-把 `student_rules` collection 的输入边界固定为 source bucket 中的 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_rules` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
+把 `student_rules` collection 的输入边界固定为 source bucket 中的 OCR 产物
+`provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个
+document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth ->
+多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用
+`regulations`，`student_rules` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus
+前缀组织，因为同一份原始文件可能被多个 corpus 复用。
 
 本文回答三个问题：
 
@@ -24,33 +28,43 @@ updated: 2026-03-28
 - document-level cleaning
 - unit normalization
 
-具体 token budget、tokenizer、切分与 chunk 组装规则以
-[student-handbook-chunking-and-validation-policy.md](../policies/student-handbook-chunking-and-validation-policy.md)
+具体 token budget、tokenizer、切分与 chunk 组装规则以 [student-handbook-chunking-and-validat
+ion-policy.md](../policies/student-handbook-chunking-and-validation-policy.md)
 为准。
 
 ## 结论
 
-- `student_rules` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw PDF。
-- handbook 必须保留一层 asset-level `layout-elements.jsonl`，不能直接从 provider payload 进入逻辑文档拆分。
-- `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level normalization 阶段提前冻结。
-- handbook 的长期逻辑 identity 应采用 `document_id + revision_track + version_id`，而不是绑到某个 PDF 文件名。
+- `student_rules` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw
+  PDF。
+- handbook 必须保留一层 asset-level `layout-elements.jsonl`，不能直接从 provider payload
+  进入逻辑文档拆分。
+- `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level
+  normalization 阶段提前冻结。
+- handbook 的长期逻辑 identity 应采用 `document_id + revision_track +
+  version_id`，而不是绑到某个 PDF 文件名。
 - 文档切分是 normalization 之后、chunking 之前的独立步骤。
-- handbook 的 canonical consumption 模型是 `single source consumption + multi-projection fan-out`：先固化 source truth，再声明哪些 projection 产出 handbook 文档、service-like derived document 或 attachment-like derived document。
-- `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于 document-level cleaning / chunking 结果，不属于 source-level structured truth。
-- 文号、标题变体、试行/暂行附记等 metadata-only 前导信息应保留在 document metadata 中，不应作为独立 retrieval chunk 落盘。
+- handbook 的 canonical consumption 模型是 `single source consumption +
+  multi-projection fan-out`：先固化 source truth，再声明哪些 projection 产出 handbook
+  文档、service-like derived document 或 attachment-like derived document。
+- `article_body`、`policy_page`、`table`、`table_row` 仍然是 handbook 的文档内结构单元，但它们属于
+  document-level cleaning / chunking 结果，不属于 source-level structured truth。
+- 文号、标题变体、试行/暂行附记等 metadata-only 前导信息应保留在 document metadata 中，不应作为独立 retrieval
+  chunk 落盘。
 - chunk 用于 embedding / retrieval 的文本应从 unit text 加上文档级上下文组装，而不是依赖单独的标题块或文号块参与检索。
 
 ## 主流策略
 
-主流做法不是“直接把 OCR provider 原始 JSON 切成 chunks”，而是先抽出一个 provider-agnostic 的结构层，再做下游 projection。
+主流做法不是“直接把 OCR provider 原始 JSON 切成 chunks”，而是先抽出一个 provider-agnostic 的结构层，再做下游
+projection。
 
 共同模式可以概括为 5 步：
 
 1. 保留 provider 原始响应，作为 provenance、重放和排障输入。
-2. 把 provider payload 归一化为内部统一结构，通常保留 page / block / heading / table / reading order 等信息。
-3. 以内部结构层为输入，恢复父子关系或逻辑文档边界。
-4. 在逻辑文档层做清洗、标题归一化、条款恢复、metadata 冻结。
-5. 只在逻辑文档内部做 chunking，并把父级 metadata 继承到子级 chunk。
+1. 把 provider payload 归一化为内部统一结构，通常保留 page / block / heading / table / reading
+   order 等信息。
+1. 以内部结构层为输入，恢复父子关系或逻辑文档边界。
+1. 在逻辑文档层做清洗、标题归一化、条款恢复、metadata 冻结。
+1. 只在逻辑文档内部做 chunking，并把父级 metadata 继承到子级 chunk。
 
 这类模式的核心不是“先清洗文本”，而是先把结构和 provenance 固定下来，再允许不同 corpus 在同一内部 contract 上做清洗和切分。
 
@@ -77,8 +91,10 @@ updated: 2026-03-28
   - `version_id` 由 `doc_type + normalized(title + body)` 的 hash 生成
 - canonical metadata 归一化：
   - handbook canonical front matter 只保留稳定字段
-  - 典型字段包括 `title`、`source_doc`、`page_start`、`page_end`、`handbook_section`、`policy_doc_no`
-  - 明确禁止把 `ocr_run_id`、`chunk_id`、`version_id`、`acl` 等运行态字段写进 canonical front matter
+  - 典型字段包括 `title`、`source_doc`、`page_start`、`page_end`、`handbook_section`、`poli
+    cy_doc_no`
+  - 明确禁止把 `ocr_run_id`、`chunk_id`、`version_id`、`acl` 等运行态字段写进 canonical front
+    matter
 - 结构优先的文档内建模：
   - 先把标题、章、节、`第X条` 提升为稳定结构
   - 再生成 `article_body`、`policy_page`、`table`、`table_row`
@@ -88,21 +104,32 @@ updated: 2026-03-28
 
 - 它主要从已经拆好的 canonical markdown / clean markdown 出发。
 - 它没有把 `provider-response.jsonl -> layout-elements.jsonl` 这一层正式建成 contract。
-- 它默认“source asset 已经被人工或前置流程拆成逻辑文档”，不适合作为当前 raw-first ingestion 的 source-level truth。
+- 它默认“source asset 已经被人工或前置流程拆成逻辑文档”，不适合作为当前 raw-first ingestion 的 source-level
+  truth。
 
 ## `campus-agent` 的 handbook 设计
 
 当前阶段建议把 handbook 固定为下面这条链路：
 
-`provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows -> source truth -> declared projections -> canonical.md / metadata -> document-units.jsonl -> chunks`
+- `provider-response.jsonl`
+- `layout-elements.jsonl`
+- `split-manifest`
+- `per-doc source rows`
+- source truth
+- declared projections
+- `canonical.md / metadata`
+- `document-units.jsonl`
+- chunks
 
 当前 source artifact 的讨论样例可直接按 object key 理解为：
 
-`official_pdf/student-handbook/2018/{raw_version_id}/provider/paddleocr-vl-1-5/provider-response.jsonl`
+`official_pdf/student-handbook/2018/{raw_version_id}/provider/paddleocr-vl-1-5/p
+rovider-response.jsonl`
 
 对应的原始来源资产路径应位于 source bucket：
 
-`official_pdf/student-handbook/2018/{raw_version_id}/capture/{original_filename}`
+`official_pdf/student-handbook/2018/{raw_version_id}/capture/{original_filename}
+`
 
 其中每一层的职责分别是：
 
@@ -113,7 +140,8 @@ updated: 2026-03-28
   - 保存 asset 级、provider-agnostic 的 source rows
   - 作为 split 和 cleanup 的唯一直接输入
 - `source truth`
-  - 表示 handbook source 在 provider payload 之后、document projection 之前的 canonical rebuild boundary
+  - 表示 handbook source 在 provider payload 之后、document projection 之前的 canonical
+    rebuild boundary
   - 后续 replay、attachment projection、service projection 都必须从这里继续，而不是重新读取 raw PDF
 - `split-manifest.v1.json`
   - 保存 handbook 多逻辑文档的页段真相
@@ -127,14 +155,17 @@ updated: 2026-03-28
   - 保存 `article_body`、`policy_page`、`table`、`table_row`
   - 作为 registry 和 chunking 的直接输入
 
-其中 `source truth` 的 fan-out 必须由 repo-tracked projection declaration 驱动。后续如果 handbook 需要派生出 `campus_services/service_catalog` 的导航文档、电话目录、附件、附录、表单模板或 navigation-like leaf，不允许为这些下游结果再开一条独立 raw-consumption lane。
+其中 `source truth` 的 fan-out 必须由 repo-tracked projection declaration 驱动。后续如果
+handbook 需要派生出 `campus_services/service_catalog` 的导航文档、电话目录、附件、附录、表单模板或
+navigation-like leaf，不允许为这些下游结果再开一条独立 raw-consumption lane。
 
 ## Source Truth Fan-Out Contract
 
 handbook 的 canonical rebuild contract 固定如下：
 
 - raw asset 只消费一次
-- `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc source rows` 共同构成 persisted source truth
+- `provider-response.jsonl -> layout-elements.jsonl -> split-manifest -> per-doc
+  source rows` 共同构成 persisted source truth
 - declared projections 显式列出从该 source truth 派生出的 document family
 - replay from source truth，而不是返回 raw
 
@@ -142,15 +173,19 @@ handbook 的 canonical rebuild contract 固定如下：
 
 - handbook 自身的 `canonical.md` / `document-units.jsonl` 是一类 projection
 - handbook-derived `campus_services` service/navigation document 是另一类 projection
-- 对 `handbook_navigation_service_catalog` 这类需要版面理解的 projection，应先把提取结果落成 source bucket 下的 projection artifact，再由 replay 消费该 artifact 生成最终 document
-- attachment-bearing、appendix-bearing、form-like、navigation-like leaf 只要具备独立下游价值，也应作为 explicit derived document projection
+- 对 `handbook_navigation_service_catalog` 这类需要版面理解的 projection，应先把提取结果落成 source
+  bucket 下的 projection artifact，再由 replay 消费该 artifact 生成最终 document
+- attachment-bearing、appendix-bearing、form-like、navigation-like leaf
+  只要具备独立下游价值，也应作为 explicit derived document projection
 
 禁止做法：
 
 - 不允许 handbook-only replay 继续作为长期唯一 replay 语义
-- 不允许 later collection work 在 canonical source truth 已存在时返回 raw PDF 重新消费；do not return to raw
+- 不允许 later collection work 在 canonical source truth 已存在时返回 raw PDF 重新消费；do not
+  return to raw
 - 不允许继续把 `campus_services` handbook output 维持成独立 migration worldview
-- 不允许 `handbook_navigation_service_catalog` 在 `provider_response_replay` 时重新渲染 PDF 或重新调用外部提取；缺失 projection artifact 时应 fail closed
+- 不允许 `handbook_navigation_service_catalog` 在 `provider_response_replay` 时重新渲染
+  PDF 或重新调用外部提取；缺失 projection artifact 时应 fail closed
 - 不允许把 attachment semantics 永久困在 handbook cleanup 内部而不生成 stable derived document
 
 ## 推荐的归一化层次
@@ -165,10 +200,12 @@ handbook 的 canonical rebuild contract 固定如下：
 
 - 统一换行、空白、Unicode 兼容形态
 - 统一页码语义为 1-based `page_start/page_end`
-- 统一 block 类型到内部枚举，例如 `heading`、`paragraph`、`table`、`image`、`header`、`footer`、`page_number`、`footnote`、`caption`、`list_item`、`unknown`
+- 统一 block 类型到内部枚举，例如 `heading`、`paragraph`、`table`、`image`、`header`、`footer`、`p
+  age_number`、`footnote`、`caption`、`list_item`、`unknown`
 - 保留 reading order、bbox、provider page id、provider block id、置信度和原始 payload 引用
 - 同时保留 `text_raw` 和轻量 `text_normalized`
-- 允许补充 source-level hints，例如 repeated candidate、跨页延续、表格片段、父标题线索，但这些字段只能作为 split / cleanup 的输入提示
+- 允许补充 source-level hints，例如 repeated candidate、跨页延续、表格片段、父标题线索，但这些字段只能作为 split
+  / cleanup 的输入提示
 
 这一层不应该做：
 
@@ -192,7 +229,8 @@ handbook 的 canonical rebuild contract 固定如下：
 这一层同时承担 projection planning 的输入职责：
 
 - handbook 主文档 projection 使用显式 split truth 产出 regulations 文档
-- attachment / appendix / form / navigation-like leaf 的 projection 也必须从同一 source truth 选段，而不是单独重新 OCR 或单独回 raw
+- attachment / appendix / form / navigation-like leaf 的 projection 也必须从同一 source
+  truth 选段，而不是单独重新 OCR 或单独回 raw
 - handbook-derived `campus_services` document 应共享同一 parent/source provenance 约定
 
 ### 3. Document-Level Cleaning
@@ -309,7 +347,8 @@ Unit normalization 必须满足以下边界：
 
 ## 推荐的 `layout-elements.jsonl` 最小字段
 
-`layout-elements.jsonl` 应代表 asset 级 source rows，而不是 document-level chunks。建议最小字段分成五组：
+`layout-elements.jsonl` 应代表 asset 级 source rows，而不是 document-level
+chunks。建议最小字段分成五组：
 
 ### A. Source Identity
 
@@ -368,7 +407,8 @@ Unit normalization 必须满足以下边界：
 - `table_has_merged_cells`
 - `table_caption_hint`
 
-其中 `text_normalized` 应只承担轻量归一化，例如换行、空白、NFKC；不要在这里做语义重写。真正面向检索的 `clean_text` 仍然应在 document-level cleaning 之后生成。
+其中 `text_normalized` 应只承担轻量归一化，例如换行、空白、NFKC；不要在这里做语义重写。真正面向检索的 `clean_text` 仍然应在
+document-level cleaning 之后生成。
 
 这些 hint 的使用边界必须固定如下：
 
@@ -377,46 +417,70 @@ Unit normalization 必须满足以下边界：
 - 它们不应直接进入 document registry
 - 它们不应直接进入 retrieval payload 作为最终事实
 
-当前 handbook 实现已经升级到 `student_handbook_layout_elements_v3`。`v3` 在保留 `v2` 结构能力的基础上，进一步完成了两类 contract 收口：
+当前 handbook 实现已经升级到 `student_handbook_layout_elements_v3`。`v3` 在保留 `v2`
+结构能力的基础上，进一步完成了两类 contract 收口：
 
-- repo 级 source-truth 共享 contract 统一使用 `classification_confidence`，不再使用容易误导的 `semantic_confidence`
-- source-truth contract 明确禁止提前携带 document/chunk 语义，collection-specific document text 只能在 document-level cleaning 之后生成
+- repo 级 source-truth 共享 contract 统一使用 `classification_confidence`，不再使用容易误导的
+  `semantic_confidence`
+- source-truth contract 明确禁止提前携带 document/chunk 语义，collection-specific document
+  text 只能在 document-level cleaning 之后生成
 
 `v2` 相比早期最小 contract 的变化主要有三类：
 
-- repeated candidate 不再只靠 `row_type in {header, footer, page_number}` 的静态命中；会结合跨页频次与版面位置补充 `repeat_cluster_id / repeat_frequency / repeat_position_band`
-- `number`、`aside_text`、`vertical_text` 等 provider label 不再无条件强映射；判不准时优先保守落到 `paragraph`
-- source rows 会补 `continues_from_previous_page / continues_to_next_page`、`table_fragment_id` 等 hint，供后续 document cleanup 使用
+- repeated candidate 不再只靠 `row_type in {header, footer, page_number}`
+  的静态命中；会结合跨页频次与版面位置补充 `repeat_cluster_id / repeat_frequency /
+  repeat_position_band`
+- `number`、`aside_text`、`vertical_text` 等 provider label 不再无条件强映射；判不准时优先保守落到
+  `paragraph`
+- source rows 会补 `continues_from_previous_page /
+  continues_to_next_page`、`table_fragment_id` 等 hint，供后续 document cleanup 使用
 
 ## 推荐的 document-level 归一化策略
 
 在 handbook 被切成单篇制度文档后，建议固定以下规则：
 
-- `document_id` 继续采用稳定标题哈希策略，但不再把短期来源名编码为长期前缀；canonical object key 对外展示使用 `title_slug--{docid8}`
+- `document_id` 继续采用稳定标题哈希策略，但不再把短期来源名编码为长期前缀；canonical object key 对外展示使用
+  `title_slug--{docid8}`
 - `revision_track` 作为语义文本表示线固定存档；第一阶段 OCR ingest / replay 默认写 `source-faithful`
 - `version_id` 由规范化后的 `title + body` 生成，不绑定 source asset 文件名或 provider job
 - `source_channel` 显式记录来源渠道；第一阶段 OCR ingest / replay 默认写 `pdf_ocr`
 - `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
-- `source-faithful` 是审计/回放表示线，不是长期默认 serving line；query-serving 默认应优先消费 `current-effective`，只有在 collection runtime profile 显式允许时，才把 current 的 `source-faithful` 作为过渡 fallback
-- 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id + revision_track + version_id`；差异保留在 provenance，而不是扩成两份 serving document
+- `source-faithful` 是审计/回放表示线，不是长期默认 serving line；query-serving 默认应优先消费
+  `current-effective`，只有在 collection runtime profile 显式允许时，才把 current 的
+  `source-faithful` 作为过渡 fallback
+- 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id +
+  revision_track + version_id`；差异保留在 provenance，而不是扩成两份 serving document
 - `policy_doc_no` 仅在可稳定识别时保留
-- metadata-only 前导信息只进入 canonical metadata / contextualization 输入，不单独生成 `policy_page` unit
+- metadata-only 前导信息只进入 canonical metadata / contextualization 输入，不单独生成
+  `policy_page` unit
 - `page_start/page_end` 属于文档真相，不应由 chunking 事后回推
-- `document-units.jsonl` 必须写 `doc_id`、`version_id`、`unit_type`、`anchor`、`clean_text`
+- `document-units.jsonl` 必须写
+  `doc_id`、`version_id`、`unit_type`、`anchor`、`clean_text`
 - `chunk_id`、embedding、Qdrant payload 仍然是更下游派生物，不回写 canonical markdown
 
 ## 与现有仓库边界的对应关系
 
-- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/...` 保存 corpus-agnostic 的 retained source snapshot
-- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/...` 保留 source 级 `provider-response.jsonl`
-- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/...` 保留 source 级 `layout-elements.jsonl`
+- source bucket 的
+  `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/capture/...` 保存
+  corpus-agnostic 的 retained source snapshot
+- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/
+  provider/{model_slug}/...` 保留 source 级 `provider-response.jsonl`
+- source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/
+  source-truth/...` 保留 source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
-- `regulations/documents/student_rules/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
+- `regulations/documents/student_rules/.../document-units.jsonl` 继续作为
+  `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_rules` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
-- `handbook_navigation_service_catalog` 的 replay 输入应表述为 source bucket 下 `{raw_asset_id}/{raw_version_id}/projection/<projection_name>/flow-graph.json`，而不是 raw PDF
-- handbook 中的电话目录页不再保留在 `regulations/student_rules` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
-- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
+- `handbook_navigation_service_catalog` 的 replay 输入应表述为 source bucket 下 `{raw_as
+  set_id}/{raw_version_id}/projection/<projection_name>/flow-graph.json`，而不是 raw
+  PDF
+- handbook 中的电话目录页不再保留在 `regulations/student_rules` 的 split truth；后续应作为 declared
+  projection 派生进入 `campus_services/contact_directory`
+- handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标
+  collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定
+  lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`
+  source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
 
 ## Representation 规则
 
@@ -431,24 +495,30 @@ Unit normalization 必须满足以下边界：
 - handbook OCR ingest / replay 一律写入 `revision_track=source-faithful`
 - `source_channel` 一律写入 `pdf_ocr`
 - `is_current=false`
-- 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` revision_track，而不是覆盖 `source-faithful`
-- 一旦 `current-effective` 建立，query-serving 应通过 runtime profile 只消费被标记为 current 的 serving revision_track，而不是让历史 `source-faithful` 继续默认参与检索
-- 当同内容多来源合并为同一逻辑版本时，`current-effective` 的 primary source 默认优先 `official_web`，`source-faithful` 的 primary source 默认优先 `pdf_ocr`
+- 后续如果引入官网对照更新后的制度正文，应新增 `current-effective` revision_track，而不是覆盖
+  `source-faithful`
+- 一旦 `current-effective` 建立，query-serving 应通过 runtime profile 只消费被标记为 current 的
+  serving revision_track，而不是让历史 `source-faithful` 继续默认参与检索
+- 当同内容多来源合并为同一逻辑版本时，`current-effective` 的 primary source 默认优先
+  `official_web`，`source-faithful` 的 primary source 默认优先 `pdf_ocr`
 
 ## 参考
 
 外部主流实践参考：
 
-- Azure AI Search: structure-aware semantic chunking with Document Layout and index projections
-  https://learn.microsoft.com/en-us/azure/search/search-how-to-semantic-chunking
-- Google Cloud Document AI Layout Parser: layout-first parsing and chunking guidance
-  https://cloud.google.com/document-ai/docs/layout-parse-chunk
+- Azure AI Search: structure-aware semantic chunking with Document Layout and
+  index projections
+  <<https://learn.microsoft.com/en-us/azure/search/search-how-t>
+  o-semantic-chunking>
+- Google Cloud Document AI Layout Parser: layout-first parsing and chunking
+  guidance <https://cloud.google.com/document-ai/docs/layout-parse-chunk>
 - LlamaIndex: `Document -> Node` parsing and metadata inheritance model
-  https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/
+  <https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/>
 
 本地参考：
 
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `/home/reptilian/code/campusRag/docs/rag/student-handbook-canonical-schema.md`
-- `/home/reptilian/code/campusRag/packages/rag-core/src/campusrag/pipelines/ingest/build_structured_from_clean_markdown.py`
+- `/home/reptilian/code/campusRag/packages/rag-core/src/campusrag/pipelines/inge
+  st/build_structured_from_clean_markdown.py`

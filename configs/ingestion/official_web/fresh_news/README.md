@@ -1,4 +1,4 @@
-## fresh_news collection config
+# fresh_news collection config
 
 This directory holds the repo-tracked runtime profile for the `fresh_news`
 collection within the `official_web` corpus.
@@ -33,11 +33,11 @@ Boundary notes:
 
 - this collection is reserved for news, notices, activities, lectures, and
   media-style public-web content
-- even after import/release exists, this surface is not allowed to answer
-  `今天 / 最新 / 最近` style asks until a separate freshness gate is proven
+- even after import/release exists, this surface is not allowed to answer `今天 /
+  最新 / 最近` style asks until a separate freshness gate is proven
 - the current handoff input remains the `future_fresh_news_surface` subset in
-  `official_web/muc_public_pages`, and `projection-routing.json` now routes
-  that fixed seed set into `official_web/fresh_news`
+  `official_web/muc_public_pages`, and `projection-routing.json` now routes that
+  fixed seed set into `official_web/fresh_news`
 - declaring this profile and baseline does not mean the collection is already
   query-ready
 - listing pages remain discovery/freshness-trigger/navigation-only hints; they

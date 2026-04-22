@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-11
 updated: 2026-04-11
 ---
-
 # ADR-0036 Notice-Derived Non-Regulation Rule Boundary
 
 ## 状态
@@ -14,9 +13,8 @@ Accepted on 2026-04-11.
 
 ## 背景
 
-`authenticated_notice_portal -> campus_notices/internal_notice -> regulation promotion`
-这条线在 2026-04-11 已经冻结出一批明确不应进入
-`regulations/institutional_rules` 的文档：
+`authenticated_notice_portal -> campus_notices/internal_notice -> regulation
+promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regulations/institutional_rules` 的文档：
 
 - 年度 / 项目制招生实施细则
 - 假期期间运营规则
@@ -54,7 +52,8 @@ Accepted on 2026-04-11.
 
 在新的 semantic-owner collection 明确之前，当前 canonical truth 固定为：
 
-- wrapper notice、manual-review outcome、relation truth 继续留在 `campus_notices/internal_notice`
+- wrapper notice、manual-review outcome、relation truth 继续留在
+  `campus_notices/internal_notice`
 - `manual_review_required` 不再表示“语义不明”，而表示“当前 owner surface 尚未开放”
 - 这类文档当前不进入 `regulations/*`
 
@@ -108,24 +107,29 @@ Accepted on 2026-04-11.
 
 - `regulations/institutional_rules` 的边界进一步明确为“稳定正式规章正文”
 - `internal_notice` 的 `manual_review_required` 现在具备清晰含义，不再是 catch-all
-- 未来如果要消费招生实施细则或运营规则，必须先定义 dedicated semantic-owner surface 和 query policy，而不是反向污染 `regulations/*`
+- 未来如果要消费招生实施细则或运营规则，必须先定义 dedicated semantic-owner surface 和 query
+  policy，而不是反向污染 `regulations/*`
 
 ## Supporting Rationale
 
-- Azure AI Search 官方文档把 freshness 建模为 ranking/function metadata，而不是 validity truth：
-  - https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles
+- Azure AI Search 官方文档把 freshness 建模为 ranking/function metadata，而不是 validity
+  truth：
+  - <https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles>
 - Azure AI Search 官方文档要求 filterable fields 显式进入 schema：
-  - https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index
-- Qdrant 官方文档建议默认优先单 collection + payload partitioning，只有在确实需要隔离时再拆多个 collections：
-  - https://qdrant.tech/documentation/guides/multitenancy/
+  - <https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index>
+- Qdrant 官方文档建议默认优先单 collection + payload partitioning，只有在确实需要隔离时再拆多个
+  collections：
+  - <https://qdrant.tech/documentation/guides/multitenancy/>
 
 这些外部资料支持的推断是：
 
-- 在 dedicated semantic-owner surface 尚未打开前，把这类文档继续留在 source-triage collection，并通过 metadata / query policy 约束其 future routing，比仓促新增 collection 更稳
+- 在 dedicated semantic-owner surface 尚未打开前，把这类文档继续留在 source-triage
+  collection，并通过 metadata / query policy 约束其 future routing，比仓促新增 collection 更稳
 
 ## Related Docs
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `.planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-review-adjudication.md`
+- `.planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-re
+  view-adjudication.md`

@@ -19,6 +19,7 @@ updated: 2026-04-20
 
 ## Collaboration / Workstream Claims
 
+- `workstream-harness-workflow.md`
 - `workstream-claim-workflow.md`
 - `public-product-path-safety-ops-runbook.md`
 
@@ -56,6 +57,10 @@ updated: 2026-04-20
 
 - `student-handbook-hybrid-rebuild-checklist.md`
 - `curriculum-plan-hybrid-rebuild-checklist.md`
+
+## Eval / Acceptance automation
+
+- `eval-release-gate-automation.md`
 
 ## Historical / Comparison Archive
 

@@ -4,7 +4,6 @@ status: active
 created: 2026-03-27
 updated: 2026-04-20
 ---
-
 # Student Handbook Eval Metrics
 
 ## 目的
@@ -18,7 +17,8 @@ updated: 2026-04-20
 
 边界：
 
-- live rebuild、collection schema、points count 与 query 验收步骤仍以 `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
+- live rebuild、collection schema、points count 与 query 验收步骤仍以
+  `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
 - 本文不承担当前执行状态板
 - 本文不长期暴露 `.tmp` artifact 路径
 
@@ -28,12 +28,11 @@ repo-tracked 基线入口固定为：
 
 - retrieval qrels：
   `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
-- workflow / release gate：
-  `packages/evals/src/campus_evals/scenarios.py`
+- workflow / release gate： `packages/evals/src/campus_evals/scenarios.py`
 - supplemental policy：
   `packages/evals/fixtures/student_handbook_judge_gate_policy.json`
-- live benchmark entry：
-  `uv run --all-packages python -m campus_evals.handbook_live_benchmark ...`
+- live benchmark entry： `uv run --all-packages python -m
+  campus_evals.handbook_live_benchmark ...`
 
 ## Accepted Release Baseline Snapshot
 
@@ -53,8 +52,8 @@ repo-tracked 基线入口固定为：
   - `stable_across_runs = true`
 - supplemental runtime：
   - preflight `3/3 passed`
-  - `https://www.su8.codes /responses = 114/114 success`
-  - `https://ai.gitee.com /embeddings = 19/19 success`
+  - `<https://www.su8.codes> /responses = 114/114 success`
+  - `<https://ai.gitee.com> /embeddings = 19/19 success`
 - supplemental soft gate：
   - `ragas.faithfulness.mean_average_score = 0.9511440940012369`
   - `ragas.answer_relevancy.mean_average_score = 0.8719210262441276`
@@ -168,8 +167,10 @@ deterministic error gate 固定为：
 
 实现落点：
 
-- [backend_qdrant.py](/home/reptilian/code/campus-agent/packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py)
-- [test_backend_qdrant.py](/home/reptilian/code/campus-agent/tests/retrieval/test_backend_qdrant.py)
+- [backend_qdrant.py](/home/reptilian/code/campus-agent/packages/retrieval-core/
+  src/campus_retrieval_core/backend_qdrant.py)
+- [test_backend_qdrant.py](/home/reptilian/code/campus-agent/tests/retrieval/tes
+  t_backend_qdrant.py)
 
 ## Maintenance Rules
 

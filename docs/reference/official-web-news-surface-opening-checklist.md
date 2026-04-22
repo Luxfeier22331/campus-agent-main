@@ -106,8 +106,8 @@ promote 到 active rollout 前，至少需要：
 
 ## 相关文档
 
-- [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-serving-and-news-retrieval-strategy.md)
-- [official-web-freshness-and-incremental-crawling.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-freshness-and-incremental-crawling.md)
+- [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md)
+- [official-web-freshness-and-incremental-crawling.md](/home/reptilian/code/campus-agent/docs/architecture/domains/official-web/freshness-and-incremental-crawling.md)
 - [official-web-fresh-news-surface-handoff.md](/home/reptilian/code/campus-agent/docs/reference/official-web-fresh-news-surface-handoff.md)
 - [official-web-fresh-news-eval-baseline.md](/home/reptilian/code/campus-agent/docs/reference/official-web-fresh-news-eval-baseline.md)
 - [official-web-stable-reference-eval-baseline.md](/home/reptilian/code/campus-agent/docs/reference/official-web-stable-reference-eval-baseline.md)

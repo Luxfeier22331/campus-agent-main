@@ -4,12 +4,12 @@ status: active
 created: 2026-04-14
 updated: 2026-04-14
 ---
-
 # Campus Navigation Authoritative Source Inventory
 
 ## 文档边界
 
-本文只负责中央民族大学 `place_catalog` 当前可用的 authoritative source inventory、candidate inventory 和 admission posture。
+本文只负责中央民族大学 `place_catalog` 当前可用的 authoritative source inventory、candidate
+inventory 和 admission posture。
 
 它回答的是：
 
@@ -30,58 +30,61 @@ updated: 2026-04-14
 ### Primary
 
 - 中央民族大学校园地图
-  - `https://www.muc.edu.cn/xxgk1/xydt.htm`
-  - 用途：
-    - 冻结校区范围
-    - 冻结官方地点名称
-    - 冻结第一批 building / gate / public-facility candidate inventory
+  - `<https://www.muc.edu.cn/xxgk1/xydt.htm`>
+  - 用途： - 冻结校区范围 - 冻结官方地点名称 - 冻结第一批 building / gate / public-facility candidate
+    inventory
 
 - 中央民族大学校园导游
-  - `https://www.muc.edu.cn/ggfw/xydy.htm`
-  - 用途：
-    - 作为官方补充语境
-    - 验证海淀 / 丰台校区的公共服务语义
-    - 补充校区入口与公共服务场景
+  - `<https://www.muc.edu.cn/ggfw/xydy.htm`>
+  - 用途： - 作为官方补充语境 - 验证海淀 / 丰台校区的公共服务语义 - 补充校区入口与公共服务场景
 
 ### Consumed official map images
 
 - 海淀校区地图
-  - `https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0B_612F3.png`
+  - `<https://www.muc.edu.cn/__local/F/91/AB/7FD57D5626A89FCED2B52241DFC_FD318D0
+    B_612F3.png`>
 
 - 丰台校区地图
-  - `https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2B_26733.jpg`
+  - `<https://www.muc.edu.cn/__local/D/06/88/ED290FD6FCD89E0B4A6A5D0ADDA_11770E2
+    B_26733.jpg`>
 
 ## Source usage rules
 
 - 上述官方来源当前足以作为 canonical place label 与 `campus_scope` 的 authoritative truth。
 - 上述官方来源当前不足以单独作为精确 `point_geometry` truth。
 - 不允许根据示意图上的视觉位置直接反推精确坐标并写入 seed。
-- 如果地点名称和校区归属已确认，但 geometry 仍缺受控来源，可以在以下条件同时满足时以 `point_geometry = null` admitted into seed：
+- 如果地点名称和校区归属已确认，但 geometry 仍缺受控来源，可以在以下条件同时满足时以 `point_geometry = null`
+  admitted into seed：
   - `location_description` 仍可由官方地图支持到 coarse level
   - `source_refs` 显式保留 official page / image URL
   - `verification_state` 明确标记为仍待 field / geometry check
 
 ## External rationale
 
-- `GeoJSON` 的 `Feature` 允许 `geometry = null`，说明“有实体真相但暂缺可用 geometry”是标准可接受形态，而不是必须伪造坐标。
-- 主流 geocoder 也显式区分 `ROOFTOP` 和 `APPROXIMATE` 这类几何置信度，因此近似位置不应被静默提升为 canonical point truth。
+- `GeoJSON` 的 `Feature` 允许 `geometry = null`，说明“有实体真相但暂缺可用
+  geometry”是标准可接受形态，而不是必须伪造坐标。
+- 主流 geocoder 也显式区分 `ROOFTOP` 和 `APPROXIMATE` 这类几何置信度，因此近似位置不应被静默提升为 canonical
+  point truth。
 
 参考：
 
-- `https://datatracker.ietf.org/doc/rfc7946/`
-- `https://developers.google.com/maps/documentation/geocoding/requests-geocoding`
+- `<https://datatracker.ietf.org/doc/rfc7946/`>
+- `<https://developers.google.com/maps/documentation/geocoding/requests-geocodin
+  g`>
 
 ## Admission posture
 
 ### `seed_ready`
 
-满足以下任一受控形态，才允许进入 `configs/ingestion/campus_navigation/place_catalog/seed.v1.json`：
+满足以下任一受控形态，才允许进入
+`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`：
 
 - 官方来源已确认 canonical name
 - 校区归属明确
 - `entity_type` 明确
 - geometry 已有受控来源或既有人工校准
-  - 或者 `point_geometry = null`，但 coarse location description / provenance / verification posture 完整
+  - 或者 `point_geometry = null`，但 coarse location description / provenance /
+    verification posture 完整
 - `verification_state` 可显式落盘
 
 ### `park_pending_geometry`
@@ -130,7 +133,7 @@ updated: 2026-04-14
 
 ### 海淀校区
 
-#### Candidate families already visible on official map
+#### Candidate families already visible on official map（丰台）
 
 - 西校门
 - 东大门
@@ -142,7 +145,7 @@ updated: 2026-04-14
 - 北综合楼
 - 理工楼
 
-#### Current posture
+#### Current posture（丰台）
 
 - `西校门` / `东大门` / `东小门`
   - canonical name 与 campus scope 已确认
@@ -170,7 +173,8 @@ updated: 2026-04-14
 
 #### Current posture
 
-- `综合楼` / `大礼堂` / `学生活动中心` / `综合体育馆` / `北体育场` / `南体育场` / `教师公寓` / `聚贤餐厅` / `馨雅餐厅`
+- `综合楼` / `大礼堂` / `学生活动中心` / `综合体育馆` / `北体育场` / `南体育场` / `教师公寓` / `聚贤餐厅` /
+  `馨雅餐厅`
   - canonical name 与 campus scope 已确认
   - 当前 `park_pending_geometry`
 
@@ -199,7 +203,9 @@ updated: 2026-04-14
 
 ## Next Step Trigger
 
-当前 `1001-02` 已完成第一批 official-label-backed row 的 seed admission。由于 2026-04-14 起当前产品路径已明确暂不支持校内导航，`1001-03` staging/manual acceptance evidence 已转入 backlog `999.2`，等待地图实际上线后再恢复。
+当前 `1001-02` 已完成第一批 official-label-backed row 的 seed admission。由于 2026-04-14
+起当前产品路径已明确暂不支持校内导航，`1001-03` staging/manual acceptance evidence 已转入 backlog
+`999.2`，等待地图实际上线后再恢复。
 
 在此之前，repo 已完成的是：
 

@@ -4,17 +4,18 @@ status: active
 created: 2026-03-29
 updated: 2026-04-12
 ---
-
 # App API Official Web HTTP Contract
 
 ## 文档边界
 
-这份文档冻结 `apps/app-api` 暴露给 `official_web` collector 与 operator runtime 的 HTTP contract。
+这份文档冻结 `apps/app-api` 暴露给 `official_web` collector 与 operator runtime 的 HTTP
+contract。
 
 它补充但不替代以下文档：
 
-- `official_web` control-plane 形态：`docs/architecture/official-web-architecture.md`
-- source-channel 总边界：`docs/architecture/official-web-architecture.md`
+- `official_web` control-plane
+  形态：`docs/architecture/domains/official-web/architecture.md`
+- source-channel 总边界：`docs/architecture/domains/official-web/architecture.md`
 - 领域导航：`docs/domains/official-web.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 - logical schema：`docs/data/app-api-official-web-schema.md`
@@ -34,17 +35,19 @@ updated: 2026-04-12
 
 判断当前已实现子集时：
 
-- 当前已落地能力以 `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 和代码为准
+- 当前已落地能力以
+  `docs/architecture/current-architecture.md`、`docs/domains/official-web.md`
+  和代码为准
 - 当前 accepted direction 与长期边界以本文、supporting architecture、schema 与相关 ADR 为准
 
 ## 适用范围
 
 这里的 HTTP surface 分成两组：
 
-- collector command endpoints
-  machine-to-machine 调用的 start / heartbeat / finalize seam
-- operator query endpoints
-  `protected-panel-web` 通过 runtime APIs 消费的 site/run/detail seam
+- collector command endpoints machine-to-machine 调用的 start / heartbeat /
+  finalize seam
+- operator query endpoints `protected-panel-web` 通过 runtime APIs 消费的
+  site/run/detail seam
 
 命名规则固定为：
 
@@ -87,7 +90,7 @@ updated: 2026-04-12
 - operator 写操作 API
 - object storage proxy/download API
 
-## Collector Command Endpoints
+## Collector Command Endpoint Details
 
 ### `POST /api/official-web/runs`
 
@@ -198,7 +201,8 @@ updated: 2026-04-12
 - `hot` 主要返回 `listing_hot` 与 `detail_recent` 且已到期的页面
 - `repair` 主要返回 `lastFetchDisposition=fetch_failed` 的页面
 - `deleted` 页面不会重新进入 planner workset，除非后续被重新发现并写回 freshness truth
-- `hostFilter`、`maxPagesPerHost`、`maxTotalPages` 是本次 run 的预算提示，不会改变 `page_freshness` 作为 durable truth 的 ownership
+- `hostFilter`、`maxPagesPerHost`、`maxTotalPages` 是本次 run 的预算提示，不会改变
+  `page_freshness` 作为 durable truth 的 ownership
 
 ### `POST /api/official-web/runs/:runId/heartbeats`
 
@@ -308,16 +312,19 @@ updated: 2026-04-12
 规则：
 
 - finalize 是 terminal action；同一 `runId` 成功 finalize 后不得再次提交不同 terminal payload
-- `pageObservations` 是 collector 向 `app-api` 上报 page-level durable truth 的 seam；不再只靠 artifact ref 间接表达
+- `pageObservations` 是 collector 向 `app-api` 上报 page-level durable truth 的
+  seam；不再只靠 artifact ref 间接表达
 - `terminalStatus` 第一版允许：
   - `completed`
   - `completed_with_errors`
   - `failed`
 - `artifacts` 只登记 object-storage refs，不内嵌 artifact 内容
-- `app-api` 会基于 `pageObservations` 计算 `new / changed / deleted / not_modified / fetch_failed`
-- ingestion handoff payload 只推进 `new / changed / deleted` 变化集合；`not_modified` 与 `fetch_failed` 只更新 freshness truth、operator summary 与后续 repair cadence
+- `app-api` 会基于 `pageObservations` 计算 `new / changed / deleted / not_modified /
+  fetch_failed`
+- ingestion handoff payload 只推进 `new / changed / deleted` 变化集合；`not_modified` 与
+  `fetch_failed` 只更新 freshness truth、operator summary 与后续 repair cadence
 
-## Operator Query Endpoints
+## Operator Query Endpoint Details
 
 ### `GET /api/operator/official-web/sites`
 
@@ -484,7 +491,8 @@ updated: 2026-04-12
 
 - run detail 直接返回 `run + pageChangeSummary + pageChanges`，不再要求 panel 额外拼接多个读取面
 - operator query 中的 `pageChanges` 会展示 `new / changed / deleted / fetch_failed`
-- `not_modified` 不进入 run/site detail 的 recent change 列表，但会保留在 summary 与 freshness truth 中
+- `not_modified` 不进入 run/site detail 的 recent change 列表，但会保留在 summary 与
+  freshness truth 中
 
 ## 非目标
 

@@ -4,7 +4,6 @@ status: active
 created: 2026-04-19
 updated: 2026-04-19
 ---
-
 # Dev-Backed Supervisor Staging Operations
 
 ## 文档边界
@@ -25,9 +24,9 @@ updated: 2026-04-19
   - `127.0.0.1:8081`
 - named tunnel
   - tunnel name: `supervisor-api-staging`
-  - public hostname: `https://exec-staging.ayafeed.com`
+  - public hostname: `<https://exec-staging.ayafeed.com`>
 - shared staging `app-api`
-  - `https://campus-api-staging.ayafeed.com`
+  - `<https://campus-api-staging.ayafeed.com`>
 - 常驻机制
   - Windows scheduled task: `CampusAgent-DevBackedSupervisorStaging`
   - WSL-side lifecycle scripts: `infra/local/staging/*.sh`
@@ -50,7 +49,9 @@ infra/local/staging/install-dev-backed-supervisor-staging-task.sh
 安装后核对：
 
 ```bash
-powershell.exe -NoProfile -Command "Get-ScheduledTask -TaskName 'CampusAgent-DevBackedSupervisorStaging' | Format-List TaskName,Description,Triggers,Actions"
+powershell.exe -NoProfile -Command \
+  "Get-ScheduledTask -TaskName 'CampusAgent-DevBackedSupervisorStaging' | \
+  Format-List TaskName,Description,Triggers,Actions"
 ```
 
 应看到：
@@ -59,8 +60,9 @@ powershell.exe -NoProfile -Command "Get-ScheduledTask -TaskName 'CampusAgent-Dev
 - action 通过 `wsl.exe ... bash -lc` 进入当前 repo
 - action 会显式注入：
   - `DEV_BACKED_SUPERVISOR_TUNNEL_NAME=supervisor-api-staging`
-  - `DEV_BACKED_SUPERVISOR_PUBLIC_BASE_URL=https://exec-staging.ayafeed.com`
-  - `DEV_BACKED_SUPERVISOR_APP_API_BASE_URL=https://campus-api-staging.ayafeed.com`
+  - `DEV_BACKED_SUPERVISOR_PUBLIC_BASE_URL=<https://exec-staging.ayafeed.com`>
+  - `DEV_BACKED_SUPERVISOR_APP_API_BASE_URL=<https://campus-api-staging.ayafeed.
+    com`>
 - trigger 包含：
   - 登录时执行一次
   - 每 5 分钟重复执行一次
@@ -83,15 +85,17 @@ infra/local/staging/status-dev-backed-supervisor-staging.sh --check
 
 - `supervisor-api` 进程存在
 - `cloudflared` 进程存在
-- 本地 `http://127.0.0.1:8081/readyz` 返回 `200`
-- `https://exec-staging.ayafeed.com/readyz` 返回 `200`
-- `https://campus-api-staging.ayafeed.com/readyz` 返回 `200`
+- 本地 `<http://127.0.0.1:8081/readyz`> 返回 `200`
+- `<https://exec-staging.ayafeed.com/readyz`> 返回 `200`
+- `<https://campus-api-staging.ayafeed.com/readyz`> 返回 `200`
 - `campus-api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
 
 计划任务层状态：
 
 ```bash
-powershell.exe -NoProfile -Command "Get-ScheduledTaskInfo -TaskName 'CampusAgent-DevBackedSupervisorStaging' | Format-List LastRunTime,LastTaskResult,NextRunTime,NumberOfMissedRuns"
+powershell.exe -NoProfile -Command \
+  "Get-ScheduledTaskInfo -TaskName 'CampusAgent-DevBackedSupervisorStaging' | \
+  Format-List LastRunTime,LastTaskResult,NextRunTime,NumberOfMissedRuns"
 ```
 
 ## 冷启动恢复
@@ -100,16 +104,21 @@ powershell.exe -NoProfile -Command "Get-ScheduledTaskInfo -TaskName 'CampusAgent
 
 ```bash
 infra/local/staging/stop-dev-backed-supervisor-staging.sh
-powershell.exe -NoProfile -Command "Start-ScheduledTask -TaskName 'CampusAgent-DevBackedSupervisorStaging'"
-until infra/local/staging/status-dev-backed-supervisor-staging.sh --check; do sleep 2; done
+powershell.exe -NoProfile -Command \
+  "Start-ScheduledTask -TaskName 'CampusAgent-DevBackedSupervisorStaging'"
+until infra/local/staging/status-dev-backed-supervisor-staging.sh --check; do \
+  sleep 2; done
 ```
 
 说明：
 
-- `Start-ScheduledTask` 会比 WSL 内部 `start-dev-backed-supervisor-staging.sh` 完成得更早返回
-- 因此冷启动后第一下 `status --check` 可能只是在任务真正拉起前抢跑；canonical 操作是轮询到 green，而不是立刻把第一下失败当成回归
+- `Start-ScheduledTask` 会比 WSL 内部 `start-dev-backed-supervisor-staging.sh`
+  完成得更早返回
+- 因此冷启动后第一下 `status --check` 可能只是在任务真正拉起前抢跑；canonical 操作是轮询到
+  green，而不是立刻把第一下失败当成回归
 
-如果轮询到超时或持续失败，先不要手工再拉第二套命令；先看日志，再判断是 `supervisor-api`、`cloudflared` 还是 shared `app-api` 失效。
+如果轮询到超时或持续失败，先不要手工再拉第二套命令；先看日志，再判断是 `supervisor-api`、`cloudflared` 还是 shared
+`app-api` 失效。
 
 ## 日志与轮转
 
@@ -146,12 +155,14 @@ until infra/local/staging/status-dev-backed-supervisor-staging.sh --check; do sl
 
 `status --check` 报 `app-api readyz ...`
 
-- 说明这台开发机的本地 supervisor 可能是健康的，但 shared staging `app-api` 自身或它到 supervisor 的依赖不健康
+- 说明这台开发机的本地 supervisor 可能是健康的，但 shared staging `app-api` 自身或它到 supervisor
+  的依赖不健康
 - 直接检查：
 
 ```bash
 curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
 ```
 
-- 如果是 `auth` / `database` 失败，按 `staging-worker-deploy-runbook.md` 处理 shared app-api lane
+- 如果是 `auth` / `database` 失败，按 `staging-worker-deploy-runbook.md` 处理 shared
+  app-api lane
 - 如果只有 `supervisorApi` 失败，回到这份 runbook 的冷启动恢复流程

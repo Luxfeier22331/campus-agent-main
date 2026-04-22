@@ -4,12 +4,12 @@ status: active
 created: 2026-04-14
 updated: 2026-04-14
 ---
-
 # Runtime Delivery And Release Hardening Architecture
 
 ## 文档边界
 
-本文冻结 public chat、protected panel、shared `app-api` 三个 Worker surface 的长期 delivery / release hardening supporting architecture。
+本文冻结 public chat、protected panel、shared `app-api` 三个 Worker surface 的长期 delivery
+/ release hardening supporting architecture。
 
 它回答的是：
 
@@ -33,22 +33,27 @@ updated: 2026-04-14
 
 三端 Worker surface 的长期发布闭环固定为：
 
-`repo-owned config truth -> pre-deploy config/secret gate -> deploy-time release identity injection -> post-deploy smoke -> observability evidence artifact`
+`repo-owned config truth -> pre-deploy config/secret gate -> deploy-time release
+identity injection -> post-deploy smoke -> observability evidence artifact`
 
 固定约束：
 
-- `apps/public-chat-web`、`apps/protected-panel-web`、`apps/app-api` 必须共享一套 release hardening discipline，但仍保持独立 deploy unit
-- staging baseline 当前固定为 `campus-api-staging.ayafeed.com`、`campus-chat-staging.ayafeed.com`、`campus-panel-staging.ayafeed.com`
-- `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它通过显式 injected upstream 参与 staging execution seam
-- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence 共同决定
+- `apps/public-chat-web`、`apps/protected-panel-web`、`apps/app-api` 必须共享一套
+  release hardening discipline，但仍保持独立 deploy unit
+- staging baseline 当前固定为 `campus-api-staging.ayafeed.com`、`campus-chat-staging.a
+  yafeed.com`、`campus-panel-staging.ayafeed.com`
+- `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它通过显式 injected
+  upstream 参与 staging execution seam
+- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
+  共同决定
 
 ## Staging Baseline
 
 当前 accepted staging baseline 固定为：
 
-- `apps/app-api` -> `https://campus-api-staging.ayafeed.com`
-- `apps/public-chat-web` -> `https://campus-chat-staging.ayafeed.com`
-- `apps/protected-panel-web` -> `https://campus-panel-staging.ayafeed.com`
+- `apps/app-api` -> `<https://campus-api-staging.ayafeed.com`>
+- `apps/public-chat-web` -> `<https://campus-chat-staging.ayafeed.com`>
+- `apps/protected-panel-web` -> `<https://campus-panel-staging.ayafeed.com`>
 
 长期规则：
 
@@ -78,19 +83,22 @@ release identity 的长期规则固定为：
 
 - required secret presence 必须在 deploy 前显式校验
 - non-secret runtime truth 可以存在于 repo-owned config
-- operator Access team domain、policy audience、deploy-side DB operator URL 等环境值继续通过 shell / secret store 注入，不回写 repo
+- operator Access team domain、policy audience、deploy-side DB operator URL
+  等环境值继续通过 shell / secret store 注入，不回写 repo
 
 ### Cross-App Invariants
 
 - public/panel 都必须指向同一个 `app-api` staging origin
-- internal shared secret、operator allowlist、public chat allowlist 必须按跨 app invariant 收口
+- internal shared secret、operator allowlist、public chat allowlist 必须按跨 app
+  invariant 收口
 - `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL`、`PANEL_RUNTIME_API_BASE_URL` 不能漂移
 
 ### Data Freshness / DB Gate
 
 - shared Postgres schema 必须先和 repo 当前 snapshot 对齐
 - `APP_API_DB` 与 `APP_API_DB_FRESH` 必须继续分 lane
-- auth 与其他 read-after-write-sensitive path 必须走 fresh lane，不接受被缓存 negative lookup 污染
+- auth 与其他 read-after-write-sensitive path 必须走 fresh lane，不接受被缓存 negative lookup
+  污染
 
 ### Upstream Execution Gate
 
@@ -107,8 +115,10 @@ release identity 的长期规则固定为：
 固定规则：
 
 - `Missing Access JWT.` 只能说明入口保护未完成，不能当成 deploy success
-- Access application audience 与 team domain 是 runtime admission contract，不是 repo placeholder
-- operator allowlist miss 导致的 `operator_identity_not_admitted` 属于 release-hardening miss，不属于 panel 产品逻辑问题
+- Access application audience 与 team domain 是 runtime admission contract，不是 repo
+  placeholder
+- operator allowlist miss 导致的 `operator_identity_not_admitted` 属于
+  release-hardening miss，不属于 panel 产品逻辑问题
 
 ## Smoke Identity
 
@@ -156,7 +166,7 @@ post-deploy verification 的长期 closure 固定为：
 
 ## 相关稳定文档
 
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/runbooks/staging-worker-deploy-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 - `docs/environment/README.md`

@@ -8,7 +8,8 @@
 
 - 负责用户目标路由、agent 委派、结果组装、澄清升级和最小审计
 - 当前默认 query-serving 主线仍是 `rag-agent`
-- 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal agent handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
+- 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal agent handoff`
+  的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
 
@@ -16,7 +17,7 @@
 
 - `../../AGENTS.md`
 - `../../docs/architecture/target-architecture.md`
-- `../../docs/architecture/execution-and-agents-architecture.md`
+- `../../docs/architecture/system/execution-and-agents-architecture.md`
 - `../../docs/reference/runtime-serving-and-index-terms.md`
 - `../../docs/architecture/target-architecture.md`
 - `src/campus_supervisor_core/__init__.py`
@@ -24,7 +25,8 @@
 
 ## Owns
 
-- request framing：把共享 `SupervisorRequest` 投影成 supervisor 内部上下文，并在内部构造 `SpecialistRequest`
+- request framing：把共享 `SupervisorRequest` 投影成 supervisor 内部上下文，并在内部构造
+  `SpecialistRequest`
 - 会话入口后的意图框定
 - 选择委派给哪个 agent
 - 当前 corpus routing decision
@@ -56,15 +58,20 @@
 边界规则：
 
 - `apps/supervisor-api` 负责 AgentOS/runtime 与外部 API 壳；不要把 transport/auth 设置回灌到这里
-- `apps/supervisor-api` 只负责 auth mapping、trace propagation、`SupervisorRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
+- `apps/supervisor-api` 只负责 auth mapping、trace propagation、`SupervisorRequest`
+  构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly
+  放回 API shell
 - `packages/rag-agent` 负责 retrieval 导向的 agent 逻辑；不要在这里越级实现 agent 内部策略
-- `packages/contracts` 是唯一共享 request/handoff/schema 边界；不要绕过 `SupervisorRequest` / `SpecialistRequest` / `SpecialistResponse` 私自发明并行接口
+- `packages/contracts` 是唯一共享 request/handoff/schema 边界；不要绕过 `SupervisorRequest`
+  / `SpecialistRequest` / `SpecialistResponse` 私自发明并行接口
 
 ## Current Serving Constraints
 
-- 当前默认 query-serving 已开放 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- 当前默认 query-serving 已开放 `regulations/student_rules` 与
+  `curriculum/curriculum_plan`
 - 当前默认 retrieval 问答主线仍然优先走 `rag-agent`，但 API shell 不应再把它写死成唯一 transport 构造
-- 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile 为准
+- 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile
+  为准
 - 不要直接拼接对象存储逻辑
 - 不要越过 agent/retrieval 层访问 registry、Qdrant 或 MinIO
 - 优先保持 `supervisor -> agent` handoff 清晰，而不是引入快捷路径
@@ -96,6 +103,7 @@
 优先使用这些命令验证本目录相关变更：
 
 ```bash
-uv run --all-packages python -m pytest tests/supervisor/test_supervisor_core.py -q
+uv run --all-packages python -m pytest \
+  tests/supervisor/test_supervisor_core.py -q
 uv run --all-packages python -m unittest discover -s tests -t .
 ```

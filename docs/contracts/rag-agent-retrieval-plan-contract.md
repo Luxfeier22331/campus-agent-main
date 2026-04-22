@@ -4,13 +4,12 @@ status: active
 created: 2026-04-21
 updated: 2026-04-22
 ---
-
 # RAG Agent Retrieval Plan Contract
 
 ## 文档边界
 
-本文冻结 `packages/rag-agent` 与 `packages/retrieval-core` 之间的 typed retrieval
-plan seam。
+本文冻结 `packages/rag-agent` 与 `packages/retrieval-core` 之间的 typed retrieval plan
+seam。
 
 它回答的是：
 
@@ -28,13 +27,13 @@ plan seam。
 
 补充约束：
 
-- 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared
-  package placement
+- 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared package
+  placement
 - `Phase 1` 固定把这组类型留在 `rag-agent <-> retrieval-core` internal seam，暂不提升为
   supervisor / browser shared contract
 - 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 与
-  `docs/architecture/retrieval-serving-architecture.md` 的 single-shot baseline 为准；
-  本文冻结的是 target-state 进入实现前必须先明确的 seam truth
+  `docs/architecture/system/retrieval-serving-architecture.md` 的 single-shot baseline
+  为准； 本文冻结的是 target-state 进入实现前必须先明确的 seam truth
 
 ## Core Conclusion
 
@@ -99,8 +98,8 @@ RetrievalPlan
 
 固定语义：
 
-- `query_mode` 复用现有 `current / historical / as_of / compare / freshness_sensitive /
-  live_assisted` vocabulary，不再另造第二套 mode 名称
+- `query_mode` 复用现有 `current / historical / as_of / compare /
+  freshness_sensitive / live_assisted` vocabulary，不再另造第二套 mode 名称
 - `admitted_scopes` 由 capability / serving-surface / authz gate 先决决定，planner 只能在
   这个闭集内排布 steps
 - `version_query` 复用已冻结的 versioned-history truth；plan 不重写版本解析语义
@@ -140,10 +139,9 @@ RetrievalStep
 
 固定语义：
 
-- `selector` 只表达 planner 允许设置的 narrowing intent，不冒充 executor 的完整 request
-  shape
-- authz / visibility filter 不是 planner-owned field；executor 必须从 request context 继续强制
-  enforcement
+- `selector` 只表达 planner 允许设置的 narrowing intent，不冒充 executor 的完整 request shape
+- authz / visibility filter 不是 planner-owned field；executor 必须从 request context
+  继续强制 enforcement
 - step 可以比 plan 更窄，不能比 plan 更宽
 - `depends_on_step_ids` 表达依赖顺序；executor 可以在不破坏依赖的前提下并行独立 steps
 
@@ -186,15 +184,16 @@ RetrievalStep
 
 固定规则：
 
-- `historical / as_of / compare / freshness_sensitive / live_assisted` 是 plan-level query
-  mode，不是 step type
+- `historical / as_of / compare / freshness_sensitive / live_assisted` 是
+  plan-level query mode，不是 step type
 - `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
 - `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
 - `freshness_sensitive` 先走 `freshness_gate`，不能跳过 freshness admission
 - `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `rag-agent`
   可以自动挑选 live target
-- `allow_live_source_lookup=true` 只表示 branch admission；具体 live target selection 仍由上层
-  admitted runtime / tool path 冻结，不属于 `rag-agent` collection runtime profile truth
+- `allow_live_source_lookup=true` 只表示 branch admission；具体 live target selection
+  仍由上层 admitted runtime / tool path 冻结，不属于 `rag-agent` collection runtime
+  profile truth
 
 ## StepResult
 
@@ -307,7 +306,7 @@ browser / supervisor 允许消费的只是：
 
 ## 相关稳定文档
 
-- `docs/architecture/agentic-retrieval-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/data/retrieval-query-activity-model.md`

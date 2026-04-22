@@ -4,7 +4,6 @@ status: active
 created: 2026-03-29
 updated: 2026-03-29
 ---
-
 # Develop Main Release Runbook
 
 ## 文档边界
@@ -19,17 +18,15 @@ updated: 2026-03-29
 它不替代：
 
 - 长期分支模型定义：`README.md`、`AGENTS.md`
-- 当前 phase 执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream `STATE.md`
+- 当前 phase 执行状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
+  `STATE.md`
 - 具体验证命令与 smoke 边界：`docs/runbooks/forward-worker-surface-smoke-runbook.md`
 
 ## 当前分支职责
 
-- `develop`
-  长期集成分支；当前 merged truth 默认指已经回到 `develop` 的状态
-- `main`
-  稳定分支；只承接已经完成集成、验证并准备发布的一批内容
-- feature worktree / feature branch
-  隔离开发面；在合回 `develop` 前，不得被描述成当前 merged truth
+- `develop` 长期集成分支；当前 merged truth 默认指已经回到 `develop` 的状态
+- `main` 稳定分支；只承接已经完成集成、验证并准备发布的一批内容
+- feature worktree / feature branch 隔离开发面；在合回 `develop` 前，不得被描述成当前 merged truth
 
 ## 目标流程
 
@@ -49,9 +46,9 @@ updated: 2026-03-29
 默认做法：
 
 1. feature worktree 基于最新 `develop` 建立
-2. worktree 开发期间周期性同步 `develop`
-3. 在 worktree 内完成本功能所需验证
-4. 通过 PR 或 merge 将 feature worktree 合回 `develop`
+1. worktree 开发期间周期性同步 `develop`
+1. 在 worktree 内完成本功能所需验证
+1. 通过 PR 或 merge 将 feature worktree 合回 `develop`
 
 适用范围：
 
@@ -73,10 +70,10 @@ updated: 2026-03-29
 标准做法：
 
 1. 在 `develop` 上确认本轮准备发布的功能集合
-2. 运行本轮 release 所需验证和 smoke
-3. 确认没有必须阻塞发布的未收口改动
-4. 将 `develop` merge 到 `main`
-5. 在 `main` 上打 release tag 或记录稳定版本快照
+1. 运行本轮 release 所需验证和 smoke
+1. 确认没有必须阻塞发布的未收口改动
+1. 将 `develop` merge 到 `main`
+1. 在 `main` 上打 release tag 或记录稳定版本快照
 
 这意味着：
 
@@ -104,7 +101,7 @@ updated: 2026-03-29
 但 hotfix 完成后必须：
 
 1. 把 hotfix 同步回 `develop`
-2. 确认 `develop` 不再缺失这次修复
+1. 确认 `develop` 不再缺失这次修复
 
 否则 `develop` 和 `main` 会长期分叉，后续 release merge 会反复冲突。
 

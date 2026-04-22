@@ -4,12 +4,12 @@ status: active
 created: 2026-04-02
 updated: 2026-04-21
 ---
-
 # Operator Observability Architecture
 
 ## 文档边界
 
-本文冻结 protected panel、operator audit、quality monitoring、safety monitoring、cost monitoring 与 observability sink participation 的 supporting architecture。
+本文冻结 protected panel、operator audit、quality monitoring、safety monitoring、cost
+monitoring 与 observability sink participation 的 supporting architecture。
 
 它回答的是：
 
@@ -30,9 +30,12 @@ updated: 2026-04-21
 长期 operator observability 形态固定为：
 
 - `protected-panel-web` 是 operator control-plane surface
-- `apps/app-api` 是 operator-facing audit / quality / safety / cost read-model owner
-- `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging / grading sinks
-- panel 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或 `apps/supervisor-api`
+- `apps/app-api` 是 operator-facing audit / quality / safety / cost read-model
+  owner
+- `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging /
+  grading sinks
+- panel 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
+  `apps/supervisor-api`
 
 因此长期主链路固定为：
 
@@ -40,7 +43,8 @@ updated: 2026-04-21
 
 与之并行的 observability chain 固定为：
 
-`runtime boundary -> OTel-first telemetry / trace identity -> sink fan-out -> debugging / analysis / grading`
+`runtime boundary -> OTel-first telemetry / trace identity -> sink fan-out ->
+debugging / analysis / grading`
 
 二者相关，但不是同一条数据面。
 
@@ -55,7 +59,8 @@ updated: 2026-04-21
 - `Quality`
   - retrieval quality、citation coverage、refusal distribution、badcase sampling
 - `Safety/Authz`
-  - ACL decision summary、deny / fail-close posture、projection anomaly、restricted access diagnostics
+  - ACL decision summary、deny / fail-close posture、projection anomaly、restricted
+    access diagnostics
 - `Cost`
   - token usage、estimated cost、model / target / surface 分布
 - `Audit`
@@ -81,7 +86,8 @@ updated: 2026-04-21
 - operator audit projection
 - operator quality / safety / cost aggregate read surfaces
 - operator-facing authz interpretation
-- request identity、trace correlation、projection materialization 与 aggregate publication
+- request identity、trace correlation、projection materialization 与 aggregate
+  publication
 
 它不负责：
 
@@ -105,7 +111,8 @@ updated: 2026-04-21
 - `request projection`
   - request list/detail 的 canonical read model
 - `request-scoped observability fact`
-  - app-owned runtime fact family，用于 rollup、request observability detail、grading / reconciliation join
+  - app-owned runtime fact family，用于 rollup、request observability detail、grading
+    / reconciliation join
 - `request audit projection`
   - request-scoped governance / timeline view
 - `metric rollup`
@@ -115,10 +122,13 @@ updated: 2026-04-21
 
 其中：
 
-- `request projection`、`request audit projection`、`metric rollup`、`quality grade projection` 属于 operator-facing read model
-- `request-scoped observability fact` 属于 app-owned runtime fact family，不等于 panel list/detail read model
+- `request projection`、`request audit projection`、`metric rollup`、`quality grade
+  projection` 属于 operator-facing read model
+- `request-scoped observability fact` 属于 app-owned runtime fact family，不等于 panel
+  list/detail read model
 
-这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；panel 不得通过 raw sink、数据库直连或 runtime-internal package import 拼装它们。
+这些 family 都必须由 `app-api` 或其继任 shared app boundary 拥有；panel 不得通过 raw sink、数据库直连或
+runtime-internal package import 拼装它们。
 
 ## Current Accepted Baseline
 
@@ -126,13 +136,17 @@ updated: 2026-04-21
 
 - panel `Requests` 继续只读 `app-api` projection / observability APIs
 - `Sentry` 与 `Axiom` 只作为 sink、deep link 与分析面参与，不成为 panel canonical truth
-- request-scoped observability fact 已经是 app-owned runtime fact family，而不是 sink query 的别名
-- prompt identity 与 typed runtime branch 现已进入 observability-safe summary seam，但 raw prompt 仍禁止出现在 panel/read-model
+- request-scoped observability fact 已经是 app-owned runtime fact family，而不是 sink
+  query 的别名
+- prompt identity 与 typed runtime branch 现已进入 observability-safe summary seam，但
+  raw prompt 仍禁止出现在 panel/read-model
 
-当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator product surface；这属于 rollout 进度问题，不是 ownership 未定。
+当前尚未全部落成 merged truth 的，是更完整的 `Quality`、`Safety/Authz`、`Cost`、`Audit` operator
+product surface；这属于 rollout 进度问题，不是 ownership 未定。
 
-长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner /
-executor / query activity truth；这属于 target-state observability expansion，不应被误读成当前 merged truth 已开放。
+长期如果推进 full agentic retrieval，operator observability 还必须继续收口 planner / executor
+/ query activity truth；这属于 target-state observability expansion，不应被误读成当前 merged
+truth 已开放。
 
 ## Monitoring Taxonomy
 
@@ -216,8 +230,10 @@ executor / query activity truth；这属于 target-state observability expansion
 固定约束：
 
 - raw `selected_target` 不能被 schema rename、display copy 或 report summary 静默重载
-- panel 默认展示 derived label / display label；只有 debug/filter surface 才直接暴露 raw target
-- 如果未来 admission 新 runtime family，也必须先补 mapping / projection，再开放 operator-facing wording
+- panel 默认展示 derived label / display label；只有 debug/filter surface 才直接暴露 raw
+  target
+- 如果未来 admission 新 runtime family，也必须先补 mapping / projection，再开放 operator-facing
+  wording
 
 ## Agentic Retrieval Monitoring Extension
 
@@ -232,8 +248,8 @@ executor / query activity truth；这属于 target-state observability expansion
 - `live_branch_summary`
   - 是否触发 live retrieval、是否 fail-close、失败原因
 
-这些 summary 必须继续是 observability-safe typed projection，不得把 raw prompt、
-raw snippet dump 或 raw vendor payload 直接暴露给 panel。
+这些 summary 必须继续是 observability-safe typed projection，不得把 raw prompt、 raw snippet
+dump 或 raw vendor payload 直接暴露给 panel。
 
 ## Plan-Level And Step-Level Metrics
 
@@ -305,7 +321,8 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 
 ## Structured Runtime Summary Minimum
 
-当 `campus-services-agent` / `notice-agent` 这类 structured runtime lane 后续真的 admission 到产品主路径时，`request-scoped observability fact` 至少要保留以下 compact fields：
+当 `campus-services-agent` / `notice-agent` 这类 structured runtime lane 后续真的
+admission 到产品主路径时，`request-scoped observability fact` 至少要保留以下 compact fields：
 
 - `selected_target`
 - `tool_name`
@@ -317,16 +334,22 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 这些字段的目标不是把 raw tool dump 暴露给 panel，而是让 operator 能分辨：
 
 - 这次请求进了哪个 structured runtime family
-- 返回的是 current answer、historical reference、canonical body，还是 deterministic fail-close / unavailable
+- 返回的是 current answer、historical reference、canonical body，还是 deterministic
+  fail-close / unavailable
 - 历史降级发生的原因是什么
-- notice 结果来自 public `official_web` 还是 restricted `internal_notice` source family
+- notice 结果来自 public `official_web` 还是 restricted `internal_notice` source
+  family
 
 固定约束：
 
-- 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由 `protected-panel-web`、`apps/supervisor-api` 或 sink query 直接拥有
-- 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source bundle、raw prompt
-- 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic business outcome，而不是把 closed gate 模糊写成普通 success
-- 如果 operator 需要 capability family / 产品命名标签，必须通过独立 projection 或 UI mapping 派生，而不是改写 `selected_target`
+- 这些字段继续由 `app-api` owned request observability fact / audit projection 收口，不由
+  `protected-panel-web`、`apps/supervisor-api` 或 sink query 直接拥有
+- 它们必须保持 summary-only：不返回 raw query args、raw adapter response、raw notice/source
+  bundle、raw prompt
+- 如果 runtime lane 尚未 opening 或本次请求命中 fail-close，这份 summary 也必须记录 deterministic
+  business outcome，而不是把 closed gate 模糊写成普通 success
+- 如果 operator 需要 capability family / 产品命名标签，必须通过独立 projection 或 UI mapping
+  派生，而不是改写 `selected_target`
 
 ### Release-Gate / Regression Evals
 
@@ -350,7 +373,9 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 - 这次 request 以什么 principal / entitlement snapshot 进入系统
 - 进入了哪个 target / capability / surface
 - 是否发生 retrieval、fail-close、approval gate、restricted deny
-- 最终为什么 `completed`、`needs_clarification`、`no_answer`、`approval_required`、`rejected` 或 `error`
+- 最终为什么
+  `completed`、`needs_clarification`、`no_answer`、`approval_required`、`rejected` 或
+  `error`
 - 有没有 operator action 或治理异常需要追踪
 
 长期 audit 允许展示：
@@ -387,7 +412,8 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 
 适合承接：
 
-- `public-chat-web -> app-api` 与 `protected-panel-web -> app-api` trace continuity
+- `public-chat-web -> app-api` 与 `protected-panel-web -> app-api` trace
+  continuity
 - downstream HTTP / timeout / retry failure
 - Worker shell 与 app runtime exception capture
 - request-level trace deep link
@@ -444,9 +470,11 @@ raw snippet dump 或 raw vendor payload 直接暴露给 panel。
 
 长期默认方向保持：
 
-- `OTel schema -> collector / adapter -> Sentry + Axiom + optional grading/export path`
+- `OTel schema -> collector / adapter -> Sentry + Axiom + optional
+  grading/export path`
 
-redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，而不是把厂商逻辑复制到每个 runtime boundary。
+redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，而不是把厂商逻辑复制到每个 runtime
+boundary。
 
 ## Cost Model
 
@@ -467,8 +495,10 @@ redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，�
 
 所有 operator observability 域持续遵守最小化原则：
 
-- 默认发送 identity hash、snapshot id、reason code、count summary、latency、status、token、cost
-- 默认不发送 raw prompt、raw answer、raw transcript、raw JWT、raw auth envelope、raw long-term memory
+- 默认发送 identity hash、snapshot id、reason code、count
+  summary、latency、status、token、cost
+- 默认不发送 raw prompt、raw answer、raw transcript、raw JWT、raw auth envelope、raw
+  long-term memory
 - citation / retrieval 只传 doc id、count、safe summary，不传 raw snippet dump
 
 ## Forbidden Shapes
@@ -482,31 +512,34 @@ redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，�
 
 ## 相关稳定文档
 
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/domains/official-web/architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/data/app-api-schema.md`
 - `docs/domains/operator-observability.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
-- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
-- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+  md`
+- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
+  pation.md`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
+  .md`
 
 ## 外部参考
 
 - OpenAI Agent Evals
-  - `https://platform.openai.com/docs/guides/agent-evals`
+  - `<https://platform.openai.com/docs/guides/agent-evals`>
 - OpenAI Trace Grading
-  - `https://platform.openai.com/docs/guides/trace-grading`
+  - `<https://platform.openai.com/docs/guides/trace-grading`>
 - OpenAI Evaluation Best Practices
-  - `https://platform.openai.com/docs/guides/evaluation-best-practices`
+  - `<https://platform.openai.com/docs/guides/evaluation-best-practices`>
 - OpenAI Agents SDK Tracing
-  - `https://openai.github.io/openai-agents-js/guides/tracing/`
+  - `<https://openai.github.io/openai-agents-js/guides/tracing/`>
 - OpenAI Usage / Costs API
-  - `https://platform.openai.com/docs/api-reference/usage/costs`
+  - `<https://platform.openai.com/docs/api-reference/usage/costs`>
 - OpenTelemetry GenAI Metrics
-  - `https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/`
+  - `<https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/`>
 - OpenTelemetry GenAI Spans
-  - `https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/`
+  - `<https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/`>

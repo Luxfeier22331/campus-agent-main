@@ -4,12 +4,12 @@ status: active
 created: 2026-04-11
 updated: 2026-04-21
 ---
-
 # Internal Notice Manual-Review Collection Strategy
 
 ## 文档边界
 
-本文冻结 `campus_notices/internal_notice -> regulations/*` 这条线 residual manual-review / duplicate-hold boundary 的当前解释。
+本文冻结 `campus_notices/internal_notice -> regulations/*` 这条线 residual
+manual-review / duplicate-hold boundary 的当前解释。
 
 它回答的是：
 
@@ -58,8 +58,10 @@ updated: 2026-04-21
 
 固定要求：
 
-- `time_bound_operational_rule` 与 `annual_cycle_rule` 现在是 target split 问题，不再是自动 manual-review 排除问题
-- `duplicate_hold_source` 只表示 source-layer duplicate，不表示 target-side第二份 materialization
+- `time_bound_operational_rule` 与 `annual_cycle_rule` 现在是 target split 问题，不再是自动
+  manual-review 排除问题
+- `duplicate_hold_source` 只表示 source-layer duplicate，不表示 target-side第二份
+  materialization
 
 ## Residual Frontier Rule
 
@@ -68,11 +70,13 @@ updated: 2026-04-21
 固定要求：
 
 - 已能独立恢复 semantic owner body 的样本，应进入目标 target，而不是继续停在 manual-review
-- handbook / wrapper / operational notice 不得借由 manual-review residual lane 混入 regulation target
+- handbook / wrapper / operational notice 不得借由 manual-review residual lane 混入
+  regulation target
 
 ## Related Docs
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
-- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md`
+- `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery
+  .md`

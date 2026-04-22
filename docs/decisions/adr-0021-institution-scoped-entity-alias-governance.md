@@ -5,12 +5,12 @@ created: 2026-04-02
 updated: 2026-04-02
 decision_id: ADR-0021
 ---
-
 # ADR-0021：Institution-Scoped Entity Alias Governance
 
 ## 背景
 
-`campus-agent` 当前已经为 `curriculum/curriculum_plan` 落地了第一版 alias 治理能力，但 repo-head 仍主要停留在：
+`campus-agent` 当前已经为 `curriculum/curriculum_plan` 落地了第一版 alias 治理能力，但 repo-head
+仍主要停留在：
 
 - program title 的保守 resolve
 - 少量 safe alias 的字符串规范化
@@ -31,8 +31,8 @@ decision_id: ADR-0021
 当前如果继续把 alias 扩展成更大的全局字符串替换表，会带来三个问题：
 
 1. alias 不再表达实体，而只表达词面替换
-2. 高歧义 alias 会继续偷偷坍缩成单目标 truth
-3. retrieval / eval / answer shaping 无法共享稳定的解析终态
+1. 高歧义 alias 会继续偷偷坍缩成单目标 truth
+1. retrieval / eval / answer shaping 无法共享稳定的解析终态
 
 因此需要把 alias 从“字符串替换配置”升级为“institution-scoped entity resolution governance”。
 
@@ -75,12 +75,10 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 
 示例：
 
-- `习概 -> 习近平新时代中国特色社会主义思想概论`
-  只在 `中央民族大学 + curriculum + course-centric intents` 生效
-- `思政课 -> 思想政治理论课`
-  只在 `中央民族大学 + curriculum + course family intents` 生效
-- `思修课 -> 思想政治理论课`
-  只在 `中央民族大学 + curriculum + course family intents` 生效
+- `习概 -> 习近平新时代中国特色社会主义思想概论` 只在 `中央民族大学 + curriculum + course-centric intents`
+  生效
+- `思政课 -> 思想政治理论课` 只在 `中央民族大学 + curriculum + course family intents` 生效
+- `思修课 -> 思想政治理论课` 只在 `中央民族大学 + curriculum + course family intents` 生效
 
 不允许的退化：
 
@@ -91,18 +89,13 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 
 长期上，alias 治理至少区分以下六类：
 
-- `safe_alias`
-  几乎无歧义、可直接单向映射到单一 canonical entity
-- `family_alias`
-  指向一个 entity family，而不是单一实体
-- `scoped_alias`
-  只有在显式 scope、major、program family 或其他约束下才成立
-- `deprecated_alias`
-  历史叫法、旧课程名或旧简称；命中后允许回到当前 canonical entity，但需要保留“旧称 -> 现名”的治理语义
-- `pattern_alias`
-  由规则产生，而不是手写枚举，例如口语学期、数字化课程简称等
-- `forbidden_alias`
-  高歧义或风险词，默认不允许进入 canonical resolved truth
+- `safe_alias` 几乎无歧义、可直接单向映射到单一 canonical entity
+- `family_alias` 指向一个 entity family，而不是单一实体
+- `scoped_alias` 只有在显式 scope、major、program family 或其他约束下才成立
+- `deprecated_alias` 历史叫法、旧课程名或旧简称；命中后允许回到当前 canonical entity，但需要保留“旧称 ->
+  现名”的治理语义
+- `pattern_alias` 由规则产生，而不是手写枚举，例如口语学期、数字化课程简称等
+- `forbidden_alias` 高歧义或风险词，默认不允许进入 canonical resolved truth
 
 当前 repo 已存在的 tiered alias config：
 
@@ -145,14 +138,13 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 
 长期 owner split 固定如下：
 
-- `packages/rag-agent`
-  拥有 alias/entity resolution、ambiguity policy、clarification policy 与 answer shaping contract
-- `packages/retrieval-core`
-  只消费 canonical entity/filter truth，不拥有 alias 治理语义
-- `packages/ingestion-core`
-  负责构建离线派生的 canonical entity facts，例如 course facts / family facts / audience facts
-- `packages/evals`
-  负责验证 alias resolution 的 deterministic truth 与 fail-close truth
+- `packages/rag-agent` 拥有 alias/entity resolution、ambiguity policy、clarification
+  policy 与 answer shaping contract
+- `packages/retrieval-core` 只消费 canonical entity/filter truth，不拥有 alias 治理语义
+- `packages/ingestion-core` 负责构建离线派生的 canonical entity facts，例如 course facts /
+  family facts / audience facts
+- `packages/evals` 负责验证 alias resolution 的 deterministic truth 与 fail-close
+  truth
 
 直接含义：
 
@@ -164,14 +156,10 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 
 长期上，alias / entity resolution 至少有以下四类终态：
 
-- `resolved_single`
-  query 已安全落到单一 canonical entity
-- `resolved_family`
-  query 已安全落到 entity family，但不应伪装成单一实体
-- `needs_clarification`
-  候选仍多于一个，或 family query 的 intent 需要进一步 disambiguation
-- `rejected`
-  命中 forbidden alias、缺乏稳定依据、或当前 serving surface 不支持
+- `resolved_single` query 已安全落到单一 canonical entity
+- `resolved_family` query 已安全落到 entity family，但不应伪装成单一实体
+- `needs_clarification` 候选仍多于一个，或 family query 的 intent 需要进一步 disambiguation
+- `rejected` 命中 forbidden alias、缺乏稳定依据、或当前 serving surface 不支持
 
 不允许的退化：
 
@@ -185,18 +173,12 @@ family alias 的完成合同不能一刀切。
 
 对 `course_family`，当前至少冻结以下 intent contract：
 
-- `course_family_membership`
-  例如 `思政课包括哪些课`
-  正确终态可以是 `resolved_family + completed`
-- `course_audience`
-  例如 `思政课有哪些专业要上`
-  正确终态可以是 `resolved_family + completed`，但回答必须按 family audience 语义生成
-- `course_schedule`
-  例如 `思政课第几学期开`
-  若不同 family member 的学期规则不同，允许返回结构化多课程答案，而不是捏成单值
-- `course_offering_unit`
-  例如 `思政课哪个学院开`
-  若缺少稳定 `offering_unit` truth，可返回 partial answer 或 unsupported-subfield，不得猜测
+- `course_family_membership` 例如 `思政课包括哪些课` 正确终态可以是 `resolved_family + completed`
+- `course_audience` 例如 `思政课有哪些专业要上` 正确终态可以是 `resolved_family + completed`，但回答必须按
+  family audience 语义生成
+- `course_schedule` 例如 `思政课第几学期开` 若不同 family member 的学期规则不同，允许返回结构化多课程答案，而不是捏成单值
+- `course_offering_unit` 例如 `思政课哪个学院开` 若缺少稳定 `offering_unit` truth，可返回 partial
+  answer 或 unsupported-subfield，不得猜测
 
 ### 决策 8：当前课程问答允许 partial answer，但禁止补猜未采集字段
 
@@ -215,18 +197,17 @@ family alias 的完成合同不能一刀切。
 
 示例：
 
-- `习近平新时代中国特色社会主义思想概论有哪些专业要上`
-  可以回答为：
+- `习近平新时代中国特色社会主义思想概论有哪些专业要上` 可以回答为：
   `根据当前已采集的培养方案和通识课程教学计划，可确认它面向所有本预科学生，而不是只面向少数几个专业。`
-- `习近平新时代中国特色社会主义思想概论是哪个学院开的课，有哪些专业要上`
-  当前正确终态是：
-  `可以回答 audience/cohort，但必须明确说明开设学院当前缺少稳定依据。`
+- `习近平新时代中国特色社会主义思想概论是哪个学院开的课，有哪些专业要上` 当前正确终态是： `可以回答
+  audience/cohort，但必须明确说明开设学院当前缺少稳定依据。`
 
-### 决策 9：长期目标是 alias -> canonical entity resolution -> entity-aware retrieval/filter -> deterministic answer policy
+### 决策 9：长期目标是 entity-aware alias resolution 与 deterministic answer policy
 
 这条链路是长期不变量：
 
-`alias -> canonical entity resolution -> entity-aware retrieval/filter -> deterministic answer policy`
+`alias -> canonical entity resolution -> entity-aware retrieval/filter ->
+deterministic answer policy`
 
 它替代以下错误形态：
 
@@ -241,7 +222,8 @@ family alias 的完成合同不能一刀切。
 - 离线派生 `course_facts` / `course_family_facts`
 - 在 agent 中形成 canonical course/course_family resolution
 - retrieval 通过 canonical payload/filter 命中 facts collection
-- answer shaping 根据 `resolved_single` / `resolved_family` / `partial answer` 语义输出
+- answer shaping 根据 `resolved_single` / `resolved_family` / `partial answer`
+  语义输出
 
 ## 评测含义
 
@@ -256,16 +238,15 @@ canonical golden/eval truth 必须同步遵守：
 
 ## 文档分层
 
-- `docs/architecture/target-architecture.md`
-  只记录 alias/entity resolution 的 owner boundary
-- `docs/architecture/execution-and-agents-architecture.md`
-  负责 agent 对 alias/entity resolution 的长期职责
-- `docs/architecture/retrieval-serving-architecture.md`
-  负责 retrieval 如何消费 canonical entity/filter truth
-- `docs/reference/eval-gold-truth-model.md`
-  负责 family alias / partial-answer 的 golden truth authoring 规则
-- 本 ADR
-  负责 alias/entity resolution 的长期治理、不变量与终态语义
+- `docs/architecture/target-architecture.md` 只记录 alias/entity resolution 的 owner
+  boundary
+- `docs/architecture/system/execution-and-agents-architecture.md` 负责 agent 对
+  alias/entity resolution 的长期职责
+- `docs/architecture/system/retrieval-serving-architecture.md` 负责 retrieval 如何消费
+  canonical entity/filter truth
+- `docs/reference/eval-gold-truth-model.md` 负责 family alias / partial-answer 的
+  golden truth authoring 规则
+- 本 ADR 负责 alias/entity resolution 的长期治理、不变量与终态语义
 
 ## 状态
 

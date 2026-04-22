@@ -4,12 +4,12 @@ status: active
 created: 2026-04-11
 updated: 2026-04-11
 ---
-
 # Internal Notice Manual-Review Future Query Contract
 
 ## 文档边界
 
-本文冻结 `annual_cycle_rule` 与 `time_bound_operational_rule` 在未来如果重开 dedicated semantic-owner surface 时，必须先满足的 query contract。
+本文冻结 `annual_cycle_rule` 与 `time_bound_operational_rule` 在未来如果重开 dedicated
+semantic-owner surface 时，必须先满足的 query contract。
 
 它回答的是：
 
@@ -28,9 +28,11 @@ updated: 2026-04-11
 
 当前 repo truth 现在是：
 
-- `annual_cycle_rule` 与 `time_bound_operational_rule` 不进入 `regulations/institutional_rules`
+- `annual_cycle_rule` 与 `time_bound_operational_rule` 不进入
+  `regulations/institutional_rules`
 - `regulations/scoped_rules` 已作为统一 holding collection 被 repo 跟踪
-- 当前 query-enabled surface 仍只有 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled surface 仍只有 `regulations/student_rules` 与
+  `curriculum/curriculum_plan`
 - `scoped_rules` 当前只是 `offline_preparation` scaffold，不等于已开放 query-serving
 
 这意味着：
@@ -44,8 +46,8 @@ updated: 2026-04-11
 未来如果要重开这两类文档，必须同时满足三件事：
 
 1. 明确 semantic owner 与 product entry。
-2. 明确 query policy 与 query-planning contract。
-3. 明确 retrieval pre-filter 所需的 metadata projection。
+1. 明确 query policy 与 query-planning contract。
+1. 明确 retrieval pre-filter 所需的 metadata projection。
 
 三者缺一不可。
 
@@ -77,16 +79,17 @@ updated: 2026-04-11
 
 - `published_at` 用于排序、解释和 compare，不单独表示 validity
 - `effective_from/effective_to` 用于 temporal filter，不得在回答后补救
-- `visibility_*` / `entitlement_*` 继续只是 authz filter projection，不是 canonical authz truth
+- `visibility_*` / `entitlement_*` 继续只是 authz filter projection，不是 canonical
+  authz truth
 
 ## Bucket A: `annual_cycle_rule`
 
-### 适用文档
+### 适用文档（Bucket B）
 
 - 年度 / 批次 / 项目制招生实施细则
 - 推免、硕博连读、英才计划等 program-specific rules
 
-### 必备 metadata
+### 必备 metadata（Bucket B）
 
 - `cycle_year`
 - `cycle_label`
@@ -95,9 +98,10 @@ updated: 2026-04-11
 - `degree_level`
 - `school_unit_name`
 
-如果缺少 `cycle_year`、`admission_route` 或 `school_unit_name` 这类核心字段，则不允许打开 query-serving。
+如果缺少 `cycle_year`、`admission_route` 或 `school_unit_name` 这类核心字段，则不允许打开
+query-serving。
 
-### 默认 query policy
+### 默认 query policy（Bucket B）
 
 - 默认策略固定为 `explicit_year_only`
 
@@ -107,7 +111,7 @@ updated: 2026-04-11
 - 用户只问“保研细则”“硕博连读实施细则”这类问题时，必须先澄清 year 与 school unit / program
 - 排序层可以在已约束的候选集合内部使用时间信号，但不能替代 year filter
 
-### 允许的 query mode
+### 允许的 query mode（Bucket B）
 
 - `current`
   - 只有在 year 已被显式解析后才成立，例如 `2026届推免细则`、`今年英才计划硕博连读`
@@ -118,7 +122,7 @@ updated: 2026-04-11
 - `compare`
   - 允许，但必须是同一 `rule_family + school_unit + program/admission_route` 下的显式跨年比较
 
-### 必须先澄清的歧义
+### 必须先澄清的歧义（Bucket B）
 
 - year 未出现
 - 同一 year 下存在多个学院或项目
@@ -199,12 +203,12 @@ updated: 2026-04-11
 未来如果要把这两类文档从 `scoped_rules/offline_preparation` 继续推进到 query-serving，至少要补齐：
 
 1. 明确的 product entry 与 semantic-owner 定义。
-2. surface 级 `query-planning.json`，包含 clarification cues 与允许的 deictic 解析范围。
-3. filterable/facetable metadata projection 设计。
-4. 对 `current / historical / as_of / compare` 的 retrieval pre-filter 规则。
-5. answer 层 warning / status 展示规则。
-6. 覆盖歧义 year、site、transition、expired-window 的 eval cases。
-7. provenance 保留：
+1. surface 级 `query-planning.json`，包含 clarification cues 与允许的 deictic 解析范围。
+1. filterable/facetable metadata projection 设计。
+1. 对 `current / historical / as_of / compare` 的 retrieval pre-filter 规则。
+1. answer 层 warning / status 展示规则。
+1. 覆盖歧义 year、site、transition、expired-window 的 eval cases。
+1. provenance 保留：
    - `source_notice_ids`
    - `source_attachment_ref_id`
    - `source_notice_release_time`
@@ -214,13 +218,14 @@ updated: 2026-04-11
 以下是文档事实与基于文档的推断：
 
 - Azure AI Search 官方文档要求过滤字段显式声明为 filterable，并支持在向量检索前后执行 filter。
-  - https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index
-  - https://learn.microsoft.com/en-us/azure/search/vector-search-filters
+  - <https://learn.microsoft.com/en-us/azure/search/search-how-to-create-search-index>
+  - <https://learn.microsoft.com/en-us/azure/search/vector-search-filters>
 - Azure AI Search 官方文档把 freshness 建模为 scoring function，而不是 validity truth。
-  - https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles
-- Qdrant 官方文档把 payload filter / facet 视为一等能力，并建议大多数多租户场景优先单 collection + payload partitioning。
-  - https://qdrant.tech/documentation/concepts/payload/
-  - https://qdrant.tech/documentation/guides/multitenancy/
+  - <https://learn.microsoft.com/en-us/azure/search/index-add-scoring-profiles>
+- Qdrant 官方文档把 payload filter / facet 视为一等能力，并建议大多数多租户场景优先单 collection + payload
+  partitioning。
+  - <https://qdrant.tech/documentation/concepts/payload/>
+  - <https://qdrant.tech/documentation/guides/multitenancy/>
 
 基于这些资料的推断是：
 
@@ -229,8 +234,9 @@ updated: 2026-04-11
 
 ## Related Docs
 
-- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
-- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.m
+  d`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`

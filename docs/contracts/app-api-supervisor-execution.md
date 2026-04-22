@@ -2,9 +2,8 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-20
+updated: 2026-04-23
 ---
-
 # App API Supervisor Execution Contract
 
 ## 文档边界
@@ -13,12 +12,18 @@ updated: 2026-04-20
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/product-runtime-architecture.md`
-- `app-api` runtime 边界：`docs/architecture/product-runtime-architecture.md`
-- supervisor execution engine 边界：`docs/architecture/execution-and-agents-architecture.md`
+- shared product topology：`docs/architecture/system/product-runtime-architecture.md`
+- `app-api` runtime 边界：`docs/architecture/system/product-runtime-architecture.md`
+- supervisor execution engine
+  边界：`docs/architecture/system/execution-and-agents-architecture.md`
+- capability routing / admission supporting
+  truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- execution admission ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- execution admission
+  ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- capability-neutral routing 与 surface capability policy：`docs/decisions/adr-004
+  2-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 
 这份文档不冻结：
 
@@ -30,13 +35,16 @@ updated: 2026-04-20
 
 长期执行链路固定为：
 
-`public-chat-web -> app-api -> supervisor-api -> packages/supervisor-core -> specialist`
+`public-chat-web -> app-api -> supervisor-api -> packages/supervisor-core ->
+specialist`
 
 这里的关键规则只有三条：
 
 - browser 永远不直接使用这份 contract
-- `app-api` 负责产品层 auth/session/principal mapping，并把 execution-side `actor` 显式传给 `supervisor-api`
-- `supervisor-api` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层 auth/session/conversation
+- `app-api` 负责产品层 auth/session/principal mapping，并把 execution-side `actor` 显式传给
+  `supervisor-api`
+- `supervisor-api` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
+  auth/session/conversation
 
 ## Transport Conclusion
 
@@ -49,13 +57,16 @@ updated: 2026-04-20
 这里需要区分两件事：
 
 - 当前复用 `/api/v1/answer` 是兼容现有实现的 transport 选择
-- forward canonical seam 是 `app-api -> supervisor-api` 的 internal execution contract，而不是 browser-facing public API
+- forward canonical seam 是 `app-api -> supervisor-api` 的 internal execution
+  contract，而不是 browser-facing public API
 
-后续如果为了收口边界而把 transport 迁移到 dedicated internal execution endpoint，不会改变本文冻结的 request/response 语义。
+后续如果为了收口边界而把 transport 迁移到 dedicated internal execution endpoint，不会改变本文冻结的
+request/response 语义。
 
 JSON 命名保持 `snake_case`，原因如下：
 
-- 当前 `apps/supervisor-api` 已以 Python-side `SupervisorRequest` / `SupervisorResponse` 为真相
+- 当前 `apps/supervisor-api` 已以 Python-side `SupervisorRequest` /
+  `SupervisorResponse` 为真相
 - 这里是 internal execution seam，不是 browser product API
 - 这样可以减少 `app-api -> supervisor-api` 之间的翻译噪音
 
@@ -68,8 +79,10 @@ JSON 命名保持 `snake_case`，原因如下：
 规则：
 
 - `x-trace-id` 由 `app-api` 生成并负责透传
-- `x-worker-origin-auth` 是 execution-side internal caller admission 头；`app-api` 第一版可以直接复用这个名字
-- `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `supervisor-api` 的长期 contract 一部分
+- `x-worker-origin-auth` 是 execution-side internal caller admission 头；`app-api`
+  第一版可以直接复用这个名字
+- `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `supervisor-api` 的长期 contract
+  一部分
 
 ## Request Body
 
@@ -80,6 +93,10 @@ JSON 命名保持 `snake_case`，原因如下：
   "request_id": "req_01HQ...",
   "conversation_id": "conv_01HQ...",
   "user_goal": "图书馆开放到几点？",
+  "version_query": {
+    "mode": "as_of",
+    "as_of": "2024-06-01"
+  },
   "context": {
     "actor": {
       "user_id": "user_01HQ...",
@@ -112,23 +129,29 @@ JSON 命名保持 `snake_case`，原因如下：
 
 字段说明：
 
-- `request_id`
-  来自 `app-api` 分配的 canonical request identity
-- `conversation_id`
-  来自 chat domain truth
-- `user_goal`
-  来自产品层 prompt
-- `context`
-  由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含 `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与 `session.confirmed_slots`，以及 turn count 摘要
-- `requested_capability`
-  当前允许 `knowledge` 或 `place_lookup`
-- `requested_scope`
-  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开 query-serving surface
+- `request_id` 来自 `app-api` 分配的 canonical request identity
+- `conversation_id` 来自 chat domain truth
+- `user_goal` 来自产品层 prompt
+- `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
+  `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与
+  `session.confirmed_slots`，以及 turn count 摘要
+- `requested_capability` 当前允许 `knowledge` 或 `place_lookup`
+- `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
+  scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
+  specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认
+  collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
+  `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
+  query-serving surface
+- `version_query` 可选；当前只允许与 `requested_capability=knowledge` 一起出现。`app-api` 负责把
+  browser/eval 路径上的 `camelCase versionQuery` 归一化成 Python-side `snake_case` 形态后传给
+  `supervisor-api`
 
 补充说明：
 
 - `place_lookup` contract 仍保留在 internal execution seam
 - 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
+- `version_query` 缺失时按 `current` 解释；显式 `historical` / `as_of` / `compare` 必须在这条
+  seam 上传递，不允许 `app-api` 静默折叠回 current
 
 ## Response Body
 
@@ -201,64 +224,108 @@ JSON 命名保持 `snake_case`，原因如下：
 
 其中：
 
-- `selected_target`
-  始终表示 execution path 实际选择的 current runtime target。
-  在当前 phase 它只能是 shared contract 中已 admitted 的 runtime label，例如 `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent`。
-  它不是 operator-facing display label；当 current runtime label 与 family label 一致时，serialized contract 直接承载这个 admitted runtime target。
+- `selected_target` 始终表示 execution path 实际选择的 current runtime target。 在当前 phase
+  它只能是 shared contract 中已 admitted 的 runtime label，例如
+  `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent`。 它不是
+  capability family label，也不是 operator-facing display label；当 current runtime
+  label 与 family label 一致时，serialized contract 直接承载这个 admitted runtime target。
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
-- 当 `selected_target = navigation-agent` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
+- 当 `selected_target = navigation-agent` 时，`result` 使用 `PlaceLookupResult` 的
+  Python-side `snake_case` 形态：
   - `query_text`
   - `matched_alias`
-  - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
-  - `place_card.{place, location_description, landmark_hint, access_note, opening_note, service_tags, point_geometry, coordinate_reference_system, source_refs}`
+  - `resolved_place.{place_id, entity_type, display_name, campus_scope,
+    campus_area}`
+  - `place_card.{place, location_description, landmark_hint, access_note,
+    opening_note, service_tags, point_geometry, coordinate_reference_system,
+    source_refs}`
   - `candidate_places[].{place, clarification_hint}`
-- 当 `selected_target = rag-agent` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的 summary truth：
+- 当 `selected_target = rag-agent` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的
+  summary truth：
   - `retrieval_adequacy_verdict`
   - `retrieval_adequacy_reason`
   - `grounding_verdict`
   - `claim_supports`
   - `unsupported_fields`
-- 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser 的 raw specialist dump contract
-- `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist payload 直接当 browser contract 暴露
-- 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于 supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
-- `observability` 是 execution-side typed summary seam，用于 `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side `snake_case`
-- `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate trace；它与最终 `result.evidence.sources` 不是同一层 truth
-- 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*` 必须显式回传给 `app-api`
-- `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw prompt text
-- `observability.prompt_runtime_state` / `observability.prompt_runtime_detail` 用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close branch
-- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval payload、raw provider citation blob 或 raw auth material
-- `app-api` 必须把 `observability.retrieved_sources` 归一化成 operator-safe、bounded source trace，再与最终 supporting evidence 分开持久化；不得把 raw `EvidenceSource` snippet dump 直接暴露给 panel
-- `result.diagnostics` 也不应携带 provider-native citation blob、raw support snippet dump 或其他 operator 不可见的 vendor payload；operator-facing query path 只保留 compact summary
-- token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是 panel-side 或 sink-side 反推
+- 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser
+  的 raw specialist dump contract
+- `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist
+  payload 直接当 browser contract 暴露
+- 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于
+  supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
+- `observability` 是 execution-side typed summary seam，用于
+  `runtime.request_observability_fact` 的 seed / finalize；字段继续保持 Python-side
+  `snake_case`
+- `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate
+  trace；它与最终 `result.evidence.sources` 不是同一层 truth
+- 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*`
+  必须显式回传给 `app-api`
+- `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw
+  prompt text
+- `observability.prompt_runtime_state` / `observability.prompt_runtime_detail`
+  用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close
+  branch
+- `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval
+  payload、raw provider citation blob 或 raw auth material
+- `app-api` 必须把 `observability.retrieved_sources` 归一化成 operator-safe、bounded
+  source trace，再与最终 supporting evidence 分开持久化；不得把 raw `EvidenceSource` snippet
+  dump 直接暴露给 panel
+- `result.diagnostics` 也不应携带 provider-native citation blob、raw support snippet
+  dump 或其他 operator 不可见的 vendor payload；operator-facing query path 只保留 compact
+  summary
+- token / model / cost 字段如果出现，必须来自 execution-side typed telemetry seam，而不是
+  panel-side 或 sink-side 反推
 
 ## HTTP Status Rule
 
 对 `app-api` 来说，需要区分两类失败：
 
-- transport / admission / malformed execution request
-  使用非 `200`
-- execution 已被受理并得到 typed `SupervisorResponse`
-  返回 `200`，由 body 内 `status` 区分 `completed` / `needs_clarification` / `no_answer` / `error` / `approval_required` / `rejected`
+- transport / admission / malformed execution request 使用非 `200`
+- execution 已被受理并得到 typed `SupervisorResponse` 返回 `200`，由 body 内 `status` 区分
+  `completed` / `needs_clarification` / `no_answer` / `error` /
+  `approval_required` / `rejected`
 
 这意味着：
 
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
-- `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection 的最终状态，即使 browser chat surface 折叠为 `error`
+- `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
+  的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` admission mode，但 shared product path 已收口为：
+当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` admission mode，但
+shared product path 已收口为：
 
 - internal caller admission 继续由 runtime header 保证
 - `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
-- `trusted-worker` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务 actor
-- top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker 请求里，只能作为与 `context.actor` 一致的冗余投影
+- `trusted-worker` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务
+  actor
+- top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
+  请求里，只能作为与 `context.actor` 一致的冗余投影
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
+
+## Forward Evolution
+
+- 当前 internal execution wire truth 仍是 `requested_capability + optional
+  requested_scope`
+- 在明确引入新版本 contract 之前，`app-api` 与 `supervisor-api` 继续按这组字段互操作，不把
+  capability-neutral routing 误写成“当前 wire 已经 capability-family-native”
+- `requested_scope` 的长期语义应收窄为 knowledge-family-specific field；它不能代替 capability
+  routing，也不应要求非 knowledge path 伪造等价字段
+- `selected_target` 的语义不变：它继续序列化 current execution path 实际选中的 admitted runtime
+  target，而不是 future capability-family alias、surface label 或 operator-facing 名称
+- capability-neutral routing、surface capability policy 与 routing clarification
+  的长期 supporting truth 见
+  `docs/architecture/system/capability-routing-and-admission-architecture.md`
+  与
+  `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 
 ## Non-Goals
 
 - 不把 panel query 做进 `supervisor-api`
-- 不让 `supervisor-api` 理解 Better Auth session 或 operator trusted-access provider 细节
-- 不把 public entry Worker 的外部 ingress contract 直接复制为 shared `app-api` 的内部 execution contract
+- 不让 `supervisor-api` 理解 Better Auth session 或 operator trusted-access provider
+  细节
+- 不把 public entry Worker 的外部 ingress contract 直接复制为 shared `app-api` 的内部
+  execution contract

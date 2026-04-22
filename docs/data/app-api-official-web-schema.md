@@ -4,17 +4,18 @@ status: active
 created: 2026-03-29
 updated: 2026-04-12
 ---
-
 # App API Official Web Schema
 
 ## 文档边界
 
-这份文档冻结 `apps/app-api` 为 `official_web` control plane 引入的逻辑分域、最小表形态与 ownership 规则。
+这份文档冻结 `apps/app-api` 为 `official_web` control plane 引入的逻辑分域、最小表形态与 ownership
+规则。
 
 它补充但不替代以下文档：
 
 - `app-api` 基础 schema：`docs/data/app-api-schema.md`
-- `official_web` control-plane 架构：`docs/architecture/official-web-architecture.md`
+- `official_web` control-plane
+  架构：`docs/architecture/domains/official-web/architecture.md`
 - 领域导航：`docs/domains/official-web.md`
 - `official_web` HTTP contract：`docs/contracts/app-api-official-web-http.md`
 - run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
@@ -33,7 +34,8 @@ updated: 2026-04-12
 
 判断当前已实现子集时：
 
-- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与 `docs/domains/official-web.md` 为准
+- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与
+  `docs/domains/official-web.md` 为准
 - 当前项目执行状态、单轮执行进度与 closeout 证据不在本文维护
 
 ## Storage Conclusion
@@ -46,10 +48,8 @@ updated: 2026-04-12
 
 固定 ownership：
 
-- `official_web.*`
-  crawl-run control-plane durable truth
-- `operator.*`
-  panel-facing site/run projections
+- `official_web.*` crawl-run control-plane durable truth
+- `operator.*` panel-facing site/run projections
 
 ## Global Rules
 
@@ -130,9 +130,11 @@ updated: 2026-04-12
 
 - 这是 crawl-run lifecycle 的 canonical owner
 - `summary_json` 只保存 projection-friendly summary，不保存整份 artifact 内容
-- `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion worker 的内部 job truth
+- `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion worker 的内部
+  job truth
 - ingestion execution 回调当前允许 `pending -> running -> staged -> promoted/failed`
-- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被 promote 改写
+- `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被
+  promote 改写
 
 ## `official_web.run_heartbeats`
 
@@ -272,9 +274,12 @@ updated: 2026-04-12
 
 规则：
 
-- `fetch_disposition` 反映 collector 观察到的 fetch 结果，例如 `fetched` / `not_modified` / `deleted` / `fetch_failed`
-- `change_status` 反映 `app-api` 依据 freshness truth 计算出的 `new` / `changed` / `deleted` / `not_modified` / `fetch_failed`
-- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion handoff page change
+- `fetch_disposition` 反映 collector 观察到的 fetch 结果，例如 `fetched` / `not_modified` /
+  `deleted` / `fetch_failed`
+- `change_status` 反映 `app-api` 依据 freshness truth 计算出的 `new` / `changed` /
+  `deleted` / `not_modified` / `fetch_failed`
+- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion handoff page
+  change
 - 这是 control-plane durable truth，不退回对象存储扫描或 ingestion worker 内部状态
 
 ## `official_web.page_freshness`
@@ -314,9 +319,12 @@ updated: 2026-04-12
 
 - `(site_id, normalized_canonical_url)` 是 canonical page identity
 - `page_freshness` 是 scheduler / collector 后续拉取动态 workset 的 durable truth
-- `last_fetch_disposition` 当前允许 `fetched / not_modified / deleted / fetch_failed`
-- `new / changed / deleted / not_modified / fetch_failed` 的分类以这里和 `page_observations` 的组合为准
-- `plans:resolve` 会基于 `next_eligible_fetch_at`、`cadence_class` 与 `last_fetch_disposition` 从这里解析动态 workset
+- `last_fetch_disposition` 当前允许 `fetched / not_modified / deleted /
+  fetch_failed`
+- `new / changed / deleted / not_modified / fetch_failed` 的分类以这里和
+  `page_observations` 的组合为准
+- `plans:resolve` 会基于 `next_eligible_fetch_at`、`cadence_class` 与
+  `last_fetch_disposition` 从这里解析动态 workset
 
 ## `operator.official_web_run_projection`
 
@@ -350,7 +358,8 @@ updated: 2026-04-12
 
 - `artifacts_json` 是 panel-friendly summary，不是对象存储浏览器替代
 - 不直接从对象存储目录实时拼装
-- run detail 额外展示的 `pageChangeSummary` 与 `pageChanges` 分别来自 run summary 和 `official_web.page_observations`，不是额外 projection 表
+- run detail 额外展示的 `pageChangeSummary` 与 `pageChanges` 分别来自 run summary 和
+  `official_web.page_observations`，不是额外 projection 表
 
 ## `operator.official_web_site_projection`
 
@@ -379,8 +388,10 @@ updated: 2026-04-12
 
 规则：
 
-- site detail 中的 `freshnessSummary` 由 `official_web.page_freshness` 即时聚合，不额外物化进 projection 表
-- `recentPageChanges` 从 `official_web.page_observations` 读取，默认包含 `new / changed / deleted / fetch_failed`
+- site detail 中的 `freshnessSummary` 由 `official_web.page_freshness` 即时聚合，不额外物化进
+  projection 表
+- `recentPageChanges` 从 `official_web.page_observations` 读取，默认包含 `new / changed
+  / deleted / fetch_failed`
 - 站点基础配置仍来自 repo-tracked config；projection 只缓存 panel-friendly summary
 - 不把数据库变成 source config 的长期真相源
 

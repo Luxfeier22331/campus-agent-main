@@ -4,12 +4,12 @@ status: active
 created: 2026-03-30
 updated: 2026-04-14
 ---
-
 # Official Web Freshness And Incremental Crawling
 
 ## 文档边界
 
-本文冻结 `official_web` source channel 从“抽样 crawl”走向“全量常态 crawl + 高频增量 crawl + 变更触发下游处理”的长期设计。
+本文冻结 `official_web` source channel 从“抽样 crawl”走向“全量常态 crawl + 高频增量 crawl +
+变更触发下游处理”的长期设计。
 
 它回答的是：
 
@@ -27,15 +27,18 @@ updated: 2026-04-14
 
 对应文档：
 
-- source channel 总边界：`docs/architecture/official-web-architecture.md`
+- source channel 总边界：`docs/architecture/domains/official-web/architecture.md`
 - crawl 规则：`docs/policies/official-web-crawl-policy.md`
-- source-truth contract：`docs/architecture/official-web-source-truth-contract.md`
-- control-plane ownership：`docs/architecture/official-web-architecture.md`
-- serving / news retrieval 策略：`docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- 当前 news handoff truth：`docs/reference/official-web-fresh-news-surface-handoff.md`
+- source-truth
+  contract：`docs/data/official-web-source-truth-schema.md`
+- control-plane ownership：`docs/architecture/domains/official-web/architecture.md`
+- serving / news retrieval
+  策略：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- 当前 news handoff
+  truth：`docs/reference/official-web-fresh-news-surface-handoff.md`
 - app-api HTTP seam：`docs/contracts/app-api-official-web-http.md`
 - app-api run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
-- 数据平面不变量：`docs/architecture/data-plane-architecture.md`
+- 数据平面不变量：`docs/architecture/system/data-plane-architecture.md`
 
 ## 目标
 
@@ -49,28 +52,40 @@ updated: 2026-04-14
 ## 核心结论
 
 - `official_web` 必须同时具备 `baseline lane`、`hot lane`、`repair lane` 三类采集形态。
-- 页面新鲜度与变化判定的 durable truth 归 `apps/app-api` control plane 所有，而不是只存在于 collector 进程内存。
-- collector 当前通过 `POST /api/official-web/plans:resolve` 从 `app-api` materialize lane-aware dynamic workset，而不是只靠静态 seed/host scope 盲跑。
-- 页面是否需要下游重处理，必须以 `new / changed / deleted` 这类 page-level observation 为边界，由 `app-api -> ingestion-worker` handoff 驱动。
-- `ETag`、`Last-Modified`、HTTP `304` 是增量抓取的首选协议信号；sitemap `lastmod`、RSS/Atom 时间戳只用于 discovery 与优先级，不是变化真相。
+- 页面新鲜度与变化判定的 durable truth 归 `apps/app-api` control plane 所有，而不是只存在于 collector
+  进程内存。
+- collector 当前通过 `POST /api/official-web/plans:resolve` 从 `app-api` materialize
+  lane-aware dynamic workset，而不是只靠静态 seed/host scope 盲跑。
+- 页面是否需要下游重处理，必须以 `new / changed / deleted` 这类 page-level observation 为边界，由
+  `app-api -> ingestion-worker` handoff 驱动。
+- `ETag`、`Last-Modified`、HTTP `304` 是增量抓取的首选协议信号；sitemap `lastmod`、RSS/Atom
+  时间戳只用于 discovery 与优先级，不是变化真相。
 - 列表页变化必须驱动 detail 页优先复抓；新闻公告类更新不能只靠全站基线 crawl 兜底。
-- `hot lane` 的长期第一服务对象是 `fresh_news` serving surface；列表页变化优先服务“新闻 detail 及时可检索”，而不是只刷新导航页本身。
-- 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条 `future_fresh_news_surface` 文档应被视为后续 hot-lane / fresh-news work 的 seed set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
+- `hot lane` 的长期第一服务对象是 `fresh_news` serving surface；列表页变化优先服务“新闻 detail
+  及时可检索”，而不是只刷新导航页本身。
+- 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条
+  `future_fresh_news_surface` 文档应被视为后续 hot-lane / fresh-news work 的 seed
+  set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
 - `fetch_failed` 是 repair lane 的一等输入，但不是下游 ingestion 的变化触发条件。
 - 动态壳页应走独立 browser-capable provider lane；不得为了少量动态页面污染主 HTML/cheerio crawl 路径。
-- hot lane / metadata coverage readiness 只是 `fresh_news` opening 的必要条件，不是充分条件；真正 opening 仍要同时满足 routing、detail-evidence、duplicate collapse 与独立 eval artifact，统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
+- hot lane / metadata coverage readiness 只是 `fresh_news` opening 的必要条件，不是充分条件；真正
+  opening 仍要同时满足 routing、detail-evidence、duplicate collapse 与独立 eval
+  artifact，统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## 长期运行形态
 
 长期拓扑固定为：
 
-`external scheduler -> collector Docker run -> object storage + app-api official_web control plane -> ingestion-worker incremental execution -> document registry -> chunk/index`
+`external scheduler -> collector Docker run -> object storage + app-api
+official_web control plane -> ingestion-worker incremental execution -> document
+registry -> chunk/index`
 
 其中：
 
 - scheduler 决定跑哪一种 lane、何时跑、带什么预算
 - collector 决定本次 run 具体抓哪些 URL，并执行 fetch / normalize / artifact upload
-- `app-api` 持有 run ledger、page/url freshness truth、handoff outbox 与 operator query
+- `app-api` 持有 run ledger、page/url freshness truth、handoff outbox 与 operator
+  query
 - `apps/ingestion-worker` 只消费变化集合，不拥有 crawl freshness 真相
 
 ## 采集 Lane
@@ -158,16 +173,12 @@ updated: 2026-04-14
 
 字段语义固定如下：
 
-- `response_body_hash`
-  表示 retained response body 的内容指纹
-- `main_content_hash`
-  表示 source-truth 主体内容的稳定指纹；应优先作为下游是否重处理的判断依据
-- `etag` / `last_modified`
-  表示上游 HTTP freshness token；只用于条件请求与辅助变化判断
-- `cadence_class`
-  表示页面采集节奏，例如 `baseline_static`、`listing_hot`、`detail_recent`、`repair`
-- `priority_score`
-  表示当前调度优先级，不是文档价值分数
+- `response_body_hash` 表示 retained response body 的内容指纹
+- `main_content_hash` 表示 source-truth 主体内容的稳定指纹；应优先作为下游是否重处理的判断依据
+- `etag` / `last_modified` 表示上游 HTTP freshness token；只用于条件请求与辅助变化判断
+- `cadence_class` 表示页面采集节奏，例如
+  `baseline_static`、`listing_hot`、`detail_recent`、`repair`
+- `priority_score` 表示当前调度优先级，不是文档价值分数
 
 ## 变化判定
 
@@ -188,12 +199,9 @@ updated: 2026-04-14
 
 应触发 handoff 的最小条件是：
 
-- `new`
-  第一次发现并成功规范化的页面
-- `changed`
-  `main_content_hash` 发生实质变化的页面
-- `deleted`
-  先前存在、现在稳定返回 `404` / `410` 或被显式判定移除的页面
+- `new` 第一次发现并成功规范化的页面
+- `changed` `main_content_hash` 发生实质变化的页面
+- `deleted` 先前存在、现在稳定返回 `404` / `410` 或被显式判定移除的页面
 
 下列情况默认不触发下游重处理：
 
@@ -209,7 +217,7 @@ updated: 2026-04-14
 对已知 URL，collector 默认应按以下优先级执行条件请求：
 
 1. `If-None-Match`
-2. `If-Modified-Since`
+1. `If-Modified-Since`
 
 规则固定为：
 
@@ -269,19 +277,18 @@ updated: 2026-04-14
 当前已落地的 planner 解析顺序是：
 
 1. scheduler 选择本轮 `runIntent`
-2. collector 向 `app-api` 申请 `runId`
-3. collector 调用 `POST /api/official-web/plans:resolve`
-4. `app-api` 基于 `page_freshness` 的 `next_eligible_fetch_at`、`cadence_class`、`last_fetch_disposition` 返回 `duePages`
-5. collector 在静态 host allowlist 内把 `duePages` 与 seeds/导航扩展合并成最终 frontier
+1. collector 向 `app-api` 申请 `runId`
+1. collector 调用 `POST /api/official-web/plans:resolve`
+1. `app-api` 基于 `page_freshness` 的
+   `next_eligible_fetch_at`、`cadence_class`、`last_fetch_disposition` 返回
+   `duePages`
+1. collector 在静态 host allowlist 内把 `duePages` 与 seeds/导航扩展合并成最终 frontier
 
 推荐调度思路：
 
-- `baseline`
-  每日或每周运行，覆盖全部 enabled hosts
-- `hot`
-  每 5 至 30 分钟运行，只覆盖热点 listing 与最近活跃详情页
-- `repair`
-  低延迟补偿运行，只覆盖失败或待确认终态的 URL
+- `baseline` 每日或每周运行，覆盖全部 enabled hosts
+- `hot` 每 5 至 30 分钟运行，只覆盖热点 listing 与最近活跃详情页
+- `repair` 低延迟补偿运行，只覆盖失败或待确认终态的 URL
 
 ## Collector Responsibilities
 
@@ -291,7 +298,8 @@ updated: 2026-04-14
 - 从 `app-api` freshness state 拉取动态 workset
 - 对不同 lane 执行不同页面预算和优先级策略
 - 对已知 URL 默认启用条件请求
-- 在 finalize artifacts 中显式产出 `new / changed / deleted / not_modified / fetch_failed` 摘要
+- 在 finalize artifacts 中显式产出 `new / changed / deleted / not_modified /
+  fetch_failed` 摘要
 - 把 listing diff 结果和 page-level observation 一并上报给 control plane
 - 对 `fetch_failed` 页面保留 repair-friendly observation，而不是静默吞掉
 
@@ -353,11 +361,13 @@ collector 仍然不负责：
 - 把所有 host 一起切换到浏览器抓取
 - 在 source-truth contract 中混入浏览器运行时私有字段
 
-主 HTML crawl lane 与 browser lane 必须共享同一 page freshness truth 和 source-truth 上游边界。
+主 HTML crawl lane 与 browser lane 必须共享同一 page freshness truth 和 source-truth
+上游边界。
 
 ## Operator Surface
 
-panel 的 `Official Web` freshness/operator 视图已开始落地，但仍然只通过 `app-api` query surface 读取。
+panel 的 `Official Web` freshness/operator 视图已开始落地，但仍然只通过 `app-api` query surface
+读取。
 
 当前已落地的第一批视图：
 

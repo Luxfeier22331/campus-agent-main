@@ -5,7 +5,6 @@ status: accepted
 created: 2026-04-05
 updated: 2026-04-22
 ---
-
 # ADR-0027 Navigation Agent And Spatial Truth
 
 ## 状态
@@ -40,12 +39,14 @@ Accepted on 2026-04-05.
 
 ### 决策 1：导航能力是独立 agent family
 
-长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation-agent` 进入 supervisor-led orchestration。
+长期上，校园导航 / wayfinding 作为独立 capability family 存在，并以 `navigation-agent` 进入
+supervisor-led orchestration。
 
 术语补充：
 
 - 当前 accepted runtime / package / ADR label 继续是 `navigation-agent`
-- 这份 ADR 讨论的是 capability boundary；repo-wide rename 是否完成，以 current architecture 与 active workstream closeout 为准
+- 这份 ADR 讨论的是 capability boundary；repo-wide rename 是否完成，以 current architecture 与
+  active workstream closeout 为准
 
 直接含义：
 
@@ -56,7 +57,8 @@ Accepted on 2026-04-05.
 
 ### 决策 2：校园空间真相属于 repo-owned institutional knowledge 子域
 
-长期上，校园导航相关 canonical truth 属于 `institutional knowledge` 的子域，而不是 app-owned identity / memory truth。
+长期上，校园导航相关 canonical truth 属于 `institutional knowledge` 的子域，而不是 app-owned
+identity / memory truth。
 
 建议的长期能力层包括：
 
@@ -189,18 +191,20 @@ Accepted on 2026-04-05.
 
 - 需要新增一份 navigation supporting architecture 文档
 - 后续 contract 设计应新增导航 capability 与 request-scoped situational context
-- 后续 data-plane 设计应新增 campus spatial truth 的 source-truth / projection / artifact 方案
+- 后续 data-plane 设计应新增 campus spatial truth 的 source-truth / projection /
+  artifact 方案
 - 后续技术栈评估必须在上述目标和边界之后进行，而不是反向定义它们
 
 ## Related Docs
 
-- `docs/architecture/navigation-and-wayfinding-architecture.md`
+- `docs/architecture/domains/navigation/architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/decisions/adr-0005-campus-services-taxonomy.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.m
+  d`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`

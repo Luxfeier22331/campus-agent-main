@@ -4,14 +4,14 @@ status: active
 created: 2026-04-06
 updated: 2026-04-21
 ---
-
 # Internal Notice Offline Preparation Strategy
 
 ## 文档边界
 
 本文冻结 `campus_notices/internal_notice` 在
 
-`source-truth replay -> document build -> split / cleanup / chunk -> verified chunk preparation`
+`source-truth replay -> document build -> split / cleanup / chunk -> verified
+chunk preparation`
 
 这一段的 collection-specific strategy。
 
@@ -30,9 +30,9 @@ updated: 2026-04-21
 
 相关文档：
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 
@@ -51,10 +51,14 @@ updated: 2026-04-21
 
 - `internal_notice` 是 source-channel-first triage collection
 - 它不是 formal regulation collection
-- verified replay / chunk preparation 只证明 source-channel triage 质量，不等于 regulation corpus 已成立
-- future notice runtime 如需消费 `internal_notice`，也只能把它当作 restricted notice source family；这不自动打开 query-serving，也不把它改写成 public notice surface
-- future restricted notice runtime query seam 只能读取 projected notice metadata / canonical body truth
-- query path 不得直接扫描 `internal_notice` raw/source-truth bundle、chunk preparation artifacts 或 query-disabled retrieval alias
+- verified replay / chunk preparation 只证明 source-channel triage 质量，不等于
+  regulation corpus 已成立
+- future notice runtime 如需消费 `internal_notice`，也只能把它当作 restricted notice source
+  family；这不自动打开 query-serving，也不把它改写成 public notice surface
+- future restricted notice runtime query seam 只能读取 projected notice metadata /
+  canonical body truth
+- query path 不得直接扫描 `internal_notice` raw/source-truth bundle、chunk preparation
+  artifacts 或 query-disabled retrieval alias
 
 ## Notice-Family Admission Contract
 
@@ -80,7 +84,8 @@ updated: 2026-04-21
 
 ## Notice Risk Profile Contract
 
-`internal_notice` 允许维护 notice-level risk profile，但它只属于 inventory / replay / operator read model。
+`internal_notice` 允许维护 notice-level risk profile，但它只属于 inventory / replay /
+operator read model。
 
 当前稳定字段包括：
 
@@ -102,7 +107,8 @@ updated: 2026-04-21
 
 - validator / sample export 优先读取 frozen inventory
 - 不允许只根据当前 materialized document 重新猜 risk profile
-- `manual_review_required` 与 `reference_only` attachment 不因“没有 child document”而从 risk profile 中消失
+- `manual_review_required` 与 `reference_only` attachment 不因“没有 child document”而从
+  risk profile 中消失
 
 ## Accepted Lane Model
 
@@ -121,7 +127,8 @@ updated: 2026-04-21
 
 - parent notice document 只承载 notice 正文
 - attachment refs 留在 source-truth relation truth
-- attachments 如需进入 document/chunk pipeline，必须先 materialize 成 repo-owned child documents
+- attachments 如需进入 document/chunk pipeline，必须先 materialize 成 repo-owned child
+  documents
 
 ## Parent Notice Lane
 
@@ -147,7 +154,8 @@ updated: 2026-04-21
 
 - `pdf` 默认按 `ocr_required` 处理，不因 text layer 自动回到 text-extractable lane
 - OCR lane 的 provider routing 由 shared OCR owner 决定，不由本 collection 文档重新定义
-- `manual_review_required` / `reference_only` 继续作为 terminal outcome，而不是 OCR lane 失败后的隐式补救
+- `manual_review_required` / `reference_only` 继续作为 terminal outcome，而不是 OCR lane
+  失败后的隐式补救
 
 ## Preparation / Release Boundary
 

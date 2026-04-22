@@ -21,4 +21,5 @@
 - ingestion、cleanup、chunking 或 index 构建编排
 - API transport 或 auth
 
-当前 handbook live baseline 是 `dense + sparse + RRF`，但这个 package 对上游暴露的仍是稳定的 retrieval/evidence 抽象，而不是“bootstrap” 占位实现。
+当前 handbook live baseline 是 `dense + sparse + RRF`，但这个 package 对上游暴露的仍是稳定的
+retrieval/evidence 抽象，而不是“bootstrap” 占位实现。
