@@ -25,7 +25,7 @@ class LocalFilesystemObjectStore:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare local-only regulations/institutional_regulations chunk artifacts "
+            "Prepare local-only regulations/institutional_rules chunk artifacts "
             "from materialized target registry records"
         )
     )
@@ -41,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     registry = InMemoryDocumentRegistry.from_json_file(Path(args.documents_json))
-    records = registry.list_by_scope("regulations", "institutional_regulations")
+    records = registry.list_by_scope("regulations", "institutional_rules")
     if args.document_ids:
         selected_ids = {
             document_id.strip() for document_id in args.document_ids if document_id.strip()

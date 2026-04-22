@@ -9,7 +9,7 @@ updated: 2026-04-22
 
 ## 文档边界
 
-本文冻结 `regulations/institutional_regulations` 当前对 `authenticated_notice_portal/file_release` 的下游 readiness contract。
+本文冻结 `regulations/institutional_rules` 当前对 `authenticated_notice_portal/file_release` 的下游 readiness contract。
 
 它回答的是：
 
@@ -21,7 +21,7 @@ updated: 2026-04-22
 
 - live portal 认证与采集
 - `file_release` 正文 OCR / 解析 / chunk / index
-- 直接改写 `internal_notice -> institutional_regulations` 当前 promotion/materialization 行为
+- 直接改写 `internal_notice -> institutional_rules` 当前 promotion/materialization 行为
 
 对应文档：
 

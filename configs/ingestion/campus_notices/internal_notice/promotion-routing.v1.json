@@ -3,9 +3,9 @@
 	"source_corpus": "campus_notices",
 	"source_collection": "internal_notice",
 	"target_corpus": "regulations",
-	"target_collection": "institutional_regulations",
+	"target_collection": "institutional_rules",
 	"document_nature_target_collections": {
-		"institutional_regulation": "institutional_regulations",
+		"institutional_regulation": "institutional_rules",
 		"annual_cycle_rule": "scoped_rules",
 		"time_bound_operational_rule": "scoped_rules"
 	},
@@ -49,7 +49,7 @@
 	},
 	"document_nature_taxonomy": {
 		"institutional_regulation": {
-			"description": "Stable institutional regulation or normative handbook text that can stand on its own in regulations/institutional_regulations."
+			"description": "Stable institutional regulation or normative handbook text that can stand on its own in regulations/institutional_rules."
 		},
 		"annual_cycle_rule": {
 			"description": "Year-scoped, batch-scoped, or program-scoped regulation text such as admissions, recommendation, or selection procedures. These import into regulations/scoped_rules and must keep document_nature metadata for downstream handling."
@@ -97,14 +97,14 @@
 	"notes": [
 		"This file is a repo-tracked scaffold for the regulation-promotion boundary only; it is not yet consumed by execution code.",
 		"Promotion never deletes or rewrites the source-triage notice row in campus_notices/internal_notice.",
-		"Only canonical regulation text may cross into regulations/institutional_regulations.",
+		"Only canonical regulation text may cross into regulations/institutional_rules.",
 		"source_attachment_ref_id and source_attachment_sha256 are attachment-derived provenance fields; parent-body candidates may keep them null.",
 		"effective_date is preserved when the owner text explicitly states it, but it is not a promotion hard gate.",
 		"source_notice_release_time is notice-issued provenance metadata and must not be silently rewritten into effective_date.",
 		"Current execution identity now uses regulation_work_title; current projected/materialized title uses regulation_display_title when present, while regulation_title_normalized and source_title_literal remain source-facing title metadata.",
 		"Document age is not a standalone exclusion or downgrade signal for campus regulations.",
 		"暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
-		"Exclude from institutional_regulations only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
-		"Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_regulations."
+		"Exclude from institutional_rules only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
+		"Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_rules."
 	]
 }

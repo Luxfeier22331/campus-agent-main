@@ -13,7 +13,7 @@ updated: 2026-04-21
 
 它回答的是：
 
-- annual / time-bound rule 为什么不再留在 `institutional_regulations`
+- annual / time-bound rule 为什么不再留在 `institutional_rules`
 - duplicate hold 与 regulation target 的分界是什么
 - 哪些 notice 继续停在 source / triage layer，不得误升格
 
@@ -25,13 +25,13 @@ updated: 2026-04-21
 
 ## Fixed Conclusions
 
-### 1. `annual_cycle_rule` / `time_bound_operational_rule` 不再进入 `institutional_regulations`
+### 1. `annual_cycle_rule` / `time_bound_operational_rule` 不再进入 `institutional_rules`
 
 固定结论：
 
 - 这两类文档仍可通过 promotion gate
 - 但其 `target_collection` 现在固定为 `regulations/scoped_rules`
-- `institutional_regulations` 只保留 institution-wide stable regulation
+- `institutional_rules` 只保留 institution-wide stable regulation
 
 ### 2. Duplicate hold 与 target promotion 是两件事
 
@@ -53,7 +53,7 @@ updated: 2026-04-21
 
 当前 regulation import line 已拆成两类 target：
 
-- institution-wide stable regulation -> `institutional_regulations`
+- institution-wide stable regulation -> `institutional_rules`
 - annual/time-bound scoped rules -> `scoped_rules`
 
 固定要求：

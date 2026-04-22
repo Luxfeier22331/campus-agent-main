@@ -49,7 +49,7 @@ class LocalFilesystemObjectStore:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Materialize regulations/institutional_regulations from "
+            "Materialize regulations/institutional_rules from "
             "campus_notices/internal_notice promotion candidates"
         )
     )

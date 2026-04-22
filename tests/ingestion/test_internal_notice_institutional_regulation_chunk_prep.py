@@ -41,7 +41,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         document_nature="institutional_regulation",
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学关于学生使用人工智能的指导意见（2026版）",
         regulation_work_title="中央民族大学关于学生使用人工智能的指导意见",
         regulation_edition_label="2026版",
@@ -83,7 +83,7 @@ def _projected_document() -> InternalNoticeRegulationProjectedDocument:
 def _record(
     *, projected: InternalNoticeRegulationProjectedDocument, units_key: str
 ) -> DocumentRegistryRecord:
-    runtime_profile = load_runtime_profile("regulations", "institutional_regulations")
+    runtime_profile = load_runtime_profile("regulations", "institutional_rules")
     return DocumentRegistryRecord(
         document_id=projected.document_id,
         revision_track="current-effective",
@@ -91,7 +91,7 @@ def _record(
         source_uri=projected.source_uri,
         content_hash=projected.semantic_content_hash,
         corpus="regulations",
-        collection="institutional_regulations",
+        collection="institutional_rules",
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         entitlement_groups=("campus_members",),
         visibility_scope="campus",
@@ -131,7 +131,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         record = _record(
             projected=projected,
             units_key=(
-                "regulations/documents/institutional_regulations/guidance-2026/document-units.jsonl"
+                "regulations/documents/institutional_rules/guidance-2026/document-units.jsonl"
             ),
         )
         object_store = _FakeObjectStore(
@@ -154,7 +154,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
             self.assertEqual(report.prepared_document_count, 1)
 
             manifest = json.loads(Path(report.manifest_path).read_text(encoding="utf-8"))
-            self.assertEqual(manifest["target_collection"], "institutional_regulations")
+            self.assertEqual(manifest["target_collection"], "institutional_rules")
 
             validation = json.loads(
                 Path(report.validation_summary_path).read_text(encoding="utf-8")
@@ -185,13 +185,17 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
                 for line in chunks_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            self.assertTrue(
-                all(chunk["collection"] == "institutional_regulations" for chunk in chunks)
-            )
+            self.assertTrue(all(chunk["collection"] == "institutional_rules" for chunk in chunks))
             self.assertTrue(
                 any(
                     chunk["metadata"].get("regulation_display_title")
                     == "中央民族大学关于学生使用人工智能的指导意见 / 2026版"
+                    for chunk in chunks
+                )
+            )
+            self.assertTrue(
+                all(
+                    chunk["metadata"].get("strategy_name") == "institutional_rules_formal_v1"
                     for chunk in chunks
                 )
             )
@@ -212,7 +216,7 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
         record = _record(
             projected=projected,
             units_key=(
-                "regulations/documents/institutional_regulations/"
+                "regulations/documents/institutional_rules/"
                 "guidance-2026-invalid-owner/document-units.jsonl"
             ),
         )

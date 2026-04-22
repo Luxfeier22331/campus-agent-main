@@ -13,7 +13,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationCandidateArtifactDocument,
 )
 
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice"
 _HEADING_RE = re.compile(r"^\s*#+\s*")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s*(?P<marks>#+)\s*(?P<text>.+?)\s*$")
@@ -124,7 +124,7 @@ def build_institutional_regulation_document_id(
     regulation_title_normalized: str,
     regulation_work_title: str | None = None,
     issuing_org: str,
-    semantic_scope: str = "regulations/institutional_regulations",
+    semantic_scope: str = "regulations/institutional_rules",
 ) -> str:
     work_title = (regulation_work_title or regulation_title_normalized).strip()
     title_slug = _slugify_identifier(work_title)

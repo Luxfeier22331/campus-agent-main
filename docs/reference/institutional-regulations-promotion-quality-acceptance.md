@@ -9,7 +9,7 @@ updated: 2026-04-20
 
 ## 文档边界
 
-本文冻结 `campus_notices/internal_notice -> regulations/institutional_regulations` promotion/materialization 的 acceptance truth。
+本文冻结 `campus_notices/internal_notice -> regulations/institutional_rules` promotion/materialization 的 acceptance truth。
 
 它回答的是：
 
@@ -132,14 +132,14 @@ updated: 2026-04-20
 固定要求：
 
 - `internal_notice` 保留 source / triage truth
-- `institutional_regulations` 单独做 target scope refresh
+- `institutional_rules` 单独做 target scope refresh
 - source row 不能通过“改名”直接冒充 target row
 
 ## Relationship With Other Targets
 
 - annual / time-bound scoped rules 已转入 `regulations/scoped_rules`
-- 它们不再构成 `institutional_regulations` acceptance scope
-- `institutional_regulations` acceptance 只面向 institution-wide stable regulation
+- 它们不再构成 `institutional_rules` acceptance scope
+- `institutional_rules` acceptance 只面向 institution-wide stable regulation
 
 ## Verification Expectations
 

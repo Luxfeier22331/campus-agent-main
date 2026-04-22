@@ -51,7 +51,7 @@ from campus_ingestion_core.registry import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _TARGET_SOURCE_FILENAME = "internal-notice-regulation-promotion-manifest.json"
 _TARGET_IMPORT_SOURCE = "internal_notice_regulation_materialization"
 _TARGET_PARSER_VERSION = "internal_notice_regulation_materialization_v1"
@@ -350,7 +350,7 @@ def build_institutional_regulation_document_id(
     regulation_title_normalized: str,
     regulation_work_title: str | None = None,
     issuing_org: str,
-    semantic_scope: str = "regulations/institutional_regulations",
+    semantic_scope: str = "regulations/institutional_rules",
 ) -> str:
     return _build_institutional_regulation_document_id(
         regulation_title_normalized=regulation_title_normalized,

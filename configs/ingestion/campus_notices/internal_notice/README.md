@@ -29,7 +29,7 @@ It does not carry:
 - `notice-family-classification.v1.json`
   - read-only notice-family admission metadata used by inventory/replay/operator read models
 - `promotion-routing.v1.json`
-  - downstream routing scaffold for `regulations/institutional_regulations` and `regulations/scoped_rules`
+  - downstream routing scaffold for `regulations/institutional_rules` and `regulations/scoped_rules`
 
 ## Active runtime posture
 
@@ -55,7 +55,7 @@ Current interpretation is:
 - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest ...`
   - read-only promotion manifest builder for `candidate / hold / manual_review_required`
 - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
-  - target-collection materializer for `regulations/institutional_regulations`
+  - target-collection materializer for `regulations/institutional_rules`
 - `uv run --package campus-ingestion-worker python -m campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
   - target-collection materializer for `regulations/scoped_rules`
 

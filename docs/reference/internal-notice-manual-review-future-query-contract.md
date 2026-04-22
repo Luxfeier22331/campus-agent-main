@@ -28,9 +28,9 @@ updated: 2026-04-11
 
 当前 repo truth 现在是：
 
-- `annual_cycle_rule` 与 `time_bound_operational_rule` 不进入 `regulations/institutional_regulations`
+- `annual_cycle_rule` 与 `time_bound_operational_rule` 不进入 `regulations/institutional_rules`
 - `regulations/scoped_rules` 已作为统一 holding collection 被 repo 跟踪
-- 当前 query-enabled surface 仍只有 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- 当前 query-enabled surface 仍只有 `regulations/student_rules` 与 `curriculum/curriculum_plan`
 - `scoped_rules` 当前只是 `offline_preparation` scaffold，不等于已开放 query-serving
 
 这意味着：
@@ -53,7 +53,7 @@ updated: 2026-04-11
 
 - 先建 collection，再让 query 层事后猜 year / site / transition
 - 让 retrieval backend 靠 freshness 或 embedding 相似度替代 validity/temporal 选择
-- 把历史 / 时限型规则混进 `institutional_regulations`
+- 把历史 / 时限型规则混进 `institutional_rules`
 
 ## Shared Metadata Contract
 

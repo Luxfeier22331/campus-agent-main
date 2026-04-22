@@ -13,7 +13,7 @@ updated: 2026-04-21
 
 它回答的是：
 
-- 哪些 captured items 当前属于 `institutional_regulations`
+- 哪些 captured items 当前属于 `institutional_rules`
 - 哪些当前属于 `scoped_rules`
 - 哪些仍停在 duplicate hold / auth-blocked / out-of-scope
 
@@ -32,7 +32,7 @@ updated: 2026-04-21
 
 ## Institution-Wide Current Target
 
-当前仍属于 `regulations/institutional_regulations` 的 target 只保留 institution-wide stable regulation，例如：
+当前仍属于 `regulations/institutional_rules` 的 target 只保留 institution-wide stable regulation，例如：
 
 - `中央民族大学采购工作管理办法`
 - `中央民族大学关于学生使用人工智能的指导意见 / 2026版`
@@ -44,7 +44,7 @@ updated: 2026-04-21
 
 ## Scoped Rules Holding Target
 
-以下 captured items 当前属于 `regulations/scoped_rules`，不再回混到 `institutional_regulations`：
+以下 captured items 当前属于 `regulations/scoped_rules`，不再回混到 `institutional_rules`：
 
 - `中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则`
 - `药学院2021年硕博连读博士研究生招生实施细则`

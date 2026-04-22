@@ -116,6 +116,57 @@ def postprocess_internal_notice_chunk_candidates(
     return tuple(merged)
 
 
+def postprocess_institutional_regulation_chunk_candidates(
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    if not chunk_candidates:
+        return ()
+    if not use_collection_unit_profiles:
+        return merge_adjacent_short_textual_candidates(
+            chunk_candidates=chunk_candidates,
+            chunk_profile=runtime_profile,
+        )
+    merged: list[_ChunkCandidate] = []
+    current_lane: str | None = None
+    current_group: list[_ChunkCandidate] = []
+    for candidate in chunk_candidates:
+        candidate_lane = str(candidate.metadata.get("promotion_class") or "").strip()
+        if not candidate_lane:
+            raise ValueError(
+                "institutional_rules chunk candidate missing promotion_class metadata: "
+                f"{record.document_id}"
+            )
+        if current_lane is None:
+            current_lane = candidate_lane
+        if candidate_lane != current_lane:
+            merged.extend(
+                merge_adjacent_short_textual_candidates(
+                    chunk_candidates=tuple(current_group),
+                    chunk_profile=build_collection_lane_chunk_profile(
+                        record=record,
+                        lane=current_lane,
+                    ),
+                )
+            )
+            current_group = []
+            current_lane = candidate_lane
+        current_group.append(candidate)
+    if current_group and current_lane is not None:
+        merged.extend(
+            merge_adjacent_short_textual_candidates(
+                chunk_candidates=tuple(current_group),
+                chunk_profile=build_collection_lane_chunk_profile(
+                    record=record,
+                    lane=current_lane,
+                ),
+            )
+        )
+    return tuple(merged)
+
+
 def postprocess_scoped_rule_chunk_candidates(
     chunk_candidates: tuple[_ChunkCandidate, ...],
     record: DocumentRegistryRecord,
@@ -169,6 +220,7 @@ def postprocess_scoped_rule_chunk_candidates(
 __all__ = [
     "postprocess_curriculum_chunk_candidates",
     "postprocess_default_chunk_candidates",
+    "postprocess_institutional_regulation_chunk_candidates",
     "postprocess_internal_notice_chunk_candidates",
     "postprocess_scoped_rule_chunk_candidates",
 ]

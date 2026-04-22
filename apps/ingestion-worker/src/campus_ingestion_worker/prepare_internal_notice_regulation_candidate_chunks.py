@@ -17,7 +17,7 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Prepare local-only regulations/institutional_regulations chunk artifacts "
+            "Prepare local-only regulations/institutional_rules chunk artifacts "
             "from internal_notice promotion candidate exports"
         )
     )

@@ -22,8 +22,8 @@ def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentReg
         source_uri=f"campusrag://promotion/internal_notice/{document_id}",
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
-        collection="institutional_regulations",
-        cleaning_policy_version="institutional_regulations_cleaning_v1",
+        collection="institutional_rules",
+        cleaning_policy_version="institutional_rules_cleaning_v1",
         entitlement_groups=("campus_members",),
         visibility_scope="campus",
         visibility_level="restricted",
@@ -124,7 +124,7 @@ class PrepareInstitutionalRegulationChunksWorkerCliTest(unittest.TestCase):
         record = _record(
             document_id="institutional_regulation:muc:ai-guidance:089bcf7907da",
             version_id="sha256:guidance:2026",
-            units_key="regulations/documents/institutional_regulations/ai-guidance/document-units.jsonl",
+            units_key="regulations/documents/institutional_rules/ai-guidance/document-units.jsonl",
         )
 
         with TemporaryDirectory() as temp_dir:

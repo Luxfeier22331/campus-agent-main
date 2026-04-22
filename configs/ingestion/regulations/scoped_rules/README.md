@@ -24,7 +24,7 @@ Collection boundary:
   - `annual_cycle_rule`
   - `time_bound_operational_rule`
 - wrapper notices remain in `campus_notices/internal_notice`
-- stable institution-wide regulations remain in `regulations/institutional_regulations`
+- stable institution-wide regulations remain in `regulations/institutional_rules`
 
 Current scaffold note:
 

@@ -11,7 +11,7 @@ updated: 2026-04-19
 
 这份 runbook 只描述一件事：
 
-- 如何对已经 materialize 到 `regulations/institutional_regulations` / `regulations/scoped_rules` 的 target current scope 做 local-only chunk / metadata / quality acceptance
+- 如何对已经 materialize 到 `regulations/institutional_rules` / `regulations/scoped_rules` 的 target current scope 做 local-only chunk / metadata / quality acceptance
 
 它不替代：
 
@@ -42,13 +42,13 @@ updated: 2026-04-19
 - 当前使用隔离的 snapshot / overlay 根目录承接 target acceptance artifact
 - `documents.json` 与 object-store root 指向同一份 local target snapshot
 
-## 1. 对 institutional_regulations 做 target-side acceptance
+## 1. 对 institutional_rules 做 target-side acceptance
 
 ```bash
 uv run --package campus-ingestion-worker python -m campus_ingestion_worker.prepare_institutional_regulation_chunks \
   --documents-json /tmp/internal-notice-target-snapshot/documents.json \
   --object-store-root /tmp/internal-notice-target-snapshot/object-store \
-  --output-dir /tmp/internal-notice-target-acceptance/institutional_regulations
+  --output-dir /tmp/internal-notice-target-acceptance/institutional_rules
 ```
 
 可选过滤：

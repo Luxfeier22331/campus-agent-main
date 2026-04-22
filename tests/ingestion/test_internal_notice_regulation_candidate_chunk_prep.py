@@ -29,7 +29,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         document_nature="institutional_regulation",
         semantic_owner_kind="notice_body",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学采购工作管理办法",
         issuing_org="中央民族大学",
         effective_date="2021年3月1日",
@@ -91,7 +91,7 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertGreater(report.total_chunk_count, 1)
 
             manifest = json.loads(Path(report.manifest_path).read_text(encoding="utf-8"))
-            self.assertEqual(manifest["target_collection"], "institutional_regulations")
+            self.assertEqual(manifest["target_collection"], "institutional_rules")
             self.assertEqual(manifest["prepared_candidate_count"], 1)
 
             validation = json.loads(
@@ -142,9 +142,7 @@ class InternalNoticeRegulationCandidateChunkPrepTest(unittest.TestCase):
             self.assertTrue(
                 any(chunk["metadata"].get("content_role") == "regulation_title" for chunk in chunks)
             )
-            self.assertTrue(
-                all(chunk["collection"] == "institutional_regulations" for chunk in chunks)
-            )
+            self.assertTrue(all(chunk["collection"] == "institutional_rules" for chunk in chunks))
             self.assertTrue(all("特此通知" not in chunk["text"] for chunk in chunks))
             self.assertTrue(
                 any(

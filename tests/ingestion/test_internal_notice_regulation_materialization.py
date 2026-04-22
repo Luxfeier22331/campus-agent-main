@@ -154,8 +154,8 @@ def _regulation_record(document_id: str) -> DocumentRegistryRecord:
         source_uri=f"campusrag://promotion/{document_id}",
         content_hash="stale-regulation-hash",
         corpus="regulations",
-        collection="institutional_regulations",
-        cleaning_policy_version="institutional_regulations_cleaning_v1",
+        collection="institutional_rules",
+        cleaning_policy_version="institutional_rules_cleaning_v1",
         entitlement_groups=("campus_members",),
         visibility_scope="campus",
         visibility_level="restricted",
@@ -166,17 +166,17 @@ def _regulation_record(document_id: str) -> DocumentRegistryRecord:
         source_channel="manual_curated",
         is_current=False,
         document_units_object_key=(
-            "regulations/documents/institutional_regulations/stale-regulation--stale1234/"
+            "regulations/documents/institutional_rules/stale-regulation--stale1234/"
             "source-faithful/2026/document-units.jsonl"
         ),
         canonical_markdown_object_key=(
-            "regulations/documents/institutional_regulations/stale-regulation--stale1234/"
+            "regulations/documents/institutional_rules/stale-regulation--stale1234/"
             "source-faithful/2026/canonical.md"
         ),
         processed_object_keys=(
-            "regulations/documents/institutional_regulations/stale-regulation--stale1234/"
+            "regulations/documents/institutional_rules/stale-regulation--stale1234/"
             "source-faithful/2026/document-units.jsonl",
-            "regulations/documents/institutional_regulations/stale-regulation--stale1234/"
+            "regulations/documents/institutional_rules/stale-regulation--stale1234/"
             "source-faithful/2026/canonical.md",
         ),
         import_source="internal_notice_regulation_materialization",
@@ -436,9 +436,9 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertIsNotNone(raw_record)
         if raw_record is None:
             return
-        self.assertEqual(raw_record.collection, "institutional_regulations")
+        self.assertEqual(raw_record.collection, "institutional_rules")
 
-        target_records = registry.list_by_scope("regulations", "institutional_regulations")
+        target_records = registry.list_by_scope("regulations", "institutional_rules")
         self.assertEqual(len(target_records), 2)
         self.assertNotIn(
             stale_target.document_id, {record.document_id for record in target_records}
@@ -700,7 +700,7 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
 
         self.assertEqual(report.promotion_candidate_count, 0)
         self.assertEqual(report.materialized_document_count, 0)
-        target_records = registry.list_by_scope("regulations", "institutional_regulations")
+        target_records = registry.list_by_scope("regulations", "institutional_rules")
         self.assertEqual(target_records, ())
 
 

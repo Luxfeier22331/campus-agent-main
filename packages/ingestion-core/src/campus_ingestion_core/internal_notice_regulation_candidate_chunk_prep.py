@@ -17,7 +17,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _PARSER_VERSION = "internal_notice_regulation_projection_preview_v1"
 _IMPORT_SOURCE = "internal_notice_regulation_candidate_chunk_prep"
 _SCHEMA_VERSION = "internal_notice_regulation_candidate_chunk_prep_v1"

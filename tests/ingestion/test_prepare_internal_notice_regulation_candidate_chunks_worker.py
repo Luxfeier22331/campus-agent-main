@@ -32,7 +32,7 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         document_nature="institutional_regulation",
         semantic_owner_kind="attachment_document",
         target_corpus="regulations",
-        target_collection="institutional_regulations",
+        target_collection="institutional_rules",
         regulation_title_normalized="中央民族大学实验室安全管理规定",
         issuing_org="中央民族大学",
         effective_date="2021年2月28日",

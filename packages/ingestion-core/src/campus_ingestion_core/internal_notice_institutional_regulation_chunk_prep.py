@@ -11,7 +11,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED
 
-_TARGET_SCOPE = ("regulations", "institutional_regulations")
+_TARGET_SCOPE = ("regulations", "institutional_rules")
 _SCHEMA_VERSION = "internal_notice_institutional_regulation_chunk_prep_v1"
 _REQUIRED_IDENTITY_METADATA_FIELDS = (
     "promotion_class",
@@ -290,8 +290,7 @@ def _prepare_target_record(
 ) -> _PreparedInstitutionalRegulation:
     if not record.document_units_object_key:
         raise ValueError(
-            "institutional_regulations record missing document_units_object_key: "
-            f"{record.document_id}"
+            f"institutional_rules record missing document_units_object_key: {record.document_id}"
         )
     document_units_bytes = object_store.get_bytes(
         bucket=bucket_derived,
