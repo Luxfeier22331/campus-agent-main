@@ -42,7 +42,7 @@
   - [internal-notice-policy-regulation-promotion-runbook.md](/home/reptilian/code/campus-agent/docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md)
   - [institutional-regulations-promotion-quality-acceptance.md](/home/reptilian/code/campus-agent/docs/reference/institutional-regulations-promotion-quality-acceptance.md)
   - [internal-notice-manual-review-collection-strategy.md](/home/reptilian/code/campus-agent/docs/reference/internal-notice-manual-review-collection-strategy.md)
-  - [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/post-closeout-follow-up-execution-plan.md)
+  - [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md)
   - [STATE.md](/home/reptilian/code/campus-agent/.planning/STATE.md)
 - 顺手修复了一个 repo blocker：
   - [raw_ingestion.py](/home/reptilian/code/campus-agent/packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py)

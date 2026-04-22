@@ -27,7 +27,7 @@
 ## Execution Order
 
 1. 文档真相收口
-   - 更新 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+   - 更新 `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
    - 明确 `xls/xlsx` 已支持，`.doc` 仍未支持
    - 明确 Phase F 只处理 legacy Office + metadata truth
 
@@ -65,7 +65,7 @@
 
 ## Proposed Write Set
 
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py`
 - `apps/ingestion-worker/src/campus_ingestion_worker/*legacy office normalizer entry*`

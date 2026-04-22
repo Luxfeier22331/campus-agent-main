@@ -45,7 +45,7 @@ Output: one research note, one structured manual-review taxonomy artifact, and o
 @docs/reference/internal-notice-offline-preparation-strategy.md
 @docs/reference/internal-notice-offline-preparation-quality-acceptance.md
 @docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md
-@docs/plans/internal-notice-policy-regulation-consumption-implementation.md
+@.planning/workstreams/authenticated-notice-regulation-consumption/README.md
 @configs/ingestion/campus_notices/internal_notice/chunk-profile.json
 @configs/ingestion/campus_notices/internal_notice/README.md
 @packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py

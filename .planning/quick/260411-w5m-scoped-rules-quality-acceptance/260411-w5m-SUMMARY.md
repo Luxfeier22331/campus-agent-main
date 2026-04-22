@@ -24,8 +24,8 @@
   - `.planning/quick/260411-w5m-scoped-rules-quality-acceptance/scoped-rules-chunk-acceptance.md`
 - 同步更新：
   - `configs/ingestion/regulations/scoped_rules/README.md`
-  - `docs/plans/post-closeout-follow-up-execution-plan.md`
-  - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+  - `docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
   - `.planning/STATE.md`
 
 ## Key Finding

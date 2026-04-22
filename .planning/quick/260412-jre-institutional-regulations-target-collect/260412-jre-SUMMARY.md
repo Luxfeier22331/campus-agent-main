@@ -38,7 +38,7 @@
   - [rerun-output/cohort-a-target-chunk-acceptance-summary.json](/home/reptilian/code/campus-agent/.planning/quick/260412-jre-institutional-regulations-target-collect/rerun-output/cohort-a-target-chunk-acceptance-summary.json)
   - [rerun-output/cohort-a-target-chunk-acceptance.md](/home/reptilian/code/campus-agent/.planning/quick/260412-jre-institutional-regulations-target-collect/rerun-output/cohort-a-target-chunk-acceptance.md)
 - 刷新了 follow-up truth：
-  - [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/post-closeout-follow-up-execution-plan.md)
+  - [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md)
   - [STATE.md](/home/reptilian/code/campus-agent/.planning/STATE.md)
 
 ## New Next Step

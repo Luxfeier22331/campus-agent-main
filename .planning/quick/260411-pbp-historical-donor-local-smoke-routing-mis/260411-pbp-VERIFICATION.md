@@ -22,7 +22,7 @@ Verified by direct file inspection:
 
 - [authenticated-notice-historical-donor-intake-runbook.md](/home/reptilian/code/campus-agent/docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md) explicitly states that missing `attachment_blob_root` is now an import-preflight execution error
 - [authenticated-notice-historical-donor-intake-evidence.md](/home/reptilian/code/campus-agent/docs/reference/authenticated-notice-historical-donor-intake-evidence.md) records that local smoke inventory remains routing truth and the old dual-truth mode is no longer allowed
-- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/post-closeout-follow-up-execution-plan.md) records the cleanup as completed
+- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md) records the cleanup as completed
 - [.planning/STATE.md](/home/reptilian/code/campus-agent/.planning/STATE.md) no longer lists this mismatch as remaining follow-up
 
 ## Final Verdict

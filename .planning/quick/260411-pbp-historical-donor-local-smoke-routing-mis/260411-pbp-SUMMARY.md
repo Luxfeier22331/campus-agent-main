@@ -22,7 +22,7 @@
   - 把“缺 blob root 是 execution error”写成显式 operator truth
 - [authenticated-notice-historical-donor-intake-evidence.md](/home/reptilian/code/campus-agent/docs/reference/authenticated-notice-historical-donor-intake-evidence.md)
   - 补充 2026-04-11 fast-fail contract 说明
-- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/post-closeout-follow-up-execution-plan.md)
+- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md)
   - 记录 mismatch cleanup 已完成
 - [.planning/STATE.md](/home/reptilian/code/campus-agent/.planning/STATE.md)
   - 新增 quick task `260411-pbp`

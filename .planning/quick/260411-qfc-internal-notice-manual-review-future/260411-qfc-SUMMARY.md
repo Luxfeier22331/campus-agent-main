@@ -15,7 +15,7 @@
   - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - 同步更新：
   - `docs/README.md`
-  - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
   - `configs/ingestion/campus_notices/internal_notice/README.md`
   - `.planning/STATE.md`
 

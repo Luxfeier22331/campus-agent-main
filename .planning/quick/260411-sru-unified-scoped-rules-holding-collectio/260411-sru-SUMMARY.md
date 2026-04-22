@@ -17,7 +17,7 @@
   - `docs/README.md`
   - `docs/reference/internal-notice-manual-review-collection-strategy.md`
   - `docs/reference/internal-notice-manual-review-future-query-contract.md`
-  - `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+  - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
   - `configs/ingestion/campus_notices/internal_notice/README.md`
   - `.planning/STATE.md`
 

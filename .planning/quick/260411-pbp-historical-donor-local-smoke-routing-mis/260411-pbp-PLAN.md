@@ -9,7 +9,7 @@ files_modified:
   - tests/ingestion/test_authenticated_notice_import.py
   - docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md
   - docs/reference/authenticated-notice-historical-donor-intake-evidence.md
-  - docs/plans/post-closeout-follow-up-execution-plan.md
+  - docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md
   - .planning/STATE.md
   - .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-SUMMARY.md
   - .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-VERIFICATION.md
@@ -40,7 +40,7 @@ Output: core import fast-fail guardrail, targeted tests, and aligned planning/ru
 <context>
 @AGENTS.md
 @.planning/STATE.md
-@docs/plans/post-closeout-follow-up-execution-plan.md
+@docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md
 @docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md
 @docs/reference/authenticated-notice-historical-donor-intake-evidence.md
 @packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py
@@ -65,7 +65,7 @@ Output: core import fast-fail guardrail, targeted tests, and aligned planning/ru
 
 <task type="auto">
   <name>Task 3: Align repo truth and verification evidence</name>
-  <files>.planning/STATE.md, docs/plans/post-closeout-follow-up-execution-plan.md, docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md, docs/reference/authenticated-notice-historical-donor-intake-evidence.md, .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-SUMMARY.md, .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-VERIFICATION.md</files>
+  <files>.planning/STATE.md, docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md, docs/runbooks/authenticated-notice-historical-donor-intake-runbook.md, docs/reference/authenticated-notice-historical-donor-intake-evidence.md, .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-SUMMARY.md, .planning/quick/260411-pbp-historical-donor-local-smoke-routing-mis/260411-pbp-VERIFICATION.md</files>
   <action>Record that this cleanup is complete, preserve the single-source-of-truth posture for local smoke inventory, and capture the official fail-fast/object-existence rationale plus targeted verification results.</action>
   <done>The remaining authenticated-notice follow-up list no longer includes this mismatch, and the quick-task artifacts explain both the local proof and the external rationale.</done>
 </task>

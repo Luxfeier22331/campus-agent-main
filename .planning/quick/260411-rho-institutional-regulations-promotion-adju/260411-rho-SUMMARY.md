@@ -19,7 +19,7 @@
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`
   - 新增 `document_nature_taxonomy` 与 `force_status_taxonomy`
   - 明确 `document age` 与 `暂行/试行` 的非自动排除规则
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
   - 补充 freshness/metadata 官方依据
   - 修正 promotion guardrail 文字
 

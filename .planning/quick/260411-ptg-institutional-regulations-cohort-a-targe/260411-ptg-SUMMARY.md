@@ -26,7 +26,7 @@
   - 固定 machine-readable acceptance truth
 - [cohort-a-target-chunk-acceptance.md](/home/reptilian/code/campus-agent/.planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-target-chunk-acceptance.md)
   - 固定 operator-readable acceptance结论
-- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/post-closeout-follow-up-execution-plan.md)
+- [post-closeout-follow-up-execution-plan.md](/home/reptilian/code/campus-agent/docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md)
   - 把 authenticated-notice 下一步从笼统的 target chunk acceptance 收窄为：
   - `10` 条 manual-review notice 的 promotion admission/routing review
   - `187233` 的 short-fragment tuning review

@@ -16,7 +16,7 @@ files_modified:
   - .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort-a-target-chunk-acceptance.md
   - .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-SUMMARY.md
   - .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-VERIFICATION.md
-  - docs/plans/post-closeout-follow-up-execution-plan.md
+  - docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md
   - .planning/STATE.md
 autonomous: true
 requirements: []
@@ -47,8 +47,8 @@ Output: rebuilt inventory, batch candidate export, target-side chunk-prep artifa
 <context>
 @AGENTS.md
 @.planning/STATE.md
-@docs/plans/post-closeout-follow-up-execution-plan.md
-@docs/plans/internal-notice-policy-regulation-consumption-implementation.md
+@docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md
+@.planning/workstreams/authenticated-notice-regulation-consumption/README.md
 @.planning/quick/260410-5yl-internal-notice-policy-regulation-cohort/run14-policy-regulation-cohorts.json
 @.planning/quick/260411-ouc-internal-notice-regulation-candidate-loc/260411-ouc-SUMMARY.md
 </context>
@@ -71,7 +71,7 @@ Output: rebuilt inventory, batch candidate export, target-side chunk-prep artifa
 
 <task type="auto">
   <name>Task 3: Update planning truth to reflect the narrowed next step</name>
-  <files>docs/plans/post-closeout-follow-up-execution-plan.md, .planning/STATE.md, .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-SUMMARY.md, .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-VERIFICATION.md</files>
+  <files>docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md, .planning/STATE.md, .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-SUMMARY.md, .planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/260411-ptg-VERIFICATION.md</files>
   <action>Record that generic target chunk acceptance is no longer an unknown: the next authenticated-notice work is promotion admission/routing review for the 10 manual-review notices plus short-fragment tuning review for the lone current candidate `187233`.</action>
   <done>STATE and post-closeout planning both point to the same narrowed follow-up.</done>
 </task>

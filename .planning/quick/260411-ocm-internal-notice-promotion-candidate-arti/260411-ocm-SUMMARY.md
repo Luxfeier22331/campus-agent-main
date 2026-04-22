@@ -19,7 +19,7 @@
   - 新增 candidate artifact export contract 测试
 - `tests/ingestion/test_export_internal_notice_regulation_candidate_artifacts_worker.py`
   - 新增 worker CLI local snapshot 测试
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
   - 新增 local-only candidate artifact contract 设计记录
 
 ## Contract Shape

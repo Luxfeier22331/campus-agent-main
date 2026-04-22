@@ -5,7 +5,7 @@
 
 ## Repo Facts
 
-- 当前 non-auth workstream 是 `authenticated-notice -> regulation downstream consumption`，入口文档是 `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`。
+- 当前 non-auth workstream 是 `authenticated-notice -> regulation downstream consumption`，入口文档是 `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`。
 - source projection 当前已经支持：
   - `docx -> text_extractable`
   - `xlsx -> text_extractable`

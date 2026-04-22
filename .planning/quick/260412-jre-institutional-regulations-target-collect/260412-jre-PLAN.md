@@ -9,7 +9,7 @@ files_modified:
   - .planning/quick/260412-jre-institutional-regulations-target-collect/rerun-output/
   - .planning/quick/260412-jre-institutional-regulations-target-collect/260412-jre-SUMMARY.md
   - .planning/quick/260412-jre-institutional-regulations-target-collect/260412-jre-VERIFICATION.md
-  - docs/plans/post-closeout-follow-up-execution-plan.md
+  - docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md
   - .planning/STATE.md
 autonomous: true
 requirements: []
@@ -25,7 +25,7 @@ must_haves:
     - .planning/quick/260412-jre-institutional-regulations-target-collect/260412-jre-SUMMARY.md
     - .planning/quick/260412-jre-institutional-regulations-target-collect/260412-jre-VERIFICATION.md
   key_links:
-    - "`docs/plans/post-closeout-follow-up-execution-plan.md` contained stale Cohort A counts and needed to be refreshed from a new rerun."
+    - "`docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md` contained stale Cohort A counts and needed to be refreshed from a new rerun."
     - "Use `.planning/quick/260411-ptg-institutional-regulations-cohort-a-targe/cohort_a_target_chunk_acceptance.py` as the existing harness, but write fresh evidence into the new quick-task directory."
     - "Do not reopen auth-dependent collector work or general OCR phase work in this quick task."
 ---
@@ -49,7 +49,7 @@ Purpose: replace stale Cohort A counts with current evidence, then narrow the ne
 
 <task type="auto">
   <name>Task 2: Refresh planning truth from the new acceptance result</name>
-  <files>docs/plans/post-closeout-follow-up-execution-plan.md .planning/STATE.md</files>
+  <files>docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md .planning/STATE.md</files>
   <action>Read the refreshed summary JSON and update the planning truth so the repo no longer claims the older `1 promote / 10 manual review` Cohort A posture if the rerun result has changed. The updated next action must reflect the rerun result.</action>
   <verify>
     <automated>jq '{promotion_candidate_count, promotion_manual_review_count, prepared_candidate_count, quality_posture, short_body_chunk_count}' .planning/quick/260412-jre-institutional-regulations-target-collect/rerun-output/cohort-a-target-chunk-acceptance-summary.json</automated>

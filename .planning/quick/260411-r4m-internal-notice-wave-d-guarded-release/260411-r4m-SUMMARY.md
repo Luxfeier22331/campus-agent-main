@@ -24,7 +24,7 @@
   - 新增 quick task `260411-r4m`
   - recent verification 增加 Qdrant inherited-proxy vs no-proxy 对照证据
   - session continuity 改为“Wave D guarded release docs closeout”
-- `docs/plans/post-closeout-follow-up-execution-plan.md`
+- `docs/plans/archive/historical/post-closeout-follow-up-execution-plan.md`
   - 补齐 Wave D guarded release 已完成后的 operator 约束
 - `docs/reference/internal-notice-offline-preparation-quality-evidence.md`
   - 从“三次证据”扩成“四次证据”
