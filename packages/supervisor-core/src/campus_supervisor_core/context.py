@@ -86,7 +86,7 @@ class SupervisorRequestContext:
         )
 
     @classmethod
-    def from_request(cls, request: SupervisorRequest) -> "SupervisorRequestContext":
+    def from_request(cls, request: SupervisorRequest) -> SupervisorRequestContext:
         return cls(
             request=request,
             request_id=request.request_id,

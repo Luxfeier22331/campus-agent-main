@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union
 
 from campus_contracts import (
     DEFAULT_POLICY_PROJECTION_VERSION,
@@ -43,7 +42,7 @@ class SupervisorAuditRecord:
 
 
 def build_audit_record(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
     response: SpecialistResponse | SupervisorResponse,
 ) -> SupervisorAuditRecord:
     requested_capability = _requested_capability_from_request(request)
@@ -100,7 +99,7 @@ def build_error_audit_record(
 
 
 def _requested_capability_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> RequestedCapability | None:
     if isinstance(request, SupervisorRequest):
         if request.requested_capability is not None:
@@ -112,7 +111,7 @@ def _requested_capability_from_request(
 
 
 def _requested_scope_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ):
     if isinstance(request, SupervisorRequest):
         return request.requested_scope
@@ -146,32 +145,32 @@ def _is_fail_closed_status(status: SupervisorStatus) -> bool:
 
 
 def _principal_type_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> str:
     return request.context.actor.principal_type.strip() or request.actor.principal_type.strip()
 
 
 def _authorization_projection_source_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> str:
     return request.context.authorization.projection_source.strip()
 
 
 def _entitlement_snapshot_id_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> str:
     return request.context.authorization.entitlement_snapshot_id.strip()
 
 
 def _policy_projection_version_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> str:
     version = request.context.authorization.retrieval_filter.policy_projection_version.strip()
     return version or DEFAULT_POLICY_PROJECTION_VERSION
 
 
 def _personalization_mode_from_request(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> str:
     if _has_user_grounded_personalization(request):
         return "user_grounded"
@@ -181,7 +180,7 @@ def _personalization_mode_from_request(
 
 
 def _has_user_grounded_personalization(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> bool:
     for item in request.context.profile_memory.items:
         if item.visibility != "user_visible":
@@ -194,7 +193,7 @@ def _has_user_grounded_personalization(
 
 
 def _has_actor_claim_personalization(
-    request: Union[SupervisorRequest, SpecialistRequest],
+    request: SupervisorRequest | SpecialistRequest,
 ) -> bool:
     actor = request.context.actor
     visibility_scope = request.context.authorization.visibility_scope

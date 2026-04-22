@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import Mapping
 
 from campus_shared import PromptRuntimeProviderConfig
 from campus_supervisor_core import handle_request

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 
 from campus_supervisor_core import SupervisorAuditRecord
 
@@ -20,7 +20,7 @@ def build_jsonl_audit_sink(path: Path) -> AuditSink:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             payload = {
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "recorded_at": datetime.now(UTC).isoformat(),
                 **asdict(record),
             }
             with path.open("a", encoding="utf-8") as handle:

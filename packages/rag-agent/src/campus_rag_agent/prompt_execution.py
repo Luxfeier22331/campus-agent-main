@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Generic, Protocol, TypeVar
+from typing import Protocol
 
 from campus_contracts import PromptTrace
 from campus_shared import (
@@ -26,11 +27,8 @@ class RagAnswerPromptOutput:
     answer_text: str
 
 
-PromptOutputT = TypeVar("PromptOutputT")
-
-
 @dataclass(frozen=True, slots=True)
-class RagPromptExecutionResult(Generic[PromptOutputT]):
+class RagPromptExecutionResult[PromptOutputT]:
     output: PromptOutputT
     prompt_trace: PromptTrace
     provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = ()

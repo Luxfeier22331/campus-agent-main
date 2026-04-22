@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Mapping
 from urllib.parse import urlsplit
 
 from campus_shared import load_repo_env
@@ -22,7 +22,7 @@ class DevServerSettings:
     port: int = 8000
 
     @classmethod
-    def from_env(cls) -> "DevServerSettings":
+    def from_env(cls) -> DevServerSettings:
         return cls(
             host=os.getenv("CAMPUS_AGENT_HTTP_HOST", "127.0.0.1"),
             port=int(os.getenv("CAMPUS_AGENT_HTTP_PORT", "8000")),

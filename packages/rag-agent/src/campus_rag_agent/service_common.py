@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core import load_runtime_profile

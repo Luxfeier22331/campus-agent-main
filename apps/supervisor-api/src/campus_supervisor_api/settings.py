@@ -47,7 +47,7 @@ class ApiSettings:
     prompt_strict_structured_outputs: bool = True
 
     @classmethod
-    def from_env(cls) -> "ApiSettings":
+    def from_env(cls) -> ApiSettings:
         prompt_runtime_model = (os.getenv("PROMPT_RUNTIME_MODEL", "")).strip()
         return cls(
             app_name=os.getenv("CAMPUS_AGENT_APP_NAME", APP_NAME),

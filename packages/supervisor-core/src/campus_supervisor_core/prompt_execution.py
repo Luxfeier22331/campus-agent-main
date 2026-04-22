@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Generic, Protocol, TypeVar
+from typing import Protocol
 
 from campus_contracts import PromptTrace
 from campus_shared import (
@@ -25,11 +26,8 @@ class SupervisorTerminalPromptOutput:
     answer_text: str
 
 
-PromptOutputT = TypeVar("PromptOutputT")
-
-
 @dataclass(frozen=True, slots=True)
-class SupervisorPromptExecutionResult(Generic[PromptOutputT]):
+class SupervisorPromptExecutionResult[PromptOutputT]:
     output: PromptOutputT
     prompt_trace: PromptTrace
 
