@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 from campus_contracts import ALLOWED_REVISION_TRACKS
@@ -49,6 +49,9 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
+    source_ocr_provider: str | None = None
+    source_ocr_model: str | None = None
+    source_parser_version: str | None = None
     serving_surface: str | None = None
     supports_freshness_sensitive_queries: bool = False
     freshness_max_age_hours: int | None = None
@@ -215,6 +218,9 @@ def load_runtime_profile(
         split_manifest_required=bool(payload.get("split_manifest_required")),
         cleaning_policy_version=str(payload.get("cleaning_policy_version") or ""),
         chunk_profile_version=str(payload.get("chunk_profile_version") or ""),
+        source_ocr_provider=_optional_text(payload.get("source_ocr_provider")),
+        source_ocr_model=_optional_text(payload.get("source_ocr_model")),
+        source_parser_version=_optional_text(payload.get("source_parser_version")),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
         supports_freshness_sensitive_queries=bool(
@@ -333,7 +339,7 @@ def is_official_web_stable_reference_like_profile(profile: CollectionRuntimeProf
     )
 
 
-@lru_cache(maxsize=None)
+@cache
 def is_official_web_stable_reference_like_collection(
     collection: str,
     *,

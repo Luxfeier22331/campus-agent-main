@@ -12,6 +12,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.collection_config import CollectionTruthConfig
+from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.curriculum_course_facts_projection import (
     build_curriculum_course_facts_scope_refresh_documents,
@@ -44,15 +45,12 @@ from campus_ingestion_core.local_rebuild_support import (
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import (
     DEFAULT_RAW_SOURCE_CHANNEL,
-    build_source_model_slug,
     build_source_ocr_artifact_key,
     build_source_truth_artifact_key,
     infer_year_label,
     parse_source_object_key,
 )
 from campus_ingestion_core.raw_ingestion import (
-    DEFAULT_ONLINE_OCR_MODEL,
-    DEFAULT_ONLINE_OCR_PROVIDER,
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
     normalize_online_ocr_provider_label,
@@ -77,6 +75,7 @@ def _load_replay_source_artifacts(
 ) -> dict[str, object]:
     corpus = request.corpus
     collection = request.collection
+    source_ocr_runtime = resolve_collection_source_ocr_runtime(corpus=corpus, collection=collection)
     split_manifest = load_split_manifest(
         collection_config.split_manifest_path,
         expected_corpus=corpus,
@@ -93,22 +92,15 @@ def _load_replay_source_artifacts(
         raw_version_id=raw_version_id,
         filename=PROVIDER_RESPONSE_FILENAME,
         source_channel=DEFAULT_RAW_SOURCE_CHANNEL,
-        model_slug=build_source_model_slug(
-            (source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL).strip()
-            or DEFAULT_ONLINE_OCR_MODEL
-        ),
+        model_slug=source_ocr_runtime.model_slug,
         year=infer_year_label(source_pdf),
     )
     provider_response_bytes = object_store.get_bytes(
         bucket=object_store_settings.bucket_source,
         key=provider_response_key,
     )
-    ocr_model = (
-        source.get("OCR_MODEL") or DEFAULT_ONLINE_OCR_MODEL
-    ).strip() or DEFAULT_ONLINE_OCR_MODEL
-    ocr_provider = normalize_online_ocr_provider_label(
-        (source.get("OCR_PROVIDER_MODE") or "").strip() or DEFAULT_ONLINE_OCR_PROVIDER
-    )
+    ocr_model = source_ocr_runtime.model
+    ocr_provider = normalize_online_ocr_provider_label(source_ocr_runtime.provider)
     if collection == "student_rules":
         structured_rows = normalize_handbook_provider_result(
             source_pdf=source_pdf,
@@ -315,17 +307,19 @@ def _collect_projection_aware_import_stats(
         stats = _run_traced_stage(
             trace_recorder,
             "replay.persist_scope",
-            lambda: collect_import_document_stats(
-                documents=scope_documents,
-                registry=registry,
-                raw_asset_registry=raw_asset_registry,
-                writer=writer,
-                object_store=object_store,
-                parser_version=parser_version,
-                embedding_model=embedding_model,
-                cleaning_policy_version=profile.cleaning_policy_version,
-                default_visibility_scope=default_visibility_scope,
-                scope_refresh=scope_refresh,
+            lambda scope_documents=scope_documents, profile=profile, scope_refresh=scope_refresh: (
+                collect_import_document_stats(
+                    documents=scope_documents,
+                    registry=registry,
+                    raw_asset_registry=raw_asset_registry,
+                    writer=writer,
+                    object_store=object_store,
+                    parser_version=parser_version,
+                    embedding_model=embedding_model,
+                    cleaning_policy_version=profile.cleaning_policy_version,
+                    default_visibility_scope=default_visibility_scope,
+                    scope_refresh=scope_refresh,
+                )
             ),
             fields={
                 "scope": f"{scope[0]}/{scope[1]}",

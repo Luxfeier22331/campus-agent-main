@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, replace
+from datetime import UTC
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from campus_ingestion_core import (
     DEFAULT_BUCKET_SOURCE,
@@ -366,9 +368,9 @@ def _optional_text(value: object) -> str | None:
 
 
 def _utcnow() -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def main(argv: Sequence[str] | None = None) -> None:

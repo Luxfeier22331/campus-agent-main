@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import Callable, Protocol, Sequence
+from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from campus_ingestion_core.handbook_article_structure import build_article_structure_groups
 

@@ -370,14 +370,14 @@ def _resolve_document_title(*, manifest: dict[str, object], blocks: list[dict[st
 
 def _build_document_id(*, site_id: str, page_family: str, normalized_canonical_url: str) -> str:
     digest = hashlib.sha1(
-        f"{site_id}\n{page_family}\n{normalized_canonical_url}".encode("utf-8")
+        f"{site_id}\n{page_family}\n{normalized_canonical_url}".encode()
     ).hexdigest()
     return f"official_web:{site_id}:{page_family}:{digest}"
 
 
 def _build_version_id(*, raw_version_id: str, declaration_id: str, main_content_hash: str) -> str:
     digest = hashlib.sha1(
-        f"{raw_version_id}\n{declaration_id}\n{main_content_hash}".encode("utf-8")
+        f"{raw_version_id}\n{declaration_id}\n{main_content_hash}".encode()
     ).hexdigest()
     return f"owdocver:{digest}"
 

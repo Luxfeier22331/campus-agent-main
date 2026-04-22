@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Sequence
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
@@ -346,7 +346,7 @@ def _projection_title(projection: _CourseFactProjection) -> str:
 
 
 def _build_projection_version_id(*, raw_version_id: str, fact_id: str) -> str:
-    digest = hashlib.sha256(f"{raw_version_id}|{fact_id}".encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha256(f"{raw_version_id}|{fact_id}".encode()).hexdigest()[:12]
     return f"{raw_version_id}:course-facts:{fact_id}:{digest}"
 
 

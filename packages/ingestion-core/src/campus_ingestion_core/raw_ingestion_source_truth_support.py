@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Protocol
 
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
@@ -11,6 +12,7 @@ from campus_ingestion_core.file_asset_routing import (
     RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
     RawAssetTypedMetadata,
     adapt_mineru_archive_to_canonical_provider_payload,
+    infer_raw_asset_typed_metadata,
 )
 from campus_ingestion_core.handbook_provider_normalize import (
     normalize_handbook_provider_result,
@@ -21,8 +23,8 @@ from campus_ingestion_core.raw_ingestion_online_ocr import (
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
-    OnlineOcrRawArtifact,
     OnlineOcrProviderResult,
+    OnlineOcrRawArtifact,
     OnlineOcrSettings,
     build_online_ocr_client,
     parse_online_ocr_bytes,
@@ -229,6 +231,54 @@ def _raw_asset_typed_metadata_from_record(
         asset_kind=raw_asset_record.asset_kind,
         asset_subkind=raw_asset_record.asset_subkind,
         classification_confidence=raw_asset_record.classification_confidence,
+    )
+
+
+def _ensure_routable_raw_asset_record_typing(
+    *,
+    raw_asset_record: RawAssetRecord,
+    reader: ObjectStoreReader,
+    bucket: str,
+) -> RawAssetRecord:
+    if raw_asset_record.asset_kind.strip() and raw_asset_record.asset_subkind.strip():
+        return raw_asset_record
+    source_name = (
+        raw_asset_record.source_filename.strip()
+        or Path(raw_asset_record.object_key).name
+        or raw_asset_record.raw_asset_id
+    )
+    file_bytes = reader.get_bytes(bucket=bucket, key=raw_asset_record.object_key)
+    typed_metadata = infer_raw_asset_typed_metadata(
+        source_path=Path(source_name),
+        file_bytes=file_bytes,
+    )
+    return replace(
+        raw_asset_record,
+        content_type=raw_asset_record.content_type or typed_metadata.content_type,
+        file_extension=raw_asset_record.file_extension or typed_metadata.file_extension,
+        byte_size=raw_asset_record.byte_size or typed_metadata.byte_size,
+        page_count=(
+            raw_asset_record.page_count
+            if raw_asset_record.page_count is not None
+            else typed_metadata.page_count
+        ),
+        image_width=(
+            raw_asset_record.image_width
+            if raw_asset_record.image_width is not None
+            else typed_metadata.image_width
+        ),
+        image_height=(
+            raw_asset_record.image_height
+            if raw_asset_record.image_height is not None
+            else typed_metadata.image_height
+        ),
+        asset_kind=raw_asset_record.asset_kind or typed_metadata.asset_kind,
+        asset_subkind=raw_asset_record.asset_subkind or typed_metadata.asset_subkind,
+        classification_confidence=(
+            raw_asset_record.classification_confidence
+            if raw_asset_record.classification_confidence is not None
+            else typed_metadata.classification_confidence
+        ),
     )
 
 

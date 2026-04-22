@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
@@ -260,7 +260,7 @@ class QdrantSnapshotAdmin:
 
 
 def default_backup_id(*, now: datetime | None = None) -> str:
-    runtime_now = now or datetime.now(timezone.utc)
+    runtime_now = now or datetime.now(UTC)
     return runtime_now.strftime("b%Y%m%dT%H%M%SZ")
 
 
@@ -741,7 +741,7 @@ def _sha256_file(file_path: str) -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _write_json_object(

@@ -4,8 +4,8 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections.abc import Mapping, Sequence
 from html import unescape
-from typing import Mapping, Sequence
 
 _TABLE_HEADER_HINTS = frozenset(
     {
@@ -226,7 +226,7 @@ def enrich_repeated_candidates(rows: list[dict[str, object]]) -> None:
     for (text, band), members in clusters.items():
         if len(members) < 2 or len(text) > 24:
             continue
-        cluster_id = hashlib.sha1(f"{band}:{text}".encode("utf-8")).hexdigest()[:12]
+        cluster_id = hashlib.sha1(f"{band}:{text}".encode()).hexdigest()[:12]
         for row in members:
             row["repeat_cluster_id"] = cluster_id
             row["repeat_frequency"] = len(members)

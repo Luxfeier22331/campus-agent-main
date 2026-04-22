@@ -126,7 +126,7 @@ def _make_curriculum_registry_record() -> DocumentRegistryRecord:
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T10:00:00+00:00",
-        parser_version="raw-online-ocr-v1",
+        parser_version="mineru-vlm-adapted-v1",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=build_processed_artifact_key(

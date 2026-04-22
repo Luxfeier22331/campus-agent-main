@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.curriculum_budget_evaluation_documents import (
     load_default_curriculum_budget_evaluation_documents,
@@ -44,7 +44,7 @@ def evaluate_curriculum_budget_candidates(
         for candidate in runtime_candidates
     )
     report = CurriculumBudgetEvaluationReport(
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         document_count=len(runtime_documents),
         candidate_count=len(results),
         candidates=results,

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from llama_index.core.schema import NodeRelationship, RelatedNodeInfo, TextNode

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Protocol, Sequence
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
@@ -12,6 +13,7 @@ from qdrant_client.http import models as qdrant_models
 from campus_ingestion_core.curriculum_chunk_units import (
     _leading_curriculum_heading_lines,
     _looks_like_curriculum_structure_heading,
+    _looks_like_curriculum_version_note,
     _normalize_curriculum_structural_path,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -81,7 +83,7 @@ class IndexReleaseArtifacts:
 
 
 def default_release_id(*, now: datetime | None = None) -> str:
-    runtime_now = now or datetime.now(timezone.utc)
+    runtime_now = now or datetime.now(UTC)
     return runtime_now.strftime("r%Y%m%d_%H%M%S")
 
 
@@ -411,7 +413,9 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
         rows.append(
             {
                 "tokens": int(chunk.metadata.get("final_token_count") or 0),
-                "duplicated_heading": any(a == b for a, b in zip(leading, leading[1:])),
+                "duplicated_heading": any(
+                    a == b for a, b in zip(leading, leading[1:], strict=False)
+                ),
                 "path_mismatch": (
                     chunk.metadata.get("unit_type") == "section_text"
                     and bool(leading)
@@ -517,13 +521,28 @@ def _curriculum_is_allowed_tiny_chunk(
         return True
     if structural and len(lines) == 1 and lines[0] == structural[-1]:
         return True
+    if (
+        structural
+        and lines[0] == structural[-1]
+        and all(_looks_like_curriculum_version_note(line) for line in lines[1:])
+    ):
+        return True
     if not leading:
         return False
     remainder = lines[len(leading) :]
     if not remainder or len(remainder) > 2:
         return False
-    if any(_looks_like_curriculum_structure_heading(line) for line in remainder):
-        return False
+    heading_remainder = [line for line in remainder if _looks_like_curriculum_structure_heading(line)]
+    if heading_remainder:
+        non_heading_remainder = [
+            line for line in remainder if not _looks_like_curriculum_structure_heading(line)
+        ]
+        return (
+            len(heading_remainder) == 1
+            and len(non_heading_remainder) == 1
+            and len(non_heading_remainder[0]) <= 8
+            and len(heading_remainder[0]) <= 16
+        )
     return all(len(line) <= 32 for line in remainder)
 
 

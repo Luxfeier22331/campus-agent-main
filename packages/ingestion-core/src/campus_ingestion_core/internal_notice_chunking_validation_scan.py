@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
-from typing import Literal, Sequence
+from typing import Literal
 
 from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
     load_verified_closeout_run_document_record_pairs,

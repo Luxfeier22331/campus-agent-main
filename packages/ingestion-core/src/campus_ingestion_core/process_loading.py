@@ -500,7 +500,7 @@ def is_curriculum_course_map_section_unit(unit: StructuredUnit) -> bool:
     normalized_path = _normalize_curriculum_structural_path(
         list(normalize_section_path(unit.anchor))
     )
-    return bool(normalized_path) and normalized_path[-1] == _CURRICULUM_COURSE_MAP_HEADING
+    return _CURRICULUM_COURSE_MAP_HEADING in normalized_path
 
 
 def normalize_section_path(anchor: dict[str, object]) -> tuple[str, ...]:

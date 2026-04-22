@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import os
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Sequence
 
 import campus_ingestion_core.internal_notice_regulation_promotion_shared as shared
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -219,7 +219,7 @@ def build_internal_notice_regulation_candidate_artifact_manifest(
 
     manifest = InternalNoticeRegulationCandidateArtifactManifest(
         schema_version="internal_notice_promotion_candidate_artifact_v1",
-        exported_at=datetime.now(timezone.utc).isoformat(),
+        exported_at=datetime.now(UTC).isoformat(),
         corpus=report.corpus,
         collection=report.collection,
         target_corpus=report.target_corpus,

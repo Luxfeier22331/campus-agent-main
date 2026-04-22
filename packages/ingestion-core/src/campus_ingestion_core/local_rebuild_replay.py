@@ -7,6 +7,7 @@ from pathlib import Path
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.campusrag_ingestion_support import ImportReport, write_import_report
+from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.local_rebuild_documents import (
     _build_replay_documents,
     _collect_projection_aware_import_stats,
@@ -31,7 +32,6 @@ from campus_ingestion_core.local_rebuild_support import (
     _run_traced_stage,
     _summarize_persist_stats,
 )
-from campus_ingestion_core.raw_ingestion import DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -49,6 +49,7 @@ def replay_provider_response_rebuild(
     runtime_request = request or _build_replay_request_from_env(source)
     corpus = runtime_request.corpus
     collection = runtime_request.collection
+    source_ocr_runtime = resolve_collection_source_ocr_runtime(corpus=corpus, collection=collection)
     collection_config = _resolve_runtime_collection_config(
         source=source, corpus=corpus, collection=collection
     )
@@ -136,7 +137,7 @@ def replay_provider_response_rebuild(
             raw_asset_registry=runtime_raw_asset_registry,
             writer=runtime_object_store,
             object_store=object_store_settings,
-            parser_version=DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
+            parser_version=source_ocr_runtime.parser_version,
             embedding_model=_read_embedding_model_name(source),
             default_visibility_scope=_read_default_visibility_scope(source),
             primary_scope=(corpus, collection),

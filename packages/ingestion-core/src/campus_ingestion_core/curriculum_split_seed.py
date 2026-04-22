@@ -3,9 +3,9 @@ from __future__ import annotations
 import ast
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 

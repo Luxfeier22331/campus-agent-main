@@ -75,7 +75,7 @@ class _FakeQdrantSnapshotAdmin:
         snapshot_name: str,
         target_path: str,
     ) -> None:
-        Path(target_path).write_bytes(f"snapshot:{collection_name}:{snapshot_name}".encode("utf-8"))
+        Path(target_path).write_bytes(f"snapshot:{collection_name}:{snapshot_name}".encode())
 
     def restore_collection_snapshot(
         self,

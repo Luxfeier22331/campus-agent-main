@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import asdict
-from typing import Sequence
 
 from campus_ingestion_core.qdrant_backup import SnapshotBackupRequest, create_snapshot_backup
 

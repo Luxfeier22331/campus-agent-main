@@ -6,6 +6,171 @@ from .curriculum_chunking_test_support import *  # noqa: F401,F403
 
 
 class CurriculumChunkingStructuredUnitsTest(unittest.TestCase):
+    def test_build_curriculum_structured_units_drops_numeric_only_page_marker_rows(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = json.dumps(
+            {
+                "doc_id": record.document_id,
+                "version_id": record.version_id,
+                "chunk_id": "page-0020-block-0001",
+                "row_id": "page-0020-block-0001",
+                "row_type": "paragraph",
+                "clean_text": "15",
+                "page_start": 20,
+                "page_end": 20,
+                "acl": {"level": "public", "allow_groups": ["students"]},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
+
+        self.assertEqual(units, ())
+
+    def test_build_curriculum_structured_units_strips_numeric_only_page_marker_from_section_body(
+        self,
+    ) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0340-block-0001",
+                        "row_id": "page-0340-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 3,
+                        "clean_text": "(二)知识",
+                        "page_start": 340,
+                        "page_end": 340,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0340-block-0002",
+                        "row_id": "page-0340-block-0002",
+                        "row_type": "paragraph",
+                        "clean_text": "335",
+                        "page_start": 340,
+                        "page_end": 340,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0341-block-0001",
+                        "row_id": "page-0341-block-0001",
+                        "row_type": "paragraph",
+                        "clean_text": "究。",
+                        "page_start": 341,
+                        "page_end": 341,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        units = build_curriculum_structured_units(
+            record=record, structured_jsonl_bytes=structured_payload
+        )
+
+        self.assertEqual(len(units), 1)
+        self.assertEqual(units[0].anchor["section_path"], ["(二)知识"])
+        self.assertEqual(units[0].text, "(二)知识\n\n究。")
+
+    def test_build_indexable_chunks_from_jsonl_skips_course_map_subtree_units(self) -> None:
+        record = _make_curriculum_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0063-block-0001",
+                        "row_id": "page-0063-block-0001",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "六、课程地图",
+                        "section_hint": "section",
+                        "page_start": 63,
+                        "page_end": 63,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0063-block-0002",
+                        "row_id": "page-0063-block-0002",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "1.社会学",
+                        "page_start": 63,
+                        "page_end": 63,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0063-block-0003",
+                        "row_id": "page-0063-block-0003",
+                        "row_type": "paragraph",
+                        "clean_text": "58",
+                        "page_start": 63,
+                        "page_end": 63,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0063-block-0004",
+                        "row_id": "page-0063-block-0004",
+                        "row_type": "heading",
+                        "heading_level": 4,
+                        "clean_text": "2. 社会工作",
+                        "page_start": 63,
+                        "page_end": 63,
+                        "acl": {"level": "public", "allow_groups": ["students"]},
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=360,
+                max_chunk_size=540,
+                chunk_overlap=72,
+                min_chunk_size=50,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        self.assertEqual(chunks, ())
+
     def test_build_indexable_chunks_from_jsonl_uses_canonical_curriculum_row_visibility(
         self,
     ) -> None:

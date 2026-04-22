@@ -3,12 +3,12 @@ from __future__ import annotations
 import json
 import os
 import secrets
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Callable, Mapping
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -65,7 +65,7 @@ class OfficialWebHandoffReceiverSettings:
     inbox_dir: Path = Path("./var/official-web-handoffs")
 
     @classmethod
-    def from_env(cls) -> "OfficialWebHandoffReceiverSettings":
+    def from_env(cls) -> OfficialWebHandoffReceiverSettings:
         inbox_dir = os.getenv(
             "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
             "./var/official-web-handoffs",
@@ -84,7 +84,7 @@ class OfficialWebHandoffServerSettings:
     port: int = 8789
 
     @classmethod
-    def from_env(cls) -> "OfficialWebHandoffServerSettings":
+    def from_env(cls) -> OfficialWebHandoffServerSettings:
         return cls(
             host=os.getenv("INGESTION_WORKER_HTTP_HOST", "127.0.0.1"),
             port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "8789")),
@@ -394,7 +394,7 @@ def persist_handoff_record(
         return dispatch_ref, received_at
 
     dispatch_ref = f"owdispatch_{uuid4().hex}"
-    received_at = datetime.now(timezone.utc).isoformat()
+    received_at = datetime.now(UTC).isoformat()
     record = {
         "schemaVersion": OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION,
         "dispatchRef": dispatch_ref,

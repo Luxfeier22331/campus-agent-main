@@ -141,7 +141,7 @@ class EmbeddingSettings:
         env: dict[str, str] | None = None,
         *,
         model_override: str | None = None,
-    ) -> "EmbeddingSettings":
+    ) -> EmbeddingSettings:
         source = env if env is not None else os.environ
         model = (
             model_override

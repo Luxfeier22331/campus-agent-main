@@ -4,17 +4,17 @@ import hashlib
 import json
 
 from campus_ingestion_core.chunking import CURRICULUM_CLEANING_POLICY_VERSION
-from campus_ingestion_core.curriculum_chunk_units import _looks_like_curriculum_structure_heading
 from campus_ingestion_core.curriculum_budget_evaluation_shared import (
-    CurriculumBudgetEvaluationDocument,
-    CurriculumBudgetProbeCase,
     _DEFAULT_EMBEDDING_MODEL,
     _DEFAULT_LAYOUT_FIXTURE_PATH,
     _DEFAULT_RUNTIME_TITLES,
     _DEFAULT_SAMPLE_INDEX_PATH,
     _DEFAULT_SPLIT_MANIFEST_PATH,
     _REPO_ROOT,
+    CurriculumBudgetEvaluationDocument,
+    CurriculumBudgetProbeCase,
 )
+from campus_ingestion_core.curriculum_chunk_units import _looks_like_curriculum_structure_heading
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
@@ -73,7 +73,7 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             manifest_version=manifest.manifest_version,
             manifest_document=manifest_document,
             structured_rows=layout_rows,
-            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl",
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope=None,
             corpus="curriculum",
@@ -103,7 +103,7 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             visibility_level=str(document_input.metadata.get("visibility_level") or ""),
             status=str(document_input.metadata.get("status") or "active"),
             ingestion_timestamp="2026-03-27T12:00:00+00:00",
-            parser_version="raw-online-ocr-v1",
+            parser_version="mineru-vlm-adapted-v1",
             embedding_model=_DEFAULT_EMBEDDING_MODEL,
             source_channel="pdf_ocr",
             is_current=True,

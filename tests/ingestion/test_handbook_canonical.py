@@ -134,7 +134,7 @@ class HandbookCanonicalTest(unittest.TestCase):
         expected = (
             "v1:"
             + hashlib.sha1(
-                f"{_normalize_title(title)}\n\n{_normalize_body(canonical_body)}".encode("utf-8")
+                f"{_normalize_title(title)}\n\n{_normalize_body(canonical_body)}".encode()
             ).hexdigest()
         )
         self.assertEqual(result.version_id, expected)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Callable, Sequence
 
 from campus_ingestion_core.chunking import (
     CURRICULUM_CLEANING_POLICY_VERSION,
@@ -32,9 +32,9 @@ from campus_ingestion_core.curriculum_chunk_units import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import (
+    _build_chunk_text,
     _ChunkCandidate,
     _ChunkMember,
-    _build_chunk_text,
     _merge_adjacent_curriculum_table_candidates,
     _merge_adjacent_short_textual_candidates,
 )
@@ -291,7 +291,7 @@ def _evaluate_probe_cases(
                 keyword_hit_at_1=keyword_hit_at_1,
                 keyword_hit_at_3=_probe_any_hit_in_ranked(
                     ranked=ranked[:3],
-                    predicate=lambda candidate: _probe_keyword_hit(
+                    predicate=lambda candidate, probe_case=probe_case: _probe_keyword_hit(
                         probe_case.expected_keywords,
                         candidate.chunk_assembly.text,
                     ),
@@ -299,7 +299,7 @@ def _evaluate_probe_cases(
                 required_heading_hit_at_1=required_heading_hit_at_1,
                 required_heading_hit_at_3=_probe_any_hit_in_ranked(
                     ranked=ranked[:3],
-                    predicate=lambda candidate: _probe_heading_hit(
+                    predicate=lambda candidate, probe_case=probe_case: _probe_heading_hit(
                         probe_case.required_headings,
                         candidate.chunk_assembly.text,
                     ),
@@ -307,9 +307,11 @@ def _evaluate_probe_cases(
                 preferred_unit_type_hit_at_1=preferred_unit_type_hit_at_1,
                 preferred_unit_type_hit_at_3=_probe_any_hit_in_ranked(
                     ranked=ranked[:3],
-                    predicate=lambda candidate: _probe_preferred_unit_type_hit(
-                        probe_case.preferred_unit_type,
-                        candidate,
+                    predicate=lambda candidate, probe_case=probe_case: (
+                        _probe_preferred_unit_type_hit(
+                            probe_case.preferred_unit_type,
+                            candidate,
+                        )
                     ),
                 ),
                 complete_hit_at_1=(
@@ -317,7 +319,7 @@ def _evaluate_probe_cases(
                 ),
                 complete_hit_at_3=_probe_any_hit_in_ranked(
                     ranked=ranked[:3],
-                    predicate=lambda candidate: _probe_complete_hit(
+                    predicate=lambda candidate, probe_case=probe_case: _probe_complete_hit(
                         probe_case,
                         candidate,
                     ),

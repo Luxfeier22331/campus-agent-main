@@ -6,7 +6,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
@@ -469,7 +469,7 @@ def _build_version_id(
     semester_label: str,
 ) -> str:
     digest = hashlib.sha256(
-        f"{raw_version_id}|{source_document_id}|{semester_label}".encode("utf-8")
+        f"{raw_version_id}|{source_document_id}|{semester_label}".encode()
     ).hexdigest()[:12]
     return f"{raw_version_id}:program-semester:{digest}"
 
@@ -690,7 +690,7 @@ def _build_raw_asset_record_from_canonical_row(
             filename=source_pdf,
             year=infer_year_label(source_pdf),
         ),
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         import_source="canonical_document_units_materialization",
     )
 

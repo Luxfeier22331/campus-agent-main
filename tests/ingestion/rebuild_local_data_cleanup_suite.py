@@ -269,7 +269,7 @@ class RebuildLocalDataCleanupTest(unittest.TestCase):
                 corpus="curriculum",
                 collection="curriculum_plan",
                 processed_object_keys=(
-                    "official_pdf/curriculum-plan-master/undated/sha256/raw-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+                    "official_pdf/curriculum-plan-master/undated/sha256/raw-001/provider/vlm/provider-response.jsonl",
                     "curriculum/documents/curriculum_plan/plan-001--plan-001/source-faithful/undated/document-units.jsonl",
                 ),
             )
@@ -503,7 +503,7 @@ class RebuildLocalDataCleanupTest(unittest.TestCase):
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
                 source_channel="official_pdf",
-                model_slug="paddleocr-vl-1-5",
+                model_slug="vlm",
                 year="undated",
             )
             object_store = _FakeObjectStoreAdmin()
@@ -558,6 +558,7 @@ class RebuildLocalDataCleanupTest(unittest.TestCase):
             record = records[0]
             self.assertEqual(record.document_id, "curriculum:plan-001")
             self.assertEqual(record.cleaning_policy_version, "curriculum_plan_cleaning_v1")
+            self.assertEqual(record.parser_version, "mineru-vlm-adapted-v1")
             layout_elements_key = build_source_truth_artifact_key(
                 raw_asset_id="asset:curriculum-plan-master-pdf",
                 raw_version_id=raw_version_id,

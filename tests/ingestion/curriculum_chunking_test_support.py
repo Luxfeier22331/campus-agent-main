@@ -45,14 +45,14 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
-        parser_version="raw-online-ocr-v1",
+        parser_version="mineru-vlm-adapted-v1",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl"
         ),
         processed_object_keys=(
-            "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+            "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl",
             "official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             "curriculum/documents/curriculum_plan/test-001--test-001/source-faithful/undated/document-units.jsonl",
         ),
@@ -74,7 +74,7 @@ def _make_public_curriculum_record() -> DocumentRegistryRecord:
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
-        parser_version="raw-online-ocr-v1",
+        parser_version="mineru-vlm-adapted-v1",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
@@ -120,7 +120,7 @@ def _build_real_curriculum_projection_chunks(
         manifest_version=manifest.manifest_version,
         manifest_document=target_document,
         structured_rows=layout_rows,
-        provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl",
+        provider_response_key="official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl",
         layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
         default_visibility_scope="main",
         corpus="curriculum",
@@ -143,7 +143,7 @@ def _build_real_curriculum_projection_chunks(
         visibility_scope=str(document_input.metadata.get("visibility_scope") or "main"),
         status=str(document_input.metadata.get("status") or "active"),
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
-        parser_version="raw-online-ocr-v1",
+        parser_version="mineru-vlm-adapted-v1",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         is_current=True,

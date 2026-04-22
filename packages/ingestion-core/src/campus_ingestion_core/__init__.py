@@ -78,6 +78,12 @@ from campus_ingestion_core.corpus_profiles import (
     load_runtime_profile,
 )
 from campus_ingestion_core.curriculum_provider_normalize import normalize_curriculum_provider_result
+from campus_ingestion_core.document_reader_assets import (
+    DocumentReaderAssetPackage,
+    build_document_reader_asset_package,
+    build_document_reader_publish_entry,
+    build_public_docs_sync_manifest,
+)
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     MockEmbeddingSettings,
@@ -299,6 +305,7 @@ __all__ = [
     "CANONICAL_MARKDOWN_FILENAME",
     "CollectionScope",
     "CollectionTruthConfig",
+    "DocumentReaderAssetPackage",
     "DEFAULT_CHUNK_POLICY_VERSION",
     "DEFAULT_CHUNK_OVERLAP",
     "DEFAULT_CHUNK_SIZE",
@@ -408,6 +415,9 @@ __all__ = [
     "build_indexable_chunks_from_jsonl",
     "build_release_metadata_payload",
     "build_document_artifact_key",
+    "build_document_reader_asset_package",
+    "build_document_reader_publish_entry",
+    "build_public_docs_sync_manifest",
     "build_official_web_run_artifact_key",
     "build_operations_artifact_key",
     "build_processed_asset_artifact_key",

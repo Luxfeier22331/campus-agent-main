@@ -21,7 +21,7 @@ from campus_ingestion_core.object_store import (
     build_source_projection_artifact_key,
 )
 from campus_ingestion_core.process import IndexableChunk
-from campus_ingestion_core.registry import DocumentRegistryRecord
+from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
 from qdrant_client import QdrantClient
 

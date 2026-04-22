@@ -3,9 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Literal, Protocol, Sequence
+from datetime import UTC, datetime
+from typing import Any, Literal, Protocol
 
 from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
     load_verified_closeout_run_document_record_pairs,
@@ -106,7 +107,7 @@ class RegistryScopeChunkPreparationReport:
 
 
 def default_preparation_run_id(*, now: datetime | None = None) -> str:
-    runtime_now = now or datetime.now(timezone.utc)
+    runtime_now = now or datetime.now(UTC)
     return runtime_now.strftime("prep-%Y%m%d-%H%M%S")
 
 
@@ -173,7 +174,7 @@ def prepare_registry_scope_chunks(
         chunks=tuple(chunks),
         documents_without_chunks=tuple(documents_without_chunks),
     )
-    prepared_at = datetime.now(timezone.utc).isoformat()
+    prepared_at = datetime.now(UTC).isoformat()
     manifest = build_chunk_preparation_manifest(
         preparation_run_id=preparation_run_id or default_preparation_run_id(),
         corpus=corpus,

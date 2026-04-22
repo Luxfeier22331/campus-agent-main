@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_left, bisect_right
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 _TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9_]+|[^\s]")
 

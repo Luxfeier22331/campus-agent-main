@@ -6,7 +6,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
@@ -417,7 +417,7 @@ def _build_materialization_raw_asset_record(
             source_channel="manual_curated",
             year=year,
         ),
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         import_source=_TARGET_IMPORT_SOURCE,
     )
 

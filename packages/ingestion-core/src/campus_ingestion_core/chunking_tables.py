@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Mapping, Protocol
+from typing import Protocol
 
 from campus_ingestion_core.chunking_token_windows import (
     collect_soft_boundary_indexes,

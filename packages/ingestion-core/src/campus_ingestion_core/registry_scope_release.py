@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Protocol, Sequence
+from datetime import UTC, datetime
+from typing import Protocol
 
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
@@ -185,7 +186,7 @@ def publish_scope_release(
         alias_name=binding.alias_name,
     )
     validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
-    indexed_at = datetime.now(timezone.utc).isoformat()
+    indexed_at = datetime.now(UTC).isoformat()
     prepublish_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,
@@ -258,7 +259,7 @@ def publish_scope_release(
         )
         return _build_release_report(artifacts)
 
-    published_at = datetime.now(timezone.utc).isoformat()
+    published_at = datetime.now(UTC).isoformat()
     published_manifest = build_index_release_manifest(
         release_id=release_id,
         corpus=corpus,

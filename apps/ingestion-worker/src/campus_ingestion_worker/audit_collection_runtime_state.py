@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
-from typing import Sequence
 
 from campus_ingestion_core.collection_runtime_audit import audit_collection_runtime_state
 

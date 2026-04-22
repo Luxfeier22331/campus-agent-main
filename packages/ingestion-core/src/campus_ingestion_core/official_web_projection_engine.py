@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -158,7 +158,7 @@ def replay_official_web_source_truth_local(
         crawl_run_id=crawl_run_id,
         output_dir=str(output_dir.resolve()),
         projection_output_dir=str(projection_output_dir.resolve()),
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(UTC).isoformat(),
         counts={
             "pages_seen": len(pages),
             "emitted_documents": len(documents),

@@ -95,7 +95,7 @@ class ObjectStoreSettings:
         raise ValueError(f"no object-store credentials configured for bucket {normalized_bucket}")
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "ObjectStoreSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> ObjectStoreSettings:
         source = env if env is not None else os.environ
         endpoint = (source.get("OBJECT_STORE_ENDPOINT") or "").strip()
         access_key = (source.get("OBJECT_STORE_ACCESS_KEY") or "").strip()

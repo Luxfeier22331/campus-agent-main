@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
@@ -69,13 +69,15 @@ def _index_replayed_documents(
         records, chunks = _run_traced_stage(
             trace_recorder,
             "replay.index_scope.prepare",
-            lambda: _prepare_replay_scope_chunks(
-                corpus=corpus,
-                collection=collection,
-                scope_documents=scope_documents,
-                registry=registry,
-                embedding_model=embedding_model,
-                sparse_embedding_model=sparse_embedding_model,
+            lambda corpus=corpus, collection=collection, scope_documents=scope_documents: (
+                _prepare_replay_scope_chunks(
+                    corpus=corpus,
+                    collection=collection,
+                    scope_documents=scope_documents,
+                    registry=registry,
+                    embedding_model=embedding_model,
+                    sparse_embedding_model=sparse_embedding_model,
+                )
             ),
             fields={
                 "scope": f"{corpus}/{collection}",
@@ -94,7 +96,7 @@ def _index_replayed_documents(
         validation = _run_traced_stage(
             trace_recorder,
             "replay.index_scope.validate",
-            lambda: validate_scope_release(
+            lambda corpus=corpus, collection=collection, chunks=chunks: validate_scope_release(
                 corpus=corpus, collection=collection, chunks=tuple(chunks)
             ),
             fields={
@@ -109,7 +111,7 @@ def _index_replayed_documents(
             release_id=release_id,
             filename="validation-summary.json",
         )
-        indexed_at = datetime.now(timezone.utc).isoformat()
+        indexed_at = datetime.now(UTC).isoformat()
         manifest_object_key = build_index_release_artifact_key(
             corpus=corpus,
             collection=collection,
@@ -138,31 +140,38 @@ def _index_replayed_documents(
         pending_chunks = []
         should_ensure_collection = True
 
-        def flush_pending_chunks() -> None:
-            nonlocal pending_chunks, should_ensure_collection
-            if not pending_chunks:
+        def flush_pending_chunks(
+            bucket: list[object] = pending_chunks,
+            collection_name: str = physical_collection_name,
+            extra_payload: dict[str, object] = release_metadata,
+        ) -> None:
+            nonlocal should_ensure_collection
+            if not bucket:
                 return
             index_chunks_to_qdrant(
-                chunks=tuple(pending_chunks),
+                chunks=tuple(bucket),
                 qdrant_client=runtime_qdrant_client,
-                collection_name=physical_collection_name,
+                collection_name=collection_name,
                 sparse_embedding_model=sparse_embedding_model,
                 recreate_collection_on_schema_mismatch=True,
                 ensure_collection=should_ensure_collection,
                 ensure_payload_indexes=should_ensure_collection,
-                extra_payload=release_metadata,
+                extra_payload=extra_payload,
             )
-            pending_chunks = []
+            bucket.clear()
             should_ensure_collection = False
+
+        def add_pending_chunk(chunk: object, bucket: list[object] = pending_chunks) -> None:
+            bucket.append(chunk)
 
         try:
             _run_traced_stage(
                 trace_recorder,
                 "replay.index_scope.upsert_qdrant",
-                lambda: _upsert_replay_scope_chunks(
+                lambda chunks=chunks: _upsert_replay_scope_chunks(
                     chunks=chunks,
                     upsert_batch_size=upsert_batch_size,
-                    add_pending_chunk=lambda chunk: pending_chunks.append(chunk),
+                    add_pending_chunk=add_pending_chunk,
                     flush_pending_chunks=flush_pending_chunks,
                 ),
                 fields={
@@ -181,11 +190,13 @@ def _index_replayed_documents(
             _run_traced_stage(
                 trace_recorder,
                 "replay.index_scope.write_artifacts_preview",
-                lambda: write_index_release_artifacts(
-                    writer=object_store,
-                    bucket=object_store_settings.bucket_derived,
-                    manifest=prepublish_manifest,
-                    validation_summary=validation.summary,
+                lambda prepublish_manifest=prepublish_manifest, validation=validation: (
+                    write_index_release_artifacts(
+                        writer=object_store,
+                        bucket=object_store_settings.bucket_derived,
+                        manifest=prepublish_manifest,
+                        validation_summary=validation.summary,
+                    )
                 ),
                 fields={
                     "scope": f"{corpus}/{collection}",
@@ -202,11 +213,13 @@ def _index_replayed_documents(
             _run_traced_stage(
                 trace_recorder,
                 "replay.index_scope.write_artifacts_preview",
-                lambda: write_index_release_artifacts(
-                    writer=object_store,
-                    bucket=object_store_settings.bucket_derived,
-                    manifest=prepublish_manifest,
-                    validation_summary=validation.summary,
+                lambda prepublish_manifest=prepublish_manifest, validation=validation: (
+                    write_index_release_artifacts(
+                        writer=object_store,
+                        bucket=object_store_settings.bucket_derived,
+                        manifest=prepublish_manifest,
+                        validation_summary=validation.summary,
+                    )
                 ),
                 fields={
                     "scope": f"{corpus}/{collection}",
@@ -215,7 +228,7 @@ def _index_replayed_documents(
             )
             continue
 
-        published_at = datetime.now(timezone.utc).isoformat()
+        published_at = datetime.now(UTC).isoformat()
         published_manifest = build_index_release_manifest(
             release_id=release_id,
             corpus=corpus,
@@ -235,10 +248,12 @@ def _index_replayed_documents(
             _run_traced_stage(
                 trace_recorder,
                 "replay.index_scope.publish_alias",
-                lambda: publish_release_alias(
-                    qdrant_client=runtime_qdrant_client,
-                    binding=binding,
-                    physical_collection_name=physical_collection_name,
+                lambda binding=binding, physical_collection_name=physical_collection_name: (
+                    publish_release_alias(
+                        qdrant_client=runtime_qdrant_client,
+                        binding=binding,
+                        physical_collection_name=physical_collection_name,
+                    )
                 ),
                 fields={
                     "scope": f"{corpus}/{collection}",
@@ -250,11 +265,13 @@ def _index_replayed_documents(
             _run_traced_stage(
                 trace_recorder,
                 "replay.index_scope.write_artifacts_published",
-                lambda: write_index_release_artifacts(
-                    writer=object_store,
-                    bucket=object_store_settings.bucket_derived,
-                    manifest=published_manifest,
-                    validation_summary=validation.summary,
+                lambda published_manifest=published_manifest, validation=validation: (
+                    write_index_release_artifacts(
+                        writer=object_store,
+                        bucket=object_store_settings.bucket_derived,
+                        manifest=published_manifest,
+                        validation_summary=validation.summary,
+                    )
                 ),
                 fields={
                     "scope": f"{corpus}/{collection}",

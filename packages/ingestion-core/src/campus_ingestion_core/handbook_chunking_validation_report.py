@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Sequence
+from collections.abc import Sequence
 
 from campus_ingestion_core.chunking import (
     TABLE_UNIT_TYPES,
@@ -543,7 +543,7 @@ def _has_broken_citation_linebreak(chunk: object) -> bool:
     if not isinstance(text, str) or "\n" not in text:
         return False
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    for previous, current in zip(lines, lines[1:]):
+    for previous, current in zip(lines, lines[1:], strict=False):
         if current[:1] in {"[", "〔", "(", "（"} and _has_unclosed_citation_context(previous):
             return True
         if previous.endswith(("民大校发", "民大学发", "民大党发", "中发", "教高")) and current[
@@ -647,7 +647,7 @@ def _detect_inline_overlap_duplication(text: str) -> str:
 
 def _shared_cjk_prefix(left: str, right: str) -> str:
     shared_chars: list[str] = []
-    for left_char, right_char in zip(left, right):
+    for left_char, right_char in zip(left, right, strict=False):
         if left_char != right_char:
             break
         if not re.fullmatch(r"[\u4e00-\u9fff]", left_char):

@@ -44,7 +44,7 @@ class CurriculumBudgetEvaluationDocument:
     title: str
     record: DocumentRegistryRecord
     structured_jsonl_bytes: bytes
-    probe_cases: tuple["CurriculumBudgetProbeCase", ...] = ()
+    probe_cases: tuple[CurriculumBudgetProbeCase, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

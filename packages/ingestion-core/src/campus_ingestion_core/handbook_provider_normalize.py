@@ -391,7 +391,7 @@ def _mark_margin_running_headers(rows: list[dict[str, object]]) -> None:
     for text, members in clusters.items():
         if len(members) < 2:
             continue
-        cluster_id = hashlib.sha1(f"margin:{text}".encode("utf-8")).hexdigest()[:12]
+        cluster_id = hashlib.sha1(f"margin:{text}".encode()).hexdigest()[:12]
         for row in members:
             row["repeat_cluster_id"] = cluster_id
             row["repeat_frequency"] = len(members)

@@ -137,7 +137,7 @@ class ProviderResultReplayBuildTest(unittest.TestCase):
                         '"metadata":{"title":"中央民族大学学生公寓管理工作流程"},'
                         '"entitlement_groups":[],"visibility_scope":null,"visibility_level":"public",'
                         '"policy_projection_version":"phase1-authorization-projection-v1"}\n'
-                    ).encode("utf-8"),
+                    ).encode(),
                     provider_response_bytes=None,
                     canonical_markdown_bytes=b"# \xe4\xb8\xad\xe5\xa4\xae\xe6\xb0\x91\xe6\x97\x8f\xe5\xa4\xa7\xe5\xad\xa6\xe5\xad\xa6\xe7\x94\x9f\xe5\x85\xac\xe5\xaf\x93\xe7\xae\xa1\xe7\x90\x86\xe5\xb7\xa5\xe4\xbd\x9c\xe6\xb5\x81\xe7\xa8\x8b\n",
                     metadata={

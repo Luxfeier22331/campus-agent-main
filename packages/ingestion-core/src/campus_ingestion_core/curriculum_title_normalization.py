@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Mapping
+from collections.abc import Mapping
 
 _TRAILING_EDITION_SUFFIX_PATTERN = re.compile(r"\(\s*20\d{2}\s*版\s*\)$")
 

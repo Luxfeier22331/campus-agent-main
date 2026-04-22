@@ -5,7 +5,7 @@ import json
 import os
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
@@ -437,7 +437,7 @@ def _build_scoped_rule_raw_asset_record(
             source_channel="manual_curated",
             year=year,
         ),
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         import_source=_TARGET_IMPORT_SOURCE,
     )
 

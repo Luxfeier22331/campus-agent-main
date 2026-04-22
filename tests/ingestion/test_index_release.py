@@ -143,6 +143,40 @@ class IndexReleaseValidationTest(unittest.TestCase):
         self.assertEqual(validation.status, "passed")
         self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
 
+    def test_curriculum_validation_allows_title_with_version_note_opener(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="文物与博物馆学本科第二学士学位人才培养方案\n(2020版)",
+                    section_path=["文物与博物馆学本科第二学士学位人才培养方案"],
+                    tokens=19,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
+    def test_curriculum_validation_allows_page_split_subsection_fragment(self) -> None:
+        validation = validate_scope_release(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="二、毕业要求\n(二)知识\n究。\n(三)能力",
+                    section_path=["法学（民族实验班）本科人才培养方案", "二、毕业要求"],
+                    tokens=16,
+                ),
+            ),
+        )
+
+        self.assertEqual(validation.status, "passed")
+        self.assertEqual(validation.summary["tiny_chunks_lt24"], 0)
+
     def test_official_web_validation_fails_when_release_has_too_few_documents(self) -> None:
         validation = validate_scope_release(
             corpus="official_web",

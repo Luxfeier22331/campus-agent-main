@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Protocol, Sequence
+from typing import Any, Protocol
 
 from qdrant_client import QdrantClient
 
@@ -74,7 +75,7 @@ class _RebuildTraceRecorder:
 
     def emit(self, *, stage: str, event: str, **fields: object) -> None:
         payload = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "stage": stage,
             "event": event,
             **fields,

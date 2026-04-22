@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     NOTICE_RISK_LABEL_BODY_ONLY,

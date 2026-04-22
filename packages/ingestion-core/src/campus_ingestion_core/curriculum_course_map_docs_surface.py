@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Mapping, Protocol, Sequence
+from typing import Protocol
 
 from campus_ingestion_core.artifacts import DOCUMENT_UNITS_FILENAME
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
@@ -256,7 +257,7 @@ def build_curriculum_course_map_docs_surface_artifact(
             image_objects.append(image_object)
     surface = CurriculumCourseMapDocsSurface(
         schema_version=CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION,
-        generated_at=generated_at or datetime.now(timezone.utc).isoformat(),
+        generated_at=generated_at or datetime.now(UTC).isoformat(),
         document_id=document_id,
         document_title=document_title,
         raw_asset_id=raw_asset_id,

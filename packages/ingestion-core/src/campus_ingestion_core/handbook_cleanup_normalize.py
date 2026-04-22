@@ -539,7 +539,7 @@ def _looks_like_title_like_heading_overlap_remainder(text: str) -> bool:
 
 def _shared_cjk_prefix(left: str, right: str) -> str:
     shared_chars: list[str] = []
-    for left_char, right_char in zip(left, right):
+    for left_char, right_char in zip(left, right, strict=False):
         if left_char != right_char:
             break
         if not re.fullmatch(r"[\u4e00-\u9fff]", left_char):

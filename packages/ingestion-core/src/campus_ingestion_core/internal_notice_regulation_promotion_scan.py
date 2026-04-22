@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
-from typing import Any, Sequence
+from typing import Any
 
 import campus_ingestion_core.internal_notice_regulation_promotion_shared as shared
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (

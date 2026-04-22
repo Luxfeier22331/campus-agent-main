@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.internal_notice_regulation_projection import (
@@ -188,7 +189,7 @@ def build_internal_notice_regulation_candidate_chunk_prep_manifest(
 ) -> InternalNoticeRegulationCandidateChunkPrepManifest:
     return InternalNoticeRegulationCandidateChunkPrepManifest(
         schema_version=_SCHEMA_VERSION,
-        prepared_at=datetime.now(timezone.utc).isoformat(),
+        prepared_at=datetime.now(UTC).isoformat(),
         target_corpus=_TARGET_SCOPE[0],
         target_collection=_TARGET_SCOPE[1],
         prepared_candidate_count=len(prepared_documents),
@@ -358,7 +359,7 @@ def _build_projection_record(
         visibility_scope=candidate_document.visibility_scope,
         visibility_level=candidate_document.visibility_level,
         status="active",
-        ingestion_timestamp=datetime.now(timezone.utc).isoformat(),
+        ingestion_timestamp=datetime.now(UTC).isoformat(),
         parser_version=_PARSER_VERSION,
         embedding_model=candidate_document.embedding_model,
         source_channel="manual_curated",

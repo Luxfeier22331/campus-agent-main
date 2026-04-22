@@ -257,9 +257,9 @@ class _SplitMineruCanonicalClient:
             }
         }
         return OnlineOcrProviderResult(
-            provider_result_bytes=(
-                json.dumps(canonical_payload, ensure_ascii=False) + "\n"
-            ).encode("utf-8"),
+            provider_result_bytes=(json.dumps(canonical_payload, ensure_ascii=False) + "\n").encode(
+                "utf-8"
+            ),
             metadata={
                 "provider": "mineru_api",
                 "file_name": pdf_path.name,

@@ -222,8 +222,8 @@ class CurriculumProgramSemesterFactsMaterializationTest(unittest.TestCase):
             objects={
                 ("campus-rag-derived", law_key): _curriculum_document_units_bytes(),
                 ("campus-rag-derived", history_key): _curriculum_document_units_bytes().replace(
-                    "法学（民族实验班）本科人才培养方案".encode("utf-8"),
-                    "历史学（强基计划）本科人才培养方案".encode("utf-8"),
+                    "法学（民族实验班）本科人才培养方案".encode(),
+                    "历史学（强基计划）本科人才培养方案".encode(),
                 ),
             }
         )

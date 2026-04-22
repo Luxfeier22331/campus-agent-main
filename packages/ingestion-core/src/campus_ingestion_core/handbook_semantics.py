@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Sequence
 
 _APPENDIX_PREFIXES = ("附件", "附表", "附录")
 _FORM_KEYWORDS = ("申请表", "审批表", "登记表", "备案表", "信息表")

@@ -6,12 +6,10 @@ import json
 import os
 import time
 from dataclasses import dataclass
-from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol
 from urllib.parse import urlparse
-import zipfile
 
 from campus_ingestion_core.file_asset_routing import (
     RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME,
@@ -108,7 +106,7 @@ class OnlineOcrSettings:
         required: bool = False,
         prefix: str = "OCR_",
         default_provider: str | None = None,
-    ) -> "OnlineOcrSettings | None":
+    ) -> OnlineOcrSettings | None:
         source = env if env is not None else os.environ
         normalized_prefix = prefix if prefix.endswith("_") else f"{prefix}_"
         base_url_key = f"{normalized_prefix}BASE_URL"

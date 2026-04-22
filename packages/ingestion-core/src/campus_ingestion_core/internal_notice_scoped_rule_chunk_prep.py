@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol, Sequence
+from typing import Any, Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
@@ -175,7 +176,7 @@ def build_scoped_rule_chunk_prep_manifest(
 ) -> ScopedRuleChunkPrepManifest:
     return ScopedRuleChunkPrepManifest(
         schema_version=_SCHEMA_VERSION,
-        prepared_at=datetime.now(timezone.utc).isoformat(),
+        prepared_at=datetime.now(UTC).isoformat(),
         target_corpus=_TARGET_SCOPE[0],
         target_collection=_TARGET_SCOPE[1],
         prepared_document_count=len(prepared_documents),

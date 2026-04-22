@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, Protocol, Sequence
+from typing import Literal, Protocol
 
 from campus_ingestion_core import (
     DEFAULT_BUCKET_SOURCE,
@@ -49,19 +50,17 @@ class OfficialWebHistoricalBackfillSettings:
         cls,
         *,
         local_output_dirs: Sequence[Path] = (),
-    ) -> "OfficialWebHistoricalBackfillSettings":
+    ) -> OfficialWebHistoricalBackfillSettings:
         object_store_settings = ObjectStoreSettings.from_env()
         return cls(
             inbox_dir=Path(
-                (
-                    __import__("os")
-                    .getenv(
-                        "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
-                        "./var/official-web-handoffs",
-                    )
-                    .strip()
-                    or "./var/official-web-handoffs"
+                __import__("os")
+                .getenv(
+                    "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR",
+                    "./var/official-web-handoffs",
                 )
+                .strip()
+                or "./var/official-web-handoffs"
             ),
             local_output_dirs=tuple(local_output_dirs),
             source_bucket=object_store_settings.bucket_source,

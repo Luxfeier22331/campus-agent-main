@@ -146,8 +146,10 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                     "INGESTION_CORPUS": "curriculum",
                     "INGESTION_COLLECTION": "curriculum_plan",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_BASE_URL": "https://mineru.example/api/v1/extract",
                     "OCR_API_KEY": "token",
+                    "OCR_PROVIDER_MODE": "mineru_api",
+                    "OCR_MODEL": "vlm",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
@@ -206,6 +208,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         raw_asset_id="asset:curriculum-plan-master-pdf",
                         raw_version_id=raw_version_id,
                         filename="provider-response.jsonl",
+                        model_slug="vlm",
                     ),
                     build_processed_asset_artifact_key(
                         corpus="curriculum",
@@ -252,6 +255,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                     raw_asset_id="asset:curriculum-plan-master-pdf",
                     raw_version_id=raw_version_id,
                     filename="provider-response.jsonl",
+                    model_slug="vlm",
                 ),
             )
             self.assertEqual(
@@ -262,6 +266,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         raw_asset_id="asset:curriculum-plan-master-pdf",
                         raw_version_id=raw_version_id,
                         filename="provider-response.jsonl",
+                        model_slug="vlm",
                     ),
                     build_processed_artifact_key(
                         corpus="curriculum",
@@ -289,6 +294,108 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
             self.assertEqual(plan_001["source_channel"], "pdf_ocr")
             self.assertEqual(plan_001["source_uri"], source_uri_1)
             self.assertEqual(plan_002["source_uri"], source_uri_2)
+
+    def test_process_raw_ingestion_job_curriculum_plan_split_manifest_prefers_mineru_lane(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 curriculum plan mineru canonical"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = (
+                f"official_pdf/curriculum-plan-master/undated/sha256/{raw_hash}/"
+                "capture/curriculum-plan.pdf"
+            )
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-001",
+                                "title": "Plan 001",
+                                "page_start": 1,
+                                "page_end": 1,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
+            paddle_client = _TrackingPaddleOnlineOcrClient()
+            mineru_client = _SuccessfulMineruCanonicalClient()
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
+            raw_asset_registry.upsert(
+                _curriculum_raw_asset_record(
+                    raw_asset_id="asset:curriculum-plan-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri=(
+                        "s3://campus-rag-source/official_pdf/"
+                        "curriculum-plan-master/curriculum-plan.pdf"
+                    ),
+                    content_hash=raw_hash,
+                    source_filename="curriculum-plan.pdf",
+                    object_key=raw_key,
+                )
+            )
+
+            report = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:curriculum-plan-master-pdf",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "curriculum",
+                    "INGESTION_COLLECTION": "curriculum_plan",
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OCR_MINERU_BASE_URL": "https://mineru.example",
+                    "OCR_MINERU_API_KEY": "mineru-token",
+                    "OCR_MINERU_PROVIDER_MODE": "mineru_api",
+                    "OCR_MINERU_MODEL": "vlm",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                object_store=object_store,
+                online_ocr_clients={
+                    "paddleocr_async_jobs": paddle_client,
+                    "mineru_api": mineru_client,
+                },
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.success_count, 1)
+            self.assertEqual(len(mineru_client.calls), 1)
+            self.assertEqual(len(paddle_client.calls), 0)
+            upload_keys = [str(upload["key"]) for upload in object_store.uploads]
+            self.assertIn(
+                build_processed_asset_artifact_key(
+                    corpus="curriculum",
+                    raw_asset_id="asset:curriculum-plan-master-pdf",
+                    raw_version_id=raw_version_id,
+                    filename="provider-response.jsonl",
+                    model_slug="vlm",
+                ),
+                upload_keys,
+            )
 
     def test_process_raw_ingestion_job_supports_curriculum_plan_source_truth_only_presplit(
         self,
@@ -326,8 +433,10 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                     "INGESTION_CORPUS": "curriculum",
                     "INGESTION_COLLECTION": "curriculum_plan",
                     "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
-                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_BASE_URL": "https://mineru.example/api/v1/extract",
                     "OCR_API_KEY": "token",
+                    "OCR_PROVIDER_MODE": "mineru_api",
+                    "OCR_MODEL": "vlm",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
@@ -354,6 +463,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         raw_asset_id="asset:curriculum-plan-pdf",
                         raw_version_id=raw_version_id,
                         filename="provider-response.jsonl",
+                        model_slug="vlm",
                     ),
                     build_processed_asset_artifact_key(
                         corpus="curriculum",

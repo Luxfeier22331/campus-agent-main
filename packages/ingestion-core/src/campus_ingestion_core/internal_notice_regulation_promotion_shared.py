@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, Sequence
+from typing import Protocol
 
 _INTERNAL_NOTICE_SCOPE = ("campus_notices", "internal_notice")
 _FORMAL_REGULATION_KEYWORDS = (

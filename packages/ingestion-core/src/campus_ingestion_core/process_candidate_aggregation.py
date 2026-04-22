@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from campus_ingestion_core.curriculum_chunk_units import _normalize_curriculum_structural_path
 from campus_ingestion_core.handbook_semantics import derive_handbook_semantic_metadata

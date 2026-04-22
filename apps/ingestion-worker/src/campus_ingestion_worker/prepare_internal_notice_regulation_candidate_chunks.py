@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
 
 from campus_ingestion_core.internal_notice_regulation_candidate_chunk_prep import (
     load_internal_notice_regulation_candidate_documents,

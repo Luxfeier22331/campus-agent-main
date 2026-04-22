@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Literal
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
@@ -171,9 +172,9 @@ def _build_document_id(canonical_program_family_id: str) -> str:
 
 
 def _build_version_id(*, raw_version_id: str, canonical_program_family_id: str) -> str:
-    digest = hashlib.sha256(
-        f"{raw_version_id}|{canonical_program_family_id}".encode("utf-8")
-    ).hexdigest()[:12]
+    digest = hashlib.sha256(f"{raw_version_id}|{canonical_program_family_id}".encode()).hexdigest()[
+        :12
+    ]
     return f"{raw_version_id}:program-family:{digest}"
 
 

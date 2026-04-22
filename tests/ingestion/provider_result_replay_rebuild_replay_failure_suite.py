@@ -106,7 +106,7 @@ class ProviderResultReplayRebuildFailureTest(unittest.TestCase):
                 (
                     SOURCE_BUCKET,
                     "official_pdf/curriculum-plan/2022/sha256/"
-                    "curriculum-replay-001/provider/paddleocr-vl-1-5/provider-response.jsonl",
+                    "curriculum-replay-001/provider/vlm/provider-response.jsonl",
                 ),
             )
 

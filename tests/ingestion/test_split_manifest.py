@@ -194,7 +194,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=documents["curriculum:国际经济与贸易本科人才培养方案"],
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope="main",
@@ -207,7 +207,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=documents["curriculum:经济学拔尖人才创新班人才培养方案"],
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope="main",
@@ -328,7 +328,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope="main",
@@ -420,7 +420,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope="main",
@@ -629,7 +629,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope="fallback-campus",
@@ -678,7 +678,7 @@ class SplitManifestTest(unittest.TestCase):
             manifest_document=manifest_document,
             structured_rows=structured_rows,
             provider_response_key=(
-                "official_pdf/curriculum-plan/2022/sha256/test/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
             ),
             layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
             default_visibility_scope=None,

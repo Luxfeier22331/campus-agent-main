@@ -28,7 +28,7 @@ class SparseVectorData:
 
 
 class SparseEmbeddingModel(Protocol):
-    settings: "SparseEmbeddingSettings"
+    settings: SparseEmbeddingSettings
 
     def build_document(self, text: str) -> qdrant_models.Document | qdrant_models.SparseVector: ...
 
@@ -59,7 +59,7 @@ class SparseEmbeddingSettings:
         return self.provider.strip().lower() == "mock"
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "SparseEmbeddingSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> SparseEmbeddingSettings:
         source = env if env is not None else os.environ
         return cls(
             provider=(source.get("SPARSE_PROVIDER") or DEFAULT_SPARSE_PROVIDER).strip()

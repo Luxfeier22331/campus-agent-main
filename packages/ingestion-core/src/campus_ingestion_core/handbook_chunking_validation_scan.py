@@ -264,7 +264,7 @@ def _load_structured_jsonl_bytes(
 
 def _validation_cache_file_path(*, cache_dir: Path, bucket: str, key: str, version_id: str) -> Path:
     suffix = Path(key).name or "document-units.jsonl"
-    digest = hashlib.sha1(f"{bucket}:{key}:{version_id}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha1(f"{bucket}:{key}:{version_id}".encode()).hexdigest()
     return cache_dir / bucket / digest / suffix
 
 
