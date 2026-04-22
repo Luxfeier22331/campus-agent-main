@@ -8,7 +8,7 @@ from campus_evals.models import GoldenCase
 
 
 def _handbook_scope() -> KnowledgeScope:
-    return KnowledgeScope(corpus="regulations", collection="student_handbook")
+    return KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _curriculum_scope() -> KnowledgeScope:

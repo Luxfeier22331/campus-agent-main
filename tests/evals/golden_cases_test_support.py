@@ -39,7 +39,7 @@ from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
 
 
@@ -59,7 +59,7 @@ def _source(
     doc_id: str = "handbook:library",
     version_id: str = "v1",
     chunk_id: str = "chunk-1",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     snippet: str = "Library hours are 08:00 to 22:00.",
     canonical_source_id: str = "",
     canonical_source_title: str = "",
@@ -91,7 +91,7 @@ def _response(
     status: str = "completed",
     answer_text: str = "Library hours are 08:00 to 22:00.",
     corpus: str = "regulations",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
     diagnostics: RagResultDiagnostics | None = None,
 ) -> SpecialistResponse:

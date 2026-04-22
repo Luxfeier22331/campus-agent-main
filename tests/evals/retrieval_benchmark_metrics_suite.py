@@ -22,7 +22,7 @@ class RetrievalMetricsTest(unittest.TestCase):
             case_id="doc-level",
             split="smoke",
             query="library hours",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             expected_sources=(
                 RetrievalQrelsSourceRef(
                     doc_id="handbook:library", grade=2, rationale="main document"
@@ -55,7 +55,7 @@ class RetrievalMetricsTest(unittest.TestCase):
             case_id="chunk-level",
             split="regression_locked",
             query="图书馆开放时间",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             expected_sources=(
                 RetrievalQrelsSourceRef(
                     doc_id="handbook:library",
@@ -91,7 +91,7 @@ class RetrievalMetricsTest(unittest.TestCase):
             case_id="forbidden",
             split="smoke",
             query="办公室值班时间",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             forbidden_sources=(
                 RetrievalQrelsSourceRef(
                     doc_id="handbook:restricted-office", grade=1, rationale="restricted"
@@ -116,7 +116,7 @@ class RetrievalMetricsTest(unittest.TestCase):
             case_id="no-hit",
             split="smoke",
             query="校内宇宙签证办理处",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
         )
 
         empty_metrics = evaluate_retrieval_case(case, ())
@@ -190,14 +190,14 @@ class RetrievalMetricsTest(unittest.TestCase):
     def test_evaluate_retrieval_run_defaults_missing_cases_to_zero_metrics(self) -> None:
         dataset = RetrievalQrelsDataset(
             schema_version=1,
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             baseline={},
             cases=(
                 RetrievalQrelsCase(
                     case_id="missing-case",
                     split="smoke",
                     query="library hours",
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     expected_sources=(RetrievalQrelsSourceRef(doc_id="handbook:library", grade=2),),
                 ),
             ),

@@ -62,7 +62,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
         self.assertEqual(
-            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook")
+            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_rules")
         )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
@@ -153,7 +153,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
 
         self.assertEqual(template["schema_version"], 1)
         self.assertEqual(template["corpus"], "regulations")
-        self.assertEqual(template["collection"], "student_handbook")
+        self.assertEqual(template["collection"], "student_rules")
         self.assertEqual(len(template["cases"]), len(dataset.cases))
         self.assertIn("instructions", template)
 
@@ -183,7 +183,7 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         )
 
         if manifest_has_entitlement_projection or manifest_has_visibility_scope:
-            self.skipTest("student_handbook manifest now carries restricted source truth")
+            self.skipTest("student_rules manifest now carries restricted source truth")
 
         overridden_case_ids = {
             case.case_id

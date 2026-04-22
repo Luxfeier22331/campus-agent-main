@@ -122,7 +122,7 @@ HANDBOOK_MANIFEST_PATH = (
     / "configs"
     / "ingestion"
     / "regulations"
-    / "student_handbook"
+    / "student_rules"
     / "split-manifest.v1.json"
 )
 CURRICULUM_MANIFEST_PATH = (
@@ -150,7 +150,7 @@ def _source(
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=False,
         snippet=f"Snippet for {doc_id}",
         score=0.91,

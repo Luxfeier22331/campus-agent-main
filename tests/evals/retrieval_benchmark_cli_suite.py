@@ -89,7 +89,7 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {},
                         "cases": [
                             {
@@ -182,7 +182,7 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {},
                         "cases": [],
                     }

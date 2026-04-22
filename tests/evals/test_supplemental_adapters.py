@@ -25,7 +25,7 @@ from campus_evals import (
 )
 from campus_evals.ragas_adapter import RagasSupplementalAdapter
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(
@@ -33,7 +33,7 @@ def _source(
     doc_id: str = "handbook:library",
     version_id: str = "v1",
     chunk_id: str = "chunk-1",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     snippet: str = "Library hours are 08:00 to 22:00.",
 ) -> EvidenceSource:
     return EvidenceSource(
@@ -57,7 +57,7 @@ def _response(
     status: str = "completed",
     answer_text: str = "Library hours are 08:00 to 22:00.",
     corpus: str = "regulations",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
 ) -> SpecialistResponse:
     return SpecialistResponse(
@@ -98,7 +98,7 @@ class RagasProjectionTest(unittest.TestCase):
                 sources=(_source(), _source(chunk_id="chunk-2", snippet="Closed on holidays."))
             ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -116,7 +116,7 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.reference_context_ids, ())
         self.assertEqual(projection.reference_contexts, ())
         self.assertEqual(projection.reference, "Library opens at 08:00.\nLibrary closes at 22:00.")
-        self.assertEqual(projection.metadata["collection"], "student_handbook")
+        self.assertEqual(projection.metadata["collection"], "student_rules")
         self.assertEqual(projection.metadata["expected_status"], "completed")
         self.assertEqual(projection.metadata["reference_fact_count"], 2)
         self.assertEqual(
@@ -151,7 +151,7 @@ class RagasProjectionTest(unittest.TestCase):
         execution = ExecutionResult(
             response=_response(sources=(support_source,)),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(support_source, raw_background),
                 supporting_sources=(support_source,),
@@ -191,7 +191,7 @@ class RagasProjectionTest(unittest.TestCase):
         execution = ExecutionResult(
             response=_response(sources=()),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(retrieved_source,),
                 supporting_sources=(),
@@ -250,7 +250,7 @@ class RagasProjectionTest(unittest.TestCase):
                 sources=(support_source,),
             ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 supporting_sources=(support_source,),
             ),
@@ -285,13 +285,13 @@ class RagasProjectionTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text="library hours",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                         sources=(_source(),),
                     )
                 ),
             ),
             observed_trace=ObservedTrace(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
                 retrieved_sources=(_source(),),
                 supporting_sources=(_source(),),
@@ -416,9 +416,7 @@ class SupplementalRunnerTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             ),
@@ -469,9 +467,7 @@ class SupplementalRunnerTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             ),
@@ -522,9 +518,7 @@ class SupplementalRunnerTest(unittest.TestCase):
             return ExecutionResult(
                 response=_response(sources=(_source(doc_id=f"handbook:{case.case_id}"),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             )

@@ -9,7 +9,7 @@ updated: 2026-04-03
 
 ## 目的
 
-本文负责把 `student_handbook` 与 `curriculum_plan` 当前 golden dataset 覆盖面整理成可查阅矩阵，明确哪些 lane 已覆盖，哪些仍是部分覆盖，哪些尚未进入 canonical case 集。
+本文负责把 `student_rules` 与 `curriculum_plan` 当前 golden dataset 覆盖面整理成可查阅矩阵，明确哪些 lane 已覆盖，哪些仍是部分覆盖，哪些尚未进入 canonical case 集。
 
 边界：
 

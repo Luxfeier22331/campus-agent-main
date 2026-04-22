@@ -215,7 +215,7 @@ context metric 路由：
 
 ## 当前 Handbook / Curriculum 约束
 
-- `student_handbook` 与 `curriculum_plan` 的 completed release/regression cases 现在都应显式携带 context truth
+- `student_rules` 与 `curriculum_plan` 的 completed release/regression cases 现在都应显式携带 context truth
 - handbook `宿舍照明`、奖学金/公费医疗标题类 case 已按 lookup case 处理，不再默认进入 `answer_relevancy`
 - curriculum 纯标题/方案名 exact-match case 同样按 lookup case 处理
 - curriculum 的短标题片段歧义不得再锁成单目标 retrieval truth；`民族实验班` 现已迁移为 clarification lane，而不是 canonical qrels

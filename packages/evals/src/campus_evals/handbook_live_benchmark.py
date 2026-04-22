@@ -132,12 +132,12 @@ def build_parser() -> argparse.ArgumentParser:
 def build_handbook_live_profile(env: dict[str, str] | None = None) -> BenchmarkProfile:
     http_settings = build_default_profile_http_settings()
     return BenchmarkProfile(
-        profile_id="student_handbook",
+        profile_id="student_rules",
         benchmark_type="formal_benchmark",
         repair_benchmark_type="formal_benchmark_repair",
         run_prefix=RUN_PREFIX,
         repair_prefix=REPAIR_PREFIX,
-        description="Run or repair student_handbook formal benchmark against the live chain.",
+        description="Run or repair student_rules formal benchmark against the live chain.",
         policy_path=STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH,
         http_settings=http_settings,
         case_workers=LIVE_BENCHMARK_CASE_WORKERS,

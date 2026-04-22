@@ -1,7 +1,7 @@
 {
 	"schema_version": 1,
 	"corpus": "regulations",
-	"collection": "student_handbook",
+	"collection": "student_rules",
 	"baseline": {
 		"dense_model": "Qwen3-Embedding-4B",
 		"dense_dimensions": 2560,

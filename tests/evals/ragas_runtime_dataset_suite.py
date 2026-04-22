@@ -16,7 +16,7 @@ class RagasDatasetTest(unittest.TestCase):
                 response="08:00 到 22:00。",
                 retrieved_contexts=("图书馆开放时间为 08:00-22:00。",),
                 reference="图书馆开放时间为 08:00-22:00。",
-                metadata={"collection": "student_handbook"},
+                metadata={"collection": "student_rules"},
             )
         )
 

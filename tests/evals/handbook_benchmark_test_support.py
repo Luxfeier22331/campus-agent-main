@@ -30,7 +30,7 @@ from campus_evals.handbook_benchmark import (
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(doc_id: str) -> EvidenceSource:
@@ -43,7 +43,7 @@ def _source(doc_id: str) -> EvidenceSource:
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=False,
         snippet="snippet",
         score=0.95,
@@ -99,7 +99,7 @@ def _response(
             evidence=EvidenceBundle(
                 query_text="query",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=sources,
             )
         ),

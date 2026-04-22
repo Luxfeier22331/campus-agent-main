@@ -4,7 +4,7 @@
 		{
 			"metric_name": "answer_correctness_rubric",
 			"applies_to_statuses": ["completed"],
-			"system_prompt": "你是 campus-agent 的 student_handbook 质量评审器。你只根据给定 goal、reference facts、retrieved evidence 和 answer text 评分。不要补充仓库外知识，不要解释过程，只输出 JSON 对象。",
+			"system_prompt": "你是 campus-agent 的 student_rules 质量评审器。你只根据给定 goal、reference facts、retrieved evidence 和 answer text 评分。不要补充仓库外知识，不要解释过程，只输出 JSON 对象。",
 			"criteria": [
 				"answer 必须直接回应用户问题，不能回避。",
 				"answer 中的关键信息应与 required facts 一致，不能遗漏关键事实。",
@@ -33,7 +33,7 @@
 		{
 			"metric_name": "refusal_quality",
 			"applies_to_statuses": ["no_answer", "needs_clarification"],
-			"system_prompt": "你是 campus-agent 的 student_handbook 边界响应评审器。你只根据给定 goal、expected status、response status、answer text、follow-up question 和 retrieved evidence 评分。不要引入仓库外知识，只输出 JSON 对象。",
+			"system_prompt": "你是 campus-agent 的 student_rules 边界响应评审器。你只根据给定 goal、expected status、response status、answer text、follow-up question 和 retrieved evidence 评分。不要引入仓库外知识，只输出 JSON 对象。",
 			"criteria": [
 				"当 expected status 为 no_answer 时，响应应明确承认证据不足或范围不符，不应编造答案。",
 				"当 expected status 为 needs_clarification 时，响应应提出具体、必要的澄清问题，而不是泛泛追问。",

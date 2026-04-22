@@ -27,7 +27,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertIsInstance(dataset, dataset_type)
         self.assertEqual(dataset.schema_version, 1)
         self.assertEqual(
-            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook")
+            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_rules")
         )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
@@ -44,7 +44,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {"dense_model": "Qwen3-Embedding-4B"},
                         "cases": [
                             {
@@ -72,7 +72,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {"dense_model": "Qwen3-Embedding-4B"},
                         "cases": [
                             {
@@ -111,7 +111,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {"dense_model": "Qwen3-Embedding-4B"},
                         "cases": [
                             {
@@ -170,7 +170,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         )
 
         if manifest_has_entitlement_projection or manifest_has_visibility_scope:
-            self.skipTest("student_handbook manifest now carries restricted source truth")
+            self.skipTest("student_rules manifest now carries restricted source truth")
 
         scoped_case_ids = {
             case["case_id"]
@@ -221,7 +221,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "baseline": {"dense_model": "Qwen3-Embedding-4B"},
                         "cases": [
                             {
@@ -274,9 +274,9 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(
             errors,
             (
-                "case restricted-entitlement-case requires entitlement scope, but the manifest has no entitlement-projected regulations/student_handbook documents",
-                "case restricted-visibility-case requires visibility_scope, but the manifest has no visibility-scoped regulations/student_handbook documents",
-                "case fixed-case category fixed_phrase_sparse_win is not grounded in any current regulations/student_handbook title keyword",
+                "case restricted-entitlement-case requires entitlement scope, but the manifest has no entitlement-projected regulations/student_rules documents",
+                "case restricted-visibility-case requires visibility_scope, but the manifest has no visibility-scoped regulations/student_rules documents",
+                "case fixed-case category fixed_phrase_sparse_win is not grounded in any current regulations/student_rules title keyword",
             ),
         )
 

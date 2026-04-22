@@ -27,7 +27,7 @@ from campus_evals.handbook_live_benchmark import (
 )
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(doc_id: str, *, chunk_id: str = "chunk-1", score: float = 0.9) -> EvidenceSource:
@@ -40,7 +40,7 @@ def _source(doc_id: str, *, chunk_id: str = "chunk-1", score: float = 0.9) -> Ev
         canonical_url=f"https://example.edu/{doc_id}",
         latest_url=f"https://example.edu/{doc_id}",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=True,
         snippet=f"snippet for {doc_id}",
         score=score,
@@ -77,7 +77,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         retrieved_bundle = EvidenceBundle(
             query_text="学生证丢了怎么办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _source(
                     "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -155,7 +155,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="上一版学生证补办流程",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
             delegate=fake_delegate,
         )
@@ -207,7 +207,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                             "evidence": {
                                 "query_text": "学生证丢了怎么办",
                                 "corpus": "regulations",
-                                "collection": "student_handbook",
+                                "collection": "student_rules",
                                 "sources": [
                                     {
                                         "doc_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -218,7 +218,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                                         "canonical_url": "https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
                                         "latest_url": "https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
                                         "source_channel": "pdf_ocr",
-                                        "collection": "student_handbook",
+                                        "collection": "student_rules",
                                         "is_current": True,
                                         "snippet": "学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
                                         "score": 0.97,
@@ -288,7 +288,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     canonical_url="https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
                     latest_url="https://example.edu/handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet="学生如将学生证遗失或损坏,应及时到学院(系)挂失。",
                     score=0.97,
@@ -409,7 +409,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text=request.user_goal,
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     )
                 ),
             )
@@ -438,7 +438,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         retrieved_bundle = EvidenceBundle(
             query_text="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _source(
                     "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",

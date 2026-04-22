@@ -9,7 +9,7 @@ Evaluation helpers for campus-agent v2.
 - `student_handbook_hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担 canonical retrieval qrels
 - `curriculum_plan_hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live hybrid/query 验收样本，不承担 canonical retrieval qrels
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
-- handbook live fixture 必须跟随当前 `regulations/student_handbook` 的真实 collection 边界收口；如果 handbook manifest 不再包含 `entitlement_groups`、`visibility_scope` 或服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
+- handbook live fixture 必须跟随当前 `regulations/student_rules` 的真实 collection 边界收口；如果 handbook manifest 不再包含 `entitlement_groups`、`visibility_scope` 或服务导航页等真相，这些 case 不应继续留在 handbook fixture 中
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
@@ -30,7 +30,7 @@ Evaluation helpers for campus-agent v2.
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
 - deterministic runner 现在接受 `SpecialistResponse` 与 `SupervisorResponse` 两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` / `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental adapter，不得改写 canonical deterministic gate
-- `student_handbook` formal benchmark 的 policy / rubric fixture 分别固定在 `student_handbook_judge_gate_policy.json` 与 `student_handbook_judge_rubrics.json`
+- `student_rules` formal benchmark 的 policy / rubric fixture 分别固定在 `student_handbook_judge_gate_policy.json` 与 `student_handbook_judge_rubrics.json`
 
 配套文档：
 
@@ -149,7 +149,7 @@ student handbook formal benchmark：
   - provider runtime marker，例如 `do_request_failed`
 - repair rerun 的 provenance 固定写入 repaired `summary.json` / `gate-report.json`；原 benchmark artifact 保持不可变
 - `gate-report.json` 只解释 supplemental judge/ragas 阈值，不替代 deterministic gate
-- 当前 `student_handbook` policy fixture 全部是 `soft_gate`；`warn` 表示 supplemental 指标未达阈值，不表示 handbook 主链路 deterministic 回归失败
+- 当前 `student_rules` policy fixture 全部是 `soft_gate`；`warn` 表示 supplemental 指标未达阈值，不表示 handbook 主链路 deterministic 回归失败
 - 当某个 supplemental metric 没有任何可计分 observation，且失败全部来自 retryable runtime / provider outage 时，aggregate 会显式写出 `overall.runtime_status=unavailable`
 - 这种场景的 gate reason 会包含 `runtime_unavailable`，而不会再错误地追加 `*_below_threshold` 或 `run_average_drift_above_threshold`
 - 当 supplemental preflight 在 run 开始前就判定 provider unavailable 时：

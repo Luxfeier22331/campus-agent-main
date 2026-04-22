@@ -1,9 +1,9 @@
 {
 	"schema_version": 1,
 	"corpus": "regulations",
-	"collection": "student_handbook",
+	"collection": "student_rules",
 	"instructions": [
-		"只标注真实属于 student_handbook 主集合的制度文档，不把 campus service / restricted visibility scope 样本混入 handbook qrels。",
+		"只标注真实属于 student_rules 主集合的制度文档，不把 campus service / restricted visibility scope 样本混入 handbook qrels。",
 		"对每条 query 先抓取 top-10 retrieval results，再人工审核。",
 		"主相关 source 标记到 expected_sources，使用 grade=2。",
 		"可接受相关 source 标记到 expected_sources，使用 grade=1。",

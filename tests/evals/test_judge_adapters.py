@@ -21,7 +21,7 @@ from campus_evals.judge_adapters import (
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
 from campus_shared.provider_config import ProviderConfigResolutionError
 
-HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _source(
@@ -40,7 +40,7 @@ def _source(
         canonical_url="https://example.edu/handbook/library",
         latest_url="https://example.edu/handbook/library",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=False,
         snippet=snippet,
         score=0.91,
@@ -64,7 +64,7 @@ def _response(
             evidence=EvidenceBundle(
                 query_text="query",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=sources,
             )
         ),

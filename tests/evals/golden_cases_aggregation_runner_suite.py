@@ -40,7 +40,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             expected_sources=(expected_source_ref("handbook:library"),),
             required_facts=("08:00",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -50,9 +50,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             ),
@@ -384,14 +382,12 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
                         evidence=EvidenceBundle(
                             query_text=case.user_goal,
                             corpus="regulations",
-                            collection="student_handbook",
+                            collection="student_rules",
                         )
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                     clarification_emitted=False,
                     error_path=True,

@@ -86,7 +86,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                             evidence=EvidenceBundle(
                                 query_text=case.user_goal,
                                 corpus="regulations",
-                                collection="student_handbook",
+                                collection="student_rules",
                                 sources=(),
                             ),
                             diagnostics=RagResultDiagnostics(
@@ -298,12 +298,12 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library"),),
             required_facts=("08:00",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -321,9 +321,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             return ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                 ),
             )
@@ -346,14 +344,14 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             source_type="expert_authored",
             user_goal="library hours",
             actor=ActorContext(),
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             expected_status="completed",
             expected_sources=(expected_source_ref("handbook:library"),),
             forbidden_sources=(expected_source_ref("plan:fall"),),
             required_facts=("08:00", "22:00"),
             forbidden_claims=("24 hours",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -444,14 +442,12 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                         evidence=EvidenceBundle(
                             query_text="这个规定怎么办理",
                             corpus="regulations",
-                            collection="student_handbook",
+                            collection="student_rules",
                         )
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=False,
                     clarification_emitted=True,
                 ),
@@ -618,7 +614,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
             required_facts=("08:00",),
             forbidden_claims=("24 hours",),
             trace_expectation=TraceExpectation(
-                selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 retrieval_called=True,
             ),
         )
@@ -671,7 +667,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     response=_response(sources=(_source(),)),
                     observed_trace=ObservedTrace(
                         selected_scope=KnowledgeScope(
-                            corpus="regulations", collection="student_handbook"
+                            corpus="regulations", collection="student_rules"
                         ),
                         retrieval_called=True,
                     ),
@@ -685,13 +681,13 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                             evidence=EvidenceBundle(
                                 query_text="奖学金怎么申请？",
                                 corpus="regulations",
-                                collection="student_handbook",
+                                collection="student_rules",
                             )
                         ),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=KnowledgeScope(
-                            corpus="regulations", collection="student_handbook"
+                            corpus="regulations", collection="student_rules"
                         ),
                         retrieval_called=False,
                         clarification_emitted=True,
@@ -707,14 +703,14 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                             evidence=EvidenceBundle(
                                 query_text="火星校区飞船停靠规则",
                                 corpus="regulations",
-                                collection="student_handbook",
+                                collection="student_rules",
                                 sources=(_source(doc_id="handbook:unexpected"),),
                             )
                         ),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=KnowledgeScope(
-                            corpus="regulations", collection="student_handbook"
+                            corpus="regulations", collection="student_rules"
                         ),
                         retrieval_called=True,
                     ),
@@ -730,14 +726,12 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                         evidence=EvidenceBundle(
                             query_text="system failure",
                             corpus="regulations",
-                            collection="student_handbook",
+                            collection="student_rules",
                         )
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(
-                        corpus="regulations", collection="student_handbook"
-                    ),
+                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                     retrieval_called=True,
                     clarification_emitted=False,
                     error_path=True,

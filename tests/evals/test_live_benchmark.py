@@ -18,7 +18,7 @@ from campus_evals.live_benchmark import (
     run_live_benchmark_profile,
 )
 
-TEST_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
+TEST_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
 
 def _case() -> GoldenCase:
