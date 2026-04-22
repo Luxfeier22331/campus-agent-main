@@ -30,9 +30,9 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
             split_manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-pdf",
                         "documents": [],
                     },
@@ -65,7 +65,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
                         "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "INGESTION_COLLECTION": "student_rules",
                         "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
@@ -428,7 +428,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                     raw_asset_id="asset:curriculum-plan-master-pdf",
                     raw_version_id=raw_version_id,
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     raw_source_uri="s3://campus-rag-source/official_pdf/curriculum-plan-master/curriculum-plan.pdf",
                     content_hash=raw_hash,
                     source_filename="curriculum-plan.pdf",
@@ -444,7 +444,7 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         "RAW_ASSET_ID": "asset:curriculum-plan-master-pdf",
                         "RAW_VERSION_ID": raw_version_id,
                         "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "INGESTION_COLLECTION": "student_rules",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",

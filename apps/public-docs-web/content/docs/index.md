@@ -7,7 +7,7 @@ description: 使用 Fumadocs 接入的测试文档目录。
 
 当前放入两组测试文档：
 
-- `regulations / student_handbook`
+- `regulations / student_rules`
 - `curriculum / curriculum_plan`
 
 你可以从这里进入：

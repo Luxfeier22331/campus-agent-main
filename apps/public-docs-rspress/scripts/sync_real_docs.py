@@ -4,7 +4,8 @@ import json
 import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from hashlib import sha1
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
@@ -12,8 +13,8 @@ from typing import Iterable
 import boto3
 from campus_ingestion_core.curriculum_chunk_units import _looks_like_curriculum_structure_heading
 from campus_ingestion_core.curriculum_course_map_docs_surface import (
-    load_curriculum_course_map_docs_review_manifest,
-    materialize_reviewed_curriculum_course_map_doc,
+    build_curriculum_course_map_docs_surface_object_key,
+    load_curriculum_course_map_docs_surface,
 )
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -22,14 +23,6 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = APP_ROOT / "docs"
 DERIVED_BUCKET = "campus-rag-derived"
 HANDBOOK_NOISE_LINES = {"学生手册"}
-COURSE_MAP_REVIEW_MANIFEST_PATH = (
-    REPO_ROOT
-    / "configs"
-    / "ingestion"
-    / "curriculum"
-    / "curriculum_plan"
-    / "course-map-docs-review.v1.json"
-)
 _COURSE_MAP_PRACTICE_KEYWORDS = (
     "实习",
     "论文",
@@ -94,8 +87,6 @@ class CourseMapDocEmbed:
     component_import_path: str
     data_import_path: str
     data_import_name: str
-    image_src: str
-    digest_lines: tuple[str, ...] = ()
 
 
 HANDBOOK_DOCS: tuple[HandbookDoc, ...] = (
@@ -118,32 +109,18 @@ HANDBOOK_DOCS: tuple[HandbookDoc, ...] = (
 )
 
 
-CURRICULUM_DOCS: tuple[CurriculumDoc, ...] = (
-    CurriculumDoc(
-        slug="law-ethnic-experimental-program",
-        title="法学（民族实验班）本科人才培养方案",
-        key=(
-            "curriculum/documents/curriculum_plan/"
-            "法学-民族实验班-本科人才培养方案--法学-民族实验班-本科人才培养方案/"
-            "source-faithful/2022/document-units.jsonl"
-        ),
+CURRICULUM_DOC_SLUG_OVERRIDES: dict[str, str] = {
+    "curriculum:法学（民族实验班）本科人才培养方案": "law-ethnic-experimental-program",
+    "curriculum:计算机科学与技术（民族实验班）本科人才培养方案": (
+        "computer-science-ethnic-experimental-program"
     ),
-    CurriculumDoc(
-        slug="computer-science-ethnic-experimental-program",
-        title="计算机科学与技术（民族实验班）本科人才培养方案",
-        key=(
-            "curriculum/documents/curriculum_plan/"
-            "计算机科学与技术-民族实验班-本科人才培养方案--"
-            "计算机科学与技术-民族实验班-本科人才培养方案/"
-            "source-faithful/2022/document-units.jsonl"
-        ),
-    ),
-)
+}
 
 
 def main() -> None:
     load_worker_env(repo_root=REPO_ROOT)
     client = _create_s3_client()
+    curriculum_docs = _discover_curriculum_docs(client)
 
     _remove_legacy_section_dirs()
     _write_text(
@@ -159,7 +136,7 @@ def main() -> None:
     )
     _write_text(DOCS_ROOT / "index.md", _build_home_page())
     _sync_handbook_docs(client)
-    _sync_curriculum_docs(client)
+    _sync_curriculum_docs(client, curriculum_docs=curriculum_docs)
 
 
 def _create_s3_client():
@@ -190,28 +167,31 @@ def _sync_handbook_docs(client) -> None:
     )
 
 
-def _sync_curriculum_docs(client) -> None:
+def _sync_curriculum_docs(client, *, curriculum_docs: tuple[CurriculumDoc, ...]) -> None:
     target_dir = DOCS_ROOT / "curriculum-plan"
     target_dir.mkdir(parents=True, exist_ok=True)
-    course_map_embeds = _sync_curriculum_course_map_artifacts(client)
+    course_map_embeds = _sync_curriculum_course_map_artifacts(
+        client, curriculum_docs=curriculum_docs
+    )
 
     _write_text(
         target_dir / "_meta.json",
-        json.dumps(["index", *[doc.slug for doc in CURRICULUM_DOCS]], ensure_ascii=False),
+        json.dumps(["index", *[doc.slug for doc in curriculum_docs]], ensure_ascii=False),
     )
     _write_text(target_dir / "index.md", _build_curriculum_plan_index())
 
-    for doc in CURRICULUM_DOCS:
+    for doc in curriculum_docs:
+        jsonl_text = _read_text_object(client=client, key=doc.key)
         markdown = _build_curriculum_markdown(
             slug=doc.slug,
             title=doc.title,
-            jsonl_text=_read_text_object(client=client, key=doc.key),
+            jsonl_text=jsonl_text,
             course_map_embed=course_map_embeds.get(doc.slug),
         )
         _write_text(target_dir / f"{doc.slug}.mdx", markdown)
     _remove_stale_generated_files(
         target_dir,
-        expected_names={"_meta.json", "index.md", *[f"{doc.slug}.mdx" for doc in CURRICULUM_DOCS]},
+        expected_names={"_meta.json", "index.md", *[f"{doc.slug}.mdx" for doc in curriculum_docs]},
     )
 
 
@@ -229,6 +209,20 @@ def _remove_legacy_section_dirs() -> None:
 
 def _read_text_object(*, client, key: str) -> str:
     return client.get_object(Bucket=DERIVED_BUCKET, Key=key)["Body"].read().decode("utf-8")
+
+
+def _read_optional_bytes_object(*, client, key: str) -> bytes | None:
+    try:
+        return client.get_object(Bucket=DERIVED_BUCKET, Key=key)["Body"].read()
+    except KeyError:
+        return None
+    except Exception as exc:  # pragma: no cover - boto3 path
+        response = getattr(exc, "response", None)
+        if isinstance(response, dict):
+            error = response.get("Error") or {}
+            if str(error.get("Code") or "") in {"NoSuchKey", "404", "NotFound"}:
+                return None
+        raise
 
 
 def _build_home_page() -> str:
@@ -267,7 +261,7 @@ def _build_handbook_index() -> str:
         [
             "---",
             "title: 学生手册",
-            "description: 来自本机 object storage 的真实 student_handbook 文档。",
+            "description: 来自本机 object storage 的真实 student_rules 文档。",
             "---",
             "",
             "当前目录直接接入本机 `campus-rag-derived` 中的真实 `canonical.md`。",
@@ -294,20 +288,11 @@ def _build_curriculum_plan_index() -> str:
     )
 
 
-def _sync_curriculum_course_map_artifacts(client) -> dict[str, CourseMapDocEmbed]:
-    class _S3ByteReader:
-        def __init__(self, s3_client) -> None:
-            self._client = s3_client
-
-        def get_bytes(self, *, bucket: str, key: str) -> bytes:
-            return self._client.get_object(Bucket=bucket, Key=key)["Body"].read()
-
-    entries_by_slug = {
-        entry.slug: entry
-        for entry in load_curriculum_course_map_docs_review_manifest(
-            COURSE_MAP_REVIEW_MANIFEST_PATH
-        )
-    }
+def _sync_curriculum_course_map_artifacts(
+    client,
+    *,
+    curriculum_docs: tuple[CurriculumDoc, ...],
+) -> dict[str, CourseMapDocEmbed]:
     generated_dir = DOCS_ROOT / ".generated" / "course-maps"
     public_root = DOCS_ROOT / "public" / "course-maps"
     generated_dir.mkdir(parents=True, exist_ok=True)
@@ -316,21 +301,26 @@ def _sync_curriculum_course_map_artifacts(client) -> dict[str, CourseMapDocEmbed
     embeds: dict[str, CourseMapDocEmbed] = {}
     expected_data_files: set[str] = set()
     expected_public_dirs: set[str] = set()
-    byte_reader = _S3ByteReader(client)
-
-    for doc in CURRICULUM_DOCS:
-        entry = entries_by_slug.get(doc.slug)
-        if entry is None:
+    for doc in curriculum_docs:
+        surface_key = build_curriculum_course_map_docs_surface_object_key(doc.key)
+        surface_bytes = _read_optional_bytes_object(client=client, key=surface_key)
+        if surface_bytes is None:
             continue
-        artifact = materialize_reviewed_curriculum_course_map_doc(
-            entry=entry,
-            byte_reader=byte_reader,
-        )
+        surface = load_curriculum_course_map_docs_surface(surface_bytes)
+        if not surface.blocks:
+            continue
         data_module_name = f"{doc.slug}.data.ts"
         image_dir = public_root / doc.slug
         image_dir.mkdir(parents=True, exist_ok=True)
-        (image_dir / "map-01.png").write_bytes(artifact.image_bytes)
-        data_payload = _build_course_map_data_payload(artifact.data_payload)
+        data_payload = _build_course_map_data_payload(surface=surface, public_slug=doc.slug)
+        for block in surface.blocks:
+            image_bytes = _read_optional_bytes_object(client=client, key=block.image_object_key)
+            if image_bytes is None:
+                raise ValueError(
+                    f"missing published course-map image object for {doc.slug}: {block.image_object_key}"
+                )
+            image_path = image_dir / Path(block.image_object_key).name
+            image_path.write_bytes(image_bytes)
         _write_text(
             generated_dir / data_module_name,
             _build_course_map_data_module(data_payload),
@@ -341,8 +331,6 @@ def _sync_curriculum_course_map_artifacts(client) -> dict[str, CourseMapDocEmbed
             component_import_path="../.components/CourseMapSection",
             data_import_path=f"../.generated/course-maps/{doc.slug}.data",
             data_import_name=_build_course_map_data_import_name(doc.slug),
-            image_src=f"/course-maps/{doc.slug}/map-01.png",
-            digest_lines=artifact.digest_lines,
         )
 
     _remove_stale_generated_files(
@@ -353,6 +341,81 @@ def _sync_curriculum_course_map_artifacts(client) -> dict[str, CourseMapDocEmbed
         if path.is_dir() and path.name not in expected_public_dirs:
             shutil.rmtree(path)
     return embeds
+
+
+def _discover_curriculum_docs(client) -> tuple[CurriculumDoc, ...]:
+    keys = _list_object_keys(client, prefix="curriculum/documents/curriculum_plan/")
+    docs: list[CurriculumDoc] = []
+    seen_slugs: set[str] = set()
+    for key in keys:
+        if not key.endswith("/document-units.jsonl"):
+            continue
+        jsonl_text = _read_text_object(client=client, key=key)
+        doc_id = _resolve_curriculum_doc_id(jsonl_text, key=key)
+        title = _resolve_curriculum_doc_title(jsonl_text, key=key)
+        slug = _build_curriculum_doc_slug(doc_id=doc_id, title=title)
+        if slug in seen_slugs:
+            slug = f"{slug}-{sha1(doc_id.encode('utf-8')).hexdigest()[:10]}"
+        if slug in seen_slugs:
+            raise ValueError(f"duplicate curriculum slug discovered: {slug}")
+        seen_slugs.add(slug)
+        docs.append(CurriculumDoc(slug=slug, title=title, key=key))
+    return tuple(sorted(docs, key=lambda item: _sort_curriculum_title(item.title)))
+
+
+def _list_object_keys(client, *, prefix: str) -> tuple[str, ...]:
+    continuation_token: str | None = None
+    keys: list[str] = []
+    while True:
+        kwargs = {"Bucket": DERIVED_BUCKET, "Prefix": prefix}
+        if continuation_token:
+            kwargs["ContinuationToken"] = continuation_token
+        response = client.list_objects_v2(**kwargs)
+        keys.extend(
+            str(item.get("Key") or "").strip()
+            for item in response.get("Contents") or ()
+            if str(item.get("Key") or "").strip()
+        )
+        if not response.get("IsTruncated"):
+            break
+        continuation_token = str(response.get("NextContinuationToken") or "").strip() or None
+    return tuple(sorted(dict.fromkeys(keys)))
+
+
+def _resolve_curriculum_doc_id(jsonl_text: str, *, key: str) -> str:
+    for row in _iter_rows(jsonl_text):
+        doc_id = str(row.get("doc_id") or "").strip()
+        if doc_id:
+            return doc_id
+    raise ValueError(f"doc_id is required in curriculum document-units: {key}")
+
+
+def _resolve_curriculum_doc_title(jsonl_text: str, *, key: str) -> str:
+    doc_id = ""
+    for row in _iter_rows(jsonl_text):
+        if not doc_id:
+            doc_id = str(row.get("doc_id") or "").strip()
+        if str(row.get("row_type") or "") == "heading":
+            heading_text = _normalize_text(row.get("clean_text"))
+            if heading_text:
+                return heading_text
+    if doc_id.startswith("curriculum:"):
+        return doc_id.split(":", 1)[1].strip()
+    raise ValueError(f"unable to resolve curriculum title from: {key}")
+
+
+def _build_curriculum_doc_slug(*, doc_id: str, title: str) -> str:
+    override = CURRICULUM_DOC_SLUG_OVERRIDES.get(doc_id)
+    if override:
+        return override
+    slug = re.sub(r"[_\W]+", "-", title, flags=re.UNICODE).strip("-")
+    if slug:
+        return slug
+    return f"curriculum-plan-{sha1(doc_id.encode('utf-8')).hexdigest()[:10]}"
+
+
+def _sort_curriculum_title(title: str) -> tuple[int, str]:
+    return (0 if "本科人才培养方案" in title else 1, title)
 
 
 def _build_curriculum_markdown(
@@ -377,6 +440,7 @@ def _build_curriculum_markdown(
         )
     blocks: list[tuple[str, str]] = []
     in_course_map_section = False
+    inserted_course_map_section = False
 
     for row in _iter_rows(jsonl_text):
         row_type = str(row.get("row_type") or "")
@@ -394,6 +458,7 @@ def _build_curriculum_markdown(
                 blocks.append(("block", "## 六、课程地图"))
                 blocks.append(("block", _build_course_map_section_block(course_map_embed)))
                 in_course_map_section = True
+                inserted_course_map_section = True
                 continue
             if text == title and not blocks:
                 continue
@@ -421,26 +486,19 @@ def _build_curriculum_markdown(
     for _, block_text in blocks:
         lines.append(block_text)
         lines.append("")
+    if course_map_embed is not None and not inserted_course_map_section:
+        raise ValueError(f"missing 六、课程地图 section while published blocks exist for {title}")
     return "\n".join(lines).rstrip() + "\n"
 
 
 def _build_course_map_section_block(course_map_embed: CourseMapDocEmbed) -> str:
-    lines = [
-        (
-            f"<CourseMapSection data={{{course_map_embed.data_import_name}}} "
-            f'imageSrc="{course_map_embed.image_src}" />'
-        )
-    ]
-    if course_map_embed.digest_lines:
-        lines.extend(["", "### 课程地图文本摘要", ""])
-        lines.extend(f"- {line}" for line in course_map_embed.digest_lines)
-    return "\n".join(lines)
+    return f"<CourseMapSection data={{{course_map_embed.data_import_name}}} />"
 
 
 def _build_course_map_data_import_name(slug: str) -> str:
     parts = [part for part in re.split(r"[^a-zA-Z0-9]+", slug) if part]
     if not parts:
-        return "courseMapData"
+        return "courseMapData" + sha1(slug.encode("utf-8")).hexdigest()[:8]
     head, *tail = parts
     return head + "".join(part[:1].upper() + part[1:] for part in tail) + "Data"
 
@@ -456,13 +514,22 @@ def _build_course_map_data_module(payload: dict[str, object]) -> str:
     )
 
 
-def _build_course_map_data_payload(payload: dict[str, object]) -> dict[str, object]:
-    normalized = dict(payload)
-    edges = [
-        dict(item)
-        for item in list(normalized.get("edges") or [])
-        if isinstance(item, dict)
-    ]
+def _build_course_map_data_payload(*, surface, public_slug: str) -> dict[str, object]:
+    return {
+        "generatedAt": surface.generated_at,
+        "documentTitle": surface.document_title,
+        "documentId": surface.document_id,
+        "rawAssetId": surface.raw_asset_id,
+        "rawVersionId": surface.raw_version_id,
+        "blocks": [
+            _build_course_map_block_payload(block=block, public_slug=public_slug)
+            for block in surface.blocks
+        ],
+    }
+
+
+def _build_course_map_block_payload(*, block, public_slug: str) -> dict[str, object]:
+    edges = [asdict(edge) for edge in block.edges]
     incoming_counts: dict[str, int] = {}
     outgoing_counts: dict[str, int] = {}
     for edge in edges:
@@ -472,19 +539,29 @@ def _build_course_map_data_payload(payload: dict[str, object]) -> dict[str, obje
             outgoing_counts[source_label] = outgoing_counts.get(source_label, 0) + 1
         if target_label:
             incoming_counts[target_label] = incoming_counts.get(target_label, 0) + 1
-
-    normalized["nodes"] = [
-        {
-            **item,
-            "route_group": _infer_course_map_route_group(str(item.get("node_label") or "")),
-            "incoming_count": incoming_counts.get(str(item.get("node_label") or "").strip(), 0),
-            "outgoing_count": outgoing_counts.get(str(item.get("node_label") or "").strip(), 0),
-        }
-        for item in list(normalized.get("nodes") or [])
-        if isinstance(item, dict)
-    ]
-    normalized["edges"] = edges
-    return normalized
+    return {
+        "blockId": block.block_id,
+        "title": block.title,
+        "status": block.status,
+        "titleConfidence": block.title_confidence,
+        "pageNumber": block.page_number,
+        "rowId": block.row_id,
+        "mapIndex": block.map_index,
+        "parentHeadingHint": block.parent_heading_hint,
+        "displayStageLabels": list(block.display_stage_labels),
+        "extractionNotes": list(block.extraction_notes),
+        "imageSrc": f"/course-maps/{public_slug}/{Path(block.image_object_key).name}",
+        "nodes": [
+            {
+                **asdict(node),
+                "route_group": _infer_course_map_route_group(node.node_label),
+                "incoming_count": incoming_counts.get(node.node_label, 0),
+                "outgoing_count": outgoing_counts.get(node.node_label, 0),
+            }
+            for node in block.nodes
+        ],
+        "edges": edges,
+    }
 
 
 def _infer_course_map_route_group(node_label: str) -> str:

@@ -1,386 +1,441 @@
+.course-map-collection {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
 .course-map-shell {
-  margin: 1.5rem 0 2rem;
-  border: 1px solid #dbe8e1;
-  border-radius: 28px;
-  background:
-    radial-gradient(circle at top right, rgba(214, 240, 226, 0.45), transparent 24rem),
-    linear-gradient(180deg, #fcfefd 0%, #f4faf7 100%);
-  padding: 1.25rem;
-  box-shadow: 0 20px 44px rgba(39, 82, 58, 0.08);
+	margin: 1.5rem 0 2rem;
+	border: 1px solid #dbe8e1;
+	border-radius: 28px;
+	background:
+		radial-gradient(circle at top right, rgba(214, 240, 226, 0.45), transparent 24rem),
+		linear-gradient(180deg, #fcfefd 0%, #f4faf7 100%);
+	padding: 1.25rem;
+	box-shadow: 0 20px 44px rgba(39, 82, 58, 0.08);
+}
+
+.course-map-shell.status-failed {
+	border-color: #e6ddd4;
+	background:
+		radial-gradient(circle at top right, rgba(244, 230, 211, 0.42), transparent 24rem),
+		linear-gradient(180deg, #fffdf9 0%, #fbf7f1 100%);
+}
+
+.course-map-title-row {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	flex-wrap: wrap;
 }
 
 .course-map-header h3 {
-  margin: 0.2rem 0 0;
-  color: #153126;
+	margin: 0.2rem 0 0;
+	color: #153126;
 }
 
 .course-map-eyebrow {
-  margin: 0;
-  color: #2d7a56;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+	margin: 0;
+	color: #2d7a56;
+	font-size: 0.8rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.course-map-status-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.26rem 0.62rem;
+	border-radius: 999px;
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+.course-map-status-badge.status-ready {
+	background: #e7f6ee;
+	color: #1f6b49;
+}
+
+.course-map-status-badge.status-partial {
+	background: #fff2dd;
+	color: #8b5a15;
+}
+
+.course-map-status-badge.status-failed {
+	background: #f5e9dd;
+	color: #8a4c1d;
 }
 
 .course-map-meta {
-  margin: 0.55rem 0 0;
-  color: #4b685b;
-  font-size: 0.95rem;
+	margin: 0.55rem 0 0;
+	color: #4b685b;
+	font-size: 0.95rem;
 }
 
 .course-map-view-toggle {
-  display: inline-flex;
-  gap: 0.35rem;
-  margin-top: 1rem;
-  padding: 0.28rem;
-  border: 1px solid #d6e6dd;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
+	display: inline-flex;
+	gap: 0.35rem;
+	margin-top: 1rem;
+	padding: 0.28rem;
+	border: 1px solid #d6e6dd;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.84);
 }
 
 .course-map-view-tab {
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #375446;
-  cursor: pointer;
-  font: inherit;
-  font-weight: 600;
-  padding: 0.55rem 0.95rem;
-  transition:
-    background-color 0.16s ease,
-    color 0.16s ease,
-    box-shadow 0.16s ease;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: #375446;
+	cursor: pointer;
+	font: inherit;
+	font-weight: 600;
+	padding: 0.55rem 0.95rem;
+	transition:
+		background-color 0.16s ease,
+		color 0.16s ease,
+		box-shadow 0.16s ease;
 }
 
 .course-map-view-tab:hover {
-  background: rgba(232, 243, 236, 0.82);
+	background: rgba(232, 243, 236, 0.82);
 }
 
 .course-map-view-tab.selected {
-  background: #1f6b49;
-  box-shadow: 0 10px 22px rgba(31, 107, 73, 0.18);
-  color: #ffffff;
+	background: #1f6b49;
+	box-shadow: 0 10px 22px rgba(31, 107, 73, 0.18);
+	color: #ffffff;
 }
 
 .course-map-route-shell,
 .course-map-graph-surface {
-  margin-top: 1.1rem;
-  border: 1px solid #dbe8e0;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.82);
-  overflow: hidden;
+	margin-top: 1.1rem;
+	border: 1px solid #dbe8e0;
+	border-radius: 24px;
+	background: rgba(255, 255, 255, 0.82);
+	overflow: hidden;
 }
 
 .course-map-route-copy,
 .course-map-graph-copy,
-.course-map-graph-loading {
-  padding: 1rem 1rem 0;
+.course-map-graph-loading,
+.course-map-failure-panel {
+	padding: 1rem 1rem 0;
 }
 
 .course-map-route-copy h4,
 .course-map-graph-copy h4,
 .course-map-graph-loading h4 {
-  margin: 0;
-  color: #173429;
+	margin: 0;
+	color: #173429;
 }
 
 .course-map-route-copy p,
 .course-map-graph-copy p,
-.course-map-graph-loading p {
-  margin: 0.42rem 0 0;
-  color: #4f6a5d;
+.course-map-graph-loading p,
+.course-map-failure-panel p {
+	margin: 0.42rem 0 0;
+	color: #4f6a5d;
+}
+
+.course-map-failure-panel h4 {
+	margin: 0;
+	color: #5a3413;
 }
 
 .course-map-stage-strip {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  padding: 1rem;
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	padding: 1rem;
 }
 
 .course-map-stage-column {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  min-width: 0;
-  border: 1px solid #dfebe4;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #fcfffd 0%, #f6fbf8 100%);
-  padding: 0.9rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	min-width: 0;
+	border: 1px solid #dfebe4;
+	border-radius: 20px;
+	background: linear-gradient(180deg, #fcfffd 0%, #f6fbf8 100%);
+	padding: 0.9rem;
 }
 
 .course-map-stage-header {
-  align-items: baseline;
-  display: flex;
-  gap: 0.6rem;
-  justify-content: space-between;
+	align-items: baseline;
+	display: flex;
+	gap: 0.6rem;
+	justify-content: space-between;
 }
 
 .course-map-stage-header h5 {
-  margin: 0;
-  color: #183529;
-  font-size: 1rem;
+	margin: 0;
+	color: #183529;
+	font-size: 1rem;
 }
 
 .course-map-stage-header span {
-  color: #5d766a;
-  font-size: 0.86rem;
+	color: #5d766a;
+	font-size: 0.86rem;
 }
 
 .course-map-stage-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.85rem;
 }
 
 .course-map-route-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
 }
 
 .course-map-route-group h6 {
-  margin: 0;
-  color: #2d5442;
-  font-size: 0.85rem;
-  font-weight: 700;
+	margin: 0;
+	color: #2d5442;
+	font-size: 0.85rem;
+	font-weight: 700;
 }
 
 .course-map-route-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
 }
 
 .course-map-route-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-  width: 100%;
-  border: 1px solid #d6e4dc;
-  border-radius: 16px;
-  background: #ffffff;
-  color: #1f3a2e;
-  cursor: pointer;
-  font: inherit;
-  padding: 0.8rem 0.85rem;
-  text-align: left;
-  transition:
-    border-color 0.16s ease,
-    background-color 0.16s ease,
-    box-shadow 0.16s ease,
-    transform 0.16s ease;
+	display: flex;
+	flex-direction: column;
+	gap: 0.28rem;
+	width: 100%;
+	border: 1px solid #d6e4dc;
+	border-radius: 16px;
+	background: #ffffff;
+	color: #1f3a2e;
+	cursor: pointer;
+	font: inherit;
+	padding: 0.8rem 0.85rem;
+	text-align: left;
+	transition:
+		border-color 0.16s ease,
+		background-color 0.16s ease,
+		box-shadow 0.16s ease,
+		transform 0.16s ease;
 }
 
 .course-map-route-card:hover {
-  border-color: #86b59c;
-  background: #f7fcf9;
-  box-shadow: 0 10px 22px rgba(54, 93, 70, 0.08);
-  transform: translateY(-1px);
+	border-color: #86b59c;
+	background: #f7fcf9;
+	box-shadow: 0 10px 22px rgba(54, 93, 70, 0.08);
+	transform: translateY(-1px);
 }
 
 .course-map-route-card.selected {
-  border-color: #2c8059;
-  background: #e9f7ef;
-  box-shadow: 0 12px 24px rgba(44, 128, 89, 0.14);
+	border-color: #2c8059;
+	background: #e9f7ef;
+	box-shadow: 0 12px 24px rgba(44, 128, 89, 0.14);
 }
 
 .course-map-route-card.related {
-  border-color: #b4d1bf;
-  background: #f4fbf7;
+	border-color: #b4d1bf;
+	background: #f4fbf7;
 }
 
 .course-map-route-card-title {
-  color: #193227;
-  font-weight: 700;
-  line-height: 1.45;
+	color: #193227;
+	font-weight: 700;
+	line-height: 1.45;
 }
 
 .course-map-route-card-meta,
 .course-map-route-card-status {
-  color: #5a7568;
-  font-size: 0.86rem;
+	color: #5a7568;
+	font-size: 0.86rem;
 }
 
 .course-map-graph-canvas {
-  height: 38rem;
-  border-top: 1px solid #e2ece6;
-  background:
-    linear-gradient(180deg, rgba(250, 253, 251, 0.92), rgba(243, 249, 246, 0.92));
+	height: 38rem;
+	border-top: 1px solid #e2ece6;
+	background: linear-gradient(180deg, rgba(250, 253, 251, 0.92), rgba(243, 249, 246, 0.92));
 }
 
 .course-map-graph-canvas .react-flow__renderer,
 .course-map-graph-canvas .react-flow__pane {
-  cursor: grab;
+	cursor: grab;
 }
 
 .course-map-graph-canvas .react-flow__controls {
-  overflow: hidden;
-  border-radius: 14px;
-  box-shadow: 0 16px 30px rgba(29, 58, 44, 0.14);
+	overflow: hidden;
+	border-radius: 14px;
+	box-shadow: 0 16px 30px rgba(29, 58, 44, 0.14);
 }
 
 .course-map-graph-canvas .react-flow__controls-button {
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom-color: #dbe7e0;
-  color: #234937;
+	background: rgba(255, 255, 255, 0.96);
+	border-bottom-color: #dbe7e0;
+	color: #234937;
 }
 
 .course-map-graph-node {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
 }
 
 .course-map-graph-node-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.32rem;
-  min-height: 84px;
-  border: 1px solid #d2e1d8;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 12px 24px rgba(40, 73, 56, 0.08);
-  padding: 0.72rem 0.8rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.32rem;
+	min-height: 84px;
+	border: 1px solid #d2e1d8;
+	border-radius: 18px;
+	background: #ffffff;
+	box-shadow: 0 12px 24px rgba(40, 73, 56, 0.08);
+	padding: 0.72rem 0.8rem;
 }
 
 .course-map-graph-node-card.selected {
-  border-color: #2c8059;
-  background: #eaf7f0;
-  box-shadow: 0 16px 28px rgba(44, 128, 89, 0.16);
+	border-color: #2c8059;
+	background: #eaf7f0;
+	box-shadow: 0 16px 28px rgba(44, 128, 89, 0.16);
 }
 
 .course-map-graph-node-card.related {
-  border-color: #afcebb;
-  background: #f6fbf8;
+	border-color: #afcebb;
+	background: #f6fbf8;
 }
 
 .course-map-graph-node-stage,
 .course-map-graph-node-group {
-  color: #5a7568;
-  font-size: 0.78rem;
-  line-height: 1.35;
+	color: #5a7568;
+	font-size: 0.78rem;
+	line-height: 1.35;
 }
 
 .course-map-graph-node-title {
-  color: #183327;
-  font-size: 0.92rem;
-  line-height: 1.45;
+	color: #183327;
+	font-size: 0.92rem;
+	line-height: 1.45;
+}
+
+.course-map-graph-handle {
+	opacity: 0;
+	pointer-events: none;
 }
 
 .course-map-graph-edge .react-flow__edge-path {
-  stroke: #aec8b8;
-  stroke-width: 2px;
+	stroke: #aec8b8;
+	stroke-width: 2px;
 }
 
 .course-map-graph-edge.highlighted .react-flow__edge-path {
-  stroke: #2c8059;
-  stroke-width: 2.6px;
+	stroke: #2c8059;
+	stroke-width: 2.6px;
 }
 
 .course-map-detail,
 .course-map-image-panel,
 .course-map-notes {
-  margin-top: 1.2rem;
-  border: 1px solid #dce9e2;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 1rem;
+	margin-top: 1.2rem;
+	border: 1px solid #dce9e2;
+	border-radius: 22px;
+	background: rgba(255, 255, 255, 0.9);
+	padding: 1rem;
 }
 
 .course-map-detail-header h4,
 .course-map-notes h4 {
-  margin: 0;
-  color: #173429;
+	margin: 0;
+	color: #173429;
 }
 
 .course-map-detail-header p {
-  margin: 0.35rem 0 0;
-  color: #5a7568;
+	margin: 0.35rem 0 0;
+	color: #5a7568;
 }
 
 .course-map-edge-columns {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  margin-top: 0.95rem;
+	display: grid;
+	gap: 1rem;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	margin-top: 0.95rem;
 }
 
 .course-map-edge-columns > div {
-  border: 1px solid #e3ece7;
-  border-radius: 18px;
-  background: #f8fcfa;
-  padding: 0.85rem;
+	border: 1px solid #e3ece7;
+	border-radius: 18px;
+	background: #f8fcfa;
+	padding: 0.85rem;
 }
 
 .course-map-edge-columns h5 {
-  margin: 0 0 0.55rem;
-  color: #274536;
+	margin: 0 0 0.55rem;
+	color: #274536;
 }
 
 .course-map-edge-columns p,
 .course-map-edge-columns li,
 .course-map-notes li {
-  color: #456252;
+	color: #456252;
 }
 
 .course-map-edge-columns ul,
 .course-map-notes ul {
-  margin: 0;
-  padding-left: 1.1rem;
+	margin: 0;
+	padding-left: 1.1rem;
 }
 
 .course-map-image-panel summary {
-  color: #183529;
-  cursor: pointer;
-  font-weight: 700;
+	color: #183529;
+	cursor: pointer;
+	font-weight: 700;
 }
 
 .course-map-image-panel img {
-  display: block;
-  width: 100%;
-  margin-top: 0.95rem;
-  border: 1px solid #d9e7df;
-  border-radius: 16px;
-  background: #ffffff;
+	display: block;
+	width: 100%;
+	margin-top: 0.95rem;
+	border: 1px solid #d9e7df;
+	border-radius: 16px;
+	background: #ffffff;
 }
 
 @media (max-width: 960px) {
-  .course-map-stage-strip {
-    grid-template-columns: 1fr;
-  }
+	.course-map-stage-strip {
+		grid-template-columns: 1fr;
+	}
 
-  .course-map-graph-canvas {
-    height: 30rem;
-  }
+	.course-map-graph-canvas {
+		height: 30rem;
+	}
 }
 
 @media (max-width: 640px) {
-  .course-map-shell {
-    border-radius: 22px;
-    padding: 1rem;
-  }
+	.course-map-shell {
+		border-radius: 22px;
+		padding: 1rem;
+	}
 
-  .course-map-view-toggle {
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+	.course-map-view-toggle {
+		display: grid;
+		width: 100%;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
 
-  .course-map-view-tab {
-    text-align: center;
-  }
+	.course-map-view-tab {
+		text-align: center;
+	}
 
-  .course-map-stage-column,
-  .course-map-detail,
-  .course-map-image-panel,
-  .course-map-notes {
-    border-radius: 18px;
-  }
+	.course-map-stage-column,
+	.course-map-detail,
+	.course-map-image-panel,
+	.course-map-notes {
+		border-radius: 18px;
+	}
 
-  .course-map-graph-canvas {
-    height: 24rem;
-  }
+	.course-map-graph-canvas {
+		height: 24rem;
+	}
 }

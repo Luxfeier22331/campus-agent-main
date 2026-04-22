@@ -1,33 +1,47 @@
 export type CourseMapRouteGroup = "foundation" | "core" | "extension" | "practice";
 
 export type CourseMapNode = {
-  node_label: string;
-  stage_label: string;
-  category_label: string;
-  route_group?: CourseMapRouteGroup;
-  incoming_count?: number;
-  outgoing_count?: number;
+	node_label: string;
+	stage_label: string;
+	category_label: string;
+	route_group?: CourseMapRouteGroup;
+	incoming_count?: number;
+	outgoing_count?: number;
 };
 
 export type CourseMapEdge = {
-  source_label: string;
-  target_label: string;
+	source_label: string;
+	target_label: string;
 };
 
-export type CourseMapData = {
-  title: string;
-  documentTitle: string;
-  documentId: string;
-  pageNumber: number;
-  rowId: string;
-  parentHeadingHint: string;
-  displayStageLabels: string[];
-  nodes: CourseMapNode[];
-  edges: CourseMapEdge[];
-  manualReviewNotes: string[];
-  reviewedAt: string;
+export type CourseMapStatus = "ready" | "partial" | "failed";
+export type CourseMapTitleConfidence = "visible" | "partial" | "absent";
+
+export type CourseMapBlock = {
+	blockId: string;
+	title: string;
+	status: CourseMapStatus;
+	titleConfidence: CourseMapTitleConfidence;
+	pageNumber: number;
+	rowId: string;
+	mapIndex: number;
+	parentHeadingHint: string;
+	displayStageLabels: string[];
+	extractionNotes: string[];
+	imageSrc: string;
+	nodes: CourseMapNode[];
+	edges: CourseMapEdge[];
+};
+
+export type CourseMapDocumentData = {
+	generatedAt: string;
+	documentTitle: string;
+	documentId: string;
+	rawAssetId: string;
+	rawVersionId: string;
+	blocks: CourseMapBlock[];
 };
 
 export function buildNodeKey(node: Pick<CourseMapNode, "stage_label" | "node_label">): string {
-  return `${node.stage_label}::${node.node_label}`;
+	return `${node.stage_label}::${node.node_label}`;
 }

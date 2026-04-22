@@ -16,6 +16,15 @@ _INGESTION_WORKER_PACKAGE_DIR = (
 
 def _ensure_package_stub(name: str, package_dir: Path) -> None:
     module = sys.modules.get(name)
+    if module is not None and getattr(module, "__file__", None):
+        return
+    if module is None:
+        try:
+            __import__(name)
+        except Exception:
+            module = None
+        else:
+            return
     if module is None:
         module = types.ModuleType(name)
         module.__path__ = [str(package_dir)]
@@ -48,4 +57,21 @@ def load_probe_curriculum_course_maps_worker_module():
     return _load_module(
         "campus_ingestion_worker.probe_curriculum_course_maps",
         _INGESTION_WORKER_PACKAGE_DIR / "probe_curriculum_course_maps.py",
+    )
+
+
+def load_curriculum_course_map_docs_surface_module():
+    _ensure_package_stub("campus_ingestion_core", _INGESTION_CORE_PACKAGE_DIR)
+    return _load_module(
+        "campus_ingestion_core.curriculum_course_map_docs_surface",
+        _INGESTION_CORE_PACKAGE_DIR / "curriculum_course_map_docs_surface.py",
+    )
+
+
+def load_materialize_curriculum_course_map_docs_surface_worker_module():
+    _ensure_package_stub("campus_ingestion_core", _INGESTION_CORE_PACKAGE_DIR)
+    _ensure_package_stub("campus_ingestion_worker", _INGESTION_WORKER_PACKAGE_DIR)
+    return _load_module(
+        "campus_ingestion_worker.materialize_curriculum_course_map_docs_surface",
+        _INGESTION_WORKER_PACKAGE_DIR / "materialize_curriculum_course_map_docs_surface.py",
     )

@@ -68,6 +68,11 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/meta.json`
 - `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/asset-manifest.json`
 
+必要时允许在同一 `reader-assets/` 目录下增加 surface-specific supplement，例如：
+
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/course-maps.json`
+- `{corpus}/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/reader-assets/course-maps/<block-id>.png`
+
 说明：
 
 - 这组对象与 `canonical.md`、`document-units.jsonl` 同属同一逻辑 document version prefix
@@ -86,6 +91,12 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
   - 文档标题、版本标签、更新时间、canonical URL 语义
 - `asset-manifest.json`
   - package 内文件清单、hash、content type、size、reader target 元数据
+
+按产品需要可以追加 supplement asset，但必须满足：
+
+- 仍然落在同一 document version prefix 的 `reader-assets/` 下
+- 语义属于 reader-facing supplement，而不是新的 canonical truth layer
+- 不把 repo tracked `assets/` 目录变成 publish truth
 
 固定规则：
 

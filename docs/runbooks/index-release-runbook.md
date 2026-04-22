@@ -158,7 +158,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 补充说明：
 
-- `student_handbook` 的一次 replay release 会同时 fan out 并索引 repo-tracked source projections，例如 `campus_services/contact_directory` 与 `campus_services/service_catalog`
+- `student_rules` 的一次 replay release 会同时 fan out 并索引 repo-tracked source projections，例如 `campus_services/contact_directory` 与 `campus_services/service_catalog`
 - `offline_preparation` collection 只要已经纳入这条 release-managed lifecycle，也应使用稳定 alias；不要等“正式开放 query-serving”后再补做 alias 迁移
 
 ## 标准流程

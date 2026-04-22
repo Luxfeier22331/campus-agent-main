@@ -5,6 +5,7 @@ import io
 import sys
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from unittest.mock import patch
 
@@ -34,6 +35,33 @@ class _FakeS3Client:
         if Key not in self._objects:
             raise KeyError(Key)
         return {"Body": io.BytesIO(self._objects[Key].encode("utf-8"))}
+
+    def list_objects_v2(
+        self,
+        *,
+        Bucket: str,
+        Prefix: str,
+        ContinuationToken: str | None = None,
+    ) -> dict[str, object]:
+        del Bucket, ContinuationToken
+        keys = sorted(key for key in self._objects if key.startswith(Prefix))
+        return {
+            "Contents": [{"Key": key} for key in keys],
+            "IsTruncated": False,
+        }
+
+
+@dataclass(frozen=True)
+class _FakeCourseMapNode:
+    node_label: str
+    stage_label: str
+    category_label: str
+
+
+@dataclass(frozen=True)
+class _FakeCourseMapEdge:
+    source_label: str
+    target_label: str
 
 
 class PublicDocsRspressSyncTest(unittest.TestCase):
@@ -149,11 +177,6 @@ class PublicDocsRspressSyncTest(unittest.TestCase):
             component_import_path="../.components/CourseMapSection",
             data_import_path="../.generated/course-maps/law-ethnic-experimental-program.data",
             data_import_name="lawCourseMapData",
-            image_src="/course-maps/law-ethnic-experimental-program/map-01.png",
-            digest_lines=(
-                "本科一年级：法学导论、民法（一）",
-                "本科二年级：民法（二）、刑事诉讼法",
-            ),
         )
 
         markdown = module._build_curriculum_markdown(
@@ -169,13 +192,65 @@ class PublicDocsRspressSyncTest(unittest.TestCase):
             markdown,
         )
         self.assertIn(
-            '<CourseMapSection data={lawCourseMapData} imageSrc="/course-maps/law-ethnic-experimental-program/map-01.png" />',
+            "<CourseMapSection data={lawCourseMapData} />",
             markdown,
         )
-        self.assertIn("### 课程地图文本摘要", markdown)
-        self.assertIn("本科一年级：法学导论、民法（一）", markdown)
         self.assertNotIn("## 法学专业本科课程结构拓扑图", markdown)
         self.assertIn("## 七、其他说明", markdown)
+
+    def test_discover_curriculum_docs_lists_all_document_units_and_preserves_known_slug(
+        self,
+    ) -> None:
+        module = self.module
+        objects = {
+            (
+                "curriculum/documents/curriculum_plan/"
+                "法学-民族实验班-本科人才培养方案--法学-民族实验班-本科人才培养方案/"
+                "source-faithful/2022/document-units.jsonl"
+            ): "\n".join(
+                [
+                    '{"doc_id":"curriculum:法学（民族实验班）本科人才培养方案","row_type":"heading","clean_text":"法学（民族实验班）本科人才培养方案"}',
+                    '{"row_type":"paragraph","clean_text":"正文"}',
+                ]
+            ),
+            (
+                "curriculum/documents/curriculum_plan/"
+                "法学本科人才培养方案--法学本科人才培养方案/"
+                "source-faithful/2022/document-units.jsonl"
+            ): "\n".join(
+                [
+                    '{"doc_id":"curriculum:法学本科人才培养方案","row_type":"heading","clean_text":"法学本科人才培养方案"}',
+                    '{"row_type":"paragraph","clean_text":"正文"}',
+                ]
+            ),
+        }
+
+        docs = module._discover_curriculum_docs(_FakeS3Client(objects))
+
+        self.assertEqual(len(docs), 2)
+        docs_by_title = {doc.title: doc for doc in docs}
+        self.assertEqual(
+            docs_by_title["法学（民族实验班）本科人才培养方案"].slug,
+            "law-ethnic-experimental-program",
+        )
+        self.assertTrue(
+            docs_by_title["法学本科人才培养方案"].slug.startswith("法学本科人才培养方案")
+        )
+
+    def test_resolve_curriculum_doc_title_falls_back_to_doc_id(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"doc_id":"curriculum:法学本科人才培养方案","row_type":"paragraph","clean_text":"正文"}',
+            ]
+        )
+
+        title = module._resolve_curriculum_doc_title(
+            jsonl_text,
+            key="curriculum/documents/curriculum_plan/mock/source-faithful/2022/document-units.jsonl",
+        )
+
+        self.assertEqual(title, "法学本科人才培养方案")
 
     def test_infer_course_map_route_group_uses_fixed_keyword_priority(self) -> None:
         module = self.module
@@ -191,51 +266,65 @@ class PublicDocsRspressSyncTest(unittest.TestCase):
         )
         self.assertEqual(module._infer_course_map_route_group("数据结构"), "core")
 
+    def test_build_course_map_import_name_uses_hash_fallback_for_non_ascii_slug(self) -> None:
+        module = self.module
+
+        import_name = module._build_course_map_data_import_name("法学本科人才培养方案")
+
+        self.assertRegex(import_name, r"^courseMapData[0-9a-f]{8}$")
+
     def test_build_course_map_data_payload_adds_group_and_edge_counts(self) -> None:
         module = self.module
 
-        payload = module._build_course_map_data_payload(
+        surface = type(
+            "Surface",
+            (),
             {
-                "title": "示例课程地图",
-                "documentTitle": "示例培养方案",
-                "documentId": "curriculum:test",
-                "pageNumber": 1,
-                "rowId": "page-0001-block-0001",
-                "parentHeadingHint": "六、课程地图",
-                "displayStageLabels": ["一年级上学期", "一年级下学期"],
-                "nodes": [
-                    {
-                        "node_label": "公共体育（一）",
-                        "stage_label": "一年级上学期",
-                        "category_label": "",
-                    },
-                    {
-                        "node_label": "程序设计基础课程设计",
-                        "stage_label": "一年级下学期",
-                        "category_label": "",
-                    },
-                    {
-                        "node_label": "数据结构",
-                        "stage_label": "一年级下学期",
-                        "category_label": "",
-                    },
-                ],
-                "edges": [
-                    {
-                        "source_label": "公共体育（一）",
-                        "target_label": "程序设计基础课程设计",
-                    },
-                    {
-                        "source_label": "程序设计基础课程设计",
-                        "target_label": "数据结构",
-                    },
-                ],
-                "manualReviewNotes": [],
-                "reviewedAt": "2026-04-22",
-            }
-        )
+                "generated_at": "2026-04-22T00:00:00+00:00",
+                "document_title": "示例培养方案",
+                "document_id": "curriculum:test",
+                "raw_asset_id": "asset:test",
+                "raw_version_id": "sha256:test",
+                "blocks": (
+                    type(
+                        "Block",
+                        (),
+                        {
+                            "block_id": "page-0001-row-1-map-01",
+                            "title": "示例课程地图",
+                            "status": "ready",
+                            "title_confidence": "visible",
+                            "page_number": 1,
+                            "row_id": "page-0001-block-0001",
+                            "map_index": 1,
+                            "parent_heading_hint": "六、课程地图",
+                            "display_stage_labels": ("一年级上学期", "一年级下学期"),
+                            "extraction_notes": (),
+                            "image_object_key": "curriculum/documents/example/reader-assets/course-maps/page-0001-row-1-map-01.png",
+                            "nodes": (
+                                _FakeCourseMapNode("公共体育（一）", "一年级上学期", ""),
+                                _FakeCourseMapNode("程序设计基础课程设计", "一年级下学期", ""),
+                                _FakeCourseMapNode("数据结构", "一年级下学期", ""),
+                            ),
+                            "edges": (
+                                _FakeCourseMapEdge("公共体育（一）", "程序设计基础课程设计"),
+                                _FakeCourseMapEdge("程序设计基础课程设计", "数据结构"),
+                            ),
+                        },
+                    )(),
+                ),
+            },
+        )()
 
-        nodes = {item["node_label"]: item for item in payload["nodes"]}
+        payload = module._build_course_map_data_payload(surface=surface, public_slug="mock-doc")
+
+        self.assertEqual(payload["documentId"], "curriculum:test")
+        self.assertEqual(len(payload["blocks"]), 1)
+        self.assertEqual(
+            payload["blocks"][0]["imageSrc"],
+            "/course-maps/mock-doc/page-0001-row-1-map-01.png",
+        )
+        nodes = {item["node_label"]: item for item in payload["blocks"][0]["nodes"]}
         self.assertEqual(nodes["公共体育（一）"]["route_group"], "foundation")
         self.assertEqual(nodes["公共体育（一）"]["incoming_count"], 0)
         self.assertEqual(nodes["公共体育（一）"]["outgoing_count"], 1)
@@ -254,8 +343,8 @@ class PublicDocsRspressSyncTest(unittest.TestCase):
 
         for doc in module.HANDBOOK_DOCS:
             self.assertNotIn(doc.title, handbook_index)
-        for doc in module.CURRICULUM_DOCS:
-            self.assertNotIn(doc.title, curriculum_index)
+        self.assertNotIn("法学（民族实验班）本科人才培养方案", curriculum_index)
+        self.assertNotIn("计算机科学与技术（民族实验班）本科人才培养方案", curriculum_index)
 
 
 if __name__ == "__main__":
