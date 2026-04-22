@@ -29,7 +29,13 @@ def tracked_biome_files(*, root: Path | None = None) -> tuple[Path, ...]:
         text=True,
         cwd=base,
     )
-    return tuple(base / line for line in result.stdout.splitlines() if line.strip())
+    return tuple(
+        path
+        for line in result.stdout.splitlines()
+        if line.strip()
+        for path in [base / line]
+        if path.exists()
+    )
 
 
 def main() -> int:

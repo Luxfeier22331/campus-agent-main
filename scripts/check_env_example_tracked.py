@@ -15,7 +15,15 @@ def repo_root() -> Path:
 def tracked_env_example_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
     result = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "ls-files", "-z", ".env.example", "env"],
+        [
+            "git",
+            "-c",
+            "core.quotePath=false",
+            "ls-files",
+            "-z",
+            "*.env.example",
+            "*.dev.vars.example",
+        ],
         check=True,
         capture_output=True,
         cwd=base,
@@ -23,7 +31,13 @@ def tracked_env_example_files(*, root: Path | None = None) -> tuple[Path, ...]:
     paths = [
         Path(decoded)
         for item in result.stdout.split(b"\0")
-        if item and (decoded := item.decode("utf-8")).endswith(".env.example")
+        if item
+        and (
+            (decoded := item.decode("utf-8")).endswith(".env.example")
+            or decoded.endswith(".dev.vars.example")
+        )
+        and not decoded.startswith(".planning/")
+        and "/vendor/" not in decoded
     ]
     return tuple(base / path for path in paths)
 

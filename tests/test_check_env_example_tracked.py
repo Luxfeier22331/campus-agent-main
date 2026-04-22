@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,17 +14,26 @@ from scripts.check_env_example_tracked import (
 class CheckEnvExampleTrackedTest(unittest.TestCase):
     def test_tracked_env_example_files_match_repo_examples(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        expected_paths = (
-            repo_root / ".env.example",
-            repo_root / "env/commands/compare-online-ocr.env.example",
-            repo_root / "env/commands/historical/migrate-student-handbook.env.example",
-            repo_root / "env/commands/historical/official-web-history-backfill.env.example",
-            repo_root / "env/commands/legacy-office-conversion-service.env.example",
-            repo_root / "env/commands/official-web-handoff-consumer.env.example",
-            repo_root / "env/commands/official-web-handoff-receiver.env.example",
-            repo_root / "env/commands/process-raw-ingestion-job.env.example",
-            repo_root / "env/commands/rebuild-local-data.env.example",
-            repo_root / "env/commands/release-registry-scope.env.example",
+        expected = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "ls-files",
+                "-z",
+                "*.env.example",
+                "*.dev.vars.example",
+            ],
+            check=True,
+            capture_output=True,
+            cwd=repo_root,
+        )
+        expected_paths = tuple(
+            repo_root / decoded
+            for item in expected.stdout.split(b"\0")
+            if item
+            and not (decoded := item.decode("utf-8")).startswith(".planning/")
+            and "/vendor/" not in decoded
         )
         self.assertEqual(tracked_env_example_files(root=repo_root), expected_paths)
 

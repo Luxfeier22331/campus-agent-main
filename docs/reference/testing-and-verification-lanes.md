@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-23
 ---
 
 # Testing And Verification Lanes
@@ -24,10 +24,16 @@ updated: 2026-03-31
 ```bash
 pnpm web:lint
 pnpm docs:lint
+pnpm editorconfig:lint
 pnpm env:lint
 pnpm yaml:lint
 pnpm toml:lint
 pnpm shell:lint
+pnpm xml:lint
+pnpm jsonl:lint
+pnpm sql:lint
+pnpm docker:lint
+pnpm lock:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 ```
@@ -36,13 +42,36 @@ uv run --all-packages ruff format . --check
 
 - 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
 - JS/TS 与 JSON/JSONC config 侧使用 Biome，但只检查 tracked live files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked 文件，以及 repo-owned root JSON/JSONC config（如 `package.json`、`turbo.json`、`biome.jsonc`、`.markdownlint-cli2.jsonc`）
-- Markdown 侧使用 `markdownlint-cli2`，覆盖 root live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth 文档、active `docs/runbooks/**` 与 `configs/**/README.md`，不进入 archive / historical plan 文档，也不把 scratch / 临时 markdown 视为默认 lint 面
-- env example 侧使用 repo-owned Python checker，覆盖 tracked 的 root `.env.example` 与 `env/**/*.env.example`，只做结构校验，不进入 `.planning/`
+- Markdown 侧通过 repo-owned tracked runner 调用 `markdownlint-cli2`，覆盖 root live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth 文档、tracked `apps/` / `packages/` / `configs/` live markdown，以及 `apps/public-docs-rspress/docs/**/*.mdx`；默认排除 archive / historical plan 文档、vendor、`node_modules` 与 scratch markdown
+- EditorConfig 侧使用 `editorconfig-checker`，覆盖 repo dotfile config（`.editorconfig`、tracked `.gitignore` / `.gitattributes`）；该 lane 通过 repo-owned wrapper 只检查当前未被其他 lint 入口覆盖的 dotfile surface
+- env example 侧使用 repo-owned Python checker，覆盖 tracked 的 `*.env.example` 与 `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前只做结构校验，不做跨文件一致性治理
 - YAML 侧通过 repo-owned tracked runner 调用 `pre-commit` 的 `check-yaml` hook，只检查 tracked YAML files，且默认排除 `.planning/`
 - TOML 侧使用 repo-owned Python checker，对所有 tracked `*.toml` 做 `tomllib` 结构校验
 - shell 侧使用 repo-owned Python checker，对所有 tracked `*.sh` 做 `bash -n` 语法校验
+- XML 侧使用 repo-owned Python checker，对所有 tracked `*.xml` 做 well-formedness 结构校验
+- JSONL 侧使用 repo-owned Python checker，对所有 tracked `*.jsonl` 做逐行 JSON 可解析性校验；当前不承担 schema 治理
+- SQL 侧使用 repo-owned Python wrapper 调用 `sqlfluff parse --dialect postgres`，对所有 tracked `*.sql` 做可解析性校验；当前不承担 SQL 风格治理
+- Dockerfile 侧使用 repo-owned Python wrapper 调用 `hadolint`，并已并入默认 `pnpm lint`
+- lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
+  - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对 tracked app-local `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
+  - `uv-lock:lint` 通过 `uv lock --check --offline` 校验 repo root `uv.lock` 是否仍与当前 Python dependency truth 同步
+- app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json` 变化，lockfile 必须同步刷新
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
+
+### Supplemental Lint Lanes
+
+命令：
+
+```bash
+pnpm powershell:lint
+```
+
+语义：
+
+- `PowerShell` 侧使用 repo-owned Python checker 调用 `pwsh` parser，对 tracked `*.ps1` 做语法校验
+- 该 lane 当前是补充覆盖面，不并入默认 `pnpm lint`
+- CI 通过独立 Windows job 执行；本地缺少 `pwsh` 时，显式运行该命令会失败并提示安装 PowerShell
 
 ### Python Baseline
 

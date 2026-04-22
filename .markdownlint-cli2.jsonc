@@ -1,26 +1,11 @@
 {
-	"globs": [
-		"README.md",
-		"AGENTS.md",
-		"CONTRIBUTING.md",
-		".github/pull_request_template.md",
-		"docs/README.md",
-		"docs/architecture/**/*.md",
-		"docs/reference/**/*.md",
-		"docs/contracts/**/*.md",
-		"docs/data/**/*.md",
-		"docs/decisions/**/*.md",
-		"docs/policies/**/*.md",
-		"docs/domains/**/*.md",
-		"docs/environment/**/*.md",
-		"docs/runbooks/**/*.md",
-		"configs/**/README.md"
-	],
-	"ignores": ["docs/**/archive/**", "docs/plans/**"],
 	"config": {
 		"MD013": false,
 		"MD024": false,
 		"MD029": false,
+		"MD033": {
+			"allowed_elements": ["role", "invariants", "task", "output_contract", "CourseMapSection"]
+		},
 		"MD034": false,
 		"MD041": false,
 		"MD060": false

@@ -11,6 +11,7 @@ dev = [
   "pre-commit>=4.2.0",
   "pytest>=8.0.0",
   "ruff>=0.15.11",
+  "sqlfluff>=3.4.2",
 ]
 
 [tool.pytest.ini_options]
@@ -31,6 +32,11 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/ingestion/*_suite.py" = ["F405"]
+"tests/ingestion/*_support.py" = ["F401", "F405", "I001"]
+"tests/ingestion/*_test_support.py" = ["E402", "F401", "F405", "I001"]
 
 [tool.uv]
 package = false

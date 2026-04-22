@@ -94,6 +94,66 @@ jobs:
       - name: Run shell syntax check
         run: uv run --all-packages python -m scripts.check_shell_syntax
 
+  xml-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run XML structure check
+        run: uv run --all-packages python -m scripts.check_xml_tracked
+
+  jsonl-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run JSONL structure check
+        run: uv run --all-packages python -m scripts.check_jsonl_tracked
+
+  sql-parse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run SQL parse check
+        run: uv run --all-packages python -m scripts.check_sql_tracked
+
   js-biome:
     runs-on: ubuntu-latest
     steps:
@@ -122,6 +182,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -135,8 +203,61 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
       - name: Run Markdown lint
         run: pnpm docs:lint
+
+  editorconfig:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run EditorConfig lint
+        run: pnpm editorconfig:lint
+
+  dockerfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run Dockerfile lint
+        run: uv run --all-packages python -m scripts.check_dockerfile_tracked
 
   env-examples:
     runs-on: ubuntu-latest
@@ -157,3 +278,56 @@ jobs:
 
       - name: Run env example lint
         run: uv run --all-packages python -m scripts.check_env_example_tracked
+
+  lock-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run lock integrity lint
+        run: pnpm lock:lint
+
+  powershell-syntax:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run PowerShell syntax check
+        run: uv run --all-packages python -m scripts.check_powershell_tracked
