@@ -198,14 +198,14 @@ class BackendQdrantPolicyTest(unittest.TestCase):
                 chunk_id="handbook:library:chunk-1",
                 snippet="图书馆开放时间为 08:00-22:00。",
                 score=0.93,
-                collection="student_handbook",
+                collection="student_rules",
             ),
             _make_source(
                 doc_id="handbook:library",
                 chunk_id="handbook:library:chunk-2",
                 snippet="图书馆节假日开放时间另行通知。",
                 score=0.91,
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 

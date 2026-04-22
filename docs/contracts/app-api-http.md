@@ -154,11 +154,11 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
   "requestedCapability": "knowledge",
   "requestedScope": {
     "corpus": "regulations",
-    "collection": "student_handbook"
+    "collection": "student_rules"
   },
   "resolvedScope": {
     "corpus": "regulations",
-    "collection": "student_handbook"
+    "collection": "student_rules"
   },
   "selectedTarget": "rag-agent",
   "questionPreview": "图书馆开放到几点？",
@@ -361,7 +361,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
   "requestedCapability": "knowledge",
   "requestedScope": {
     "corpus": "regulations",
-    "collection": "student_handbook"
+    "collection": "student_rules"
   }
 }
 ```
@@ -461,11 +461,11 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
     "requestedCapability": "knowledge",
     "requestedScope": {
       "corpus": "regulations",
-      "collection": "student_handbook"
+      "collection": "student_rules"
     },
     "resolvedScope": {
       "corpus": "regulations",
-      "collection": "student_handbook"
+      "collection": "student_rules"
     },
     "selectedTarget": "rag-agent",
     "questionPreview": "图书馆开放到几点？",

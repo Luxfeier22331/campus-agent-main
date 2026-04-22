@@ -62,7 +62,7 @@
 
 ## Current Serving Constraints
 
-- 当前默认 query-serving 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan`
+- 当前默认 query-serving 已开放 `regulations/student_rules` 与 `curriculum/curriculum_plan`
 - 当前默认 retrieval 问答主线仍然优先走 `rag-agent`，但 API shell 不应再把它写死成唯一 transport 构造
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile 为准
 - 不要直接拼接对象存储逻辑

@@ -38,7 +38,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             payload=RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )
@@ -48,7 +48,7 @@ class WorkspaceLayoutTest(unittest.TestCase):
             RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )

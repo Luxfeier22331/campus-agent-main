@@ -415,7 +415,7 @@ def _clarification_retrieval_adequacy(
 ) -> RetrievalAdequacyAssessment | None:
     if (
         resolved_scope.corpus == "regulations"
-        and resolved_scope.collection == "student_handbook"
+        and resolved_scope.collection == "student_rules"
         and intent_frame.ambiguity_reason == "missing_target"
     ):
         return ambiguous_retrieval_adequacy("policy_object_missing")

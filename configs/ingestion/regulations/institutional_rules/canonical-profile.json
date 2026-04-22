@@ -1,7 +1,7 @@
 {
 	"corpus": "regulations",
-	"collection": "institutional_regulations",
-	"canonical_profile_version": "institutional_regulations_canonical_v1",
+	"collection": "institutional_rules",
+	"canonical_profile_version": "institutional_rules_canonical_v1",
 	"doc_id_strategy": "regulation_work_title_issuing_org_semantic_scope_hash",
 	"version_id_strategy": "content_hash_effective_date_revision_signal",
 	"primary_input": "promotion_candidate_manifest",

@@ -165,7 +165,7 @@ curl -s \
     "user_goal": "图书馆开放到几点？",
     "requested_scope": {
       "corpus": "regulations",
-      "collection": "student_handbook"
+      "collection": "student_rules"
     }
   }'
 ```
@@ -173,6 +173,6 @@ curl -s \
 ## Known Preconditions
 
 - 仍然需要有效 retrieval 环境；这个 dev HTTP 入口只替换临时 runner，不会 mock retrieval、Qdrant、MinIO 或 specialist 行为。
-- query-serving surface 由 collection runtime profile 控制；当前 query-enabled scope 为 `regulations/student_handbook` 与 `curriculum/curriculum_plan`。
+- query-serving surface 由 collection runtime profile 控制；当前 query-enabled scope 为 `regulations/student_rules` 与 `curriculum/curriculum_plan`。
 - 如果启用 bearer compatibility ingress 且 token 缺失或错误，`/api/v1/answer` 会返回 `401`。
 - 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress 或 Phase 5 actor closure 已冻结；当前冻结的是 shared `apps/app-api` runtime，而不是 execution engine runtime。

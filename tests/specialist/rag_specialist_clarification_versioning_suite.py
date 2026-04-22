@@ -46,7 +46,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="这个规定怎么办理？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -61,7 +61,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 evidence=EvidenceBundle(
                     query_text="这个规定怎么办理？",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )
@@ -82,7 +82,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="这个规定怎么办理？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: _make_evidence(),
@@ -108,7 +108,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="奖学金怎么申请？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -121,7 +121,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 retrieval_adequacy_verdict="ambiguous",
                 retrieval_adequacy_reason="policy_object_missing",
             ),
@@ -148,7 +148,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -161,7 +161,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 clarification_reason="policy_object_missing",
             ),
         )
@@ -188,7 +188,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     ),
                 ),
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: _make_evidence(),
@@ -212,7 +212,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     ),
                 ),
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: _make_evidence(),
@@ -242,7 +242,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 ),
             ),
             payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
 
@@ -301,7 +301,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 ),
             ),
             payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
 
@@ -336,7 +336,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生支持政策是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -368,7 +368,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="国家奖学金还是专业奖学金怎么申请？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -381,7 +381,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 clarification_reason="policy_object_conflict",
             ),
         )
@@ -423,7 +423,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖怎么办",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="historical"),
                     ),
                 ),
@@ -469,7 +469,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖怎么办",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="historical"),
                     ),
                 ),
@@ -505,7 +505,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖第九条怎么要求论文和著作？",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="historical"),
                     ),
                 ),
@@ -547,7 +547,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="2024年6月1日时国奖第九条怎么要求论文和著作？",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="as_of", as_of="2024-06-01"),
                     ),
                 ),
@@ -594,7 +594,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖第九条旧版和新版有什么变化？",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="compare"),
                     ),
                 ),
@@ -645,7 +645,7 @@ class RagSpecialistClarificationVersioningTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖第九条旧版和新版有什么变化？",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="compare"),
                     ),
                 ),

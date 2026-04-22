@@ -72,7 +72,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 ),
             ),
             payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
 
@@ -89,7 +89,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="   ",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             )
 
@@ -159,7 +159,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=raising_retriever,
@@ -180,7 +180,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text="library hours",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     )
                 ),
             ),
@@ -233,13 +233,13 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -254,11 +254,11 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 evidence=EvidenceBundle(
                     query_text="library hours",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
                 diagnostics=_resolved_scope_diagnostics(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     semantic_outcome="unsupported_by_evidence",
                 ),
             ),
@@ -281,13 +281,13 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
             prompt_executor=FakePromptExecutor(),
         )
@@ -311,13 +311,13 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="library hours",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
             prompt_executor=FakePromptExecutor(),
         )
@@ -332,7 +332,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -388,7 +388,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -434,7 +434,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -485,7 +485,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -510,7 +510,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证丢了怎么办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -570,7 +570,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -601,7 +601,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -649,7 +649,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -674,7 +674,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -727,7 +727,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -954,7 +954,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="思想政治理论课有哪些要求",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:ideological-course-plan",
@@ -1000,7 +1000,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="思想政治理论课有哪些要求",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -1050,7 +1050,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -1100,7 +1100,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -1121,7 +1121,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -1171,7 +1171,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -1192,7 +1192,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办需要什么材料",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -1221,7 +1221,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办需要什么材料",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -1240,7 +1240,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办什么时候办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -1269,7 +1269,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办什么时候办",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -1290,7 +1290,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="中央民族大学学生公费医疗管理办法",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:medical",
@@ -1319,7 +1319,7 @@ class RagSpecialistRequestPromptTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="中央民族大学学生公费医疗管理办法",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,

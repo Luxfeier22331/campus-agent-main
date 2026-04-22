@@ -790,7 +790,7 @@ list endpoints 额外支持：
       "principalType": "campus_member",
       "selectedTarget": "rag-agent",
       "status": "allowed",
-      "summary": "student_handbook 请求通过 authz check"
+      "summary": "student_rules 请求通过 authz check"
     }
   ],
   "page": {
@@ -826,7 +826,7 @@ list endpoints 额外支持：
     "selectedTarget": "rag-agent",
     "status": "allowed",
     "terminalCode": "completed",
-    "summary": "student_handbook 请求通过 authz check",
+    "summary": "student_rules 请求通过 authz check",
     "diagnostics": {
       "failClosed": false,
       "aclAnomalyCode": null,

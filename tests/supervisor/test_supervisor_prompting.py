@@ -144,12 +144,12 @@ class SupervisorPromptPacketTest(unittest.TestCase):
 
     def test_build_supervisor_approval_required_prompt_packet_keeps_policy_task_typed(self) -> None:
         context = self._make_context(
-            requested_scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            requested_scope=KnowledgeScope(corpus="regulations", collection="student_rules")
         )
         decision = RoutingDecision(
             target=None,
             primary_corpus="regulations",
-            primary_collection="student_handbook",
+            primary_collection="student_rules",
             intent_frame=IntentFrame(
                 capability="knowledge",
                 task_kind="action_request",
@@ -168,19 +168,19 @@ class SupervisorPromptPacketTest(unittest.TestCase):
         self.assertEqual(packet.task.mode, "approval_required")
         self.assertEqual(packet.task.task_kind, "action_request")
         self.assertEqual(packet.task.resolved_scope_corpus, "regulations")
-        self.assertEqual(packet.task.resolved_scope_collection, "student_handbook")
+        self.assertEqual(packet.task.resolved_scope_collection, "student_rules")
         self.assertIn("provide_operator_guidance", packet.task.allowed_actions)
         self.assertIn("override_authz", packet.task.forbidden_actions)
         self.assertEqual(packet.user_input_text, "法学民族实验班培养方案里大二下有什么课")
 
     def test_build_supervisor_reject_prompt_packet_keeps_policy_task_typed(self) -> None:
         context = self._make_context(
-            requested_scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            requested_scope=KnowledgeScope(corpus="regulations", collection="student_rules")
         )
         decision = RoutingDecision(
             target=None,
             primary_corpus="regulations",
-            primary_collection="student_handbook",
+            primary_collection="student_rules",
             intent_frame=IntentFrame(
                 capability="knowledge",
                 task_kind="policy_violation",

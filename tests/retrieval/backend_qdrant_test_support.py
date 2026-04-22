@@ -58,7 +58,7 @@ from qdrant_client.http.exceptions import ResponseHandlingException
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 STUDENT_HANDBOOK_QDRANT_COLLECTION = load_runtime_profile(
-    "regulations", "student_handbook"
+    "regulations", "student_rules"
 ).qdrant_index_binding.alias_name
 
 
@@ -118,7 +118,7 @@ def _authorized_filter(
 def _make_runtime_profile(
     *,
     corpus: str = "regulations",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     serving_surface: str | None = None,
     supports_freshness_sensitive_queries: bool = False,
     freshness_max_age_hours: int | None = None,
@@ -186,7 +186,7 @@ def _make_registry_record(
         source_uri=f"https://campus.example/handbook/{document_id}",
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         entitlement_groups=entitlement_groups,
         visibility_scope=None,
         status=status,
@@ -196,11 +196,11 @@ def _make_registry_record(
         source_channel="pdf_ocr",
         is_current=is_current,
         document_units_object_key=(
-            "regulations/documents/student_handbook/"
+            "regulations/documents/student_rules/"
             f"{document_id.replace(':', '-')}/source-faithful/undated/document-units.jsonl"
         ),
         processed_object_keys=(
-            "regulations/documents/student_handbook/"
+            "regulations/documents/student_rules/"
             f"{document_id.replace(':', '-')}/source-faithful/undated/document-units.jsonl",
         ),
         import_source="raw_online_ocr",

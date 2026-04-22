@@ -79,7 +79,7 @@ def _load_query_planning_config() -> HandbookQueryPlanningConfig:
         / "configs"
         / "ingestion"
         / "regulations"
-        / "student_handbook"
+        / "student_rules"
         / "query-planning.json"
     )
     payload = json.loads(config_path.read_text(encoding="utf-8"))

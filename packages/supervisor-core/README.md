@@ -57,7 +57,7 @@
 - `rag-agent` 仍是默认 retrieval query-serving agent
 - `campus-services-agent` 与 `notice-agent` 现已作为 forward runtime owner package 接入 default delegate map，但这只冻结 execution-side owner / adapter / protocol seam；不等于产品主路径已经打开这些 capability
 - query-serving 是否开放某个 corpus/scope，属于 routing/policy 决策，不应由 API shell 固定构造
-- 当前 runtime-profile 已开放 `regulations/student_handbook` 与 `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持 `offline_preparation`
+- 当前 runtime-profile 已开放 `regulations/student_rules` 与 `curriculum/curriculum_plan` 的 query-serving；`campus_services/*` 继续保持 `offline_preparation`
 
 如果后续要继续增加 agent 或放开新的 query-serving corpus，应先更新架构/决策文档，再调整这里的 contract 描述与实现。
 

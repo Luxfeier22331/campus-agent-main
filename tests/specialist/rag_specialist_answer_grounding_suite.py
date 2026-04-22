@@ -37,7 +37,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="How do I replace my student card?",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -49,7 +49,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         self.assertEqual(response.result.evidence, evidence)
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
-        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_handbook")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_rules")
         self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
 
     def test_completed_response_uses_evidence_and_actor_context(self) -> None:
@@ -68,7 +68,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 user_id="student-001",
             ),
             payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
 
@@ -79,7 +79,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(captured_kwargs["query"], "What are the library hours?")
         self.assertEqual(captured_kwargs["corpus"], "regulations")
-        self.assertEqual(captured_kwargs["collection"], "student_handbook")
+        self.assertEqual(captured_kwargs["collection"], "student_rules")
         self.assertEqual(
             captured_kwargs["authorized_filter"],
             AuthorizedRetrievalFilter(
@@ -108,7 +108,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 evidence=expected_evidence,
                 diagnostics=_resolved_scope_diagnostics(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     semantic_outcome="grounded_answer",
                     retrieved_title_summary=(
                         "Evidence snippet 1 about library hours and student support.",
@@ -157,7 +157,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     ),
                 ),
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -192,7 +192,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="提交书面申请后院系如何审核？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -215,7 +215,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证丢失后怎么办理补办？",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:student-card",
@@ -226,7 +226,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=False,
                     snippet="中央民族大学学生证管理办法\n第三章 学籍管理\n第十二条 学生证遗失后，应及时到学院挂失，填写补办申请表，经学院审批后到学生处办理。",
                     score=0.74,
@@ -246,7 +246,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=False,
                     snippet="中央民族大学学生证管理办法\n附则\n本办法由学生处负责解释。",
                     score=0.89,
@@ -265,7 +265,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/medical",
                     latest_url="https://campus.example/handbook/medical",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=False,
                     snippet="公费医疗管理办法 住院报销按学校相关规定执行。",
                     score=0.78,
@@ -283,7 +283,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证丢失后怎么办理补办？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -365,7 +365,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id="handbook:student-card",
@@ -385,7 +385,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证补办要求是什么",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -407,7 +407,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
         self.assertEqual(
             response.result.diagnostics.retrieval_plan_summary.plan_id,
-            "regulations:student_handbook:current",
+            "regulations:student_rules:current",
         )
         self.assertEqual(
             response.result.diagnostics.retrieval_plan_summary.query_mode,
@@ -438,7 +438,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证丢了怎么办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -449,7 +449,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
@@ -476,7 +476,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
@@ -503,7 +503,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet="中央民族大学本科(预科)学生证管理办法 / 十八\n文号：民大学发[2013]8号\n十八、本办法由学生处负责解释。",
                     score=0.032258064,
@@ -522,7 +522,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -548,7 +548,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="学生证丢了怎么办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -559,7 +559,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/student-card",
                     latest_url="https://campus.example/handbook/student-card",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
@@ -585,7 +585,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="学生证丢了怎么办",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -608,7 +608,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="宿舍照明",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
@@ -619,7 +619,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
@@ -648,7 +648,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet="中央民族大学关于学生宿舍照明的管理规定 / 三\n文号：民大校发[2007]299号\n三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
                     score=0.03306011,
@@ -668,7 +668,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "中央民族大学关于学生宿舍照明的管理规定 / 二、要求:\n"
@@ -693,7 +693,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="宿舍照明",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -712,7 +712,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="宿舍照明",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 EvidenceSource(
                     doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
@@ -723,7 +723,7 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
                     canonical_url="https://campus.example/handbook/dormitory-lighting",
                     latest_url="https://campus.example/handbook/dormitory-lighting",
                     source_channel="pdf_ocr",
-                    collection="student_handbook",
+                    collection="student_rules",
                     is_current=True,
                     snippet=(
                         "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"

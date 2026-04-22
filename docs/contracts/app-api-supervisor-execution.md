@@ -159,7 +159,7 @@ JSON 命名保持 `snake_case`，原因如下：
     "citation_count": 2,
     "citation_missing": false,
     "resolved_scope_corpus": "regulations",
-    "resolved_scope_collection": "student_handbook",
+    "resolved_scope_collection": "student_rules",
     "refusal_class": "",
     "acl_decision": "allowed",
     "fail_closed": false,

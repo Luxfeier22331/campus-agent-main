@@ -1,7 +1,7 @@
 {
 	"schema_version": 1,
 	"corpus": "regulations",
-	"collection": "student_handbook",
+	"collection": "student_rules",
 	"clarification_cues": [
 		"评审办法",
 		"评定办法",

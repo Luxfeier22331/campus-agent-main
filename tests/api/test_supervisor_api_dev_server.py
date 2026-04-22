@@ -91,7 +91,7 @@ class SupervisorApiDevServerTest(unittest.TestCase):
                     "request_id": "req-http-1",
                     "requested_scope": {
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                     },
                 }
             ).encode("utf-8"),

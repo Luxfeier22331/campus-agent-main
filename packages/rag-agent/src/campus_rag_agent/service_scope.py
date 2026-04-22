@@ -78,10 +78,10 @@ def _resolve_request_scope(
     if has_curriculum_signal and not has_handbook_signal:
         return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
     if has_handbook_signal and not has_curriculum_signal:
-        return KnowledgeScope(corpus="regulations", collection="student_handbook")
+        return KnowledgeScope(corpus="regulations", collection="student_rules")
     if has_curriculum_signal and has_handbook_signal:
         if handbook_plan.status == "resolved":
-            return KnowledgeScope(corpus="regulations", collection="student_handbook")
+            return KnowledgeScope(corpus="regulations", collection="student_rules")
         return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
     return None
 
@@ -217,7 +217,7 @@ def _plan_handbook_query(
     scope: KnowledgeScope,
     user_goal: str,
 ) -> HandbookQueryPlan | None:
-    if scope.corpus != "regulations" or scope.collection != "student_handbook":
+    if scope.corpus != "regulations" or scope.collection != "student_rules":
         return None
     return plan_student_handbook_query(user_goal)
 

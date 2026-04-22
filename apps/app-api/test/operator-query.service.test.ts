@@ -98,7 +98,7 @@ describe("operator query service aggregate summaries", () => {
 
 		const result = await service.getQualitySummary({
 			filters: {
-				collection: " student_handbook ",
+				collection: " student_rules ",
 				modelName: " gpt-5.2-mini ",
 				principalType: " campus_member ",
 				requestedCapability: " knowledge ",
@@ -110,7 +110,7 @@ describe("operator query service aggregate summaries", () => {
 		});
 
 		expect(store.getQualitySummary).toHaveBeenCalledWith({
-			collection: "student_handbook",
+			collection: "student_rules",
 			granularity: null,
 			modelName: "gpt-5.2-mini",
 			principalType: "campus_member",
@@ -355,7 +355,7 @@ describe("operator query service aggregate summaries", () => {
 
 		const result = await service.getQualityTimeseries({
 			filters: {
-				collection: " student_handbook ",
+				collection: " student_rules ",
 				granularity: " 1h ",
 				modelName: " gpt-5.2-mini ",
 				principalType: " campus_member ",
@@ -368,7 +368,7 @@ describe("operator query service aggregate summaries", () => {
 		});
 
 		expect(store.getQualityTimeseries).toHaveBeenCalledWith({
-			collection: "student_handbook",
+			collection: "student_rules",
 			granularity: "1h",
 			modelName: "gpt-5.2-mini",
 			principalType: "campus_member",

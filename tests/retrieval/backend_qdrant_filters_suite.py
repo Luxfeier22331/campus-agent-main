@@ -37,7 +37,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
@@ -51,7 +51,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
         self.assertEqual(filters.filters[0].key, "corpus")
         self.assertEqual(filters.filters[0].value, "regulations")
         self.assertEqual(filters.filters[1].key, "collection")
-        self.assertEqual(filters.filters[1].value, "student_handbook")
+        self.assertEqual(filters.filters[1].value, "student_rules")
         self.assertEqual(filters.filters[2].key, "revision_track")
         self.assertEqual(filters.filters[2].operator.value, "in")
         self.assertEqual(filters.filters[2].value, ["current-effective", "source-faithful"])
@@ -72,7 +72,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="保研流程",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
@@ -103,7 +103,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
@@ -124,7 +124,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="保研流程",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=("students",),
                     visibility_level="public",
@@ -147,7 +147,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
@@ -171,7 +171,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=AuthorizedRetrievalFilter(
                     entitlement_groups=(),
                     visibility_level="public",
@@ -192,7 +192,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="旧版国奖评审办法",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 target_document_ids=("handbook:national-scholarship",),
                 target_version_ids=("v1:national-scholarship",),
                 target_revision_track="source-faithful",
@@ -275,7 +275,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="Tell me about north campus office hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(
                     entitlement_groups=("students",),
                     visibility_scope=None,
@@ -316,7 +316,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="这条通知写了什么？",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     target_document_ids=(restricted.document_id,),
                     authorized_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=(),
@@ -362,7 +362,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="这条通知写了什么？",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     target_document_ids=(allowed.document_id, restricted.document_id),
                     authorized_filter=AuthorizedRetrievalFilter(
                         entitlement_groups=(),
@@ -377,7 +377,7 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="国奖评审办法里的论文要求是什么？",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 target_document_ids=(
                     "handbook:national-scholarship",

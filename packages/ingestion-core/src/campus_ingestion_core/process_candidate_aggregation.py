@@ -20,7 +20,7 @@ def build_collection_semantic_metadata(
     metadata: dict[str, object],
     text: str,
 ) -> dict[str, object]:
-    if record.collection != "student_handbook":
+    if record.collection != "student_rules":
         return {}
     semantics = derive_handbook_semantic_metadata(
         unit_type=unit_type,

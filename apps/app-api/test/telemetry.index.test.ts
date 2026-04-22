@@ -57,7 +57,7 @@ describe("app telemetry", () => {
 				requestId: "req_01",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 				surface: "public_chat_web",
@@ -102,7 +102,7 @@ describe("app telemetry", () => {
 			requestId: "req_01",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			safetyIdentifier,
@@ -119,7 +119,7 @@ describe("app telemetry", () => {
 			requestId: "req_01",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			safetyIdentifier,
@@ -132,7 +132,7 @@ describe("app telemetry", () => {
 		expect(sentryMocks.setTag).not.toHaveBeenCalledWith("safety_identifier", safetyIdentifier);
 		expect(sentryMocks.setTag).toHaveBeenCalledWith(
 			"requested_scope_summary",
-			"regulations/student_handbook",
+			"regulations/student_rules",
 		);
 		expect(sentryMocks.setTag).toHaveBeenCalledWith("principal_type", "campus_member");
 		expect(sentryMocks.setContext).toHaveBeenCalledWith(
@@ -140,7 +140,7 @@ describe("app telemetry", () => {
 			expect.objectContaining({
 				conversation_id: "conv_01",
 				request_id: "req_01",
-				requested_scope_summary: "regulations/student_handbook",
+				requested_scope_summary: "regulations/student_rules",
 				safety_identifier: safetyIdentifier,
 			}),
 		);

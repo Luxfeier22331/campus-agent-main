@@ -128,7 +128,7 @@ repo 级 canonical chain 继续表达为：
 
 例如：
 
-- `regulations/institutional_regulations` 中的制度正文
+- `regulations/institutional_rules` 中的制度正文
 - 后续可能存在的 handbook / procedure / scoped-rule semantic collection
 
 它的职责固定为：
@@ -190,7 +190,7 @@ repo 级 canonical chain 继续表达为：
 
 `semantic_document` 继续进入各自的 semantic collection scope，例如：
 
-- `regulations/institutional_regulations`
+- `regulations/institutional_rules`
 - `regulations/scoped_rules`
 
 固定要求：

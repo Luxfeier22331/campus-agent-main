@@ -220,7 +220,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           '[]'::jsonb, 'student',
           'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', null, null,
-          $5, 'knowledge', '{"corpus":"regulations","collection":"student_handbook"}'::jsonb, 'rag-agent',
+          $5, 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb, 'rag-agent',
           'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。', null,
           '["handbook:library-hours","handbook:holiday-hours"]'::jsonb, '${requestStartedAt.toISOString()}',
           '${requestCompletedAt.toISOString()}', 842, '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
@@ -242,7 +242,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         ) values (
           $1, $2, $3, 'public_chat_web', 'student',
           'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
-          'regulations/student_handbook', 'student_handbook', 'rag-agent', 'completed', null,
+          'regulations/student_rules', 'student_rules', 'rag-agent', 'completed', null,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
           2, false, true, 0,
           true, null, 'allowed', 'projection_missing', false,
@@ -263,7 +263,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         ) values (
           $1, $2, 'public_chat_web', $3, 'student',
           'user_obs_01', 'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
-          'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_handbook"}'::jsonb,
+          'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb,
           'rag-agent', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
           null, '["handbook:library-hours","handbook:holiday-hours"]'::jsonb,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, '${requestProjectedAt.toISOString()}'
@@ -295,7 +295,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "metrics_json", "projected_at"
         ) values (
           $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'public_chat_web',
-          'rag-agent', 'knowledge', 'student', 'student_handbook', '${modelName}',
+          'rag-agent', 'knowledge', 'student', 'student_rules', '${modelName}',
           '{"approvalRequiredCount":0,"citationEligibleCount":2,"citationMissCount":1,"emptyRecallCount":0,"needsClarificationCount":0,"noAnswerCount":0,"rejectedCount":0,"requestCount":4,"retrievalEligibleCount":4}'::jsonb,
           '${requestProjectedAt.toISOString()}'
         )

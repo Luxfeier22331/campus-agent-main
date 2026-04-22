@@ -1,7 +1,7 @@
 {
 	"schema_version": "handbook_derived_documents_v1",
 	"source_corpus": "regulations",
-	"source_collection": "student_handbook",
+	"source_collection": "student_rules",
 	"source_pdf": "学生手册_2018.pdf",
 	"raw_asset_id": "asset:student-handbook-pdf",
 	"documents": [

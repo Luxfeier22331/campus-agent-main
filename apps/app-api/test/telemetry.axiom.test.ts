@@ -86,7 +86,7 @@ describe("axiom runtime event sink", () => {
 		await sink.emit({
 			event_type: "request.finalized",
 			request_id: "req_01HQ",
-			requested_scope_summary: "regulations/student_handbook",
+			requested_scope_summary: "regulations/student_rules",
 			status: "completed",
 			surface: "public_chat_web",
 			trace_id: "trace_01HQ",
@@ -99,7 +99,7 @@ describe("axiom runtime event sink", () => {
 					{
 						event_type: "request.finalized",
 						request_id: "req_01HQ",
-						requested_scope_summary: "regulations/student_handbook",
+						requested_scope_summary: "regulations/student_rules",
 						status: "completed",
 						surface: "public_chat_web",
 						trace_id: "trace_01HQ",
@@ -130,7 +130,7 @@ describe("axiom runtime event sink", () => {
 		await sink.emit({
 			event_type: "request.finalized",
 			request_id: "req_01HQ",
-			requested_scope_summary: "regulations/student_handbook",
+			requested_scope_summary: "regulations/student_rules",
 			status: "completed",
 			surface: "public_chat_web",
 			trace_id: "trace_01HQ",
@@ -143,7 +143,7 @@ describe("axiom runtime event sink", () => {
 					{
 						event_type: "request.finalized",
 						request_id: "req_01HQ",
-						requested_scope_summary: "regulations/student_handbook",
+						requested_scope_summary: "regulations/student_rules",
 						status: "completed",
 						surface: "public_chat_web",
 						trace_id: "trace_01HQ",

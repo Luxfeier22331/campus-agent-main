@@ -100,7 +100,7 @@ describe("supervisor execution adapter", () => {
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			safetyIdentifier: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -165,7 +165,7 @@ describe("supervisor execution adapter", () => {
 			request_id: "req_01HQ",
 			requested_capability: "knowledge",
 			requested_scope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			safety_identifier: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

@@ -492,7 +492,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="评审办法里第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -504,7 +504,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 clarification_reason="policy_object_missing",
             ),
         )
@@ -516,7 +516,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
         evidence = EvidenceBundle(
             query_text="unused",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             sources=(
                 _make_handbook_source(
                     doc_id=target_doc_id,
@@ -551,7 +551,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="国奖第九条里对论文和著作怎么要求的？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -567,7 +567,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 resolved_policy_document_id=target_doc_id,
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
@@ -597,7 +597,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             )
 
         response = delegate_to_rag_agent(
@@ -605,7 +605,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -621,7 +621,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             response.result.diagnostics,
             _resolved_scope_diagnostics(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 resolved_policy_document_id=target_doc_id,
                 resolved_policy_title=target_title,
                 rewritten_query=retriever_call["query_text"],
@@ -638,7 +638,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query_text,
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=(
                     EvidenceSource(
                         doc_id=target_doc_id,
@@ -649,7 +649,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                         canonical_url="https://campus.example/handbook/national-scholarship",
                         latest_url="https://campus.example/handbook/national-scholarship",
                         source_channel="pdf_ocr",
-                        collection="student_handbook",
+                        collection="student_rules",
                         is_current=True,
                         source_title=target_title,
                         snippet=(
@@ -671,7 +671,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -704,7 +704,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 context=ContextProjection(actor=ActorContext(principal_type="anonymous")),
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -729,7 +729,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 user_goal="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
                 context=ContextProjection(actor=ActorContext(principal_type="operator")),
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=fake_retriever,
@@ -749,7 +749,7 @@ class RagSpecialistCurriculumStructuredLookupTest(unittest.TestCase):
                 EvidenceBundle(
                     query_text="library hours",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
             "low",

@@ -126,7 +126,7 @@ describe("GET /api/operator/requests", () => {
 						requestId: "req_01HQ",
 						requestedCapability: "knowledge",
 						requestedScope: {
-							collection: "student_handbook",
+							collection: "student_rules",
 							corpus: "regulations",
 						},
 						selectedTarget: "rag-agent",
@@ -175,7 +175,7 @@ describe("GET /api/operator/requests", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					requestedScope: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 					},
 					selectedTarget: "rag-agent",
@@ -295,7 +295,7 @@ describe("GET /api/operator/requests/:requestId", () => {
 				requestId: "req_01HQ",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 				selectedTarget: "rag-agent",
@@ -348,7 +348,7 @@ describe("GET /api/operator/requests/:requestId", () => {
 				requestId: "req_01HQ",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 				selectedTarget: "rag-agent",
@@ -429,7 +429,7 @@ describe("GET /api/operator/requests/:requestId", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					requestedScope: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 					},
 					selectedTarget: "rag-agent",
@@ -475,7 +475,7 @@ describe("GET /api/operator/requests/:requestId", () => {
 				requestId: "req_01HQ",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 				selectedTarget: "rag-agent",
@@ -605,7 +605,7 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					requestedScope: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 					},
 					selectedTarget: "rag-agent",
@@ -741,7 +741,7 @@ describe("GET /api/operator/requests/:requestId/observability", () => {
 				requestId: "req_01HQ",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 				selectedTarget: "rag-agent",

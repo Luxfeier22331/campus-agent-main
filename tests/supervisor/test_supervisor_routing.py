@@ -25,7 +25,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -33,7 +33,7 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         self.assertEqual(decision.target, "rag-agent")
         self.assertEqual(decision.primary_corpus, "regulations")
-        self.assertEqual(decision.primary_collection, "student_handbook")
+        self.assertEqual(decision.primary_collection, "student_rules")
         self.assertEqual(decision.intent_frame.capability, "knowledge")
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
 
@@ -104,7 +104,7 @@ class SupervisorRoutingTest(unittest.TestCase):
             user_goal="帮我提交奖学金申请",
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 

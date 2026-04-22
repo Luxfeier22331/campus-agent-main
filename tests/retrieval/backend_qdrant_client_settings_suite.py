@@ -269,7 +269,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             request=RetrievalRequest(
                 query_text="scholarship office hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=3,
             ),
@@ -361,7 +361,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         request = RetrievalRequest(
             query_text="library hours",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             authorized_filter=_authorized_filter(),
         )
         backend.retrieve(request)
@@ -420,14 +420,14 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="学生证丢了怎么办",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
         )
 
         self.assertEqual(result.sources, ())
-        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        qdrant_client.collection_exists.assert_called_once_with("student_rules")
         qdrant_client.query_points.assert_called_once()
         qdrant_client.get_aliases.assert_not_called()
 
@@ -449,7 +449,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         request = RetrievalRequest(
             query_text="学生证丢了怎么办",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             authorized_filter=_authorized_filter(),
             top_k=5,
         )
@@ -457,7 +457,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         backend.retrieve(request)
         backend.retrieve(request)
 
-        qdrant_client.collection_exists.assert_called_once_with("student_handbook")
+        qdrant_client.collection_exists.assert_called_once_with("student_rules")
         self.assertEqual(qdrant_client.query_points.call_count, 2)
 
     def test_backend_retries_transient_collection_exists_failures(self) -> None:
@@ -490,7 +490,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="学生证丢了怎么办",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
@@ -530,7 +530,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="学生证丢了怎么办",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
@@ -572,7 +572,7 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="学生证丢了怎么办",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     authorized_filter=_authorized_filter(),
                     top_k=5,
                 )

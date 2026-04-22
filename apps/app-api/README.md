@@ -192,6 +192,9 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- --email help_bot@outlook.com --name "Help Bot"
 pnpm official-web:drain-projection -- --limit 50
+pnpm collection-rename:audit
+pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
+pnpm collection-rename:replay -- --report .tmp/collection-rename-apply.json
 pnpm projection:drain
 pnpm test
 pnpm test:all

@@ -1,7 +1,7 @@
 {
 	"corpus": "regulations",
-	"collection": "student_handbook",
-	"chunk_profile_version": "student_handbook_semantic_v3",
+	"collection": "student_rules",
+	"chunk_profile_version": "student_rules_semantic_v3",
 	"structured_input": "document_units_jsonl",
 	"notes": [
 		"Chunk only document-level document-units.jsonl rows after handbook cleanup.",

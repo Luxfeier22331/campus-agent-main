@@ -1463,7 +1463,7 @@ describe("protected panel web worker shell", () => {
 								requestId: "req_01HQ",
 								requestedCapability: "knowledge",
 								requestedScope: {
-									collection: "student_handbook",
+									collection: "student_rules",
 									corpus: "regulations",
 								},
 								selectedTarget: "rag-agent",

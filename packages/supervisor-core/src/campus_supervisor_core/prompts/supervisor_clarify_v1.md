@@ -17,6 +17,8 @@
 
 <output_contract>
 返回结构化对象，至少包含：
+
 - follow_up_question
 - tone = brief
+
 </output_contract>

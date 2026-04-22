@@ -278,7 +278,7 @@ describe("chat command service", () => {
 				prompt: " 图书馆开放到几点？ ",
 				requestedCapability: "knowledge",
 				requestedScope: {
-					collection: "student_handbook",
+					collection: "student_rules",
 					corpus: "regulations",
 				},
 			},
@@ -302,7 +302,7 @@ describe("chat command service", () => {
 			requestId: "req_0001",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			safetyIdentifier: expectedSafetyIdentifier,

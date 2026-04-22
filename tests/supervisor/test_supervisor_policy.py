@@ -74,7 +74,7 @@ class SupervisorPolicyTest(unittest.TestCase):
             result=RagResultPayload(
                 evidence=EvidenceBundle(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     query_text="国奖看第一作者单位吗？",
                 ),
                 diagnostics=RagResultDiagnostics(
@@ -101,7 +101,7 @@ class SupervisorPolicyTest(unittest.TestCase):
             result=RagResultPayload(
                 evidence=EvidenceBundle(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     query_text="查看内部通知",
                 ),
                 diagnostics=RagResultDiagnostics(
@@ -328,7 +328,7 @@ class SupervisorPolicyTest(unittest.TestCase):
             RoutingDecision(
                 target=None,
                 primary_corpus="regulations",
-                primary_collection="student_handbook",
+                primary_collection="student_rules",
                 intent_frame=IntentFrame(
                     capability="knowledge",
                     task_kind="unknown",

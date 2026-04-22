@@ -1248,7 +1248,7 @@ def _normalize_source_trust_tier(
         "course_facts",
     }:
         return "T0"
-    if normalized_collection == "student_handbook":
+    if normalized_collection == "student_rules":
         return "T1"
     if normalized_collection == "stable_reference":
         return "T2"

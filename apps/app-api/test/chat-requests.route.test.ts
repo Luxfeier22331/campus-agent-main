@@ -309,7 +309,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					},
 					result: {
 						evidence: {
-							collection: "student_handbook",
+							collection: "student_rules",
 							corpus: "regulations",
 							query_text: "图书馆开放到几点？",
 							sources: [
@@ -317,7 +317,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 									anchor: { page: 1 },
 									canonical_url: "https://example.edu/library-hours",
 									chunk_id: "chunk-1",
-									collection: "student_handbook",
+									collection: "student_rules",
 									doc_id: "handbook:library-hours",
 									is_current: true,
 									latest_url: "https://example.edu/library-hours",
@@ -355,7 +355,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					prompt: "图书馆开放到几点？",
 					requestedScope: {
 						corpus: "regulations",
-						collection: "student_handbook",
+						collection: "student_rules",
 					},
 				}),
 				headers: {
@@ -413,7 +413,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				},
 				result: {
 					evidence: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 						query_text: "图书馆开放到几点？",
 						sources: [
@@ -421,7 +421,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 								anchor: { page: 1 },
 								canonical_url: "https://example.edu/library-hours",
 								chunk_id: "chunk-1",
-								collection: "student_handbook",
+								collection: "student_rules",
 								doc_id: "handbook:library-hours",
 								is_current: true,
 								latest_url: "https://example.edu/library-hours",
@@ -446,7 +446,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				prompt: "图书馆开放到几点？",
 				requestedScope: {
 					corpus: "regulations",
-					collection: "student_handbook",
+					collection: "student_rules",
 				},
 			},
 			principal: expect.objectContaining({

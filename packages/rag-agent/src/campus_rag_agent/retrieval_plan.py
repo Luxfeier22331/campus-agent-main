@@ -16,7 +16,7 @@ _COLLECTION_MINIMUM_SOURCE_TRUST_TIER = {
     "program_semester_facts": "T0",
     "program_family_facts": "T0",
     "course_facts": "T0",
-    "student_handbook": "T1",
+    "student_rules": "T1",
     "stable_reference": "T2",
     "fresh_news": "T3",
 }

@@ -15,7 +15,7 @@ class SupervisorScopePolicyTest(unittest.TestCase):
                     user_goal="奖学金怎么申请？",
                     requested_scope=KnowledgeScope(
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     ),
                 )
             )

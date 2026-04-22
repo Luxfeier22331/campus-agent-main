@@ -76,13 +76,13 @@ class RetrievalServiceTest(unittest.TestCase):
         backend.retrieve.return_value = EvidenceBundle(
             query_text="library hours",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
         )
 
         result = retrieve_sources(
             "library hours",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             authorized_filter=AuthorizedRetrievalFilter(
                 entitlement_groups=("students",),
                 visibility_level="public",
@@ -140,13 +140,13 @@ class RetrievalServiceTest(unittest.TestCase):
         backend.retrieve.return_value = EvidenceBundle(
             query_text="保研流程",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
         )
 
         retrieve_sources(
             "保研流程",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             personalization_hint=PersonalizationHint(
                 actor_claim_terms=("2023 cohort", "philosophy major"),
                 recent_goal="咨询保研",
@@ -171,7 +171,7 @@ class RetrievalServiceTest(unittest.TestCase):
         backend.retrieve.return_value = EvidenceBundle(
             query_text="保研流程",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
         )
         authorized_filter = AuthorizedRetrievalFilter(
             entitlement_groups=("entitled-students",),
@@ -181,7 +181,7 @@ class RetrievalServiceTest(unittest.TestCase):
         retrieve_sources(
             "保研流程",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             authorized_filter=authorized_filter,
             backend=backend,
         )
@@ -200,7 +200,7 @@ class RetrievalServiceTest(unittest.TestCase):
             retrieve_sources(
                 "这条通知写了什么？",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 target_document_ids=("handbook:restricted-notice",),
                 backend=backend,
             )
@@ -210,13 +210,13 @@ class RetrievalServiceTest(unittest.TestCase):
         backend.retrieve.return_value = EvidenceBundle(
             query_text="国奖评审办法里的论文要求是什么？",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
         )
 
         retrieve_sources(
             "国奖评审办法里的论文要求是什么？",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             target_document_ids=("handbook:national-scholarship",),
             backend=backend,
         )
@@ -253,13 +253,13 @@ class RetrievalServiceTest(unittest.TestCase):
         backend.retrieve.return_value = EvidenceBundle(
             query_text="旧版国奖评审办法",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
         )
 
         retrieve_sources(
             "旧版国奖评审办法",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             target_document_ids=("handbook:national-scholarship",),
             target_version_ids=("v1:national-scholarship",),
             target_revision_track="source-faithful",
@@ -334,15 +334,15 @@ class RetrievalServiceTest(unittest.TestCase):
             )
 
         plan = RetrievalPlan(
-            plan_id="regulations:student_handbook:compare",
+            plan_id="regulations:student_rules:compare",
             query_mode="compare",
-            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
             budget=RetrievalPlanBudget(max_steps=2, max_replans=0),
             steps=(
                 RetrievalStep(
                     step_id="primary",
                     step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                     query_text="国奖变化",
                     selector=RetrievalSelector(
                         target_document_ids=("handbook:national-scholarship",),
@@ -353,7 +353,7 @@ class RetrievalServiceTest(unittest.TestCase):
                 RetrievalStep(
                     step_id="comparison",
                     step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                     query_text="国奖变化",
                     selector=RetrievalSelector(
                         target_document_ids=("handbook:national-scholarship",),
@@ -401,15 +401,15 @@ class RetrievalServiceTest(unittest.TestCase):
             )
 
         plan = RetrievalPlan(
-            plan_id="regulations:student_handbook:replan",
+            plan_id="regulations:student_rules:replan",
             query_mode="historical",
-            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
             budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
             steps=(
                 RetrievalStep(
                     step_id="primary",
                     step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                     query_text="国奖",
                     selector=RetrievalSelector(
                         target_document_ids=("handbook:national-scholarship",),
@@ -428,7 +428,7 @@ class RetrievalServiceTest(unittest.TestCase):
                     RetrievalStep(
                         step_id="replanned",
                         step_type="indexed_lookup",
-                        scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                         query_text="国家奖学金",
                         depends_on_step_ids=(last_result.step_id,),
                         selector=RetrievalSelector(
@@ -464,15 +464,15 @@ class RetrievalServiceTest(unittest.TestCase):
             )
 
         plan = RetrievalPlan(
-            plan_id="regulations:student_handbook:replan-version-tightening",
+            plan_id="regulations:student_rules:replan-version-tightening",
             query_mode="historical",
-            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_handbook"),),
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
             budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
             steps=(
                 RetrievalStep(
                     step_id="primary",
                     step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                     query_text="国奖",
                     selector=RetrievalSelector(
                         target_document_ids=("handbook:national-scholarship",),
@@ -491,7 +491,7 @@ class RetrievalServiceTest(unittest.TestCase):
                     RetrievalStep(
                         step_id="replanned",
                         step_type="indexed_lookup",
-                        scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                         query_text="国家奖学金",
                         depends_on_step_ids=(last_result.step_id,),
                         selector=RetrievalSelector(
@@ -525,10 +525,10 @@ class RetrievalServiceTest(unittest.TestCase):
             )
 
         plan = RetrievalPlan(
-            plan_id="regulations:student_handbook:replan-scope-switch",
+            plan_id="regulations:student_rules:replan-scope-switch",
             query_mode="current",
             admitted_scopes=(
-                RetrievalScope(corpus="regulations", collection="student_handbook"),
+                RetrievalScope(corpus="regulations", collection="student_rules"),
                 RetrievalScope(corpus="curriculum", collection="curriculum_plan"),
             ),
             budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
@@ -536,7 +536,7 @@ class RetrievalServiceTest(unittest.TestCase):
                 RetrievalStep(
                     step_id="primary",
                     step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_handbook"),
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
                     query_text="国奖",
                     selector=RetrievalSelector(
                         target_document_ids=("handbook:national-scholarship",),
@@ -796,7 +796,7 @@ def _make_source(
     version_id: str,
     snippet: str,
     doc_id: str = "handbook:national-scholarship",
-    collection: str = "student_handbook",
+    collection: str = "student_rules",
     source_channel: str = "pdf_ocr",
     canonical_url: str = "https://example.edu/handbook/national-scholarship",
     latest_url: str = "https://example.edu/handbook/national-scholarship/latest",

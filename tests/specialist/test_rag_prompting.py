@@ -56,7 +56,7 @@ def _make_request() -> SpecialistRequest:
             ),
         ),
         payload=RagRequestPayload(
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules")
         ),
     )
 
@@ -64,7 +64,7 @@ def _make_request() -> SpecialistRequest:
 def _make_evidence() -> EvidenceBundle:
     return EvidenceBundle(
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         query_text="学生证补办流程",
         sources=(
             EvidenceSource(
@@ -76,7 +76,7 @@ def _make_evidence() -> EvidenceBundle:
                 canonical_url="https://campus.example/handbook/test-001",
                 latest_url="https://campus.example/handbook/test-001",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="补办学生证需要先提交申请表，再到学院审核。",
                 score=0.82,
@@ -164,14 +164,14 @@ class RagPromptPacketTest(unittest.TestCase):
         packet = build_rag_clarify_prompt_packet(
             request,
             intent_frame=intent_frame,
-            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
         )
 
         self.assertEqual(packet.prompt_id, "rag_clarify_v1")
         self.assertEqual(packet.task.mode, "clarify")
         self.assertEqual(packet.task.personalization_mode, "user_grounded")
         self.assertEqual(packet.task.resolved_scope_corpus, "regulations")
-        self.assertEqual(packet.task.resolved_scope_collection, "student_handbook")
+        self.assertEqual(packet.task.resolved_scope_collection, "student_rules")
         self.assertEqual(packet.task.ambiguity_reason, "referential")
         self.assertEqual(packet.task.missing_slots, ("target_policy",))
         self.assertEqual(packet.user_input_text, "这个规定怎么办")
@@ -182,7 +182,7 @@ class RagPromptPacketTest(unittest.TestCase):
         request = _make_request()
         packet = build_rag_no_answer_prompt_packet(
             request,
-            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             evidence=_make_evidence(),
             no_answer_reason="insufficient_grounding",
         )
@@ -206,14 +206,14 @@ class RagPromptPacketTest(unittest.TestCase):
         request = _make_request()
         packet = build_rag_answer_prompt_packet(
             request,
-            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             evidence=_make_evidence(),
         )
 
         self.assertEqual(packet.prompt_id, "rag_answer_v1")
         self.assertEqual(packet.task.mode, "answer")
         self.assertEqual(packet.task.resolved_scope_corpus, "regulations")
-        self.assertEqual(packet.task.resolved_scope_collection, "student_handbook")
+        self.assertEqual(packet.task.resolved_scope_collection, "student_rules")
         self.assertEqual(packet.task.output_schema_name, "rag_answer_v1")
         self.assertTrue(packet.task.citation_expected)
         self.assertEqual(len(packet.evidence), 1)

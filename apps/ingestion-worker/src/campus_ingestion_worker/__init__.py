@@ -8,6 +8,9 @@ from campus_ingestion_worker.audit_official_web_projection_chunking import (
 from campus_ingestion_worker.audit_official_web_projection_chunking import (
     main as audit_official_web_projection_chunking_main,
 )
+from campus_ingestion_worker.collection_rename_registry_backfill import (
+    main as collection_rename_registry_backfill_main,
+)
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.import_authenticated_notice_export import (
     AuthenticatedNoticeImportRequest,
@@ -112,6 +115,7 @@ __all__ = [
     "audit_official_web_projection_chunking",
     "audit_official_web_projection_chunking_main",
     "backfill_historical_handoff_record",
+    "collection_rename_registry_backfill_main",
     "consume_handoff_record",
     "consume_official_web_handoffs",
     "create_official_web_handoff_app",

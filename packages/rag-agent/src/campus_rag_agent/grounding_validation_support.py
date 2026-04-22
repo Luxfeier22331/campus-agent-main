@@ -131,7 +131,7 @@ def _default_source_trust_tier_for_bundle(evidence: EvidenceBundle) -> str:
         "course_facts",
     }:
         return "T0"
-    if evidence.collection == "student_handbook":
+    if evidence.collection == "student_rules":
         return "T1"
     if evidence.collection == "stable_reference":
         return "T2"

@@ -84,7 +84,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
         self.assertEqual(result, ())
 
     def test_no_hit_policy_rejects_generic_single_bigram_match_across_tied_candidates(self) -> None:
-        profile = load_runtime_profile("regulations", "student_handbook")
+        profile = load_runtime_profile("regulations", "student_rules")
         sources = (
             EvidenceSource(
                 doc_id="handbook:loan",
@@ -95,7 +95,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/loan",
                 latest_url="https://campus.example/loan",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="第十条 国家助学贷款还款:办理过国家助学贷款的毕业生于毕业前确认还款手续。",
                 score=0.5,
@@ -109,7 +109,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/order",
                 latest_url="https://campus.example/order",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="外国人、港澳台人员进入学校进行公务、业务活动应当告知学校。",
                 score=0.5,
@@ -125,7 +125,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
         self.assertEqual(result, ())
 
     def test_no_hit_policy_rejects_live_like_weak_bigram_matches(self) -> None:
-        profile = load_runtime_profile("regulations", "student_handbook")
+        profile = load_runtime_profile("regulations", "student_rules")
         sources = (
             EvidenceSource(
                 doc_id="handbook:discipline",
@@ -136,7 +136,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/discipline",
                 latest_url="https://campus.example/discipline",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet=(
                     "被开除学籍的学生由教务处或研究生院出具学习证明,学生须在接到处分决定之日起10日内"
@@ -153,7 +153,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/campus-order",
                 latest_url="https://campus.example/campus-order",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="外国人、港澳台人员进入学校应经批准后方可进入学校。",
                 score=0.5,
@@ -169,7 +169,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
         self.assertEqual(result, ())
 
     def test_no_hit_policy_accepts_tied_candidates_when_strong_phrase_support_exists(self) -> None:
-        profile = load_runtime_profile("regulations", "student_handbook")
+        profile = load_runtime_profile("regulations", "student_rules")
         sources = (
             EvidenceSource(
                 doc_id="handbook:student-card",
@@ -180,7 +180,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/student-card",
                 latest_url="https://campus.example/student-card",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="学生证丢失后，应持本人书面申请和相关证明材料到学生处办理补发手续。",
                 score=0.5,
@@ -194,7 +194,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 canonical_url="https://campus.example/other",
                 latest_url="https://campus.example/other",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet="其他规定文本。",
                 score=0.5,
@@ -251,7 +251,7 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="library hours",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     authorized_filter=_authorized_filter(),
                 )
             )

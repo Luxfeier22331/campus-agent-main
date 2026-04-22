@@ -8,13 +8,13 @@ from campus_ingestion_core.collection_config import resolve_collection_truth_con
 
 class CollectionTruthConfigTest(unittest.TestCase):
     def test_resolve_student_handbook_collection_truth_uses_repo_tracked_paths(self) -> None:
-        config = resolve_collection_truth_config("regulations", "student_handbook")
+        config = resolve_collection_truth_config("regulations", "student_rules")
 
         self.assertEqual(config.corpus, "regulations")
-        self.assertEqual(config.collection, "student_handbook")
+        self.assertEqual(config.collection, "student_rules")
         self.assertEqual(
             config.config_root,
-            Path("configs/ingestion/regulations/student_handbook").resolve(),
+            Path("configs/ingestion/regulations/student_rules").resolve(),
         )
         self.assertEqual(config.split_manifest_path, config.config_root / "split-manifest.v1.json")
         self.assertEqual(
@@ -54,13 +54,13 @@ class CollectionTruthConfigTest(unittest.TestCase):
     def test_resolve_institutional_regulations_collection_truth_uses_repo_tracked_paths(
         self,
     ) -> None:
-        config = resolve_collection_truth_config("regulations", "institutional_regulations")
+        config = resolve_collection_truth_config("regulations", "institutional_rules")
 
         self.assertEqual(config.corpus, "regulations")
-        self.assertEqual(config.collection, "institutional_regulations")
+        self.assertEqual(config.collection, "institutional_rules")
         self.assertEqual(
             config.config_root,
-            Path("configs/ingestion/regulations/institutional_regulations").resolve(),
+            Path("configs/ingestion/regulations/institutional_rules").resolve(),
         )
         self.assertEqual(config.runtime_profile_path, config.config_root / "runtime-profile.json")
         self.assertEqual(

@@ -20,8 +20,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
     def test_build_ordered_retrieval_plan_uses_single_step_for_current_query(self) -> None:
         plan = build_ordered_retrieval_plan(
             query_text="国奖怎么办",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
-            retrieval_collection="student_handbook",
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            retrieval_collection="student_rules",
             query_mode="current",
             target_document_ids=("handbook:national-scholarship",),
             top_k=4,
@@ -54,8 +54,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
     def test_build_ordered_retrieval_plan_uses_dual_steps_for_compare_query(self) -> None:
         plan = build_ordered_retrieval_plan(
             query_text="国奖第九条旧版和新版有什么变化？",
-            scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
-            retrieval_collection="student_handbook",
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            retrieval_collection="student_rules",
             query_mode="compare",
             target_document_ids=("handbook:national-scholarship",),
             top_k=3,
@@ -124,7 +124,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             return EvidenceBundle(
                 query_text=query,
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=(
                     _make_source(
                         chunk_id=f"{version_id}:chunk-1",
@@ -163,7 +163,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
                     target="rag-agent",
                     user_goal="国奖第九条旧版和新版有什么变化？",
                     payload=RagRequestPayload(
-                        scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="compare"),
                     ),
                 ),
@@ -216,7 +216,7 @@ def _make_source(*, chunk_id: str, version_id: str, snippet: str) -> EvidenceSou
         canonical_url="https://example.edu/handbook/national-scholarship",
         latest_url="https://example.edu/handbook/national-scholarship/latest",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=version_id.startswith("v2:"),
         snippet=snippet,
         score=0.91,

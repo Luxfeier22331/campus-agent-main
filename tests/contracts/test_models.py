@@ -498,7 +498,7 @@ class ContractModelsTest(unittest.TestCase):
     def test_retrieval_plan_summary_serializes_as_contract_field(self) -> None:
         diagnostics = RagResultDiagnostics(
             retrieval_plan_summary=RetrievalPlanSummary(
-                plan_id="regulations:student_handbook:current",
+                plan_id="regulations:student_rules:current",
                 query_mode="current",
                 replan_count=0,
                 terminal_state="completed",
@@ -507,7 +507,7 @@ class ContractModelsTest(unittest.TestCase):
                         step_id="indexed-lookup",
                         step_type="indexed_lookup",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                         status="succeeded",
                         top_k=3,
                         latency_ms=12,
@@ -522,7 +522,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(
             asdict(diagnostics)["retrieval_plan_summary"],
             {
-                "plan_id": "regulations:student_handbook:current",
+                "plan_id": "regulations:student_rules:current",
                 "query_mode": "current",
                 "replan_count": 0,
                 "terminal_state": "completed",
@@ -531,7 +531,7 @@ class ContractModelsTest(unittest.TestCase):
                         "step_id": "indexed-lookup",
                         "step_type": "indexed_lookup",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "status": "succeeded",
                         "top_k": 3,
                         "latency_ms": 12,
@@ -548,7 +548,7 @@ class ContractModelsTest(unittest.TestCase):
             target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
 
@@ -557,7 +557,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(
             request.payload,
             RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook")
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
             ),
         )
         self.assertEqual(request.context.actor, ActorContext())
@@ -645,7 +645,7 @@ class ContractModelsTest(unittest.TestCase):
                 evidence=EvidenceBundle(
                     query_text="library hours",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     sources=(
                         EvidenceSource(
                             doc_id="doc-library-hours",
@@ -656,7 +656,7 @@ class ContractModelsTest(unittest.TestCase):
                             canonical_url="https://campus.example/library#hours",
                             latest_url="https://campus.example/library#hours",
                             source_channel="pdf_ocr",
-                            collection="student_handbook",
+                            collection="student_rules",
                             is_current=False,
                             snippet="The library is open from 08:00 to 22:00.",
                             score=0.98,
@@ -678,7 +678,7 @@ class ContractModelsTest(unittest.TestCase):
         self.assertEqual(payload["status"], "completed")
         self.assertEqual(payload["confidence"], "high")
         self.assertEqual(payload["result"]["evidence"]["corpus"], "regulations")
-        self.assertEqual(payload["result"]["evidence"]["collection"], "student_handbook")
+        self.assertEqual(payload["result"]["evidence"]["collection"], "student_rules")
         self.assertEqual(
             payload["result"]["evidence"]["sources"][0]["canonical_url"],
             "https://campus.example/library#hours",
@@ -740,7 +740,7 @@ class ContractModelsTest(unittest.TestCase):
                 canonical_url="https://campus.example/library#hours",
                 latest_url="https://campus.example/library#hours",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=False,
                 snippet="The library is open from 08:00 to 22:00.",
                 score=0.98,
@@ -906,7 +906,7 @@ class ContractModelsTest(unittest.TestCase):
                 evidence=EvidenceBundle(
                     query_text="国奖看第一作者单位吗？",
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
                 diagnostics=RagResultDiagnostics(
                     resolved_policy_document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
@@ -1184,14 +1184,14 @@ class ContractModelsTest(unittest.TestCase):
             revision_track="source-faithful",
             version_id="v1:test-001",
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             source_uri="https://campus.example/docs/test-001",
             content_hash="sha256:test-001",
         )
         error = ErrorInfo(code="retrieval_failed", message="Qdrant timeout")
 
         self.assertEqual(document_ref.corpus, "regulations")
-        self.assertEqual(document_ref.collection, "student_handbook")
+        self.assertEqual(document_ref.collection, "student_rules")
         self.assertFalse(error.retryable)
         self.assertEqual(asdict(error)["message"], "Qdrant timeout")
 

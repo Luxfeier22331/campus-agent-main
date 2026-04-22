@@ -55,7 +55,7 @@ class SupervisorApiTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text=request.user_goal,
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     )
                 ),
             )
@@ -86,7 +86,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "safety_identifier": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -139,7 +139,7 @@ class SupervisorApiTest(unittest.TestCase):
             captured_requests[0].requested_scope,
             KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
         self.assertIsNone(captured_requests[0].requested_capability)
@@ -175,7 +175,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "比较新旧学生手册关于请假制度的差异",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "version_query": {
                     "mode": "compare",
@@ -220,7 +220,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "比较指定两个学生手册版本的差异",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "version_query": {
                     "mode": "compare",
@@ -327,7 +327,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -384,7 +384,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "request_id": "req-uppercase",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -432,7 +432,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -479,7 +479,7 @@ class SupervisorApiTest(unittest.TestCase):
                         evidence=EvidenceBundle(
                             query_text=request.user_goal,
                             corpus="regulations",
-                            collection="student_handbook",
+                            collection="student_rules",
                         )
                     ),
                 ),
@@ -498,7 +498,7 @@ class SupervisorApiTest(unittest.TestCase):
                     "request_id": "req-audit-001",
                     "requested_scope": {
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                     },
                 },
             )
@@ -577,7 +577,7 @@ class SupervisorApiTest(unittest.TestCase):
                         evidence=EvidenceBundle(
                             query_text=request.user_goal,
                             corpus="regulations",
-                            collection="student_handbook",
+                            collection="student_rules",
                         )
                     ),
                 ),
@@ -595,7 +595,7 @@ class SupervisorApiTest(unittest.TestCase):
                     "request_id": "req-projected-audit-001",
                     "requested_scope": {
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                     },
                     "context": {
                         "actor": {
@@ -758,7 +758,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -804,7 +804,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -852,7 +852,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "保研政策怎么准备？",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "context": {
                     "actor": {
@@ -977,7 +977,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "保研政策怎么准备？",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "context": {
                     "actor": {
@@ -1028,7 +1028,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "保研政策怎么准备？",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "context": {
                     "actor": {
@@ -1078,7 +1078,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "保研政策怎么准备？",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
                 "context": {
                     "actor": {
@@ -1161,7 +1161,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "test",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -1342,7 +1342,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )
@@ -1368,7 +1368,7 @@ class SupervisorApiTest(unittest.TestCase):
                 "user_goal": "library hours",
                 "requested_scope": {
                     "corpus": "regulations",
-                    "collection": "student_handbook",
+                    "collection": "student_rules",
                 },
             },
         )

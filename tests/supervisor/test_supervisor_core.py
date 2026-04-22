@@ -84,7 +84,7 @@ def _make_rag_completed_response() -> SpecialistResponse:
             evidence=EvidenceBundle(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 sources=(
                     EvidenceSource(
                         doc_id="handbook:test-001",
@@ -95,7 +95,7 @@ def _make_rag_completed_response() -> SpecialistResponse:
                         canonical_url="https://campus.example/handbook/test-001",
                         latest_url="https://campus.example/handbook/test-001",
                         source_channel="pdf_ocr",
-                        collection="student_handbook",
+                        collection="student_rules",
                         is_current=False,
                         snippet="The library is open from 08:00 to 22:00.",
                         score=0.96,
@@ -283,7 +283,7 @@ class SupervisorCoreTest(unittest.TestCase):
             actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -295,7 +295,7 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(context.user_id, "student-001")
         self.assertEqual(context.conversation_id, "conv-001")
         self.assertEqual(context.primary_corpus, "regulations")
-        self.assertEqual(context.primary_collection, "student_handbook")
+        self.assertEqual(context.primary_collection, "student_rules")
         self.assertEqual(context.user_goal, "library hours")
         self.assertEqual(context.context.actor.user_id, "student-001")
 
@@ -355,7 +355,7 @@ class SupervisorCoreTest(unittest.TestCase):
             actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -374,7 +374,7 @@ class SupervisorCoreTest(unittest.TestCase):
             RagRequestPayload(
                 scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 )
             ),
         )
@@ -393,7 +393,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "selected_target": "rag-agent",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
-                "requested_scope_collection": "student_handbook",
+                "requested_scope_collection": "student_rules",
                 "status": "completed",
                 "error_code": None,
                 "source_doc_ids": ("handbook:test-001",),
@@ -508,7 +508,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 actor=ActorContext(user_id="student-001"),
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
                 version_query=VersionQuery(
                     mode="compare",
@@ -525,7 +525,7 @@ class SupervisorCoreTest(unittest.TestCase):
         self.assertEqual(
             captured_requests[0].payload,
             RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                 version_query=VersionQuery(
                     mode="compare",
                     version_id="v1:student-handbook",
@@ -546,7 +546,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="need help",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
             ),
             specialist_delegates={
@@ -681,7 +681,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="帮我提交奖学金申请",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
                 context=ContextProjection(
                     actor=ActorContext(
@@ -843,7 +843,7 @@ class SupervisorCoreTest(unittest.TestCase):
         decision = RoutingDecision(
             target=None,
             primary_corpus="regulations",
-            primary_collection="student_handbook",
+            primary_collection="student_rules",
             intent_frame=IntentFrame(
                 capability="knowledge",
                 task_kind="unknown",
@@ -933,7 +933,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 user_goal="library map",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
             ),
             specialist_delegates={
@@ -974,7 +974,7 @@ class SupervisorCoreTest(unittest.TestCase):
             selected_target="rag-agent",
             requested_capability="knowledge",
             requested_scope_corpus="regulations",
-            requested_scope_collection="student_handbook",
+            requested_scope_collection="student_rules",
             status="completed",
             error_code=None,
             source_doc_ids=("handbook:test-001", "handbook:test-002"),
@@ -997,7 +997,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "selected_target": "rag-agent",
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
-                "requested_scope_collection": "student_handbook",
+                "requested_scope_collection": "student_rules",
                 "status": "completed",
                 "error_code": None,
                 "source_doc_ids": ("handbook:test-001", "handbook:test-002"),
@@ -1078,7 +1078,7 @@ class SupervisorCoreTest(unittest.TestCase):
             ),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -1108,7 +1108,7 @@ class SupervisorCoreTest(unittest.TestCase):
                 "selected_target": None,
                 "requested_capability": "knowledge",
                 "requested_scope_corpus": "regulations",
-                "requested_scope_collection": "student_handbook",
+                "requested_scope_collection": "student_rules",
                 "status": "approval_required",
                 "error_code": None,
                 "source_doc_ids": (),
@@ -1211,7 +1211,7 @@ class SupervisorCoreTest(unittest.TestCase):
             actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -1226,7 +1226,7 @@ class SupervisorCoreTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text="奖学金怎么申请？",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     )
                 ),
             ),
@@ -1244,7 +1244,7 @@ class SupervisorCoreTest(unittest.TestCase):
             actor=ActorContext(user_id="student-001"),
             requested_scope=KnowledgeScope(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -1258,7 +1258,7 @@ class SupervisorCoreTest(unittest.TestCase):
                     evidence=EvidenceBundle(
                         query_text="校内宇宙签证办理处",
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     )
                 ),
             ),

@@ -39,11 +39,11 @@ function createExecutionSource(
 		retrievalAttempted: false,
 		requestedCapability: "knowledge",
 		requestedScope: {
-			collection: "student_handbook",
+			collection: "student_rules",
 			corpus: "regulations",
 		},
 		resolvedScope: {
-			collection: "student_handbook",
+			collection: "student_rules",
 			corpus: "regulations",
 		},
 		selectedTarget: "rag-agent",
@@ -113,11 +113,11 @@ describe("request projection projector", () => {
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			resolvedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			selectedTarget: "rag-agent",
@@ -156,7 +156,7 @@ describe("request projection projector", () => {
 				{
 					bucketEnd: "2026-03-28T08:05:00.000Z",
 					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_handbook",
+					collection: "student_rules",
 					domain: "quality",
 					granularity: "5m",
 					metrics: {
@@ -176,14 +176,14 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|5m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_handbook|_|req_01HQ",
+						"quality|5m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
 					selectedTarget: "rag-agent",
 					surface: "public_chat_web",
 				},
 				{
 					bucketEnd: "2026-03-28T08:15:00.000Z",
 					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_handbook",
+					collection: "student_rules",
 					domain: "quality",
 					granularity: "15m",
 					metrics: {
@@ -203,14 +203,14 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|15m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_handbook|_|req_01HQ",
+						"quality|15m|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
 					selectedTarget: "rag-agent",
 					surface: "public_chat_web",
 				},
 				{
 					bucketEnd: "2026-03-28T09:00:00.000Z",
 					bucketStart: "2026-03-28T08:00:00.000Z",
-					collection: "student_handbook",
+					collection: "student_rules",
 					domain: "quality",
 					granularity: "1h",
 					metrics: {
@@ -230,14 +230,14 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1h|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_handbook|_|req_01HQ",
+						"quality|1h|2026-03-28T08:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
 					selectedTarget: "rag-agent",
 					surface: "public_chat_web",
 				},
 				{
 					bucketEnd: "2026-03-29T00:00:00.000Z",
 					bucketStart: "2026-03-28T00:00:00.000Z",
-					collection: "student_handbook",
+					collection: "student_rules",
 					domain: "quality",
 					granularity: "1d",
 					metrics: {
@@ -257,7 +257,7 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1d|2026-03-28T00:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_handbook|_|req_01HQ",
+						"quality|1d|2026-03-28T00:00:00.000Z|public_chat_web|rag-agent|knowledge|student|student_rules|_|req_01HQ",
 					selectedTarget: "rag-agent",
 					surface: "public_chat_web",
 				},

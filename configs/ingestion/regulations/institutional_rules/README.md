@@ -1,23 +1,24 @@
-## institutional_regulations collection config
+## institutional_rules collection config
 
 This directory holds the repo-tracked config scaffold for the
-`institutional_regulations` collection within the `regulations` corpus.
+`institutional_rules` collection within the `regulations` corpus.
 
 - `runtime-profile.json`: canonical runtime gate for the regulation target collection
 - `canonical-profile.json`: canonical identity and provenance truth for promoted regulation documents
-- `chunk-profile.json`: chunk-preparation scaffold for canonical regulation text
+- `chunk-profile.json`: chunk-preparation contract for canonical regulation text
 - `source-projections.v1.json`: promotion-facing projection scaffold from `campus_notices/internal_notice`
 - `configs/ingestion/campus_notices/internal_notice/promotion-routing.v1.json`: source-side routing scaffold for promotion decisions
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`: freeze that source-triage notices and regulation-owned documents are different collection layers
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`: forward implementation and rollout order for this collection
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`: target identity and acceptance truth
+- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`: local-only target acceptance operator path
 
 Current runtime truth:
 
 - serving stage: `offline_preparation`
 - retrieval enabled: `false`
 - query enabled by default: `false`
-- serving alias: `institutional_regulations`
-- collection prefix: `institutional_regulations`
+- serving alias: `institutional_rules`
+- collection prefix: `institutional_rules`
 
 Collection boundary:
 
@@ -28,12 +29,15 @@ Collection boundary:
 
 Current scaffold note:
 
-- this directory no longer only freezes shape: repo now includes a scope-refresh materialization path from `campus_notices/internal_notice` into `regulations/institutional_regulations`
+- this directory no longer only freezes shape: repo now includes a scope-refresh materialization path from `campus_notices/internal_notice` into `regulations/institutional_rules`
 - materialization is currently implemented by:
   - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_materialization.py`
   - `apps/ingestion-worker/src/campus_ingestion_worker/materialize_internal_notice_regulation_candidates.py`
-- the current materialization boundary is still `offline_preparation` only
-- it still does not enable chunk preparation, embedding, Qdrant write, release, or alias publish
+- local-only target acceptance chunk preparation is currently implemented by:
+  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_institutional_regulation_chunk_prep.py`
+  - `apps/ingestion-worker/src/campus_ingestion_worker/prepare_institutional_regulation_chunks.py`
+- the current boundary is still `offline_preparation` only
+- it still does not enable embedding, Qdrant write, release, or alias publish
 
 Current materialization truth:
 
@@ -46,8 +50,8 @@ Current materialization truth:
   - `source_title_literal`
 - `regulation_title_normalized` remains as normalized source-facing title metadata
 - duplicate wrapper/attachment notices that resolve to the same canonical regulation keep one promoted target document while aggregating duplicate provenance in metadata
-- scope refresh replaces the full `regulations/institutional_regulations` registry scope on each materialization run
-- current internal-notice batch does not split regulation-like text into a second main collection purely because it is annual-cycle or time-bound; those distinctions stay in metadata
+- scope refresh replaces the full `regulations/institutional_rules` registry scope on each materialization run
+- annual-cycle and time-bound rules no longer stay in this collection as target scope; they materialize into `regulations/scoped_rules`
 
 Display convention note:
 

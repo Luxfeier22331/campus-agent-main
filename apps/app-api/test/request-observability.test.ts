@@ -74,7 +74,7 @@ describe("request observability", () => {
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			resolvedScope: null,
@@ -94,11 +94,11 @@ describe("request observability", () => {
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			resolvedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			response: createResponse({
@@ -167,11 +167,11 @@ describe("request observability", () => {
 			requestId: "req_01HQ",
 			requestedCapability: "knowledge",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			resolvedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			response: createResponse(),

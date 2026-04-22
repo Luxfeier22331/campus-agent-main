@@ -135,7 +135,7 @@ def _should_keep_deterministic_completed_answer(
 ) -> bool:
     if resolved_scope.corpus == "curriculum":
         return True
-    if resolved_scope.corpus != "regulations" or resolved_scope.collection != "student_handbook":
+    if resolved_scope.corpus != "regulations" or resolved_scope.collection != "student_rules":
         return False
     if intent_frame.question_kind in {"procedure", "materials", "deadline"}:
         return True

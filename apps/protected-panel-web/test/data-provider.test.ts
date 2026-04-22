@@ -41,7 +41,7 @@ describe("protected panel data provider", () => {
 						requestId: "req_01HQ",
 						requestedCapability: "knowledge",
 						requestedScope: {
-							collection: "student_handbook",
+							collection: "student_rules",
 							corpus: "regulations",
 						},
 						selectedTarget: "rag-agent",
@@ -342,7 +342,7 @@ describe("protected panel data provider", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					requestedScope: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 					},
 					selectedTarget: "rag-agent",
@@ -549,7 +549,7 @@ describe("protected panel data provider", () => {
 
 		await expect(
 			protectedPanelDataProvider.getOperatorQualitySummary({
-				collection: "student_handbook",
+				collection: "student_rules",
 				requestedCapability: "knowledge",
 				signal: undefined,
 				surface: "public_chat_web",
@@ -567,7 +567,7 @@ describe("protected panel data provider", () => {
 		});
 
 		expect(fetchSpy).toHaveBeenCalledWith(
-			"/api/operator/quality/summary?window=24h&surface=public_chat_web&requestedCapability=knowledge&collection=student_handbook",
+			"/api/operator/quality/summary?window=24h&surface=public_chat_web&requestedCapability=knowledge&collection=student_rules",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",

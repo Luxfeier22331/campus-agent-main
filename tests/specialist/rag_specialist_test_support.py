@@ -96,7 +96,7 @@ def _make_evidence(
             canonical_url=f"https://campus.example/handbook/test-{index + 1}",
             latest_url=f"https://campus.example/handbook/test-{index + 1}",
             source_channel="pdf_ocr",
-            collection="student_handbook",
+            collection="student_rules",
             is_current=False,
             snippet=(
                 snippets[index]
@@ -110,7 +110,7 @@ def _make_evidence(
     return EvidenceBundle(
         query_text=query_text,
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         sources=sources,
     )
 
@@ -135,7 +135,7 @@ def _make_handbook_source(
         canonical_url=f"https://campus.example/handbook/{doc_id}",
         latest_url=f"https://campus.example/handbook/{doc_id}",
         source_channel="pdf_ocr",
-        collection="student_handbook",
+        collection="student_rules",
         is_current=True,
         snippet=snippet,
         score=score,
@@ -284,7 +284,7 @@ def _make_versioned_handbook_evidence(
             canonical_url=f"https://campus.example/handbook/{document_id}",
             latest_url=f"https://campus.example/handbook/{document_id}",
             source_channel="pdf_ocr",
-            collection="student_handbook",
+            collection="student_rules",
             is_current=False,
             snippet=primary_snippet,
             score=0.92,
@@ -304,7 +304,7 @@ def _make_versioned_handbook_evidence(
                 canonical_url=f"https://campus.example/handbook/{document_id}",
                 latest_url=f"https://campus.example/handbook/{document_id}",
                 source_channel="pdf_ocr",
-                collection="student_handbook",
+                collection="student_rules",
                 is_current=True,
                 snippet=comparison_snippet,
                 score=0.9,
@@ -316,7 +316,7 @@ def _make_versioned_handbook_evidence(
     return EvidenceBundle(
         query_text=query_text,
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         sources=tuple(sources),
     )
 

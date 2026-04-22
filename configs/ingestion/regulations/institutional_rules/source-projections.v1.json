@@ -1,5 +1,5 @@
 {
-	"schema_version": "institutional_regulations_source_projections_v1",
+	"schema_version": "institutional_rules_source_projections_v1",
 	"source_corpus": "campus_notices",
 	"source_collection": "internal_notice",
 	"rebuild_boundary": "promotion_candidate",
@@ -66,7 +66,7 @@
 		{
 			"projection_name": "internal_notice_regulation_promotion",
 			"target_corpus": "regulations",
-			"target_collection": "institutional_regulations",
+			"target_collection": "institutional_rules",
 			"projection_family": "promoted_documents",
 			"replay_from_source_truth": false,
 			"derived_from": "internal_notice_canonical_document",

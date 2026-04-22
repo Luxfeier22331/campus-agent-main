@@ -18,7 +18,7 @@ class SupervisorValidationTest(unittest.TestCase):
                     user_goal="library hours",
                     requested_scope=KnowledgeScope(
                         corpus="regulations",
-                        collection="student_handbook",
+                        collection="student_rules",
                     ),
                 )
             )
@@ -56,7 +56,7 @@ class SupervisorValidationTest(unittest.TestCase):
                 requested_capability="place_lookup",
                 requested_scope=KnowledgeScope(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                 ),
             )
         )

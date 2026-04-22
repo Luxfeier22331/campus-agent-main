@@ -175,7 +175,7 @@ describe("request diagnostics", () => {
 		const summary = extractRequestDiagnosticsSummary({
 			diagnostics: {
 				retrieval_plan_summary: {
-					plan_id: "regulations:student_handbook:current",
+					plan_id: "regulations:student_rules:current",
 					query_mode: "current",
 					replan_count: 0,
 					terminal_state: "completed",
@@ -184,7 +184,7 @@ describe("request diagnostics", () => {
 							step_id: "indexed-lookup",
 							step_type: "indexed_lookup",
 							corpus: "regulations",
-							collection: "student_handbook",
+							collection: "student_rules",
 							status: "succeeded",
 							top_k: 3,
 							latency_ms: 11,
@@ -214,14 +214,14 @@ describe("request diagnostics", () => {
 			retrievalAdequacyReason: null,
 			retrievalAdequacyVerdict: null,
 			retrievalPlanSummary: {
-				planId: "regulations:student_handbook:current",
+				planId: "regulations:student_rules:current",
 				queryMode: "current",
 				replanCount: 0,
 				terminalState: "completed",
 				stepActivities: [
 					{
 						candidateCount: 2,
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 						failureKind: null,
 						latencyMs: 11,

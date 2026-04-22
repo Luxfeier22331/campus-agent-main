@@ -73,21 +73,21 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="What are the library hours?",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
             )
         )
 
         self.assertIsInstance(result, EvidenceBundle)
         self.assertEqual(result.corpus, "regulations")
-        self.assertEqual(result.collection, "student_handbook")
+        self.assertEqual(result.collection, "student_rules")
         self.assertEqual(len(result.sources), 1)
         source = result.sources[0]
         self.assertEqual(source.doc_id, "handbook:test-001")
         self.assertEqual(source.revision_track, "source-faithful")
         self.assertEqual(source.version_id, "v1:test-001")
         self.assertEqual(source.source_channel, "pdf_ocr")
-        self.assertEqual(source.collection, "student_handbook")
+        self.assertEqual(source.collection, "student_rules")
         self.assertTrue(source.is_current)
         self.assertEqual(source.canonical_url, "https://campus.example/handbook/handbook:test-001")
         self.assertEqual(source.latest_url, source.canonical_url)
@@ -132,7 +132,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
                                     "anchor": {"page_start": 3, "page_end": 3},
                                     "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
-                                    "collection": "student_handbook",
+                                    "collection": "student_rules",
                                     "is_current": False,
                                 },
                             ).model_dump_json(),
@@ -146,7 +146,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="scholarship office hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=3,
             )
@@ -154,7 +154,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
 
         self.assertEqual(len(result.sources), 1)
         self.assertEqual(result.sources[0].doc_id, "handbook:hybrid-winner")
-        profile = load_runtime_profile("regulations", "student_handbook")
+        profile = load_runtime_profile("regulations", "student_rules")
         query_kwargs = backend.qdrant_client.query_points.call_args.kwargs
         self.assertIsInstance(query_kwargs["query"], qdrant_models.RrfQuery)
         self.assertEqual(query_kwargs["query"].rrf.k, profile.rrf_k)
@@ -230,7 +230,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
             )
         )
@@ -276,7 +276,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
                                     "anchor": {"page_start": 5, "page_end": 5},
                                     "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
-                                    "collection": "student_handbook",
+                                    "collection": "student_rules",
                                     "is_current": True,
                                     "canonical_url": "https://payload.example/should-not-win",
                                     "latest_url": "https://payload.example/should-not-win",
@@ -292,7 +292,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
             )
         )
@@ -362,7 +362,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="Tell me about office or library hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
@@ -415,7 +415,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="Tell me about office hours",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
@@ -441,7 +441,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="unknown question",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
             )
         )
@@ -451,7 +451,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             EvidenceBundle(
                 query_text="unknown question",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
@@ -485,7 +485,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
                                     "anchor": {"page_start": 1, "page_end": 1},
                                     "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
-                                    "collection": "student_handbook",
+                                    "collection": "student_rules",
                                     "is_current": True,
                                     "canonical_url": "https://campus.example/handbook/nohit-a",
                                     "latest_url": "https://campus.example/handbook/nohit-a",
@@ -508,7 +508,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
                                     "anchor": {"page_start": 2, "page_end": 2},
                                     "visibility_level": "public",
                                     "source_channel": "pdf_ocr",
-                                    "collection": "student_handbook",
+                                    "collection": "student_rules",
                                     "is_current": True,
                                     "canonical_url": "https://campus.example/handbook/nohit-b",
                                     "latest_url": "https://campus.example/handbook/nohit-b",
@@ -524,7 +524,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             RetrievalRequest(
                 query_text="校内宇宙签证办理处",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 authorized_filter=_authorized_filter(),
                 top_k=5,
             )
@@ -535,7 +535,7 @@ class BackendQdrantExecutionTest(unittest.TestCase):
             EvidenceBundle(
                 query_text="校内宇宙签证办理处",
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
             ),
         )
 
