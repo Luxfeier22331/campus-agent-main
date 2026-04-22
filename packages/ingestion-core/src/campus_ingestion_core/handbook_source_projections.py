@@ -28,7 +28,7 @@ from campus_ingestion_core.object_store import (
 )
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
-HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION = "student_handbook_source_projections_v1"
+HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION = "student_rules_source_projections_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,7 +68,7 @@ def read_handbook_source_projections_config_path(source: dict[str, str]) -> Path
         / "configs"
         / "ingestion"
         / "regulations"
-        / "student_handbook"
+        / "student_rules"
         / "source-projections.v1.json"
     )
 

@@ -9,7 +9,7 @@ updated: 2026-03-28
 
 ## 目标
 
-把 `student_handbook` collection 的输入边界固定为 source bucket 中的 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_handbook` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
+把 `student_rules` collection 的输入边界固定为 source bucket 中的 OCR 产物 `provider-response.jsonl`，而不是原始 PDF；同时把 handbook 从“一份 source 对应一个 document”的错误建模，收敛为“asset 级 OCR 结果 -> 内部统一 structured source/source truth -> 多逻辑文档 -> 文档内 structured units / chunks”。长期知识域 corpus 采用 `regulations`，`student_rules` 只表示该 corpus 下的一个 collection；raw asset 不按 corpus 前缀组织，因为同一份原始文件可能被多个 corpus 复用。
 
 本文回答三个问题：
 
@@ -30,7 +30,7 @@ updated: 2026-03-28
 
 ## 结论
 
-- `student_handbook` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw PDF。
+- `student_rules` collection 的主输入应是 processed 层 `provider-response.jsonl`，不是 raw PDF。
 - handbook 必须保留一层 asset-level `layout-elements.jsonl`，不能直接从 provider payload 进入逻辑文档拆分。
 - `doc_id`、`version_id`、canonical metadata 应在逻辑文档层生成，不应在 source-level normalization 阶段提前冻结。
 - handbook 的长期逻辑 identity 应采用 `document_id + revision_track + version_id`，而不是绑到某个 PDF 文件名。
@@ -285,7 +285,7 @@ Unit normalization 必须满足以下边界：
 - 不因为 OCR 版式碎裂就把每一行都降成独立 `policy_page`
 - 不把标题、文号、解释性前导语单独生成为检索 unit
 - 不把表格重新抹平成普通 `article_body`
-- 不把电话目录等非 regulations 语义内容继续保留在 `regulations/student_handbook`
+- 不把电话目录等非 regulations 语义内容继续保留在 `regulations/student_rules`
 
 ### 4.3 下游契约
 
@@ -411,11 +411,11 @@ Unit normalization 必须满足以下边界：
 - source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/provider/{model_slug}/...` 保留 source 级 `provider-response.jsonl`
 - source bucket 的 `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/source-truth/...` 保留 source 级 `layout-elements.jsonl`
 - document registry 只登记逻辑文档，不登记整本 handbook PDF 作为单一 document truth
-- `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
-- 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
+- `regulations/documents/student_rules/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
+- 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_rules` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
 - `handbook_navigation_service_catalog` 的 replay 输入应表述为 source bucket 下 `{raw_asset_id}/{raw_version_id}/projection/<projection_name>/flow-graph.json`，而不是 raw PDF
-- handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
+- handbook 中的电话目录页不再保留在 `regulations/student_rules` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
 - handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
 
 ## Representation 规则

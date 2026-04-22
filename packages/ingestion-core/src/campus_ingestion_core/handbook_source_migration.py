@@ -69,7 +69,7 @@ def migrate_student_handbook_source_faithful(
     source = dict(env if env is not None else os.environ)
     runtime_request = request or _build_student_handbook_source_asset_request_from_env(source)
     corpus = "regulations"
-    collection = "student_handbook"
+    collection = "student_rules"
     collection_config = _resolve_runtime_collection_config(
         source=source, corpus=corpus, collection=collection
     )

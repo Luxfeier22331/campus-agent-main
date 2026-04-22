@@ -59,7 +59,7 @@ def build_canonical_markdown(
         "schema_version: 1",
         f"doc_id: {doc_id}",
         "corpus: regulations",
-        "collection: student_handbook",
+        "collection: student_rules",
         f"title: '{escape_yaml_string(title)}'",
         "source_kind: ocr",
         f"source_doc: '{escape_yaml_string(str(metadata['source_doc']))}'",

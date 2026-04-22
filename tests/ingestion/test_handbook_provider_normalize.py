@@ -208,7 +208,7 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(row["text_normalized"], "第 一 条\n\n内容")
         self.assertEqual(row["schema_version"], "student_handbook_layout_elements_v3")
         self.assertEqual(row["corpus"], "regulations")
-        self.assertEqual(row["collection"], "student_handbook")
+        self.assertEqual(row["collection"], "student_rules")
         self.assertIn("classification_confidence", row)
         self.assertIn("classification_reason", row)
         self.assertIn("repeat_cluster_id", row)

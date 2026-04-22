@@ -18,9 +18,9 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             split_manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-master-pdf",
                         "documents": [
                             {
@@ -42,15 +42,15 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             projection_config_path.write_text(
                 json.dumps(
                     {
-                        "schema_version": "student_handbook_source_projections_v1",
+                        "schema_version": "student_rules_source_projections_v1",
                         "source_corpus": "regulations",
-                        "source_collection": "student_handbook",
+                        "source_collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-master-pdf",
                         "projections": [
                             {
                                 "projection_name": "student_handbook_primary_documents",
                                 "target_corpus": "regulations",
-                                "target_collection": "student_handbook",
+                                "target_collection": "student_rules",
                                 "projection_family": "primary_documents",
                                 "replay_from_source_truth": True,
                                 "derived_from": "source_truth",
@@ -106,7 +106,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "HANDBOOK_SOURCE_PROJECTIONS_PATH": str(projection_config_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
@@ -163,7 +163,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                         "RAW_ASSET_ID": "asset:student-handbook-pdf",
                         "RAW_VERSION_ID": raw_version_id,
                         "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "INGESTION_COLLECTION": "student_rules",
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
@@ -194,9 +194,9 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             split_manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-master-pdf",
                         "documents": [
                             {
@@ -250,7 +250,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -335,10 +335,10 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             self.assertEqual(discipline_record["entitlement_groups"], ["students"])
             self.assertEqual(discipline_record["visibility_scope"], "main")
             self.assertEqual(
-                scholarship_record["cleaning_policy_version"], "student_handbook_cleaning_v1"
+                scholarship_record["cleaning_policy_version"], "student_rules_cleaning_v1"
             )
             self.assertEqual(
-                discipline_record["cleaning_policy_version"], "student_handbook_cleaning_v1"
+                discipline_record["cleaning_policy_version"], "student_rules_cleaning_v1"
             )
             self.assertEqual(scholarship_record["parser_version"], "paddleocr-vl-1.5")
             self.assertEqual(discipline_record["parser_version"], "paddleocr-vl-1.5")
@@ -385,7 +385,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -402,10 +402,10 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             )
 
             self.assertEqual(report.success_count, 1)
-            record = registry.list_by_scope("regulations", "student_handbook")[0]
+            record = registry.list_by_scope("regulations", "student_rules")[0]
             expected_document_units_key = build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id=record.document_id,
                 revision_track=record.revision_track,
                 version_id=record.version_id,
@@ -415,7 +415,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             )
             expected_canonical_key = build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id=record.document_id,
                 revision_track=record.revision_track,
                 version_id=record.version_id,
@@ -469,7 +469,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",
@@ -486,7 +486,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             )
 
             self.assertEqual(report.success_count, 1)
-            record = registry.list_by_scope("regulations", "student_handbook")[0]
+            record = registry.list_by_scope("regulations", "student_rules")[0]
             chunks = build_indexable_chunks_from_record(
                 record=record,
                 object_store=object_store,
@@ -509,13 +509,13 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             self.assertTrue(all(chunk.metadata["segment_total"] >= 1 for chunk in chunks))
             self.assertTrue(
                 all(
-                    chunk.metadata["chunk_policy_version"] == "student_handbook_semantic_v3"
+                    chunk.metadata["chunk_policy_version"] == "student_rules_semantic_v3"
                     for chunk in chunks
                 )
             )
             self.assertTrue(
                 all(
-                    chunk.metadata["cleaning_policy_version"] == "student_handbook_cleaning_v1"
+                    chunk.metadata["cleaning_policy_version"] == "student_rules_cleaning_v1"
                     for chunk in chunks
                 )
             )
@@ -534,9 +534,9 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             split_manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:wrong-handbook-pdf",
                         "documents": [
                             {
@@ -576,7 +576,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                         "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                         "RAW_VERSION_ID": raw_version_id,
                         "INGESTION_CORPUS": "regulations",
-                        "INGESTION_COLLECTION": "student_handbook",
+                        "INGESTION_COLLECTION": "student_rules",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                         "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                         "OCR_API_KEY": "token",
@@ -608,9 +608,9 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
             split_manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:student-handbook-master-pdf",
                         "documents": [
                             {
@@ -660,7 +660,7 @@ class ProcessRawIngestionJobHandbookProjectionTest(unittest.TestCase):
                     "RAW_ASSET_ID": "asset:student-handbook-master-pdf",
                     "RAW_VERSION_ID": raw_version_id,
                     "INGESTION_CORPUS": "regulations",
-                    "INGESTION_COLLECTION": "student_handbook",
+                    "INGESTION_COLLECTION": "student_rules",
                     "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
                     "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
                     "OCR_API_KEY": "token",

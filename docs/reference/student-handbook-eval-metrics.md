@@ -9,7 +9,7 @@ updated: 2026-04-20
 
 ## 目的
 
-本文记录 `student_handbook` 的稳定评估基线：
+本文记录 `student_rules` 的稳定评估基线：
 
 - release gate 如何分层
 - repo-tracked denominator 是什么
@@ -65,7 +65,7 @@ repo-tracked 基线入口固定为：
 
 ## Gate Topology
 
-`student_handbook` gate 固定拆成两条轨道：
+`student_rules` gate 固定拆成两条轨道：
 
 - live release gate
   - 验证真实 handbook collection 上的稳定主链路

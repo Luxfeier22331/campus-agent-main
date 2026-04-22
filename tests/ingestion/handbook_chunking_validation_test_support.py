@@ -75,7 +75,7 @@ def _manifest_document(*, document_id: str, title: str) -> dict[str, object]:
         "handbook_section": "测试章节",
         "page_start": 1,
         "page_end": 2,
-        "source_uri": f"campus-agent://regulations/student_handbook/docs/{document_id}",
+        "source_uri": f"campus-agent://regulations/student_rules/docs/{document_id}",
     }
 
 
@@ -96,7 +96,7 @@ def _manifest_document_with_pages(
 def _registry_record(*, document_id: str, version_id: str, title: str) -> DocumentRegistryRecord:
     object_key = build_processed_artifact_key(
         corpus="regulations",
-        collection="student_handbook",
+        collection="student_rules",
         document_id=document_id,
         revision_track="source-faithful",
         version_id=version_id,
@@ -108,11 +108,11 @@ def _registry_record(*, document_id: str, version_id: str, title: str) -> Docume
         document_id=document_id,
         revision_track="source-faithful",
         version_id=version_id,
-        source_uri=f"campus-agent://regulations/student_handbook/docs/{document_id}",
+        source_uri=f"campus-agent://regulations/student_rules/docs/{document_id}",
         content_hash=f"sha256:{document_id}",
         corpus="regulations",
-        collection="student_handbook",
-        cleaning_policy_version="student_handbook_cleaning_v1",
+        collection="student_rules",
+        cleaning_policy_version="student_rules_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope="main",
         status="active",
@@ -140,5 +140,6 @@ def _structured_row(
         "anchor": {"page_start": 1, "page_end": 1},
         "acl": {"level": "public", "allow_groups": []},
     }
+
 
 __all__ = [name for name in globals() if not name.startswith("__")]

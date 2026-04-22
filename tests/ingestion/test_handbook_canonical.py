@@ -10,7 +10,7 @@ from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_rules"
 SOURCE_ROW_SEQUENCE = count(1)
 
 
@@ -34,7 +34,7 @@ def _source_row(
     return {
         "schema_version": "student_handbook_layout_elements_v3",
         "corpus": "regulations",
-        "collection": "student_handbook",
+        "collection": "student_rules",
         "source_artifact_id": "asset:student-handbook",
         "source_pdf": "学生手册_2018.pdf",
         "page_start": page,
@@ -164,7 +164,7 @@ class HandbookCanonicalTest(unittest.TestCase):
             },
         )
         self.assertIn("corpus: regulations", result.canonical_markdown)
-        self.assertIn("collection: student_handbook", result.canonical_markdown)
+        self.assertIn("collection: student_rules", result.canonical_markdown)
 
     def test_cleanup_normalizes_square_bracket_policy_doc_no(self) -> None:
         result = cleanup_handbook_document(

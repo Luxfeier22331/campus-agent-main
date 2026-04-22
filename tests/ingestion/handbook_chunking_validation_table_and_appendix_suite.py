@@ -20,9 +20,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="污染制度"),
@@ -88,9 +88,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="附件制度"),
@@ -153,9 +153,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="短条款制度"),
@@ -224,9 +224,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="贷款制度"),
@@ -292,9 +292,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="认定制度"),
@@ -390,9 +390,9 @@ class HandbookChunkingValidationTableAndAppendixTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(

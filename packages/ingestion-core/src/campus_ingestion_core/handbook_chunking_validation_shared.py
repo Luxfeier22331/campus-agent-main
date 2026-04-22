@@ -10,9 +10,9 @@ from campus_ingestion_core.chunking import ChunkProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
 
 DEFAULT_HANDBOOK_MANIFEST_PATH = Path(
-    "configs/ingestion/regulations/student_handbook/split-manifest.v1.json"
+    "configs/ingestion/regulations/student_rules/split-manifest.v1.json"
 )
-HANDBOOK_SCOPE = ("regulations", "student_handbook")
+HANDBOOK_SCOPE = ("regulations", "student_rules")
 PARENT_UNIT_TYPES = {"article_body", "policy_page"}
 SAMPLE_BUCKETS = (
     ("structure-boundary", "触发结构优先拆分"),

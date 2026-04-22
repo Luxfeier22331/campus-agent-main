@@ -37,8 +37,8 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             source_uri="https://campus.example/handbook/scholarship-policy",
             content_hash="sha256:cleanup-output",
             corpus="regulations",
-            collection="student_handbook",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            collection="student_rules",
+            cleaning_policy_version="student_rules_cleaning_v1",
             entitlement_groups=("students",),
             visibility_scope="main",
             status="active",
@@ -54,7 +54,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             ),
             document_units_object_key=build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id=cleanup_result.doc_id,
                 revision_track="source-faithful",
                 version_id=cleanup_result.version_id,
@@ -65,7 +65,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             processed_object_keys=(
                 build_processed_artifact_key(
                     corpus="regulations",
-                    collection="student_handbook",
+                    collection="student_rules",
                     document_id=cleanup_result.doc_id,
                     revision_track="source-faithful",
                     version_id=cleanup_result.version_id,
@@ -133,8 +133,8 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             source_uri="https://campus.example/handbook/scholarship-policy",
             content_hash="sha256:cleanup-output",
             corpus="regulations",
-            collection="student_handbook",
-            cleaning_policy_version="student_handbook_cleaning_v1",
+            collection="student_rules",
+            cleaning_policy_version="student_rules_cleaning_v1",
             entitlement_groups=("students",),
             visibility_scope="main",
             status="active",
@@ -150,7 +150,7 @@ class ProcessingPipelineHandbookTest(unittest.TestCase):
             ),
             document_units_object_key=build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id=cleanup_result.doc_id,
                 revision_track="source-faithful",
                 version_id=cleanup_result.version_id,

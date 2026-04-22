@@ -5,11 +5,11 @@ created: 2026-03-25
 updated: 2026-04-03
 ---
 
-# `student_handbook` Chunking 与 Validation 规则
+# `student_rules` Chunking 与 Validation 规则
 
 ## 目标
 
-把 `regulations/student_handbook` 当前已经验证通过的 chunking 运行真相固定下来，避免后续只能从代码和临时 sample 反推规则。
+把 `regulations/student_rules` 当前已经验证通过的 chunking 运行真相固定下来，避免后续只能从代码和临时 sample 反推规则。
 
 本文覆盖：
 
@@ -26,7 +26,7 @@ updated: 2026-04-03
 ## 适用范围
 
 - corpus: `regulations`
-- collection: `student_handbook`
+- collection: `student_rules`
 - chunk profile version: `student_handbook_semantic_v3`
 - tokenizer truth: `Qwen3-Embedding-4B`
 
@@ -395,13 +395,13 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 如果未来需要继续调参，必须同时更新：
 
 - 本文
-- `configs/ingestion/regulations/student_handbook/chunk-profile.json`
+- `configs/ingestion/regulations/student_rules/chunk-profile.json`
 - 对应 validation / processing tests
 
 ## 相关真相源
 
-- [configs/ingestion/regulations/student_handbook/runtime-profile.json](../../configs/ingestion/regulations/student_handbook/runtime-profile.json)
-- [configs/ingestion/regulations/student_handbook/chunk-profile.json](../../configs/ingestion/regulations/student_handbook/chunk-profile.json)
+- [configs/ingestion/regulations/student_rules/runtime-profile.json](../../configs/ingestion/regulations/student_rules/runtime-profile.json)
+- [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
 - [docs/reference/student-handbook-normalization-strategy.md](../reference/student-handbook-normalization-strategy.md)
 - [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages/ingestion-core/src/campus_ingestion_core/chunking.py)
 - [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/ingestion-core/src/campus_ingestion_core/process.py)

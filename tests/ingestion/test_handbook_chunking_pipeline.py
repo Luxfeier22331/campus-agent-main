@@ -17,11 +17,11 @@ def _registry_record() -> DocumentRegistryRecord:
         document_id="handbook:test-doc",
         revision_track="source-faithful",
         version_id="v1:test-doc",
-        source_uri="campus-agent://regulations/student_handbook/docs/handbook:test-doc",
+        source_uri="campus-agent://regulations/student_rules/docs/handbook:test-doc",
         content_hash="sha256:test-doc",
         corpus="regulations",
-        collection="student_handbook",
-        cleaning_policy_version="student_handbook_cleaning_v1",
+        collection="student_rules",
+        cleaning_policy_version="student_rules_cleaning_v1",
         entitlement_groups=("students",),
         visibility_scope="main",
         status="active",
@@ -31,7 +31,7 @@ def _registry_record() -> DocumentRegistryRecord:
         source_channel="pdf_ocr",
         document_units_object_key=build_processed_artifact_key(
             corpus="regulations",
-            collection="student_handbook",
+            collection="student_rules",
             document_id="handbook:test-doc",
             revision_track="source-faithful",
             version_id="v1:test-doc",
@@ -42,7 +42,7 @@ def _registry_record() -> DocumentRegistryRecord:
         processed_object_keys=(
             build_processed_artifact_key(
                 corpus="regulations",
-                collection="student_handbook",
+                collection="student_rules",
                 document_id="handbook:test-doc",
                 revision_track="source-faithful",
                 version_id="v1:test-doc",

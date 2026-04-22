@@ -18,9 +18,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="断行制度"),
@@ -84,9 +84,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -152,9 +152,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="粘连制度"),
@@ -218,9 +218,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -286,9 +286,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -353,9 +353,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -422,9 +422,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -489,9 +489,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="减免制度"),
@@ -555,9 +555,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -623,9 +623,9 @@ class HandbookChunkingValidationTextualFailuresTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="重复制度"),

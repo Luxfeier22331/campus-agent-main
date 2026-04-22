@@ -125,7 +125,7 @@ def _normalize_page_rows(
             {
                 "schema_version": LAYOUT_ELEMENTS_SCHEMA_VERSION,
                 "corpus": "regulations",
-                "collection": "student_handbook",
+                "collection": "student_rules",
                 "source_artifact_id": source_artifact_id,
                 "source_pdf": source_pdf,
                 "page_start": provider_page_id,

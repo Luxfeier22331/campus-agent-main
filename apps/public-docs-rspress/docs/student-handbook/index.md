@@ -1,6 +1,6 @@
 ---
 title: 学生手册
-description: 来自本机 object storage 的真实 student_handbook 文档。
+description: 来自本机 object storage 的真实 student_rules 文档。
 ---
 
 当前目录直接接入本机 `campus-rag-derived` 中的真实 `canonical.md`。

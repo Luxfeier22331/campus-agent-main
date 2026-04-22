@@ -23,9 +23,9 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(
@@ -89,9 +89,9 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document(document_id=record.document_id, title="结构化制度"),
@@ -135,7 +135,7 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             )
 
             self.assertTrue(report.passed)
-            self.assertEqual(report.chunk_policy_version, "student_handbook_semantic_v3")
+            self.assertEqual(report.chunk_policy_version, "student_rules_semantic_v3")
             self.assertIn("Qwen3-Embedding-4B", report.tokenizer_name)
             self.assertEqual(report.validated_document_count, 1)
             self.assertEqual(report.total_units, 1)
@@ -185,9 +185,9 @@ class HandbookChunkingValidationRegistryAndReportTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "student_handbook_split_manifest_v1",
+                        "manifest_version": "student_rules_split_manifest_v1",
                         "corpus": "regulations",
-                        "collection": "student_handbook",
+                        "collection": "student_rules",
                         "raw_asset_id": "asset:test-handbook",
                         "documents": [
                             _manifest_document_with_pages(

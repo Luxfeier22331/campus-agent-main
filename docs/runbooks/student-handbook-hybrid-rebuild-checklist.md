@@ -9,7 +9,7 @@ updated: 2026-04-12
 
 ## 目标
 
-本文负责 `student_handbook` retrieval baseline 的 live rebuild 与运行验收清单。
+本文负责 `student_rules` retrieval baseline 的 live rebuild 与运行验收清单。
 
 当前冻结 baseline：
 
@@ -63,7 +63,7 @@ updated: 2026-04-12
   - `SPARSE_TOKENIZER=multilingual`
   - `SPARSE_LANGUAGE=none`
 - retrieval hybrid 运行参数不再放在 `.env`，而是以
-  `configs/ingestion/regulations/student_handbook/runtime-profile.json` 为准：
+  `configs/ingestion/regulations/student_rules/runtime-profile.json` 为准：
   - `embedding_query_instruction`
   - `dense_prefetch_limit`
   - `sparse_prefetch_limit`
@@ -179,7 +179,7 @@ accept flow 语义：
 
 当前 handbook live fixture 额外约束：
 
-- 样本必须只覆盖当前 `regulations/student_handbook` collection 的真实语料边界，不把 `campus_services` 或历史 handbook 服务/导航页样本混入
+- 样本必须只覆盖当前 `regulations/student_rules` collection 的真实语料边界，不把 `campus_services` 或历史 handbook 服务/导航页样本混入
 - 如果当前 handbook manifest 不包含 `entitlement_groups` 或 `visibility_scope` 真相，官方 handbook live fixture 不应继续保留 restricted filter case
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 样本必须至少能回连到当前 handbook manifest 的标题关键词，避免出现 collection 已纯化但旧样本未更新的 fixture drift
 - 如需验证 restricted entitlement 或 `visibility_scope` 检索行为，应在真实承载这些 payload 维度的 collection 上维护单独 fixture，而不是继续塞在 handbook live 样本里

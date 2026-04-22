@@ -11,7 +11,7 @@ from campus_ingestion_core.chunking import (
 
 def build_hermetic_handbook_v3_chunk_profile() -> ChunkProfile:
     profile = build_student_handbook_chunk_profile(
-        profile_version="student_handbook_semantic_v3",
+        profile_version="student_rules_semantic_v3",
         model_name="Qwen3-Embedding-4B",
     )
     return replace(

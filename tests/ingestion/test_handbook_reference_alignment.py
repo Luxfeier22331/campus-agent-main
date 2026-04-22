@@ -12,7 +12,7 @@ MANIFEST_PATH = (
     / "configs"
     / "ingestion"
     / "regulations"
-    / "student_handbook"
+    / "student_rules"
     / "split-manifest.v1.json"
 )
 
@@ -76,7 +76,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
         manifest = load_split_manifest(
             MANIFEST_PATH,
             expected_corpus="regulations",
-            expected_collection="student_handbook",
+            expected_collection="student_rules",
         )
 
         self.assertEqual(len(manifest.documents), 46)
@@ -94,7 +94,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
         manifest = load_split_manifest(
             MANIFEST_PATH,
             expected_corpus="regulations",
-            expected_collection="student_handbook",
+            expected_collection="student_rules",
         )
 
         self.assertEqual(
@@ -106,7 +106,7 @@ class HandbookReferenceAlignmentTest(unittest.TestCase):
         self.assertTrue(
             all(
                 document.source_uri
-                == f"campus-agent://regulations/student_handbook/docs/{document.document_id}"
+                == f"campus-agent://regulations/student_rules/docs/{document.document_id}"
                 for document in manifest.documents
             )
         )

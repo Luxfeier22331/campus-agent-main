@@ -9,7 +9,7 @@ updated: 2026-04-20
 
 ## 目的
 
-本文记录 `student_handbook` formal benchmark 的 supplemental judge / ragas gate 形状、阈值来源和 artifact 解释规则。
+本文记录 `student_rules` formal benchmark 的 supplemental judge / ragas gate 形状、阈值来源和 artifact 解释规则。
 
 本文不负责：
 
@@ -45,7 +45,7 @@ gate policy 的固定字段：
   - `max_run_average_drift`
   - 可选 `min_applicable_runs`
 
-当前 `student_handbook` policy 仍全部为 `soft_gate`。
+当前 `student_rules` policy 仍全部为 `soft_gate`。
 
 这意味着：
 
