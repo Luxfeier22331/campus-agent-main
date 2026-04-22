@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from string import Formatter
 
 import httpx
-
 from campus_contracts import (
     ClaimSupport,
     ErrorInfo,
@@ -21,9 +20,10 @@ from campus_contracts import (
     SupervisorObservability,
     SupervisorResponse,
 )
+
 from campus_evals.models import GoldenCase, ObservedTrace
-from campus_evals.runtime_observability import current_runtime_event_context
 from campus_evals.operator_observability import OperatorRequestCorrelation
+from campus_evals.runtime_observability import current_runtime_event_context
 
 _ALLOWED_CORRELATION_TEMPLATE_FIELDS = frozenset(
     {
@@ -87,7 +87,9 @@ class AppApiEvalClientSettings:
             eval_user_email=str(source.get("APP_API_EVAL_USER_EMAIL") or "").strip(),
             eval_user_id=_optional_string(source.get("APP_API_EVAL_USER_ID")),
             eval_user_name=_optional_string(source.get("APP_API_EVAL_USER_NAME")),
-            eval_principal_type=str(source.get("APP_API_EVAL_PRINCIPAL_TYPE") or "campus_member").strip()
+            eval_principal_type=str(
+                source.get("APP_API_EVAL_PRINCIPAL_TYPE") or "campus_member"
+            ).strip()
             or "campus_member",
             trace_link_template=_optional_string(source.get("APP_API_EVAL_TRACE_LINK_TEMPLATE")),
             issue_link_template=_optional_string(source.get("APP_API_EVAL_ISSUE_LINK_TEMPLATE")),
@@ -137,6 +139,8 @@ class AppApiEvalClient:
         *,
         case: GoldenCase,
     ) -> AppApiEvalExecution:
+        if case.version_query.mode != "current":
+            raise ValueError("AppApiEvalClient does not support non-current version_query cases")
         turns = case.conversation_turns or (case.user_goal,)
         conversation_key = self._resolve_conversation_key(case)
         conversation_id = self._conversation_ids.get(conversation_key)
@@ -171,7 +175,9 @@ class AppApiEvalClient:
             self._conversation_ids[conversation_key] = conversation_id
         return execution
 
-    def _post_chat_request(self, body: dict[str, object], *, headers: dict[str, str]) -> httpx.Response:
+    def _post_chat_request(
+        self, body: dict[str, object], *, headers: dict[str, str]
+    ) -> httpx.Response:
         if self._client is not None:
             response = self._client.post(
                 "/api/internal/evals/chat/requests",
@@ -315,7 +321,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
 
     if kind == "answer":
         return SupervisorResponse(
-            selected_target="rag-specialist",
+            selected_target="rag-agent",
             status="completed",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -324,7 +330,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
     if kind == "clarification":
         follow_up = _required_string(result.get("text"), "answer.result.text")
         return SupervisorResponse(
-            selected_target="rag-specialist",
+            selected_target="rag-agent",
             status="needs_clarification",
             answer_text=follow_up,
             follow_up_question=follow_up,
@@ -333,7 +339,7 @@ def _build_supervisor_response(result: dict[str, object]) -> SupervisorResponse:
         )
     if kind == "no_answer":
         return SupervisorResponse(
-            selected_target="rag-specialist",
+            selected_target="rag-agent",
             status="no_answer",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -417,7 +423,9 @@ def _parse_supervisor_result(value: object) -> RagResultPayload | None:
     return RagResultPayload(
         evidence=EvidenceBundle(
             query_text=_optional_string(evidence_record.get("query_text")) or "",
-            corpus=_required_string(evidence_record.get("corpus"), "supervisor.result.evidence.corpus"),
+            corpus=_required_string(
+                evidence_record.get("corpus"), "supervisor.result.evidence.corpus"
+            ),
             collection=_required_string(
                 evidence_record.get("collection"),
                 "supervisor.result.evidence.collection",
@@ -478,7 +486,9 @@ def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
         record.get("doc_id") if "doc_id" in record else record.get("docId"),
         f"{field}.doc_id",
     )
-    chunk_id = _optional_string(record.get("chunk_id") if "chunk_id" in record else record.get("chunkId"))
+    chunk_id = _optional_string(
+        record.get("chunk_id") if "chunk_id" in record else record.get("chunkId")
+    )
     collection = _required_string(
         record.get("collection") if "collection" in record else record.get("collection"),
         f"{field}.collection",
@@ -486,7 +496,9 @@ def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
         revision_track="source-faithful",
-        version_id=_optional_string(record.get("version_id") if "version_id" in record else record.get("versionId"))
+        version_id=_optional_string(
+            record.get("version_id") if "version_id" in record else record.get("versionId")
+        )
         or "observed-trace",
         chunk_id=chunk_id or f"{doc_id}:observed-trace",
         anchor=_optional_record(record.get("anchor")) or {},
@@ -499,14 +511,20 @@ def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
         )
         or "",
         source_channel=_optional_string(
-            record.get("source_channel") if "source_channel" in record else record.get("sourceChannel")
+            record.get("source_channel")
+            if "source_channel" in record
+            else record.get("sourceChannel")
         )
         or "pdf_ocr",
         collection=collection,
-        is_current=bool(record.get("is_current") if "is_current" in record else record.get("isCurrent")),
+        is_current=bool(
+            record.get("is_current") if "is_current" in record else record.get("isCurrent")
+        ),
         snippet=_optional_string(record.get("snippet")) or "",
         score=float(record.get("score") or 0.0),
-        source_title=_optional_string(record.get("source_title") if "source_title" in record else record.get("sourceTitle"))
+        source_title=_optional_string(
+            record.get("source_title") if "source_title" in record else record.get("sourceTitle")
+        )
         or "",
         canonical_source_id=_optional_string(
             record.get("canonical_source_id")
@@ -552,10 +570,14 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
         return None
     return SupervisorObservability(
         retrieval_attempted=_optional_bool(
-            record.get("retrievalAttempted") if "retrievalAttempted" in record else record.get("retrieval_attempted")
+            record.get("retrievalAttempted")
+            if "retrievalAttempted" in record
+            else record.get("retrieval_attempted")
         ),
         candidate_count=_optional_int(
-            record.get("candidateCount") if "candidateCount" in record else record.get("candidate_count")
+            record.get("candidateCount")
+            if "candidateCount" in record
+            else record.get("candidate_count")
         ),
         retrieved_source_count=_optional_int(
             record.get("retrievedSourceCount")
@@ -576,20 +598,28 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             )
         ),
         citation_expected=_optional_bool(
-            record.get("citationExpected") if "citationExpected" in record else record.get("citation_expected")
+            record.get("citationExpected")
+            if "citationExpected" in record
+            else record.get("citation_expected")
         ),
         citation_count=_optional_int(
-            record.get("citationCount") if "citationCount" in record else record.get("citation_count")
+            record.get("citationCount")
+            if "citationCount" in record
+            else record.get("citation_count")
         ),
         citation_missing=_optional_bool(
-            record.get("citationMissing") if "citationMissing" in record else record.get("citation_missing")
+            record.get("citationMissing")
+            if "citationMissing" in record
+            else record.get("citation_missing")
         ),
         refusal_class=_optional_string(
             record.get("refusalClass") if "refusalClass" in record else record.get("refusal_class")
         )
         or "",
         semantic_outcome=_optional_string(
-            record.get("semanticOutcome") if "semanticOutcome" in record else record.get("semantic_outcome")
+            record.get("semanticOutcome")
+            if "semanticOutcome" in record
+            else record.get("semantic_outcome")
         )
         or "",
         scope_class=_optional_string(
@@ -605,17 +635,27 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
         )
         or "",
         acl_anomaly_code=_optional_string(
-            record.get("aclAnomalyCode") if "aclAnomalyCode" in record else record.get("acl_anomaly_code")
+            record.get("aclAnomalyCode")
+            if "aclAnomalyCode" in record
+            else record.get("acl_anomaly_code")
         )
         or "",
-        fail_closed=_optional_bool(record.get("failClosed") if "failClosed" in record else record.get("fail_closed")),
+        fail_closed=_optional_bool(
+            record.get("failClosed") if "failClosed" in record else record.get("fail_closed")
+        ),
         model_provider=_optional_string(
-            record.get("modelProvider") if "modelProvider" in record else record.get("model_provider")
+            record.get("modelProvider")
+            if "modelProvider" in record
+            else record.get("model_provider")
         )
         or "",
-        model_name=_optional_string(record.get("modelName") if "modelName" in record else record.get("model_name"))
+        model_name=_optional_string(
+            record.get("modelName") if "modelName" in record else record.get("model_name")
+        )
         or "",
-        input_tokens=_optional_int(record.get("inputTokens") if "inputTokens" in record else record.get("input_tokens")),
+        input_tokens=_optional_int(
+            record.get("inputTokens") if "inputTokens" in record else record.get("input_tokens")
+        ),
         output_tokens=_optional_int(
             record.get("outputTokens") if "outputTokens" in record else record.get("output_tokens")
         ),
@@ -687,7 +727,9 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         )
         or "",
         rewritten_query=_optional_string(
-            record.get("rewritten_query") if "rewritten_query" in record else record.get("rewrittenQuery")
+            record.get("rewritten_query")
+            if "rewritten_query" in record
+            else record.get("rewrittenQuery")
         )
         or "",
         clarification_reason=_optional_string(
@@ -697,11 +739,15 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         )
         or "",
         no_answer_reason=_optional_string(
-            record.get("no_answer_reason") if "no_answer_reason" in record else record.get("noAnswerReason")
+            record.get("no_answer_reason")
+            if "no_answer_reason" in record
+            else record.get("noAnswerReason")
         )
         or "",
         semantic_outcome=_optional_string(
-            record.get("semantic_outcome") if "semantic_outcome" in record else record.get("semanticOutcome")
+            record.get("semantic_outcome")
+            if "semantic_outcome" in record
+            else record.get("semanticOutcome")
         )
         or "",
         retrieval_adequacy_verdict=_optional_string(
@@ -753,7 +799,9 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             else record.get("candidateTitleSummary")
         ),
         resolution_mode=_optional_string(
-            record.get("resolution_mode") if "resolution_mode" in record else record.get("resolutionMode")
+            record.get("resolution_mode")
+            if "resolution_mode" in record
+            else record.get("resolutionMode")
         )
         or "",
         used_verified_identity=_optional_bool(
@@ -775,7 +823,9 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         )
         or "",
         resolved_course_id=_optional_string(
-            record.get("resolved_course_id") if "resolved_course_id" in record else record.get("resolvedCourseId")
+            record.get("resolved_course_id")
+            if "resolved_course_id" in record
+            else record.get("resolvedCourseId")
         )
         or "",
         resolved_course_title=_optional_string(
@@ -815,7 +865,9 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         )
         or "",
         session_program=_optional_string(
-            record.get("session_program") if "session_program" in record else record.get("sessionProgram")
+            record.get("session_program")
+            if "session_program" in record
+            else record.get("sessionProgram")
         )
         or "",
         session_semester=_optional_string(
@@ -853,7 +905,9 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             else record.get("unsupportedFields")
         ),
         partial_answer=_optional_bool(
-            record.get("partial_answer") if "partial_answer" in record else record.get("partialAnswer")
+            record.get("partial_answer")
+            if "partial_answer" in record
+            else record.get("partialAnswer")
         )
         or False,
         prompt_runtime_state=_optional_string(
@@ -892,14 +946,20 @@ def _parse_prompt_trace(value: object) -> PromptTrace | None:
     if record is None:
         return None
     return PromptTrace(
-        prompt_id=_optional_string(record.get("prompt_id") if "prompt_id" in record else record.get("promptId"))
+        prompt_id=_optional_string(
+            record.get("prompt_id") if "prompt_id" in record else record.get("promptId")
+        )
         or "",
         prompt_version=_optional_string(
-            record.get("prompt_version") if "prompt_version" in record else record.get("promptVersion")
+            record.get("prompt_version")
+            if "prompt_version" in record
+            else record.get("promptVersion")
         )
         or "",
         template_sha256=_optional_string(
-            record.get("template_sha256") if "template_sha256" in record else record.get("templateSha256")
+            record.get("template_sha256")
+            if "template_sha256" in record
+            else record.get("templateSha256")
         )
         or "",
         variables_schema_version=_optional_string(
@@ -915,10 +975,14 @@ def _parse_prompt_trace(value: object) -> PromptTrace | None:
         )
         or "",
         model_provider=_optional_string(
-            record.get("model_provider") if "model_provider" in record else record.get("modelProvider")
+            record.get("model_provider")
+            if "model_provider" in record
+            else record.get("modelProvider")
         )
         or "",
-        model_name=_optional_string(record.get("model_name") if "model_name" in record else record.get("modelName"))
+        model_name=_optional_string(
+            record.get("model_name") if "model_name" in record else record.get("modelName")
+        )
         or "",
     )
 
@@ -1013,9 +1077,7 @@ def _parse_remote_content_suspicion_summary(
         )
         or 0,
         flag_labels=_string_tuple(
-            record.get("flag_labels")
-            if "flag_labels" in record
-            else record.get("flagLabels")
+            record.get("flag_labels") if "flag_labels" in record else record.get("flagLabels")
         ),
         generation_blocked=_optional_bool(
             record.get("generation_blocked")
@@ -1033,7 +1095,10 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
         supporting_sources = tuple(response.result.evidence.sources)
         if response.observability is not None and response.observability.retrieved_sources:
             retrieved_sources = tuple(response.observability.retrieved_sources)
-        elif response.result.diagnostics is not None and response.result.diagnostics.retrieved_sources:
+        elif (
+            response.result.diagnostics is not None
+            and response.result.diagnostics.retrieved_sources
+        ):
             retrieved_sources = tuple(response.result.diagnostics.retrieved_sources)
         elif (
             response.observability is not None
@@ -1043,9 +1108,7 @@ def _build_observed_trace(*, scope: dict[str, str], response: SupervisorResponse
             retrieved_sources = supporting_sources
 
     retrieval_called = (
-        response.observability.retrieval_attempted
-        if response.observability is not None
-        else None
+        response.observability.retrieval_attempted if response.observability is not None else None
     )
     if retrieval_called is None and isinstance(response.result, RagResultPayload):
         retrieval_called = bool(retrieved_sources or supporting_sources)

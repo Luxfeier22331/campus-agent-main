@@ -5,24 +5,34 @@ from pathlib import Path
 from typing import Callable
 
 import httpx
+from campus_contracts import (
+    EvidenceBundle,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
+)
+from campus_rag_agent import delegate_to_rag_agent
+from campus_retrieval_core import retrieve_sources
 
-from campus_contracts import EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
 from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
-from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
+from campus_evals.handbook_benchmark import (
+    repair_handbook_formal_benchmark,
+    run_handbook_formal_benchmark,
+)
 from campus_evals.judge_adapters import build_default_handbook_supplemental_adapters_from_env
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
     build_default_profile_http_settings,
-    build_default_output_dir as build_shared_default_output_dir,
     build_parser_for_profile,
     main_for_profile,
 )
+from campus_evals.live_benchmark import (
+    build_default_output_dir as build_shared_default_output_dir,
+)
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.scenarios import handbook_release_gate_cases
-from campus_rag_specialist import delegate_to_rag_agent
-from campus_retrieval_core import retrieve_sources
-
 
 RUN_PREFIX = "student-handbook-formal-benchmark"
 REPAIR_PREFIX = "student-handbook-formal-benchmark-repair"
@@ -73,9 +83,9 @@ def build_legacy_handbook_live_executor(
             return retrieved_evidence
 
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal=case.user_goal,
-            payload=RagRequestPayload(scope=case.scope),
+            payload=RagRequestPayload(scope=case.scope, version_query=case.version_query),
             actor=case.actor,
         )
         response = delegate(request, retriever=_traced_retriever)
@@ -87,7 +97,9 @@ def build_legacy_handbook_live_executor(
             retrieval_called=retrieval_called,
             clarification_emitted=response.status == "needs_clarification",
             error_path=response.status == "error",
-            retrieved_sources=() if retrieved_evidence is None else tuple(retrieved_evidence.sources),
+            retrieved_sources=()
+            if retrieved_evidence is None
+            else tuple(retrieved_evidence.sources),
             supporting_sources=supporting_sources,
         )
         return ExecutionResult(response=response, observed_trace=observed_trace)

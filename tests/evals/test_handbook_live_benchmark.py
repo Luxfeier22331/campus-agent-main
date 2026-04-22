@@ -1,25 +1,31 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 import httpx
-
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagRequestPayload, RagResultPayload, SpecialistResponse
+from campus_contracts import (
+    ActorContext,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistResponse,
+    VersionQuery,
+)
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
-from campus_evals.operator_observability import OperatorRequestCorrelation
 from campus_evals.handbook_live_benchmark import (
     AppApiEvalClientSettings,
     build_app_api_handbook_live_executor,
-    build_legacy_handbook_live_executor,
     build_default_output_dir,
-    build_handbook_live_executor,
     build_handbook_live_profile,
+    build_legacy_handbook_live_executor,
     main,
 )
-
+from campus_evals.operator_observability import OperatorRequestCorrelation
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
 
@@ -42,7 +48,12 @@ def _source(doc_id: str, *, chunk_id: str = "chunk-1", score: float = 0.9) -> Ev
     )
 
 
-def _case(*, case_id: str = "release-gate-student-card", user_goal: str = "学生证丢了怎么办") -> GoldenCase:
+def _case(
+    *,
+    case_id: str = "release-gate-student-card",
+    user_goal: str = "学生证丢了怎么办",
+    version_query: VersionQuery | None = None,
+) -> GoldenCase:
     return GoldenCase(
         case_id=case_id,
         split="release_gate",
@@ -50,6 +61,7 @@ def _case(*, case_id: str = "release-gate-student-card", user_goal: str = "学�
         user_goal=user_goal,
         actor=ActorContext(),
         scope=HANDBOOK_SCOPE,
+        version_query=version_query or VersionQuery(),
         expected_status="completed",
         trace_expectation=TraceExpectation(
             selected_scope=HANDBOOK_SCOPE,
@@ -67,7 +79,11 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             corpus="regulations",
             collection="student_handbook",
             sources=(
-                _source("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389", chunk_id="chunk-a", score=0.97),
+                _source(
+                    "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    chunk_id="chunk-a",
+                    score=0.97,
+                ),
                 _source("handbook:background", chunk_id="chunk-b", score=0.73),
             ),
         )
@@ -85,7 +101,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             )
             self.assertEqual(bundle, retrieved_bundle)
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="completed",
                 answer_text="学生证遗失后应补办学生证。",
                 confidence="high",
@@ -116,7 +132,42 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, retrieved_bundle.sources)
         self.assertEqual(result.observed_trace.supporting_sources, (supporting_source,))
 
-    def test_build_app_api_handbook_live_executor_captures_request_correlation_from_app_api(self) -> None:
+    def test_build_handbook_live_executor_passes_case_version_query(self) -> None:
+        seen_requests = []
+
+        def fake_delegate(request, *, retriever):
+            seen_requests.append(request)
+            return SpecialistResponse(
+                target="rag-agent",
+                status="no_answer",
+                answer_text="当前依据不足。",
+                confidence="low",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text=request.user_goal,
+                        corpus=request.payload.scope.corpus,
+                        collection=request.payload.scope.collection,
+                    )
+                ),
+            )
+
+        executor = build_legacy_handbook_live_executor(
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="上一版学生证补办流程",
+                corpus="regulations",
+                collection="student_handbook",
+            ),
+            delegate=fake_delegate,
+        )
+
+        executor(_case(version_query=VersionQuery(mode="historical")))
+
+        self.assertEqual(len(seen_requests), 1)
+        self.assertEqual(seen_requests[0].payload.version_query, VersionQuery(mode="historical"))
+
+    def test_build_app_api_handbook_live_executor_captures_request_correlation_from_app_api(
+        self,
+    ) -> None:
         captured: dict[str, object] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -149,7 +200,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "图书馆开放到 22:00。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "completed",
                         "traceId": "trace_eval_01HQ",
                         "result": {
@@ -209,7 +260,9 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             client.close()
 
         self.assertIsInstance(result, ExecutionResult)
-        self.assertEqual(captured["url"], "https://app-api.internal/api/internal/evals/chat/requests")
+        self.assertEqual(
+            captured["url"], "https://app-api.internal/api/internal/evals/chat/requests"
+        )
         self.assertEqual(captured["header"], "trusted-secret")
         self.assertEqual(
             result.request_correlation,
@@ -254,7 +307,30 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             result.response.result.evidence.sources,
         )
 
-    def test_build_app_api_handbook_live_executor_renders_trace_backlink_from_template(self) -> None:
+    def test_build_app_api_handbook_live_executor_rejects_non_current_version_query(self) -> None:
+        settings = AppApiEvalClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+            eval_user_email="eval-benchmark@example.edu",
+        )
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(200, request=request, json={})
+        )
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            executor = build_app_api_handbook_live_executor(
+                settings=settings,
+                client=client,
+            )
+            with self.assertRaisesRegex(ValueError, "version_query"):
+                executor(_case(version_query=VersionQuery(mode="historical")))
+        finally:
+            client.close()
+
+    def test_build_app_api_handbook_live_executor_renders_trace_backlink_from_template(
+        self,
+    ) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
@@ -282,7 +358,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "图书馆开放到 22:00。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "completed",
                         "traceId": "trace_eval_01HQ",
                         "result": None,
@@ -325,7 +401,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         def fake_delegate(request, *, retriever):
             del retriever
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="needs_clarification",
                 follow_up_question="请说明你想咨询哪一类奖学金。",
                 confidence="low",
@@ -356,13 +432,19 @@ class HandbookLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
-    def test_build_handbook_live_executor_marks_retrieval_backed_no_answer_without_clarification(self) -> None:
+    def test_build_handbook_live_executor_marks_retrieval_backed_no_answer_without_clarification(
+        self,
+    ) -> None:
         retrieved_bundle = EvidenceBundle(
             query_text="民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
             corpus="regulations",
             collection="student_handbook",
             sources=(
-                _source("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15", chunk_id="chunk-a", score=0.88),
+                _source(
+                    "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    chunk_id="chunk-a",
+                    score=0.88,
+                ),
             ),
         )
 
@@ -376,7 +458,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             )
             self.assertEqual(bundle, retrieved_bundle)
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="no_answer",
                 answer_text="在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
                 confidence="low",
@@ -420,7 +502,9 @@ class HandbookLiveExecutorTest(unittest.TestCase):
 
 
 class HandbookLiveProfileTest(unittest.TestCase):
-    def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(self) -> None:
+    def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(
+        self,
+    ) -> None:
         profile = build_handbook_live_profile(
             env={
                 "EVAL_LLM_API_KEY": "llm-key",
@@ -446,7 +530,9 @@ class HandbookLiveProfileTest(unittest.TestCase):
         )
         self.assertEqual(build_adapters.call_args.kwargs["faithfulness_nli_batch_size"], 6)
 
-    def test_build_handbook_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
+    def test_build_handbook_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(
+        self,
+    ) -> None:
         profile = build_handbook_live_profile(
             env={
                 "APP_API_BASE_URL": "https://app-api.internal",
@@ -459,7 +545,10 @@ class HandbookLiveProfileTest(unittest.TestCase):
             }
         )
 
-        with patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor") as build_executor:
+        with patch(
+            "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
+            return_value="executor",
+        ) as build_executor:
             executor = profile.executor_factory()
 
         self.assertEqual(executor, "executor")
@@ -469,37 +558,11 @@ class HandbookLiveProfileTest(unittest.TestCase):
         )
 
 
-class HandbookLiveProfileTest(unittest.TestCase):
-    def test_build_handbook_live_profile_uses_repo_tracked_http_settings_for_supplemental_adapters(self) -> None:
-        profile = build_handbook_live_profile(
-            env={
-                "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EVAL_EMBEDDING_API_KEY": "embed-key",
-                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "EVAL_HTTP_READ_TIMEOUT_SECONDS": "90",
-            }
-        )
-
-        with patch(
-            "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
-            return_value=("adapters",),
-        ) as build_adapters:
-            adapters = profile.supplemental_adapters_factory()
-
-        self.assertEqual(adapters, ("adapters",))
-        self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
-        self.assertEqual(profile.case_workers, 2)
-        self.assertEqual(
-            build_adapters.call_args.kwargs["http_settings"].read_timeout_seconds,
-            180.0,
-        )
-        self.assertEqual(build_adapters.call_args.kwargs["faithfulness_nli_batch_size"], 6)
-
-
 class HandbookLiveBenchmarkCliTest(unittest.TestCase):
     def test_build_default_output_dir_uses_timestamped_eval_directory(self) -> None:
-        path = build_default_output_dir(prefix="student-handbook-formal-benchmark", timestamp="20260329T123456")
+        path = build_default_output_dir(
+            prefix="student-handbook-formal-benchmark", timestamp="20260329T123456"
+        )
         self.assertEqual(path, Path(".tmp/evals/student-handbook-formal-benchmark-20260329T123456"))
 
     def test_main_runs_formal_benchmark_with_live_executor_and_default_output_dir(self) -> None:
@@ -509,7 +572,10 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-20260329T123456"
             with (
-                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.handbook_release_gate_cases",
+                    return_value=(case,),
+                ),
                 patch(
                     "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
                     return_value=adapters,
@@ -518,8 +584,13 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.handbook_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor"),
-                patch("campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark") as run_benchmark,
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
+                    return_value="executor",
+                ),
+                patch(
+                    "campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark"
+                ) as run_benchmark,
             ):
                 exit_code = main(["run", "--reruns", "3"])
 
@@ -540,7 +611,10 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
             expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-20260329T123456"
             with (
                 patch("campus_evals.live_benchmark.load_repo_env") as load_repo_env,
-                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.handbook_release_gate_cases",
+                    return_value=(case,),
+                ),
                 patch(
                     "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
                     return_value=(object(),),
@@ -549,7 +623,10 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.handbook_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor"),
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
+                    return_value="executor",
+                ),
                 patch("campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark"),
             ):
                 exit_code = main(["run", "--reruns", "1"])
@@ -564,9 +641,14 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             benchmark_dir = Path(tmpdir) / "existing-benchmark"
             benchmark_dir.mkdir()
-            expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-repair-20260329T123456"
+            expected_output_dir = (
+                Path(tmpdir) / "student-handbook-formal-benchmark-repair-20260329T123456"
+            )
             with (
-                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.handbook_release_gate_cases",
+                    return_value=(case,),
+                ),
                 patch(
                     "campus_evals.handbook_live_benchmark.build_default_handbook_supplemental_adapters_from_env",
                     return_value=adapters,
@@ -575,8 +657,13 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.handbook_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.handbook_live_benchmark.build_handbook_live_executor", return_value="executor"),
-                patch("campus_evals.handbook_live_benchmark.repair_handbook_formal_benchmark") as repair_benchmark,
+                patch(
+                    "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
+                    return_value="executor",
+                ),
+                patch(
+                    "campus_evals.handbook_live_benchmark.repair_handbook_formal_benchmark"
+                ) as repair_benchmark,
             ):
                 exit_code = main(["repair", "--benchmark-dir", str(benchmark_dir)])
 
@@ -594,14 +681,21 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
         case = _case()
 
         with TemporaryDirectory() as tmpdir:
-            expected_output_dir = Path(tmpdir) / "student-handbook-formal-benchmark-accept-20260329T123456"
+            expected_output_dir = (
+                Path(tmpdir) / "student-handbook-formal-benchmark-accept-20260329T123456"
+            )
             with (
-                patch("campus_evals.handbook_live_benchmark.handbook_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.handbook_live_benchmark.handbook_release_gate_cases",
+                    return_value=(case,),
+                ),
                 patch(
                     "campus_evals.handbook_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.handbook_live_benchmark.accept_live_benchmark_profile") as accept_benchmark,
+                patch(
+                    "campus_evals.handbook_live_benchmark.accept_live_benchmark_profile"
+                ) as accept_benchmark,
             ):
                 exit_code = main(["accept", "--reruns", "3"])
 

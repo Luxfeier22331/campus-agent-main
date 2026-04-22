@@ -1,19 +1,19 @@
 {
-  "corpus": "curriculum",
-  "collection": "course_facts",
-  "chunk_profile_version": "curriculum_course_facts_semantic_v1",
-  "structured_input": "document_units_jsonl",
-  "runtime_defaults": {
-    "strategy_name": "curriculum_course_facts_generic_v1",
-    "chunk_size": 220,
-    "max_chunk_size": 320,
-    "chunk_overlap": 32,
-    "min_chunk_size": 32
-  },
-  "cleaning_policy_version": "curriculum_course_facts_projection_v1",
-  "notes": [
-    "course_facts is an internal curriculum serving surface for specialist-side entity-aware retrieval.",
-    "Projection rows are already fact-shaped, so generic runtime chunking is sufficient.",
-    "Keep this profile aligned with ingestion-core projection truth rather than curriculum_plan semantic table chunking."
-  ]
+	"corpus": "curriculum",
+	"collection": "course_facts",
+	"chunk_profile_version": "curriculum_course_facts_semantic_v1",
+	"structured_input": "document_units_jsonl",
+	"runtime_defaults": {
+		"strategy_name": "curriculum_course_facts_generic_v1",
+		"chunk_size": 220,
+		"max_chunk_size": 320,
+		"chunk_overlap": 32,
+		"min_chunk_size": 32
+	},
+	"cleaning_policy_version": "curriculum_course_facts_projection_v1",
+	"notes": [
+		"course_facts is an internal curriculum serving surface for specialist-side entity-aware retrieval.",
+		"Projection rows are already fact-shaped, so generic runtime chunking is sufficient.",
+		"Keep this profile aligned with ingestion-core projection truth rather than curriculum_plan semantic table chunking."
+	]
 }

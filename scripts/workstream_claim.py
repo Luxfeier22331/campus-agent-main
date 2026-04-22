@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 from .workstream_runtime import (
     DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
@@ -25,6 +25,7 @@ from .workstream_runtime import (
     handoff_workstream_claim,
     list_workstream_claims,
     release_workstream_claim,
+    renew_workstream_claim,
     resolve_current_workstream,
     resolve_existing_session_key,
     resolve_operator_id,
@@ -33,7 +34,6 @@ from .workstream_runtime import (
     set_operator_profile,
     takeover_workstream_claim,
     write_gsd_active_workstream_pointer,
-    renew_workstream_claim,
 )
 
 

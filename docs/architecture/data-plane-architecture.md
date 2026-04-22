@@ -111,6 +111,21 @@ source truth 的长期硬约束：
 
 - `curriculum/curriculum_plan -> curriculum/program_semester_facts`
 
+## Published Reader Assets
+
+对已 admission 的 canonical docs site，repo 级 data plane 允许从 canonical document artifacts 派生一条 product-delivery 子链：
+
+`canonical document artifacts -> reader projection -> published reader assets`
+
+固定规则：
+
+- published reader assets 属于 derived artifact，不改变 canonical chain
+- 长期真相继续落在对象存储，而不是 repo tracked `assets/` 目录
+- public docs deploy 只把公开子集同步到 Worker static assets
+- restricted / gated reader asset 不得因为采用同一 payload format 就自动进入匿名 public bundle
+
+reader asset package / object key / deploy sync 细节统一看 `docs/contracts/document-reader-publish-contract.md`。
+
 ## Layer Ownership
 
 ### Raw Layer

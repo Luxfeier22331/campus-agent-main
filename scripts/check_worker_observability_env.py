@@ -6,7 +6,6 @@ from pathlib import Path
 
 from scripts.env_sync import parse_env_file, resolve_source_env_path
 
-
 SOURCE_REQUIRED_KEYS = (
     "SENTRY_DSN_API",
     "SENTRY_DSN_CHAT",
@@ -69,23 +68,24 @@ def collect_worker_observability_status(
         raise FileNotFoundError(f"Source env file not found: {source_path}")
 
     source_values = parse_env_file(source_path)
-    source_missing = [key for key in SOURCE_REQUIRED_KEYS if not _normalize_value(source_values, key)]
+    source_missing = [
+        key for key in SOURCE_REQUIRED_KEYS if not _normalize_value(source_values, key)
+    ]
     targets: dict[str, object] = {}
 
     for relative_path, requirement in OBSERVABILITY_TARGET_REQUIREMENTS.items():
         target_path = repo_root / relative_path
         target_values = parse_env_file(target_path) if target_path.exists() else {}
         missing_keys = [
-            key
-            for key in requirement["required_keys"]
-            if not _normalize_value(target_values, key)
+            key for key in requirement["required_keys"] if not _normalize_value(target_values, key)
         ]
         mismatched_keys = [
             target_key
             for target_key, source_key in requirement["source_mapping"].items()
             if _normalize_value(target_values, target_key)
             and _normalize_value(source_values, source_key)
-            and _normalize_value(target_values, target_key) != _normalize_value(source_values, source_key)
+            and _normalize_value(target_values, target_key)
+            != _normalize_value(source_values, source_key)
         ]
         target_ready = target_path.exists() and not missing_keys and not mismatched_keys
         targets[relative_path] = {
@@ -95,9 +95,7 @@ def collect_worker_observability_status(
             "ready": target_ready,
         }
 
-    overall_ready = not source_missing and all(
-        bool(target["ready"]) for target in targets.values()
-    )
+    overall_ready = not source_missing and all(bool(target["ready"]) for target in targets.values())
     return {
         "overall_ready": overall_ready,
         "recommended_sync_command": (

@@ -180,7 +180,7 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
   负责 identity / memory / personalization 的长期边界
 - 本 ADR
   负责指标家族、指标分层与 gate 语义
-- `docs/plans/`
+- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
   负责当前阶段的 metric wiring、阈值、runner 与报表实现
 
 换句话说，golden dataset ADR 定义“真值长什么样”，本 ADR 定义“围绕这些真值评什么”，实施计划才回答“这一轮怎么算、用哪个配置、门禁卡在哪”。

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
@@ -135,7 +134,10 @@ class DocsStructureTest(unittest.TestCase):
             self.assertIn(front_matter.get("status"), {"active", "deferred"}, path)
 
     def test_reference_and_runbook_root_namespaces_are_active_only(self) -> None:
-        for directory_name, expected_doc_type in {"reference": "reference", "runbooks": "runbook"}.items():
+        for directory_name, expected_doc_type in {
+            "reference": "reference",
+            "runbooks": "runbook",
+        }.items():
             for path in sorted((DOCS_ROOT / directory_name).glob("*.md")):
                 if path.name == "README.md":
                     continue
@@ -186,7 +188,9 @@ class DocsStructureTest(unittest.TestCase):
             front_matter = _read_front_matter(path)
             decision_id = front_matter.get("decision_id")
             self.assertIsNotNone(decision_id, path)
-            self.assertNotIn(decision_id, decision_ids, f"{path} duplicates {decision_ids.get(decision_id)}")
+            self.assertNotIn(
+                decision_id, decision_ids, f"{path} duplicates {decision_ids.get(decision_id)}"
+            )
             decision_ids[decision_id] = path
 
     def test_historical_roadmap_does_not_assert_current_runtime_truth(self) -> None:

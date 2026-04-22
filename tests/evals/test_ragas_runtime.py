@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 import httpx
-from langchain_core.prompt_values import StringPromptValue
-from ragas.llms.base import InstructorBaseRagasLLM
-from ragas.metrics._faithfulness import NLIStatementOutput, StatementFaithfulnessAnswer, StatementGeneratorOutput
-
-from campus_shared.provider_config import ProviderConfigResolutionError
 from campus_evals import (
     RagasProjection,
     RagasSettings,
@@ -33,6 +28,40 @@ from campus_evals.supplemental_http import (
     _retry_delay_seconds,
     reset_supplemental_http_runtime_state_for_tests,
 )
+from campus_shared.provider_config import ProviderConfigResolutionError
+from langchain_core.prompt_values import StringPromptValue
+from ragas.llms.base import InstructorBaseRagasLLM
+from ragas.metrics._faithfulness import (
+    NLIStatementOutput,
+    StatementFaithfulnessAnswer,
+    StatementGeneratorOutput,
+)
+
+
+class SupplementalHttpFacadeTest(unittest.TestCase):
+    def test_supplemental_http_module_keeps_public_exports_and_patch_seams(self) -> None:
+        import campus_evals.supplemental_http as supplemental_http_module
+
+        for name in (
+            "OpenAICompatibleChatCompletionsLLM",
+            "OpenAICompatibleResponsesLLM",
+            "OpenAICompatibleTextChatCompletionsLLM",
+            "OpenAICompatibleTextResponsesLLM",
+            "OpenAICompatibleHTTPEmbeddings",
+            "SupplementalPreflightFailedError",
+            "build_http_ragas_embeddings",
+            "build_http_ragas_llm",
+            "classify_runtime_failure",
+            "classify_retryable_runtime_failure",
+            "format_runtime_exception_message",
+            "is_retryable_provider_exception",
+            "reset_supplemental_http_runtime_state_for_tests",
+            "sanitize_runtime_message",
+            "_retry_delay_seconds",
+            "httpx",
+            "random",
+        ):
+            self.assertTrue(hasattr(supplemental_http_module, name), name)
 
 
 class RagasSettingsTest(unittest.TestCase):
@@ -63,7 +92,9 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.preflight_timeout_seconds, 6.0)
         self.assertEqual(settings.request_min_interval_seconds, 0.5)
 
-    def test_supplemental_http_settings_derive_request_interval_from_requests_per_minute(self) -> None:
+    def test_supplemental_http_settings_derive_request_interval_from_requests_per_minute(
+        self,
+    ) -> None:
         settings = SupplementalHTTPSettings.from_env(
             {
                 "SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE": "10",
@@ -73,7 +104,9 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.requests_per_minute, 10.0)
         self.assertEqual(settings.request_min_interval_seconds, 6.0)
 
-    def test_supplemental_http_settings_prefer_explicit_interval_over_requests_per_minute(self) -> None:
+    def test_supplemental_http_settings_prefer_explicit_interval_over_requests_per_minute(
+        self,
+    ) -> None:
         settings = SupplementalHTTPSettings.from_env(
             {
                 "SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE": "10",
@@ -253,7 +286,9 @@ class RagasSettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.http_settings.read_timeout_seconds, 45.0)
 
-    def test_from_env_extends_statement_generation_read_timeout_without_widening_other_timeouts(self) -> None:
+    def test_from_env_extends_statement_generation_read_timeout_without_widening_other_timeouts(
+        self,
+    ) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_API_KEY": "llm-key",
@@ -323,18 +358,6 @@ class RagasSettingsTest(unittest.TestCase):
 
         self.assertEqual(adapter.metric_names, build_default_ragas_metric_names())
 
-    def test_build_ragas_supplemental_adapter_from_env_exposes_default_metric_names(self) -> None:
-        adapter = build_ragas_supplemental_adapter_from_env(
-            {
-                "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EVAL_EMBEDDING_API_KEY": "embed-key",
-                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-            }
-        )
-
-        self.assertEqual(adapter.metric_names, build_default_ragas_metric_names())
-
 
 class RagasDatasetTest(unittest.TestCase):
     def test_build_ragas_dataset_projects_single_turn_sample(self) -> None:
@@ -371,8 +394,12 @@ class RagasDatasetTest(unittest.TestCase):
         )
 
         sample = dataset.samples[0]
-        self.assertEqual(sample.retrieved_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"])
-        self.assertEqual(sample.reference_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"])
+        self.assertEqual(
+            sample.retrieved_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"]
+        )
+        self.assertEqual(
+            sample.reference_context_ids, ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"]
+        )
         self.assertEqual(sample.reference_contexts, ["学生证遗失应及时挂失。"])
 
 
@@ -396,7 +423,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertFalse(isinstance(llm, InstructorBaseRagasLLM))
         self.assertTrue(hasattr(llm, "agenerate_text"))
 
-    def test_build_http_ragas_llm_opens_shared_circuit_breaker_after_repeated_provider_failures(self) -> None:
+    def test_build_http_ragas_llm_opens_shared_circuit_breaker_after_repeated_provider_failures(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -453,7 +482,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                                 {"type": "output_text", "text": "OK"},
                             ]
                         }
-                    ]
+                    ],
                 },
             )
 
@@ -540,7 +569,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(result.generations[0][0].text, "OK")
         self.assertEqual(attempts, 2)
 
-    def test_build_http_ragas_llm_generate_text_retries_do_request_failed_server_error(self) -> None:
+    def test_build_http_ragas_llm_generate_text_retries_do_request_failed_server_error(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -726,6 +757,7 @@ class RagasHttpTransportTest(unittest.TestCase):
 
         with patch("campus_evals.supplemental_http.httpx.AsyncClient", FakeAsyncClient):
             llm = build_http_ragas_llm(settings)
+
             async def run_two_calls() -> None:
                 await llm.agenerate_text(StringPromptValue(text="first"))
                 await llm.agenerate_text(StringPromptValue(text="second"))
@@ -794,7 +826,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIsNotNone(first.request_pacer)
         self.assertIs(first.request_pacer, second.request_pacer)
 
-    def test_build_http_ragas_llm_preflight_failure_opens_runtime_breaker_until_cooldown(self) -> None:
+    def test_build_http_ragas_llm_preflight_failure_opens_runtime_breaker_until_cooldown(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -847,7 +881,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         sync_client.close()
         self.assertEqual(attempts, 1)
 
-    def test_build_http_ragas_llm_hard_unavailable_provider_opens_shared_circuit_after_single_failure(self) -> None:
+    def test_build_http_ragas_llm_hard_unavailable_provider_opens_shared_circuit_after_single_failure(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -943,7 +979,11 @@ class RagasHttpTransportTest(unittest.TestCase):
             text_config = payload.get("text") or {}
             format_config = text_config.get("format") or {}
             if format_config.get("type") == "json_schema":
-                return httpx.Response(503, request=request, text='{"error":{"message":"structured unavailable","type":"api_error"}}')
+                return httpx.Response(
+                    503,
+                    request=request,
+                    text='{"error":{"message":"structured unavailable","type":"api_error"}}',
+                )
             return httpx.Response(
                 200,
                 request=request,
@@ -981,9 +1021,14 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["output_text"], "OK")
         self.assertEqual(len(captured_payloads), 1)
-        self.assertNotEqual(((captured_payloads[0].get("text") or {}).get("format") or {}).get("type"), "json_schema")
+        self.assertNotEqual(
+            ((captured_payloads[0].get("text") or {}).get("format") or {}).get("type"),
+            "json_schema",
+        )
 
-    def test_build_http_ragas_llm_preflight_fast_fails_when_completed_response_has_no_output_items(self) -> None:
+    def test_build_http_ragas_llm_preflight_fast_fails_when_completed_response_has_no_output_items(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1025,7 +1070,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIn("provider_contract_violation", raised.exception.reasons)
         self.assertIn("responses contract violation", str(raised.exception))
 
-    def test_build_http_ragas_llm_posts_chat_completions_payload_when_transport_selected(self) -> None:
+    def test_build_http_ragas_llm_posts_chat_completions_payload_when_transport_selected(
+        self,
+    ) -> None:
         captured: dict[str, object] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1084,7 +1131,9 @@ class RagasHttpTransportTest(unittest.TestCase):
             },
         )
 
-    def test_build_http_ragas_llm_preflight_fast_fails_when_chat_completions_has_no_message_content(self) -> None:
+    def test_build_http_ragas_llm_preflight_fast_fails_when_chat_completions_has_no_message_content(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1126,7 +1175,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIn("provider_contract_violation", raised.exception.reasons)
         self.assertIn("chat completions contract violation", str(raised.exception))
 
-    def test_openai_compatible_responses_llm_preflight_supports_providers_requiring_closed_json_schema(self) -> None:
+    def test_openai_compatible_responses_llm_preflight_supports_providers_requiring_closed_json_schema(
+        self,
+    ) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode("utf-8"))
             text_config = payload.get("text") or {}
@@ -1153,7 +1204,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                     "output": [
                         {
                             "content": [
-                                {"type": "output_text", "text": "{\"status\":\"ok\"}"},
+                                {"type": "output_text", "text": '{"status":"ok"}'},
                             ]
                         }
                     ],
@@ -1188,7 +1239,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["structured_output"], {"status": "ok"})
 
-    def test_openai_compatible_responses_llm_preflight_fast_fails_when_completed_response_has_no_output_items(self) -> None:
+    def test_openai_compatible_responses_llm_preflight_fast_fails_when_completed_response_has_no_output_items(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1236,7 +1289,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIn("provider_contract_violation", raised.exception.reasons)
         self.assertIn("responses contract violation", str(raised.exception))
 
-    def test_openai_compatible_chat_completions_llm_preflight_supports_json_schema_response_format(self) -> None:
+    def test_openai_compatible_chat_completions_llm_preflight_supports_json_schema_response_format(
+        self,
+    ) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode("utf-8"))
             response_format = payload.get("response_format") or {}
@@ -1265,7 +1320,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                             "finish_reason": "stop",
                             "message": {
                                 "role": "assistant",
-                                "content": "{\"status\":\"ok\"}",
+                                "content": '{"status":"ok"}',
                             },
                         }
                     ]
@@ -1301,7 +1356,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertEqual(result["structured_output"], {"status": "ok"})
 
-    def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(self) -> None:
+    def test_build_http_ragas_llm_preflight_retries_retryable_failure_without_tripping_breaker(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1325,7 +1382,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                         "output": [
                             {
                                 "content": [
-                                    {"type": "output_text", "text": "{\"status\":\"ok\"}"},
+                                    {"type": "output_text", "text": '{"status":"ok"}'},
                                 ]
                             }
                         ],
@@ -1371,7 +1428,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertEqual(runtime.generations[0][0].text, "OK")
         self.assertEqual(attempts, 3)
 
-    def test_build_http_ragas_embeddings_share_request_pacer_with_same_provider_origin_and_api_key(self) -> None:
+    def test_build_http_ragas_embeddings_share_request_pacer_with_same_provider_origin_and_api_key(
+        self,
+    ) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
@@ -1390,7 +1449,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIsNotNone(llm.request_pacer)
         self.assertIs(llm.request_pacer, embeddings.request_pacer)
 
-    def test_build_http_ragas_embeddings_do_not_share_request_pacer_across_different_api_keys(self) -> None:
+    def test_build_http_ragas_embeddings_do_not_share_request_pacer_across_different_api_keys(
+        self,
+    ) -> None:
         settings = RagasSettings.from_env(
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
@@ -1409,7 +1470,9 @@ class RagasHttpTransportTest(unittest.TestCase):
         self.assertIsNotNone(llm.request_pacer)
         self.assertIsNot(llm.request_pacer, embeddings.request_pacer)
 
-    def test_build_http_ragas_llm_recreates_internal_async_client_when_event_loop_changes(self) -> None:
+    def test_build_http_ragas_llm_recreates_internal_async_client_when_event_loop_changes(
+        self,
+    ) -> None:
         created_clients: list[object] = []
 
         class LoopBoundAsyncClient:
@@ -1467,7 +1530,7 @@ class RagasHttpTransportTest(unittest.TestCase):
                     "data": [
                         {"index": 1, "embedding": [2.0, 2.5]},
                         {"index": 0, "embedding": [1.0, 1.5]},
-                    ]
+                    ],
                 },
             )
 
@@ -1499,7 +1562,9 @@ class RagasHttpTransportTest(unittest.TestCase):
             },
         )
 
-    def test_build_http_ragas_embeddings_recreates_internal_async_client_when_event_loop_changes(self) -> None:
+    def test_build_http_ragas_embeddings_recreates_internal_async_client_when_event_loop_changes(
+        self,
+    ) -> None:
         created_clients: list[object] = []
 
         class LoopBoundAsyncClient:
@@ -1540,7 +1605,9 @@ class RagasHttpTransportTest(unittest.TestCase):
 
         self.assertEqual(len(created_clients), 2)
 
-    def test_build_http_ragas_embeddings_aembed_documents_retries_retryable_server_error(self) -> None:
+    def test_build_http_ragas_embeddings_aembed_documents_retries_retryable_server_error(
+        self,
+    ) -> None:
         attempts = 0
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -1585,7 +1652,9 @@ class RagasHttpTransportTest(unittest.TestCase):
 
 
 class RagasScorerTest(unittest.TestCase):
-    def test_build_ragas_scorer_maps_id_based_context_metric_names_back_to_standard_metric_keys(self) -> None:
+    def test_build_ragas_scorer_maps_id_based_context_metric_names_back_to_standard_metric_keys(
+        self,
+    ) -> None:
         executed_metrics: list[str] = []
 
         class FakeMetric:
@@ -1641,8 +1710,12 @@ class RagasScorerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(executed_metrics, ["id_based_context_precision", "id_based_context_recall"])
-        self.assertEqual(tuple(item.metric_name for item in results), ("context_precision", "context_recall"))
+        self.assertEqual(
+            executed_metrics, ["id_based_context_precision", "id_based_context_recall"]
+        )
+        self.assertEqual(
+            tuple(item.metric_name for item in results), ("context_precision", "context_recall")
+        )
         self.assertEqual(results[0].score, 1.0)
         self.assertEqual(results[1].score, 0.8)
 
@@ -1702,7 +1775,9 @@ class RagasScorerTest(unittest.TestCase):
         self.assertEqual(executed_metrics, ["faithfulness"])
         self.assertEqual(tuple(item.metric_name for item in results), ("faithfulness",))
 
-    def test_build_ragas_scorer_uses_statement_generation_timeout_override_without_widening_other_timeouts(self) -> None:
+    def test_build_ragas_scorer_uses_statement_generation_timeout_override_without_widening_other_timeouts(
+        self,
+    ) -> None:
         observed_stage_settings: list[tuple[str, SupplementalHTTPSettings]] = []
 
         class FakeFaithfulnessMetric:
@@ -1752,8 +1827,12 @@ class RagasScorerTest(unittest.TestCase):
 
         scorer = build_ragas_scorer(
             settings,
-            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(AssertionError("faithfulness should bypass ragas.evaluate")),
-            llm_factory=lambda resolved: type("LLM", (), {"http_settings": resolved.http_settings})(),
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
+                AssertionError("faithfulness should bypass ragas.evaluate")
+            ),
+            llm_factory=lambda resolved: type(
+                "LLM", (), {"http_settings": resolved.http_settings}
+            )(),
             embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
             metric_factory=lambda llm, embeddings: (FakeFaithfulnessMetric(llm),),
             metric_names=("faithfulness",),
@@ -1826,8 +1905,12 @@ class RagasScorerTest(unittest.TestCase):
 
         scorer = build_ragas_scorer(
             settings,
-            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(AssertionError("faithfulness should bypass ragas.evaluate")),
-            llm_factory=lambda resolved: type("LLM", (), {"http_settings": resolved.http_settings})(),
+            evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
+                AssertionError("faithfulness should bypass ragas.evaluate")
+            ),
+            llm_factory=lambda resolved: type(
+                "LLM", (), {"http_settings": resolved.http_settings}
+            )(),
             embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
             metric_factory=lambda llm, embeddings: (FakeFaithfulnessMetric(llm),),
             metric_names=("faithfulness",),
@@ -2008,13 +2091,17 @@ class RagasScorerTest(unittest.TestCase):
             self.assertEqual(repair_payload["stages"]["nli_verdicts"]["status"], "completed")
             self.assertEqual(repair_payload["stages"]["score_aggregation"]["status"], "completed")
 
-    def test_build_default_ragas_metrics_binds_runtime_and_uses_single_generation_answer_relevancy(self) -> None:
+    def test_build_default_ragas_metrics_binds_runtime_and_uses_single_generation_answer_relevancy(
+        self,
+    ) -> None:
         llm = object()
         embeddings = object()
 
         metrics = build_default_ragas_metrics(llm, embeddings)
 
-        self.assertEqual(tuple(metric.name for metric in metrics), build_default_ragas_metric_names())
+        self.assertEqual(
+            tuple(metric.name for metric in metrics), build_default_ragas_metric_names()
+        )
         self.assertIs(metrics[0].llm, llm)
         self.assertIs(metrics[1].llm, llm)
         self.assertIs(metrics[1].embeddings, embeddings)
@@ -2022,7 +2109,9 @@ class RagasScorerTest(unittest.TestCase):
         self.assertIs(metrics[2].llm, llm)
         self.assertIs(metrics[3].llm, llm)
 
-    def test_build_default_ragas_metrics_adapts_chinese_prompts_when_target_language_is_configured(self) -> None:
+    def test_build_default_ragas_metrics_adapts_chinese_prompts_when_target_language_is_configured(
+        self,
+    ) -> None:
         llm = object()
         embeddings = object()
         settings = RagasSettings.from_env(
@@ -2047,12 +2136,20 @@ class RagasScorerTest(unittest.TestCase):
             return self
 
         with (
-            patch("ragas.metrics._answer_relevance.ResponseRelevancePrompt.adapt", new=fake_answer_adapt),
-            patch("ragas.metrics._faithfulness.StatementGeneratorPrompt.adapt", new=fake_faithfulness_adapt),
+            patch(
+                "ragas.metrics._answer_relevance.ResponseRelevancePrompt.adapt",
+                new=fake_answer_adapt,
+            ),
+            patch(
+                "ragas.metrics._faithfulness.StatementGeneratorPrompt.adapt",
+                new=fake_faithfulness_adapt,
+            ),
         ):
             metrics = build_default_ragas_metrics(llm, embeddings, settings=settings)
 
-        self.assertEqual(tuple(metric.name for metric in metrics), build_default_ragas_metric_names())
+        self.assertEqual(
+            tuple(metric.name for metric in metrics), build_default_ragas_metric_names()
+        )
         self.assertEqual(answer_calls, [("chinese", llm, True)])
         self.assertEqual(faithfulness_calls, [("chinese", llm, True)])
 
@@ -2119,8 +2216,13 @@ class RagasScorerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(build_default_ragas_metric_names(), ("faithfulness", "answer_relevancy", "context_precision", "context_recall"))
-        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(
+            build_default_ragas_metric_names(),
+            ("faithfulness", "answer_relevancy", "context_precision", "context_recall"),
+        )
+        self.assertEqual(
+            tuple(item.metric_name for item in results), build_default_ragas_metric_names()
+        )
         self.assertEqual(results[0].score, 0.91)
         self.assertEqual(results[1].score, 0.88)
         self.assertEqual(results[2].score, 1.0)
@@ -2142,10 +2244,16 @@ class RagasScorerTest(unittest.TestCase):
         self.assertTrue(all(call["kwargs"]["show_progress"] is False for call in captured_calls))
         self.assertTrue(all(call["kwargs"]["raise_exceptions"] is True for call in captured_calls))
         self.assertTrue(all(call["kwargs"]["run_config"].timeout == 45 for call in captured_calls))
-        self.assertTrue(all(call["kwargs"]["run_config"].max_retries == 0 for call in captured_calls))
-        self.assertTrue(all(call["kwargs"]["run_config"].max_workers == 1 for call in captured_calls))
+        self.assertTrue(
+            all(call["kwargs"]["run_config"].max_retries == 0 for call in captured_calls)
+        )
+        self.assertTrue(
+            all(call["kwargs"]["run_config"].max_workers == 1 for call in captured_calls)
+        )
 
-    def test_build_ragas_scorer_marks_single_metric_timeout_as_failed_without_retrying(self) -> None:
+    def test_build_ragas_scorer_marks_single_metric_timeout_as_failed_without_retrying(
+        self,
+    ) -> None:
         attempts: dict[str, int] = {}
         score_by_metric = {
             "faithfulness": 0.91,
@@ -2203,7 +2311,9 @@ class RagasScorerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(
+            tuple(item.metric_name for item in results), build_default_ragas_metric_names()
+        )
         self.assertEqual(results[0].score, 0.91)
         self.assertEqual(results[1].verdict, "failed")
         self.assertIsNone(results[1].score)
@@ -2221,7 +2331,9 @@ class RagasScorerTest(unittest.TestCase):
             },
         )
 
-    def test_build_ragas_scorer_marks_single_metric_runtime_error_as_failed_without_retrying(self) -> None:
+    def test_build_ragas_scorer_marks_single_metric_runtime_error_as_failed_without_retrying(
+        self,
+    ) -> None:
         attempts: dict[str, int] = {}
         score_by_metric = {
             "faithfulness": 0.91,
@@ -2281,7 +2393,9 @@ class RagasScorerTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(tuple(item.metric_name for item in results), build_default_ragas_metric_names())
+        self.assertEqual(
+            tuple(item.metric_name for item in results), build_default_ragas_metric_names()
+        )
         self.assertEqual(results[0].score, 0.91)
         self.assertEqual(results[1].score, 0.88)
         self.assertEqual(results[2].verdict, "failed")
@@ -2299,7 +2413,9 @@ class RagasScorerTest(unittest.TestCase):
             },
         )
 
-    def test_build_ragas_scorer_redacts_secrets_and_falls_back_to_error_type_for_empty_runtime_messages(self) -> None:
+    def test_build_ragas_scorer_redacts_secrets_and_falls_back_to_error_type_for_empty_runtime_messages(
+        self,
+    ) -> None:
         class FakeMetric:
             def __init__(self, name: str) -> None:
                 self.name = name
@@ -2318,7 +2434,9 @@ class RagasScorerTest(unittest.TestCase):
         scorer = build_ragas_scorer(
             settings,
             evaluate_fn=lambda **kwargs: (_ for _ in ()).throw(
-                RuntimeError("circuit_open: provider origin https://llm.example::sk-secret-token is in cooldown")
+                RuntimeError(
+                    "circuit_open: provider origin https://llm.example::sk-secret-token is in cooldown"
+                )
             ),
             llm_factory=lambda resolved: {"model": resolved.llm_model},
             embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
@@ -2362,7 +2480,9 @@ class RagasScorerTest(unittest.TestCase):
 
 class SupplementalRetryPolicyTest(unittest.TestCase):
     def test_retry_delay_seconds_uses_exponential_backoff_with_bounded_jitter(self) -> None:
-        with patch("campus_evals.supplemental_http.random.uniform", side_effect=lambda low, high: high / 2):
+        with patch(
+            "campus_evals.supplemental_http.random.uniform", side_effect=lambda low, high: high / 2
+        ):
             self.assertEqual(_retry_delay_seconds(1, 1.0), 1.5)
             self.assertEqual(_retry_delay_seconds(2, 1.0), 2.5)
             self.assertEqual(_retry_delay_seconds(3, 1.0), 4.5)

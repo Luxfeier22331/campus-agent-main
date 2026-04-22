@@ -44,7 +44,7 @@ updated: 2026-04-02
 - resource ownership truth
 - approval truth
 
-`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist` 与 `packages/retrieval-core` 只消费 typed projection，不自行重建最终权限结论。
+`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 与 `packages/retrieval-core` 只消费 typed projection，不自行重建最终权限结论。
 
 ### 决策 2：restricted document authorization 采用 ABAC 为主、ownership 为辅的模型
 

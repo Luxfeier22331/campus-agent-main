@@ -92,6 +92,7 @@ updated: 2026-04-20
 
 - `RetrievalPlan` 属于 target-state contract，不表示当前所有 query path 都已采用 planner-first execution
 - plan 必须在 admitted scope、authz、version mode、freshness gate 之内生成
+- 细节冻结见 `docs/contracts/rag-agent-retrieval-plan-contract.md`
 
 ### Retrieval Step
 
@@ -103,6 +104,7 @@ updated: 2026-04-20
 
 - step 至少携带 step type、target scope、query、filter、budget
 - step outcome 属于 query activity / execution metadata truth
+- 细节冻结见 `docs/contracts/rag-agent-retrieval-plan-contract.md`
 
 ### Planner Budget
 
@@ -125,6 +127,7 @@ updated: 2026-04-20
 
 - query activity 记录计划过什么、执行了什么、每步结果如何
 - query activity 不等于最终 supporting evidence
+- 细节冻结见 `docs/data/retrieval-query-activity-model.md`
 
 ### Candidate Set
 
@@ -136,6 +139,7 @@ updated: 2026-04-20
 
 - candidate set 属于 execution truth
 - candidate set 不等于可进入最终回答的 supporting evidence
+- 细节冻结见 `docs/data/retrieval-query-activity-model.md`
 
 ### Supporting Evidence
 
@@ -147,6 +151,7 @@ updated: 2026-04-20
 
 - supporting evidence 必须来自 candidate set 的受控子集
 - citation、grounding、answer shaping 都围绕 supporting evidence 而不是 raw candidate trace
+- 细节冻结见 `docs/data/retrieval-query-activity-model.md`
 
 ### Freshness Gate
 

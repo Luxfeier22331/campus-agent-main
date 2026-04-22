@@ -141,11 +141,11 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 - `思修课` 也不是 repo-wide 通用 safe alias
 - `思修课` 只在中央民族大学课程域中被接受为 `思想政治理论课` 的 institution-scoped family alias
 
-### 决策 5：alias resolution 的 owner 在 rag-specialist
+### 决策 5：alias resolution 的 owner 在 rag-agent
 
 长期 owner split 固定如下：
 
-- `packages/rag-specialist`
+- `packages/rag-agent`
   拥有 alias/entity resolution、ambiguity policy、clarification policy 与 answer shaping contract
 - `packages/retrieval-core`
   只消费 canonical entity/filter truth，不拥有 alias 治理语义

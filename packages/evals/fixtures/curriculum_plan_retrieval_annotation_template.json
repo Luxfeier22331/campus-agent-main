@@ -1,191 +1,191 @@
 {
-  "schema_version": 1,
-  "corpus": "curriculum",
-  "collection": "curriculum_plan",
-  "instructions": [
-    "只标注真实属于 curriculum_plan 主集合的培养方案与课程教学计划文档，不把 handbook 或其他 corpus 样本混入 curriculum qrels。",
-    "对每条 query 先抓取 top-10 retrieval results，再人工审核。",
-    "主相关 source 标记到 expected_sources，使用 grade=2。",
-    "可接受相关 source 标记到 expected_sources，使用 grade=1。",
-    "不应命中的 source 标记到 forbidden_sources。",
-    "curriculum qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界和表格锚点长期稳定后再补。",
-    "像 基地班 / 实验班 / 创新班 / 民族班 这类 generic family alias 默认不应直接写进 canonical qrels；若 query 仍需澄清，应改放 workflow/golden case。"
-  ],
-  "cases": [
-    {
-      "case_id": "ethnology-plan-title",
-      "query": "民族学本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "培养方案标题 exact-match。"
-    },
-    {
-      "case_id": "digital-economy-plan-title",
-      "query": "数字经济本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "相邻经济学类方案区分。"
-    },
-    {
-      "case_id": "general-english-plan-title",
-      "query": "中央民族大学通识课程大学英语课程教学计划",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "课程教学计划标题 exact-match。"
-    },
-    {
-      "case_id": "history-strong-base-title",
-      "query": "历史学强基计划本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "强基计划与普通历史学方案区分。"
-    },
-    {
-      "case_id": "minority-language-strong-base-title",
-      "query": "中国少数民族语言文学强基计划本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "中国少数民族语言文学强基计划与普通方案区分。"
-    },
-    {
-      "case_id": "minority-language-strong-base-fixed-phrase",
-      "query": "古文字学方向强基计划",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "唯一 grounding 的 sparse fixed-phrase 样本。"
-    },
-    {
-      "case_id": "data-science-second-degree-title",
-      "query": "数据科学与大数据技术本科第二学士学位人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "第二学士学位方案标题 exact-match。"
-    },
-    {
-      "case_id": "economics-innovation-title",
-      "query": "经济学拔尖人才创新班人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "创新班方案标题命中。"
-    },
-    {
-      "case_id": "philosophy-strong-base-title",
-      "query": "哲学强基计划本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "哲学强基计划与普通哲学方案区分。"
-    },
-    {
-      "case_id": "digital-economy-plan-paraphrase",
-      "query": "想看数字经济这个专业的培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "dense paraphrase + disambiguation 样本。"
-    },
-    {
-      "case_id": "semantic-minority-language-strong-base-paraphrase",
-      "query": "想看中国少数民族语言文学古文字学方向强基计划培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "dense paraphrase + 中国少数民族语言文学强基计划区分样本。"
-    },
-    {
-      "case_id": "ethnology-second-degree-academic-years",
-      "query": "民族学本科第二学士学位人才培养方案学制几年",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "短事实学制样本。"
-    },
-    {
-      "case_id": "education-second-degree-academic-years",
-      "query": "教育学本科第二学士学位人才培养方案学制几年",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "教育学第二学士学位短事实学制样本。"
-    },
-    {
-      "case_id": "ethnology-total-credits",
-      "query": "民族学本科人才培养方案总学分要求是多少",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "短事实总学分样本。"
-    },
-    {
-      "case_id": "minority-language-total-credits",
-      "query": "中国少数民族语言文学本科人才培养方案总学分是多少",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "中国少数民族语言文学本科方案总学分样本。"
-    },
-    {
-      "case_id": "economics-course-settings-table",
-      "query": "经济学拔尖人才创新班人才培养方案课程设置怎么安排",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "课程设置 table retrieval 样本。"
-    },
-    {
-      "case_id": "fiscal-course-settings-table",
-      "query": "财政学本科人才培养方案课程设置怎么安排",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "财政学课程设置 table retrieval 样本。"
-    },
-    {
-      "case_id": "general-english-total-credits",
-      "query": "大学英语课程教学计划一共多少学分",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "课程教学计划短事实 + forbidden-source 区分。"
-    },
-    {
-      "case_id": "hanyu-international-students-title",
-      "query": "汉语国际教育国际学生本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "国际学生版本标题区分样本。"
-    },
-    {
-      "case_id": "hanyu-international-students-total-credits",
-      "query": "汉语国际教育国际学生本科人才培养方案总学分是多少",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "国际学生版本总学分 + forbidden-source 区分样本。"
-    },
-    {
-      "case_id": "law-ethnic-experimental-total-credits",
-      "query": "法学民族实验班本科人才培养方案总学分是多少",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "括号标题和相邻专业区分样本。"
-    },
-    {
-      "case_id": "law-ethnic-class-fourth-semester-courses",
-      "query": "法学民族班培养方案里大二下有什么课",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "口语 alias + semester alias 的 unique resolution 样本。"
-    },
-    {
-      "case_id": "semantic-philosophy-strong-base-paraphrase",
-      "query": "想看哲学强基方向的培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "dense paraphrase + disambiguation 样本。"
-    },
-    {
-      "case_id": "no-hit-impossible-query",
-      "query": "火星校区飞船停靠规则",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "curriculum no-hit deterministic case。"
-    },
-    {
-      "case_id": "no-hit-nonexistent-program",
-      "query": "量子飞船驾驶本科人才培养方案",
-      "expected_sources": [],
-      "forbidden_sources": [],
-      "notes": "虚构专业 no-hit case。"
-    }
-  ]
+	"schema_version": 1,
+	"corpus": "curriculum",
+	"collection": "curriculum_plan",
+	"instructions": [
+		"只标注真实属于 curriculum_plan 主集合的培养方案与课程教学计划文档，不把 handbook 或其他 corpus 样本混入 curriculum qrels。",
+		"对每条 query 先抓取 top-10 retrieval results，再人工审核。",
+		"主相关 source 标记到 expected_sources，使用 grade=2。",
+		"可接受相关 source 标记到 expected_sources，使用 grade=1。",
+		"不应命中的 source 标记到 forbidden_sources。",
+		"curriculum qrels 默认锁到 doc_id；已确认版本语义稳定的高风险 regression_locked case 可以补 version_id，chunk_id 仍只在边界和表格锚点长期稳定后再补。",
+		"像 基地班 / 实验班 / 创新班 / 民族班 这类 generic family alias 默认不应直接写进 canonical qrels；若 query 仍需澄清，应改放 workflow/golden case。"
+	],
+	"cases": [
+		{
+			"case_id": "ethnology-plan-title",
+			"query": "民族学本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "培养方案标题 exact-match。"
+		},
+		{
+			"case_id": "digital-economy-plan-title",
+			"query": "数字经济本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "相邻经济学类方案区分。"
+		},
+		{
+			"case_id": "general-english-plan-title",
+			"query": "中央民族大学通识课程大学英语课程教学计划",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "课程教学计划标题 exact-match。"
+		},
+		{
+			"case_id": "history-strong-base-title",
+			"query": "历史学强基计划本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "强基计划与普通历史学方案区分。"
+		},
+		{
+			"case_id": "minority-language-strong-base-title",
+			"query": "中国少数民族语言文学强基计划本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "中国少数民族语言文学强基计划与普通方案区分。"
+		},
+		{
+			"case_id": "minority-language-strong-base-fixed-phrase",
+			"query": "古文字学方向强基计划",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "唯一 grounding 的 sparse fixed-phrase 样本。"
+		},
+		{
+			"case_id": "data-science-second-degree-title",
+			"query": "数据科学与大数据技术本科第二学士学位人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "第二学士学位方案标题 exact-match。"
+		},
+		{
+			"case_id": "economics-innovation-title",
+			"query": "经济学拔尖人才创新班人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "创新班方案标题命中。"
+		},
+		{
+			"case_id": "philosophy-strong-base-title",
+			"query": "哲学强基计划本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "哲学强基计划与普通哲学方案区分。"
+		},
+		{
+			"case_id": "digital-economy-plan-paraphrase",
+			"query": "想看数字经济这个专业的培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "dense paraphrase + disambiguation 样本。"
+		},
+		{
+			"case_id": "semantic-minority-language-strong-base-paraphrase",
+			"query": "想看中国少数民族语言文学古文字学方向强基计划培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "dense paraphrase + 中国少数民族语言文学强基计划区分样本。"
+		},
+		{
+			"case_id": "ethnology-second-degree-academic-years",
+			"query": "民族学本科第二学士学位人才培养方案学制几年",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "短事实学制样本。"
+		},
+		{
+			"case_id": "education-second-degree-academic-years",
+			"query": "教育学本科第二学士学位人才培养方案学制几年",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "教育学第二学士学位短事实学制样本。"
+		},
+		{
+			"case_id": "ethnology-total-credits",
+			"query": "民族学本科人才培养方案总学分要求是多少",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "短事实总学分样本。"
+		},
+		{
+			"case_id": "minority-language-total-credits",
+			"query": "中国少数民族语言文学本科人才培养方案总学分是多少",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "中国少数民族语言文学本科方案总学分样本。"
+		},
+		{
+			"case_id": "economics-course-settings-table",
+			"query": "经济学拔尖人才创新班人才培养方案课程设置怎么安排",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "课程设置 table retrieval 样本。"
+		},
+		{
+			"case_id": "fiscal-course-settings-table",
+			"query": "财政学本科人才培养方案课程设置怎么安排",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "财政学课程设置 table retrieval 样本。"
+		},
+		{
+			"case_id": "general-english-total-credits",
+			"query": "大学英语课程教学计划一共多少学分",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "课程教学计划短事实 + forbidden-source 区分。"
+		},
+		{
+			"case_id": "hanyu-international-students-title",
+			"query": "汉语国际教育国际学生本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "国际学生版本标题区分样本。"
+		},
+		{
+			"case_id": "hanyu-international-students-total-credits",
+			"query": "汉语国际教育国际学生本科人才培养方案总学分是多少",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "国际学生版本总学分 + forbidden-source 区分样本。"
+		},
+		{
+			"case_id": "law-ethnic-experimental-total-credits",
+			"query": "法学民族实验班本科人才培养方案总学分是多少",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "括号标题和相邻专业区分样本。"
+		},
+		{
+			"case_id": "law-ethnic-class-fourth-semester-courses",
+			"query": "法学民族班培养方案里大二下有什么课",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "口语 alias + semester alias 的 unique resolution 样本。"
+		},
+		{
+			"case_id": "semantic-philosophy-strong-base-paraphrase",
+			"query": "想看哲学强基方向的培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "dense paraphrase + disambiguation 样本。"
+		},
+		{
+			"case_id": "no-hit-impossible-query",
+			"query": "火星校区飞船停靠规则",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "curriculum no-hit deterministic case。"
+		},
+		{
+			"case_id": "no-hit-nonexistent-program",
+			"query": "量子飞船驾驶本科人才培养方案",
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "虚构专业 no-hit case。"
+		}
+	]
 }

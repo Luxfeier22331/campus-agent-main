@@ -22,9 +22,6 @@ from campus_ingestion_core.object_store import is_source_object_key
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
 )
-from campus_ingestion_core.raw_ingestion_online_ocr import (
-    ONLINE_OCR_PROVIDER_ASYNC_JOBS,
-)
 
 AUTHENTICATED_NOTICE_SOURCE_PROJECTIONS_SCHEMA_VERSION = (
     "authenticated_notice_source_projections_v1"

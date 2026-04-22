@@ -1,35 +1,35 @@
 {
-  "corpus": "regulations",
-  "collection": "scoped_rules",
-  "chunk_profile_version": "scoped_rules_semantic_v1",
-  "structured_input": "document_units_jsonl",
-  "runtime_defaults": {
-    "strategy_name": "scoped_rules_semantic_v1",
-    "chunk_size": 260,
-    "max_chunk_size": 360,
-    "chunk_overlap": 48,
-    "min_chunk_size": 48
-  },
-  "lane_defaults": {
-    "annual_cycle_rule": {
-      "strategy_name": "scoped_rules_annual_cycle_v1",
-      "chunk_size": 260,
-      "max_chunk_size": 360,
-      "chunk_overlap": 48,
-      "min_chunk_size": 48
-    },
-    "time_bound_operational_rule": {
-      "strategy_name": "scoped_rules_time_bound_v1",
-      "chunk_size": 240,
-      "max_chunk_size": 340,
-      "chunk_overlap": 40,
-      "min_chunk_size": 40
-    }
-  },
-  "cleaning_policy_version": "scoped_rules_cleaning_v1",
-  "notes": [
-    "This collection chunks canonical scoped rule text after wrapper semantics have been removed as far as available in source-derived canonical text.",
-    "Current chunk profile is a holding scaffold for offline preparation only.",
-    "Detailed query semantics are deferred and do not block import or chunk preparation."
-  ]
+	"corpus": "regulations",
+	"collection": "scoped_rules",
+	"chunk_profile_version": "scoped_rules_semantic_v1",
+	"structured_input": "document_units_jsonl",
+	"runtime_defaults": {
+		"strategy_name": "scoped_rules_semantic_v1",
+		"chunk_size": 260,
+		"max_chunk_size": 360,
+		"chunk_overlap": 48,
+		"min_chunk_size": 48
+	},
+	"lane_defaults": {
+		"annual_cycle_rule": {
+			"strategy_name": "scoped_rules_annual_cycle_v1",
+			"chunk_size": 260,
+			"max_chunk_size": 360,
+			"chunk_overlap": 48,
+			"min_chunk_size": 48
+		},
+		"time_bound_operational_rule": {
+			"strategy_name": "scoped_rules_time_bound_v1",
+			"chunk_size": 240,
+			"max_chunk_size": 340,
+			"chunk_overlap": 40,
+			"min_chunk_size": 40
+		}
+	},
+	"cleaning_policy_version": "scoped_rules_cleaning_v1",
+	"notes": [
+		"This collection chunks canonical scoped rule text after wrapper semantics have been removed as far as available in source-derived canonical text.",
+		"Current chunk profile is a holding scaffold for offline preparation only.",
+		"Detailed query semantics are deferred and do not block import or chunk preparation."
+	]
 }

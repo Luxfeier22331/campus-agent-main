@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # 当前架构
@@ -66,6 +66,11 @@ updated: 2026-04-21
 - `campus_services/*`
   当前仍保持 `offline_preparation`
 
+当前非 serving capture-only scope：
+
+- `campus_notices/file_release_capture`
+  authenticated notice `file_release` local-PG-only inventory / raw-asset ledger；用于 owner-recovery readiness 与 operator 排障，`query_enabled=false`，不生成 document / chunk / index / release
+
 ## 当前 App 边界
 
 ### `apps/public-chat-web`
@@ -110,9 +115,9 @@ updated: 2026-04-21
 
 - `packages/supervisor-core`
   top-level request framing、routing、delegation、response finalization
-- `packages/rag-specialist`
+- `packages/rag-agent`
   当前默认 knowledge specialist，负责 retrieval-specific planning、clarification、grounded answer synthesis
-- `packages/navigation-specialist`
+- `packages/navigation-agent`
   已接受的 navigation capability boundary；当前 package / contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close
 - `packages/retrieval-core`
   retrieval abstraction、metadata pre-filter、evidence shaping
@@ -124,15 +129,13 @@ updated: 2026-04-21
 ## 当前术语真相
 
 - 当前 accepted merged truth 的 runtime / package / ADR label 继续以 current-truth 名称为准：
-  - `rag-specialist`
-  - `navigation-specialist`
-- target-side / planning-side 文档可以讨论 forward family label：
   - `rag-agent`
+  - `navigation-agent`
+- 当前额外冻结的 forward family label 继续包括：
   - `campus-services-agent`
   - `notice-agent`
-  - `navigation-agent`
-- 这些 forward family label 不等于 current merged truth 已经完成 rename；本文作为 current snapshot，只把 current-truth label 当作 canonical runtime truth。
-- repo-wide label migration 的执行顺序与下一步状态以 `execution-capability-family-convergence` workstream 为准。
+- 对 `rag` / `navigation` 两条 capability family，forward family label 与 current runtime truth 已经对齐；active canonical surface 不再维护单独的 `*-specialist` current-truth alias。
+- 未来新增 capability family 的命名规则与 reopen 条件，以已完成的 `execution-capability-family-convergence` workstream 为准。
 
 ## 当前文档地图
 

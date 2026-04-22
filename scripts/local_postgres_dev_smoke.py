@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import json
-from pathlib import Path
 import subprocess
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Sequence
 
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
@@ -37,8 +37,7 @@ def prepare_local_postgres_smoke(
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     resolved_run_id = run_id or f"local-postgres-wave-d-{normalized_notice_id}-{timestamp}"
     resolved_preparation_run_id = (
-        preparation_run_id
-        or f"prep-local-postgres-wave-d-{normalized_notice_id}-{timestamp}"
+        preparation_run_id or f"prep-local-postgres-wave-d-{normalized_notice_id}-{timestamp}"
     )
     resolved_sample_output_root = (
         (resolved_repo_root / sample_output_root)

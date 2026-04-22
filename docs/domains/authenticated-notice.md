@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Authenticated Notice Domain
@@ -33,13 +33,16 @@ updated: 2026-04-20
   - `../../.planning/workstreams/authenticated-notice-regulation-consumption/STATE.md`
   - `../../.planning/workstreams/authenticated-notice-file-release-owner-recovery/STATE.md`
   - `../../.planning/workstreams/authenticated-notice-live-portal-control-plane/STATE.md`
-- 需要恢复 deferred 前向工作时，优先从下面的 plan 入口进入；需要 operator/replay/promotion 步骤时，优先从 runbook 入口进入
+- 需要恢复仍未关闭的前向工作时，优先从下面的 plan 入口进入；`file_release owner recovery` 的已完成 closeout 改看 completed archive；需要 operator/replay/promotion 步骤时，优先从 runbook 入口进入
 
-## Deferred Plan
+## Plan Entry
 
 - `../plans/internal-notice-policy-regulation-consumption-implementation.md`
-- `../plans/authenticated-notice-file-release-owner-recovery.md`
 - `../plans/authenticated-notice-live-portal-control-plane.md`
+
+## Completed Closeout Plan
+
+- `../plans/archive/completed/authenticated-notice-file-release-owner-recovery.md`
 
 ## Active Runbooks
 

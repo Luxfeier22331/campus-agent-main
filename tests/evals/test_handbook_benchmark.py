@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagResultPayload, SpecialistResponse
+from campus_contracts import (
+    ActorContext,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+    SpecialistResponse,
+)
 from campus_evals import (
     ExecutionResult,
     GoldenCase,
@@ -22,7 +29,6 @@ from campus_evals.handbook_benchmark import (
 )
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 from campus_evals.operator_observability import OperatorRequestCorrelation
-
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_handbook")
 
@@ -84,7 +90,7 @@ def _response(
     follow_up_question: str = "",
 ) -> SpecialistResponse:
     return SpecialistResponse(
-        target="rag-specialist",
+        target="rag-agent",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -98,6 +104,18 @@ def _response(
             )
         ),
     )
+
+
+class HandbookBenchmarkFacadeTest(unittest.TestCase):
+    def test_handbook_benchmark_module_keeps_public_exports(self) -> None:
+        import campus_evals.handbook_benchmark as handbook_benchmark_module
+
+        for name in (
+            "collect_repairable_handbook_benchmark_targets",
+            "repair_handbook_formal_benchmark",
+            "run_handbook_formal_benchmark",
+        ):
+            self.assertTrue(hasattr(handbook_benchmark_module, name), name)
 
 
 class HandbookBenchmarkRunnerTest(unittest.TestCase):
@@ -132,7 +150,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 reruns=1,
             )
 
-            payload = json.loads((output_dir / "run-01-case-results.json").read_text(encoding="utf-8"))
+            payload = json.loads(
+                (output_dir / "run-01-case-results.json").read_text(encoding="utf-8")
+            )
 
         self.assertEqual(
             payload["results"][0]["request_correlation"],
@@ -147,7 +167,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             },
         )
 
-    def test_run_handbook_formal_benchmark_binds_faithfulness_artifact_context_per_run(self) -> None:
+    def test_run_handbook_formal_benchmark_binds_faithfulness_artifact_context_per_run(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
         seen_contexts: list[tuple[str, int, str, str | None]] = []
 
@@ -167,7 +189,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                             str(context.output_dir),
                             context.run_number,
                             context.benchmark_mode,
-                            str(context.source_output_dir) if context.source_output_dir is not None else None,
+                            str(context.source_output_dir)
+                            if context.source_output_dir is not None
+                            else None,
                         )
                     )
                 return (
@@ -209,7 +233,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             ],
         )
 
-    def test_repair_handbook_formal_benchmark_binds_source_context_for_faithfulness_repair(self) -> None:
+    def test_repair_handbook_formal_benchmark_binds_source_context_for_faithfulness_repair(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
         original_adapter = type(
             "OriginalAdapter",
@@ -248,7 +274,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                             str(context.output_dir),
                             context.run_number,
                             context.benchmark_mode,
-                            str(context.source_output_dir) if context.source_output_dir is not None else None,
+                            str(context.source_output_dir)
+                            if context.source_output_dir is not None
+                            else None,
                         )
                     )
                 return (
@@ -382,7 +410,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(adapter.preflight_calls, 1)
             self.assertEqual(adapter.evaluate_calls, 0)
             self.assertTrue((output_dir / "supplemental-preflight.json").exists())
-            preflight = json.loads((output_dir / "supplemental-preflight.json").read_text(encoding="utf-8"))
+            preflight = json.loads(
+                (output_dir / "supplemental-preflight.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(preflight["summary"]["status_counts"]["failed"], 1)
             self.assertEqual(preflight["adapters"][0]["failure_disposition"], "transient_retryable")
             self.assertEqual(preflight["adapters"][0]["run_action"], "skip_adapter")
@@ -422,12 +452,16 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
 
             def evaluate(self, case, execution):
                 del case, execution
-                raise AssertionError("evaluate should not run after non-retryable preflight failure")
+                raise AssertionError(
+                    "evaluate should not run after non-retryable preflight failure"
+                )
 
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "benchmark"
 
-            with self.assertRaisesRegex(RuntimeError, "non-retryable supplemental preflight failure"):
+            with self.assertRaisesRegex(
+                RuntimeError, "non-retryable supplemental preflight failure"
+            ):
                 run_handbook_formal_benchmark(
                     cases=cases,
                     executor=lambda case: ExecutionResult(
@@ -451,8 +485,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
 
             self.assertTrue((output_dir / "supplemental-preflight.json").exists())
             self.assertFalse((output_dir / "summary.json").exists())
-            preflight = json.loads((output_dir / "supplemental-preflight.json").read_text(encoding="utf-8"))
-            self.assertEqual(preflight["adapters"][0]["failure_disposition"], "non_retryable_request")
+            preflight = json.loads(
+                (output_dir / "supplemental-preflight.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                preflight["adapters"][0]["failure_disposition"], "non_retryable_request"
+            )
             self.assertEqual(preflight["adapters"][0]["run_action"], "abort_benchmark")
 
     def test_run_handbook_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
@@ -463,24 +501,26 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             {
                 "adapter_id": "judge",
                 "evaluate": lambda self, case, execution: (
-                    SupplementalResult(
-                        adapter_id="judge",
-                        metric_name="answer_correctness_rubric",
-                        score=0.9,
-                        verdict="passed",
-                        rationale=f"scored {case.case_id}",
-                        metadata={"expected_status": case.expected_status},
-                    ),
-                )
-                if case.expected_status == "completed"
-                else (
-                    SupplementalResult(
-                        adapter_id="judge",
-                        metric_name="answer_correctness_rubric",
-                        verdict="not_applicable",
-                        rationale="completed-only metric",
-                        metadata={"expected_status": case.expected_status},
-                    ),
+                    (
+                        SupplementalResult(
+                            adapter_id="judge",
+                            metric_name="answer_correctness_rubric",
+                            score=0.9,
+                            verdict="passed",
+                            rationale=f"scored {case.case_id}",
+                            metadata={"expected_status": case.expected_status},
+                        ),
+                    )
+                    if case.expected_status == "completed"
+                    else (
+                        SupplementalResult(
+                            adapter_id="judge",
+                            metric_name="answer_correctness_rubric",
+                            verdict="not_applicable",
+                            rationale="completed-only metric",
+                            metadata={"expected_status": case.expected_status},
+                        ),
+                    )
                 ),
             },
         )()
@@ -515,8 +555,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 executor=lambda case: ExecutionResult(
                     response=_response(
                         status=case.expected_status,
-                        answer_text="图书馆开放时间为 08:00 到 22:00。" if case.expected_status == "completed" else "",
-                        sources=(_source("handbook:library"),) if case.expected_status == "completed" else (),
+                        answer_text="图书馆开放时间为 08:00 到 22:00。"
+                        if case.expected_status == "completed"
+                        else "",
+                        sources=(_source("handbook:library"),)
+                        if case.expected_status == "completed"
+                        else (),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=HANDBOOK_SCOPE,
@@ -545,14 +589,18 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertTrue((output_dir / "supplemental-provider-summary.json").exists())
             self.assertTrue((output_dir / "supplemental-runtime-events.jsonl").exists())
 
-            benchmark_config = json.loads((output_dir / "benchmark-config.json").read_text(encoding="utf-8"))
+            benchmark_config = json.loads(
+                (output_dir / "benchmark-config.json").read_text(encoding="utf-8")
+            )
             summary = json.loads((output_dir / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual(benchmark_config["case_workers"], 2)
             self.assertEqual(summary["benchmark_type"], "formal_benchmark")
             self.assertEqual(summary["reruns"], 2)
             self.assertEqual(summary["case_set"]["expected_status_counts"]["completed"], 1)
             self.assertEqual(summary["case_set"]["expected_status_counts"]["no_answer"], 1)
-            run_results = json.loads((output_dir / "run-01-case-results.json").read_text(encoding="utf-8"))
+            run_results = json.loads(
+                (output_dir / "run-01-case-results.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(
                 run_results["results"][0]["observed_trace"]["retrieved_sources"][0]["doc_id"],
                 "handbook:library",
@@ -564,9 +612,16 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             metric_summary = summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
             self.assertAlmostEqual(metric_summary["mean_average_score"], 0.9)
             self.assertEqual(metric_summary["by_expected_status"]["completed"]["score_count"], 2)
-            self.assertEqual(metric_summary["by_expected_status"]["no_answer"]["verdict_counts"]["not_applicable"], 2)
+            self.assertEqual(
+                metric_summary["by_expected_status"]["no_answer"]["verdict_counts"][
+                    "not_applicable"
+                ],
+                2,
+            )
 
-    def test_collect_repairable_handbook_benchmark_targets_only_selects_transient_infra_failures(self) -> None:
+    def test_collect_repairable_handbook_benchmark_targets_only_selects_transient_infra_failures(
+        self,
+    ) -> None:
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "benchmark"
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -681,7 +736,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             )
             self.assertEqual(targets[0]["failure_reasons"], ["http_429", "provider_runtime"])
 
-    def test_collect_repairable_handbook_benchmark_targets_includes_preflight_unavailable_backfill_targets(self) -> None:
+    def test_collect_repairable_handbook_benchmark_targets_includes_preflight_unavailable_backfill_targets(
+        self,
+    ) -> None:
         cases = (_completed_case(), _no_answer_case())
 
         class UnavailableAdapter:
@@ -704,8 +761,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 executor=lambda case: ExecutionResult(
                     response=_response(
                         status=case.expected_status,
-                        answer_text="图书馆开放时间为 08:00 到 22:00。" if case.expected_status == "completed" else "",
-                        sources=(_source("handbook:library"),) if case.expected_status == "completed" else (),
+                        answer_text="图书馆开放时间为 08:00 到 22:00。"
+                        if case.expected_status == "completed"
+                        else "",
+                        sources=(_source("handbook:library"),)
+                        if case.expected_status == "completed"
+                        else (),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=HANDBOOK_SCOPE,
@@ -721,18 +782,31 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
 
             self.assertEqual(len(targets), 2)
             self.assertEqual(
-                [(target["run_number"], target["case_id"], target["adapter_id"]) for target in targets],
+                [
+                    (target["run_number"], target["case_id"], target["adapter_id"])
+                    for target in targets
+                ],
                 [
                     (1, "benchmark-completed", "judge"),
                     (1, "benchmark-no-answer", "judge"),
                 ],
             )
-            self.assertTrue(all(target["target_source"] == "preflight_unavailable_backfill" for target in targets))
             self.assertTrue(
-                all(target["metric_keys"] == ["judge.answer_correctness_rubric"] for target in targets)
+                all(
+                    target["target_source"] == "preflight_unavailable_backfill"
+                    for target in targets
+                )
+            )
+            self.assertTrue(
+                all(
+                    target["metric_keys"] == ["judge.answer_correctness_rubric"]
+                    for target in targets
+                )
             )
 
-    def test_repair_handbook_formal_benchmark_writes_repaired_artifacts_without_mutating_original(self) -> None:
+    def test_repair_handbook_formal_benchmark_writes_repaired_artifacts_without_mutating_original(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
         run_scores = iter(
             (
@@ -829,9 +903,13 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 policy_path=policy_path,
             )
 
-            original_summary = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
+            original_summary = json.loads(
+                (benchmark_dir / "summary.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(
-                original_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]["applicable_runs"],
+                original_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"][
+                    "applicable_runs"
+                ],
                 1,
             )
 
@@ -861,25 +939,37 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertTrue((repair_dir / "summary.json").exists())
             self.assertEqual(repaired_summary["provenance"]["repair_of"], str(benchmark_dir))
             self.assertEqual(repaired_summary["repair"]["applied_target_count"], 1)
-            repaired_metric = repaired_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            repaired_metric = repaired_summary["aggregate"]["supplemental"][
+                "judge.answer_correctness_rubric"
+            ]
             self.assertEqual(repaired_metric["applicable_runs"], 2)
             self.assertAlmostEqual(repaired_metric["mean_average_score"], 0.925)
             self.assertEqual(repaired_summary["gate_report"]["overall_verdict"], "pass")
-            repair_config = json.loads((repair_dir / "repair-config.json").read_text(encoding="utf-8"))
+            repair_config = json.loads(
+                (repair_dir / "repair-config.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(repair_config["case_workers"], 2)
 
-            original_summary_after = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
+            original_summary_after = json.loads(
+                (benchmark_dir / "summary.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(
-                original_summary_after["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]["applicable_runs"],
+                original_summary_after["aggregate"]["supplemental"][
+                    "judge.answer_correctness_rubric"
+                ]["applicable_runs"],
                 1,
             )
             self.assertTrue((repair_dir / "repair-summary.json").exists())
-            repair_summary = json.loads((repair_dir / "repair-summary.json").read_text(encoding="utf-8"))
+            repair_summary = json.loads(
+                (repair_dir / "repair-summary.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(repair_summary["selected_target_count"], 1)
             self.assertEqual(repair_summary["applied_target_count"], 1)
             self.assertEqual(repair_summary["remaining_metric_keys"], [])
 
-    def test_repair_handbook_formal_benchmark_backfills_preflight_unavailable_metrics_when_provider_recovers(self) -> None:
+    def test_repair_handbook_formal_benchmark_backfills_preflight_unavailable_metrics_when_provider_recovers(
+        self,
+    ) -> None:
         cases = (_completed_case(), _no_answer_case())
 
         class UnavailableOriginalAdapter:
@@ -962,8 +1052,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 executor=lambda case: ExecutionResult(
                     response=_response(
                         status=case.expected_status,
-                        answer_text="图书馆开放时间为 08:00 到 22:00。" if case.expected_status == "completed" else "",
-                        sources=(_source("handbook:library"),) if case.expected_status == "completed" else (),
+                        answer_text="图书馆开放时间为 08:00 到 22:00。"
+                        if case.expected_status == "completed"
+                        else "",
+                        sources=(_source("handbook:library"),)
+                        if case.expected_status == "completed"
+                        else (),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=HANDBOOK_SCOPE,
@@ -976,8 +1070,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 policy_path=policy_path,
             )
 
-            original_summary = json.loads((benchmark_dir / "summary.json").read_text(encoding="utf-8"))
-            original_metric = original_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            original_summary = json.loads(
+                (benchmark_dir / "summary.json").read_text(encoding="utf-8")
+            )
+            original_metric = original_summary["aggregate"]["supplemental"][
+                "judge.answer_correctness_rubric"
+            ]
             self.assertEqual(original_metric["overall"]["runtime_status"], "unavailable")
             self.assertEqual(original_metric["applicable_runs"], 0)
 
@@ -986,8 +1084,12 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
                 executor=lambda case: ExecutionResult(
                     response=_response(
                         status=case.expected_status,
-                        answer_text="图书馆开放时间为 08:00 到 22:00。" if case.expected_status == "completed" else "",
-                        sources=(_source("handbook:library"),) if case.expected_status == "completed" else (),
+                        answer_text="图书馆开放时间为 08:00 到 22:00。"
+                        if case.expected_status == "completed"
+                        else "",
+                        sources=(_source("handbook:library"),)
+                        if case.expected_status == "completed"
+                        else (),
                     ),
                     observed_trace=ObservedTrace(
                         selected_scope=HANDBOOK_SCOPE,
@@ -1003,22 +1105,31 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(repair_adapter.evaluate_calls, 2)
             self.assertEqual(repaired_summary["repair"]["selected_target_count"], 2)
             self.assertEqual(repaired_summary["repair"]["applied_target_count"], 2)
-            repaired_metric = repaired_summary["aggregate"]["supplemental"]["judge.answer_correctness_rubric"]
+            repaired_metric = repaired_summary["aggregate"]["supplemental"][
+                "judge.answer_correctness_rubric"
+            ]
             self.assertEqual(repaired_metric["applicable_runs"], 1)
             self.assertAlmostEqual(repaired_metric["mean_average_score"], 0.94)
             self.assertEqual(repaired_summary["gate_report"]["overall_verdict"], "pass")
 
             repair_plan = json.loads((repair_dir / "repair-plan.json").read_text(encoding="utf-8"))
             self.assertTrue(
-                all(target["target_source"] == "preflight_unavailable_backfill" for target in repair_plan["targets"])
+                all(
+                    target["target_source"] == "preflight_unavailable_backfill"
+                    for target in repair_plan["targets"]
+                )
             )
-            repair_results = json.loads((repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8"))
+            repair_results = json.loads(
+                (repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(
                 [item["status"] for item in repair_results["results"]],
                 ["repaired", "repaired"],
             )
 
-    def test_repair_handbook_formal_benchmark_marks_rerun_failed_when_runtime_failure_persists(self) -> None:
+    def test_repair_handbook_formal_benchmark_marks_rerun_failed_when_runtime_failure_persists(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
         original_adapter = type(
             "OriginalAdapter",
@@ -1103,18 +1214,26 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(repaired_metric["applicable_runs"], 0)
             self.assertEqual(repaired_metric["overall"]["runtime_status"], "unavailable")
 
-            repair_results = json.loads((repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8"))
+            repair_results = json.loads(
+                (repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(repair_results["results"][0]["status"], "rerun_failed")
             self.assertEqual(repair_results["results"][0]["recovered_metric_keys"], [])
-            self.assertEqual(repair_results["results"][0]["remaining_metric_keys"], ["ragas.faithfulness"])
+            self.assertEqual(
+                repair_results["results"][0]["remaining_metric_keys"], ["ragas.faithfulness"]
+            )
 
-            repair_summary = json.loads((repair_dir / "repair-summary.json").read_text(encoding="utf-8"))
+            repair_summary = json.loads(
+                (repair_dir / "repair-summary.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(repair_summary["status_counts"], {"rerun_failed": 1})
             self.assertEqual(repair_summary["repaired_metric_keys"], [])
             self.assertEqual(repair_summary["failed_metric_keys"], ["ragas.faithfulness"])
             self.assertEqual(repair_summary["remaining_metric_keys"], ["ragas.faithfulness"])
 
-    def test_repair_handbook_formal_benchmark_skips_targets_when_repair_preflight_is_unavailable(self) -> None:
+    def test_repair_handbook_formal_benchmark_skips_targets_when_repair_preflight_is_unavailable(
+        self,
+    ) -> None:
         cases = (_completed_case(),)
         original_adapter = type(
             "OriginalAdapter",
@@ -1197,7 +1316,9 @@ class HandbookBenchmarkRunnerTest(unittest.TestCase):
             self.assertEqual(repair_adapter.evaluate_calls, 0)
             self.assertEqual(repaired_summary["repair"]["selected_target_count"], 1)
             self.assertEqual(repaired_summary["repair"]["applied_target_count"], 0)
-            repair_results = json.loads((repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8"))
+            repair_results = json.loads(
+                (repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8")
+            )
             self.assertEqual(repair_results["results"][0]["status"], "skipped_provider_unavailable")
 
 
@@ -1247,7 +1368,9 @@ class JudgeGatePolicyTest(unittest.TestCase):
             self.assertEqual(report["metrics"][0]["metric_key"], "judge.answer_correctness_rubric")
             self.assertEqual(report["metrics"][0]["verdict"], "warn")
 
-    def test_evaluate_judge_gate_marks_runtime_unavailable_without_threshold_reasons_when_no_scores_exist(self) -> None:
+    def test_evaluate_judge_gate_marks_runtime_unavailable_without_threshold_reasons_when_no_scores_exist(
+        self,
+    ) -> None:
         with TemporaryDirectory() as tmpdir:
             policy_path = Path(tmpdir) / "policy.json"
             policy_path.write_text(
@@ -1307,7 +1430,9 @@ class JudgeGatePolicyTest(unittest.TestCase):
             self.assertNotIn("min_run_average_score_below_threshold", metric_report["reasons"])
             self.assertNotIn("run_average_drift_above_threshold", metric_report["reasons"])
 
-    def test_load_judge_gate_policy_accepts_empty_metric_list_for_deterministic_only_profiles(self) -> None:
+    def test_load_judge_gate_policy_accepts_empty_metric_list_for_deterministic_only_profiles(
+        self,
+    ) -> None:
         with TemporaryDirectory() as tmpdir:
             policy_path = Path(tmpdir) / "policy.json"
             policy_path.write_text(

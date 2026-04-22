@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.verify_ooxml_structured_normalization import (
     OoxmlStructuredNormalizationVerificationError,

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import os
+from dataclasses import dataclass, replace
 
 from campus_shared import resolve_embedding_provider_config, resolve_llm_provider_config
-
 
 DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 30.0
@@ -34,8 +33,12 @@ class SupplementalHTTPSettings:
     pool_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS
     retry_attempts: int = DEFAULT_SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS
     retry_backoff_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS
-    circuit_breaker_failure_threshold: int = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD
-    circuit_breaker_cooldown_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS
+    circuit_breaker_failure_threshold: int = (
+        DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+    )
+    circuit_breaker_cooldown_seconds: float = (
+        DEFAULT_SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS
+    )
     preflight_timeout_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS
     requests_per_minute: float | None = None
     request_min_interval_seconds: float = DEFAULT_SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS
@@ -53,25 +56,39 @@ class SupplementalHTTPSettings:
         if self.pool_timeout_seconds <= 0:
             raise ValueError("SUPPLEMENTAL_HTTP_POOL_TIMEOUT_SECONDS must be greater than zero")
         if self.retry_attempts < 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS must be greater than or equal to zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS must be greater than or equal to zero"
+            )
         if self.retry_backoff_seconds < 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS must be greater than or equal to zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_RETRY_BACKOFF_SECONDS must be greater than or equal to zero"
+            )
         if self.circuit_breaker_failure_threshold <= 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD must be greater than zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD must be greater than zero"
+            )
         if self.circuit_breaker_cooldown_seconds <= 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS must be greater than zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_CIRCUIT_BREAKER_COOLDOWN_SECONDS must be greater than zero"
+            )
         if self.preflight_timeout_seconds <= 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS must be greater than zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_PREFLIGHT_TIMEOUT_SECONDS must be greater than zero"
+            )
         if self.requests_per_minute is not None and self.requests_per_minute <= 0:
             raise ValueError("SUPPLEMENTAL_HTTP_REQUESTS_PER_MINUTE must be greater than zero")
         if self.request_min_interval_seconds < 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS must be greater than or equal to zero"
+            )
         if self.keepalive_expiry_seconds <= 0:
             raise ValueError("SUPPLEMENTAL_HTTP_KEEPALIVE_EXPIRY_SECONDS must be greater than zero")
         if self.max_connections <= 0:
             raise ValueError("SUPPLEMENTAL_HTTP_MAX_CONNECTIONS must be greater than zero")
         if self.max_keepalive_connections <= 0:
-            raise ValueError("SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS must be greater than zero")
+            raise ValueError(
+                "SUPPLEMENTAL_HTTP_MAX_KEEPALIVE_CONNECTIONS must be greater than zero"
+            )
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> "SupplementalHTTPSettings":
@@ -217,9 +234,17 @@ class RagasSettings:
             object.__setattr__(self, "embedding_dimensions", 2560)
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
             raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
-        if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
-            raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
-        if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
+        if (
+            self.reasoning_effort is not None
+            and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS
+        ):
+            raise ValueError(
+                "RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none"
+            )
+        if (
+            self.text_verbosity is not None
+            and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES
+        ):
             raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
@@ -237,16 +262,22 @@ class RagasSettings:
         source = env if env is not None else os.environ
         llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
         embedding_provider = resolve_embedding_provider_config("eval.ragas", env=source)
-        embedding_model = _read_first_non_empty(
-            source,
-            "EVAL_EMBEDDING_MODEL",
-            "EMBEDDING_MODEL",
-        ) or ""
-        raw_embedding_dimensions = _read_first_non_empty(
-            source,
-            "EVAL_EMBEDDING_DIMENSIONS",
-            "EMBEDDING_DIMENSIONS",
-        ) or ""
+        embedding_model = (
+            _read_first_non_empty(
+                source,
+                "EVAL_EMBEDDING_MODEL",
+                "EMBEDDING_MODEL",
+            )
+            or ""
+        )
+        raw_embedding_dimensions = (
+            _read_first_non_empty(
+                source,
+                "EVAL_EMBEDDING_DIMENSIONS",
+                "EMBEDDING_DIMENSIONS",
+            )
+            or ""
+        )
         return cls(
             llm_api_key=llm_provider.api_key,
             llm_model=_resolve_ragas_model(source),
@@ -284,7 +315,10 @@ class RagasSettings:
     ) -> SupplementalHTTPSettings:
         normalized_metric_name = metric_name.strip().lower()
         normalized_stage_name = stage_name.strip().lower()
-        if normalized_metric_name == "faithfulness" and normalized_stage_name == "statement_generation":
+        if (
+            normalized_metric_name == "faithfulness"
+            and normalized_stage_name == "statement_generation"
+        ):
             extended_read_timeout = max(
                 self.http_settings.read_timeout_seconds,
                 DEFAULT_FAITHFULNESS_STATEMENT_GENERATION_READ_TIMEOUT_SECONDS,
@@ -315,9 +349,17 @@ class JudgeLLMSettings:
             raise ValueError("EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required")
         if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
             raise ValueError("EVAL_LLM_TRANSPORT must be one of responses, chat_completions")
-        if self.reasoning_effort is not None and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS:
-            raise ValueError("RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none")
-        if self.text_verbosity is not None and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES:
+        if (
+            self.reasoning_effort is not None
+            and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS
+        ):
+            raise ValueError(
+                "RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none"
+            )
+        if (
+            self.text_verbosity is not None
+            and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES
+        ):
             raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")

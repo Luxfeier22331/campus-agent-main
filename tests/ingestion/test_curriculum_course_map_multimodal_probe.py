@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     CourseMapEdge,
     CourseMapFinding,
@@ -14,6 +15,12 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     CurriculumCourseMapInventoryEntry,
     CurriculumCourseMapPageProbe,
     CurriculumCourseMapProbeRun,
+    CurriculumCourseMapRenderedSample,
+    _extract_chat_completions_output_parsed,
+    _extract_output_parsed,
+    _normalize_prompt_runtime_transport,
+    _request_course_map_probe_payload,
+    _request_course_map_probe_response,
     build_curriculum_course_map_admission_summary,
     build_curriculum_course_map_gold_report,
     build_curriculum_course_map_inventory,
@@ -98,6 +105,162 @@ def _make_page_probe(
 
 
 class CurriculumCourseMapMultimodalProbeTest(unittest.TestCase):
+    def test_normalize_prompt_runtime_transport_accepts_chat_completion_aliases(self) -> None:
+        self.assertEqual(_normalize_prompt_runtime_transport("responses"), "responses")
+        self.assertEqual(
+            _normalize_prompt_runtime_transport("chat_completions"),
+            "chat_completions",
+        )
+        self.assertEqual(
+            _normalize_prompt_runtime_transport("chat/completions"),
+            "chat_completions",
+        )
+        with self.assertRaisesRegex(ValueError, "PROMPT_RUNTIME_TRANSPORT"):
+            _normalize_prompt_runtime_transport("invalid")
+
+    def test_extract_chat_completions_output_parsed_reads_string_message(self) -> None:
+        payload = {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": (
+                            '{"course_maps":[],"manual_review_required":false,'
+                            '"global_manual_review_notes":[]}'
+                        ),
+                    }
+                }
+            ]
+        }
+
+        parsed = _extract_chat_completions_output_parsed(payload)
+        self.assertEqual(parsed["course_maps"], [])
+        self.assertFalse(parsed["manual_review_required"])
+
+    def test_request_payload_uses_chat_completions_transport(self) -> None:
+        rendered_sample = CurriculumCourseMapRenderedSample(
+            sample_id="course-map-p287",
+            page_number=287,
+            document_id="curriculum:国际经济与贸易本科人才培养方案",
+            document_title="国际经济与贸易本科人才培养方案",
+            row_id="page-0287-block-0001",
+            parent_heading_hint="国际经济与贸易专业本科课程结构拓扑图",
+            provider_bbox=(1.0, 2.0, 3.0, 4.0),
+            provider_canvas=(100.0, 200.0),
+            pdf_bbox=(1.0, 2.0, 3.0, 4.0),
+            full_page_png=b"full-page",
+            crop_png=b"crop-page",
+        )
+
+        with patch(
+            "campus_ingestion_core.curriculum_course_map_multimodal_probe._request_course_map_probe_chat_completion",
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                '{"course_maps":[],"manual_review_required":false,'
+                                '"global_manual_review_notes":[]}'
+                            ),
+                        }
+                    }
+                ]
+            },
+        ) as chat_request:
+            payload = _request_course_map_probe_payload(
+                transport="chat_completions",
+                api_key="test-key",
+                model_name="gpt-test",
+                base_url="https://example.test/v1",
+                reasoning_effort=None,
+                max_output_tokens=256,
+                rendered_sample=rendered_sample,
+            )
+
+        chat_request.assert_called_once()
+        self.assertEqual(payload["course_maps"], [])
+        self.assertFalse(payload["manual_review_required"])
+
+    def test_request_response_falls_back_to_plain_json_when_schema_multimodal_5xx(self) -> None:
+        first_response = httpx.Response(
+            502,
+            request=httpx.Request("POST", "https://example.test/v1/responses"),
+            text="bad gateway",
+        )
+        second_response = httpx.Response(
+            200,
+            request=httpx.Request("POST", "https://example.test/v1/responses"),
+            json={
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    '{"course_maps":[],"manual_review_required":false,'
+                                    '"global_manual_review_notes":[]}'
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+        class _FakeClient:
+            def __init__(self, responses: list[httpx.Response]) -> None:
+                self._responses = list(responses)
+                self.calls: list[dict[str, object]] = []
+
+            def __enter__(self) -> "_FakeClient":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def post(self, url: str, *, json: dict[str, object], headers: dict[str, str]):
+                self.calls.append(json)
+                return self._responses.pop(0)
+
+        fake_client = _FakeClient([first_response, second_response])
+        rendered_sample = CurriculumCourseMapRenderedSample(
+            sample_id="course-map-p287",
+            page_number=287,
+            document_id="curriculum:国际经济与贸易本科人才培养方案",
+            document_title="国际经济与贸易本科人才培养方案",
+            row_id="page-0287-block-0001",
+            parent_heading_hint="国际经济与贸易专业本科课程结构拓扑图",
+            provider_bbox=(1.0, 2.0, 3.0, 4.0),
+            provider_canvas=(100.0, 200.0),
+            pdf_bbox=(1.0, 2.0, 3.0, 4.0),
+            full_page_png=b"full-page",
+            crop_png=b"crop-page",
+        )
+
+        with patch(
+            "campus_ingestion_core.curriculum_course_map_multimodal_probe.httpx.Client",
+            return_value=fake_client,
+        ):
+            payload = _request_course_map_probe_response(
+                api_key="test-key",
+                model_name="gpt-test",
+                base_url="https://example.test/v1",
+                reasoning_effort=None,
+                max_output_tokens=256,
+                rendered_sample=rendered_sample,
+            )
+
+        self.assertEqual(len(fake_client.calls), 2)
+        self.assertIn("text", fake_client.calls[0])
+        self.assertNotIn("text", fake_client.calls[1])
+        parsed = _extract_output_parsed(payload)
+        self.assertEqual(parsed["course_maps"], [])
+        self.assertFalse(parsed["manual_review_required"])
+
     def test_build_inventory_maps_image_rows_back_to_declared_documents(self) -> None:
         layout_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
         non_course_map_image = {
@@ -108,7 +271,9 @@ class CurriculumCourseMapMultimodalProbeTest(unittest.TestCase):
             "parent_heading_hint": "中央民族大学本科专业人才培养方案",
         }
         layout_bytes = (
-            json.dumps(non_course_map_image, ensure_ascii=False) + "\n" + layout_path.read_text(encoding="utf-8")
+            json.dumps(non_course_map_image, ensure_ascii=False)
+            + "\n"
+            + layout_path.read_text(encoding="utf-8")
         ).encode("utf-8")
 
         inventory = build_curriculum_course_map_inventory(

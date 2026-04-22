@@ -1,6 +1,12 @@
+from campus_evals.app_api_chat_runtime import (
+    AppApiEvalClient,
+    AppApiEvalClientError,
+    AppApiEvalClientSettings,
+    AppApiEvalExecution,
+)
 from campus_evals.benchmark import (
-    RetrievalCaseMetrics,
     RetrievalBenchmarkRun,
+    RetrievalCaseMetrics,
     RetrievalHybridQueryCase,
     RetrievalHybridQueryDataset,
     RetrievalMetricSummary,
@@ -10,9 +16,9 @@ from campus_evals.benchmark import (
     RetrievalQrelsSourceRef,
     evaluate_retrieval_case,
     evaluate_retrieval_run,
+    load_retrieval_benchmark_run,
     load_retrieval_hybrid_query_dataset,
     load_retrieval_qrels_dataset,
-    load_retrieval_benchmark_run,
     render_retrieval_summary_text,
     resolve_retrieval_fixture_manifest_path,
     summarize_retrieval_metrics,
@@ -38,6 +44,13 @@ from campus_evals.judge_gate import (
     evaluate_judge_gate,
     load_judge_gate_policy,
 )
+from campus_evals.live_benchmark import (
+    BenchmarkProfile,
+    OperatorObservabilityPublishConfig,
+    accept_live_benchmark_profile,
+    repair_live_benchmark_profile,
+    run_live_benchmark_profile,
+)
 from campus_evals.models import (
     CaseResult,
     DimensionResult,
@@ -47,36 +60,23 @@ from campus_evals.models import (
     GraderPolicy,
     ObservedTrace,
     RunReport,
+    SummaryCount,
     SupplementalMetricSummary,
     SupplementalResult,
-    SummaryCount,
     TraceExpectation,
     expected_source_ref,
 )
-from campus_evals.supplemental_http import (
-    OpenAICompatibleChatCompletionsLLM,
-    OpenAICompatibleHTTPEmbeddings,
-    OpenAICompatibleResponsesLLM,
-    OpenAICompatibleTextChatCompletionsLLM,
-    OpenAICompatibleTextResponsesLLM,
-    build_http_ragas_embeddings,
-    build_http_ragas_llm,
-)
-from campus_evals.ragas_adapter import (
-    RagasProjection,
-    RagasSupplementalAdapter,
-    build_default_ragas_metric_names,
-    build_ragas_dataset,
-    build_ragas_projection,
-    build_ragas_scorer,
-    build_ragas_supplemental_adapter_from_env,
-)
-from campus_evals.live_benchmark import (
-    BenchmarkProfile,
-    OperatorObservabilityPublishConfig,
-    accept_live_benchmark_profile,
-    repair_live_benchmark_profile,
-    run_live_benchmark_profile,
+from campus_evals.official_web_inventory import (
+    OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH,
+    load_official_web_current_truth_inventory,
+    official_web_current_truth_doc_ids_by_bucket,
+    official_web_future_fresh_news_doc_ids,
+    official_web_future_fresh_news_titles,
+    official_web_inventory_only_doc_ids_by_disposition,
+    official_web_inventory_only_titles_by_disposition,
+    official_web_release_gate_doc_ids,
+    official_web_retain_inventory_only_doc_ids,
+    official_web_retain_inventory_only_titles,
 )
 from campus_evals.operator_observability import (
     OperatorObservabilityClient,
@@ -87,30 +87,23 @@ from campus_evals.operator_observability import (
     OperatorRequestCorrelation,
     OperatorSkippedPublishItem,
     OperatorTraceBacklink,
-    build_publish_parser,
     build_case_results_publish_batch,
+    build_publish_parser,
     load_request_correlation_manifest,
-    main as operator_observability_main,
     publish_case_results_artifact,
     render_publish_summary_text,
 )
-from campus_evals.app_api_chat_runtime import (
-    AppApiEvalClient,
-    AppApiEvalClientError,
-    AppApiEvalClientSettings,
-    AppApiEvalExecution,
+from campus_evals.operator_observability import (
+    main as operator_observability_main,
 )
-from campus_evals.official_web_inventory import (
-    OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH,
-    load_official_web_current_truth_inventory,
-    official_web_current_truth_doc_ids_by_bucket,
-    official_web_future_fresh_news_doc_ids,
-    official_web_future_fresh_news_titles,
-    official_web_inventory_only_doc_ids_by_disposition,
-    official_web_inventory_only_titles_by_disposition,
-    official_web_retain_inventory_only_doc_ids,
-    official_web_retain_inventory_only_titles,
-    official_web_release_gate_doc_ids,
+from campus_evals.ragas_adapter import (
+    RagasProjection,
+    RagasSupplementalAdapter,
+    build_default_ragas_metric_names,
+    build_ragas_dataset,
+    build_ragas_projection,
+    build_ragas_scorer,
+    build_ragas_supplemental_adapter_from_env,
 )
 from campus_evals.runner import run_cases
 from campus_evals.scenarios import (
@@ -128,8 +121,18 @@ from campus_evals.scenarios import (
     official_web_stable_reference_release_gate_cases,
     official_web_stable_reference_scope,
     policy_risk_and_grounding_release_gate_cases,
+    versioned_history_regression_locked_cases,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
+from campus_evals.supplemental_http import (
+    OpenAICompatibleChatCompletionsLLM,
+    OpenAICompatibleHTTPEmbeddings,
+    OpenAICompatibleResponsesLLM,
+    OpenAICompatibleTextChatCompletionsLLM,
+    OpenAICompatibleTextResponsesLLM,
+    build_http_ragas_embeddings,
+    build_http_ragas_llm,
+)
 
 
 def build_curriculum_live_executor(*args, **kwargs):
@@ -139,13 +142,17 @@ def build_curriculum_live_executor(*args, **kwargs):
 
 
 def build_app_api_curriculum_live_executor(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import build_app_api_curriculum_live_executor as _build
+    from campus_evals.curriculum_live_benchmark import (
+        build_app_api_curriculum_live_executor as _build,
+    )
 
     return _build(*args, **kwargs)
 
 
 def build_legacy_curriculum_live_executor(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import build_legacy_curriculum_live_executor as _build
+    from campus_evals.curriculum_live_benchmark import (
+        build_legacy_curriculum_live_executor as _build,
+    )
 
     return _build(*args, **kwargs)
 
@@ -309,6 +316,7 @@ __all__ = [
     "official_web_stable_reference_release_gate_cases",
     "official_web_stable_reference_scope",
     "policy_risk_and_grounding_release_gate_cases",
+    "versioned_history_regression_locked_cases",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_release_gate_doc_ids",
     "summarize_retrieval_metrics",

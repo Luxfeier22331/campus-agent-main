@@ -40,19 +40,13 @@ from campus_ingestion_core.online_ocr_evidence import (
     extract_provider_plain_text,
 )
 from campus_ingestion_core.raw_ingestion_online_ocr import (
-    DEFAULT_ONLINE_OCR_MODEL,
-    DEFAULT_ONLINE_OCR_PROVIDER,
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
-    OnlineOcrProviderResult,
     OnlineOcrSettings,
-    build_online_ocr_client,
     normalize_online_ocr_provider_label,
-    parse_online_ocr_bytes,
 )
 from campus_ingestion_core.raw_ingestion_source_truth_support import (
-    DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
     ObjectStoreReader,
     S3ObjectStoreClient,
     SourceTruthOnlyOcrDeferredError,
@@ -70,10 +64,8 @@ from campus_ingestion_core.raw_ingestion_source_truth_support import (
     _resolve_source_truth_only_ocr_settings_for_provider,
 )
 from campus_ingestion_core.raw_ingestion_split_manifest import (
-    _build_split_manifest_document_input,
     _build_handbook_split_manifest_documents,
     _build_split_manifest_documents,
-    _load_layout_elements_rows,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,

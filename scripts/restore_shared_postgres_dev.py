@@ -7,8 +7,8 @@ from typing import Any, Sequence
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     load_target_seed,
     parse_env_file,
     replace_or_append_env_values,
@@ -89,9 +89,7 @@ def execute_shared_postgres_restore(plan: dict[str, Any]) -> dict[str, Any]:
         repo_root=repo_root,
         source_env_path=shared_root_env_source,
         app_api_env_source_path=(
-            Path(str(source_paths["app_api_env"]))
-            if source_paths.get("app_api_env")
-            else None
+            Path(str(source_paths["app_api_env"])) if source_paths.get("app_api_env") else None
         ),
     )
     target_app_api_dev_vars_path = _restore_app_api_dev_vars(
@@ -169,9 +167,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.shared_app_api_env.resolve() if args.shared_app_api_env else None
         ),
         app_api_dev_vars_source_path=(
-            args.shared_app_api_dev_vars.resolve()
-            if args.shared_app_api_dev_vars
-            else None
+            args.shared_app_api_dev_vars.resolve() if args.shared_app_api_dev_vars else None
         ),
         app_api_database_sslmode=args.app_api_database_sslmode,
     )
@@ -308,8 +304,7 @@ def _restore_app_api_dev_vars(
     if app_api_dev_vars_source_path is not None:
         source_values = parse_env_file(app_api_dev_vars_source_path)
         resolved_sslmode = (
-            source_values.get("APP_API_DATABASE_SSLMODE", "").strip()
-            or app_api_database_sslmode
+            source_values.get("APP_API_DATABASE_SSLMODE", "").strip() or app_api_database_sslmode
         )
     content = replace_or_append_env_values(
         load_target_seed(target_path),

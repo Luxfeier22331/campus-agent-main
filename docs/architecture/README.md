@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Architecture
@@ -23,6 +23,8 @@ updated: 2026-04-20
 
 - `product-runtime-architecture.md`
   - public/protected surface、shared `app-api` 与 runtime ownership
+- `document-site-architecture.md`
+  - docs-first 文档站、canonical reader 与 source-card jump 的前向 architecture
 - `runtime-delivery-and-release-hardening-architecture.md`
   - staging baseline、release identity、deploy gate 与 post-deploy evidence closure
 - `execution-and-specialists-architecture.md`

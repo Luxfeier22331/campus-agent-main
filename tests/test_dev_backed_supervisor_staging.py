@@ -5,13 +5,14 @@ import os
 import socketserver
 import subprocess
 import threading
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-STATUS_SCRIPT = REPO_ROOT / "infra" / "local" / "staging" / "status-dev-backed-supervisor-staging.sh"
+STATUS_SCRIPT = (
+    REPO_ROOT / "infra" / "local" / "staging" / "status-dev-backed-supervisor-staging.sh"
+)
 COMMON_SCRIPT = REPO_ROOT / "infra" / "local" / "staging" / "dev-backed-supervisor-common.sh"
 
 
@@ -89,9 +90,7 @@ class DevBackedSupervisorStagingScriptsTest(unittest.TestCase):
             supervisor_pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
             cloudflared_pid_file.write_text(f"{os.getpid()}\n", encoding="utf-8")
 
-            app_api_body = (
-                b'{"status":"ready","dependencies":{"auth":"ready","database":"ready","supervisorApi":"ready"}}'
-            )
+            app_api_body = b'{"status":"ready","dependencies":{"auth":"ready","database":"ready","supervisorApi":"ready"}}'
 
             with (
                 _ReadyzServer(b'{"status":"ready"}') as local_server,
@@ -138,7 +137,7 @@ class DevBackedSupervisorStagingScriptsTest(unittest.TestCase):
 
             command = "\n".join(
                 [
-                    "source \"$COMMON_SCRIPT\"",
+                    'source "$COMMON_SCRIPT"',
                     "dev_backed_supervisor_rotate_logs_if_needed",
                 ]
             )

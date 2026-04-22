@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # App API Operator Observability HTTP Contract
@@ -306,7 +306,7 @@ list endpoints 额外支持：
       "corpus": "curriculum",
       "collection": "curriculum_plan"
     },
-    "selectedTarget": "rag-specialist",
+    "selectedTarget": "rag-agent",
     "startedAt": "2026-04-03T00:00:00.000Z",
     "completedAt": "2026-04-03T00:00:00.842Z"
   },
@@ -325,6 +325,26 @@ list endpoints 额外支持：
     "failClosed": false,
     "retrievalAdequacyVerdict": "sufficient",
     "retrievalAdequacyReason": "sufficient",
+    "retrievalPlan": {
+      "planId": "curriculum:curriculum_plan:current",
+      "queryMode": "current",
+      "replanCount": 0,
+      "terminalState": "completed",
+      "stepActivities": [
+        {
+          "stepId": "indexed-lookup",
+          "stepType": "indexed_lookup",
+          "corpus": "curriculum",
+          "collection": "curriculum_plan",
+          "status": "succeeded",
+          "topK": 8,
+          "latencyMs": 18,
+          "candidateCount": 4,
+          "referenceCount": 4,
+          "failureKind": null
+        }
+      ]
+    },
     "claimSupportSummary": {
       "totalClaims": 3,
       "supportedClaims": 1,
@@ -411,6 +431,8 @@ list endpoints 额外支持：
 - `sourceTrace.*` 只允许返回 operator-safe compact identity fields，例如 `docId`、`chunkId`、`score`、`collection`、canonical / source-unit identity；不得返回 raw snippet dump
 - `sourceTrace.supporting[*].canonicalSourceId` 与 `sourceTrace.supporting[*].sourceUnitKey` 用于显式区分 canonical curriculum identity 与物理 projection-unit hit
 - `retrievalAdequacyVerdict` / `retrievalAdequacyReason` 用于区分 retrieval base 不足与 post-generation grounding downgrade
+- `retrievalPlan` 只暴露 compact plan / step execution summary，例如 `planId`、`queryMode`、`replanCount`、`terminalState` 与 step-level `status` / `latencyMs` / `candidateCount`
+- `retrievalPlan` 的来源固定为 request projection 中的 `diagnosticsJson.retrievalPlanSummary`；它是 operator-safe typed projection，不是 raw planner trace 或 provider debug payload
 - `claimSupportSummary` 只返回 compact 的 claim-level 聚合：总 claim 数、unsupported claim type、unsupported field；不返回 raw `claim_supports`、support snippet 或 provider-native citation/support blob
 - `observability.prompt.*` 只暴露 prompt identity 与 typed runtime branch，不返回 raw prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
@@ -537,7 +559,7 @@ list endpoints 额外支持：
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
       "surface": "public_chat_web",
-      "selectedTarget": "rag-specialist",
+      "selectedTarget": "rag-agent",
       "status": "open",
       "causeClass": "citation_missing",
       "detectedBy": "runtime_monitor",
@@ -637,7 +659,7 @@ list endpoints 额外支持：
       "traceId": "trace_01HQ",
       "surface": "protected_panel_web",
       "principalType": "operator",
-      "selectedTarget": "rag-specialist",
+      "selectedTarget": "rag-agent",
       "anomalyCode": "projection_missing",
       "severity": "high",
       "status": "open",
@@ -766,7 +788,7 @@ list endpoints 额外支持：
       "eventType": "authz.decision",
       "surface": "public_chat_web",
       "principalType": "campus_member",
-      "selectedTarget": "rag-specialist",
+      "selectedTarget": "rag-agent",
       "status": "allowed",
       "summary": "student_handbook 请求通过 authz check"
     }
@@ -801,7 +823,7 @@ list endpoints 额外支持：
     "entitlementSnapshotId": "ent_01HQ",
     "policyProjectionVersion": "2026-04-02",
     "requestedCapability": "knowledge",
-    "selectedTarget": "rag-specialist",
+    "selectedTarget": "rag-agent",
     "status": "allowed",
     "terminalCode": "completed",
     "summary": "student_handbook 请求通过 authz check",

@@ -2,12 +2,12 @@
 doc_type: index
 status: active
 created: 2026-03-22
-updated: 2026-04-20
+updated: 2026-04-22
 ---
 
 # Docs
 
-`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的架构、ADR、contract、data、policy、reference、runbook，以及仍对前向实施有指导价值的 plan。
+`docs/` 是 `campus-agent` 的长期文档入口，承载可持续引用的架构、ADR、contract、data、policy、reference、runbook，以及已归档的历史 plan。
 
 ## Canonical Entry Points
 
@@ -43,7 +43,7 @@ updated: 2026-04-20
 - [environment/README.md](./environment/README.md)
   - 环境变量 ownership、配置分层与 provider / secret inventory 入口
 - [plans/README.md](./plans/README.md)
-  - 仍应继续引用的前向实施计划
+  - 已归档 plan 的索引入口；当前前向工作流改看 `.planning/WORKSTREAMS.md`
 
 ## Reading Model
 
@@ -52,12 +52,13 @@ updated: 2026-04-20
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
 - 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
 - 需要按领域聚合同一主题下的多类材料，读 `domains/`
-- 需要判断哪些 implementation material 仍对当前工作有效，读 `plans/`
+- 需要查看历史方案、completed closeout 或 supersession 关系，读 `plans/`
 
 ## Docs And Planning
 
 - `docs/` 保存长期可引用的 repo truth，不承担 worktree-local 执行状态
 - `architecture/current-architecture.md` 只描述当前 accepted merged truth，不描述 feature branch 进度
-- `plans/` 只保留仍有前向指导价值的计划；`completed`、`historical` 与 `superseded` plan 不进入默认入口
+- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；先看这里，再进入 `STATE / ROADMAP / REQUIREMENTS`
+- `docs/plans/` 已全部视为 archive namespace；当前 forward execution truth 固定在 `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/`
 - `plans/`、`reference/`、`runbooks/` 的非默认入口材料应优先收进各自 `archive/` 子目录，而不是继续堆在根层命名空间
 - `.planning/PROJECT.md` 负责 repo 级当前真相；`.planning/WORKSTREAMS.md` 负责 repo 级 workstream registry；单条线的 execution truth 固定在 `.planning/workstreams/<slug>/`

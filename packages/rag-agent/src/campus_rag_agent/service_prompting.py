@@ -282,7 +282,9 @@ def _clarification_slot_subject(user_goal: str, confirmed_slot_terms: tuple[str,
 
 def _is_handbook_exact_title_lookup(*, user_goal: str, evidence: EvidenceBundle) -> bool:
     query_key = _match_key(user_goal)
-    if not query_key or any(cue in query_key for cue in ("多少", "几年", "怎么", "如何", "安排", "什么", "哪些")):
+    if not query_key or any(
+        cue in query_key for cue in ("多少", "几年", "怎么", "如何", "安排", "什么", "哪些")
+    ):
         return False
     if len({source.doc_id for source in evidence.sources}) != 1:
         return False

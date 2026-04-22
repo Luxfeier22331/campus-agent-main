@@ -1,205 +1,205 @@
 {
-  "schema_version": "official_web_seed_set.v1",
-  "site_id": "muc_public",
-  "seed_set_version": "muc_public_seeds_v1",
-  "seeds": [
-    {
-      "seed_id": "www-home",
-      "url": "https://www.muc.edu.cn/",
-      "host": "www.muc.edu.cn",
-      "reason": "Official homepage and root navigation entry."
-    },
-    {
-      "seed_id": "news-home",
-      "url": "https://news.muc.edu.cn/",
-      "host": "news.muc.edu.cn",
-      "reason": "Public news site linked from the official homepage."
-    },
-    {
-      "seed_id": "xxgk-home",
-      "url": "https://xxgk.muc.edu.cn/",
-      "host": "xxgk.muc.edu.cn",
-      "reason": "Public disclosure directory linked from the official homepage."
-    },
-    {
-      "seed_id": "lib-home",
-      "url": "https://lib.muc.edu.cn/",
-      "host": "lib.muc.edu.cn",
-      "reason": "Library public site linked from the official homepage."
-    },
-    {
-      "seed_id": "xiaoyou-home",
-      "url": "https://xiaoyou.muc.edu.cn/",
-      "host": "xiaoyou.muc.edu.cn",
-      "reason": "Alumni public site linked from the official homepage."
-    },
-    {
-      "seed_id": "art-home",
-      "url": "https://art.muc.edu.cn/",
-      "host": "art.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "cie-home",
-      "url": "https://cie.muc.edu.cn/",
-      "host": "cie.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "cles-home",
-      "url": "https://cles.muc.edu.cn/",
-      "host": "cles.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "dd9-home",
-      "url": "https://dd9.muc.edu.cn/",
-      "host": "dd9.muc.edu.cn",
-      "reason": "Public topic site linked from the official homepage."
-    },
-    {
-      "seed_id": "eco-home",
-      "url": "https://eco.muc.edu.cn/",
-      "host": "eco.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "edu-home",
-      "url": "https://edu.muc.edu.cn/",
-      "host": "edu.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "gjaqyjy-home",
-      "url": "https://gjaqyjy.muc.edu.cn/",
-      "host": "gjaqyjy.muc.edu.cn",
-      "reason": "Public institute site linked from the official homepage."
-    },
-    {
-      "seed_id": "history-home",
-      "url": "https://history.muc.edu.cn/",
-      "host": "history.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "law-home",
-      "url": "https://law.muc.edu.cn/",
-      "host": "law.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "lxy-home",
-      "url": "https://lxy.muc.edu.cn/",
-      "host": "lxy.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "marxism-home",
-      "url": "https://marxism.muc.edu.cn/",
-      "host": "marxism.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "ms-home",
-      "url": "https://ms.muc.edu.cn/",
-      "host": "ms.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "msy-home",
-      "url": "https://msy.muc.edu.cn/",
-      "host": "msy.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "muchnic-home",
-      "url": "https://muchnic.muc.edu.cn/",
-      "host": "muchnic.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "phil-home",
-      "url": "https://phil.muc.edu.cn/",
-      "host": "phil.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "sce-home",
-      "url": "https://sce.muc.edu.cn/",
-      "host": "sce.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "scemll-home",
-      "url": "https://scemll.muc.edu.cn/",
-      "host": "scemll.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "sfs-home",
-      "url": "https://sfs.muc.edu.cn/index.jsp",
-      "host": "sfs.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage with an explicit JSP entry."
-    },
-    {
-      "seed_id": "sla-home",
-      "url": "https://sla.muc.edu.cn/",
-      "host": "sla.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "sport-home",
-      "url": "https://sport.muc.edu.cn/",
-      "host": "sport.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "tjcz-home",
-      "url": "https://tjcz.muc.edu.cn/",
-      "host": "tjcz.muc.edu.cn",
-      "reason": "Public topic site linked from the official homepage."
-    },
-    {
-      "seed_id": "wd-home",
-      "url": "https://wd.muc.edu.cn/",
-      "host": "wd.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "xinchuan-home",
-      "url": "https://xinchuan.muc.edu.cn/",
-      "host": "xinchuan.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "xingong-home",
-      "url": "https://xingong.muc.edu.cn/",
-      "host": "xingong.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "yuke-home",
-      "url": "https://yuke.muc.edu.cn/",
-      "host": "yuke.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "yxy-home",
-      "url": "https://yxy.muc.edu.cn/",
-      "host": "yxy.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "yyxy-home",
-      "url": "https://yyxy.muc.edu.cn/",
-      "host": "yyxy.muc.edu.cn",
-      "reason": "Public college site linked from the official homepage."
-    },
-    {
-      "seed_id": "zlzhmzgtt-home",
-      "url": "https://zlzhmzgtt.muc.edu.cn/",
-      "host": "zlzhmzgtt.muc.edu.cn",
-      "reason": "Public topic site linked from the official homepage."
-    }
-  ]
+	"schema_version": "official_web_seed_set.v1",
+	"site_id": "muc_public",
+	"seed_set_version": "muc_public_seeds_v1",
+	"seeds": [
+		{
+			"seed_id": "www-home",
+			"url": "https://www.muc.edu.cn/",
+			"host": "www.muc.edu.cn",
+			"reason": "Official homepage and root navigation entry."
+		},
+		{
+			"seed_id": "news-home",
+			"url": "https://news.muc.edu.cn/",
+			"host": "news.muc.edu.cn",
+			"reason": "Public news site linked from the official homepage."
+		},
+		{
+			"seed_id": "xxgk-home",
+			"url": "https://xxgk.muc.edu.cn/",
+			"host": "xxgk.muc.edu.cn",
+			"reason": "Public disclosure directory linked from the official homepage."
+		},
+		{
+			"seed_id": "lib-home",
+			"url": "https://lib.muc.edu.cn/",
+			"host": "lib.muc.edu.cn",
+			"reason": "Library public site linked from the official homepage."
+		},
+		{
+			"seed_id": "xiaoyou-home",
+			"url": "https://xiaoyou.muc.edu.cn/",
+			"host": "xiaoyou.muc.edu.cn",
+			"reason": "Alumni public site linked from the official homepage."
+		},
+		{
+			"seed_id": "art-home",
+			"url": "https://art.muc.edu.cn/",
+			"host": "art.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "cie-home",
+			"url": "https://cie.muc.edu.cn/",
+			"host": "cie.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "cles-home",
+			"url": "https://cles.muc.edu.cn/",
+			"host": "cles.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "dd9-home",
+			"url": "https://dd9.muc.edu.cn/",
+			"host": "dd9.muc.edu.cn",
+			"reason": "Public topic site linked from the official homepage."
+		},
+		{
+			"seed_id": "eco-home",
+			"url": "https://eco.muc.edu.cn/",
+			"host": "eco.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "edu-home",
+			"url": "https://edu.muc.edu.cn/",
+			"host": "edu.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "gjaqyjy-home",
+			"url": "https://gjaqyjy.muc.edu.cn/",
+			"host": "gjaqyjy.muc.edu.cn",
+			"reason": "Public institute site linked from the official homepage."
+		},
+		{
+			"seed_id": "history-home",
+			"url": "https://history.muc.edu.cn/",
+			"host": "history.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "law-home",
+			"url": "https://law.muc.edu.cn/",
+			"host": "law.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "lxy-home",
+			"url": "https://lxy.muc.edu.cn/",
+			"host": "lxy.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "marxism-home",
+			"url": "https://marxism.muc.edu.cn/",
+			"host": "marxism.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "ms-home",
+			"url": "https://ms.muc.edu.cn/",
+			"host": "ms.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "msy-home",
+			"url": "https://msy.muc.edu.cn/",
+			"host": "msy.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "muchnic-home",
+			"url": "https://muchnic.muc.edu.cn/",
+			"host": "muchnic.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "phil-home",
+			"url": "https://phil.muc.edu.cn/",
+			"host": "phil.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "sce-home",
+			"url": "https://sce.muc.edu.cn/",
+			"host": "sce.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "scemll-home",
+			"url": "https://scemll.muc.edu.cn/",
+			"host": "scemll.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "sfs-home",
+			"url": "https://sfs.muc.edu.cn/index.jsp",
+			"host": "sfs.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage with an explicit JSP entry."
+		},
+		{
+			"seed_id": "sla-home",
+			"url": "https://sla.muc.edu.cn/",
+			"host": "sla.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "sport-home",
+			"url": "https://sport.muc.edu.cn/",
+			"host": "sport.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "tjcz-home",
+			"url": "https://tjcz.muc.edu.cn/",
+			"host": "tjcz.muc.edu.cn",
+			"reason": "Public topic site linked from the official homepage."
+		},
+		{
+			"seed_id": "wd-home",
+			"url": "https://wd.muc.edu.cn/",
+			"host": "wd.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "xinchuan-home",
+			"url": "https://xinchuan.muc.edu.cn/",
+			"host": "xinchuan.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "xingong-home",
+			"url": "https://xingong.muc.edu.cn/",
+			"host": "xingong.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "yuke-home",
+			"url": "https://yuke.muc.edu.cn/",
+			"host": "yuke.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "yxy-home",
+			"url": "https://yxy.muc.edu.cn/",
+			"host": "yxy.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "yyxy-home",
+			"url": "https://yyxy.muc.edu.cn/",
+			"host": "yyxy.muc.edu.cn",
+			"reason": "Public college site linked from the official homepage."
+		},
+		{
+			"seed_id": "zlzhmzgtt-home",
+			"url": "https://zlzhmzgtt.muc.edu.cn/",
+			"host": "zlzhmzgtt.muc.edu.cn",
+			"reason": "Public topic site linked from the official homepage."
+		}
+	]
 }

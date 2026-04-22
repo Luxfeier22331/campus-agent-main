@@ -58,7 +58,7 @@ updated: 2026-04-03
 
 ## 边界
 
-- `packages/rag-specialist`
+- `packages/rag-agent`
   负责 retrieval strategy selection、clarification / no-answer / error 映射、answer / confidence 组装
 - `packages/retrieval-core`
   负责 query preprocessing、candidate retrieval、fusion、evidence normalization

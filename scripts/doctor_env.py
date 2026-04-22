@@ -4,9 +4,13 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Callable, Sequence
 
-from campus_shared import get_repo_env_bootstrap_state, load_repo_env, reset_repo_env_bootstrap_state
+from campus_shared import (
+    get_repo_env_bootstrap_state,
+    load_repo_env,
+    reset_repo_env_bootstrap_state,
+)
 from campus_shared.provider_config import (
     EMBEDDING_API_KEY_PRECEDENCE,
     LLM_API_KEY_PRECEDENCE,
@@ -14,8 +18,8 @@ from campus_shared.provider_config import (
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
-from scripts.env_sync import parse_env_file
 
+from scripts.env_sync import parse_env_file
 
 _SURFACE_SPECS = {
     "evals": {
@@ -61,9 +65,7 @@ _SURFACE_SPECS = {
                 "DOCUMENT_REGISTRY_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
-            "legacy_office_conversion_base_url": (
-                "LEGACY_OFFICE_CONVERSION_BASE_URL",
-            ),
+            "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
             "legacy_office_conversion_internal_shared_secret": (
                 "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
             ),
@@ -99,7 +101,10 @@ _SURFACE_SPECS = {
             "supervisor_model": ("AGNO_SUPERVISOR_MODEL",),
         },
         "optional_settings": {
-            "document_registry_database_url": ("DOCUMENT_REGISTRY_DATABASE_URL", "CAMPUS_SHARED_POSTGRES_URL"),
+            "document_registry_database_url": (
+                "DOCUMENT_REGISTRY_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
         },
         "files": {
             "apps/app-api/.env": {
@@ -247,9 +252,11 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
             for relative_path, file_spec in spec["files"].items()
         }
 
-        overall_ready = all(status["present"] for status in providers.values()) and all(
-            status["present"] for status in required_settings.values()
-        ) and all(status["ready"] for status in files.values())
+        overall_ready = (
+            all(status["present"] for status in providers.values())
+            and all(status["present"] for status in required_settings.values())
+            and all(status["ready"] for status in files.values())
+        )
         return {
             "surface": normalized_surface,
             "overall_ready": overall_ready,
@@ -265,10 +272,16 @@ def collect_env_doctor_status(*, repo_root: Path, surface: str) -> dict[str, obj
                     if bootstrap_state is not None and bootstrap_state.loaded_path is not None
                     else None
                 ),
-                "file_found": bool(bootstrap_state.file_found) if bootstrap_state is not None else False,
-                "loaded_keys": list(bootstrap_state.loaded_keys) if bootstrap_state is not None else [],
+                "file_found": bool(bootstrap_state.file_found)
+                if bootstrap_state is not None
+                else False,
+                "loaded_keys": list(bootstrap_state.loaded_keys)
+                if bootstrap_state is not None
+                else [],
                 "skipped_existing_keys": (
-                    list(bootstrap_state.skipped_existing_keys) if bootstrap_state is not None else []
+                    list(bootstrap_state.skipped_existing_keys)
+                    if bootstrap_state is not None
+                    else []
                 ),
             },
             "providers": providers,
@@ -441,11 +454,7 @@ def _print_text_report(status: dict[str, object]) -> None:
             f"provider.{provider_name}.present={provider_status['present']} "
             f"resolved_key={provider_status['resolved_key']}"
         )
-        print(
-            "provider."
-            f"{provider_name}.checked_keys="
-            + ",".join(provider_status["checked_keys"])
-        )
+        print(f"provider.{provider_name}.checked_keys=" + ",".join(provider_status["checked_keys"]))
         if provider_status["error"]:
             print(f"provider.{provider_name}.error={provider_status['error']}")
     settings = status["settings"]
@@ -460,17 +469,9 @@ def _print_text_report(status: dict[str, object]) -> None:
     for relative_path, file_status in status["files"].items():
         print(f"file.{relative_path}.ready={file_status['ready']}")
         print(f"file.{relative_path}.file_found={file_status['file_found']}")
-        print(
-            "file."
-            f"{relative_path}.required_keys="
-            + ",".join(file_status["required_keys"])
-        )
+        print(f"file.{relative_path}.required_keys=" + ",".join(file_status["required_keys"]))
         if file_status["missing_keys"]:
-            print(
-                "file."
-                f"{relative_path}.missing_keys="
-                + ",".join(file_status["missing_keys"])
-            )
+            print(f"file.{relative_path}.missing_keys=" + ",".join(file_status["missing_keys"]))
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -11,9 +11,7 @@ from campus_ingestion_core.campusrag_ingestion_artifacts import (
     resolve_document_artifact_keys,
 )
 from campus_ingestion_core.campusrag_ingestion_authorization import (
-    apply_authorization_projection_metadata,
     assert_canonical_authorization_metadata,
-    load_metadata_from_bytes,
     normalize_optional_text,
     resolve_entitlement_groups,
     resolve_policy_projection_version,

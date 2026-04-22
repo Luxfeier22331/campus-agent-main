@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import os
 import re
 import shlex
 import subprocess
 import tomllib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
-
 
 DEFAULT_APP_PATHS = (
     "apps/app-api",
@@ -51,11 +50,7 @@ def _normalize_required_secret_names(raw_value: object) -> list[str]:
     if not isinstance(raw_value, list):
         return []
 
-    normalized = {
-        item.strip()
-        for item in raw_value
-        if isinstance(item, str) and item.strip()
-    }
+    normalized = {item.strip() for item in raw_value if isinstance(item, str) and item.strip()}
     return sorted(normalized)
 
 
@@ -69,7 +64,9 @@ def load_required_worker_secrets(
 
     config = tomllib.loads(wrangler_config_path.read_text(encoding="utf-8"))
     worker_name = config.get("name")
-    normalized_worker_name = worker_name.strip() if isinstance(worker_name, str) and worker_name.strip() else None
+    normalized_worker_name = (
+        worker_name.strip() if isinstance(worker_name, str) and worker_name.strip() else None
+    )
 
     if env_name:
         env_config = config.get("env", {})
@@ -85,16 +82,14 @@ def load_required_worker_secrets(
     )
 
 
-def _default_run_command(command: Sequence[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+def _default_run_command(
+    command: Sequence[str], **kwargs: object
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, **kwargs)
 
 
 def _merge_no_proxy_value(current_value: str | None) -> str:
-    entries = {
-        entry.strip()
-        for entry in str(current_value or "").split(",")
-        if entry.strip()
-    }
+    entries = {entry.strip() for entry in str(current_value or "").split(",") if entry.strip()}
     entries.update(_CLOUDFLARE_NO_PROXY_HOSTS)
     return ",".join(sorted(entries))
 
@@ -105,7 +100,9 @@ def build_cloudflare_cli_env(base_env: Mapping[str, str] | None = None) -> dict[
         source_env.pop(key, None)
 
     source_env["NO_PROXY"] = _merge_no_proxy_value(source_env.get("NO_PROXY"))
-    source_env["no_proxy"] = _merge_no_proxy_value(source_env.get("no_proxy") or source_env.get("NO_PROXY"))
+    source_env["no_proxy"] = _merge_no_proxy_value(
+        source_env.get("no_proxy") or source_env.get("NO_PROXY")
+    )
     return source_env
 
 
@@ -377,7 +374,9 @@ def collect_worker_secret_presence(
                 run_command=run_command,
             )
             missing_secrets = [
-                secret_name for secret_name in required_secrets if secret_name not in configured_secrets
+                secret_name
+                for secret_name in required_secrets
+                if secret_name not in configured_secrets
             ]
 
             app_status["configured_secrets"] = configured_secrets

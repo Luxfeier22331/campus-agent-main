@@ -1,22 +1,38 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
-import sys
 from typing import Callable, Literal
 from unittest.mock import patch
 
-from campus_contracts import EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
-from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
+import campus_retrieval_core.backend_qdrant as backend_qdrant_module
+import campus_retrieval_core.service as retrieval_service_module
+from campus_contracts import (
+    EvidenceBundle,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
+)
+from campus_rag_agent import delegate_to_rag_agent
+from campus_retrieval_core import retrieve_sources
+
+from campus_evals.handbook_benchmark import (
+    repair_handbook_formal_benchmark,
+    run_handbook_formal_benchmark,
+)
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
     build_default_profile_http_settings,
-    build_default_output_dir as build_shared_default_output_dir,
     build_parser_for_profile,
     main_for_profile,
+)
+from campus_evals.live_benchmark import (
+    build_default_output_dir as build_shared_default_output_dir,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.scenarios import (
@@ -24,11 +40,6 @@ from campus_evals.scenarios import (
     official_web_release_gate_cases,
     official_web_stable_reference_release_gate_cases,
 )
-from campus_rag_specialist import delegate_to_rag_agent
-from campus_retrieval_core import retrieve_sources
-import campus_retrieval_core.backend_qdrant as backend_qdrant_module
-import campus_retrieval_core.service as retrieval_service_module
-
 
 RUN_PREFIX = "official-web-live-gate"
 REPAIR_PREFIX = "official-web-live-gate-repair"
@@ -71,7 +82,7 @@ def build_official_web_live_executor(
             return retrieved_evidence
 
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal=case.user_goal,
             payload=RagRequestPayload(scope=case.scope),
             actor=case.actor,
@@ -89,7 +100,9 @@ def build_official_web_live_executor(
             retrieval_called=retrieval_called,
             clarification_emitted=response.status == "needs_clarification",
             error_path=response.status == "error",
-            retrieved_sources=() if retrieved_evidence is None else tuple(retrieved_evidence.sources),
+            retrieved_sources=()
+            if retrieved_evidence is None
+            else tuple(retrieved_evidence.sources),
             supporting_sources=supporting_sources,
         )
         return ExecutionResult(response=response, observed_trace=observed_trace)
@@ -234,17 +247,27 @@ def _override_official_web_runtime_profile(
             return replace(
                 profile,
                 retrieval_enabled=True,
-                qdrant_index_binding=replace(profile.qdrant_index_binding, alias_name=qdrant_collection_name),
+                qdrant_index_binding=replace(
+                    profile.qdrant_index_binding, alias_name=qdrant_collection_name
+                ),
             )
 
         return _load_runtime_profile
 
     stack = ExitStack()
     stack.enter_context(
-        patch.object(backend_qdrant_module, "load_runtime_profile", side_effect=_build_override(original_backend))
+        patch.object(
+            backend_qdrant_module,
+            "load_runtime_profile",
+            side_effect=_build_override(original_backend),
+        )
     )
     stack.enter_context(
-        patch.object(retrieval_service_module, "load_runtime_profile", side_effect=_build_override(original_service))
+        patch.object(
+            retrieval_service_module,
+            "load_runtime_profile",
+            side_effect=_build_override(original_service),
+        )
     )
     return stack
 

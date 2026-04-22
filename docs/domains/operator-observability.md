@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-21
 ---
 
 # Operator Observability Domain
@@ -32,9 +32,9 @@ updated: 2026-04-20
 - 当前 workstream registry 与单条线执行状态分别看 `README.md` 定义的通用执行态入口与 `../../.planning/workstreams/operator-observability-control-plane/STATE.md`
 - `Requests` triage table 重构继续只作为 follow-up 入口，不自动并入当前 active workstream
 
-## Active Plan
+## Completed Plan
 
-- `../plans/operator-observability-control-plane-foundation.md`
+- `../plans/archive/completed/operator-observability-control-plane-foundation.md`
 
 ## Deferred Follow-up Plans
 

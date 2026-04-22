@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import copy
+import json
+import math
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from hashlib import sha256
-import json
-import math
 from pathlib import Path
 from typing import Any, Iterator
 
 from campus_evals.runtime_observability import bind_runtime_event_context, emit_runtime_event
-
 
 FAITHFULNESS_METRIC_KEY = "ragas.faithfulness"
 FAITHFULNESS_RUNTIME_VERSION = "staged-v1"
@@ -96,7 +95,9 @@ def bind_faithfulness_artifact_context(
         benchmark_mode=benchmark_mode,
         source_output_dir=Path(source_output_dir) if source_output_dir is not None else None,
     )
-    token: Token[FaithfulnessArtifactContext | None] = _CURRENT_FAITHFULNESS_ARTIFACT_CONTEXT.set(context)
+    token: Token[FaithfulnessArtifactContext | None] = _CURRENT_FAITHFULNESS_ARTIFACT_CONTEXT.set(
+        context
+    )
     try:
         yield context
     finally:
@@ -132,7 +133,11 @@ def execute_staged_faithfulness(
     prompt_version = _prompt_version(metric, nli_batch_size=nli_batch_size)
     checkpoint_context = current_faithfulness_artifact_context()
     checkpoint_path = (
-        _checkpoint_path(checkpoint_context.output_dir, checkpoint_context.run_number, getattr(projection, "case_id"))
+        _checkpoint_path(
+            checkpoint_context.output_dir,
+            checkpoint_context.run_number,
+            getattr(projection, "case_id"),
+        )
         if checkpoint_context is not None
         else None
     )
@@ -290,8 +295,7 @@ def execute_staged_faithfulness(
                 remaining_batch_count=total_batches - len(completed_batches),
             ) from exc
         completed_batches[batch_key] = [
-            item.model_dump(mode="python")
-            for item in verdict_output.statements
+            item.model_dump(mode="python") for item in verdict_output.statements
         ]
         state["stages"]["nli_verdicts"] = {
             "status": "partial",
@@ -381,7 +385,9 @@ def _run_config_for_metric(metric: object, run_config: object) -> object:
         stage_http_settings = _metric_stage_http_settings(metric, stage_name=stage_name)
         if stage_http_settings is None:
             continue
-        timeout_seconds = max(timeout_seconds, int(math.ceil(stage_http_settings.read_timeout_seconds)))
+        timeout_seconds = max(
+            timeout_seconds, int(math.ceil(stage_http_settings.read_timeout_seconds))
+        )
     current_timeout = int(getattr(run_config, "timeout", 0) or 0)
     if timeout_seconds <= current_timeout:
         return run_config
@@ -436,10 +442,18 @@ def _projection_sample_hash(projection: object) -> str:
 
 def _prompt_version(metric: object, *, nli_batch_size: int) -> str:
     payload = {
-        "statement_instruction": getattr(getattr(metric, "statement_generator_prompt", None), "instruction", ""),
-        "statement_examples": repr(getattr(getattr(metric, "statement_generator_prompt", None), "examples", ())),
-        "nli_instruction": getattr(getattr(metric, "nli_statements_prompt", None), "instruction", ""),
-        "nli_examples": repr(getattr(getattr(metric, "nli_statements_prompt", None), "examples", ())),
+        "statement_instruction": getattr(
+            getattr(metric, "statement_generator_prompt", None), "instruction", ""
+        ),
+        "statement_examples": repr(
+            getattr(getattr(metric, "statement_generator_prompt", None), "examples", ())
+        ),
+        "nli_instruction": getattr(
+            getattr(metric, "nli_statements_prompt", None), "instruction", ""
+        ),
+        "nli_examples": repr(
+            getattr(getattr(metric, "nli_statements_prompt", None), "examples", ())
+        ),
         "nli_batch_size": nli_batch_size,
     }
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -482,7 +496,13 @@ def _write_checkpoint(path: Path | None, payload: dict[str, object]) -> None:
 def _checkpoint_path(output_dir: Path | None, run_number: int, case_id: str) -> Path | None:
     if output_dir is None:
         return None
-    return output_dir / "_supplemental_state" / f"run-{run_number:02d}" / case_id / "ragas.faithfulness.json"
+    return (
+        output_dir
+        / "_supplemental_state"
+        / f"run-{run_number:02d}"
+        / case_id
+        / "ragas.faithfulness.json"
+    )
 
 
 def _statement_batch(statements: list[str], *, batch_index: int, batch_size: int) -> list[str]:
@@ -496,7 +516,9 @@ def _total_batches(statement_count: int, batch_size: int) -> int:
     return (statement_count + batch_size - 1) // batch_size
 
 
-def _flatten_batches(batches: dict[str, list[dict[str, object]]], *, total_batches: int) -> list[dict[str, object]]:
+def _flatten_batches(
+    batches: dict[str, list[dict[str, object]]], *, total_batches: int
+) -> list[dict[str, object]]:
     flattened: list[dict[str, object]] = []
     for batch_index in range(total_batches):
         flattened.extend(dict(item) for item in batches.get(str(batch_index), ()))

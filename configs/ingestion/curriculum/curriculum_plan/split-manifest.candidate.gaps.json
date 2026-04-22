@@ -1,19 +1,19 @@
 {
-  "artifact": "split-manifest.v1.json",
-  "raw_asset_id": "asset:curriculum-plan-2022",
-  "layout_elements_path": "/tmp/curriculum-layout-elements.v3.jsonl",
-  "matched_document_count": 69,
-  "missing_document_count": 0,
-  "missing_documents": [],
-  "retired_document_count": 1,
-  "retired_documents": [
-    {
-      "document_id": "plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74",
-      "title": "各类课程教学计划",
-      "canonical_doc_path": "rag-data/canonical/curriculum_plan/docs/各类课程教学计划.md",
-      "legacy_page_start": 14,
-      "legacy_page_end": 22,
-      "reason": "legacy_synthetic_umbrella_title"
-    }
-  ]
+	"artifact": "split-manifest.v1.json",
+	"raw_asset_id": "asset:curriculum-plan-2022",
+	"layout_elements_path": "/tmp/curriculum-layout-elements.v3.jsonl",
+	"matched_document_count": 69,
+	"missing_document_count": 0,
+	"missing_documents": [],
+	"retired_document_count": 1,
+	"retired_documents": [
+		{
+			"document_id": "plan:78d25a2033e93fc5940e2d10648ae2d7e887cb74",
+			"title": "各类课程教学计划",
+			"canonical_doc_path": "rag-data/canonical/curriculum_plan/docs/各类课程教学计划.md",
+			"legacy_page_start": 14,
+			"legacy_page_end": 22,
+			"reason": "legacy_synthetic_umbrella_title"
+		}
+	]
 }

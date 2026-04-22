@@ -29,7 +29,7 @@ Accepted on 2026-03-28.
 - 把“用户曾经说过的话”直接当成已验证身份
 - 让 profile memory 直接扩大 ACL、query scope 或 approval 权限
 - 把 institutional knowledge 与个人记忆塞进同一 retrieval truth store
-- 让 `supervisor` / `rag-specialist` 跨边界直接读取 raw auth、raw memory 或 raw conversation state
+- 让 `supervisor` / `rag-agent` 跨边界直接读取 raw auth、raw memory 或 raw conversation state
 
 因此这里要先固定：身份、长期记忆、会话记忆、个性化与授权边界到底分别属于哪一层，并且哪些能力以后不允许再摇摆。
 
@@ -39,7 +39,7 @@ Accepted on 2026-03-28.
 
 - canonical app identity 由 `apps/app-api` 拥有
 - browser cookie、Access JWT、Worker admission 或 edge trust material 只属于 runtime-boundary input
-- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-specialist` 只消费 `app-api` 投影后的 typed actor context
+- `apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent` 只消费 `app-api` 投影后的 typed actor context
 
 这意味着：
 
@@ -125,9 +125,9 @@ Accepted on 2026-03-28.
 - 不把用户 profile 当作 `packages/retrieval-core` 的 canonical source truth
 - 机构知识与个人记忆的 join 发生在 orchestration / request projection 层，而不是索引层
 
-## 决策 6：个性化输入只能作为 typed hint 进入 `supervisor` 与 `rag-specialist`
+## 决策 6：个性化输入只能作为 typed hint 进入 `supervisor` 与 `rag-agent`
 
-长期允许 `supervisor` 与 `rag-specialist` 消费以下类型的个性化 hint：
+长期允许 `supervisor` 与 `rag-agent` 消费以下类型的个性化 hint：
 
 - verified identity claims
 - user-visible profile memory summary
@@ -135,7 +135,7 @@ Accepted on 2026-03-28.
 
 但长期不允许：
 
-- 让 `supervisor` 或 `rag-specialist` 直接拥有 canonical identity store
+- 让 `supervisor` 或 `rag-agent` 直接拥有 canonical identity store
 - 让 `retrieval-core` 反向读取 profile / chat 存储
 - 让模型自行从 raw conversation 中提权式推断“用户应当拥有的权限”
 
@@ -176,7 +176,7 @@ Accepted on 2026-03-28.
   负责 identity / memory telemetry 的最小化规则
 - `docs/decisions/adr-0004-evaluation-metrics.md`
   负责 personalization / memory / authorization 相关 gate 指标
-- `docs/plans/`
+- `.planning/WORKSTREAMS.md` 与 `.planning/workstreams/<slug>/README.md`
   负责某一轮 identity / authorization / memory / personalization 实现波次、文件落点与验收标准
 
 ## 结果
@@ -185,7 +185,7 @@ Accepted on 2026-03-28.
 
 - 后续个性化能力必须以 `app-api` 为 canonical identity / authorization / memory owner
 - `supervisor` 负责 top-level intent framing 时可以参考 typed personal context，但不能把 personal context 当作权限源
-- `rag-specialist` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过 retrieval pre-filter
+- `rag-agent` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过 retrieval pre-filter
 - retrieval 与 workflow path 消费的 authz 语义必须来自 app-layer projection，而不是 raw token claims 或 memory 推断
 - memory 系统与 RAG 系统的 join 点必须可审计、可最小化、可回收
 

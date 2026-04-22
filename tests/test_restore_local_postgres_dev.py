@@ -3,17 +3,17 @@ from __future__ import annotations
 import io
 import json
 import subprocess
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.restore_local_postgres_dev import (
     APP_API_DEV_VARS_BACKUP_PATH,
     APP_API_ENV_BACKUP_PATH,
     DEFAULT_NORMALIZED_BATCH_DIRS,
-    ROOT_ENV_BACKUP_PATH,
     LOCAL_POSTGRES_DATABASE_URL,
+    ROOT_ENV_BACKUP_PATH,
     execute_local_postgres_recovery,
     is_local_postgres_database_url,
     main,
@@ -184,26 +184,35 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
     def test_prepare_local_postgres_recovery_captures_pre_local_env_backups_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
-            original_root_env = "\n".join(
-                [
-                    "KEEP_ME=1",
-                    "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                    "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
-                ]
-            ) + "\n"
-            original_app_env = "\n".join(
-                [
-                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://remote/runtime",
-                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://remote/runtime",
-                    "APP_API_MANAGEMENT_DATABASE_URL=postgres://remote/management",
-                ]
-            ) + "\n"
-            original_dev_vars = "\n".join(
-                [
-                    "APP_API_DATABASE_SSLMODE=prefer",
-                    "APP_API_INTERNAL_SHARED_SECRET=test-secret",
-                ]
-            ) + "\n"
+            original_root_env = (
+                "\n".join(
+                    [
+                        "KEEP_ME=1",
+                        "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
+                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                    ]
+                )
+                + "\n"
+            )
+            original_app_env = (
+                "\n".join(
+                    [
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://remote/runtime",
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://remote/runtime",
+                        "APP_API_MANAGEMENT_DATABASE_URL=postgres://remote/management",
+                    ]
+                )
+                + "\n"
+            )
+            original_dev_vars = (
+                "\n".join(
+                    [
+                        "APP_API_DATABASE_SSLMODE=prefer",
+                        "APP_API_INTERNAL_SHARED_SECRET=test-secret",
+                    ]
+                )
+                + "\n"
+            )
             _write(repo_root / ".env", original_root_env)
             _write(repo_root / "apps" / "app-api" / ".env", original_app_env)
             _write(repo_root / "apps" / "app-api" / ".dev.vars", original_dev_vars)
@@ -271,12 +280,16 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                 f"CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
             )
-            self.assertIn(f"DOCUMENT_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env)
+            self.assertIn(
+                f"DOCUMENT_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env
+            )
             self.assertIn(
                 f"DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
             )
-            self.assertIn(f"RAW_ASSET_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env)
+            self.assertIn(
+                f"RAW_ASSET_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env
+            )
             self.assertIn(
                 f"RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
@@ -304,13 +317,17 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
             self.assertIn("APP_API_DATABASE_SSLMODE=disable\n", dev_vars)
             self.assertIn("APP_API_INTERNAL_SHARED_SECRET=test-secret\n", dev_vars)
 
-            bundle_payload = json.loads(Path(plan["paths"]["union_bundle_path"]).read_text(encoding="utf-8"))
+            bundle_payload = json.loads(
+                Path(plan["paths"]["union_bundle_path"]).read_text(encoding="utf-8")
+            )
             manifest_payload = json.loads(
                 Path(plan["paths"]["union_manifest_path"]).read_text(encoding="utf-8")
             )
-            selected_notice_ids = Path(plan["paths"]["selected_notice_ids_path"]).read_text(
-                encoding="utf-8"
-            ).splitlines()
+            selected_notice_ids = (
+                Path(plan["paths"]["selected_notice_ids_path"])
+                .read_text(encoding="utf-8")
+                .splitlines()
+            )
             self.assertEqual(
                 [record["notice"]["notice_id"] for record in bundle_payload],
                 ["355282", "354006", "355119"],
@@ -336,7 +353,9 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
             self.assertEqual(plan["expected_inventory"]["notice_count"], 20)
             self.assertEqual(plan["expected_inventory"]["expected_document_count"], 21)
 
-    def test_execute_local_postgres_recovery_runs_commands_in_order_and_validates_json_steps(self) -> None:
+    def test_execute_local_postgres_recovery_runs_commands_in_order_and_validates_json_steps(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(repo_root / ".env", "KEEP_ME=1\n")
@@ -405,7 +424,10 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                         ),
                         stderr="",
                     )
-                if "campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory" in argv:
+                if (
+                    "campus_ingestion_worker.rebuild_authenticated_notice_source_truth_inventory"
+                    in argv
+                ):
                     return subprocess.CompletedProcess(
                         argv,
                         0,

@@ -14,7 +14,7 @@ updated: 2026-04-21
 它回答的是：
 
 - 校园导航在长期产品形态里属于什么能力边界
-- `supervisor`、`navigation-specialist`、`app-api`、spatial truth 各自负责什么
+- `supervisor`、`navigation-agent`、`app-api`、spatial truth 各自负责什么
 - 用户当前位置、地点别名、路线图谱与地图呈现分别属于哪一层
 - 外部地图 provider 与瓦片地图在长期形态里应怎样参与
 
@@ -37,7 +37,7 @@ updated: 2026-04-21
 
 长期导航主链路固定为：
 
-`web surface -> app-api -> supervisor-api -> supervisor-core -> navigation-specialist -> spatial truth / provider adapters -> supervisor response`
+`web surface -> app-api -> supervisor-api -> supervisor-core -> navigation-agent -> spatial truth / provider adapters -> supervisor response`
 
 ## Product Goal
 
@@ -110,7 +110,7 @@ updated: 2026-04-21
 - provider-specific route or geocode logic
 - browser map rendering
 
-### `packages/navigation-specialist`
+### `packages/navigation-agent`
 
 长期负责：
 
@@ -205,7 +205,7 @@ updated: 2026-04-21
 固定规则：
 
 - alias 必须带 institution scope
-- alias resolution owner 在 `navigation-specialist`
+- alias resolution owner 在 `navigation-agent`
 - retrieval / graph executor 只消费 canonical entity truth，不消费自由文本 alias 真相
 - 高歧义地点默认进入 `needs_clarification`，不得用 top1 猜测代替
 

@@ -4,10 +4,10 @@ import io
 import json
 import os
 import subprocess
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from scripts.check_worker_secret_presence import collect_worker_secret_presence, main
@@ -72,8 +72,12 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 status["apps"]["apps/app-api"]["required_secrets"],
                 ["SHARED_SECRET", "STAGING_ONLY_SECRET"],
             )
-            self.assertEqual(status["apps"]["apps/app-api"]["configured_secrets"], ["SHARED_SECRET"])
-            self.assertEqual(status["apps"]["apps/app-api"]["missing_secrets"], ["STAGING_ONLY_SECRET"])
+            self.assertEqual(
+                status["apps"]["apps/app-api"]["configured_secrets"], ["SHARED_SECRET"]
+            )
+            self.assertEqual(
+                status["apps"]["apps/app-api"]["missing_secrets"], ["STAGING_ONLY_SECRET"]
+            )
             self.assertNotIn("ROOT_ONLY_SECRET", status["apps"]["apps/app-api"]["required_secrets"])
 
     def test_main_supports_json_output_for_ready_staging_secret_audit(self) -> None:
@@ -119,7 +123,9 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(payload["overall_ready"])
             self.assertEqual(payload["env"], "staging")
-            self.assertEqual(payload["apps"]["apps/public-chat-web"]["required_secrets"], ["SENTRY_DSN"])
+            self.assertEqual(
+                payload["apps"]["apps/public-chat-web"]["required_secrets"], ["SENTRY_DSN"]
+            )
 
     def test_collect_worker_secret_presence_strips_ansi_noise_and_keeps_audit_command(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -159,7 +165,9 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             self.assertIn("WARNING proxy noise", app_status["error"])
             self.assertIn("ERROR auth failed", app_status["error"])
 
-    def test_collect_worker_secret_presence_runs_wrangler_without_inherited_proxy_vars(self) -> None:
+    def test_collect_worker_secret_presence_runs_wrangler_without_inherited_proxy_vars(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -366,7 +374,9 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             app_status = status["apps"]["apps/public-chat-web"]
             self.assertFalse(app_status["ready"])
             self.assertIn("expired at 2026-04-18T20:14:50.499Z", app_status["error"])
-            self.assertIn("pnpm --dir apps/public-chat-web exec wrangler login", app_status["error"])
+            self.assertIn(
+                "pnpm --dir apps/public-chat-web exec wrangler login", app_status["error"]
+            )
             self.assertIn("CLOUDFLARE_API_TOKEN", app_status["error"])
 
 

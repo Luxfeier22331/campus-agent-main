@@ -18,7 +18,6 @@ from campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attach
     normalize_authenticated_notice_legacy_office_attachment,
 )
 
-
 _DOC_MEDIA_TYPE = "application/msword"
 _XLS_MEDIA_TYPE = "application/vnd.ms-excel"
 _AUTHENTICATED_NOTICE_PREFIX = "authenticated_notice_portal/"
@@ -120,7 +119,9 @@ def list_authenticated_notice_legacy_office_source_keys(
 ) -> tuple[str, ...]:
     s3_client = getattr(object_store, "_client", None)
     if s3_client is None:
-        raise LegacyOfficeRuntimeVerificationError("object store client does not expose list_objects_v2")
+        raise LegacyOfficeRuntimeVerificationError(
+            "object store client does not expose list_objects_v2"
+        )
 
     discovered: list[str] = []
     request: dict[str, Any] = {
@@ -183,8 +184,7 @@ def verify_legacy_office_conversion_runtime(
     )
     if int(readyz_payload["status_code"]) != 200:
         raise LegacyOfficeRuntimeVerificationError(
-            "legacy Office conversion runtime is not ready: "
-            f"{readyz_payload['status_code']}"
+            f"legacy Office conversion runtime is not ready: {readyz_payload['status_code']}"
         )
 
     doc_result = _materialize_sample(

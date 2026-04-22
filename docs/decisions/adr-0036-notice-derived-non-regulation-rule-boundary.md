@@ -126,6 +126,6 @@ Accepted on 2026-04-11.
 ## Related Docs
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
 - `.planning/quick/260411-rho-institutional-regulations-promotion-adju/manual-review-adjudication.md`

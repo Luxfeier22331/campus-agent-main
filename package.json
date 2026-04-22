@@ -1,31 +1,36 @@
 {
-  "name": "campus-agent-web-workspace",
-  "private": true,
-  "packageManager": "pnpm@10.17.1",
-  "scripts": {
-    "web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
-    "web:build": "turbo run build",
-    "web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",
-    "web:check": "turbo run typecheck test build",
-    "web:dev": "turbo run dev",
-    "web:dev:chat": "turbo run dev --filter=public-chat-web",
-    "web:lint": "pnpm exec biome check .",
-    "web:lint:fix": "pnpm exec biome check --write .",
-    "web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
-    "web:test": "turbo run test",
-    "web:test:worker": "turbo run test:worker",
-    "web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
-    "web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
-    "web:typecheck": "turbo run typecheck",
-    "py:lint": "uv run --all-packages ruff check .",
-    "py:lint:fix": "uv run --all-packages ruff check . --fix",
-    "py:format": "uv run --all-packages ruff format .",
-    "py:format:check": "uv run --all-packages ruff format . --check",
-    "lint": "pnpm web:lint && pnpm py:lint && pnpm py:format:check",
-    "lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.12",
-    "turbo": "^2.8.21"
-  }
+	"name": "campus-agent-web-workspace",
+	"private": true,
+	"packageManager": "pnpm@10.17.1",
+	"scripts": {
+		"web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
+		"web:build": "turbo run build",
+		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",
+		"web:check": "turbo run typecheck test build",
+		"web:dev": "turbo run dev",
+		"web:dev:chat": "turbo run dev --filter=public-chat-web",
+		"web:dev:docs": "turbo run dev --filter=public-docs-web",
+		"web:dev:docs:rspress": "turbo run dev --filter=public-docs-rspress",
+		"web:lint": "pnpm exec biome check .",
+		"web:lint:fix": "pnpm exec biome check --write .",
+		"web:test:affected": "TURBO_SCM_BASE=origin/develop turbo run test --affected",
+		"web:test": "turbo run test",
+		"web:test:worker": "turbo run test:worker",
+		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
+		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
+		"web:typecheck": "turbo run typecheck",
+		"docs:lint": "pnpm exec markdownlint-cli2 --config .markdownlint-cli2.jsonc",
+		"py:lint": "uv run --all-packages ruff check .",
+		"py:lint:fix": "uv run --all-packages ruff check . --fix",
+		"py:format": "uv run --all-packages ruff format .",
+		"py:format:check": "uv run --all-packages ruff format . --check",
+		"yaml:lint": "uv run --all-packages pre-commit run check-yaml --all-files",
+		"lint": "pnpm web:lint && pnpm docs:lint && pnpm yaml:lint && pnpm py:lint && pnpm py:format:check",
+		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.12",
+		"markdownlint-cli2": "^0.22.0",
+		"turbo": "^2.8.21"
+	}
 }

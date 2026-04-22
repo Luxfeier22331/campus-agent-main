@@ -44,6 +44,7 @@ uv run --package campus-ingestion-worker python -m campus_ingestion_worker.smoke
 - 若同一 bundle 重跑，允许出现 `updated` 或 `skipped`，不要求每次都新建 document
 - authenticated notice 的 `attachment-observations.jsonl` / `attachment-refs.jsonl` 允许为空；当前 worker 已把 zero-byte object 写入隔离到一次性 S3 client，避免本地 MinIO 在空对象写入后把后续复用连接拖成长时间 stall
 - zero-byte / object-store 排障不得把 scratch object 长期留在 `campus-rag-source/debug/**`；source bucket 根前缀只允许正式 `source_channel`，临时排障证据应落本地 `.tmp/`，若必须写入 bucket 则排障完成后立即清理
+- 若需要做 object-store hygiene 复核，source bucket 只允许正式 `source_channel` 根前缀，derived bucket 只允许 `{corpus}/{documents|releases|backups|operations}/...`
 
 ## 前置条件
 
@@ -182,6 +183,7 @@ smoke 输出 JSON summary，至少要求以下 checks 都为 `passed`：
    - authenticated notice 的空 `attachment-observations.jsonl` / `attachment-refs.jsonl` 是合法产物
    - 若某个分支重新出现“空对象写完后下一次 `put_object` 长时间无响应”，优先检查 `packages/ingestion-core/src/campus_ingestion_core/campusrag_ingestion_support.py` 的 `S3ObjectStoreWriter` 是否仍保留 zero-byte one-shot client 保护
    - 若为了复现实验临时写过 bucket-level scratch object，收尾前必须确认 `campus-rag-source` 的 top-level prefix 仍只剩正式 source channel，而不是遗留 `debug/**`
+   - 同时确认 `campus-rag-derived` 没有长出 `documents|releases|backups|operations` 之外的第二层 family
 
 ## 建议证据
 

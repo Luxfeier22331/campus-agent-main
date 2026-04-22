@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Sequence
 from urllib.parse import urlparse
 
@@ -423,9 +423,7 @@ def capture_pre_local_postgres_backups(
         "app_api_dev_vars": repo_root / APP_API_DEV_VARS_BACKUP_PATH,
     }
     root_env_path = repo_root / ".env"
-    current_root_values = (
-        parse_env_file(root_env_path) if root_env_path.exists() else {}
-    )
+    current_root_values = parse_env_file(root_env_path) if root_env_path.exists() else {}
     current_runtime_url = current_root_values.get("CAMPUS_SHARED_POSTGRES_URL", "").strip()
     if current_runtime_url and not is_local_postgres_database_url(current_runtime_url):
         _write_backup_snapshot(

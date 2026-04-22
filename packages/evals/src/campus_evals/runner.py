@@ -13,12 +13,11 @@ from campus_evals.models import (
     ExecutionResult,
     GoldenCase,
     RunReport,
+    SummaryCount,
     SupplementalMetricSummary,
     SupplementalResult,
-    SummaryCount,
 )
 from campus_evals.runtime_observability import bind_runtime_event_context
-
 
 Executor = Callable[[GoldenCase], ExecutionResult]
 
@@ -26,8 +25,9 @@ Executor = Callable[[GoldenCase], ExecutionResult]
 class SupplementalAdapter(Protocol):
     adapter_id: str
 
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
-        ...
+    def evaluate(
+        self, case: GoldenCase, execution: ExecutionResult
+    ) -> tuple[SupplementalResult, ...]: ...
 
 
 def run_cases(
@@ -153,7 +153,9 @@ def summarize_case_results(
         passed=passed,
         failed=total - passed,
         by_split={name: _summary_from_counter(counter) for name, counter in split_stats.items()},
-        by_dimension={name: _summary_from_counter(counter) for name, counter in dimension_stats.items()},
+        by_dimension={
+            name: _summary_from_counter(counter) for name, counter in dimension_stats.items()
+        },
         by_metric={
             name: _summary_from_counter(metric_stats.get(name, Counter()))
             for name in _metric_summary_names(metric_stats)
@@ -206,11 +208,7 @@ def _summarize_supplemental_results(
 ) -> SupplementalMetricSummary:
     adapter_id, metric_name = key.split(".", 1)
     scored_items = [item.score for item in items if item.score is not None]
-    verdict_counts = Counter(
-        item.verdict
-        for item in items
-        if item.verdict is not None
-    )
+    verdict_counts = Counter(item.verdict for item in items if item.verdict is not None)
     return SupplementalMetricSummary(
         adapter_id=adapter_id,
         metric_name=metric_name,

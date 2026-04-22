@@ -207,7 +207,7 @@ executor / query activity truth；这属于 target-state observability expansion
 如果 operator surface 需要展示或分组，必须通过显式 projection 派生，例如：
 
 - `selected_target`
-  - raw runtime target，例如 `rag-specialist`
+  - raw runtime target，例如 `rag-agent`
 - `capability_family`
   - family wording，例如 `rag-agent`
 - `selected_target_label`

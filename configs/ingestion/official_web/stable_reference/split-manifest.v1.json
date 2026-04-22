@@ -1,89 +1,89 @@
 {
-  "manifest_version": "official_web_stable_reference_split_manifest_v1",
-  "corpus": "official_web",
-  "collection": "stable_reference",
-  "raw_asset_id": "asset:official-web-stable-reference-bootstrap-20260404",
-  "documents": [
-    {
-      "document_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-      "title": "学校概况",
-      "page_start": 1,
-      "page_end": 1,
-      "source_uri": "https://www.muc.edu.cn/xxgk1.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-      "title": "学校简介",
-      "page_start": 2,
-      "page_end": 2,
-      "source_uri": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
-      "title": "现任领导",
-      "page_start": 3,
-      "page_end": 3,
-      "source_uri": "https://www.muc.edu.cn/xxgk1/xrld.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
-      "title": "学术名流",
-      "page_start": 4,
-      "page_end": 4,
-      "source_uri": "https://www.muc.edu.cn/xxgk1/xsml.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:dfd33d034080e7df93a707edef7f555a95d78b13",
-      "title": "本科培养",
-      "page_start": 5,
-      "page_end": 5,
-      "source_uri": "https://www.muc.edu.cn/rcpy/bkpy.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:d043e2b8d29c0023c945a9c5909cb09b1f68d0ca",
-      "title": "研究生培养",
-      "page_start": 6,
-      "page_end": 6,
-      "source_uri": "https://www.muc.edu.cn/rcpy/yjspy.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
-      "title": "博士后",
-      "page_start": 7,
-      "page_end": 7,
-      "source_uri": "https://www.muc.edu.cn/rcpy/bsh.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
-      "title": "基金会简介",
-      "page_start": 8,
-      "page_end": 8,
-      "source_uri": "https://xiaoyou.muc.edu.cn/jjh/jjhjj.htm",
-      "acl_groups": [],
-      "status": "active"
-    },
-    {
-      "document_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
-      "title": "校友会简介",
-      "page_start": 9,
-      "page_end": 9,
-      "source_uri": "https://xiaoyou.muc.edu.cn/xyh/xyhjj.htm",
-      "acl_groups": [],
-      "status": "active"
-    }
-  ]
+	"manifest_version": "official_web_stable_reference_split_manifest_v1",
+	"corpus": "official_web",
+	"collection": "stable_reference",
+	"raw_asset_id": "asset:official-web-stable-reference-bootstrap-20260404",
+	"documents": [
+		{
+			"document_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+			"title": "学校概况",
+			"page_start": 1,
+			"page_end": 1,
+			"source_uri": "https://www.muc.edu.cn/xxgk1.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+			"title": "学校简介",
+			"page_start": 2,
+			"page_end": 2,
+			"source_uri": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
+			"title": "现任领导",
+			"page_start": 3,
+			"page_end": 3,
+			"source_uri": "https://www.muc.edu.cn/xxgk1/xrld.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+			"title": "学术名流",
+			"page_start": 4,
+			"page_end": 4,
+			"source_uri": "https://www.muc.edu.cn/xxgk1/xsml.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:dfd33d034080e7df93a707edef7f555a95d78b13",
+			"title": "本科培养",
+			"page_start": 5,
+			"page_end": 5,
+			"source_uri": "https://www.muc.edu.cn/rcpy/bkpy.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:d043e2b8d29c0023c945a9c5909cb09b1f68d0ca",
+			"title": "研究生培养",
+			"page_start": 6,
+			"page_end": 6,
+			"source_uri": "https://www.muc.edu.cn/rcpy/yjspy.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
+			"title": "博士后",
+			"page_start": 7,
+			"page_end": 7,
+			"source_uri": "https://www.muc.edu.cn/rcpy/bsh.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
+			"title": "基金会简介",
+			"page_start": 8,
+			"page_end": 8,
+			"source_uri": "https://xiaoyou.muc.edu.cn/jjh/jjhjj.htm",
+			"acl_groups": [],
+			"status": "active"
+		},
+		{
+			"document_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+			"title": "校友会简介",
+			"page_start": 9,
+			"page_end": 9,
+			"source_uri": "https://xiaoyou.muc.edu.cn/xyh/xyhjj.htm",
+			"acl_groups": [],
+			"status": "active"
+		}
+	]
 }

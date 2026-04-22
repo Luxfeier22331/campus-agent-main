@@ -1,33 +1,30 @@
 {
-  "$schema": "https://turborepo.com/schema.json",
-  "tasks": {
-    "build": {
-      "outputs": [
-        "dist/**",
-        ".tanstack/**"
-      ]
-    },
-    "typecheck": {
-      "outputs": []
-    },
-    "test": {
-      "outputs": []
-    },
-    "test:worker": {
-      "outputs": []
-    },
-    "test:integration": {
-      "cache": false
-    },
-    "test:shared-db-integration": {
-      "cache": false
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "deploy": {
-      "cache": false
-    }
-  }
+	"$schema": "https://turborepo.com/schema.json",
+	"tasks": {
+		"build": {
+			"outputs": ["dist/**", ".tanstack/**"]
+		},
+		"typecheck": {
+			"outputs": []
+		},
+		"test": {
+			"outputs": []
+		},
+		"test:worker": {
+			"outputs": []
+		},
+		"test:integration": {
+			"cache": false
+		},
+		"test:shared-db-integration": {
+			"cache": false
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"deploy": {
+			"cache": false
+		}
+	}
 }

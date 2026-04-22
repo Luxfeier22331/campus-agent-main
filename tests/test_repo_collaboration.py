@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,7 +16,9 @@ class RepoCollaborationTest(unittest.TestCase):
             ROOT / ".github" / "workflows" / "repo-guard.yml",
         }
 
-        missing = sorted(str(path.relative_to(ROOT)) for path in expected_files if not path.exists())
+        missing = sorted(
+            str(path.relative_to(ROOT)) for path in expected_files if not path.exists()
+        )
         self.assertEqual(missing, [])
 
     def test_readme_and_contributing_reference_collaboration_flow(self) -> None:

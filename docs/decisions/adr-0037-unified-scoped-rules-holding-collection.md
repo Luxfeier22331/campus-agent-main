@@ -129,4 +129,4 @@ repo 新增统一 target collection：
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/reference/internal-notice-manual-review-collection-strategy.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`

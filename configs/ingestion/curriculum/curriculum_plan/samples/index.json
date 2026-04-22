@@ -1,70 +1,70 @@
 {
-  "samples": [
-    {
-      "label": "narrative",
-      "document_id": "plan:5a0c46df115db8d310693293f819638be31acac6",
-      "title": "中央民族大学通识课程综合素养课建设方案",
-      "page_start": 47,
-      "page_end": 51,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中央民族大学通识课程综合素养课建设方案.md",
-      "version_id": "sample:curriculum-plan-2022:split:5a0c46df115db8d310693293f819638be31acac6:581ad38d",
-      "row_count": 55,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/narrative-5a0c46df115db8d310693293f819638be31acac6.structured.jsonl"
-    },
-    {
-      "label": "requirement-like",
-      "document_id": "plan:a5c98718d08ad90297eb9f35729e679364eca99a",
-      "title": "中央民族大学通识课程思想政治理论课教学计划",
-      "page_start": 22,
-      "page_end": 36,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中央民族大学通识课程思想政治理论课教学计划.md",
-      "version_id": "sample:curriculum-plan-2022:split:a5c98718d08ad90297eb9f35729e679364eca99a:4b2f4b47",
-      "row_count": 164,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/requirement-like-a5c98718d08ad90297eb9f35729e679364eca99a.structured.jsonl"
-    },
-    {
-      "label": "table-heavy",
-      "document_id": "plan:6ee603374cac6d1d2413e501bde273b27d82a005",
-      "title": "财政学本科人才培养方案",
-      "page_start": 258,
-      "page_end": 268,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/财政学本科人才培养方案.md",
-      "version_id": "sample:curriculum-plan-2022:split:6ee603374cac6d1d2413e501bde273b27d82a005:a52607c9",
-      "row_count": 85,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/table-heavy-6ee603374cac6d1d2413e501bde273b27d82a005.structured.jsonl"
-    },
-    {
-      "label": "mixed",
-      "document_id": "plan:244f355da878f966310e0a2a2ea0b15be4065806",
-      "title": "孝通实验班本科人才培养方案",
-      "page_start": 87,
-      "page_end": 102,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/孝通实验班本科人才培养方案.md",
-      "version_id": "sample:curriculum-plan-2022:split:244f355da878f966310e0a2a2ea0b15be4065806:9c8827f1",
-      "row_count": 110,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/mixed-244f355da878f966310e0a2a2ea0b15be4065806.structured.jsonl"
-    },
-    {
-      "label": "title-boundary",
-      "document_id": "plan:7c25c4ea4aac4ea5ae2f1493f1351562cef666df",
-      "title": "中国少数民族语言文学本科人才培养方案",
-      "page_start": 103,
-      "page_end": 115,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
-      "version_id": "sample:curriculum-plan-2022:split:7c25c4ea4aac4ea5ae2f1493f1351562cef666df:867afe0f",
-      "row_count": 90,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/title-boundary-7c25c4ea4aac4ea5ae2f1493f1351562cef666df.structured.jsonl"
-    },
-    {
-      "label": "normalized-title",
-      "document_id": "plan:b415316153e409ca61ebcfba9e7fc36eb4091f69",
-      "title": "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
-      "page_start": 116,
-      "page_end": 125,
-      "source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案.md",
-      "version_id": "sample:curriculum-plan-2022:split:b415316153e409ca61ebcfba9e7fc36eb4091f69:84499eea",
-      "row_count": 82,
-      "path": "configs/ingestion/curriculum/curriculum_plan/samples/normalized-title-b415316153e409ca61ebcfba9e7fc36eb4091f69.structured.jsonl"
-    }
-  ]
+	"samples": [
+		{
+			"label": "narrative",
+			"document_id": "plan:5a0c46df115db8d310693293f819638be31acac6",
+			"title": "中央民族大学通识课程综合素养课建设方案",
+			"page_start": 47,
+			"page_end": 51,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中央民族大学通识课程综合素养课建设方案.md",
+			"version_id": "sample:curriculum-plan-2022:split:5a0c46df115db8d310693293f819638be31acac6:581ad38d",
+			"row_count": 55,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/narrative-5a0c46df115db8d310693293f819638be31acac6.structured.jsonl"
+		},
+		{
+			"label": "requirement-like",
+			"document_id": "plan:a5c98718d08ad90297eb9f35729e679364eca99a",
+			"title": "中央民族大学通识课程思想政治理论课教学计划",
+			"page_start": 22,
+			"page_end": 36,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中央民族大学通识课程思想政治理论课教学计划.md",
+			"version_id": "sample:curriculum-plan-2022:split:a5c98718d08ad90297eb9f35729e679364eca99a:4b2f4b47",
+			"row_count": 164,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/requirement-like-a5c98718d08ad90297eb9f35729e679364eca99a.structured.jsonl"
+		},
+		{
+			"label": "table-heavy",
+			"document_id": "plan:6ee603374cac6d1d2413e501bde273b27d82a005",
+			"title": "财政学本科人才培养方案",
+			"page_start": 258,
+			"page_end": 268,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/财政学本科人才培养方案.md",
+			"version_id": "sample:curriculum-plan-2022:split:6ee603374cac6d1d2413e501bde273b27d82a005:a52607c9",
+			"row_count": 85,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/table-heavy-6ee603374cac6d1d2413e501bde273b27d82a005.structured.jsonl"
+		},
+		{
+			"label": "mixed",
+			"document_id": "plan:244f355da878f966310e0a2a2ea0b15be4065806",
+			"title": "孝通实验班本科人才培养方案",
+			"page_start": 87,
+			"page_end": 102,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/孝通实验班本科人才培养方案.md",
+			"version_id": "sample:curriculum-plan-2022:split:244f355da878f966310e0a2a2ea0b15be4065806:9c8827f1",
+			"row_count": 110,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/mixed-244f355da878f966310e0a2a2ea0b15be4065806.structured.jsonl"
+		},
+		{
+			"label": "title-boundary",
+			"document_id": "plan:7c25c4ea4aac4ea5ae2f1493f1351562cef666df",
+			"title": "中国少数民族语言文学本科人才培养方案",
+			"page_start": 103,
+			"page_end": 115,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学本科人才培养方案.md",
+			"version_id": "sample:curriculum-plan-2022:split:7c25c4ea4aac4ea5ae2f1493f1351562cef666df:867afe0f",
+			"row_count": 90,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/title-boundary-7c25c4ea4aac4ea5ae2f1493f1351562cef666df.structured.jsonl"
+		},
+		{
+			"label": "normalized-title",
+			"document_id": "plan:b415316153e409ca61ebcfba9e7fc36eb4091f69",
+			"title": "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+			"page_start": 116,
+			"page_end": 125,
+			"source_uri": "campusrag://rag-data/canonical/curriculum_plan/docs/中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案.md",
+			"version_id": "sample:curriculum-plan-2022:split:b415316153e409ca61ebcfba9e7fc36eb4091f69:84499eea",
+			"row_count": 82,
+			"path": "configs/ingestion/curriculum/curriculum_plan/samples/normalized-title-b415316153e409ca61ebcfba9e7fc36eb4091f69.structured.jsonl"
+		}
+	]
 }

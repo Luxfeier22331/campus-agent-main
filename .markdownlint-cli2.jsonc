@@ -1,0 +1,26 @@
+{
+	"globs": [
+		"README.md",
+		"AGENTS.md",
+		"CONTRIBUTING.md",
+		"docs/README.md",
+		"docs/architecture/**/*.md",
+		"docs/reference/**/*.md",
+		"docs/contracts/**/*.md",
+		"docs/data/**/*.md",
+		"docs/decisions/**/*.md",
+		"docs/policies/**/*.md",
+		"docs/domains/**/*.md",
+		"docs/environment/**/*.md",
+		"configs/**/README.md"
+	],
+	"ignores": ["docs/**/archive/**", "docs/plans/**"],
+	"config": {
+		"MD013": false,
+		"MD024": false,
+		"MD029": false,
+		"MD034": false,
+		"MD041": false,
+		"MD060": false
+	}
+}

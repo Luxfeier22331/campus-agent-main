@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlencode
 
-from scripts.check_sentry_lookup_access import fetch_json, load_sentry_api_token
+from scripts.check_sentry_lookup_access import load_sentry_api_token
 
 DEFAULT_DATASET = "spans"
 DEFAULT_FIELDS = (
@@ -49,10 +49,7 @@ def build_sentry_spans_query_url(
     if query:
         params.append(("query", query))
 
-    return (
-        f"{base_url.rstrip('/')}/api/0/organizations/{org_slug}/events/?"
-        f"{urlencode(params)}"
-    )
+    return f"{base_url.rstrip('/')}/api/0/organizations/{org_slug}/events/?{urlencode(params)}"
 
 
 def query_sentry_spans(

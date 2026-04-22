@@ -62,7 +62,7 @@
 - 当前 accepted merged-truth topology 与已开放 serving surface 以 `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应 `docs/` 文档为准
 - 当前 phase 执行状态、pending work、最新讨论结论与当前轮计划以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 `.planning/workstreams/<slug>/` 为准
-- `docs/plans/` 只保留仍对前向实施有指导价值的计划文档；已完成的历史 bootstrap / baseline 不再作为 repo 级默认入口
+- `.planning/workstreams/<slug>/README.md` 是 native workstream 的 live 入口；`docs/plans/` 只保留 archive namespace，不再承载 active/deferred workstream entry
 - 不要把 `docs/architecture/target-architecture.md` 当作当前 merged truth 或当前 GSD 进度板；当前真相看 `current-architecture.md`，当前执行状态看 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream 目录
 - 如果这里的表述和深层设计文档冲突，以深层设计文档为准，并优先修正本文件
 - 在引用 Source Of Truth 之前，先确认是否准确理解了用户当前问题；不得用文档权威覆盖对用户原意的错误理解
@@ -281,6 +281,8 @@ uv sync --all-packages --dev
 
 ```bash
 pnpm web:lint
+pnpm docs:lint
+pnpm yaml:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
@@ -311,7 +313,7 @@ pnpm web:build:affected
 - 默认不要直接运行裸 `python3` 或裸 `pytest`
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app 验证拆回各自目录手动串行运行
-- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Python lint/format 默认通过 `uv run --all-packages ruff ...` 执行
+- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run --all-packages ruff ...` 执行
 - `pnpm web:test` 是 JS/TS 默认稳定 gate；不要把它表述成自动覆盖所有 worker / integration lane
 - `pnpm web:test:worker` 是显式 Worker runtime lane；`pnpm web:test:integration` 是显式外部依赖 integration lane
 - `apps/app-api` 默认 `pnpm test` 只跑 `test:node`；`test:worker` 与 `test:shared-db-integration` 必须显式调用

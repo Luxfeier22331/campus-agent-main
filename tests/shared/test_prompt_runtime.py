@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import unittest
+from dataclasses import dataclass
 
 import httpx
-from pydantic import BaseModel
-
 from campus_contracts import PromptTrace
 from campus_shared import (
     NormalizedProviderGroundingSupport,
@@ -18,6 +16,7 @@ from campus_shared import (
     validate_prompt_trace_contract,
 )
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
+from pydantic import BaseModel
 
 
 class PromptRuntimeValidationTest(unittest.TestCase):
@@ -129,7 +128,9 @@ class PromptRuntimeValidationTest(unittest.TestCase):
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         )
 
-    def test_responses_executor_omits_safety_identifier_when_provider_config_disables_it(self) -> None:
+    def test_responses_executor_omits_safety_identifier_when_provider_config_disables_it(
+        self,
+    ) -> None:
         captured_payloads: list[str] = []
 
         class ResponseModel(BaseModel):
@@ -187,7 +188,9 @@ class PromptRuntimeValidationTest(unittest.TestCase):
 
         self.assertNotIn('"safety_identifier"', captured_payloads[0])
 
-    def test_responses_executor_execute_with_metadata_extracts_provider_grounding_supports(self) -> None:
+    def test_responses_executor_execute_with_metadata_extracts_provider_grounding_supports(
+        self,
+    ) -> None:
         class ResponseModel(BaseModel):
             answer_text: str
 

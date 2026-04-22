@@ -30,7 +30,9 @@ class ProviderConfigTest(unittest.TestCase):
         self.assertEqual(resolved.llm_api_key, "shared-llm")
         self.assertEqual(resolved.embedding_api_key, "shared-embed")
 
-    def test_missing_embedding_key_reports_surface_and_checked_keys_without_leaking_secrets(self) -> None:
+    def test_missing_embedding_key_reports_surface_and_checked_keys_without_leaking_secrets(
+        self,
+    ) -> None:
         env = {"LLM_API_KEY": "shared-llm"}
 
         with self.assertRaises(ProviderConfigResolutionError) as cm:

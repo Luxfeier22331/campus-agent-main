@@ -14,24 +14,26 @@ from campus_contracts import (
     SpecialistResponse,
     SupervisorObservability,
     SupervisorResponse,
+    VersionQuery,
 )
 from campus_evals import (
+    ExecutionResult,
+    GoldenCase,
+    ObservedTrace,
+    TraceExpectation,
     curriculum_error_gate_cases,
     curriculum_regression_locked_cases,
     curriculum_release_gate_cases,
     curriculum_smoke_cases,
-    ExecutionResult,
-    GoldenCase,
+    expected_source_ref,
     handbook_error_gate_cases,
     handbook_regression_locked_cases,
     handbook_release_gate_cases,
     handbook_smoke_cases,
-    ObservedTrace,
     official_web_release_gate_cases,
     policy_risk_and_grounding_release_gate_cases,
-    TraceExpectation,
-    expected_source_ref,
     run_cases,
+    versioned_history_regression_locked_cases,
 )
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
@@ -45,7 +47,9 @@ def _is_lookup_style_goal(user_goal: str) -> bool:
     normalized = user_goal.strip()
     if re.search(r"第[一二三四五六七八九十百0-9]+条", normalized):
         return True
-    if any(token in normalized for token in ("怎么办", "怎么", "如何", "多少", "几年", "安排", "授予")):
+    if any(
+        token in normalized for token in ("怎么办", "怎么", "如何", "多少", "几年", "安排", "授予")
+    ):
         return False
     return normalized.endswith(("管理办法", "评审办法", "人才培养方案", "教学计划", "宿舍照明"))
 
@@ -92,7 +96,7 @@ def _response(
     diagnostics: RagResultDiagnostics | None = None,
 ) -> SpecialistResponse:
     return SpecialistResponse(
-        target="rag-specialist",
+        target="rag-agent",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -143,7 +147,7 @@ class GoldenCaseSchemaTest(unittest.TestCase):
     def test_trace_expectation_rejects_runtime_target_family_mismatch(self) -> None:
         with self.assertRaisesRegex(ValueError, "same lane"):
             TraceExpectation(
-                expected_runtime_target="rag-specialist",
+                expected_runtime_target="rag-agent",
                 expected_capability_family="navigation-agent",
             )
 
@@ -183,6 +187,20 @@ class GoldenCaseSchemaTest(unittest.TestCase):
         self.assertEqual(case.expected_scope_class, "out_of_scope")
         self.assertEqual(case.expected_policy_reason, "product_scope_boundary")
 
+    def test_case_accepts_version_query_truth(self) -> None:
+        case = GoldenCase(
+            case_id="case-version-query-truth",
+            split="regression_locked",
+            source_type="expert_authored",
+            user_goal="上一版国家奖学金评审办法怎么规定",
+            actor=ActorContext(),
+            scope=HANDBOOK_SCOPE,
+            version_query=VersionQuery(mode="historical"),
+            expected_status="completed",
+        )
+
+        self.assertEqual(case.version_query, VersionQuery(mode="historical"))
+
 
 class RunCasesTest(unittest.TestCase):
     def test_run_cases_grades_runtime_target_and_capability_family_separately(self) -> None:
@@ -199,7 +217,7 @@ class RunCasesTest(unittest.TestCase):
                 retrieval_called=False,
                 clarification_expected=False,
                 error_expected=False,
-                expected_runtime_target="rag-specialist",
+                expected_runtime_target="rag-agent",
                 expected_capability_family="rag-agent",
             ),
         )
@@ -224,7 +242,7 @@ class RunCasesTest(unittest.TestCase):
             (matching_case, mismatched_family_case),
             executor=lambda _case: ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target="rag-specialist",
+                    selected_target="rag-agent",
                     status="no_answer",
                     answer_text="当前依据不足，暂时不能直接回答。",
                     confidence="low",
@@ -342,7 +360,7 @@ class RunCasesTest(unittest.TestCase):
             executor=lambda case: ExecutionResult(
                 response=(
                     SupervisorResponse(
-                        selected_target="rag-specialist",
+                        selected_target="rag-agent",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                         confidence="low",
@@ -362,7 +380,7 @@ class RunCasesTest(unittest.TestCase):
                     )
                     if case.case_id == "case-unsupported"
                     else SupervisorResponse(
-                        selected_target="rag-specialist",
+                        selected_target="rag-agent",
                         status="no_answer",
                         answer_text="当前依据不足。",
                         confidence="low",
@@ -384,10 +402,150 @@ class RunCasesTest(unittest.TestCase):
             ),
         )
 
-        unsupported_result = next(result for result in report.results if result.case_id == "case-unsupported")
-        completed_result = next(result for result in report.results if result.case_id == "case-completed")
+        unsupported_result = next(
+            result for result in report.results if result.case_id == "case-unsupported"
+        )
+        completed_result = next(
+            result for result in report.results if result.case_id == "case-completed"
+        )
         self.assertTrue(unsupported_result.metric_results["unsupported_abstention_accuracy"].passed)
         self.assertFalse(completed_result.metric_results["false_refusal_rate"].passed)
+
+    def test_run_cases_grades_versioned_grounded_semantic_outcomes(self) -> None:
+        cases = (
+            GoldenCase(
+                case_id="case-historical-grounded-answer",
+                split="regression_locked",
+                source_type="expert_authored",
+                user_goal="上一版奖学金评审办法怎么规定",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                version_query=VersionQuery(mode="historical"),
+                expected_status="completed",
+                expected_semantic_outcome="historical_grounded_answer",
+                required_facts=("历史版本", "不是现行规定"),
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_expected=False,
+                    error_expected=False,
+                ),
+            ),
+            GoldenCase(
+                case_id="case-as-of-grounded-answer",
+                split="regression_locked",
+                source_type="expert_authored",
+                user_goal="按 2024-06-01 当时的版本，奖学金评审办法怎么规定",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                version_query=VersionQuery(mode="as_of", as_of="2024-06-01"),
+                expected_status="completed",
+                expected_semantic_outcome="as_of_grounded_answer",
+                required_facts=("截至2024-06-01", "可解析到的版本"),
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_expected=False,
+                    error_expected=False,
+                ),
+            ),
+            GoldenCase(
+                case_id="case-compare-grounded-answer",
+                split="regression_locked",
+                source_type="expert_authored",
+                user_goal="对比旧版和新版奖学金评审办法有什么变化",
+                actor=ActorContext(),
+                scope=HANDBOOK_SCOPE,
+                version_query=VersionQuery(
+                    mode="compare",
+                    version_id="v1:scholarship",
+                    compare_to_version_id="v2:scholarship",
+                ),
+                expected_status="completed",
+                expected_semantic_outcome="compare_grounded_answer",
+                required_facts=("旧版", "新版", "变化点"),
+                trace_expectation=TraceExpectation(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_expected=False,
+                    error_expected=False,
+                ),
+            ),
+        )
+
+        report = run_cases(
+            cases,
+            executor=lambda case: ExecutionResult(
+                response=_response(
+                    answer_text=(
+                        "以下内容基于历史版本，不是现行规定。"
+                        if case.case_id == "case-historical-grounded-answer"
+                        else "以下内容基于截至2024-06-01可解析到的版本。"
+                        if case.case_id == "case-as-of-grounded-answer"
+                        else "旧版：要求 A。新版：要求 B。变化点：删除 A，新增 B。"
+                    ),
+                    sources=(_source(doc_id="handbook:test", version_id="v1", chunk_id="chunk-1"),),
+                    diagnostics=RagResultDiagnostics(
+                        semantic_outcome=case.expected_semantic_outcome,
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=True,
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            ),
+        )
+
+        self.assertEqual(report.by_metric["semantic_outcome_accuracy"].passed, 3)
+        for result in report.results:
+            self.assertTrue(result.metric_results["semantic_outcome_accuracy"].passed)
+
+    def test_run_cases_grades_versioned_fail_close_retrieval_adequacy_reasons(self) -> None:
+        cases = tuple(
+            case
+            for case in versioned_history_regression_locked_cases()
+            if case.case_id
+            in {
+                "versioned-history-unresolved-fail-close",
+                "versioned-history-compare-support-incomplete",
+            }
+        )
+
+        report = run_cases(
+            cases,
+            executor=lambda case: ExecutionResult(
+                response=_response(
+                    status="no_answer",
+                    answer_text="当前依据不足，暂时不能直接回答。",
+                    sources=(),
+                    diagnostics=RagResultDiagnostics(
+                        semantic_outcome="unsupported_by_evidence",
+                        scope_class="in_scope",
+                        no_answer_reason=case.expected_retrieval_adequacy_reason,
+                        retrieval_adequacy_verdict="insufficient",
+                        retrieval_adequacy_reason=case.expected_retrieval_adequacy_reason,
+                    ),
+                ),
+                observed_trace=ObservedTrace(
+                    selected_scope=HANDBOOK_SCOPE,
+                    retrieval_called=bool(
+                        case.trace_expectation and case.trace_expectation.retrieval_called
+                    ),
+                    clarification_emitted=False,
+                    error_path=False,
+                ),
+            ),
+        )
+
+        self.assertEqual(report.by_metric["retrieval_adequacy_accuracy"].passed, 2)
+        self.assertEqual(report.by_metric["unsupported_abstention_accuracy"].passed, 2)
+        self.assertEqual(report.by_metric["fail_closed"].passed, 2)
+        for result in report.results:
+            self.assertTrue(result.metric_results["retrieval_adequacy_accuracy"].passed)
+            self.assertTrue(result.metric_results["unsupported_abstention_accuracy"].passed)
+            self.assertTrue(result.metric_results["fail_closed"].passed)
 
     def test_run_cases_grades_policy_refusal_restricted_access_and_freshness_metrics(self) -> None:
         policy_case = GoldenCase(
@@ -453,7 +611,7 @@ class RunCasesTest(unittest.TestCase):
                     )
                     if case.case_id == "case-policy-refusal"
                     else SupervisorResponse(
-                        selected_target="rag-specialist",
+                        selected_target="rag-agent",
                         status="no_answer",
                         answer_text="当前无法提供这部分受限内容。",
                         confidence="low",
@@ -488,7 +646,9 @@ class RunCasesTest(unittest.TestCase):
             ),
         )
 
-        policy_result = next(result for result in report.results if result.case_id == "case-policy-refusal")
+        policy_result = next(
+            result for result in report.results if result.case_id == "case-policy-refusal"
+        )
         restricted_result = next(
             result for result in report.results if result.case_id == "case-restricted-access"
         )
@@ -496,7 +656,9 @@ class RunCasesTest(unittest.TestCase):
             result for result in report.results if result.case_id == "case-freshness-fail-close"
         )
         self.assertTrue(policy_result.metric_results["policy_refusal_accuracy"].passed)
-        self.assertTrue(restricted_result.metric_results["restricted_access_denied_accuracy"].passed)
+        self.assertTrue(
+            restricted_result.metric_results["restricted_access_denied_accuracy"].passed
+        )
         self.assertTrue(freshness_result.metric_results["freshness_fail_close_accuracy"].passed)
         self.assertTrue(policy_result.metric_results["unsafe_false_allow_rate"].passed)
         self.assertTrue(restricted_result.metric_results["unsafe_false_allow_rate"].passed)
@@ -558,6 +720,74 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.split == "regression_locked" for case in cases))
         self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
 
+    def test_versioned_history_regression_locked_cases_cover_modes_and_fail_close_truth(
+        self,
+    ) -> None:
+        cases = versioned_history_regression_locked_cases()
+        cases_by_id = {case.case_id: case for case in cases}
+
+        self.assertEqual(len(cases), 6)
+        self.assertEqual(
+            tuple(case.case_id for case in cases),
+            (
+                "versioned-history-current-control",
+                "versioned-history-historical-answer",
+                "versioned-history-as-of-answer",
+                "versioned-history-compare-answer",
+                "versioned-history-unresolved-fail-close",
+                "versioned-history-compare-support-incomplete",
+            ),
+        )
+        self.assertEqual(
+            tuple(case.version_query.mode for case in cases),
+            ("current", "historical", "as_of", "compare", "historical", "compare"),
+        )
+        self.assertEqual(
+            cases_by_id["versioned-history-as-of-answer"].version_query,
+            VersionQuery(mode="as_of", as_of="2024-06-01"),
+        )
+        self.assertEqual(
+            cases_by_id["versioned-history-compare-answer"].version_query,
+            VersionQuery(
+                mode="compare", version_id="v1:scholarship", compare_to_version_id="v2:scholarship"
+            ),
+        )
+        self.assertEqual(
+            cases_by_id["versioned-history-historical-answer"].expected_semantic_outcome,
+            "historical_grounded_answer",
+        )
+        self.assertEqual(
+            cases_by_id["versioned-history-as-of-answer"].expected_semantic_outcome,
+            "as_of_grounded_answer",
+        )
+        self.assertEqual(
+            cases_by_id["versioned-history-compare-answer"].expected_semantic_outcome,
+            "compare_grounded_answer",
+        )
+        self.assertEqual(
+            cases_by_id[
+                "versioned-history-unresolved-fail-close"
+            ].expected_retrieval_adequacy_reason,
+            "version_filter_unresolved",
+        )
+        self.assertFalse(
+            cases_by_id[
+                "versioned-history-unresolved-fail-close"
+            ].trace_expectation.retrieval_called
+        )
+        self.assertEqual(
+            cases_by_id[
+                "versioned-history-compare-support-incomplete"
+            ].expected_retrieval_adequacy_reason,
+            "compare_support_incomplete",
+        )
+        self.assertTrue(
+            cases_by_id[
+                "versioned-history-compare-support-incomplete"
+            ].trace_expectation.retrieval_called
+        )
+        self.assertTrue(all("versioned_history" in case.tags for case in cases))
+
     def test_handbook_release_gate_cases_cover_terminal_statuses(self) -> None:
         cases = handbook_release_gate_cases()
         cases_by_id = {case.case_id: case for case in cases}
@@ -598,19 +828,33 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(all(case.split == "release_gate" for case in cases))
         self.assertTrue(all(case.scope == HANDBOOK_SCOPE for case in cases))
         self.assertTrue(
-            any("24:00" in fact for fact in cases_by_id["release-gate-dormitory-lighting"].reference_facts)
+            any(
+                "24:00" in fact
+                for fact in cases_by_id["release-gate-dormitory-lighting"].reference_facts
+            )
         )
         self.assertTrue(
-            any("每周四下午" in fact for fact in cases_by_id["release-gate-student-card"].reference_facts)
+            any(
+                "每周四下午" in fact
+                for fact in cases_by_id["release-gate-student-card"].reference_facts
+            )
         )
         self.assertTrue(
-            any("书面申请" in fact for fact in cases_by_id["release-gate-student-card-materials"].reference_facts)
+            any(
+                "书面申请" in fact
+                for fact in cases_by_id["release-gate-student-card-materials"].reference_facts
+            )
         )
         self.assertTrue(
-            any("每周四下午" in fact for fact in cases_by_id["release-gate-student-card-time"].reference_facts)
+            any(
+                "每周四下午" in fact
+                for fact in cases_by_id["release-gate-student-card-time"].reference_facts
+            )
         )
         self.assertEqual(
-            cases_by_id["release-gate-scholarship-title"].supplemental_metric_overrides.get("answer_relevancy"),
+            cases_by_id["release-gate-scholarship-title"].supplemental_metric_overrides.get(
+                "answer_relevancy"
+            ),
             False,
         )
         self.assertEqual(
@@ -622,7 +866,9 @@ class RunCasesTest(unittest.TestCase):
             ("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",),
         )
         self.assertEqual(
-            cases_by_id["release-gate-national-scholarship-no-answer-author-affiliation"].expected_semantic_outcome,
+            cases_by_id[
+                "release-gate-national-scholarship-no-answer-author-affiliation"
+            ].expected_semantic_outcome,
             "unsupported_by_evidence",
         )
         self.assertEqual(
@@ -630,7 +876,9 @@ class RunCasesTest(unittest.TestCase):
             "in_scope",
         )
 
-    def test_completed_release_and_regression_cases_define_context_truth_or_explicit_metric_skip(self) -> None:
+    def test_completed_release_and_regression_cases_define_context_truth_or_explicit_metric_skip(
+        self,
+    ) -> None:
         cases = (
             *handbook_release_gate_cases(),
             *handbook_regression_locked_cases(),
@@ -730,7 +978,9 @@ class RunCasesTest(unittest.TestCase):
         cases = {case.case_id: case for case in official_web_release_gate_cases()}
 
         self.assertEqual(
-            cases["official-web-release-gate-freshness-sensitive-no-answer"].expected_semantic_outcome,
+            cases[
+                "official-web-release-gate-freshness-sensitive-no-answer"
+            ].expected_semantic_outcome,
             "freshness_fail_close",
         )
         self.assertEqual(
@@ -738,15 +988,21 @@ class RunCasesTest(unittest.TestCase):
             "in_scope",
         )
         self.assertEqual(
-            cases["official-web-release-gate-unanchored-life-service-no-answer"].expected_semantic_outcome,
+            cases[
+                "official-web-release-gate-unanchored-life-service-no-answer"
+            ].expected_semantic_outcome,
             "unsupported_by_evidence",
         )
         self.assertEqual(
-            cases["official-web-release-gate-unanchored-life-service-no-answer"].expected_scope_class,
+            cases[
+                "official-web-release-gate-unanchored-life-service-no-answer"
+            ].expected_scope_class,
             "in_scope",
         )
 
-    def test_policy_risk_and_grounding_release_gate_cases_cover_cross_cutting_semantics(self) -> None:
+    def test_policy_risk_and_grounding_release_gate_cases_cover_cross_cutting_semantics(
+        self,
+    ) -> None:
         cases = policy_risk_and_grounding_release_gate_cases()
         cases_by_id = {case.case_id: case for case in cases}
 
@@ -779,33 +1035,41 @@ class RunCasesTest(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].trace_expectation,
+            cases_by_id[
+                "policy-risk-release-gate-campus-political-course-audience"
+            ].trace_expectation,
             TraceExpectation(
                 selected_scope=CURRICULUM_SCOPE,
                 retrieval_called=True,
                 clarification_expected=False,
                 error_expected=False,
-                expected_runtime_target="rag-specialist",
+                expected_runtime_target="rag-agent",
                 expected_capability_family="rag-agent",
             ),
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-open-domain-political-fact"].expected_policy_reason,
+            cases_by_id[
+                "policy-risk-release-gate-open-domain-political-fact"
+            ].expected_policy_reason,
             "product_scope_boundary",
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-political-persuasion-refusal"].expected_policy_reason,
+            cases_by_id[
+                "policy-risk-release-gate-political-persuasion-refusal"
+            ].expected_policy_reason,
             "political_persuasion",
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-unsupported-campus-policy-claim"].trace_expectation,
+            cases_by_id[
+                "policy-risk-release-gate-unsupported-campus-policy-claim"
+            ].trace_expectation,
             TraceExpectation(
                 selected_scope=HANDBOOK_SCOPE,
                 retrieval_called=True,
                 clarification_expected=False,
                 error_expected=False,
                 fail_closed_expected=True,
-                expected_runtime_target="rag-specialist",
+                expected_runtime_target="rag-agent",
                 expected_capability_family="rag-agent",
             ),
         )
@@ -814,11 +1078,15 @@ class RunCasesTest(unittest.TestCase):
             cases_by_id["policy-risk-release-gate-campus-political-course-audience"].tags,
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].expected_retrieval_adequacy_verdict,
+            cases_by_id[
+                "policy-risk-release-gate-campus-political-course-audience"
+            ].expected_retrieval_adequacy_verdict,
             "sufficient",
         )
         self.assertEqual(
-            cases_by_id["policy-risk-release-gate-campus-political-course-audience"].expected_grounding_verdict,
+            cases_by_id[
+                "policy-risk-release-gate-campus-political-course-audience"
+            ].expected_grounding_verdict,
             "grounded",
         )
 
@@ -826,7 +1094,9 @@ class RunCasesTest(unittest.TestCase):
         clarification_case = handbook_release_cases["release-gate-needs-clarification"]
         self.assertIn("clarification_instead_of_guess", clarification_case.tags)
         self.assertEqual(clarification_case.expected_retrieval_adequacy_verdict, "ambiguous")
-        self.assertEqual(clarification_case.expected_retrieval_adequacy_reason, "policy_object_missing")
+        self.assertEqual(
+            clarification_case.expected_retrieval_adequacy_reason, "policy_object_missing"
+        )
 
     def test_run_cases_grades_phase15_retrieval_adequacy_and_grounding_truth(self) -> None:
         clarification_case = GoldenCase(
@@ -878,7 +1148,7 @@ class RunCasesTest(unittest.TestCase):
             if case.case_id == "case-clarification-instead-of-guess":
                 return ExecutionResult(
                     response=SpecialistResponse(
-                        target="rag-specialist",
+                        target="rag-agent",
                         status="needs_clarification",
                         answer_text="你想问的是哪一类奖学金评审办法？",
                         follow_up_question="你想问的是哪一类奖学金评审办法？",
@@ -906,7 +1176,7 @@ class RunCasesTest(unittest.TestCase):
                 )
             return ExecutionResult(
                 response=SpecialistResponse(
-                    target="rag-specialist",
+                    target="rag-agent",
                     status="no_answer",
                     answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。",
                     confidence="low",
@@ -1038,7 +1308,7 @@ class RunCasesTest(unittest.TestCase):
                 )
             return ExecutionResult(
                 response=SupervisorResponse(
-                    selected_target="rag-specialist",
+                    selected_target="rag-agent",
                     status="no_answer",
                     answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                     confidence="low",
@@ -1076,12 +1346,20 @@ class RunCasesTest(unittest.TestCase):
 
         self.assertTrue(report.passed == report.total)
         self.assertTrue(results["policy-risk-release-gate-campus-political-course-audience"].passed)
-        self.assertTrue(results["policy-risk-release-gate-open-domain-political-fact"].metric_results["out_of_scope_accuracy"].passed)
-        self.assertTrue(results["policy-risk-release-gate-political-persuasion-refusal"].metric_results["policy_refusal_accuracy"].passed)
         self.assertTrue(
-            results["policy-risk-release-gate-unsupported-campus-policy-claim"].metric_results[
-                "unsupported_abstention_accuracy"
-            ].passed
+            results["policy-risk-release-gate-open-domain-political-fact"]
+            .metric_results["out_of_scope_accuracy"]
+            .passed
+        )
+        self.assertTrue(
+            results["policy-risk-release-gate-political-persuasion-refusal"]
+            .metric_results["policy_refusal_accuracy"]
+            .passed
+        )
+        self.assertTrue(
+            results["policy-risk-release-gate-unsupported-campus-policy-claim"]
+            .metric_results["unsupported_abstention_accuracy"]
+            .passed
         )
 
     def test_curriculum_release_gate_follow_up_cases_keep_resolved_semantic_user_goal(self) -> None:
@@ -1164,7 +1442,9 @@ class RunCasesTest(unittest.TestCase):
             ("course_facts:family-membership",),
         )
         self.assertEqual(
-            release_cases["curriculum-release-gate-course-family-audience-short-alias"].reference_context_ids,
+            release_cases[
+                "curriculum-release-gate-course-family-audience-short-alias"
+            ].reference_context_ids,
             ("course_facts:family-audience",),
         )
         self.assertEqual(
@@ -1172,20 +1452,28 @@ class RunCasesTest(unittest.TestCase):
             ("course_facts:muc.xigai-semester",),
         )
         self.assertEqual(
-            release_cases["curriculum-release-gate-course-single-schedule-alias-variant"].reference_context_ids,
+            release_cases[
+                "curriculum-release-gate-course-single-schedule-alias-variant"
+            ].reference_context_ids,
             ("course_facts:muc.xigai-semester",),
         )
 
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-membership"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-membership"
+            ].reference_context_ids,
             ("course_facts:family-membership",),
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-membership-sixiuke"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-membership-sixiuke"
+            ].reference_context_ids,
             ("course_facts:family-membership",),
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-membership-sizhengkecheng"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-membership-sizhengkecheng"
+            ].reference_context_ids,
             ("course_facts:family-membership",),
         )
         self.assertEqual(
@@ -1193,7 +1481,9 @@ class RunCasesTest(unittest.TestCase):
             ("course_facts:family-audience",),
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-partial-answer"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-partial-answer"
+            ].reference_context_ids,
             ("course_facts:family-audience",),
         )
         self.assertEqual(
@@ -1201,7 +1491,9 @@ class RunCasesTest(unittest.TestCase):
             ("course_facts:muc.xigai-audience",),
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-single-schedule-partial-answer"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-single-schedule-partial-answer"
+            ].reference_context_ids,
             ("course_facts:muc.xigai-semester",),
         )
 
@@ -1219,19 +1511,27 @@ class RunCasesTest(unittest.TestCase):
             expected_family_schedule_reference_context_ids,
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-schedule-short-alias"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-schedule-short-alias"
+            ].reference_context_ids,
             expected_family_schedule_reference_context_ids,
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-schedule-alias-variant"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-schedule-alias-variant"
+            ].reference_context_ids,
             expected_family_schedule_reference_context_ids,
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-schedule-sixiuke"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-schedule-sixiuke"
+            ].reference_context_ids,
             expected_family_schedule_reference_context_ids,
         )
         self.assertEqual(
-            regression_cases["curriculum-regression-course-family-schedule-partial-answer"].reference_context_ids,
+            regression_cases[
+                "curriculum-regression-course-family-schedule-partial-answer"
+            ].reference_context_ids,
             expected_family_schedule_reference_context_ids,
         )
 
@@ -1368,14 +1668,24 @@ class RunCasesTest(unittest.TestCase):
         )
         self.assertIn(
             "不得猜测开课学院",
-            " ".join(cases["curriculum-regression-course-family-schedule-partial-answer"].forbidden_claims),
+            " ".join(
+                cases[
+                    "curriculum-regression-course-family-schedule-partial-answer"
+                ].forbidden_claims
+            ),
         )
         self.assertIn(
             "不得猜测开课学院",
-            " ".join(cases["curriculum-regression-course-single-schedule-partial-answer"].forbidden_claims),
+            " ".join(
+                cases[
+                    "curriculum-regression-course-single-schedule-partial-answer"
+                ].forbidden_claims
+            ),
         )
 
-    def test_curriculum_release_gate_course_family_case_accepts_internal_course_facts_surface(self) -> None:
+    def test_curriculum_release_gate_course_family_case_accepts_internal_course_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
@@ -1421,7 +1731,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_release_gate_short_course_family_alias_case_accepts_internal_course_facts_surface(self) -> None:
+    def test_curriculum_release_gate_short_course_family_alias_case_accepts_internal_course_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
@@ -1463,7 +1775,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_release_gate_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_release_gate_program_family_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
@@ -1505,7 +1819,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_smoke_strong_base_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_smoke_strong_base_program_family_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_smoke_cases()
@@ -1547,7 +1863,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_regression_sixiuke_schedule_case_accepts_internal_course_facts_surface(self) -> None:
+    def test_curriculum_regression_sixiuke_schedule_case_accepts_internal_course_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_regression_locked_cases()
@@ -1603,11 +1921,14 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_regression_second_degree_alias_variant_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_regression_second_degree_alias_variant_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_regression_locked_cases()
-            if item.case_id == "curriculum-regression-program-family-second-degree-membership-alias-variant"
+            if item.case_id
+            == "curriculum-regression-program-family-second-degree-membership-alias-variant"
         )
 
         report = run_cases(
@@ -1654,11 +1975,14 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_regression_innovation_experimental_alias_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_regression_innovation_experimental_alias_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_regression_locked_cases()
-            if item.case_id == "curriculum-regression-program-family-innovation-experimental-membership"
+            if item.case_id
+            == "curriculum-regression-program-family-innovation-experimental-membership"
         )
 
         report = run_cases(
@@ -1705,11 +2029,14 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_release_gate_name_pattern_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_release_gate_name_pattern_program_family_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
-            if item.case_id == "curriculum-release-gate-program-family-name-pattern-experimental-membership"
+            if item.case_id
+            == "curriculum-release-gate-program-family-name-pattern-experimental-membership"
         )
 
         report = run_cases(
@@ -1759,7 +2086,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_smoke_ethnic_experimental_program_family_case_accepts_internal_program_family_facts_surface(self) -> None:
+    def test_curriculum_smoke_ethnic_experimental_program_family_case_accepts_internal_program_family_facts_surface(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_smoke_cases()
@@ -1848,7 +2177,9 @@ class RunCasesTest(unittest.TestCase):
             return ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(
+                        corpus="regulations", collection="student_handbook"
+                    ),
                     retrieval_called=True,
                 ),
             )
@@ -1900,7 +2231,9 @@ class RunCasesTest(unittest.TestCase):
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+                    selected_scope=KnowledgeScope(
+                        corpus="curriculum", collection="curriculum_plan"
+                    ),
                     retrieval_called=False,
                 ),
             ),
@@ -1960,7 +2293,7 @@ class RunCasesTest(unittest.TestCase):
             (case,),
             executor=lambda _: ExecutionResult(
                 response=SpecialistResponse(
-                    target="rag-specialist",
+                    target="rag-agent",
                     status="needs_clarification",
                     follow_up_question="请具体说明你想咨询学生手册中的哪一项制度、流程或表格。",
                     result=RagResultPayload(
@@ -1972,7 +2305,9 @@ class RunCasesTest(unittest.TestCase):
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(
+                        corpus="regulations", collection="student_handbook"
+                    ),
                     retrieval_called=False,
                     clarification_emitted=True,
                 ),
@@ -2035,7 +2370,9 @@ class RunCasesTest(unittest.TestCase):
 
         self.assertFalse(report.results[0].retrieval_result.passed)
 
-    def test_curriculum_internal_source_matching_requires_canonical_parent_and_semester_unit(self) -> None:
+    def test_curriculum_internal_source_matching_requires_canonical_parent_and_semester_unit(
+        self,
+    ) -> None:
         follow_up_doc_id = build_curriculum_program_semester_fact_document_id(
             "curriculum:法学（民族实验班）本科人才培养方案",
             "第四学期",
@@ -2189,14 +2526,16 @@ class RunCasesTest(unittest.TestCase):
                 return ExecutionResult(
                     response=_response(sources=(_source(),)),
                     observed_trace=ObservedTrace(
-                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        selected_scope=KnowledgeScope(
+                            corpus="regulations", collection="student_handbook"
+                        ),
                         retrieval_called=True,
                     ),
                 )
             if case.case_id == "clarify-accuracy":
                 return ExecutionResult(
                     response=SpecialistResponse(
-                        target="rag-specialist",
+                        target="rag-agent",
                         status="needs_clarification",
                         result=RagResultPayload(
                             evidence=EvidenceBundle(
@@ -2207,34 +2546,38 @@ class RunCasesTest(unittest.TestCase):
                         ),
                     ),
                     observed_trace=ObservedTrace(
-                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        selected_scope=KnowledgeScope(
+                            corpus="regulations", collection="student_handbook"
+                        ),
                         retrieval_called=False,
                         clarification_emitted=True,
                     ),
                 )
             if case.case_id == "no-answer-fail-close":
                 return ExecutionResult(
-                response=SpecialistResponse(
-                    target="rag-specialist",
-                    status="no_answer",
-                    answer_text="当前未检索到足够依据支持回答该问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
-                    result=RagResultPayload(
-                        evidence=EvidenceBundle(
-                            query_text="火星校区飞船停靠规则",
-                            corpus="regulations",
+                    response=SpecialistResponse(
+                        target="rag-agent",
+                        status="no_answer",
+                        answer_text="当前未检索到足够依据支持回答该问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
+                        result=RagResultPayload(
+                            evidence=EvidenceBundle(
+                                query_text="火星校区飞船停靠规则",
+                                corpus="regulations",
                                 collection="student_handbook",
                                 sources=(_source(doc_id="handbook:unexpected"),),
                             )
                         ),
                     ),
                     observed_trace=ObservedTrace(
-                        selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                        selected_scope=KnowledgeScope(
+                            corpus="regulations", collection="student_handbook"
+                        ),
                         retrieval_called=True,
                     ),
                 )
             return ExecutionResult(
                 response=SpecialistResponse(
-                    target="rag-specialist",
+                    target="rag-agent",
                     status="error",
                     confidence="low",
                     answer_text="retrieval failed",
@@ -2248,7 +2591,9 @@ class RunCasesTest(unittest.TestCase):
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(
+                        corpus="regulations", collection="student_handbook"
+                    ),
                     retrieval_called=True,
                     clarification_emitted=False,
                     error_path=True,
@@ -2298,7 +2643,9 @@ class RunCasesTest(unittest.TestCase):
             executor=lambda _: ExecutionResult(
                 response=_response(sources=(_source(),)),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(
+                        corpus="regulations", collection="student_handbook"
+                    ),
                     retrieval_called=True,
                 ),
             ),
@@ -2393,7 +2740,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertNotIn("procedure_directness", result.metric_results)
 
-    def test_curriculum_course_map_case_requires_fail_closed_no_answer_without_procedure_directness(self) -> None:
+    def test_curriculum_course_map_case_requires_fail_closed_no_answer_without_procedure_directness(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_release_gate_cases()
@@ -2431,7 +2780,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertNotIn("procedure_directness", result.metric_results)
 
-    def test_curriculum_smoke_hanyu_international_credits_case_accepts_total_credit_fact(self) -> None:
+    def test_curriculum_smoke_hanyu_international_credits_case_accepts_total_credit_fact(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_smoke_cases()
@@ -2477,7 +2828,9 @@ class RunCasesTest(unittest.TestCase):
         self.assertEqual(report.by_metric["expected_doc_hit"].passed, 1)
         self.assertEqual(report.by_metric["answer_accuracy"].passed, 1)
 
-    def test_curriculum_regression_fiscal_core_credits_case_accepts_structured_core_credit_fact(self) -> None:
+    def test_curriculum_regression_fiscal_core_credits_case_accepts_structured_core_credit_fact(
+        self,
+    ) -> None:
         case = next(
             item
             for item in curriculum_regression_locked_cases()
@@ -2615,7 +2968,7 @@ class RunCasesTest(unittest.TestCase):
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
                 response=SpecialistResponse(
-                    target="rag-specialist",
+                    target="rag-agent",
                     status="error",
                     confidence="low",
                     answer_text="",
@@ -2629,7 +2982,9 @@ class RunCasesTest(unittest.TestCase):
                     ),
                 ),
                 observed_trace=ObservedTrace(
-                    selected_scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
+                    selected_scope=KnowledgeScope(
+                        corpus="regulations", collection="student_handbook"
+                    ),
                     retrieval_called=True,
                     clarification_emitted=False,
                     error_path=True,

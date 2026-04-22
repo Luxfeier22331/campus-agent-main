@@ -1,125 +1,125 @@
 {
-  "schema_version": "student_handbook_source_projections_v1",
-  "source_corpus": "regulations",
-  "source_collection": "student_handbook",
-  "raw_asset_id": "asset:student-handbook-pdf",
-  "source_truth_artifacts": [
-    "provider-response.jsonl",
-    "layout-elements.jsonl",
-    "split-manifest.v1.json",
-    "per-document source rows"
-  ],
-  "rebuild_boundary": "source_truth",
-  "rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
-  "derived_document_fields": [
-    "projection_name",
-    "derived_from_raw_asset_id",
-    "derived_from_raw_version_id",
-    "derived_from",
-    "derived_from_document_id",
-    "parent_document_id",
-    "source_title",
-    "source_handbook_section",
-    "source_page_start",
-    "source_page_end",
-    "attachment_kind",
-    "attachment_role"
-  ],
-  "projections": [
-    {
-      "projection_name": "student_handbook_primary_documents",
-      "target_corpus": "regulations",
-      "target_collection": "student_handbook",
-      "projection_family": "primary_documents",
-      "replay_from_source_truth": true,
-      "derived_from": "source_truth",
-      "derived_from_document_id": null,
-      "parent_document_id": null,
-      "attachment_kind": null,
-      "attachment_role": null,
-      "description": "Primary handbook projection into canonical handbook documents and document-units."
-    },
-    {
-      "projection_name": "handbook_phone_directory",
-      "target_corpus": "campus_services",
-      "target_collection": "contact_directory",
-      "projection_family": "derived_documents",
-      "replay_from_source_truth": true,
-      "derived_from": "source_truth",
-      "derived_from_document_id": null,
-      "parent_document_id": null,
-      "source_title": "中央民族大学校内常用电话",
-      "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
-      "source_page_start": 261,
-      "source_page_end": 261,
-      "attachment_kind": "navigation_like",
-      "attachment_role": "service_contact_directory",
-      "target_title": "中央民族大学校内常用电话",
-      "migration_reason": "handbook_phone_directory_projection"
-    },
-    {
-      "projection_name": "handbook_navigation_service_catalog",
-      "target_corpus": "campus_services",
-      "target_collection": "service_catalog",
-      "projection_family": "derived_documents",
-      "replay_from_source_truth": true,
-      "derived_from": "source_truth",
-      "derived_from_document_id": null,
-      "parent_document_id": null,
-      "source_title": "中央民族大学公寓及公费医疗管理规定",
-      "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
-      "source_page_start": 252,
-      "source_page_end": 255,
-      "attachment_kind": "navigation_like",
-      "attachment_role": "service_navigation_document",
-      "target_title": "中央民族大学学生公寓管理工作流程",
-      "migration_reason": "handbook_navigation_document"
-    }
-  ],
-  "attachment_projection_families": [
-    {
-      "projection_name": "handbook_appendix_documents",
-      "target_corpus": "regulations",
-      "target_collection": "student_handbook",
-      "projection_family": "derived_documents",
-      "derived_from": "source_truth",
-      "derived_from_document_id": "*",
-      "parent_document_id": "*",
-      "attachment_kind": "narrative_appendix",
-      "attachment_role": "standalone_appendix_document"
-    },
-    {
-      "projection_name": "handbook_tabular_appendix_documents",
-      "target_corpus": "regulations",
-      "target_collection": "student_handbook",
-      "projection_family": "derived_documents",
-      "derived_from": "source_truth",
-      "derived_from_document_id": "*",
-      "parent_document_id": "*",
-      "attachment_kind": "tabular_appendix",
-      "attachment_role": "standalone_appendix_table_document"
-    },
-    {
-      "projection_name": "handbook_form_template_documents",
-      "target_corpus": "regulations",
-      "target_collection": "student_handbook",
-      "projection_family": "derived_documents",
-      "derived_from": "source_truth",
-      "derived_from_document_id": "*",
-      "parent_document_id": "*",
-      "attachment_kind": "form_template",
-      "attachment_role": "standalone_form_document"
-    },
-    {
-      "projection_name": "handbook_navigation_leaf_documents",
-      "target_corpus": "campus_services",
-      "target_collection": "service_catalog",
-      "projection_family": "derived_documents",
-      "derived_from": "source_truth",
-      "derived_from_document_id": "*",
-      "parent_document_id": "*",
-      "attachment_kind": "navigation_like",
-      "attachment_role": "service_navigation_leaf"
-    }
-  ]
+	"schema_version": "student_handbook_source_projections_v1",
+	"source_corpus": "regulations",
+	"source_collection": "student_handbook",
+	"raw_asset_id": "asset:student-handbook-pdf",
+	"source_truth_artifacts": [
+		"provider-response.jsonl",
+		"layout-elements.jsonl",
+		"split-manifest.v1.json",
+		"per-document source rows"
+	],
+	"rebuild_boundary": "source_truth",
+	"rebuild_rule": "When canonical source truth exists, downstream rebuild must reuse source truth and must not return to raw.",
+	"derived_document_fields": [
+		"projection_name",
+		"derived_from_raw_asset_id",
+		"derived_from_raw_version_id",
+		"derived_from",
+		"derived_from_document_id",
+		"parent_document_id",
+		"source_title",
+		"source_handbook_section",
+		"source_page_start",
+		"source_page_end",
+		"attachment_kind",
+		"attachment_role"
+	],
+	"projections": [
+		{
+			"projection_name": "student_handbook_primary_documents",
+			"target_corpus": "regulations",
+			"target_collection": "student_handbook",
+			"projection_family": "primary_documents",
+			"replay_from_source_truth": true,
+			"derived_from": "source_truth",
+			"derived_from_document_id": null,
+			"parent_document_id": null,
+			"attachment_kind": null,
+			"attachment_role": null,
+			"description": "Primary handbook projection into canonical handbook documents and document-units."
+		},
+		{
+			"projection_name": "handbook_phone_directory",
+			"target_corpus": "campus_services",
+			"target_collection": "contact_directory",
+			"projection_family": "derived_documents",
+			"replay_from_source_truth": true,
+			"derived_from": "source_truth",
+			"derived_from_document_id": null,
+			"parent_document_id": null,
+			"source_title": "中央民族大学校内常用电话",
+			"source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+			"source_page_start": 261,
+			"source_page_end": 261,
+			"attachment_kind": "navigation_like",
+			"attachment_role": "service_contact_directory",
+			"target_title": "中央民族大学校内常用电话",
+			"migration_reason": "handbook_phone_directory_projection"
+		},
+		{
+			"projection_name": "handbook_navigation_service_catalog",
+			"target_corpus": "campus_services",
+			"target_collection": "service_catalog",
+			"projection_family": "derived_documents",
+			"replay_from_source_truth": true,
+			"derived_from": "source_truth",
+			"derived_from_document_id": null,
+			"parent_document_id": null,
+			"source_title": "中央民族大学公寓及公费医疗管理规定",
+			"source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+			"source_page_start": 252,
+			"source_page_end": 255,
+			"attachment_kind": "navigation_like",
+			"attachment_role": "service_navigation_document",
+			"target_title": "中央民族大学学生公寓管理工作流程",
+			"migration_reason": "handbook_navigation_document"
+		}
+	],
+	"attachment_projection_families": [
+		{
+			"projection_name": "handbook_appendix_documents",
+			"target_corpus": "regulations",
+			"target_collection": "student_handbook",
+			"projection_family": "derived_documents",
+			"derived_from": "source_truth",
+			"derived_from_document_id": "*",
+			"parent_document_id": "*",
+			"attachment_kind": "narrative_appendix",
+			"attachment_role": "standalone_appendix_document"
+		},
+		{
+			"projection_name": "handbook_tabular_appendix_documents",
+			"target_corpus": "regulations",
+			"target_collection": "student_handbook",
+			"projection_family": "derived_documents",
+			"derived_from": "source_truth",
+			"derived_from_document_id": "*",
+			"parent_document_id": "*",
+			"attachment_kind": "tabular_appendix",
+			"attachment_role": "standalone_appendix_table_document"
+		},
+		{
+			"projection_name": "handbook_form_template_documents",
+			"target_corpus": "regulations",
+			"target_collection": "student_handbook",
+			"projection_family": "derived_documents",
+			"derived_from": "source_truth",
+			"derived_from_document_id": "*",
+			"parent_document_id": "*",
+			"attachment_kind": "form_template",
+			"attachment_role": "standalone_form_document"
+		},
+		{
+			"projection_name": "handbook_navigation_leaf_documents",
+			"target_corpus": "campus_services",
+			"target_collection": "service_catalog",
+			"projection_family": "derived_documents",
+			"derived_from": "source_truth",
+			"derived_from_document_id": "*",
+			"parent_document_id": "*",
+			"attachment_kind": "navigation_like",
+			"attachment_role": "service_navigation_leaf"
+		}
+	]
 }

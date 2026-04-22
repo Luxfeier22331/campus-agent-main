@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Callable
 
 import httpx
+from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from langchain_core.prompt_values import StringPromptValue
 
-from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import (
     RagasSupplementalAdapter,
@@ -16,6 +16,7 @@ from campus_evals.ragas_adapter import (
     build_ragas_scorer,
 )
 from campus_evals.runtime_observability import bind_runtime_event_context
+from campus_evals.settings import JudgeLLMSettings, RagasSettings
 from campus_evals.supplemental_http import (
     OpenAICompatibleChatCompletionsLLM,
     OpenAICompatibleResponsesLLM,
@@ -23,8 +24,6 @@ from campus_evals.supplemental_http import (
     get_provider_circuit_breaker,
     get_request_pacer,
 )
-from campus_evals.settings import JudgeLLMSettings, RagasSettings
-
 
 JudgeFn = Callable[[str], dict[str, object]]
 DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH = (
@@ -58,7 +57,9 @@ class RubricJudgeAdapter:
     def metric_names(self) -> tuple[str, ...]:
         return (self.metric_name,)
 
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
+    def evaluate(
+        self, case: GoldenCase, execution: ExecutionResult
+    ) -> tuple[SupplementalResult, ...]:
         response = _require_specialist_response(execution)
         if case.expected_status not in self._applicable_statuses:
             return (
@@ -87,7 +88,9 @@ class RubricJudgeAdapter:
             response=response,
         )
         try:
-            with bind_runtime_event_context(adapter_id=self.adapter_id, metric_name=self.metric_name):
+            with bind_runtime_event_context(
+                adapter_id=self.adapter_id, metric_name=self.metric_name
+            ):
                 judged = self._judge_fn(prompt)
         except Exception as exc:
             return (
@@ -158,10 +161,13 @@ def build_handbook_ragas_adapter(
             metric_names=resolved_metric_names,
         )
         if resolved_preflight is None:
-            resolved_preflight = lambda: {
-                "llm": llm.preflight_sync(),
-                "embeddings": embeddings.preflight_sync(),
-            }
+
+            def resolved_preflight():
+                return {
+                    "llm": llm.preflight_sync(),
+                    "embeddings": embeddings.preflight_sync(),
+                }
+
     return HandbookRagasAdapter(
         scorer=resolved_scorer,
         metric_names=resolved_metric_names,
@@ -253,7 +259,9 @@ def _build_json_judge_runtime(
     settings: JudgeLLMSettings,
     *,
     sync_client: httpx.Client | None = None,
-) -> tuple[OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]]:
+) -> tuple[
+    OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]
+]:
     base_url = settings.llm_base_url or "https://api.openai.com/v1"
     llm_kwargs = dict(
         base_url=base_url,
@@ -287,7 +295,10 @@ def _build_json_judge_runtime(
 
     preflight = getattr(llm, "preflight_sync", None)
     if not callable(preflight):
-        preflight = lambda: {"status": "not_supported"}
+
+        def preflight():
+            return {"status": "not_supported"}
+
     return llm, _judge, preflight
 
 

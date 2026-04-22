@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     resolve_source_env_path,
 )
 from scripts.sync_app_api_local_db_env import sync_app_api_local_db_env
@@ -91,7 +91,9 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                 env_text,
             )
 
-    def test_sync_app_api_local_db_env_updates_existing_env_without_clobbering_other_keys(self) -> None:
+    def test_sync_app_api_local_db_env_updates_existing_env_without_clobbering_other_keys(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             app_api_dir = repo_root / "apps" / "app-api"
@@ -151,7 +153,9 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             )
             self.assertIn("KEEP_ME=1\n", env_text)
 
-    def test_sync_app_api_local_db_env_falls_back_to_runtime_url_when_operator_url_is_absent(self) -> None:
+    def test_sync_app_api_local_db_env_falls_back_to_runtime_url_when_operator_url_is_absent(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)

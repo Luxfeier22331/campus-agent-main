@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-21
 ---
 
 # Contracts
@@ -13,6 +13,8 @@ updated: 2026-04-12
 ## App API 核心 contract
 
 - `app-api-http.md`
+- `app-api-document-reader-http.md`
+- `document-reader-publish-contract.md`
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
 - `app-api-supervisor-execution.md`
@@ -26,6 +28,10 @@ updated: 2026-04-12
 ## Navigation contract
 
 - `navigation-place-finding-contract.md`
+
+## Retrieval internal contract
+
+- `rag-agent-retrieval-plan-contract.md`
 
 ## 使用规则
 

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import subprocess
+import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import subprocess
-import unittest
 
 from scripts.workstream_claim import run_session_command
 from scripts.workstream_runtime import (
@@ -20,7 +20,6 @@ from scripts.workstream_runtime import (
     renew_workstream_claim,
     set_operator_profile,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -203,7 +202,9 @@ class WorkstreamClaimRuntimeTest(unittest.TestCase):
                 pointer_file = get_gsd_session_pointer_file(repo_root, session_key)
                 captured["pointer_exists_during_run"] = pointer_file.exists()
                 captured["pointer_value_during_run"] = (
-                    pointer_file.read_text(encoding="utf-8").strip() if pointer_file.exists() else None
+                    pointer_file.read_text(encoding="utf-8").strip()
+                    if pointer_file.exists()
+                    else None
                 )
                 return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
 
@@ -262,7 +263,9 @@ class WorkstreamClaimRuntimeTest(unittest.TestCase):
             )
 
             self.assertTrue(released["released"])
-            self.assertEqual(get_workstream_claim_status(repo_root, slug)["effective_status"], "unclaimed")
+            self.assertEqual(
+                get_workstream_claim_status(repo_root, slug)["effective_status"], "unclaimed"
+            )
 
 
 class WorkstreamClaimDocsContractTest(unittest.TestCase):
@@ -272,9 +275,9 @@ class WorkstreamClaimDocsContractTest(unittest.TestCase):
         agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
         workstreams = (ROOT / ".planning" / "WORKSTREAMS.md").read_text(encoding="utf-8")
         runbooks_index = (ROOT / "docs" / "runbooks" / "README.md").read_text(encoding="utf-8")
-        runbook = (
-            ROOT / "docs" / "runbooks" / "workstream-claim-workflow.md"
-        ).read_text(encoding="utf-8")
+        runbook = (ROOT / "docs" / "runbooks" / "workstream-claim-workflow.md").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("workstream-claim-workflow.md", readme)
         self.assertIn("python -m scripts.workstream_claim", readme)

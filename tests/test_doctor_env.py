@@ -3,10 +3,10 @@ from __future__ import annotations
 import io
 import json
 import os
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from scripts.doctor_env import collect_env_doctor_status, main
@@ -18,7 +18,9 @@ def _write(path: Path, content: str) -> None:
 
 
 class DoctorEnvTest(unittest.TestCase):
-    def test_collect_env_doctor_status_reports_eval_surface_bootstrap_and_checked_keys(self) -> None:
+    def test_collect_env_doctor_status_reports_eval_surface_bootstrap_and_checked_keys(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
@@ -52,7 +54,9 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertEqual(status["providers"]["llm"]["resolved_key"], "LLM_API_KEY")
             self.assertEqual(status["providers"]["embedding"]["resolved_key"], "EMBEDDING_API_KEY")
 
-    def test_collect_env_doctor_status_reports_missing_bootstrap_and_never_leaks_secret_values(self) -> None:
+    def test_collect_env_doctor_status_reports_missing_bootstrap_and_never_leaks_secret_values(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
@@ -166,7 +170,9 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["files"]["apps/app-api/.dev.vars"]["ready"])
             self.assertTrue(status["files"]["apps/public-chat-web/.dev.vars"]["ready"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_fallback(self) -> None:
+    def test_collect_env_doctor_status_reports_ingestion_surface_and_registry_fallback(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(

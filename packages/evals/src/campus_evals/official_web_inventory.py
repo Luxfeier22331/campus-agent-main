@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from functools import lru_cache
 import json
+from functools import lru_cache
 from pathlib import Path
-
 
 OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = (
     Path(__file__).resolve().parents[2]
@@ -84,8 +83,7 @@ def official_web_current_truth_doc_ids_by_bucket() -> dict[str, frozenset[str]]:
         doc_ids_by_bucket[disposition].add(doc_id)
 
     partition = {
-        bucket: frozenset(sorted(doc_ids))
-        for bucket, doc_ids in doc_ids_by_bucket.items()
+        bucket: frozenset(sorted(doc_ids)) for bucket, doc_ids in doc_ids_by_bucket.items()
     }
     covered_doc_ids = set().union(*partition.values())
     total_partition_count = sum(len(doc_ids) for doc_ids in partition.values())

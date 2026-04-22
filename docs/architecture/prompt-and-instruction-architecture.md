@@ -31,7 +31,7 @@ updated: 2026-04-21
 
 - `packages/supervisor-core`
   拥有 intent framing、routing、policy、response finalization
-- `packages/rag-specialist`
+- `packages/rag-agent`
   拥有 ambiguity handling、query planning、retrieval-oriented answer shaping
 - `packages/retrieval-core`
   拥有 evidence retrieval kernel
@@ -39,8 +39,8 @@ updated: 2026-04-21
 补充约束：
 
 - repo-global developer invariants 由 shared prompt runtime helper 持有
-- package-owned role prompt 继续由 `packages/supervisor-core` / `packages/rag-specialist` prompt registry 持有
-- `packages/rag-specialist` 的 runtime package 名称继续保持 current merged truth；但 prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path wording，不再把 `rag-specialist` 当默认对外标签
+- package-owned role prompt 继续由 `packages/supervisor-core` / `packages/rag-agent` prompt registry 持有
+- `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但 prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path wording，不再把 `rag-agent` 当默认对外标签
 - `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py` 负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence packet 组装成 runtime stack
 - `apps/supervisor-api/src/campus_supervisor_api/prompt_executor.py` 负责 provider-backed strict structured outputs，并在产品主链路生成 validated `PromptTrace`
 - provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作 schema-valid success 放行
@@ -212,14 +212,17 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 长期固定拆成三类判断，不互相替代：
 
 1. `policy gate`
+
 - 判断“能不能处理这类请求”
 - 例如明显违规内容、越权高风险请求、targeted political persuasion 或其他产品明令禁止事项
 
 2. `scope gate`
+
 - 判断“这是不是当前产品边界内的问题”
 - 例如 “MIT 的校长是谁” 属于 `out_of_scope`，而不是 campus RAG 的普通空召回
 
 3. `grounding gate`
+
 - 判断“即使问题合法且在范围内，当前证据是否足够支持回答”
 - 例如培养方案里具体课程、制度条款、办事流程缺乏足够依据时，应进入 `unsupported_by_evidence`
 
@@ -282,18 +285,23 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 至少固定区分以下五类：
 
 1. `scope hallucination`
+
 - 把域外问题伪装成校园范围内问题
 
 2. `policy hallucination`
+
 - 在证据不足时编造制度、流程、限制或授权条件
 
 3. `citation hallucination`
+
 - 回答看起来有依据，但关键 claim 实际没有被 evidence bundle 支持
 
 4. `freshness hallucination`
+
 - 对 freshness-sensitive 问题假装自己掌握最新状态
 
 5. `authorization hallucination`
+
 - 用未授权或隐藏内容补答案，或泄漏 restricted title / snippet
 
 repo 的 hallucination control 必须分别针对这五类做 gate，而不是统一归类成“prompt 质量问题”。
@@ -311,7 +319,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 拥有语义终态 finalization
 - 长期上应区分 `policy_refusal`、`out_of_scope` 与普通 `needs_clarification`
 
-### `packages/rag-specialist`
+### `packages/rag-agent`
 
 - 只处理已进入 in-scope knowledge path 的问题
 - 拥有 ambiguity handling、retrieval planning、grounded answer synthesis、`unsupported_by_evidence`
@@ -334,18 +342,22 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 repo 级 instruction hierarchy 固定拆成五层：
 
 1. `platform/runtime invariants`
+
 - 来自产品边界、架构边界、安全边界
 - 例如当前 `supervisor-led orchestration`、`specialist contract`、`restricted deny no leak`
 
 2. `role instructions`
+
 - 某个 package / agent 的长期职责与禁止事项
 - 稳定、低频变更
 
 3. `task packet`
+
 - 某次请求的 mode、目标、上下文、允许动作、禁止动作、输出 schema
 - 高频变更
 
 4. `evidence packet`
+
 - retrieval / operator / external observation 的结构化输入
 - 明确标为 untrusted content
 
@@ -369,7 +381,7 @@ repo 级 instruction hierarchy 固定拆成五层：
   - owns runtime assembly / provider binding seam
 - `packages/supervisor-core`
   - owns supervisor role prompt assets 与 typed task packet
-- `packages/rag-specialist`
+- `packages/rag-agent`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
   - 只消费 observability-safe prompt metadata，不参与 prompt assembly
@@ -471,7 +483,7 @@ repo 当前推荐的 system / role 设计固定为：
 直接含义：
 
 - `packages/supervisor-core` 的 prompt family 只负责 `clarify / approval_required / out_of_scope / reject` 的用户措辞
-- `packages/rag-specialist` 的 prompt family 只负责 `answer / clarify / no-answer / unsupported` 的 grounded wording
+- `packages/rag-agent` 的 prompt family 只负责 `answer / clarify / no-answer / unsupported` 的 grounded wording
 - `packages/retrieval-core` 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission / product projection
 
@@ -516,7 +528,7 @@ repo 当前推荐的 system / role 设计固定为：
 - owns clarification / approval-required / out-of-scope / reject wording prompt families
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
-### `packages/rag-specialist`
+### `packages/rag-agent`
 
 - owns knowledge-path / `rag-agent` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
@@ -547,7 +559,7 @@ repo 当前推荐的 system / role 设计固定为：
 - supervisor prompt 在第一版不承担 authz 或 routing truth
 - 如果后续引入 LLM-assisted routing，再新增 `supervisor_route_v1`，但仍必须经过 code finalization
 
-### Knowledge Path (`packages/rag-specialist`)
+### Knowledge Path (`packages/rag-agent`)
 
 - `rag_answer_v1`
 - `rag_clarify_v1`
@@ -565,13 +577,13 @@ repo 当前推荐的 system / role 设计固定为：
 prompt assets 长期放在各自 package source tree 内，而不是集中堆到 repo root：
 
 - `packages/supervisor-core/src/campus_supervisor_core/prompts/`
-- `packages/rag-specialist/src/campus_rag_specialist/prompts/`
+- `packages/rag-agent/src/campus_rag_agent/prompts/`
 
 prompt-facing vocabulary 规则固定为：
 
 - package path / runtime target 继续可以保留在 owner metadata 与代码装配面
 - model-facing `<role>` 文案默认使用 capability wording 或 forward family label
-- 不把 `rag-specialist` / `navigation-specialist` 这类 raw runtime target 当作默认 prompt persona 名称
+- 不把 `rag-agent` / `navigation-agent` 这类 raw runtime target 当作默认 prompt persona 名称
 
 每个 prompt family 至少包含：
 
@@ -746,14 +758,17 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 每次 prompt family 变更至少要经过三层 gate：
 
 1. `schema gate`
+
 - prompt variables 是否齐全
 - model output 是否满足 typed schema
 
 2. `policy gate`
+
 - clarify / no-answer / deny-path / approval-required 是否正确
 - `policy_refusal`、`out_of_scope`、`restricted_access_denied` 的区分是否正确
 
 3. `quality gate`
+
 - groundedness
 - citation completeness
 - product wording quality
@@ -777,19 +792,24 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 至少要补齐以下校验：
 
 1. `schema gate`
+
 - provider 返回是否满足 strict schema
 
 2. `citation gate`
+
 - `citation_expected=true` 时，`completed` 结果不得出现 `0` supporting sources
 
 3. `grounding gate`
+
 - 回答中的关键对象名、条件、时间、数量和制度名，必须能在 evidence packet 找到支持
 - 如果关键 claim 找不到支持，应自动降级到 `unsupported_by_evidence`
 
 4. `deny-path gate`
+
 - restricted / hidden / unauthorized 内容不得通过 wording 绕出站
 
 5. `freshness gate`
+
 - freshness-sensitive 问答不得越过 runtime opening policy 自行作答
 
 ## Current Gap To Best Practice
@@ -797,6 +817,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 当前 repo 方向已经基本正确，但与长期最佳实践相比仍有一个明确缺口：
 
 1. claim-level grounding validator 已落地，但仍是最小可用强度
+
 - 当前已对 prompt-generated completed answer 执行 answer-to-evidence 校验，并对 title / time / requirement claim 做最小提取
 - 但还没有覆盖更广的 claim 类型，也还不是完整的 cross-provider grounded generation runtime
 

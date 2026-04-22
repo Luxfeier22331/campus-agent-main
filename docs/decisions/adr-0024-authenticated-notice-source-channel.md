@@ -181,4 +181,4 @@ updated: 2026-04-03
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
-- `docs/plans/restricted-document-rollout-and-verification.md`
+- `.planning/workstreams/restricted-document-rollout-verification/README.md`

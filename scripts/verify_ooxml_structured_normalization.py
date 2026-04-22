@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-import json
 from pathlib import Path
 from typing import Any
 
@@ -104,14 +104,10 @@ def validate_xlsx_forward_fill_prefix(table_cells: Sequence[Mapping[str, object]
     for row_number, cells in by_row.items():
         del row_number
         forward_filled = sorted(
-            int(cell.get("col") or 0)
-            for cell in cells
-            if bool(cell.get("is_forward_filled"))
+            int(cell.get("col") or 0) for cell in cells if bool(cell.get("is_forward_filled"))
         )
         explicit = sorted(
-            int(cell.get("col") or 0)
-            for cell in cells
-            if not bool(cell.get("is_forward_filled"))
+            int(cell.get("col") or 0) for cell in cells if not bool(cell.get("is_forward_filled"))
         )
         if not forward_filled:
             continue
@@ -223,16 +219,13 @@ def _build_sample_result(
         row_type: sum(1 for row in layout_rows if str(row.get("row_type") or "") == row_type)
         for row_type in sorted({str(row.get("row_type") or "") for row in layout_rows})
     }
-    table_rows = [
-        row
-        for row in layout_rows
-        if str(row.get("row_type") or "") == "table"
-    ]
+    table_rows = [row for row in layout_rows if str(row.get("row_type") or "") == "table"]
     first_heading = next(
         (
             str(row.get("text_normalized") or "").strip()
             for row in layout_rows
-            if str(row.get("row_type") or "") == "heading" and str(row.get("text_normalized") or "").strip()
+            if str(row.get("row_type") or "") == "heading"
+            and str(row.get("text_normalized") or "").strip()
         ),
         None,
     )
@@ -286,7 +279,9 @@ def _build_sample_result(
             "forward_filled_cell_count": len(forward_filled_cells),
             "forward_fill_prefix_valid": prefix_valid,
             "table_row_count": int(table_rows[0].get("table_row_count") or 0) if table_rows else 0,
-            "table_column_count": int(table_rows[0].get("table_column_count") or 0) if table_rows else 0,
+            "table_column_count": int(table_rows[0].get("table_column_count") or 0)
+            if table_rows
+            else 0,
         }
         if not (
             result["xlsx_validation"]["heading_count"] >= 1
@@ -309,7 +304,9 @@ def _build_summary(results: Sequence[Mapping[str, object]]) -> str:
             f"  - extraction_engine: `{result['extraction_engine_name']}` `{result['extraction_engine_version']}`"
         )
         lines.append(f"  - layout_row_count: `{result['layout_row_count']}`")
-        lines.append(f"  - row_type_counts: `{json.dumps(result['row_type_counts'], ensure_ascii=False)}`")
+        lines.append(
+            f"  - row_type_counts: `{json.dumps(result['row_type_counts'], ensure_ascii=False)}`"
+        )
         if result.get("first_heading") is not None:
             lines.append(f"  - first_heading: `{result['first_heading']}`")
         if result["target_format"] == "xlsx":
@@ -338,10 +335,14 @@ def _build_quality_validation(results: Sequence[Mapping[str, object]]) -> str:
         lines.append(f"- Verdict: `{result['verdict']}`")
         lines.append(f"- Extracted blocks: `{result['text_block_count']}`")
         lines.append(f"- Structured rows: `{result['layout_row_count']}`")
-        lines.append(f"- Row type counts: `{json.dumps(result['row_type_counts'], ensure_ascii=False)}`")
+        lines.append(
+            f"- Row type counts: `{json.dumps(result['row_type_counts'], ensure_ascii=False)}`"
+        )
         if result["target_format"] == "docx":
             validation = dict(result.get("docx_validation") or {})
-            lines.append(f"- Title promoted to heading: `{validation.get('has_title_heading', False)}`")
+            lines.append(
+                f"- Title promoted to heading: `{validation.get('has_title_heading', False)}`"
+            )
             lines.append(f"- Heading count: `{validation.get('heading_count', 0)}`")
             lines.append(f"- List item count: `{validation.get('list_item_count', 0)}`")
             lines.append(f"- Table count: `{validation.get('table_count', 0)}`")
@@ -358,7 +359,9 @@ def _build_quality_validation(results: Sequence[Mapping[str, object]]) -> str:
             lines.append(f"- Table rows: `{validation.get('table_row_count', 0)}`")
             lines.append(f"- Table columns: `{validation.get('table_column_count', 0)}`")
         lines.append("")
-    overall_verdict = "pass" if all(str(result.get("verdict") or "") == "pass" for result in results) else "fail"
+    overall_verdict = (
+        "pass" if all(str(result.get("verdict") or "") == "pass" for result in results) else "fail"
+    )
     lines.extend(
         [
             "## Assessment",

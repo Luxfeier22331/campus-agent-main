@@ -16,7 +16,7 @@ updated: 2026-03-29
 
 - `apps/supervisor-api` 入口边界
 - `packages/supervisor-core` 编排与审计投影
-- `packages/rag-specialist` / `packages/retrieval-core` 的在线回答链路
+- `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 specialist 的运行时壳
 

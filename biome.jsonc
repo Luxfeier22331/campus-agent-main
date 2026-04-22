@@ -1,34 +1,35 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "files": {
-    "ignoreUnknown": true,
-    "includes": [
-      "package.json",
-      "turbo.json",
-      "apps/**",
-      "packages/**",
-      "scripts/**",
-      "tests/**",
-      "!!.planning",
-      "!!.tmp",
-      "!!.worktrees",
-      "!!var",
-      "!!apps/public-chat-web/vendor",
-      "!!apps/app-api/drizzle/meta",
-      "!!apps/public-docs-web/worker-configuration.d.ts",
-      "!!apps/public-docs-web/src/routeTree.gen.ts"
-    ]
-  },
-  "formatter": {
-    "enabled": true,
-    "lineWidth": 100
-  },
-  "linter": {
-    "enabled": true
-  }
+	"$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"package.json",
+			"turbo.json",
+			"apps/**",
+			"packages/**",
+			"configs/**",
+			"scripts/**",
+			"tests/**",
+			"!!.planning",
+			"!!.tmp",
+			"!!.worktrees",
+			"!!var",
+			"!!apps/public-chat-web/vendor",
+			"!!apps/app-api/drizzle/meta",
+			"!!apps/public-docs-web/worker-configuration.d.ts",
+			"!!apps/public-docs-web/src/routeTree.gen.ts"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"lineWidth": 100
+	},
+	"linter": {
+		"enabled": true
+	}
 }

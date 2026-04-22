@@ -1,27 +1,37 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 import inspect
+from dataclasses import dataclass, field
 from math import isnan
 from typing import Callable
 
-from campus_contracts import EvidenceBundle, RagResultPayload, SpecialistResponse, SupervisorResponse
+from campus_contracts import (
+    EvidenceBundle,
+    RagResultPayload,
+    SpecialistResponse,
+    SupervisorResponse,
+)
+
 from campus_evals.faithfulness_runtime import (
     execute_staged_faithfulness,
     supports_staged_faithfulness,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace, SupplementalResult
 from campus_evals.runtime_observability import bind_runtime_event_context
+from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 from campus_evals.supplemental_http import (
     build_http_ragas_embeddings,
     build_http_ragas_llm,
     format_runtime_exception_message,
 )
-from campus_evals.settings import RagasSettings, SupplementalHTTPSettings
 
-
-DEFAULT_RAGAS_METRIC_NAMES = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+DEFAULT_RAGAS_METRIC_NAMES = (
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall",
+)
 _PROMPT_ADAPTATION_CACHE: dict[tuple[str, str, str, bool], object] = {}
 
 
@@ -74,8 +84,12 @@ def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> Raga
             "reference_source_type": reference_source_type,
             "reference_fact_count": len(case.reference_facts or case.required_facts),
             "metric_applicability": metric_applicability,
-            "retrieved_source_count": len(observed_trace.retrieved_sources) if observed_trace is not None else 0,
-            "supporting_source_count": len(observed_trace.supporting_sources) if observed_trace is not None else len(contexts),
+            "retrieved_source_count": len(observed_trace.retrieved_sources)
+            if observed_trace is not None
+            else 0,
+            "supporting_source_count": len(observed_trace.supporting_sources)
+            if observed_trace is not None
+            else len(contexts),
         },
     )
 
@@ -92,9 +106,15 @@ def _resolve_projection_contexts(
         evidence=evidence,
     )
     if supporting_evidence is not None and supporting_evidence.sources:
-        statement_contexts, statement_context_ids = _build_statement_level_contexts(supporting_evidence)
+        statement_contexts, statement_context_ids = _build_statement_level_contexts(
+            supporting_evidence
+        )
         if statement_contexts:
-            return statement_contexts, statement_context_ids, f"{supporting_source}:statement_contexts"
+            return (
+                statement_contexts,
+                statement_context_ids,
+                f"{supporting_source}:statement_contexts",
+            )
         return (
             tuple(source.snippet for source in supporting_evidence.sources),
             tuple(_source_projection_id(source) for source in supporting_evidence.sources),
@@ -130,11 +150,13 @@ def _resolve_projection_evidence(
     return None, "none"
 
 
-def _build_statement_level_contexts(evidence: EvidenceBundle) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _build_statement_level_contexts(
+    evidence: EvidenceBundle,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     try:
-        from campus_rag_specialist import RagSpecialistAgent
+        from campus_rag_agent import RagAgent
 
-        draft = RagSpecialistAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(evidence)
         return (
             draft.supporting_contexts,
             tuple(_source_projection_id(source) for source in draft.supporting_sources),
@@ -196,7 +218,9 @@ class RagasSupplementalAdapter:
     def metric_names(self) -> tuple[str, ...]:
         return self._metric_names
 
-    def evaluate(self, case: GoldenCase, execution: ExecutionResult) -> tuple[SupplementalResult, ...]:
+    def evaluate(
+        self, case: GoldenCase, execution: ExecutionResult
+    ) -> tuple[SupplementalResult, ...]:
         response = _require_supported_response(execution)
         metric_applicability = _build_metric_applicability(case, metric_names=self._metric_names)
         if case.expected_status != "completed":
@@ -235,7 +259,9 @@ class RagasSupplementalAdapter:
                     )
                 )
             return tuple(failed_results)
-        if self._metric_names and not any(metric_applicability.get(metric_name, True) for metric_name in self._metric_names):
+        if self._metric_names and not any(
+            metric_applicability.get(metric_name, True) for metric_name in self._metric_names
+        ):
             return tuple(
                 _build_not_applicable_result(
                     metric_name=metric_name,
@@ -281,7 +307,10 @@ class RagasSupplementalAdapter:
             return tuple(errored_results)
 
         if not self._metric_names:
-            return tuple(_attach_case_metadata(result=result, case=case, response=response) for result in results)
+            return tuple(
+                _attach_case_metadata(result=result, case=case, response=response)
+                for result in results
+            )
 
         by_metric_name = {result.metric_name: result for result in results}
         final_results: list[SupplementalResult] = []
@@ -318,7 +347,9 @@ class RagasSupplementalAdapter:
         return self._preflight()
 
 
-def _require_supported_response(execution: ExecutionResult) -> SpecialistResponse | SupervisorResponse:
+def _require_supported_response(
+    execution: ExecutionResult,
+) -> SpecialistResponse | SupervisorResponse:
     response = execution.response
     if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
         raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
@@ -362,8 +393,12 @@ def build_default_ragas_metrics(
     from ragas.metrics._faithfulness import Faithfulness
 
     resolved_metric_names = tuple(metric_names or build_default_ragas_metric_names())
-    use_id_based_context_metrics = bool(projection and projection.retrieved_context_ids and projection.reference_context_ids)
-    id_based_context_precision_builder, id_based_context_recall_builder = _load_id_based_context_metric_builders()
+    use_id_based_context_metrics = bool(
+        projection and projection.retrieved_context_ids and projection.reference_context_ids
+    )
+    id_based_context_precision_builder, id_based_context_recall_builder = (
+        _load_id_based_context_metric_builders()
+    )
     builders = {
         "faithfulness": lambda: Faithfulness(llm=llm),
         "answer_relevancy": lambda: AnswerRelevancy(llm=llm, embeddings=embeddings, strictness=1),
@@ -381,7 +416,9 @@ def build_default_ragas_metrics(
     metrics = tuple(builders[name]() for name in resolved_metric_names if name in builders)
     if settings is None or settings.target_language is None:
         return metrics
-    return tuple(_apply_metric_language_adaptation(metric, llm=llm, settings=settings) for metric in metrics)
+    return tuple(
+        _apply_metric_language_adaptation(metric, llm=llm, settings=settings) for metric in metrics
+    )
 
 
 def _load_id_based_context_metric_builders() -> tuple[
@@ -514,7 +551,9 @@ def build_ragas_scorer(
                                 value=staged.value,
                                 projection=projection,
                                 metadata={
-                                    "ragas_metric_name": str(getattr(metric, "name", entry.requested_name)),
+                                    "ragas_metric_name": str(
+                                        getattr(metric, "name", entry.requested_name)
+                                    ),
                                     **staged.metadata,
                                 },
                             )
@@ -533,10 +572,14 @@ def build_ragas_scorer(
                     results.append(
                         _build_supplemental_result(
                             metric_name=entry.requested_name,
-                            value=_extract_metric_value(row, requested_name=entry.requested_name, actual_name=metric.name),
+                            value=_extract_metric_value(
+                                row, requested_name=entry.requested_name, actual_name=metric.name
+                            ),
                             projection=projection,
                             metadata={
-                                "ragas_metric_name": str(getattr(metric, "name", entry.requested_name)),
+                                "ragas_metric_name": str(
+                                    getattr(metric, "name", entry.requested_name)
+                                ),
                             },
                         )
                     )
@@ -629,9 +672,17 @@ def _actual_metric_name_for_requested_name(
     *,
     projection: RagasProjection,
 ) -> str:
-    if requested_name == "context_precision" and projection.retrieved_context_ids and projection.reference_context_ids:
+    if (
+        requested_name == "context_precision"
+        and projection.retrieved_context_ids
+        and projection.reference_context_ids
+    ):
         return "id_based_context_precision"
-    if requested_name == "context_recall" and projection.retrieved_context_ids and projection.reference_context_ids:
+    if (
+        requested_name == "context_recall"
+        and projection.retrieved_context_ids
+        and projection.reference_context_ids
+    ):
         return "id_based_context_recall"
     return requested_name
 
@@ -697,7 +748,9 @@ def _extract_ragas_score_row(evaluation: object) -> dict[str, object]:
     return scores[0]
 
 
-def _extract_metric_value(row: dict[str, object], *, requested_name: str, actual_name: str) -> object:
+def _extract_metric_value(
+    row: dict[str, object], *, requested_name: str, actual_name: str
+) -> object:
     if actual_name in row:
         return row.get(actual_name)
     return row.get(requested_name)

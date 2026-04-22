@@ -114,7 +114,7 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - route polyline、waypoint、summary、warning 由产品 contract 提供
 - 前端 renderer 可以是 provider-neutral map renderer，也可以在局部适配某个底图 SDK
-- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-specialist` 的 shared contract
+- renderer 与底图切换不应反向改变 `app-api`、`supervisor` 或 `navigation-agent` 的 shared contract
 
 ### 决策 7：首个前向交付 slice 固定为地点寻找，而不是路线规划
 
@@ -175,6 +175,6 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 ## Related Docs
 
 - `docs/architecture/navigation-and-wayfinding-architecture.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/architecture/data-plane-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`

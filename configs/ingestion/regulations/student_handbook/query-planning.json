@@ -1,65 +1,41 @@
 {
-  "schema_version": 1,
-  "corpus": "regulations",
-  "collection": "student_handbook",
-  "clarification_cues": [
-    "评审办法",
-    "评定办法",
-    "测评办法",
-    "奖学金评审",
-    "奖学金评定",
-    "奖学金办法",
-    "测评"
-  ],
-  "policy_objects": [
-    {
-      "document_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-      "title": "中央民族大学本科学生国家奖学金评审办法",
-      "aliases": [
-        "国奖",
-        "国家奖学金",
-        "国家奖",
-        "国家奖学金评审办法"
-      ]
-    },
-    {
-      "document_id": "handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
-      "title": "中央民族大学本科学生国家励志奖学金评审办法",
-      "aliases": [
-        "国励",
-        "国家励志奖学金",
-        "励志奖学金",
-        "国家励志奖学金评审办法"
-      ]
-    },
-    {
-      "document_id": "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
-      "title": "中央民族大学本科学生专业奖学金评定办法",
-      "aliases": [
-        "专业奖",
-        "专业奖学金",
-        "专业奖学金评定办法"
-      ]
-    },
-    {
-      "document_id": "handbook:a531a3c85de862c737d0576e957bf59598822c54",
-      "title": "中央民族大学本科学生专项奖学金评定办法",
-      "aliases": [
-        "专项奖",
-        "专项奖学金",
-        "专项奖学金评定办法"
-      ]
-    },
-    {
-      "document_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
-      "title": "中央民族大学本科学生综合素质测评办法",
-      "aliases": [
-        "综测",
-        "综合测评",
-        "综合素质测评",
-        "综合素质测评办法",
-        "测评办法"
-      ]
-    }
-  ]
+	"schema_version": 1,
+	"corpus": "regulations",
+	"collection": "student_handbook",
+	"clarification_cues": [
+		"评审办法",
+		"评定办法",
+		"测评办法",
+		"奖学金评审",
+		"奖学金评定",
+		"奖学金办法",
+		"测评"
+	],
+	"policy_objects": [
+		{
+			"document_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+			"title": "中央民族大学本科学生国家奖学金评审办法",
+			"aliases": ["国奖", "国家奖学金", "国家奖", "国家奖学金评审办法"]
+		},
+		{
+			"document_id": "handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
+			"title": "中央民族大学本科学生国家励志奖学金评审办法",
+			"aliases": ["国励", "国家励志奖学金", "励志奖学金", "国家励志奖学金评审办法"]
+		},
+		{
+			"document_id": "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
+			"title": "中央民族大学本科学生专业奖学金评定办法",
+			"aliases": ["专业奖", "专业奖学金", "专业奖学金评定办法"]
+		},
+		{
+			"document_id": "handbook:a531a3c85de862c737d0576e957bf59598822c54",
+			"title": "中央民族大学本科学生专项奖学金评定办法",
+			"aliases": ["专项奖", "专项奖学金", "专项奖学金评定办法"]
+		},
+		{
+			"document_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
+			"title": "中央民族大学本科学生综合素质测评办法",
+			"aliases": ["综测", "综合测评", "综合素质测评", "综合素质测评办法", "测评办法"]
+		}
+	]
 }

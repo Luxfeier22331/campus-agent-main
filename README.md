@@ -39,11 +39,11 @@
 - [`apps/`](./apps/)
   - runtime shell 与 transport boundary，例如 `public-chat-web`、`protected-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
 - [`packages/`](./packages/)
-  - 稳定能力边界，例如 `supervisor-core`、`rag-specialist`、`retrieval-core`、`ingestion-core`、`contracts`
+  - 稳定能力边界，例如 `supervisor-core`、`rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
-  - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 active plan 文档
+  - 长期可引用的 architecture、decision、contract、data、runbook、policy 与 archived implementation snapshots
 - [`.planning/`](./.planning/)
   - 当前项目级 planning truth、workstream registry、native workstream 状态，以及 shared quick/todo/research 资产
 - [`tests/`](./tests/)
@@ -54,7 +54,7 @@
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/supervisor-api`](./apps/supervisor-api/)
 - [`packages/supervisor-core`](./packages/supervisor-core/)
-- [`packages/rag-specialist`](./packages/rag-specialist/)
+- [`packages/rag-agent`](./packages/rag-agent/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)
 
 ## Documentation
@@ -76,8 +76,12 @@
   - 当前项目级范围、关键决策与 merged/worktree truth
 - `.planning/WORKSTREAMS.md`
   - 当前有哪些 active / deferred / backlog workstreams，以及各自对应的 native planning 目录
+- `.planning/workstreams/<slug>/README.md`
+  - 单条 native workstream 的人工入口；先看边界、状态，再进入 `STATE / ROADMAP / REQUIREMENTS`
 - `.planning/workstreams/<slug>/STATE.md`
   - 单条 workstream 的 now / next / blockers / recent verification
+- `docs/plans/archive/`
+  - 已退出 live workstream 入口的 historical / superseded / completed plan snapshots
 
 仓库协作规则见：
 
@@ -98,6 +102,8 @@ pnpm install
 
 ```bash
 pnpm web:lint
+pnpm docs:lint
+pnpm yaml:lint
 uv run --all-packages python -m unittest discover -s tests -t .
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check

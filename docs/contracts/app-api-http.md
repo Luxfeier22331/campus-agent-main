@@ -160,7 +160,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
     "corpus": "regulations",
     "collection": "student_handbook"
   },
-  "selectedTarget": "rag-specialist",
+  "selectedTarget": "rag-agent",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
   "errorCode": null,
@@ -467,7 +467,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见 `
       "corpus": "regulations",
       "collection": "student_handbook"
     },
-    "selectedTarget": "rag-specialist",
+    "selectedTarget": "rag-agent",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
     "errorCode": null,

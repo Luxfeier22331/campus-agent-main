@@ -6,7 +6,7 @@ from base64 import b64encode
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 import httpx
 
@@ -27,6 +27,7 @@ DEFAULT_CURRICULUM_YEAR = "2022"
 DEFAULT_OCR_MODEL_SLUG = "paddleocr-vl-1-5"
 DEFAULT_RENDER_DPI = 180
 DEFAULT_PROMPT_RUNTIME_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_PROMPT_RUNTIME_TRANSPORT = "responses"
 DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS = 60.0
 DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS = 10.0
@@ -744,14 +745,16 @@ def probe_curriculum_course_map_page(
         or source.get("LLM_BASE_URL")
         or DEFAULT_PROMPT_RUNTIME_BASE_URL
     ).strip()
+    transport = (source.get("PROMPT_RUNTIME_TRANSPORT") or DEFAULT_PROMPT_RUNTIME_TRANSPORT).strip()
     reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
     max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()
     if not api_key:
         raise ValueError("PROMPT_RUNTIME_API_KEY is required for curriculum course-map probe")
     if not model_name:
         raise ValueError("PROMPT_RUNTIME_MODEL is required for curriculum course-map probe")
-
-    response_json = _request_course_map_probe_response(
+    parsed_transport = _normalize_prompt_runtime_transport(transport)
+    raw_payload = _request_course_map_probe_payload(
+        transport=parsed_transport,
         api_key=api_key,
         model_name=model_name,
         base_url=base_url,
@@ -759,9 +762,6 @@ def probe_curriculum_course_map_page(
         max_output_tokens=int(max_output_tokens) if max_output_tokens else None,
         rendered_sample=rendered_sample,
     )
-    raw_payload = response_json.get("output_parsed")
-    if raw_payload is None:
-        raw_payload = _extract_output_parsed(response_json)
     return _coerce_curriculum_course_map_page_probe(
         sample_id=rendered_sample.sample_id,
         page_number=rendered_sample.page_number,
@@ -781,6 +781,8 @@ def _request_course_map_probe_response(
     max_output_tokens: int | None,
     rendered_sample: CurriculumCourseMapRenderedSample,
 ) -> dict[str, object]:
+    schema = _curriculum_course_map_page_probe_schema()
+    schema_json = json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
     content: list[dict[str, object]] = [
         {
             "type": "input_text",
@@ -830,7 +832,7 @@ def _request_course_map_probe_response(
             "format": {
                 "type": "json_schema",
                 "name": "curriculum_course_map_page_probe",
-                "schema": _curriculum_course_map_page_probe_schema(),
+                "schema": schema,
                 "strict": True,
             }
         },
@@ -848,6 +850,56 @@ def _request_course_map_probe_response(
                 "Content-Type": "application/json",
             },
         )
+        if response.status_code >= 500:
+            fallback_content = list(content)
+            fallback_content[0] = {
+                "type": "input_text",
+                "text": (
+                    f"{content[0]['text']}\n"
+                    "Return exactly one JSON object with no markdown fences, no prose, and no extra keys. "
+                    f"Match this schema exactly: {schema_json}"
+                ),
+            }
+            fallback_payload: dict[str, object] = {
+                "model": model_name,
+                "stream": False,
+                "input": [
+                    {
+                        "role": "system",
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    "You are auditing a bounded curriculum course-map page. "
+                                    "Return only high-confidence visible course-map structures. "
+                                    "Do not infer hidden prerequisites, hidden course names, or off-page content. "
+                                    "Return a single JSON object only."
+                                ),
+                            }
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "type": "message",
+                        "content": fallback_content,
+                    },
+                ],
+            }
+            if reasoning_effort:
+                fallback_payload["reasoning"] = {"effort": reasoning_effort}
+            if max_output_tokens is not None:
+                fallback_payload["max_output_tokens"] = max_output_tokens
+            fallback_response = client.post(
+                "/responses",
+                json=fallback_payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if fallback_response.is_success:
+                response = fallback_response
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:  # pragma: no cover
@@ -865,6 +917,102 @@ def _request_course_map_probe_response(
     return response_json
 
 
+def _request_course_map_probe_chat_completion(
+    *,
+    api_key: str,
+    model_name: str,
+    base_url: str,
+    reasoning_effort: str | None,
+    max_output_tokens: int | None,
+    rendered_sample: CurriculumCourseMapRenderedSample,
+) -> dict[str, object]:
+    content = _build_chat_completion_probe_content(rendered_sample=rendered_sample)
+    payload: dict[str, object] = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are auditing a bounded curriculum course-map page. "
+                    "Return only high-confidence visible course-map structures. "
+                    "Do not infer hidden prerequisites, hidden course names, or off-page content. "
+                    "Return a single JSON object only. No markdown fences and no prose."
+                ),
+            },
+            {
+                "role": "user",
+                "content": content,
+            },
+        ],
+    }
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
+    if max_output_tokens is not None:
+        payload["max_completion_tokens"] = max_output_tokens
+    with httpx.Client(base_url=base_url, timeout=_DEFAULT_TIMEOUT) as client:
+        response = client.post(
+            "/chat/completions",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:  # pragma: no cover
+        raise ValueError(
+            f"curriculum course-map probe request failed: {response.status_code} {response.text}"
+        ) from exc
+    response_json = response.json()
+    if not isinstance(response_json, dict):
+        raise ValueError("curriculum course-map probe response must be a JSON object")
+    if response_json.get("error"):
+        raise ValueError(json.dumps(response_json["error"], ensure_ascii=False))
+    return response_json
+
+
+def _build_chat_completion_probe_content(
+    *,
+    rendered_sample: CurriculumCourseMapRenderedSample,
+) -> list[dict[str, object]]:
+    return [
+        {
+            "type": "text",
+            "text": (
+                f"Document title: {rendered_sample.document_title}\n"
+                f"Page number: {rendered_sample.page_number}\n"
+                f"Parent heading hint: {rendered_sample.parent_heading_hint or '<none>'}\n"
+                "Image 1 is the full PDF page.\n"
+                "Image 2 is the bounded crop for the detected course-map image block.\n"
+                "Extract only visible course maps, visible node labels, and visible directed arrows.\n"
+                "Return exactly one JSON object with keys course_maps, manual_review_required, "
+                "global_manual_review_notes.\n"
+                "Each course_maps item must contain map_title, stage_labels, nodes, edges, "
+                "manual_review_notes.\n"
+                "Each node must contain node_label, stage_label, category_label.\n"
+                "Each edge must contain source_label, target_label."
+            ),
+        },
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": (
+                    f"data:image/png;base64,{b64encode(rendered_sample.full_page_png).decode('ascii')}"
+                )
+            },
+        },
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": (
+                    f"data:image/png;base64,{b64encode(rendered_sample.crop_png).decode('ascii')}"
+                )
+            },
+        },
+    ]
+
+
 def _extract_output_parsed(payload: dict[str, object]) -> object:
     for output_item in payload.get("output", []):
         if not isinstance(output_item, dict):
@@ -878,6 +1026,32 @@ def _extract_output_parsed(payload: dict[str, object]) -> object:
             if isinstance(text, str) and text.strip():
                 return json.loads(text)
     raise ValueError("curriculum course-map probe response missing parsed output")
+
+
+def _extract_chat_completions_output_parsed(payload: dict[str, object]) -> object:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("curriculum course-map chat completion missing choices")
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        raise ValueError("curriculum course-map chat completion missing assistant message")
+    content = message.get("content")
+    if isinstance(content, str) and content.strip():
+        return json.loads(content)
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str) and item.strip():
+                parts.append(item)
+                continue
+            if not isinstance(item, dict):
+                continue
+            text = item.get("text")
+            if isinstance(text, str) and text.strip():
+                parts.append(text)
+        if parts:
+            return json.loads("\n".join(parts))
+    raise ValueError("curriculum course-map chat completion missing parsed output")
 
 
 def _coerce_curriculum_course_map_page_probe(
@@ -927,6 +1101,52 @@ def _coerce_curriculum_course_map_page_probe(
             str(value).strip() for value in payload.get("global_manual_review_notes") or ()
         ),
     )
+
+
+PromptRuntimeTransport = Literal["responses", "chat_completions"]
+
+
+def _normalize_prompt_runtime_transport(raw_transport: str) -> PromptRuntimeTransport:
+    normalized = raw_transport.strip().lower()
+    if normalized in {"", "responses"}:
+        return "responses"
+    if normalized in {"chat_completions", "chat-completions", "chat/completions"}:
+        return "chat_completions"
+    raise ValueError("PROMPT_RUNTIME_TRANSPORT must be one of responses or chat_completions")
+
+
+def _request_course_map_probe_payload(
+    *,
+    transport: PromptRuntimeTransport,
+    api_key: str,
+    model_name: str,
+    base_url: str,
+    reasoning_effort: str | None,
+    max_output_tokens: int | None,
+    rendered_sample: CurriculumCourseMapRenderedSample,
+) -> object:
+    if transport == "responses":
+        response_json = _request_course_map_probe_response(
+            api_key=api_key,
+            model_name=model_name,
+            base_url=base_url,
+            reasoning_effort=reasoning_effort,
+            max_output_tokens=max_output_tokens,
+            rendered_sample=rendered_sample,
+        )
+        raw_payload = response_json.get("output_parsed")
+        if raw_payload is None:
+            raw_payload = _extract_output_parsed(response_json)
+        return raw_payload
+    response_json = _request_course_map_probe_chat_completion(
+        api_key=api_key,
+        model_name=model_name,
+        base_url=base_url,
+        reasoning_effort=reasoning_effort,
+        max_output_tokens=max_output_tokens,
+        rendered_sample=rendered_sample,
+    )
+    return _extract_chat_completions_output_parsed(response_json)
 
 
 def _curriculum_course_map_page_probe_schema() -> dict[str, object]:

@@ -1,25 +1,32 @@
 from __future__ import annotations
 
-from pathlib import Path
 import json
-from tempfile import TemporaryDirectory
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from campus_contracts import ActorContext, EvidenceBundle, EvidenceSource, KnowledgeScope, RagRequestPayload, RagResultPayload, SpecialistResponse
+from campus_contracts import (
+    ActorContext,
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    RagResultPayload,
+    SpecialistResponse,
+)
 from campus_evals import (
     ExecutionResult,
     GoldenCase,
     TraceExpectation,
+    load_official_web_current_truth_inventory,
     official_web_current_truth_doc_ids_by_bucket,
     official_web_future_fresh_news_doc_ids,
     official_web_future_fresh_news_titles,
-    load_official_web_current_truth_inventory,
     official_web_inventory_only_doc_ids_by_disposition,
     official_web_inventory_only_titles_by_disposition,
+    official_web_release_gate_doc_ids,
     official_web_retain_inventory_only_doc_ids,
     official_web_retain_inventory_only_titles,
-    official_web_release_gate_doc_ids,
 )
 from campus_evals.official_web_live_benchmark import (
     build_default_output_dir,
@@ -35,9 +42,10 @@ from campus_evals.scenarios import (
     official_web_stable_reference_scope,
 )
 
-
 OFFICIAL_WEB_SCOPE = KnowledgeScope(corpus="official_web", collection="muc_public_pages")
-OFFICIAL_WEB_STABLE_REFERENCE_SCOPE = KnowledgeScope(corpus="official_web", collection="stable_reference")
+OFFICIAL_WEB_STABLE_REFERENCE_SCOPE = KnowledgeScope(
+    corpus="official_web", collection="stable_reference"
+)
 OFFICIAL_WEB_FRESH_NEWS_SCOPE = KnowledgeScope(corpus="official_web", collection="fresh_news")
 OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = (
     Path(__file__).resolve().parents[2]
@@ -110,7 +118,9 @@ class OfficialWebLiveExecutorTest(unittest.TestCase):
             KnowledgeScope(corpus="official_web", collection="fresh_news"),
         )
 
-    def test_build_official_web_live_executor_captures_retrieved_and_supporting_sources(self) -> None:
+    def test_build_official_web_live_executor_captures_retrieved_and_supporting_sources(
+        self,
+    ) -> None:
         retrieved_bundle = EvidenceBundle(
             query_text="中央民族大学学校简介",
             corpus="official_web",
@@ -120,7 +130,11 @@ class OfficialWebLiveExecutorTest(unittest.TestCase):
                     "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                     version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
                 ),
-                _source("official_web:muc_public:article_detail:background", chunk_id="chunk-0002", score=0.7),
+                _source(
+                    "official_web:muc_public:article_detail:background",
+                    chunk_id="chunk-0002",
+                    score=0.7,
+                ),
             ),
         )
         supporting_source = retrieved_bundle.sources[0]
@@ -134,7 +148,7 @@ class OfficialWebLiveExecutorTest(unittest.TestCase):
             )
             self.assertEqual(bundle, retrieved_bundle)
             return SpecialistResponse(
-                target="rag-specialist",
+                target="rag-agent",
                 status="completed",
                 answer_text="根据官网页面内容，《学校简介》明确：中央民族大学是一所特色鲜明的高等院校。",
                 confidence="medium",
@@ -182,7 +196,9 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         self.assertEqual(expected_doc_ids, official_web_release_gate_doc_ids())
         self.assertFalse(expected_doc_ids & inventory_only_doc_ids)
 
-    def test_build_official_web_live_profile_uses_deterministic_only_policy_and_no_supplemental_adapters(self) -> None:
+    def test_build_official_web_live_profile_uses_deterministic_only_policy_and_no_supplemental_adapters(
+        self,
+    ) -> None:
         profile = build_official_web_live_profile(
             qdrant_collection_name="muc_public_pages__r20260403_074311",
         )
@@ -193,7 +209,9 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
         self.assertEqual(profile.http_settings.read_timeout_seconds, 180.0)
         self.assertEqual(profile.supplemental_adapters_factory(), ())
 
-    def test_official_web_release_gate_cases_cover_foundation_and_school_overview_regressions(self) -> None:
+    def test_official_web_release_gate_cases_cover_foundation_and_school_overview_regressions(
+        self,
+    ) -> None:
         case_ids = {case.case_id for case in official_web_release_gate_cases()}
 
         self.assertIn("official-web-release-gate-foundation-profile", case_ids)
@@ -289,7 +307,9 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
             },
         )
 
-    def test_official_web_current_truth_inventory_tracks_21_promotable_documents_and_release_gate_subset(self) -> None:
+    def test_official_web_current_truth_inventory_tracks_21_promotable_documents_and_release_gate_subset(
+        self,
+    ) -> None:
         payload = json.loads(OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH.read_text(encoding="utf-8"))
         entries = tuple(payload["documents"])
 
@@ -386,13 +406,13 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
             },
         )
 
-    def test_official_web_current_truth_partition_helper_exposes_frozen_handoff_buckets(self) -> None:
+    def test_official_web_current_truth_partition_helper_exposes_frozen_handoff_buckets(
+        self,
+    ) -> None:
         partition = official_web_current_truth_doc_ids_by_bucket()
         payload = load_official_web_current_truth_inventory()
         all_doc_ids = {
-            str(entry["doc_id"])
-            for entry in payload["documents"]
-            if isinstance(entry, dict)
+            str(entry["doc_id"]) for entry in payload["documents"] if isinstance(entry, dict)
         }
 
         self.assertEqual(
@@ -488,10 +508,14 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.profile_id, "official_web_stable_reference")
         self.assertEqual(profile.benchmark_type, "official_web_stable_reference_live_gate")
-        self.assertEqual(profile.repair_benchmark_type, "official_web_stable_reference_live_gate_repair")
+        self.assertEqual(
+            profile.repair_benchmark_type, "official_web_stable_reference_live_gate_repair"
+        )
         self.assertEqual(profile.run_prefix, "official-web-stable-reference-live-gate")
         self.assertEqual(profile.repair_prefix, "official-web-stable-reference-live-gate-repair")
-        self.assertEqual(profile.cases_factory(), official_web_stable_reference_release_gate_cases())
+        self.assertEqual(
+            profile.cases_factory(), official_web_stable_reference_release_gate_cases()
+        )
 
     def test_official_web_fresh_news_release_gate_cases_use_seed_scope_only(self) -> None:
         cases = official_web_fresh_news_release_gate_cases()
@@ -541,7 +565,9 @@ class OfficialWebLiveProfileTest(unittest.TestCase):
 
 class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
     def test_build_default_output_dir_uses_timestamped_eval_directory(self) -> None:
-        path = build_default_output_dir(prefix="official-web-live-gate", timestamp="20260403T074311")
+        path = build_default_output_dir(
+            prefix="official-web-live-gate", timestamp="20260403T074311"
+        )
         self.assertEqual(path, Path(".tmp/evals/official-web-live-gate-20260403T074311"))
 
     def test_main_runs_formal_benchmark_with_collection_override(self) -> None:
@@ -550,13 +576,21 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             expected_output_dir = Path(tmpdir) / "official-web-live-gate-20260403T074311"
             with (
-                patch("campus_evals.official_web_live_benchmark.official_web_release_gate_cases", return_value=(case,)),
+                patch(
+                    "campus_evals.official_web_live_benchmark.official_web_release_gate_cases",
+                    return_value=(case,),
+                ),
                 patch(
                     "campus_evals.official_web_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.official_web_live_benchmark.build_official_web_live_executor", return_value="executor"),
-                patch("campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark") as run_benchmark,
+                patch(
+                    "campus_evals.official_web_live_benchmark.build_official_web_live_executor",
+                    return_value="executor",
+                ),
+                patch(
+                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                ) as run_benchmark,
             ):
                 exit_code = main(
                     [
@@ -575,6 +609,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
             supplemental_adapters=(),
             output_dir=expected_output_dir,
             reruns=1,
+            case_workers=1,
             policy_path=Path(run_benchmark.call_args.kwargs["policy_path"]),
             benchmark_type="official_web_live_gate",
         )
@@ -586,7 +621,9 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
         )
 
         with TemporaryDirectory() as tmpdir:
-            expected_output_dir = Path(tmpdir) / "official-web-stable-reference-live-gate-20260403T074311"
+            expected_output_dir = (
+                Path(tmpdir) / "official-web-stable-reference-live-gate-20260403T074311"
+            )
             with (
                 patch(
                     "campus_evals.official_web_live_benchmark.official_web_stable_reference_release_gate_cases",
@@ -596,8 +633,13 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.official_web_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.official_web_live_benchmark.build_official_web_live_executor", return_value="executor"),
-                patch("campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark") as run_benchmark,
+                patch(
+                    "campus_evals.official_web_live_benchmark.build_official_web_live_executor",
+                    return_value="executor",
+                ),
+                patch(
+                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                ) as run_benchmark,
             ):
                 exit_code = main(
                     [
@@ -616,6 +658,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
             supplemental_adapters=(),
             output_dir=expected_output_dir,
             reruns=1,
+            case_workers=1,
             policy_path=Path(run_benchmark.call_args.kwargs["policy_path"]),
             benchmark_type="official_web_stable_reference_live_gate",
         )
@@ -638,8 +681,13 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.official_web_live_benchmark.build_default_output_dir",
                     return_value=expected_output_dir,
                 ),
-                patch("campus_evals.official_web_live_benchmark.build_official_web_live_executor", return_value="executor"),
-                patch("campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark") as run_benchmark,
+                patch(
+                    "campus_evals.official_web_live_benchmark.build_official_web_live_executor",
+                    return_value="executor",
+                ),
+                patch(
+                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                ) as run_benchmark,
             ):
                 exit_code = main(
                     [
@@ -658,6 +706,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
             supplemental_adapters=(),
             output_dir=expected_output_dir,
             reruns=1,
+            case_workers=1,
             policy_path=Path(run_benchmark.call_args.kwargs["policy_path"]),
             benchmark_type="official_web_fresh_news_live_gate",
         )

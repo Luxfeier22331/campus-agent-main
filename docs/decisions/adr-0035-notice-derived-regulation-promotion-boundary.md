@@ -122,7 +122,7 @@ promotion boundary 至少负责判断：
 - `docs/architecture/authenticated-notice-source-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/plans/internal-notice-policy-regulation-consumption-implementation.md`
+- `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`

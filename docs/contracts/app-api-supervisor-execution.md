@@ -123,19 +123,20 @@ JSON 命名保持 `snake_case`，原因如下：
 - `requested_capability`
   当前允许 `knowledge` 或 `place_lookup`
 - `requested_scope`
-  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-specialist` 消费的 internal spatial truth，而不是默认公开 query-serving surface
+  可选；如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许 specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认 collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为 `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开 query-serving surface
 
 补充说明：
 
 - `place_lookup` contract 仍保留在 internal execution seam
 - 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
+
 ## Response Body
 
 `supervisor-api` 返回的最小成功 body 继续对齐 `SupervisorResponse + trace_id`：
 
 ```json
 {
-  "selected_target": "rag-specialist",
+  "selected_target": "rag-agent",
   "status": "completed",
   "answer_text": "图书馆开放到 22:00。",
   "follow_up_question": "",
@@ -202,16 +203,16 @@ JSON 命名保持 `snake_case`，原因如下：
 
 - `selected_target`
   始终表示 execution path 实际选择的 current runtime target。
-  在当前 phase 它只能是 shared contract 中已 admitted 的 runtime label，例如 `rag-specialist`、`navigation-specialist`、`campus-services-agent`、`notice-agent`。
-  它不是 forward family label，也不是 operator-facing display label；`rag-agent`、`navigation-agent` 这类 target-side vocabulary 当前不进入这份 serialized contract。
+  在当前 phase 它只能是 shared contract 中已 admitted 的 runtime label，例如 `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent`。
+  它不是 operator-facing display label；当 current runtime label 与 family label 一致时，serialized contract 直接承载这个 admitted runtime target。
 - `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
-- 当 `selected_target = navigation-specialist` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
+- 当 `selected_target = navigation-agent` 时，`result` 使用 `PlaceLookupResult` 的 Python-side `snake_case` 形态：
   - `query_text`
   - `matched_alias`
   - `resolved_place.{place_id, entity_type, display_name, campus_scope, campus_area}`
   - `place_card.{place, location_description, landmark_hint, access_note, opening_note, service_tags, point_geometry, coordinate_reference_system, source_refs}`
   - `candidate_places[].{place, clarification_hint}`
-- 当 `selected_target = rag-specialist` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的 summary truth：
+- 当 `selected_target = rag-agent` 且 `result.diagnostics` 存在时，`app-api` 当前会消费其中的 summary truth：
   - `retrieval_adequacy_verdict`
   - `retrieval_adequacy_reason`
   - `grounding_verdict`

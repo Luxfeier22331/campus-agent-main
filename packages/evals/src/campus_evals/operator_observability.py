@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import argparse
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-
 from campus_shared import load_repo_env
-
 
 _DEFAULT_METRIC_DOMAIN_MAP = {
     "ragas.faithfulness": "grounding",
@@ -440,9 +438,15 @@ def _extract_inline_request_correlations(
         case_id = _required_string(result.get("case_id"), "results[].case_id")
         correlation = OperatorRequestCorrelation(
             case_id=case_id,
-            request_id=_required_string(raw_correlation.get("request_id"), "results[].request_correlation.request_id"),
-            trace_id=_required_string(raw_correlation.get("trace_id"), "results[].request_correlation.trace_id"),
-            sampled_at=_required_string(raw_correlation.get("sampled_at"), "results[].request_correlation.sampled_at"),
+            request_id=_required_string(
+                raw_correlation.get("request_id"), "results[].request_correlation.request_id"
+            ),
+            trace_id=_required_string(
+                raw_correlation.get("trace_id"), "results[].request_correlation.trace_id"
+            ),
+            sampled_at=_required_string(
+                raw_correlation.get("sampled_at"), "results[].request_correlation.sampled_at"
+            ),
             trace_link=_optional_string(raw_correlation.get("trace_link")),
             issue_link=_optional_string(raw_correlation.get("issue_link")),
             issue_fingerprint=_optional_string(raw_correlation.get("issue_fingerprint")),
@@ -455,14 +459,20 @@ def build_publish_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Publish operator observability grades/backlinks to app-api from eval artifacts.",
     )
-    parser.add_argument("--case-results", required=True, help="Path to run-XX-case-results.json artifact.")
+    parser.add_argument(
+        "--case-results", required=True, help="Path to run-XX-case-results.json artifact."
+    )
     parser.add_argument(
         "--request-correlations",
         required=False,
         help="Optional explicit case_id -> request_id/trace_id correlation manifest. If omitted, use inline request_correlation from case-results.",
     )
-    parser.add_argument("--grade-source", required=True, help="Stable producer/source id for app-api grade upserts.")
-    parser.add_argument("--grader-version", required=True, help="Grader/runtime version label for published grades.")
+    parser.add_argument(
+        "--grade-source", required=True, help="Stable producer/source id for app-api grade upserts."
+    )
+    parser.add_argument(
+        "--grader-version", required=True, help="Grader/runtime version label for published grades."
+    )
     parser.add_argument(
         "--metric-domain-override",
         action="append",
@@ -520,9 +530,7 @@ def publish_case_results_artifact(
     return {
         "case_results_path": str(case_results_path),
         "request_correlations_path": (
-            str(request_correlations_path)
-            if request_correlations_path is not None
-            else None
+            str(request_correlations_path) if request_correlations_path is not None else None
         ),
         "grade_source": grade_source,
         "grader_version": grader_version,

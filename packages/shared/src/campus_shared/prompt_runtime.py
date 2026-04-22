@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import re
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Generic, Literal, Protocol, TypeVar
 
 import httpx
-from pydantic import BaseModel, ValidationError
-
 from campus_contracts import PromptTrace
-
+from pydantic import BaseModel, ValidationError
 
 _PROMPT_VERSION_RE = re.compile(r"_(v\d+)$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -196,10 +193,7 @@ class ResponsesStructuredOutputExecutor:
         if stack.model_provider != self._provider_config.provider:
             raise PromptRuntimeValidationError(
                 prompt_id=stack.prompt_id,
-                reason=(
-                    "stack model_provider mismatch: "
-                    f"{stack.model_provider or '<empty>'}"
-                ),
+                reason=(f"stack model_provider mismatch: {stack.model_provider or '<empty>'}"),
             )
         if not stack.model_name.strip():
             raise PromptRuntimeValidationError(
@@ -290,8 +284,7 @@ def validate_prompt_packet_contract(
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
             reason=(
-                "packet output_schema_name mismatch: "
-                f"{packet.task.output_schema_name or '<empty>'}"
+                f"packet output_schema_name mismatch: {packet.task.output_schema_name or '<empty>'}"
             ),
         )
 
@@ -321,17 +314,13 @@ def validate_prompt_trace_contract(
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
             reason=(
-                "trace variables_schema_version mismatch: "
-                f"{prompt_trace.variables_schema_version}"
+                f"trace variables_schema_version mismatch: {prompt_trace.variables_schema_version}"
             ),
         )
     if prompt_trace.output_schema_version != spec.output_schema_version:
         raise PromptRuntimeValidationError(
             prompt_id=spec.prompt_id,
-            reason=(
-                "trace output_schema_version mismatch: "
-                f"{prompt_trace.output_schema_version}"
-            ),
+            reason=(f"trace output_schema_version mismatch: {prompt_trace.output_schema_version}"),
         )
     if prompt_trace.template_sha256 != spec.template_sha256:
         raise PromptRuntimeValidationError(
@@ -492,15 +481,9 @@ def _first_non_empty_string(record: dict[str, object], *keys: str) -> str:
 
 def _normalize_prompt_payload(value: object) -> object:
     if is_dataclass(value):
-        return {
-            key: _normalize_prompt_payload(item)
-            for key, item in asdict(value).items()
-        }
+        return {key: _normalize_prompt_payload(item) for key, item in asdict(value).items()}
     if isinstance(value, dict):
-        return {
-            str(key): _normalize_prompt_payload(item)
-            for key, item in value.items()
-        }
+        return {str(key): _normalize_prompt_payload(item) for key, item in value.items()}
     if isinstance(value, tuple):
         return [_normalize_prompt_payload(item) for item in value]
     if isinstance(value, list):
@@ -575,18 +558,13 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     if not normalized:
         return None
     if not _SHA256_RE.fullmatch(normalized):
-        raise ValueError(
-            "safety_identifier must be a 64-character lowercase hex string"
-        )
+        raise ValueError("safety_identifier must be a 64-character lowercase hex string")
     return normalized
 
 
 def _close_json_schema_objects(schema: object) -> object:
     if isinstance(schema, dict):
-        normalized = {
-            key: _close_json_schema_objects(value)
-            for key, value in schema.items()
-        }
+        normalized = {key: _close_json_schema_objects(value) for key, value in schema.items()}
         if normalized.get("type") == "object" and "additionalProperties" not in normalized:
             normalized["additionalProperties"] = False
         return normalized

@@ -15,7 +15,7 @@ updated: 2026-04-21
 
 - `apps/supervisor-api` 与 `packages/supervisor-core` 分别负责什么
 - supervisor 如何与 specialist 交互
-- RAG specialist 与其他 specialist 的长期角色是什么
+- RAG agent 与其他 domain capability family 的长期角色是什么
 
 ## Execution Chain
 
@@ -54,8 +54,8 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
 
 当前 merged-truth 已接受的 current-truth runtime / package label：
 
-- `rag-specialist`
-- `navigation-specialist`
+- `rag-agent`
+- `navigation-agent`
 
 后续如引入新的稳定 capability family，必须满足：
 
@@ -70,15 +70,14 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
   - invariant role name
   - current-truth runtime / package / contract label
   - forward family label
-- 当前 merged-truth package 继续保留 `rag-specialist`、`navigation-specialist` 等命名
-- 当前已冻结的 forward family mapping 为：
-  - `rag-specialist -> rag-agent`
-  - `navigation-specialist -> navigation-agent`
+- 当前已完成首轮 current-truth/runtime label convergence：
+  - `rag-agent`
+  - `navigation-agent`
+- 当前额外冻结的 forward family label 为：
   - `campus-services-agent`
   - `notice-agent`
 - 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`
-- 本文在讨论当前 package owner / runtime label 时继续使用现有 current-truth 名称；在讨论未来 family 时使用 `*-agent`
-- 在 repo-wide family convergence 真正执行前，current-truth contract label 与 forward family label 允许短期并存；新增 domain capability 应先冻结 mapping，再决定是否迁移 label，而不是边实现边混用
+- 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain capability，需要先冻结 family label，再决定其 package/runtime admission 形态
 
 ## Structured Service And Notice Runtime Pattern
 
@@ -96,11 +95,11 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
   - 回答 notice 发现、canonical notice 正文读取，以及 current-year miss 时的 historical downgrade
   - future source family 至少显式区分 public `official_web` notice-like pages 与 restricted `campus_notices/internal_notice`
 - `navigation-agent`
-  - target-side family label；当前 accepted runtime package / ADR label 仍是 `navigation-specialist`
+  - 当前 accepted runtime / package / ADR label 已统一为 `navigation-agent`
   - 可消费 transport point refs / service point refs
   - 不拥有 timetable truth 或 service-status truth
 - `rag-agent`
-  - target-side family label；当前 accepted runtime package 仍是 `packages/rag-specialist`
+  - 当前 accepted runtime / package label 已统一为 `rag-agent`
   - 继续承接稳定制度/流程/材料类问题，例如公费医疗报销规则、材料与办理流程
 
 固定实现 shape：
@@ -149,7 +148,7 @@ projection owner 继续显式分层：
 
 ## RAG Family Responsibilities
 
-`packages/rag-specialist` 是当前 `rag-agent` family 的 runtime package owner；它当前与长期负责：
+`packages/rag-agent` 是当前 `rag-agent` family 的 runtime package owner；它当前与长期负责：
 
 - retrieval-oriented request framing
 - ambiguity handling
@@ -187,7 +186,7 @@ projection owner 继续显式分层：
 其中：
 
 - `rag-agent`
-  - 当前 runtime package 仍是 `packages/rag-specialist`
+  - 当前 runtime package 是 `packages/rag-agent`
   - 拥有 plan 语义、replan 决策、supporting evidence selection policy
 - `retrieval-core`
   - 拥有 step execution、rerank、merge / dedupe、query activity、candidate shaping
@@ -238,7 +237,7 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
 
 - `packages/supervisor-core`
   owns supervisor role instructions、clarification / reject / approval / out-of-scope wording prompt families
-- `packages/rag-specialist`
+- `packages/rag-agent`
   owns answer / clarify / no-answer / unsupported prompt families
 - `packages/retrieval-core`
   不拥有 top-level task prompt；只拥有 evidence retrieval 与 serialization helper

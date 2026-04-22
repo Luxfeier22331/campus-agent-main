@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
-
 from campus_contracts import (
     ActorContext,
     ClaimSupport,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    RagRequestPayload,
     RagResultPayload,
     RemoteContentSuspicionSummary,
     SourceTrustSummary,
+    SpecialistResponse,
+    VersionQuery,
 )
 from campus_evals import (
     ExecutionResult,
@@ -35,7 +37,6 @@ from campus_evals.operator_observability import OperatorRequestCorrelation
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
-
 
 CURRICULUM_SCOPE = KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
 LAW_FOLLOW_UP_DOC_ID = build_curriculum_program_semester_fact_document_id(
@@ -70,6 +71,7 @@ def _completed_case(
     *,
     case_id: str = "curriculum-release-gate-ethnology-title",
     user_goal: str = "民族学本科人才培养方案",
+    version_query: VersionQuery | None = None,
 ) -> GoldenCase:
     return GoldenCase(
         case_id=case_id,
@@ -78,6 +80,7 @@ def _completed_case(
         user_goal=user_goal,
         actor=ActorContext(),
         scope=CURRICULUM_SCOPE,
+        version_query=version_query or VersionQuery(),
         expected_status="completed",
         trace_expectation=TraceExpectation(
             selected_scope=CURRICULUM_SCOPE,
@@ -173,7 +176,9 @@ def _error_case(*, failure_mode: str) -> GoldenCase:
 
 
 class CurriculumLiveExecutorTest(unittest.TestCase):
-    def test_build_legacy_curriculum_live_executor_captures_retrieved_and_supporting_sources(self) -> None:
+    def test_build_legacy_curriculum_live_executor_captures_retrieved_and_supporting_sources(
+        self,
+    ) -> None:
         retrieved_bundle = EvidenceBundle(
             query_text="民族学本科人才培养方案",
             corpus="curriculum",
@@ -193,9 +198,52 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertFalse(result.observed_trace.clarification_emitted)
         self.assertFalse(result.observed_trace.error_path)
         self.assertEqual(result.observed_trace.retrieved_sources, retrieved_bundle.sources)
-        self.assertEqual(result.observed_trace.supporting_sources, result.response.result.evidence.sources)
+        self.assertEqual(
+            result.observed_trace.supporting_sources, result.response.result.evidence.sources
+        )
 
-    def test_build_app_api_curriculum_live_executor_captures_request_correlation_from_app_api(self) -> None:
+    def test_build_legacy_curriculum_live_executor_passes_case_version_query(self) -> None:
+        seen_requests = []
+
+        def fake_delegate(request, *, retriever):
+            seen_requests.append(request)
+            return SpecialistResponse(
+                target="rag-agent",
+                status="completed",
+                answer_text="旧版课程安排如下。",
+                confidence="medium",
+                result=RagResultPayload(
+                    evidence=EvidenceBundle(
+                        query_text=request.user_goal,
+                        corpus=request.payload.scope.corpus,
+                        collection=request.payload.scope.collection,
+                    )
+                ),
+            )
+
+        executor = build_legacy_curriculum_live_executor(
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="旧版民族学本科人才培养方案",
+                corpus="curriculum",
+                collection="curriculum_plan",
+            ),
+            delegate=fake_delegate,
+        )
+
+        result = executor(_completed_case(version_query=VersionQuery(mode="historical")))
+
+        self.assertEqual(len(seen_requests), 1)
+        self.assertEqual(
+            seen_requests[0].payload,
+            RagRequestPayload(
+                scope=CURRICULUM_SCOPE, version_query=VersionQuery(mode="historical")
+            ),
+        )
+        self.assertEqual(result.response.status, "completed")
+
+    def test_build_app_api_curriculum_live_executor_captures_request_correlation_from_app_api(
+        self,
+    ) -> None:
         captured: dict[str, object] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -228,7 +276,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "民族学本科人才培养方案。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_01HQ",
                         "result": {
@@ -297,7 +345,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             client.close()
 
         self.assertIsInstance(result, ExecutionResult)
-        self.assertEqual(captured["url"], "https://app-api.internal/api/internal/evals/chat/requests")
+        self.assertEqual(
+            captured["url"], "https://app-api.internal/api/internal/evals/chat/requests"
+        )
         self.assertEqual(captured["header"], "trusted-secret")
         self.assertEqual(
             result.request_correlation,
@@ -358,7 +408,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             result.response.result.evidence.sources,
         )
 
-    def test_build_app_api_curriculum_live_executor_does_not_mirror_supporting_sources_for_clarification(self) -> None:
+    def test_build_app_api_curriculum_live_executor_does_not_mirror_supporting_sources_for_clarification(
+        self,
+    ) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
@@ -385,7 +437,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     },
                     "supervisor": {
                         "status": "needs_clarification",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "answerText": "请明确是法学民族实验班还是其他法学培养方案。",
                         "followUpQuestion": "请明确是法学民族实验班还是其他法学培养方案。",
                         "traceId": "trace_curriculum_eval_clarify_01HQ",
@@ -472,7 +524,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             ("chunk-support",),
         )
 
-    def test_build_app_api_curriculum_live_executor_replays_multi_turn_follow_up_with_same_conversation(self) -> None:
+    def test_build_app_api_curriculum_live_executor_replays_multi_turn_follow_up_with_same_conversation(
+        self,
+    ) -> None:
         captured_bodies: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -505,7 +559,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                         "supervisor": {
                             "answerText": "第一学期有法理学导论等课程。",
                             "followUpQuestion": "",
-                            "selectedTarget": "rag-specialist",
+                            "selectedTarget": "rag-agent",
                             "status": "completed",
                             "traceId": "trace_curriculum_eval_followup_01",
                             "result": {
@@ -571,7 +625,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_followup_02",
                         "result": {
@@ -650,7 +704,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             ),
         )
         self.assertEqual(result.response.status, "completed")
-        self.assertEqual(result.response.answer_text, "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。")
+        self.assertEqual(
+            result.response.answer_text, "第四学期有中国少数民族文字学、侵权责任法、翻译学导论。"
+        )
         self.assertTrue(result.observed_trace.retrieval_called)
         self.assertEqual(len(result.response.result.evidence.sources), 1)
         self.assertEqual(
@@ -666,7 +722,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             "semester-4",
         )
 
-    def test_build_app_api_curriculum_live_executor_sends_verified_major_headers_for_follow_up_cases(self) -> None:
+    def test_build_app_api_curriculum_live_executor_sends_verified_major_headers_for_follow_up_cases(
+        self,
+    ) -> None:
         captured_headers: list[dict[str, str | None]] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -703,7 +761,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "第四学期有大学英语(四)、中华民族共同体概论、中国近代边疆民族史料研读、世界现当代史。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "completed",
                         "traceId": "trace_curriculum_eval_followup_03",
                         "result": {
@@ -790,7 +848,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
             "semester-4",
         )
 
-    def test_build_app_api_curriculum_live_executor_preserves_supervisor_diagnostics_and_observability(self) -> None:
+    def test_build_app_api_curriculum_live_executor_preserves_supervisor_diagnostics_and_observability(
+        self,
+    ) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
@@ -818,7 +878,7 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                     "supervisor": {
                         "answerText": "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。",
                         "followUpQuestion": "",
-                        "selectedTarget": "rag-specialist",
+                        "selectedTarget": "rag-agent",
                         "status": "no_answer",
                         "traceId": "trace_curriculum_eval_no_answer_01HQ",
                         "result": {
@@ -935,11 +995,17 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.response.status, "no_answer")
         self.assertIsNotNone(result.response.result)
         self.assertIsNotNone(result.response.result.diagnostics)
-        self.assertEqual(result.response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
-        self.assertEqual(result.response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
+        self.assertEqual(
+            result.response.result.diagnostics.semantic_outcome, "unsupported_by_evidence"
+        )
+        self.assertEqual(
+            result.response.result.diagnostics.retrieval_adequacy_verdict, "sufficient"
+        )
         self.assertEqual(result.response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
         self.assertEqual(result.response.result.diagnostics.grounding_verdict, "unsupported")
-        self.assertEqual(result.response.result.diagnostics.unsupported_fields, ("offering_unit_claims",))
+        self.assertEqual(
+            result.response.result.diagnostics.unsupported_fields, ("offering_unit_claims",)
+        )
         self.assertEqual(
             result.response.result.diagnostics.remote_content_suspicion_summary,
             RemoteContentSuspicionSummary(
@@ -972,7 +1038,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
                 ),
             ),
         )
-        self.assertEqual(result.response.result.diagnostics.resolved_scope_collection, "curriculum_plan")
+        self.assertEqual(
+            result.response.result.diagnostics.resolved_scope_collection, "curriculum_plan"
+        )
         self.assertIsNotNone(result.response.observability)
         self.assertEqual(result.response.observability.semantic_outcome, "unsupported_by_evidence")
         self.assertEqual(result.response.observability.scope_class, "in_scope")
@@ -984,7 +1052,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertIsNotNone(result.response.observability.prompt_trace)
         self.assertEqual(result.response.observability.prompt_trace.prompt_id, "rag_unsupported_v1")
 
-    def test_build_legacy_curriculum_live_executor_injects_retrieval_backend_failure_case(self) -> None:
+    def test_build_legacy_curriculum_live_executor_injects_retrieval_backend_failure_case(
+        self,
+    ) -> None:
         executor = build_legacy_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="民族学本科人才培养方案",
@@ -1003,7 +1073,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
-    def test_build_legacy_curriculum_live_executor_injects_evidence_shaping_failure_case(self) -> None:
+    def test_build_legacy_curriculum_live_executor_injects_evidence_shaping_failure_case(
+        self,
+    ) -> None:
         executor = build_legacy_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="经济学拔尖人才创新班人才培养方案课程地图怎么安排？",
@@ -1022,7 +1094,9 @@ class CurriculumLiveExecutorTest(unittest.TestCase):
         self.assertEqual(result.observed_trace.retrieved_sources, ())
         self.assertEqual(result.observed_trace.supporting_sources, ())
 
-    def test_build_legacy_curriculum_live_executor_injects_invalid_backend_contract_case(self) -> None:
+    def test_build_legacy_curriculum_live_executor_injects_invalid_backend_contract_case(
+        self,
+    ) -> None:
         executor = build_legacy_curriculum_live_executor(
             retriever=lambda *args, **kwargs: EvidenceBundle(
                 query_text="民族学本科第二学士学位人才培养方案学制几年？",
@@ -1085,7 +1159,9 @@ class CurriculumLiveProfileTest(unittest.TestCase):
         )
         self.assertEqual(len({case.case_id for case in cases}), len(cases))
 
-    def test_build_curriculum_live_profile_uses_curriculum_policy_and_metric_named_ragas_adapter(self) -> None:
+    def test_build_curriculum_live_profile_uses_curriculum_policy_and_metric_named_ragas_adapter(
+        self,
+    ) -> None:
         profile = build_curriculum_live_profile(
             env={
                 "EVAL_LLM_API_KEY": "llm-key",
@@ -1106,7 +1182,9 @@ class CurriculumLiveProfileTest(unittest.TestCase):
         self.assertEqual(len(adapters), 1)
         self.assertEqual(adapters[0].metric_names, build_default_ragas_metric_names())
 
-    def test_build_curriculum_live_profile_uses_repo_tracked_http_settings_instead_of_env(self) -> None:
+    def test_build_curriculum_live_profile_uses_repo_tracked_http_settings_instead_of_env(
+        self,
+    ) -> None:
         profile = build_curriculum_live_profile(
             env={
                 "EVAL_LLM_API_KEY": "llm-key",
@@ -1133,7 +1211,9 @@ class CurriculumLiveProfileTest(unittest.TestCase):
         )
         self.assertEqual(build_adapter.call_args.kwargs["faithfulness_nli_batch_size"], 6)
 
-    def test_build_curriculum_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(self) -> None:
+    def test_build_curriculum_live_profile_aligns_app_api_eval_timeout_with_profile_http_settings(
+        self,
+    ) -> None:
         profile = build_curriculum_live_profile(
             env={
                 "APP_API_BASE_URL": "https://app-api.internal",
@@ -1146,7 +1226,10 @@ class CurriculumLiveProfileTest(unittest.TestCase):
             }
         )
 
-        with patch("campus_evals.curriculum_live_benchmark.build_curriculum_live_executor", return_value="executor") as build_executor:
+        with patch(
+            "campus_evals.curriculum_live_benchmark.build_curriculum_live_executor",
+            return_value="executor",
+        ) as build_executor:
             executor = profile.executor_factory()
 
         self.assertEqual(executor, "executor")

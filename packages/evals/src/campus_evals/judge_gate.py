@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ALLOWED_GATE_LEVELS = frozenset({"soft_gate", "hard_gate"})
 DEFAULT_STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "student_handbook_judge_gate_policy.json"
@@ -15,7 +14,9 @@ def build_metric_key(adapter_id: str, metric_name: str) -> str:
 
 
 def load_judge_gate_policy(path: str | Path | None = None) -> dict[str, object]:
-    resolved_path = Path(path) if path is not None else DEFAULT_STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH
+    resolved_path = (
+        Path(path) if path is not None else DEFAULT_STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH
+    )
     payload = json.loads(resolved_path.read_text(encoding="utf-8"))
     if int(payload.get("schema_version") or 0) != 1:
         raise ValueError("judge gate policy schema_version must be 1")
@@ -44,8 +45,12 @@ def load_judge_gate_policy(path: str | Path | None = None) -> dict[str, object]:
                 "metric_name": metric_name,
                 "gate_level": gate_level,
                 "min_mean_score": _read_optional_float(raw_metric.get("min_mean_score")),
-                "min_run_average_score": _read_optional_float(raw_metric.get("min_run_average_score")),
-                "max_run_average_drift": _read_optional_float(raw_metric.get("max_run_average_drift")),
+                "min_run_average_score": _read_optional_float(
+                    raw_metric.get("min_run_average_score")
+                ),
+                "max_run_average_drift": _read_optional_float(
+                    raw_metric.get("max_run_average_drift")
+                ),
                 "min_applicable_runs": int(raw_metric["min_applicable_runs"])
                 if raw_metric.get("min_applicable_runs") is not None
                 else None,
@@ -133,13 +138,25 @@ def _evaluate_metric_policy(
     run_average_drift = _read_optional_float(aggregate.get("run_average_drift"))
 
     expected_min_mean = _read_optional_float(metric_policy.get("min_mean_score"))
-    if expected_min_mean is not None and mean_average_score is not None and mean_average_score < expected_min_mean:
+    if (
+        expected_min_mean is not None
+        and mean_average_score is not None
+        and mean_average_score < expected_min_mean
+    ):
         reasons.append("mean_average_score_below_threshold")
     expected_min_run = _read_optional_float(metric_policy.get("min_run_average_score"))
-    if expected_min_run is not None and min_run_average_score is not None and min_run_average_score < expected_min_run:
+    if (
+        expected_min_run is not None
+        and min_run_average_score is not None
+        and min_run_average_score < expected_min_run
+    ):
         reasons.append("min_run_average_score_below_threshold")
     expected_max_drift = _read_optional_float(metric_policy.get("max_run_average_drift"))
-    if expected_max_drift is not None and run_average_drift is not None and run_average_drift > expected_max_drift:
+    if (
+        expected_max_drift is not None
+        and run_average_drift is not None
+        and run_average_drift > expected_max_drift
+    ):
         reasons.append("run_average_drift_above_threshold")
 
     verdict = "pass" if not reasons else _verdict_for_gate_level(gate_level)

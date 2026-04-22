@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 
-from .agent_shared import _answer_prefix, _lead_source_title, _normalize_snippet, _render_source_support
+from .agent_shared import (
+    _answer_prefix,
+    _lead_source_title,
+    _normalize_snippet,
+    _render_source_support,
+)
 
 _CURRICULUM_COURSE_LIST_QUERY_HINTS = ("什么课", "哪些课", "有什么课", "有哪些课", "修什么")
 _CURRICULUM_TOTAL_CREDITS_FACT_RE = re.compile(r"总学分[^0-9]{0,12}([0-9]{2,3})(?:\s*学分)?")

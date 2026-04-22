@@ -8,22 +8,32 @@ from campus_contracts import (
     ActorContext,
     EvidenceSource,
     KnowledgeScope,
-    SpecialistTarget,
     SpecialistResponse,
+    SpecialistTarget,
     SupervisorResponse,
     SupervisorStatus,
+    VersionQuery,
 )
 from campus_contracts.models import ALLOWED_SUPERVISOR_STATUSES
+
 from campus_evals.operator_observability import OperatorRequestCorrelation
 
-
 CaseSplit = Literal["smoke", "regression_locked", "exploratory", "release_gate"]
-SourceType = Literal["expert_authored", "historical_logs", "incident_backfill", "synthetic_expansion"]
+SourceType = Literal[
+    "expert_authored", "historical_logs", "incident_backfill", "synthetic_expansion"
+]
 
 ALLOWED_CASE_SPLITS = ("smoke", "regression_locked", "exploratory", "release_gate")
-ALLOWED_SOURCE_TYPES = ("expert_authored", "historical_logs", "incident_backfill", "synthetic_expansion")
+ALLOWED_SOURCE_TYPES = (
+    "expert_authored",
+    "historical_logs",
+    "incident_backfill",
+    "synthetic_expansion",
+)
 ExpectedRuntimeTarget = SpecialistTarget | Literal["none"]
-CapabilityFamilyLabel = Literal["none", "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent"]
+CapabilityFamilyLabel = Literal[
+    "none", "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent"
+]
 ALLOWED_EXPECTED_RUNTIME_TARGETS = ("none", *ALLOWED_SPECIALIST_TARGETS)
 ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "none",
@@ -33,8 +43,8 @@ ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "notice-agent",
 )
 _RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[SpecialistTarget, CapabilityFamilyLabel] = {
-    "rag-specialist": "rag-agent",
-    "navigation-specialist": "navigation-agent",
+    "rag-agent": "rag-agent",
+    "navigation-agent": "navigation-agent",
     "campus-services-agent": "campus-services-agent",
     "notice-agent": "notice-agent",
 }
@@ -94,9 +104,13 @@ class TraceExpectation:
             self.expected_capability_family is not None
             and self.expected_capability_family not in ALLOWED_CAPABILITY_FAMILY_LABELS
         ):
-            raise ValueError(f"unsupported expected_capability_family: {self.expected_capability_family}")
+            raise ValueError(
+                f"unsupported expected_capability_family: {self.expected_capability_family}"
+            )
         if self.expected_runtime_target is not None and self.expected_capability_family is not None:
-            runtime_target = None if self.expected_runtime_target == "none" else self.expected_runtime_target
+            runtime_target = (
+                None if self.expected_runtime_target == "none" else self.expected_runtime_target
+            )
             expected_family = capability_family_for_runtime_target(runtime_target)
             if expected_family != self.expected_capability_family:
                 raise ValueError(
@@ -106,7 +120,9 @@ class TraceExpectation:
 
 @dataclass(frozen=True, slots=True)
 class GraderPolicy:
-    mode: Literal["deterministic_only", "deterministic_plus_llm", "manual_review"] = "deterministic_only"
+    mode: Literal["deterministic_only", "deterministic_plus_llm", "manual_review"] = (
+        "deterministic_only"
+    )
     grade_status: bool = True
     grade_retrieval: bool = True
     grade_answer: bool = True
@@ -126,6 +142,7 @@ class GoldenCase:
     actor: ActorContext
     expected_status: SupervisorStatus
     scope: KnowledgeScope
+    version_query: VersionQuery = field(default_factory=VersionQuery)
     conversation_turns: tuple[str, ...] = field(default_factory=tuple)
     expected_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[ExpectedSourceRef, ...] = field(default_factory=tuple)
@@ -169,7 +186,9 @@ class GoldenCase:
             if not str(key).strip() or not isinstance(value, bool)
         ]
         if invalid_metric_keys:
-            raise ValueError("supplemental_metric_overrides must map non-empty metric names to bool values")
+            raise ValueError(
+                "supplemental_metric_overrides must map non-empty metric names to bool values"
+            )
         if any(not str(field_name).strip() for field_name in self.expected_unsupported_fields):
             raise ValueError("expected_unsupported_fields must not contain empty items")
 

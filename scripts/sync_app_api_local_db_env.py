@@ -5,15 +5,14 @@ from pathlib import Path
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    SHARED_POSTGRES_OPERATOR_ENV_KEY,
     load_target_seed,
     parse_env_file,
     replace_or_append_env_values,
     require_env_value,
     resolve_source_env_path,
 )
-
 
 TARGET_PATH = Path("apps/app-api/.env")
 
@@ -35,8 +34,7 @@ def sync_app_api_local_db_env(
     )
     if not operator_database_url:
         raise ValueError(
-            "Missing required env value in source env: "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY}"
+            f"Missing required env value in source env: {SHARED_POSTGRES_OPERATOR_ENV_KEY}"
         )
 
     target_path = repo_root / TARGET_PATH

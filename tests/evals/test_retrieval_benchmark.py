@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 import campus_evals
@@ -29,7 +29,6 @@ from campus_evals import (
 )
 from campus_evals.retrieval_benchmark import main as benchmark_main
 from campus_evals.retrieval_live_benchmark import main as live_benchmark_main
-
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -158,13 +157,43 @@ def _source(
     )
 
 
+class BenchmarkModuleFacadeTest(unittest.TestCase):
+    def test_benchmark_module_keeps_public_retrieval_exports(self) -> None:
+        benchmark_module = campus_evals.benchmark
+
+        for name in (
+            "RetrievalBenchmarkRun",
+            "RetrievalCaseMetrics",
+            "RetrievalHybridQueryCase",
+            "RetrievalHybridQueryDataset",
+            "RetrievalMetricSummary",
+            "RetrievalObservedSource",
+            "RetrievalQrelsCase",
+            "RetrievalQrelsDataset",
+            "RetrievalQrelsSourceRef",
+            "evaluate_retrieval_case",
+            "evaluate_retrieval_run",
+            "load_retrieval_benchmark_run",
+            "load_retrieval_hybrid_query_dataset",
+            "load_retrieval_qrels_dataset",
+            "render_retrieval_summary_text",
+            "resolve_retrieval_fixture_manifest_path",
+            "summarize_retrieval_metrics",
+            "validate_retrieval_hybrid_query_fixture",
+            "validate_retrieval_qrels_fixture",
+        ):
+            self.assertTrue(hasattr(benchmark_module, name), name)
+
+
 class RetrievalQrelsFixtureTest(unittest.TestCase):
     def test_load_retrieval_qrels_dataset_reads_phase1_baseline(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -182,15 +211,21 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("semantic-disciplinary-relief", case_ids)
         self.assertIn("short-fact-attendance-discipline-threshold", case_ids)
         self.assertIn("structured-disciplinary-relief-materials", case_ids)
-        article_case = next(case for case in dataset.cases if case.case_id == "article-number-degree-procedure")
-        fixed_phrase_case = next(case for case in dataset.cases if case.case_id == "fixed-phrase-medical-reimbursement")
+        article_case = next(
+            case for case in dataset.cases if case.case_id == "article-number-degree-procedure"
+        )
+        fixed_phrase_case = next(
+            case for case in dataset.cases if case.case_id == "fixed-phrase-medical-reimbursement"
+        )
         policy_alias_case = next(
             case
             for case in dataset.cases
             if case.case_id == "policy-alias-national-scholarship-author-affiliation"
         )
         self.assertTrue(all(source.chunk_id is None for source in article_case.expected_sources))
-        self.assertTrue(all(source.chunk_id is None for source in fixed_phrase_case.expected_sources))
+        self.assertTrue(
+            all(source.chunk_id is None for source in fixed_phrase_case.expected_sources)
+        )
         self.assertEqual(
             tuple(source.doc_id for source in policy_alias_case.expected_sources),
             ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
@@ -265,11 +300,17 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(referenced_doc_ids)
         self.assertTrue(referenced_doc_ids.issubset(manifest_doc_ids))
 
-    def test_qrels_fixture_does_not_require_restricted_scope_cases_without_source_truth(self) -> None:
+    def test_qrels_fixture_does_not_require_restricted_scope_cases_without_source_truth(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
         manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest_has_entitlement_projection = any(item.get("entitlement_groups") for item in manifest["documents"])
-        manifest_has_visibility_scope = any(item.get("visibility_scope") for item in manifest["documents"])
+        manifest_has_entitlement_projection = any(
+            item.get("entitlement_groups") for item in manifest["documents"]
+        )
+        manifest_has_visibility_scope = any(
+            item.get("visibility_scope") for item in manifest["documents"]
+        )
 
         if manifest_has_entitlement_projection or manifest_has_visibility_scope:
             self.skipTest("student_handbook manifest now carries restricted source truth")
@@ -277,7 +318,8 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         overridden_case_ids = {
             case.case_id
             for case in dataset.cases
-            if case.request_overrides.get("entitlement_groups") or case.request_overrides.get("visibility_scope")
+            if case.request_overrides.get("entitlement_groups")
+            or case.request_overrides.get("visibility_scope")
         }
 
         self.assertEqual(overridden_case_ids, set())
@@ -287,7 +329,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="curriculum", collection="curriculum_plan"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -319,7 +363,12 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
     def test_curriculum_qrels_fixture_uses_source_faithful_scope_only(self) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
 
-        self.assertTrue(all(case.scope == KnowledgeScope(corpus="curriculum", collection="curriculum_plan") for case in dataset.cases))
+        self.assertTrue(
+            all(
+                case.scope == KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                for case in dataset.cases
+            )
+        )
         self.assertTrue(all(case.request_overrides == {} for case in dataset.cases))
 
     def test_curriculum_qrels_fixture_contains_disambiguation_and_paraphrase_cases(self) -> None:
@@ -403,15 +452,22 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             }.issubset(case_ids)
         )
 
-    def test_curriculum_qrels_fixture_contains_uniquely_grounded_sparse_fixed_phrase_case(self) -> None:
+    def test_curriculum_qrels_fixture_contains_uniquely_grounded_sparse_fixed_phrase_case(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
         cases = {case.case_id: case for case in dataset.cases}
 
         case = cases["minority-language-strong-base-fixed-phrase"]
         self.assertEqual(case.query, "古文字学方向强基计划")
         self.assertEqual(case.split, "smoke")
-        self.assertEqual(case.expected_sources[0].doc_id, "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案")
-        self.assertEqual(case.forbidden_sources[0].doc_id, "curriculum:中国少数民族语言文学本科人才培养方案")
+        self.assertEqual(
+            case.expected_sources[0].doc_id,
+            "curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+        )
+        self.assertEqual(
+            case.forbidden_sources[0].doc_id, "curriculum:中国少数民族语言文学本科人才培养方案"
+        )
 
     def test_curriculum_qrels_fixture_validation_has_no_issues(self) -> None:
         issues = validate_retrieval_qrels_fixture(
@@ -466,7 +522,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="muc_public_pages"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="official_web", collection="muc_public_pages")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -485,7 +543,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             },
         )
 
-    def test_official_web_qrels_fixture_locks_expected_sources_to_current_doc_and_version_ids(self) -> None:
+    def test_official_web_qrels_fixture_locks_expected_sources_to_current_doc_and_version_ids(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
         cases = {case.case_id: case for case in dataset.cases}
 
@@ -572,7 +632,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             },
         )
 
-    def test_validate_official_web_qrels_fixture_against_current_manifest_has_no_issues(self) -> None:
+    def test_validate_official_web_qrels_fixture_against_current_manifest_has_no_issues(
+        self,
+    ) -> None:
         self.assertEqual(
             validate_retrieval_qrels_fixture(
                 OFFICIAL_WEB_QRELS_FIXTURE_PATH,
@@ -588,12 +650,16 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             OFFICIAL_WEB_MANIFEST_PATH,
         )
 
-    def test_load_official_web_stable_reference_retrieval_qrels_dataset_reads_split_baseline(self) -> None:
+    def test_load_official_web_stable_reference_retrieval_qrels_dataset_reads_split_baseline(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH)
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="stable_reference"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="official_web", collection="stable_reference")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -612,7 +678,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             },
         )
 
-    def test_official_web_stable_reference_qrels_fixture_locks_expected_sources_to_split_doc_truth(self) -> None:
+    def test_official_web_stable_reference_qrels_fixture_locks_expected_sources_to_split_doc_truth(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH)
         cases = {case.case_id: case for case in dataset.cases}
 
@@ -661,7 +729,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             ),
         )
 
-    def test_validate_official_web_stable_reference_qrels_fixture_against_split_manifest_has_no_issues(self) -> None:
+    def test_validate_official_web_stable_reference_qrels_fixture_against_split_manifest_has_no_issues(
+        self,
+    ) -> None:
         self.assertEqual(
             validate_retrieval_qrels_fixture(
                 OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH,
@@ -671,9 +741,13 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             (),
         )
 
-    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_stable_reference_scope(self) -> None:
+    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_stable_reference_scope(
+        self,
+    ) -> None:
         self.assertEqual(
-            resolve_retrieval_fixture_manifest_path(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH),
+            resolve_retrieval_fixture_manifest_path(
+                OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH
+            ),
             OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH,
         )
 
@@ -682,13 +756,17 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="official_web", collection="fresh_news"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="official_web", collection="fresh_news")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
         self.assertEqual(len(dataset.cases), 8)
 
-    def test_validate_official_web_fresh_news_qrels_fixture_against_split_manifest_has_no_issues(self) -> None:
+    def test_validate_official_web_fresh_news_qrels_fixture_against_split_manifest_has_no_issues(
+        self,
+    ) -> None:
         self.assertEqual(
             validate_retrieval_qrels_fixture(
                 OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH,
@@ -698,13 +776,17 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
             (),
         )
 
-    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_fresh_news_scope(self) -> None:
+    def test_resolve_retrieval_fixture_manifest_path_supports_official_web_fresh_news_scope(
+        self,
+    ) -> None:
         self.assertEqual(
             resolve_retrieval_fixture_manifest_path(OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH),
             OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH,
         )
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_alias_collapsed_to_single_course(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_alias_collapsed_to_single_course(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-qrels.json"
             qrels_path.write_text(
@@ -744,7 +826,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-alias-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_alias_variant_collapsed_to_single_course(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_alias_variant_collapsed_to_single_course(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-variant-qrels.json"
             qrels_path.write_text(
@@ -784,7 +868,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-alias-variant-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_alias_collapsed_to_single_doc(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_alias_collapsed_to_single_doc(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-schedule-qrels.json"
             qrels_path.write_text(
@@ -824,7 +910,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-schedule-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_partial_alias_collapsed_to_single_doc(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_partial_alias_collapsed_to_single_doc(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-schedule-partial-qrels.json"
             qrels_path.write_text(
@@ -864,7 +952,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-schedule-partial-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_short_alias_collapsed_to_single_doc(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_short_alias_collapsed_to_single_doc(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-schedule-short-alias-qrels.json"
             qrels_path.write_text(
@@ -903,7 +993,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-schedule-short-alias-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_alias_variant_collapsed_to_single_doc(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_course_family_schedule_alias_variant_collapsed_to_single_doc(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "course-family-schedule-variant-qrels.json"
             qrels_path.write_text(
@@ -942,7 +1034,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("course-family-schedule-variant-collapsed", issues[0])
         self.assertIn("canonical qrels must not lock this", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_program_family_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_program_family_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-qrels.json"
             qrels_path.write_text(
@@ -982,7 +1076,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-membership-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_generic_experimental_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_generic_experimental_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-experimental-qrels.json"
             qrels_path.write_text(
@@ -1022,7 +1118,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-experimental-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_strong_base_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_strong_base_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-strong-base-qrels.json"
             qrels_path.write_text(
@@ -1062,7 +1160,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-strong-base-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_full_strong_base_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_full_strong_base_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-strong-base-full-qrels.json"
             qrels_path.write_text(
@@ -1102,7 +1202,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-strong-base-full-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_second_degree_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_second_degree_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-second-degree-qrels.json"
             qrels_path.write_text(
@@ -1142,7 +1244,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-second-degree-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_full_second_degree_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_full_second_degree_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-second-degree-full-qrels.json"
             qrels_path.write_text(
@@ -1182,7 +1286,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-second-degree-full-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_innovation_experimental_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_innovation_experimental_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-innovation-qrels.json"
             qrels_path.write_text(
@@ -1222,7 +1328,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-innovation-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_ethnic_experimental_membership_alias_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_ethnic_experimental_membership_alias_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-ethnic-experimental-qrels.json"
             qrels_path.write_text(
@@ -1262,7 +1370,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-ethnic-experimental-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_name_pattern_experimental_membership_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_name_pattern_experimental_membership_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-name-pattern-experimental-qrels.json"
             qrels_path.write_text(
@@ -1302,7 +1412,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-name-pattern-experimental-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_name_pattern_innovation_membership_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_name_pattern_innovation_membership_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "program-family-name-pattern-innovation-qrels.json"
             qrels_path.write_text(
@@ -1342,7 +1454,9 @@ class RetrievalQrelsFixtureTest(unittest.TestCase):
         self.assertIn("program-family-name-pattern-innovation-collapsed", issues[0])
         self.assertIn("family-aware completed case", issues[0])
 
-    def test_validate_retrieval_qrels_fixture_flags_soft_personalization_only_single_doc_truth(self) -> None:
+    def test_validate_retrieval_qrels_fixture_flags_soft_personalization_only_single_doc_truth(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             qrels_path = Path(temp_dir) / "soft-personalization-qrels.json"
             qrels_path.write_text(
@@ -1399,7 +1513,9 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
 
         self.assertIsInstance(dataset, dataset_type)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="regulations", collection="student_handbook")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -1533,8 +1649,12 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
     def test_hybrid_fixture_does_not_require_restricted_scope_when_manifest_has_none(self) -> None:
         fixture = json.loads(HYBRID_FIXTURE_PATH.read_text(encoding="utf-8"))
         manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
-        manifest_has_entitlement_projection = any(item.get("entitlement_groups") for item in manifest["documents"])
-        manifest_has_visibility_scope = any(item.get("visibility_scope") for item in manifest["documents"])
+        manifest_has_entitlement_projection = any(
+            item.get("entitlement_groups") for item in manifest["documents"]
+        )
+        manifest_has_visibility_scope = any(
+            item.get("visibility_scope") for item in manifest["documents"]
+        )
 
         if manifest_has_entitlement_projection or manifest_has_visibility_scope:
             self.skipTest("student_handbook manifest now carries restricted source truth")
@@ -1542,7 +1662,8 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         scoped_case_ids = {
             case["case_id"]
             for case in fixture["cases"]
-            if (case.get("scope") or {}).get("entitlement_groups") or (case.get("scope") or {}).get("visibility_scope")
+            if (case.get("scope") or {}).get("entitlement_groups")
+            or (case.get("scope") or {}).get("visibility_scope")
         }
         self.assertEqual(scoped_case_ids, set())
 
@@ -1567,11 +1688,15 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             ["handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"],
         )
         self.assertEqual(
-            cases_by_id["policy-alias-national-scholarship-author-affiliation"]["expected_keywords"],
+            cases_by_id["policy-alias-national-scholarship-author-affiliation"][
+                "expected_keywords"
+            ],
             ["国家奖学金", "第一作者", "第二作者"],
         )
 
-    def test_validate_hybrid_fixture_rejects_restricted_scope_and_titleless_fixed_phrase_drift(self) -> None:
+    def test_validate_hybrid_fixture_rejects_restricted_scope_and_titleless_fixed_phrase_drift(
+        self,
+    ) -> None:
         self.assertTrue(hasattr(campus_evals, "validate_retrieval_hybrid_query_fixture"))
         validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
 
@@ -1616,8 +1741,14 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                 json.dumps(
                     {
                         "documents": [
-                            {"document_id": "handbook:1", "title": "中央民族大学关于学生宿舍照明的管理规定"},
-                            {"document_id": "handbook:2", "title": "中央民族大学本科学生国家奖学金评审办法"},
+                            {
+                                "document_id": "handbook:1",
+                                "title": "中央民族大学关于学生宿舍照明的管理规定",
+                            },
+                            {
+                                "document_id": "handbook:2",
+                                "title": "中央民族大学本科学生国家奖学金评审办法",
+                            },
                         ]
                     },
                     ensure_ascii=False,
@@ -1652,7 +1783,9 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
 
         self.assertIsInstance(dataset, dataset_type)
         self.assertEqual(dataset.schema_version, 1)
-        self.assertEqual(dataset.scope, KnowledgeScope(corpus="curriculum", collection="curriculum_plan"))
+        self.assertEqual(
+            dataset.scope, KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+        )
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
@@ -1688,7 +1821,9 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
 
     def test_validate_curriculum_hybrid_fixture_accepts_current_fixture(self) -> None:
         validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
-        errors = validate_fixture(CURRICULUM_HYBRID_FIXTURE_PATH, manifest_path=CURRICULUM_MANIFEST_PATH)
+        errors = validate_fixture(
+            CURRICULUM_HYBRID_FIXTURE_PATH, manifest_path=CURRICULUM_MANIFEST_PATH
+        )
 
         self.assertEqual(errors, ())
 
@@ -1701,7 +1836,9 @@ class RetrievalMetricsTest(unittest.TestCase):
             query="library hours",
             scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
             expected_sources=(
-                RetrievalQrelsSourceRef(doc_id="handbook:library", grade=2, rationale="main document"),
+                RetrievalQrelsSourceRef(
+                    doc_id="handbook:library", grade=2, rationale="main document"
+                ),
             ),
         )
 
@@ -1768,7 +1905,9 @@ class RetrievalMetricsTest(unittest.TestCase):
             query="办公室值班时间",
             scope=KnowledgeScope(corpus="regulations", collection="student_handbook"),
             forbidden_sources=(
-                RetrievalQrelsSourceRef(doc_id="handbook:restricted-office", grade=1, rationale="restricted"),
+                RetrievalQrelsSourceRef(
+                    doc_id="handbook:restricted-office", grade=1, rationale="restricted"
+                ),
             ),
         )
 
@@ -1901,11 +2040,11 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                                         "doc_id": "handbook:library",
                                         "version_id": "v1",
                                         "chunk_id": "chunk-1",
-                                        "score": 0.9
+                                        "score": 0.9,
                                     }
-                                ]
+                                ],
                             }
-                        ]
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -1915,7 +2054,10 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
 
         self.assertIsInstance(run, RetrievalBenchmarkRun)
         self.assertEqual(run.schema_version, 1)
-        self.assertEqual(run.cases[0].retrieved_sources[0], RetrievalObservedSource("handbook:library", "v1", "chunk-1", 0.9))
+        self.assertEqual(
+            run.cases[0].retrieved_sources[0],
+            RetrievalObservedSource("handbook:library", "v1", "chunk-1", 0.9),
+        )
 
     def test_render_retrieval_summary_text_prints_expected_metrics(self) -> None:
         text = render_retrieval_summary_text(
@@ -1957,9 +2099,9 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                                 "case_id": "case-1",
                                 "split": "smoke",
                                 "query": "library hours",
-                                "expected_sources": [{"doc_id": "handbook:library", "grade": 2}]
+                                "expected_sources": [{"doc_id": "handbook:library", "grade": 2}],
                             }
-                        ]
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -1972,9 +2114,9 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
                         "cases": [
                             {
                                 "case_id": "case-1",
-                                "retrieved_sources": [{"doc_id": "handbook:library", "score": 0.9}]
+                                "retrieved_sources": [{"doc_id": "handbook:library", "score": 0.9}],
                             }
-                        ]
+                        ],
                     }
                 ),
                 encoding="utf-8",
@@ -2053,7 +2195,9 @@ class RetrievalBenchmarkCliTest(unittest.TestCase):
             run_path = Path(temp_dir) / "run.json"
             run_path.write_text(json.dumps({"schema_version": 1, "cases": []}), encoding="utf-8")
             manifest_path = Path(temp_dir) / "manifest.json"
-            manifest_path.write_text(json.dumps({"schema_version": 1, "documents": []}), encoding="utf-8")
+            manifest_path.write_text(
+                json.dumps({"schema_version": 1, "documents": []}), encoding="utf-8"
+            )
 
             stdout_buffer = io.StringIO()
             with (
@@ -2167,7 +2311,10 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
             stdout_buffer = io.StringIO()
             with (
                 patch("campus_evals.retrieval_live_benchmark.load_repo_env") as load_repo_env,
-                patch("campus_evals.retrieval_live_benchmark.build_retrieval_backend", return_value=fake_backend),
+                patch(
+                    "campus_evals.retrieval_live_benchmark.build_retrieval_backend",
+                    return_value=fake_backend,
+                ),
                 redirect_stdout(stdout_buffer),
             ):
                 exit_code = live_benchmark_main(
@@ -2286,7 +2433,10 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
 
             with (
                 patch("campus_evals.retrieval_live_benchmark.load_repo_env"),
-                patch("campus_evals.retrieval_live_benchmark.build_retrieval_backend", return_value=fake_backend),
+                patch(
+                    "campus_evals.retrieval_live_benchmark.build_retrieval_backend",
+                    return_value=fake_backend,
+                ),
             ):
                 exit_code = live_benchmark_main(
                     [

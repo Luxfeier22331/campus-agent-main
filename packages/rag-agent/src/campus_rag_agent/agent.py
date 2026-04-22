@@ -28,7 +28,6 @@ from .agent_official_web import (
     _flatten_official_web_sentences,
     _is_official_web_reference_query,
     _is_official_web_source,
-    _looks_like_official_web_low_value_tail,
     _normalize_official_web_statement_line,
     _score_official_web_statement,
 )
@@ -151,11 +150,15 @@ _PROCEDURE_TIME_HINTS = (
     "月",
     "日",
 )
+
+
 @dataclass(frozen=True, slots=True)
 class AnswerDraft:
     answer_text: str
     supporting_sources: tuple[EvidenceSource, ...]
     supporting_contexts: tuple[str, ...] = ()
+
+
 @dataclass(frozen=True, slots=True)
 class RagAgent:
     runtime_provider: str = ""
@@ -189,6 +192,8 @@ class RagAgent:
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:
         return self.build_answer(evidence).answer_text
+
+
 def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
     title = _normalize_snippet(source.source_title)
     ignored_lines = {
@@ -219,6 +224,8 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
         return tuple(dict.fromkeys(statements))
     rendered = _render_source_support(source)
     return (rendered,) if rendered else ()
+
+
 def _query_mode(query_text: str) -> str:
     normalized = _normalize_snippet(query_text).lower()
     if _is_curriculum_lookup_query(query_text):
@@ -230,6 +237,8 @@ def _query_mode(query_text: str) -> str:
     if any(hint in normalized for hint in _TIME_QUERY_HINTS):
         return "time"
     return "generic"
+
+
 def _query_keywords(query_text: str) -> tuple[str, ...]:
     normalized = _normalize_snippet(query_text).lower()
     keywords: list[str] = []
@@ -247,6 +256,8 @@ def _query_keywords(query_text: str) -> tuple[str, ...]:
                     continue
                 keywords.append(token)
     return tuple(dict.fromkeys(token for token in keywords if token))
+
+
 def _score_statement(
     query_text: str,
     source: EvidenceSource,
@@ -499,8 +510,7 @@ def _should_stop_after_official_web_reference_rows(
     if normalized_title == "博士后":
         has_stations = any("博士后科研流动站" in sentence for sentence in sentences)
         has_assessment = any(
-            "合格率均为100" in sentence or "优秀博士后流动站" in sentence
-            for sentence in sentences
+            "合格率均为100" in sentence or "优秀博士后流动站" in sentence for sentence in sentences
         )
         return has_stations and has_assessment
     if normalized_title == "研究生培养":
@@ -528,7 +538,7 @@ def _compose_generic_answer(
     topic_label = _query_topic_label(evidence.query_text)
     if lead_title and _normalize_snippet(lead_title) in _normalize_snippet(evidence.query_text):
         return f"{answer_prefix}，《{lead_title}》明确：{'；'.join(fragments)}"
-    if topic_label and topic_label not in _normalize_snippet(' '.join(fragments)):
+    if topic_label and topic_label not in _normalize_snippet(" ".join(fragments)):
         return f"{answer_prefix}，关于{topic_label}：{'；'.join(fragments)}"
     return f"{answer_prefix}，{'；'.join(fragments)}"
 

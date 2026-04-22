@@ -14,7 +14,7 @@ updated: 2026-04-21
 它回答的是：
 
 - planner-first retrieval 在本仓库里长期应长成什么样
-- `rag-specialist`、`retrieval-core`、runtime truth 各自负责什么
+- `rag-agent`、`retrieval-core`、runtime truth 各自负责什么
 - multi-step retrieval、freshness / live branch、query activity 应如何收口
 
 它不负责：
@@ -72,17 +72,17 @@ target architecture，不得把它误读成当前已开放产品 truth。
 
 长期主链路中的 retrieval 片段固定为：
 
-`supervisor admission -> rag-specialist scope resolution -> rag-specialist retrieval planner -> typed retrieval plan -> retrieval-core executor -> query activity / step results -> supporting evidence selection -> rag-specialist synthesis -> grounding validation -> supervisor finalization`
+`supervisor admission -> rag-agent scope resolution -> rag-agent retrieval planner -> typed retrieval plan -> retrieval-core executor -> query activity / step results -> supporting evidence selection -> rag-agent synthesis -> grounding validation -> supervisor finalization`
 
 其中：
 
 - supervisor 负责 capability / policy / top-level routing admission
-- `rag-specialist` 负责 plan 与 answer 语义
+- `rag-agent` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
 
 ## Ownership Model
 
-### `packages/rag-specialist`
+### `packages/rag-agent`
 
 长期负责：
 
@@ -173,6 +173,8 @@ target architecture，不得把它误读成当前已开放产品 truth。
   - 面向课程、方案家族、制度对象、地点等实体分辨
 - `scope_follow_up`
   - 在已 admitted 的 capability 内切换到 internal retrieval surface
+  - 只保留给 future explicit admission；首轮稳定 contract 可以先把它作为 reserved value，而不是
+    初始 executor 必须支持的 execution value
 - `historical_version_lookup`
   - 显式 historical / `as_of` 版本定位
 - `compare_pair_lookup`
@@ -340,4 +342,6 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`
+- `docs/contracts/rag-agent-retrieval-plan-contract.md`
+- `docs/data/retrieval-query-activity-model.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

@@ -28,7 +28,7 @@ updated: 2026-04-21
 `campus-agent` 的目标形态是：
 
 - supervisor-led `hybrid orchestration`
-- domain agent（当前 merged-truth package 仍可能保留 `*-specialist` 命名）作为稳定能力边界
+- domain agent 作为稳定能力边界
 - shared app runtime 与 execution engine 分层
 - 独立 ingestion / data plane
 - 可替换 retrieval stack
@@ -70,20 +70,21 @@ updated: 2026-04-21
   - invariant role name
   - current-truth runtime / package / contract label
   - forward family label
-- 当前 merged truth 仍保留 `rag-specialist`、`navigation-specialist` 等 current-truth label；当长期新增稳定能力边界时，前向 family 命名默认采用 `<domain>-agent`
-- 已冻结的 forward family mapping 包括：
-  - `rag-specialist -> rag-agent`
-  - `navigation-specialist -> navigation-agent`
+- 当前 merged truth 已完成首轮 runtime/package label 收口：
+  - `rag-agent`
+  - `navigation-agent`
+- 当前额外冻结的 forward family label 包括：
   - `campus-services-agent`
   - `notice-agent`
+- 当长期新增稳定能力边界时，前向 family 命名默认采用 `<domain>-agent`
 - 早期实验性的 `availability-specialist` 占位 capability 已退休；当前不再保留 `availability-agent` 之类前向 alias
-- 在 repo-wide family convergence 真正落地前，current-truth `*-specialist` label 与 target-side `*-agent` family label 可以短期并存；但不得继续无规则地新增混合命名
+- 对已完成收口的 capability family，不再维护 `*-specialist` current-truth alias；后续也不得继续无规则地新增混合命名
 - supervisor 负责 policy-driven orchestration、handoff、response finalization
 - domain agent / specialist 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - `campus-services-agent` 长期承接 transport schedule、service status、temporary override 等结构化校园服务真相
 - `notice-agent` 长期承接 notice discovery、canonical notice reading、historical downgrade 与 source-linked notice rendering
-- `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有 timetable truth 或 service-status truth；在真正迁移前，current runtime package 仍是 `packages/navigation-specialist`
-- `rag-agent` 长期拆成 scope resolution、retrieval planning、answer synthesis、grounding validation 等内部角色；在真正迁移前，current runtime package 仍是 `packages/rag-specialist`
+- `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有 timetable truth 或 service-status truth；当前 runtime package 为 `packages/navigation-agent`
+- `rag-agent` 长期拆成 scope resolution、retrieval planning、answer synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/rag-agent`
 - `retrieval-core` 长期负责 retrieval execution、rerank / merge / dedupe、query activity 与 candidate-set shaping
 - retrieval backend、vector infra、framework 选择隐藏在 specialist / retrieval boundary 之后
 - 非 RAG capability 只要是长期稳定能力边界，也应作为稳定 domain family 落地，而不是回退成 supervisor inline tool

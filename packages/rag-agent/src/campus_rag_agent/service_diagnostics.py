@@ -168,7 +168,9 @@ def _build_rag_result_diagnostics(
     ):
         return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            resolved_scope_collection=resolved_scope.collection
+            if resolved_scope is not None
+            else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
             retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
@@ -184,7 +186,9 @@ def _build_rag_result_diagnostics(
     if curriculum_program_family_plan is not None:
         return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            resolved_scope_collection=resolved_scope.collection
+            if resolved_scope is not None
+            else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
             retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
@@ -207,7 +211,9 @@ def _build_rag_result_diagnostics(
     if curriculum_course_plan is not None:
         return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            resolved_scope_collection=resolved_scope.collection
+            if resolved_scope is not None
+            else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
             retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
@@ -231,10 +237,14 @@ def _build_rag_result_diagnostics(
     if handbook_plan is not None and handbook_plan.status != "pass_through":
         return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            resolved_scope_collection=resolved_scope.collection
+            if resolved_scope is not None
+            else "",
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
             resolved_policy_title=handbook_plan.resolved_policy_title,
-            rewritten_query=(handbook_plan.rewritten_query_text if handbook_plan.status == "resolved" else ""),
+            rewritten_query=(
+                handbook_plan.rewritten_query_text if handbook_plan.status == "resolved" else ""
+            ),
             clarification_reason=handbook_plan.clarification_reason,
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
@@ -263,7 +273,9 @@ def _build_rag_result_diagnostics(
             return None
         return _diagnostics(
             resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
-            resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
+            resolved_scope_collection=resolved_scope.collection
+            if resolved_scope is not None
+            else "",
             no_answer_reason=no_answer_reason,
             semantic_outcome=semantic_outcome,
             retrieval_adequacy_verdict=_retrieval_adequacy_verdict(retrieval_adequacy),
@@ -284,9 +296,17 @@ def _build_rag_result_diagnostics(
     return _diagnostics(
         resolved_scope_corpus=resolved_scope.corpus if resolved_scope is not None else None,
         resolved_scope_collection=resolved_scope.collection if resolved_scope is not None else "",
-        resolved_policy_document_id=(curriculum_plan.target_document_ids[0] if curriculum_plan.target_document_ids else ""),
-        resolved_policy_title=(curriculum_plan.resolved_document_title if curriculum_plan.status == "resolved" else ""),
-        rewritten_query=(curriculum_plan.rewritten_query_text if curriculum_plan.status in {"resolved", "soft_preference"} else ""),
+        resolved_policy_document_id=(
+            curriculum_plan.target_document_ids[0] if curriculum_plan.target_document_ids else ""
+        ),
+        resolved_policy_title=(
+            curriculum_plan.resolved_document_title if curriculum_plan.status == "resolved" else ""
+        ),
+        rewritten_query=(
+            curriculum_plan.rewritten_query_text
+            if curriculum_plan.status in {"resolved", "soft_preference"}
+            else ""
+        ),
         clarification_reason=curriculum_plan.clarification_reason,
         no_answer_reason=no_answer_reason,
         semantic_outcome=semantic_outcome,

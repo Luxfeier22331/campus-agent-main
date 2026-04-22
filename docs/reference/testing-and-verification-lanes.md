@@ -23,6 +23,8 @@ updated: 2026-03-31
 
 ```bash
 pnpm web:lint
+pnpm docs:lint
+pnpm yaml:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 ```
@@ -30,7 +32,9 @@ uv run --all-packages ruff format . --check
 语义：
 
 - 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
-- JS/TS 侧使用 Biome，统一从 repo root 扫描 `apps/`、`packages/`、`scripts/`、`tests/` 与 root config 文件
+- JS/TS 与 JSON/JSONC config 侧使用 Biome，统一从 repo root 扫描 `apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 与 root config 文件
+- Markdown 侧使用 `markdownlint-cli2`，只覆盖 root live docs、长期 `docs/**` source-of-truth 文档与 `configs/**/README.md`，不进入 archive / historical plan 文档
+- YAML 侧使用 `pre-commit` 的 `check-yaml` hook，只做结构有效性检查
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
 

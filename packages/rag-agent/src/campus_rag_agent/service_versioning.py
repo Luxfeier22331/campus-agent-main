@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
-from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope, SpecialistRequest, SpecialistResponse
+from campus_contracts import (
+    EvidenceBundle,
+    EvidenceSource,
+    KnowledgeScope,
+    SpecialistRequest,
+    SpecialistResponse,
+)
 from campus_ingestion_core import (
-    build_document_registry_from_env,
     load_runtime_profile,
-    resolve_version_query,
 )
 from campus_ingestion_core.corpus_profiles import (
     is_official_web_stable_reference_like_profile,
@@ -51,6 +57,8 @@ def _resolve_version_answer_context(
     resolved_scope: KnowledgeScope,
     retrieval_collection: str,
     target_document_ids: tuple[str, ...],
+    build_document_registry_from_env_fn: Callable[[], Any],
+    resolve_version_query_fn: Callable[..., Any],
 ) -> _VersionAnswerContext | None:
     version_query = request.payload.version_query
     if version_query.mode == "current":
@@ -59,8 +67,8 @@ def _resolve_version_answer_context(
         return None
     try:
         runtime_profile = load_runtime_profile(resolved_scope.corpus, retrieval_collection)
-        resolved_version_query = resolve_version_query(
-            build_document_registry_from_env(),
+        resolved_version_query = resolve_version_query_fn(
+            build_document_registry_from_env_fn(),
             document_id=target_document_ids[0],
             version_query=version_query,
             preferred_revision_tracks=runtime_profile.serving_revision_tracks,

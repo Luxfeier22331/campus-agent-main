@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from contextlib import redirect_stdout
 import io
+import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from campus_evals.runtime_observability import (
     RuntimeEventWriter,
@@ -98,7 +98,9 @@ class RuntimeObservabilityTest(unittest.TestCase):
         self.assertEqual(provider["http_5xx_count"], 1)
         self.assertEqual(provider["timeout_count"], 1)
         self.assertEqual(provider["content_filter_count"], 1)
-        self.assertEqual(provider["prompt_runtime_state_counts"], {"content_filter": 1, "provider_incomplete": 1})
+        self.assertEqual(
+            provider["prompt_runtime_state_counts"], {"content_filter": 1, "provider_incomplete": 1}
+        )
         self.assertEqual(
             provider["prompt_runtime_detail_counts"],
             {"content_filter": 1, "max_output_tokens": 1},
@@ -117,7 +119,12 @@ class RuntimeObservabilityTest(unittest.TestCase):
 
             with redirect_stdout(stream):
                 with bind_runtime_event_sink(writer):
-                    with bind_runtime_event_context(run_number=1, case_id="case-1", adapter_id="ragas", metric_name="faithfulness"):
+                    with bind_runtime_event_context(
+                        run_number=1,
+                        case_id="case-1",
+                        adapter_id="ragas",
+                        metric_name="faithfulness",
+                    ):
                         emit_runtime_event(
                             "supplemental_request_failed",
                             endpoint="/responses",
@@ -144,7 +151,9 @@ class RuntimeObservabilityTest(unittest.TestCase):
         self.assertIn("retrying attempt=1/2", output)
         self.assertIn("recovered attempt=2/2", output)
 
-    def test_runtime_event_writer_verbose_mode_prints_faithfulness_checkpoint_progress(self) -> None:
+    def test_runtime_event_writer_verbose_mode_prints_faithfulness_checkpoint_progress(
+        self,
+    ) -> None:
         with TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "events.jsonl"
             writer = RuntimeEventWriter(path=path, session_id="session-1", verbose=True)
@@ -171,7 +180,9 @@ class RuntimeObservabilityTest(unittest.TestCase):
         self.assertIn("stage=nli_verdicts", output)
         self.assertIn("batch=2", output)
 
-    def test_summarize_phase15_request_truth_aggregates_adequacy_and_claim_support_summary(self) -> None:
+    def test_summarize_phase15_request_truth_aggregates_adequacy_and_claim_support_summary(
+        self,
+    ) -> None:
         summary = summarize_phase15_request_truth(
             (
                 {
@@ -214,8 +225,13 @@ class RuntimeObservabilityTest(unittest.TestCase):
         )
 
         self.assertEqual(summary["request_count"], 3)
-        self.assertEqual(summary["retrieval_adequacy_verdict_counts"], {"ambiguous": 1, "sufficient": 2})
-        self.assertEqual(summary["retrieval_adequacy_reason_counts"], {"policy_object_missing": 1, "sufficient": 2})
+        self.assertEqual(
+            summary["retrieval_adequacy_verdict_counts"], {"ambiguous": 1, "sufficient": 2}
+        )
+        self.assertEqual(
+            summary["retrieval_adequacy_reason_counts"],
+            {"policy_object_missing": 1, "sufficient": 2},
+        )
         self.assertEqual(summary["grounding_verdict_counts"], {"grounded": 1, "unsupported": 1})
         self.assertEqual(
             summary["unsupported_claim_type_counts"],

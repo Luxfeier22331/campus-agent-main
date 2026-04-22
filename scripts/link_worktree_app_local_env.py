@@ -4,7 +4,6 @@ import argparse
 import os
 from pathlib import Path
 
-
 APP_LOCAL_ENV_PATHS = (
     "apps/app-api/.dev.vars",
     "apps/app-api/.env",

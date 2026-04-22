@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "pre-commit>=4.2.0",
   "pytest>=8.0.0",
   "ruff>=0.15.11",
 ]
@@ -35,7 +36,17 @@ select = ["E4", "E7", "E9", "F", "I"]
 package = false
 
 [tool.uv.workspace]
-members = ["apps/*", "packages/*"]
+members = [
+  "apps/app-api",
+  "apps/authenticated-notice-collector",
+  "apps/ingestion-worker",
+  "apps/legacy-office-conversion-service",
+  "apps/official-web-collector",
+  "apps/protected-panel-web",
+  "apps/public-chat-web",
+  "apps/supervisor-api",
+  "packages/*",
+]
 
 [build-system]
 requires = ["hatchling>=1.24.0"]

@@ -5,24 +5,35 @@ from pathlib import Path
 from typing import Callable
 
 import httpx
+from campus_contracts import (
+    ErrorInfo,
+    EvidenceBundle,
+    RagRequestPayload,
+    RagResultPayload,
+    SpecialistRequest,
+    SpecialistResponse,
+)
+from campus_rag_agent import delegate_to_rag_agent
+from campus_retrieval_core import RetrievalBackendError, retrieve_sources
 
-from campus_contracts import ErrorInfo, EvidenceBundle, RagRequestPayload, RagResultPayload, SpecialistRequest, SpecialistResponse
 from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
-from campus_evals.handbook_benchmark import repair_handbook_formal_benchmark, run_handbook_formal_benchmark
+from campus_evals.handbook_benchmark import (
+    repair_handbook_formal_benchmark,
+    run_handbook_formal_benchmark,
+)
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
     build_default_profile_http_settings,
-    build_default_output_dir as build_shared_default_output_dir,
     build_parser_for_profile,
     main_for_profile,
+)
+from campus_evals.live_benchmark import (
+    build_default_output_dir as build_shared_default_output_dir,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.ragas_adapter import build_ragas_supplemental_adapter_from_env
 from campus_evals.scenarios import curriculum_error_gate_cases, curriculum_release_gate_cases
-from campus_rag_specialist import delegate_to_rag_agent
-from campus_retrieval_core import RetrievalBackendError, retrieve_sources
-
 
 RUN_PREFIX = "curriculum-plan-live-gate"
 REPAIR_PREFIX = "curriculum-plan-live-gate-repair"
@@ -35,8 +46,14 @@ CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH = (
 Retriever = Callable[..., EvidenceBundle]
 Delegate = Callable[..., SpecialistResponse]
 _DETERMINISTIC_ERROR_RESPONSES = {
-    "evidence_shaping_failure": ("evidence_shaping_failed", "deterministic evidence shaping failure"),
-    "invalid_backend_contract": ("invalid_backend_contract", "deterministic invalid backend contract"),
+    "evidence_shaping_failure": (
+        "evidence_shaping_failed",
+        "deterministic evidence shaping failure",
+    ),
+    "invalid_backend_contract": (
+        "invalid_backend_contract",
+        "deterministic invalid backend contract",
+    ),
 }
 
 
@@ -77,13 +94,14 @@ def build_legacy_curriculum_live_executor(
             return retrieved_evidence
 
         request = SpecialistRequest(
-            target="rag-specialist",
+            target="rag-agent",
             user_goal=case.user_goal,
-            payload=RagRequestPayload(scope=case.scope),
+            payload=RagRequestPayload(scope=case.scope, version_query=case.version_query),
             actor=case.actor,
         )
         failure_mode = str(case.metadata.get("failure_mode") or "").strip()
         if failure_mode == "retrieval_backend_failure":
+
             def _raise_retrieval_backend_failure(*args, **kwargs) -> EvidenceBundle:
                 nonlocal retrieval_called
                 retrieval_called = True
@@ -108,7 +126,9 @@ def build_legacy_curriculum_live_executor(
             retrieval_called=retrieval_called,
             clarification_emitted=response.status == "needs_clarification",
             error_path=response.status == "error",
-            retrieved_sources=() if retrieved_evidence is None else tuple(retrieved_evidence.sources),
+            retrieved_sources=()
+            if retrieved_evidence is None
+            else tuple(retrieved_evidence.sources),
             supporting_sources=supporting_sources,
         )
         return ExecutionResult(response=response, observed_trace=observed_trace)
@@ -145,7 +165,7 @@ def _build_deterministic_error_response(
     message: str,
 ) -> SpecialistResponse:
     return SpecialistResponse(
-        target="rag-specialist",
+        target="rag-agent",
         status="error",
         confidence="low",
         result=RagResultPayload(evidence=_build_empty_evidence(request)),

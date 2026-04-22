@@ -5,21 +5,14 @@ from campus_shared.env_bootstrap import (
     load_repo_env,
     reset_repo_env_bootstrap_state,
 )
-from campus_shared.provider_config import ProviderConfigResolutionError, ResolvedProviderConfig, resolve_provider_config
-from campus_shared.provider_config import (
-    ResolvedEmbeddingProviderConfig,
-    ResolvedLLMProviderConfig,
-    resolve_embedding_provider_config,
-    resolve_llm_provider_config,
-)
 from campus_shared.prompt_runtime import (
     DEFAULT_PROMPT_RUNTIME_BASE_URL,
-    NormalizedProviderGroundingSupport,
-    PromptRuntimeValidationError,
-    PromptRuntimeHTTPSettings,
-    PromptRuntimeProviderConfig,
     REPO_GLOBAL_DEVELOPER_INVARIANTS_ID,
     REPO_GLOBAL_DEVELOPER_INVARIANTS_VERSION,
+    NormalizedProviderGroundingSupport,
+    PromptRuntimeHTTPSettings,
+    PromptRuntimeProviderConfig,
+    PromptRuntimeValidationError,
     ResponsesStructuredOutputExecutor,
     StructuredOutputExecutionResult,
     build_prompt_trace,
@@ -30,6 +23,15 @@ from campus_shared.prompt_runtime import (
     serialize_prompt_payload,
     validate_prompt_packet_contract,
     validate_prompt_trace_contract,
+)
+from campus_shared.provider_config import (
+    ProviderConfigResolutionError,
+    ResolvedEmbeddingProviderConfig,
+    ResolvedLLMProviderConfig,
+    ResolvedProviderConfig,
+    resolve_embedding_provider_config,
+    resolve_llm_provider_config,
+    resolve_provider_config,
 )
 
 __all__ = [

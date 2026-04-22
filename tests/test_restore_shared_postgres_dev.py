@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import io
 import json
+import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from scripts.restore_local_postgres_dev import (
     APP_API_DEV_VARS_BACKUP_PATH,
@@ -65,19 +65,25 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 "APP_API_DATABASE_SSLMODE=disable\n",
             )
 
-            shared_root_env = "\n".join(
-                [
-                    "CAMPUS_SHARED_POSTGRES_URL=postgres://pooler.example/campus_agent",
-                    "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
-                ]
-            ) + "\n"
-            shared_app_env = "\n".join(
-                [
-                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://pooler.example/campus_agent",
-                    "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://pooler.example/campus_agent",
-                    "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent",
-                ]
-            ) + "\n"
+            shared_root_env = (
+                "\n".join(
+                    [
+                        "CAMPUS_SHARED_POSTGRES_URL=postgres://pooler.example/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                    ]
+                )
+                + "\n"
+            )
+            shared_app_env = (
+                "\n".join(
+                    [
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://pooler.example/campus_agent",
+                        "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://pooler.example/campus_agent",
+                        "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent",
+                    ]
+                )
+                + "\n"
+            )
             shared_dev_vars = "APP_API_DATABASE_SSLMODE=prefer\n"
             _write(repo_root / ROOT_ENV_BACKUP_PATH, shared_root_env)
             _write(repo_root / APP_API_ENV_BACKUP_PATH, shared_app_env)

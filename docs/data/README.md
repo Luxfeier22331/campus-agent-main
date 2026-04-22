@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-21
 ---
 
 # Data
@@ -14,10 +14,15 @@ updated: 2026-04-12
 
 - `app-api-schema.md`
 - `app-api-official-web-schema.md`
+- `canonical-document-reader-model.md`
 
 ## Navigation / entity data
 
 - `campus-navigation-place-catalog.md`
+
+## Retrieval activity / evidence data
+
+- `retrieval-query-activity-model.md`
 
 ## Infra ownership
 

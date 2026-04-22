@@ -142,6 +142,7 @@ handbook 的 canonical rebuild contract 固定如下：
 
 - handbook 自身的 `canonical.md` / `document-units.jsonl` 是一类 projection
 - handbook-derived `campus_services` service/navigation document 是另一类 projection
+- 对 `handbook_navigation_service_catalog` 这类需要版面理解的 projection，应先把提取结果落成 source bucket 下的 projection artifact，再由 replay 消费该 artifact 生成最终 document
 - attachment-bearing、appendix-bearing、form-like、navigation-like leaf 只要具备独立下游价值，也应作为 explicit derived document projection
 
 禁止做法：
@@ -149,6 +150,7 @@ handbook 的 canonical rebuild contract 固定如下：
 - 不允许 handbook-only replay 继续作为长期唯一 replay 语义
 - 不允许 later collection work 在 canonical source truth 已存在时返回 raw PDF 重新消费；do not return to raw
 - 不允许继续把 `campus_services` handbook output 维持成独立 migration worldview
+- 不允许 `handbook_navigation_service_catalog` 在 `provider_response_replay` 时重新渲染 PDF 或重新调用外部提取；缺失 projection artifact 时应 fail closed
 - 不允许把 attachment semantics 永久困在 handbook cleanup 内部而不生成 stable derived document
 
 ## 推荐的归一化层次
@@ -412,6 +414,7 @@ Unit normalization 必须满足以下边界：
 - `regulations/documents/student_handbook/.../document-units.jsonl` 继续作为 `packages/ingestion-core` 的规章导向 chunking 输入
 - 当前 query-serving 默认范围应表述为 `regulations` corpus 下的 `student_handbook` collection
 - 对外展示或清洗效果对照应优先消费 `canonical.md`，不要直接拿 chunk 文本代替
+- `handbook_navigation_service_catalog` 的 replay 输入应表述为 source bucket 下 `{raw_asset_id}/{raw_version_id}/projection/<projection_name>/flow-graph.json`，而不是 raw PDF
 - handbook 中的电话目录页不再保留在 `regulations/student_handbook` 的 split truth；后续应作为 declared projection 派生进入 `campus_services/contact_directory`
 - handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标 collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定 lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
 

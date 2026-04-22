@@ -9,8 +9,6 @@ from campus_ingestion_core.chunking_context import (
     ChunkTextAssembly,
     ChunkTextContextPlan,
     ResolvedDisplayBudget,
-    _dedupe_context_section_path,
-    _normalize_context_text,
     assemble_chunk_text,
     build_chunk_text_context,
     resolve_display_budget,
