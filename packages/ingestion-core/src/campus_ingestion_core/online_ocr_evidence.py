@@ -30,6 +30,8 @@ def extract_online_ocr_text(result_payload: dict[str, object]) -> str:
 
 def extract_provider_plain_text(*, provider: str, provider_response_bytes: bytes) -> str:
     if provider == MINERU_PROVIDER:
+        if not _looks_like_zip_archive(provider_response_bytes):
+            return extract_paddle_plain_text(provider_response_bytes)
         return _extract_mineru_archive_text(provider_response_bytes)
     return extract_paddle_plain_text(provider_response_bytes)
 
@@ -194,6 +196,10 @@ def _extract_mineru_archive_text(archive_bytes: bytes) -> str:
         if not markdown_names:
             return ""
         return archive.read(markdown_names[0]).decode("utf-8")
+
+
+def _looks_like_zip_archive(payload: bytes) -> bool:
+    return len(payload) >= 4 and payload[:4] == b"PK\x03\x04"
 
 
 def _build_text_summary(*, provider: str, model: str, text: str) -> dict[str, object]:

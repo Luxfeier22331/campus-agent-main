@@ -279,6 +279,75 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
             self.assertTrue(layout_rows)
             self.assertTrue(all(row["ocr_provider"] == "mineru_api" for row in layout_rows))
 
+    def test_source_truth_only_persists_split_mineru_raw_artifacts_and_manifest(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 mineru split"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = f"official_pdf/student-handbook/undated/sha256/{raw_hash}/capture/student-handbook.pdf"
+            object_store = _FakeObjectStore()
+            object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
+            mineru_client = _SplitMineruCanonicalClient()
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "student_handbook_documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "student_handbook_raw_assets.json"
+            )
+            raw_asset_registry.upsert(
+                _handbook_raw_asset_record(
+                    raw_asset_id="asset:student-handbook-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri="s3://campus-rag-source/official_pdf/student-handbook/student-handbook.pdf",
+                    content_hash=raw_hash,
+                    source_filename="student-handbook.pdf",
+                    object_key=raw_key,
+                    asset_kind="document",
+                    asset_subkind="pdf",
+                    classification_confidence=1.0,
+                )
+            )
+
+            report = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:student-handbook-pdf",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "regulations",
+                    "INGESTION_COLLECTION": "student_rules",
+                    "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
+                    "OCR_BASE_URL": "https://mineru.example",
+                    "OCR_API_KEY": "mineru-token",
+                    "OCR_PROVIDER_MODE": "mineru_api",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                object_store=object_store,
+                online_ocr=mineru_client,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.success_count, 1)
+            self.assertEqual(len(mineru_client.calls), 1)
+            uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
+            self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.part-0001.zip") for key in uploaded_keys)
+            )
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.part-0002.zip") for key in uploaded_keys)
+            )
+            self.assertTrue(
+                any(key.endswith("/provider-response-raw.manifest.json") for key in uploaded_keys)
+            )
+            self.assertFalse(
+                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            )
+
     def test_source_truth_only_falls_back_to_paddle_when_mineru_primary_fails_for_pdf(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

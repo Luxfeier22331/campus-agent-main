@@ -217,6 +217,86 @@ class _FailingMineruCanonicalClient:
         raise RuntimeError("mineru failed")
 
 
+class _SplitMineruCanonicalClient:
+    def __init__(self) -> None:
+        self.calls: list[Path] = []
+
+    def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        self.calls.append(pdf_path)
+        canonical_payload = {
+            "result": {
+                "dataInfo": {"numPages": 2, "type": "pdf_or_image"},
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "doc_title",
+                                    "block_content": "中央民族大学奖学金评定办法",
+                                    "block_id": "seg-1-title",
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "# 中央民族大学奖学金评定办法"},
+                    },
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "第一条 奖学金评定坚持公开、公平、公正。",
+                                    "block_id": "seg-2-body",
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "第一条 奖学金评定坚持公开、公平、公正。"},
+                    },
+                ],
+            }
+        }
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(
+                json.dumps(canonical_payload, ensure_ascii=False) + "\n"
+            ).encode("utf-8"),
+            metadata={
+                "provider": "mineru_api",
+                "file_name": pdf_path.name,
+                "state": "done",
+                "page_count": 201,
+                "split_applied": True,
+                "segment_count": 2,
+            },
+            raw_provider_artifacts=(
+                OnlineOcrRawArtifact(
+                    filename="provider-response-raw.part-0001.zip",
+                    content_type="application/zip",
+                    data=_build_mineru_canonical_archive_bytes(),
+                ),
+                OnlineOcrRawArtifact(
+                    filename="provider-response-raw.part-0002.zip",
+                    content_type="application/zip",
+                    data=_build_mineru_canonical_archive_bytes(),
+                ),
+                OnlineOcrRawArtifact(
+                    filename="provider-response-raw.manifest.json",
+                    content_type="application/json",
+                    data=(
+                        json.dumps(
+                            {
+                                "schema_version": "mineru_raw_pdf_split_manifest_v1",
+                                "segment_count": 2,
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    ).encode("utf-8"),
+                ),
+            ),
+        )
+
+
 class _SimpleTablePaddleImageClient:
     def __init__(self) -> None:
         self.calls: list[Path] = []

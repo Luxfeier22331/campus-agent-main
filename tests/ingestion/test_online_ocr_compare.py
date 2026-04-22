@@ -136,6 +136,33 @@ class _FailingMineruCompareClient:
         )
 
 
+class _SplitMineruCompareClient:
+    def parse_pdf(self, pdf_path: Path) -> OnlineOcrProviderResult:
+        return self.parse_file(pdf_path)
+
+    def parse_file(self, file_path: Path) -> OnlineOcrProviderResult:
+        payload = {
+            "result": {
+                "dataInfo": {"numPages": 2, "type": "pdf_or_image"},
+                "layoutParsingResults": [
+                    {"markdown": {"text": "分段一正文"}},
+                    {"markdown": {"text": "分段二正文"}},
+                ],
+            }
+        }
+        return OnlineOcrProviderResult(
+            provider_result_bytes=(json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"),
+            metadata={
+                "provider": "mineru_api",
+                "file_name": file_path.name,
+                "state": "done",
+                "page_count": 201,
+                "split_applied": True,
+                "segment_count": 2,
+            },
+        )
+
+
 def _build_mineru_archive_bytes(*, markdown: str, middle_payload: dict[str, object]) -> bytes:
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -305,6 +332,38 @@ class OnlineOcrCompareTest(unittest.TestCase):
                 summary["baseline"]["plain_text_preview"],
                 "Paddle baseline 第一段 Paddle baseline 第二段",
             )
+
+    def test_compare_online_ocr_accepts_split_mineru_canonical_payload(self) -> None:
+        client = _SplitMineruCompareClient()
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            file_path = root / "sample.pdf"
+            output_dir = root / "compare-output"
+            baseline_path = root / "paddle-provider-response.jsonl"
+            file_path.write_bytes(b"%PDF-1.4 compare fixture")
+            baseline_path.write_bytes(_build_paddle_provider_response_bytes())
+
+            report = compare_online_ocr(
+                request=OnlineOcrCompareRequest(
+                    file_path=file_path,
+                    output_dir=output_dir,
+                    baseline_provider_response_path=baseline_path,
+                ),
+                env={
+                    "OCR_BASE_URL": "https://mineru.example",
+                    "OCR_API_KEY": "secret",
+                    "OCR_PROVIDER_MODE": "mineru_api",
+                },
+                online_ocr=client,
+            )
+
+            summary = json.loads(Path(report.summary_path).read_text(encoding="utf-8"))
+            self.assertTrue(report.provider_response_path.endswith("provider-response.jsonl"))
+            self.assertIsNone(report.candidate_markdown_path)
+            self.assertEqual(summary["candidate"]["status"], "success")
+            self.assertEqual(summary["candidate"]["provider_metadata"]["segment_count"], 2)
+            self.assertEqual(summary["candidate"]["plain_text_preview"], "分段一正文 分段二正文")
 
     def test_compare_online_ocr_marks_empty_candidate_and_prefers_usable_baseline(self) -> None:
         client = _EmptyMineruCompareClient()

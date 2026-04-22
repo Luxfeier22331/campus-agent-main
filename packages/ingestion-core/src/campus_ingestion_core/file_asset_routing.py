@@ -63,6 +63,8 @@ MINERU_PROVIDER = "mineru_api"
 PADDLE_PARSER_VERSION = "paddleocr-vl-1.5"
 MINERU_ADAPTED_PARSER_VERSION = "mineru-vlm-adapted-v1"
 RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME = "provider-response-raw.zip"
+RAW_PROVIDER_RESPONSE_MANIFEST_FILENAME = "provider-response-raw.manifest.json"
+RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE = "provider-response-raw.part-{index:04d}.zip"
 
 _MINERU_COMPLEX_IMAGE_SUBKINDS = {
     "complex_table_image",
@@ -739,6 +741,8 @@ __all__ = [
     "PADDLE_ASYNC_PROVIDER",
     "PADDLE_PARSER_VERSION",
     "RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME",
+    "RAW_PROVIDER_RESPONSE_MANIFEST_FILENAME",
+    "RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE",
     "RawAssetTypeRefinement",
     "RawAssetTypedMetadata",
     "adapt_mineru_archive_to_canonical_provider_payload",

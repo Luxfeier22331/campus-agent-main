@@ -38,6 +38,7 @@ from campus_ingestion_core.raw_ingestion import (
 from campus_ingestion_core.raw_ingestion_online_ocr import (
     MineruApiClient,
     OnlineOcrProviderContractError,
+    OnlineOcrRawArtifact,
     OnlineOcrSettings,
     PaddleOcrAsyncClient,
     PaddleOcrLayoutParsingServiceClient,

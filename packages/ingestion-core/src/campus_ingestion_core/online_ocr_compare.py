@@ -114,9 +114,6 @@ def compare_online_ocr(
             raw_asset_record=raw_asset_record,
         )
         ocr_client = online_ocr or build_online_ocr_client(settings)
-        provider_suffix = (
-            ".zip" if settings.provider == ONLINE_OCR_PROVIDER_MINERU_API else ".jsonl"
-        )
         provider_response_path: Path | None = None
         candidate_markdown_path: Path | None = None
         candidate_text = ""
@@ -131,6 +128,12 @@ def compare_online_ocr(
                 else ocr_client.parse_file(input_path)
             )
             candidate_metadata = provider_result.metadata
+            provider_suffix = (
+                ".zip"
+                if settings.provider == ONLINE_OCR_PROVIDER_MINERU_API
+                and _looks_like_zip_archive(provider_result.provider_result_bytes)
+                else ".jsonl"
+            )
             provider_response_path = request.output_dir / f"provider-response{provider_suffix}"
             provider_response_path.write_bytes(provider_result.provider_result_bytes)
             candidate_provider_response_available = True
@@ -391,6 +394,8 @@ def _extract_candidate_text(
 ) -> tuple[str, Path | None, str | None, str | None]:
     try:
         if provider == ONLINE_OCR_PROVIDER_MINERU_API:
+            if not _looks_like_zip_archive(provider_response_bytes):
+                return extract_paddle_plain_text(provider_response_bytes), None, None, None
             candidate_markdown_path = _extract_mineru_archive(
                 archive_bytes=provider_response_bytes,
                 output_dir=output_dir,
@@ -404,6 +409,10 @@ def _extract_candidate_text(
         return extract_paddle_plain_text(provider_response_bytes), None, None, None
     except Exception as exc:
         return "", None, type(exc).__name__, str(exc)
+
+
+def _looks_like_zip_archive(payload: bytes) -> bool:
+    return len(payload) >= 4 and payload[:4] == b"PK\x03\x04"
 
 
 def _load_baseline_provider_response_bytes(
