@@ -1,11 +1,11 @@
 [
-  {
-    "type": "5",
-    "name": "办公通知",
-    "enabled": true,
-    "incrementalPages": 3,
-    "incrementalPageSize": 20,
-    "backfillPages": 108,
-    "backfillPageSize": 20
-  }
+	{
+		"type": "5",
+		"name": "办公通知",
+		"enabled": true,
+		"incrementalPages": 3,
+		"incrementalPageSize": 20,
+		"backfillPages": 108,
+		"backfillPageSize": 20
+	}
 ]
