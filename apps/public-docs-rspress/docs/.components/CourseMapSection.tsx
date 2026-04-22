@@ -1,166 +1,161 @@
-import { useState, type ReactNode } from "react";
-import {
-  Background,
-  Controls,
-  MiniMap,
-  Position,
-  ReactFlow,
-  ReactFlowProvider,
-  type Edge,
-  type Node,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
+import { lazy, Suspense, useMemo, useState } from "react";
 import "./course-map-section.css";
+import { buildNodeKey, type CourseMapData, type CourseMapNode } from "./course-map-types";
 
-type CourseMapNode = {
-  node_label: string;
-  stage_label: string;
-  category_label: string;
-};
-
-type CourseMapEdge = {
-  source_label: string;
-  target_label: string;
-};
-
-type CourseMapData = {
-  title: string;
-  documentTitle: string;
-  documentId: string;
-  pageNumber: number;
-  rowId: string;
-  parentHeadingHint: string;
-  displayStageLabels: string[];
-  nodes: CourseMapNode[];
-  edges: CourseMapEdge[];
-  manualReviewNotes: string[];
-  reviewedAt: string;
-};
+const CourseRelationGraphView = lazy(() => import("./CourseRelationGraphView"));
 
 type Props = {
   data: CourseMapData;
   imageSrc: string;
 };
 
-type CourseFlowNodeData = {
-  label: ReactNode;
-  stage: string;
-  selected: boolean;
-};
+type CourseMapViewMode = "route" | "graph";
 
-const STAGE_X_STEP = 240;
-const NODE_Y_STEP = 108;
-const COLUMN_PADDING = 28;
-const ROW_PADDING = 28;
+const ROUTE_GROUP_LABELS = {
+  foundation: "公共基础",
+  core: "专业核心",
+  extension: "拓展与个性化",
+  practice: "实践环节",
+} as const;
 
-function buildNodeKey(node: CourseMapNode): string {
-  return `${node.stage_label}::${node.node_label}`;
-}
+const ROUTE_GROUP_ORDER = ["foundation", "core", "extension", "practice"] as const;
 
-function buildStageLabels(data: CourseMapData): string[] {
+function resolveStageLabels(data: CourseMapData): string[] {
   return data.displayStageLabels.length
     ? data.displayStageLabels
     : Array.from(new Set(data.nodes.map((node) => node.stage_label).filter(Boolean)));
 }
 
-function buildFlowNodes({
-  data,
-  stageLabels,
-  activeNodeKey,
-}: {
-  data: CourseMapData;
-  stageLabels: string[];
-  activeNodeKey: string | null;
-}): Node<CourseFlowNodeData>[] {
-  return data.nodes.map((node, index) => {
-    const stageIndex = Math.max(0, stageLabels.indexOf(node.stage_label));
-    const rowIndex = data.nodes
-      .slice(0, index)
-      .filter((candidate) => candidate.stage_label === node.stage_label).length;
-    const nodeKey = buildNodeKey(node);
-    return {
-      id: nodeKey,
-      position: {
-        x: COLUMN_PADDING + stageIndex * STAGE_X_STEP,
-        y: ROW_PADDING + rowIndex * NODE_Y_STEP,
-      },
-      data: {
-        label: (
-          <div>
-            <div className="course-map-flow-stage">{node.stage_label}</div>
-            <div className="course-map-flow-label">{node.node_label}</div>
-          </div>
-        ),
-        stage: node.stage_label,
-        selected: nodeKey === activeNodeKey,
-      },
-      draggable: false,
-      selectable: true,
-      className: nodeKey === activeNodeKey ? "course-map-flow-node selected" : "course-map-flow-node",
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
-    };
-  });
+function resolveNodeGroup(node: CourseMapNode): keyof typeof ROUTE_GROUP_LABELS {
+  const routeGroup = node.route_group ?? "core";
+  return routeGroup in ROUTE_GROUP_LABELS ? routeGroup : "core";
 }
 
-function buildFlowEdges({
+function buildRelatedLabelSet({
   data,
-  activeNodeKey,
+  activeNode,
 }: {
   data: CourseMapData;
-  activeNodeKey: string | null;
-}): Edge[] {
-  const knownNodes = new Set(data.nodes.map((node) => buildNodeKey(node)));
-  const activeLabel = activeNodeKey?.split("::").slice(1).join("::") ?? null;
-  return data.edges
-    .map((edge, index) => {
-      const source = resolveEdgeNodeId(data.nodes, edge.source_label, knownNodes);
-      const target = resolveEdgeNodeId(data.nodes, edge.target_label, knownNodes);
-      if (!source || !target) {
-        return null;
-      }
-      const highlighted = activeLabel === edge.source_label || activeLabel === edge.target_label;
-      return {
-        id: `edge-${index}-${source}-${target}`,
-        source,
-        target,
-        type: "smoothstep",
-        animated: highlighted,
-        className: highlighted ? "course-map-flow-edge highlighted" : "course-map-flow-edge",
-      } satisfies Edge;
-    })
-    .filter((edge): edge is Edge => edge !== null);
-}
-
-function resolveEdgeNodeId(
-  nodes: CourseMapNode[],
-  nodeLabel: string,
-  knownNodes: Set<string>,
-): string | null {
-  const exact = nodes.find((node) => buildNodeKey(node) === nodeLabel);
-  if (exact && knownNodes.has(buildNodeKey(exact))) {
-    return buildNodeKey(exact);
+  activeNode: CourseMapNode | null;
+}): Set<string> {
+  if (!activeNode) {
+    return new Set();
   }
-  const matched = nodes.find((node) => node.node_label === nodeLabel);
-  return matched ? buildNodeKey(matched) : null;
+  const labels = new Set<string>();
+  for (const edge of data.edges) {
+    if (edge.source_label === activeNode.node_label) {
+      labels.add(edge.target_label);
+    }
+    if (edge.target_label === activeNode.node_label) {
+      labels.add(edge.source_label);
+    }
+  }
+  return labels;
 }
 
-function buildFlowHeight(data: CourseMapData, stageLabels: string[]): number {
-  const maxRows = Math.max(
-    1,
-    ...stageLabels.map(
-      (stageLabel) => data.nodes.filter((node) => node.stage_label === stageLabel).length,
-    ),
+function buildStageGroups({
+  nodes,
+}: {
+  nodes: CourseMapNode[];
+}): Array<{ group: keyof typeof ROUTE_GROUP_LABELS; items: CourseMapNode[] }> {
+  return ROUTE_GROUP_ORDER.map((group) => ({
+    group,
+    items: nodes.filter((node) => resolveNodeGroup(node) === group),
+  })).filter((entry) => entry.items.length > 0);
+}
+
+function CourseRouteMapView({
+  data,
+  activeNodeKey,
+  onSelectNode,
+}: {
+  data: CourseMapData;
+  activeNodeKey: string | null;
+  onSelectNode: (nodeKey: string) => void;
+}) {
+  const stageLabels = resolveStageLabels(data);
+  const activeNode =
+    data.nodes.find((node) => buildNodeKey(node) === activeNodeKey) ?? null;
+  const relatedLabels = buildRelatedLabelSet({ data, activeNode });
+
+  return (
+    <section className="course-map-route-shell">
+      <div className="course-map-route-copy">
+        <h4>培养路径</h4>
+        <p>默认按学期展示课程路线。点击课程卡片可查看它的一跳关联课程。</p>
+      </div>
+      <div className="course-map-stage-strip" aria-label="课程路线图">
+        {stageLabels.map((stageLabel) => {
+          const stageNodes = data.nodes.filter((node) => node.stage_label === stageLabel);
+          const groups = buildStageGroups({ nodes: stageNodes });
+          if (!groups.length) {
+            return null;
+          }
+          return (
+            <section key={stageLabel} className="course-map-stage-column">
+              <div className="course-map-stage-header">
+                <h5>{stageLabel}</h5>
+                <span>{stageNodes.length} 门</span>
+              </div>
+              <div className="course-map-stage-groups">
+                {groups.map(({ group, items }) => (
+                  <section key={`${stageLabel}-${group}`} className="course-map-route-group">
+                    <h6>{ROUTE_GROUP_LABELS[group]}</h6>
+                    <div className="course-map-route-card-list">
+                      {items.map((node) => {
+                        const nodeKey = buildNodeKey(node);
+                        const selected = nodeKey === activeNodeKey;
+                        const related = !selected && relatedLabels.has(node.node_label);
+                        return (
+                          <button
+                            key={nodeKey}
+                            type="button"
+                            className={
+                              selected
+                                ? "course-map-route-card selected"
+                                : related
+                                  ? "course-map-route-card related"
+                                  : "course-map-route-card"
+                            }
+                            onClick={() => onSelectNode(nodeKey)}
+                          >
+                            <span className="course-map-route-card-title">{node.node_label}</span>
+                            <span className="course-map-route-card-meta">
+                              {ROUTE_GROUP_LABELS[resolveNodeGroup(node)]}
+                            </span>
+                            {(node.incoming_count ?? 0) > 0 || (node.outgoing_count ?? 0) > 0 ? (
+                              <span className="course-map-route-card-status">
+                                {(node.incoming_count ?? 0) > 0
+                                  ? `${node.incoming_count} 个前置`
+                                  : "无前置"}
+                                {" · "}
+                                {(node.outgoing_count ?? 0) > 0
+                                  ? `${node.outgoing_count} 个后续`
+                                  : "无后续"}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </section>
   );
-  return Math.max(420, ROW_PADDING * 2 + maxRows * NODE_Y_STEP);
 }
 
-function CourseMapSectionContent({ data, imageSrc }: Props) {
-  const stageLabels = buildStageLabels(data);
+export default function CourseMapSection({ data, imageSrc }: Props) {
+  const stageLabels = resolveStageLabels(data);
   const initialNode = data.nodes[0] ?? null;
   const [activeNodeKey, setActiveNodeKey] = useState<string | null>(
     initialNode ? buildNodeKey(initialNode) : null,
   );
+  const [viewMode, setViewMode] = useState<CourseMapViewMode>("route");
   const activeNode =
     data.nodes.find((node) => buildNodeKey(node) === activeNodeKey) ?? initialNode;
   const outgoingEdges = activeNode
@@ -169,16 +164,13 @@ function CourseMapSectionContent({ data, imageSrc }: Props) {
   const incomingEdges = activeNode
     ? data.edges.filter((edge) => edge.target_label === activeNode.node_label)
     : [];
-  const flowNodes = buildFlowNodes({
-    data,
-    stageLabels,
-    activeNodeKey,
-  });
-  const flowEdges = buildFlowEdges({
-    data,
-    activeNodeKey,
-  });
-  const flowHeight = buildFlowHeight(data, stageLabels);
+  const activeGroupLabel = activeNode
+    ? ROUTE_GROUP_LABELS[resolveNodeGroup(activeNode)]
+    : null;
+  const summary = useMemo(
+    () => `${stageLabels.length} 个阶段 · ${data.nodes.length} 个节点 · ${data.edges.length} 条关系`,
+    [data.edges.length, data.nodes.length, stageLabels.length],
+  );
 
   return (
     <section className="course-map-shell">
@@ -186,84 +178,68 @@ function CourseMapSectionContent({ data, imageSrc }: Props) {
         <div>
           <p className="course-map-eyebrow">已校对课程地图</p>
           <h3>{data.title}</h3>
-          <p className="course-map-meta">
-            来源页 {data.pageNumber} · 节点 {data.nodes.length} · 先修关系 {data.edges.length}
-          </p>
+          <p className="course-map-meta">来源页 {data.pageNumber} · {summary}</p>
         </div>
       </header>
 
-      <section className="course-map-graph-panel">
-        <div className="course-map-graph-copy">
-          <h4>课程关系图</h4>
-          <p>按学期分列展示课程节点，点击图中的课程可以查看它的前置与后续关系。</p>
-        </div>
-        <div className="course-map-stage-legend" aria-label="课程阶段图例">
-          {stageLabels.map((stageLabel) => (
-            <span key={stageLabel}>{stageLabel}</span>
-          ))}
-        </div>
-        <div className="course-map-flow-shell" style={{ height: `${flowHeight}px` }}>
-          <ReactFlow
-            nodes={flowNodes}
-            edges={flowEdges}
-            fitView
-            fitViewOptions={{ padding: 0.14 }}
-            minZoom={0.4}
-            maxZoom={1.5}
-            onNodeClick={(_, node) => setActiveNodeKey(node.id)}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable
-            proOptions={{ hideAttribution: true }}
-          >
-            <MiniMap
-              pannable
-              zoomable
-              nodeColor={(node) =>
-                node.className?.includes("selected") ? "#2f7a56" : "#b9d5c5"
-              }
-            />
-            <Controls showInteractive={false} />
-            <Background gap={18} size={1} color="#e1eee7" />
-          </ReactFlow>
-        </div>
-      </section>
-
-      <div className="course-map-grid">
-        {stageLabels.map((stageLabel) => {
-          const nodes = data.nodes.filter((node) => node.stage_label === stageLabel);
-          if (!nodes.length) {
-            return null;
+      <div className="course-map-view-toggle" role="tablist" aria-label="课程地图视图切换">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === "route"}
+          className={
+            viewMode === "route" ? "course-map-view-tab selected" : "course-map-view-tab"
           }
-          return (
-            <section key={stageLabel} className="course-map-stage">
-              <h4>{stageLabel}</h4>
-              <div className="course-map-node-list">
-                {nodes.map((node) => {
-                  const nodeKey = buildNodeKey(node);
-                  const selected = nodeKey === activeNodeKey;
-                  return (
-                    <button
-                      key={nodeKey}
-                      className={selected ? "course-map-node selected" : "course-map-node"}
-                      type="button"
-                      onClick={() => setActiveNodeKey(nodeKey)}
-                    >
-                      {node.node_label}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+          onClick={() => setViewMode("route")}
+        >
+          培养路径
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === "graph"}
+          className={
+            viewMode === "graph" ? "course-map-view-tab selected" : "course-map-view-tab"
+          }
+          onClick={() => setViewMode("graph")}
+        >
+          关系图
+        </button>
       </div>
+
+      {viewMode === "route" ? (
+        <CourseRouteMapView
+          data={data}
+          activeNodeKey={activeNodeKey}
+          onSelectNode={setActiveNodeKey}
+        />
+      ) : (
+        <Suspense
+          fallback={
+            <section className="course-map-graph-loading">
+              <h4>正在加载关系图</h4>
+              <p>关系图只在进入该视图后挂载，用于控制默认阅读页的复杂度。</p>
+            </section>
+          }
+        >
+          <CourseRelationGraphView
+            data={data}
+            activeNodeKey={activeNodeKey}
+            onSelectNode={setActiveNodeKey}
+          />
+        </Suspense>
+      )}
 
       {activeNode ? (
         <section className="course-map-detail">
           <div className="course-map-detail-header">
-            <h4>{activeNode.node_label}</h4>
-            <span>{activeNode.stage_label}</span>
+            <div>
+              <h4>{activeNode.node_label}</h4>
+              <p>
+                {activeNode.stage_label}
+                {activeGroupLabel ? ` · ${activeGroupLabel}` : ""}
+              </p>
+            </div>
           </div>
           <div className="course-map-edge-columns">
             <div>
@@ -310,13 +286,5 @@ function CourseMapSectionContent({ data, imageSrc }: Props) {
         </section>
       ) : null}
     </section>
-  );
-}
-
-export default function CourseMapSection(props: Props) {
-  return (
-    <ReactFlowProvider>
-      <CourseMapSectionContent {...props} />
-    </ReactFlowProvider>
   );
 }
