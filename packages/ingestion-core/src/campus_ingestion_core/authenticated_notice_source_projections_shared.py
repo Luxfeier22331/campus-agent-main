@@ -19,7 +19,8 @@ from campus_ingestion_core.file_asset_routing import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import is_source_object_key
-from campus_ingestion_core.raw_ingestion import (
+from campus_ingestion_core.raw_ingestion_online_ocr import (
+    ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     OnlineOcrClient,
 )
 
@@ -45,6 +46,8 @@ AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE =
     "operational_schedule_guide_image"
 )
 _NORMALIZED_NOTICE_PROVIDER_SUFFIX = "provider/bundle-import-v1/normalized-notice.json"
+
+__all__ = ("ONLINE_OCR_PROVIDER_ASYNC_JOBS",)
 
 
 class AuthenticatedNoticeProjectionObjectStore(Protocol):

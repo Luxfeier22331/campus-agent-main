@@ -2066,22 +2066,19 @@ class CurriculumChunkingTest(unittest.TestCase):
 
         self.assertTrue(target_chunk.text.startswith("二、课程设置及培养要求"))
 
-    def test_runtime_v2_keeps_retrievable_course_map_section_chunks(self) -> None:
+    def test_runtime_v2_excludes_course_map_section_chunks_from_query_serving(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks("经济学拔尖人才创新班人才培养方案")
-
-        target_chunk = next(
-            chunk
-            for chunk in chunks
-            if chunk.metadata["unit_type"] == "section_text"
-            and chunk.anchor["section_path"]
-            == [
-                "经济学拔尖人才创新班人才培养方案",
-                "六、课程地图",
-            ]
+        self.assertFalse(
+            any(
+                chunk.metadata["unit_type"] == "section_text"
+                and chunk.anchor["section_path"]
+                == [
+                    "经济学拔尖人才创新班人才培养方案",
+                    "六、课程地图",
+                ]
+                for chunk in chunks
+            )
         )
-
-        self.assertTrue(target_chunk.text.startswith("六、课程地图"))
-        self.assertIn("拓扑图", target_chunk.text)
 
     def test_runtime_v2_does_not_leave_course_map_title_card_on_previous_section(self) -> None:
         _, chunks = _build_real_curriculum_runtime_chunks(

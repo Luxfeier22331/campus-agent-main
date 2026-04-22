@@ -9,6 +9,8 @@ from campus_ingestion_core.chunking_context import (
     ChunkTextAssembly,
     ChunkTextContextPlan,
     ResolvedDisplayBudget,
+    _dedupe_context_section_path,
+    _normalize_context_text,
     assemble_chunk_text,
     build_chunk_text_context,
     resolve_display_budget,
@@ -77,6 +79,8 @@ from campus_ingestion_core.chunking_tokenizers import (
 from campus_ingestion_core.handbook_article_structure import (
     article_structure_has_nested_subclauses,
 )
+
+__all__ = ("_dedupe_context_section_path", "_normalize_context_text")
 
 DEFAULT_CHUNK_SIZE = 240
 DEFAULT_MAX_CHUNK_SIZE = 360

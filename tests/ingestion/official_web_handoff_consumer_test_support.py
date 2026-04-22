@@ -3,6 +3,19 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from campus_ingestion_core.campusrag_ingestion_reporting import ImportReport
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
+from campus_ingestion_core.official_web_chunking_audit import OfficialWebProjectionChunkingAuditReport
+from campus_ingestion_core.official_web_projection_shared import (
+    OfficialWebProjectionReplayReport,
+    OfficialWebProjectionValidationReport,
+)
+from campus_ingestion_worker import (
+    OfficialWebHandoffConsumeResult,
+    OfficialWebHandoffConsumerSettings,
+    consume_handoff_record,
+)
+
 
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)

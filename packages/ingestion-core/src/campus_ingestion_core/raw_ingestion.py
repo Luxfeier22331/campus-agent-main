@@ -40,13 +40,19 @@ from campus_ingestion_core.online_ocr_evidence import (
     extract_provider_plain_text,
 )
 from campus_ingestion_core.raw_ingestion_online_ocr import (
+    DEFAULT_ONLINE_OCR_MODEL,
+    DEFAULT_ONLINE_OCR_PROVIDER,
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
+    OnlineOcrProviderResult,
     OnlineOcrSettings,
+    build_online_ocr_client,
     normalize_online_ocr_provider_label,
+    parse_online_ocr_bytes,
 )
 from campus_ingestion_core.raw_ingestion_source_truth_support import (
+    DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION,
     ObjectStoreReader,
     S3ObjectStoreClient,
     SourceTruthOnlyOcrDeferredError,
@@ -65,7 +71,9 @@ from campus_ingestion_core.raw_ingestion_source_truth_support import (
 )
 from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_handbook_split_manifest_documents,
+    _build_split_manifest_document_input,
     _build_split_manifest_documents,
+    _load_layout_elements_rows,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -81,6 +89,26 @@ from campus_ingestion_core.split_manifest import (
 
 DEFAULT_RAW_INGESTION_ARTIFACT_MODE = "normalized"
 ALLOWED_RAW_INGESTION_ARTIFACT_MODES = ("normalized", "source_truth_only")
+
+__all__ = (
+    "DEFAULT_ONLINE_OCR_MODEL",
+    "DEFAULT_ONLINE_OCR_PROVIDER",
+    "DEFAULT_RAW_ONLINE_OCR_PARSER_VERSION",
+    "ONLINE_OCR_PROVIDER_ASYNC_JOBS",
+    "ONLINE_OCR_PROVIDER_MINERU_API",
+    "OnlineOcrClient",
+    "OnlineOcrProviderResult",
+    "OnlineOcrSettings",
+    "RawIngestionProcessSettings",
+    "RawIngestionRequest",
+    "S3ObjectStoreClient",
+    "_build_split_manifest_document_input",
+    "_load_layout_elements_rows",
+    "build_online_ocr_client",
+    "normalize_online_ocr_provider_label",
+    "parse_online_ocr_bytes",
+    "process_raw_ingestion_job",
+)
 
 
 @dataclass(frozen=True, slots=True)

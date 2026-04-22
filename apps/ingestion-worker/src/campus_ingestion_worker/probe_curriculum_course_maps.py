@@ -8,7 +8,10 @@ from typing import Sequence
 
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     DEFAULT_GOLD_MANIFEST_PATH,
+    DEFAULT_MAX_INFLIGHT_PAGES,
+    DEFAULT_MAX_REQUEST_ATTEMPTS,
     DEFAULT_PROMPT_RUNS,
+    DEFAULT_PROMPT_RUNTIME_TRANSPORT,
     DEFAULT_REPEATABILITY_THRESHOLD,
     DEFAULT_SAMPLE_MANIFEST_PATH,
     DEFAULT_SPLIT_MANIFEST_PATH,
@@ -40,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--layout-elements-path")
     parser.add_argument("--output-dir")
     parser.add_argument("--prompt-runs", type=int, default=DEFAULT_PROMPT_RUNS)
+    parser.add_argument("--prompt-transport", default=DEFAULT_PROMPT_RUNTIME_TRANSPORT)
+    parser.add_argument("--max-inflight-pages", type=int, default=DEFAULT_MAX_INFLIGHT_PAGES)
+    parser.add_argument("--max-request-attempts", type=int, default=DEFAULT_MAX_REQUEST_ATTEMPTS)
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument(
         "--repeatability-threshold", type=float, default=DEFAULT_REPEATABILITY_THRESHOLD
     )
@@ -69,6 +76,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         output_dir=Path(args.output_dir) if args.output_dir else None,
         prompt_runs=args.prompt_runs,
         repeatability_threshold=args.repeatability_threshold,
+        prompt_transport=args.prompt_transport,
+        max_inflight_pages=args.max_inflight_pages,
+        max_request_attempts=args.max_request_attempts,
+        resume=args.resume,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

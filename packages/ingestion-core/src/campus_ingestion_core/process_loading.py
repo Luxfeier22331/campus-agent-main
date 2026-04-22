@@ -30,6 +30,7 @@ _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset(
 _INTERNAL_NOTICE_NOTICE_BODY_LANE = "notice_body"
 _INTERNAL_NOTICE_ATTACHMENT_TEXT_LANE = "attachment_text_extractable"
 _INTERNAL_NOTICE_ATTACHMENT_OCR_LANE = "attachment_ocr_required"
+_CURRICULUM_COURSE_MAP_HEADING = "六、课程地图"
 
 
 def build_handbook_chunk_profile(record: DocumentRegistryRecord) -> ChunkProfile:
@@ -239,6 +240,8 @@ def should_skip_curriculum_unit(
     unit: StructuredUnit, table_roots_with_semantic_units: set[str]
 ) -> bool:
     if should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    if is_curriculum_course_map_section_unit(unit):
         return True
     return is_curriculum_course_map_noise_unit(unit)
 
@@ -465,6 +468,13 @@ def is_curriculum_course_map_noise_unit(unit: StructuredUnit) -> bool:
     return non_root_heading_count > 0 or title_line_count > 1
 
 
+def is_curriculum_course_map_section_unit(unit: StructuredUnit) -> bool:
+    normalized_path = _normalize_curriculum_structural_path(
+        list(normalize_section_path(unit.anchor))
+    )
+    return bool(normalized_path) and normalized_path[-1] == _CURRICULUM_COURSE_MAP_HEADING
+
+
 def normalize_section_path(anchor: dict[str, object]) -> tuple[str, ...]:
     section_path = anchor.get("section_path")
     if not isinstance(section_path, list):
@@ -484,6 +494,7 @@ __all__ = [
     "load_curriculum_runtime_structured_units",
     "load_default_structured_units",
     "load_internal_notice_structured_units",
+    "is_curriculum_course_map_section_unit",
     "resolve_curriculum_unit_chunk_profile",
     "resolve_default_unit_chunk_profile",
     "resolve_effective_visibility_level",
