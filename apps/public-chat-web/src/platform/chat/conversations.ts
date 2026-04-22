@@ -2,11 +2,11 @@ import { getConversationDetail, listConversations } from "./api";
 import { mapConversationDetail, mapConversationSummary } from "./mappers";
 
 export async function listShellConversations() {
-  const conversations = await listConversations();
-  return conversations.map(mapConversationSummary);
+	const conversations = await listConversations();
+	return conversations.map(mapConversationSummary);
 }
 
 export async function getShellConversationDetail(conversationId: string) {
-  const conversation = await getConversationDetail(conversationId);
-  return mapConversationDetail(conversation);
+	const conversation = await getConversationDetail(conversationId);
+	return mapConversationDetail(conversation);
 }

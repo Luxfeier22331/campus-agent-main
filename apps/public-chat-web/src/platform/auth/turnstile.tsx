@@ -3,244 +3,226 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
 import {
-  AUTH_RUNTIME_CONFIG_SCRIPT_ID,
-  parseTurnstileRuntimeConfigSource,
-  type TurnstileRuntimeConfig,
+	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
+	parseTurnstileRuntimeConfigSource,
+	type TurnstileRuntimeConfig,
 } from "./turnstile-runtime-config";
 
 const TURNSTILE_SCRIPT_URL =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+	"https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
 type AuthTurnstileAction = "sign-in" | "sign-up" | "request-password-reset";
 
 export interface AuthTurnstileController {
-  ensureToken: () => Promise<boolean>;
+	ensureToken: () => Promise<boolean>;
 }
 
 type TurnstileWidget = {
-  execute?: (widgetId: string) => void;
-  remove?: (widgetId: string) => void;
-  render: (
-    container: HTMLElement | string,
-    options: Record<string, unknown>,
-  ) => string;
+	execute?: (widgetId: string) => void;
+	remove?: (widgetId: string) => void;
+	render: (container: HTMLElement | string, options: Record<string, unknown>) => string;
 };
 
 declare global {
-  interface Window {
-    turnstile?: TurnstileWidget;
-  }
+	interface Window {
+		turnstile?: TurnstileWidget;
+	}
 }
 
 let turnstileScriptPromise: Promise<void> | null = null;
 
 function readTurnstileRuntimeConfig(): TurnstileRuntimeConfig {
-  if (typeof document === "undefined") {
-    return parseTurnstileRuntimeConfigSource(null);
-  }
+	if (typeof document === "undefined") {
+		return parseTurnstileRuntimeConfigSource(null);
+	}
 
-  const script = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID);
-  return parseTurnstileRuntimeConfigSource(script?.textContent);
+	const script = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID);
+	return parseTurnstileRuntimeConfigSource(script?.textContent);
 }
 
 async function loadTurnstileScript(): Promise<void> {
-  if (typeof window === "undefined") {
-    return;
-  }
-  if (window.turnstile) {
-    return;
-  }
-  if (turnstileScriptPromise) {
-    return turnstileScriptPromise;
-  }
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (window.turnstile) {
+		return;
+	}
+	if (turnstileScriptPromise) {
+		return turnstileScriptPromise;
+	}
 
-  turnstileScriptPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-auth-turnstile="true"]',
-    );
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener(
-        "error",
-        () => {
-          turnstileScriptPromise = null;
-          reject(new Error("Turnstile script failed to load."));
-        },
-        { once: true },
-      );
-      return;
-    }
+	turnstileScriptPromise = new Promise<void>((resolve, reject) => {
+		const existing = document.querySelector<HTMLScriptElement>(
+			'script[data-auth-turnstile="true"]',
+		);
+		if (existing) {
+			existing.addEventListener("load", () => resolve(), { once: true });
+			existing.addEventListener(
+				"error",
+				() => {
+					turnstileScriptPromise = null;
+					reject(new Error("Turnstile script failed to load."));
+				},
+				{ once: true },
+			);
+			return;
+		}
 
-    const script = document.createElement("script");
-    script.async = true;
-    script.dataset.authTurnstile = "true";
-    script.defer = true;
-    script.src = TURNSTILE_SCRIPT_URL;
-    script.onload = () => resolve();
-    script.onerror = () => {
-      turnstileScriptPromise = null;
-      reject(new Error("Turnstile script failed to load."));
-    };
-    document.head.appendChild(script);
-  });
+		const script = document.createElement("script");
+		script.async = true;
+		script.dataset.authTurnstile = "true";
+		script.defer = true;
+		script.src = TURNSTILE_SCRIPT_URL;
+		script.onload = () => resolve();
+		script.onerror = () => {
+			turnstileScriptPromise = null;
+			reject(new Error("Turnstile script failed to load."));
+		};
+		document.head.appendChild(script);
+	});
 
-  return turnstileScriptPromise;
+	return turnstileScriptPromise;
 }
 
 export function AuthTurnstileField(props: {
-  action: AuthTurnstileAction;
-  onController?: (controller: AuthTurnstileController | null) => void;
+	action: AuthTurnstileAction;
+	onController?: (controller: AuthTurnstileController | null) => void;
 }) {
-  const { action, onController } = props;
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPrimed, setIsPrimed] = useState(false);
-  const [token, setToken] = useState("");
-  const [runtimeConfig, setRuntimeConfig] = useState<TurnstileRuntimeConfig>(() =>
-    readTurnstileRuntimeConfig(),
-  );
-  const containerId = useId();
-  const widgetIdRef = useRef<string | null>(null);
-  const widgetRef = useRef<HTMLDivElement | null>(null);
-  const tokenInputRef = useRef<HTMLInputElement | null>(null);
-  const tokenRef = useRef("");
-  const pendingEnsureResolversRef = useRef<Array<(didResolve: boolean) => void>>([]);
-  const { turnstileAppearance, turnstileExecution, turnstileSiteKey: siteKey } =
-    runtimeConfig;
+	const { action, onController } = props;
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [isPrimed, setIsPrimed] = useState(false);
+	const [token, setToken] = useState("");
+	const [runtimeConfig, setRuntimeConfig] = useState<TurnstileRuntimeConfig>(() =>
+		readTurnstileRuntimeConfig(),
+	);
+	const containerId = useId();
+	const widgetIdRef = useRef<string | null>(null);
+	const widgetRef = useRef<HTMLDivElement | null>(null);
+	const tokenInputRef = useRef<HTMLInputElement | null>(null);
+	const tokenRef = useRef("");
+	const pendingEnsureResolversRef = useRef<Array<(didResolve: boolean) => void>>([]);
+	const { turnstileAppearance, turnstileExecution, turnstileSiteKey: siteKey } = runtimeConfig;
 
-  const commitToken = useEffectEvent((nextToken: string) => {
-    tokenRef.current = nextToken;
-    setToken(nextToken);
-    if (tokenInputRef.current) {
-      tokenInputRef.current.value = nextToken;
-    }
-  });
+	const commitToken = useEffectEvent((nextToken: string) => {
+		tokenRef.current = nextToken;
+		setToken(nextToken);
+		if (tokenInputRef.current) {
+			tokenInputRef.current.value = nextToken;
+		}
+	});
 
-  const resolvePendingEnsures = useEffectEvent((didResolve: boolean) => {
-    const resolvers = pendingEnsureResolversRef.current.splice(0);
-    for (const resolve of resolvers) {
-      resolve(didResolve);
-    }
-  });
+	const resolvePendingEnsures = useEffectEvent((didResolve: boolean) => {
+		const resolvers = pendingEnsureResolversRef.current.splice(0);
+		for (const resolve of resolvers) {
+			resolve(didResolve);
+		}
+	});
 
-  const ensureToken = useEffectEvent(async () => {
-    if (!siteKey) {
-      setErrorMessage("暂时无法加载安全验证。");
-      return false;
-    }
+	const ensureToken = useEffectEvent(async () => {
+		if (!siteKey) {
+			setErrorMessage("暂时无法加载安全验证。");
+			return false;
+		}
 
-    if (tokenRef.current) {
-      return true;
-    }
+		if (tokenRef.current) {
+			return true;
+		}
 
-    setErrorMessage(null);
-    setIsPrimed(true);
+		setErrorMessage(null);
+		setIsPrimed(true);
 
-    return new Promise<boolean>((resolve) => {
-      pendingEnsureResolversRef.current.push(resolve);
-    });
-  });
+		return new Promise<boolean>((resolve) => {
+			pendingEnsureResolversRef.current.push(resolve);
+		});
+	});
 
-  useEffect(() => {
-    setRuntimeConfig(readTurnstileRuntimeConfig());
-  }, []);
+	useEffect(() => {
+		setRuntimeConfig(readTurnstileRuntimeConfig());
+	}, []);
 
-  useEffect(() => {
-    if (!isPrimed || !siteKey || !widgetRef.current) {
-      return;
-    }
+	useEffect(() => {
+		if (!isPrimed || !siteKey || !widgetRef.current) {
+			return;
+		}
 
-    let cancelled = false;
+		let cancelled = false;
 
-    void loadTurnstileScript()
-      .then(() => {
-        if (cancelled || !widgetRef.current || !window.turnstile) {
-          return;
-        }
+		void loadTurnstileScript()
+			.then(() => {
+				if (cancelled || !widgetRef.current || !window.turnstile) {
+					return;
+				}
 
-        setErrorMessage(null);
-        widgetIdRef.current = window.turnstile.render(widgetRef.current, {
-          action,
-          appearance: turnstileAppearance,
-          callback(value: unknown) {
-            commitToken(typeof value === "string" ? value : "");
-            setErrorMessage(null);
-            resolvePendingEnsures(true);
-          },
-          execution: turnstileExecution,
-          "error-callback"() {
-            commitToken("");
-            setErrorMessage("安全验证未通过，请重试。");
-            resolvePendingEnsures(false);
-          },
-          "expired-callback"() {
-            commitToken("");
-            setErrorMessage("安全验证已失效，请重新完成。");
-            resolvePendingEnsures(false);
-          },
-          sitekey: siteKey,
-          theme: "light",
-        });
-        if (
-          turnstileExecution === "execute" &&
-          widgetIdRef.current &&
-          window.turnstile.execute
-        ) {
-          window.turnstile.execute(widgetIdRef.current);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setErrorMessage("暂时无法加载安全验证。");
-          resolvePendingEnsures(false);
-        }
-      });
+				setErrorMessage(null);
+				widgetIdRef.current = window.turnstile.render(widgetRef.current, {
+					action,
+					appearance: turnstileAppearance,
+					callback(value: unknown) {
+						commitToken(typeof value === "string" ? value : "");
+						setErrorMessage(null);
+						resolvePendingEnsures(true);
+					},
+					execution: turnstileExecution,
+					"error-callback"() {
+						commitToken("");
+						setErrorMessage("安全验证未通过，请重试。");
+						resolvePendingEnsures(false);
+					},
+					"expired-callback"() {
+						commitToken("");
+						setErrorMessage("安全验证已失效，请重新完成。");
+						resolvePendingEnsures(false);
+					},
+					sitekey: siteKey,
+					theme: "light",
+				});
+				if (turnstileExecution === "execute" && widgetIdRef.current && window.turnstile.execute) {
+					window.turnstile.execute(widgetIdRef.current);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setErrorMessage("暂时无法加载安全验证。");
+					resolvePendingEnsures(false);
+				}
+			});
 
-    return () => {
-      cancelled = true;
-      commitToken("");
-      resolvePendingEnsures(false);
-      if (widgetIdRef.current && window.turnstile?.remove) {
-        window.turnstile.remove(widgetIdRef.current);
-      } else if (widgetRef.current) {
-        widgetRef.current.innerHTML = "";
-      }
-      widgetIdRef.current = null;
-    };
-  }, [
-    action,
-    commitToken,
-    isPrimed,
-    resolvePendingEnsures,
-    siteKey,
-    turnstileAppearance,
-    turnstileExecution,
-  ]);
+		return () => {
+			cancelled = true;
+			commitToken("");
+			resolvePendingEnsures(false);
+			if (widgetIdRef.current && window.turnstile?.remove) {
+				window.turnstile.remove(widgetIdRef.current);
+			} else if (widgetRef.current) {
+				widgetRef.current.innerHTML = "";
+			}
+			widgetIdRef.current = null;
+		};
+	}, [action, isPrimed, siteKey, turnstileAppearance, turnstileExecution]);
 
-  useEffect(() => {
-    if (!onController) {
-      return;
-    }
+	useEffect(() => {
+		if (!onController) {
+			return;
+		}
 
-    onController({
-      ensureToken,
-    });
+		onController({
+			ensureToken,
+		});
 
-    return () => {
-      onController(null);
-    };
-  }, [ensureToken, onController]);
+		return () => {
+			onController(null);
+		};
+	}, [onController]);
 
-  return (
-    <div className="flex flex-col gap-2">
-      <input name="captchaToken" readOnly ref={tokenInputRef} type="hidden" value={token} />
-      {siteKey ? (
-        <div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
-      ) : (
-        <p className="text-[12px] text-destructive">暂时无法加载安全验证。</p>
-      )}
-      {errorMessage ? (
-        <p className="text-[12px] text-destructive">{errorMessage}</p>
-      ) : null}
-    </div>
-  );
+	return (
+		<div className="flex flex-col gap-2">
+			<input name="captchaToken" readOnly ref={tokenInputRef} type="hidden" value={token} />
+			{siteKey ? (
+				<div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
+			) : (
+				<p className="text-[12px] text-destructive">暂时无法加载安全验证。</p>
+			)}
+			{errorMessage ? <p className="text-[12px] text-destructive">{errorMessage}</p> : null}
+		</div>
+	);
 }

@@ -1,210 +1,199 @@
 export const DEFAULT_CHAT_MODEL = "moonshotai/kimi-k2-0905";
 
 export const titleModel = {
-  id: "mistral/mistral-small",
-  name: "Mistral Small",
-  provider: "mistral",
-  description: "Fast model for title generation",
-  gatewayOrder: ["mistral"],
+	id: "mistral/mistral-small",
+	name: "Mistral Small",
+	provider: "mistral",
+	description: "Fast model for title generation",
+	gatewayOrder: ["mistral"],
 };
 
 export type ModelCapabilities = {
-  tools: boolean;
-  vision: boolean;
-  reasoning: boolean;
+	tools: boolean;
+	vision: boolean;
+	reasoning: boolean;
 };
 
 type GatewayEndpointsResponse = {
-  data?: {
-    architecture?: {
-      input_modalities?: string[];
-    };
-    endpoints?: Array<{
-      supported_parameters?: string[];
-    }>;
-  };
+	data?: {
+		architecture?: {
+			input_modalities?: string[];
+		};
+		endpoints?: Array<{
+			supported_parameters?: string[];
+		}>;
+	};
 };
 
 export type ChatModel = {
-  id: string;
-  name: string;
-  provider: string;
-  description: string;
-  gatewayOrder?: string[];
-  reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
+	id: string;
+	name: string;
+	provider: string;
+	description: string;
+	gatewayOrder?: string[];
+	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
 };
 
 export const chatModels: ChatModel[] = [
-  {
-    id: "deepseek/deepseek-v3.2",
-    name: "DeepSeek V3.2",
-    provider: "deepseek",
-    description: "Fast and capable model with tool use",
-    gatewayOrder: ["bedrock", "deepinfra"],
-  },
-  {
-    id: "mistral/codestral",
-    name: "Codestral",
-    provider: "mistral",
-    description: "Code-focused model with tool use",
-    gatewayOrder: ["mistral"],
-  },
-  {
-    id: "mistral/mistral-small",
-    name: "Mistral Small",
-    provider: "mistral",
-    description: "Fast vision model with tool use",
-    gatewayOrder: ["mistral"],
-  },
-  {
-    id: "moonshotai/kimi-k2-0905",
-    name: "Kimi K2 0905",
-    provider: "moonshotai",
-    description: "Fast model with tool use",
-    gatewayOrder: ["baseten", "fireworks"],
-  },
-  {
-    id: "moonshotai/kimi-k2.5",
-    name: "Kimi K2.5",
-    provider: "moonshotai",
-    description: "Moonshot AI flagship model",
-    gatewayOrder: ["fireworks", "bedrock"],
-  },
-  {
-    id: "openai/gpt-oss-20b",
-    name: "GPT OSS 20B",
-    provider: "openai",
-    description: "Compact reasoning model",
-    gatewayOrder: ["groq", "bedrock"],
-    reasoningEffort: "low",
-  },
-  {
-    id: "openai/gpt-oss-120b",
-    name: "GPT OSS 120B",
-    provider: "openai",
-    description: "Open-source 120B parameter model",
-    gatewayOrder: ["fireworks", "bedrock"],
-    reasoningEffort: "low",
-  },
-  {
-    id: "xai/grok-4.1-fast-non-reasoning",
-    name: "Grok 4.1 Fast",
-    provider: "xai",
-    description: "Fast non-reasoning model with tool use",
-    gatewayOrder: ["xai"],
-  },
+	{
+		id: "deepseek/deepseek-v3.2",
+		name: "DeepSeek V3.2",
+		provider: "deepseek",
+		description: "Fast and capable model with tool use",
+		gatewayOrder: ["bedrock", "deepinfra"],
+	},
+	{
+		id: "mistral/codestral",
+		name: "Codestral",
+		provider: "mistral",
+		description: "Code-focused model with tool use",
+		gatewayOrder: ["mistral"],
+	},
+	{
+		id: "mistral/mistral-small",
+		name: "Mistral Small",
+		provider: "mistral",
+		description: "Fast vision model with tool use",
+		gatewayOrder: ["mistral"],
+	},
+	{
+		id: "moonshotai/kimi-k2-0905",
+		name: "Kimi K2 0905",
+		provider: "moonshotai",
+		description: "Fast model with tool use",
+		gatewayOrder: ["baseten", "fireworks"],
+	},
+	{
+		id: "moonshotai/kimi-k2.5",
+		name: "Kimi K2.5",
+		provider: "moonshotai",
+		description: "Moonshot AI flagship model",
+		gatewayOrder: ["fireworks", "bedrock"],
+	},
+	{
+		id: "openai/gpt-oss-20b",
+		name: "GPT OSS 20B",
+		provider: "openai",
+		description: "Compact reasoning model",
+		gatewayOrder: ["groq", "bedrock"],
+		reasoningEffort: "low",
+	},
+	{
+		id: "openai/gpt-oss-120b",
+		name: "GPT OSS 120B",
+		provider: "openai",
+		description: "Open-source 120B parameter model",
+		gatewayOrder: ["fireworks", "bedrock"],
+		reasoningEffort: "low",
+	},
+	{
+		id: "xai/grok-4.1-fast-non-reasoning",
+		name: "Grok 4.1 Fast",
+		provider: "xai",
+		description: "Fast non-reasoning model with tool use",
+		gatewayOrder: ["xai"],
+	},
 ];
 
-export async function getCapabilities(): Promise<
-  Record<string, ModelCapabilities>
-> {
-  const results = await Promise.all(
-    chatModels.map(async (model) => {
-      try {
-        const res = await fetch(
-          `https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`,
-          {
-            cache: "force-cache",
-            headers: {
-              accept: "application/json",
-            },
-          },
-        );
-        if (!res.ok) {
-          return [model.id, { tools: false, vision: false, reasoning: false }];
-        }
+export async function getCapabilities(): Promise<Record<string, ModelCapabilities>> {
+	const results = await Promise.all(
+		chatModels.map(async (model) => {
+			try {
+				const res = await fetch(`https://ai-gateway.vercel.sh/v1/models/${model.id}/endpoints`, {
+					cache: "force-cache",
+					headers: {
+						accept: "application/json",
+					},
+				});
+				if (!res.ok) {
+					return [model.id, { tools: false, vision: false, reasoning: false }];
+				}
 
-        const json = (await res.json()) as GatewayEndpointsResponse;
-        const endpoints = json.data?.endpoints ?? [];
-        const params = new Set(
-          endpoints.flatMap(
-            (endpoint) => endpoint.supported_parameters ?? [],
-          ),
-        );
-        const inputModalities = new Set(
-          json.data?.architecture?.input_modalities ?? [],
-        );
+				const json = (await res.json()) as GatewayEndpointsResponse;
+				const endpoints = json.data?.endpoints ?? [];
+				const params = new Set(
+					endpoints.flatMap((endpoint) => endpoint.supported_parameters ?? []),
+				);
+				const inputModalities = new Set(json.data?.architecture?.input_modalities ?? []);
 
-        return [
-          model.id,
-          {
-            tools: params.has("tools"),
-            vision: inputModalities.has("image"),
-            reasoning: params.has("reasoning"),
-          },
-        ];
-      } catch {
-        return [model.id, { tools: false, vision: false, reasoning: false }];
-      }
-    }),
-  );
+				return [
+					model.id,
+					{
+						tools: params.has("tools"),
+						vision: inputModalities.has("image"),
+						reasoning: params.has("reasoning"),
+					},
+				];
+			} catch {
+				return [model.id, { tools: false, vision: false, reasoning: false }];
+			}
+		}),
+	);
 
-  return Object.fromEntries(results);
+	return Object.fromEntries(results);
 }
 
 export const isDemo = process.env.IS_DEMO === "1";
 
 type GatewayModel = {
-  id: string;
-  name: string;
-  type?: string;
-  tags?: string[];
+	id: string;
+	name: string;
+	type?: string;
+	tags?: string[];
 };
 
 type GatewayModelsResponse = {
-  data?: GatewayModel[];
+	data?: GatewayModel[];
 };
 
 export type GatewayModelWithCapabilities = ChatModel & {
-  capabilities: ModelCapabilities;
+	capabilities: ModelCapabilities;
 };
 
-export async function getAllGatewayModels(): Promise<
-  GatewayModelWithCapabilities[]
-> {
-  try {
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
-      cache: "force-cache",
-      headers: {
-        accept: "application/json",
-      },
-    });
-    if (!res.ok) {
-      return [];
-    }
+export async function getAllGatewayModels(): Promise<GatewayModelWithCapabilities[]> {
+	try {
+		const res = await fetch("https://ai-gateway.vercel.sh/v1/models", {
+			cache: "force-cache",
+			headers: {
+				accept: "application/json",
+			},
+		});
+		if (!res.ok) {
+			return [];
+		}
 
-    const json = (await res.json()) as GatewayModelsResponse;
-    return (json.data ?? [])
-      .filter((model) => model.type === "language")
-      .map((model) => ({
-        id: model.id,
-        name: model.name,
-        provider: model.id.split("/")[0],
-        description: "",
-        capabilities: {
-          tools: model.tags?.includes("tool-use") ?? false,
-          vision: model.tags?.includes("vision") ?? false,
-          reasoning: model.tags?.includes("reasoning") ?? false,
-        },
-      }));
-  } catch {
-    return [];
-  }
+		const json = (await res.json()) as GatewayModelsResponse;
+		return (json.data ?? [])
+			.filter((model) => model.type === "language")
+			.map((model) => ({
+				id: model.id,
+				name: model.name,
+				provider: model.id.split("/")[0],
+				description: "",
+				capabilities: {
+					tools: model.tags?.includes("tool-use") ?? false,
+					vision: model.tags?.includes("vision") ?? false,
+					reasoning: model.tags?.includes("reasoning") ?? false,
+				},
+			}));
+	} catch {
+		return [];
+	}
 }
 
 export function getActiveModels(): ChatModel[] {
-  return chatModels;
+	return chatModels;
 }
 
 export const allowedModelIds = new Set(chatModels.map((model) => model.id));
 
 export const modelsByProvider = chatModels.reduce(
-  (accumulator, model) => {
-    if (!accumulator[model.provider]) {
-      accumulator[model.provider] = [];
-    }
-    accumulator[model.provider].push(model);
-    return accumulator;
-  },
-  {} as Record<string, ChatModel[]>,
+	(accumulator, model) => {
+		if (!accumulator[model.provider]) {
+			accumulator[model.provider] = [];
+		}
+		accumulator[model.provider].push(model);
+		return accumulator;
+	},
+	{} as Record<string, ChatModel[]>,
 );

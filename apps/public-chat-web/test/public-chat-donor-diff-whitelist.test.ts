@@ -8,30 +8,30 @@ import previewAttachmentSource from "../vendor/vercel-ai-chatbot/components/chat
 import sidebarHistoryItemSource from "../vendor/vercel-ai-chatbot/components/chat/sidebar-history-item.tsx?raw";
 
 describe("public chat donor diff whitelist", () => {
-  it("keeps chat sharing off the launch path because campus mode is private-only", () => {
-    expect(useActiveChatSource).toContain('visibilityType: "private"');
+	it("keeps chat sharing off the launch path because campus mode is private-only", () => {
+		expect(useActiveChatSource).toContain('visibilityType: "private"');
 
-    expect(chatHeaderSource).not.toContain("VisibilitySelector");
-    expect(chatHeaderSource).not.toContain("selectedVisibilityType");
+		expect(chatHeaderSource).not.toContain("VisibilitySelector");
+		expect(chatHeaderSource).not.toContain("selectedVisibilityType");
 
-    expect(sidebarHistoryItemSource).not.toContain("useChatVisibility");
-    expect(sidebarHistoryItemSource).not.toContain("ShareIcon");
-    expect(sidebarHistoryItemSource).not.toContain("<span>Share</span>");
-    expect(sidebarHistoryItemSource).not.toContain("<span>Public</span>");
-  });
+		expect(sidebarHistoryItemSource).not.toContain("useChatVisibility");
+		expect(sidebarHistoryItemSource).not.toContain("ShareIcon");
+		expect(sidebarHistoryItemSource).not.toContain("<span>Share</span>");
+		expect(sidebarHistoryItemSource).not.toContain("<span>Public</span>");
+	});
 
-  it("limits donor-visible diffs to accepted platform seams", () => {
-    expect(chatHeaderSource).toContain('from "next/link"');
-    expect(chatHeaderSource).not.toContain("VisibilitySelector");
+	it("limits donor-visible diffs to accepted platform seams", () => {
+		expect(chatHeaderSource).toContain('from "next/link"');
+		expect(chatHeaderSource).not.toContain("VisibilitySelector");
 
-    expect(previewAttachmentSource).toContain('from "next/image"');
-    expect(previewAttachmentSource).not.toContain("@platform/ui/app-image");
+		expect(previewAttachmentSource).toContain('from "next/image"');
+		expect(previewAttachmentSource).not.toContain("@platform/ui/app-image");
 
-    expect(artifactsActionsSource).toContain("@/lib/db/queries");
-    expect(artifactsActionsSource).not.toContain("@platform/artifacts/suggestions");
-    expect(artifactsActionsSource).not.toContain('"use server"');
+		expect(artifactsActionsSource).toContain("@/lib/db/queries");
+		expect(artifactsActionsSource).not.toContain("@platform/artifacts/suggestions");
+		expect(artifactsActionsSource).not.toContain('"use server"');
 
-    expect(messageEditorSource).toContain('@/app/(chat)/actions');
-    expect(messageEditorSource).not.toContain("@platform/chat/message-edits");
-  });
+		expect(messageEditorSource).toContain("@/app/(chat)/actions");
+		expect(messageEditorSource).not.toContain("@platform/chat/message-edits");
+	});
 });

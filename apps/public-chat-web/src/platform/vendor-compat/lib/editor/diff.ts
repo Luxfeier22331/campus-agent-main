@@ -6,7 +6,7 @@ import { DiffType, diffEditor as diffEditorRuntime } from "../../../../../vendor
 export { DiffType };
 
 export const diffEditor: (
-  schema: Schema,
-  oldDoc: Record<string, unknown>,
-  newDoc: Record<string, unknown>,
+	schema: Schema,
+	oldDoc: Record<string, unknown>,
+	newDoc: Record<string, unknown>,
 ) => ProsemirrorNode = diffEditorRuntime;
