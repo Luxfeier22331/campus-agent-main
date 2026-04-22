@@ -5,7 +5,7 @@ import os
 import re
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 WORKSTREAM_SESSION_ENV_KEYS = [
@@ -50,16 +50,16 @@ class WorkstreamNotFoundError(WorkstreamClaimError):
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def isoformat_utc(value: datetime) -> str:
-    normalized = value.astimezone(timezone.utc).replace(microsecond=0)
+    normalized = value.astimezone(UTC).replace(microsecond=0)
     return normalized.isoformat().replace("+00:00", "Z")
 
 
 def parse_utc(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 def sanitize_workstream_session_token(value: object | None) -> str | None:

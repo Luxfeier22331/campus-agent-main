@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -39,7 +39,7 @@ def _seed_repo(root: Path, *workstreams: str) -> None:
 
 
 def _utc(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
 
 
 class WorkstreamClaimRuntimeTest(unittest.TestCase):
@@ -67,7 +67,7 @@ class WorkstreamClaimRuntimeTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             slug = "shared-product-surfaces-acceptance-hardening"
             _seed_repo(repo_root, slug)
-            now = datetime(2026, 4, 19, 4, 0, tzinfo=timezone.utc)
+            now = datetime(2026, 4, 19, 4, 0, tzinfo=UTC)
 
             first_claim = acquire_workstream_claim(
                 repo_root=repo_root,
@@ -122,7 +122,7 @@ class WorkstreamClaimRuntimeTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             slug = "shared-file-asset-loader-contract"
             _seed_repo(repo_root, slug)
-            now = datetime(2026, 4, 19, 4, 0, tzinfo=timezone.utc)
+            now = datetime(2026, 4, 19, 4, 0, tzinfo=UTC)
 
             first_claim = acquire_workstream_claim(
                 repo_root=repo_root,
@@ -242,7 +242,7 @@ class WorkstreamClaimRuntimeTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             slug = "shared-file-asset-loader-contract"
             _seed_repo(repo_root, slug)
-            now = datetime(2026, 4, 19, 4, 0, tzinfo=timezone.utc)
+            now = datetime(2026, 4, 19, 4, 0, tzinfo=UTC)
 
             claim = acquire_workstream_claim(
                 repo_root=repo_root,
@@ -280,13 +280,15 @@ class WorkstreamClaimDocsContractTest(unittest.TestCase):
         )
 
         self.assertIn("workstream-claim-workflow.md", readme)
-        self.assertIn("python -m scripts.workstream_claim", readme)
+        self.assertIn("python -m scripts.workstream_claim operator set", readme)
+        self.assertIn("python -m scripts.workstream_harness", readme)
         self.assertIn("operator set", contributing)
-        self.assertIn("session shell", contributing)
-        self.assertIn("repo-owned claim workflow", agents)
+        self.assertIn("workstream_harness", contributing)
+        self.assertIn("repo-owned harness workflow", agents)
         self.assertIn(".planning/runtime/", workstreams)
         self.assertIn("workstream-claim-workflow.md", runbooks_index)
-        self.assertIn("session start <slug> -- <cmd...>", runbook)
+        self.assertIn("session start <slug>", runbook)
+        self.assertIn("-- <cmd...>", runbook)
         self.assertIn("claim handoff", runbook)
 
 
