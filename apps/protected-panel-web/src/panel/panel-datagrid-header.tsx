@@ -106,7 +106,7 @@ function ProtectedPanelDatagridHeaderCell(props: {
 	);
 }
 
-export function PanelDatagridHeader<RecordType extends RaRecord = any>(props: {
+export function PanelDatagridHeader<RecordType extends RaRecord = RaRecord>(props: {
 	children?: ReactNode;
 	sort?: SortPayload;
 	setSort?: (sort: SortPayload) => void;

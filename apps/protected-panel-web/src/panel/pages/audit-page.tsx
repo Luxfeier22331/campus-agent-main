@@ -32,7 +32,6 @@ import {
 	formatSelectedTargetLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
-import type { OperatorAuditEventDetailResponse, OperatorAuditEventRecord } from "../types";
 import {
 	buildAuditDiagnosticEntries,
 	formatAuditEventType,
@@ -192,11 +191,16 @@ export function AuditPage() {
 
 	const auditDetailQuery = useQuery({
 		enabled: Boolean(selectedEvent?.auditEventId),
-		queryFn: ({ signal }) =>
-			dataProvider.getOperatorAuditEvent({
-				auditEventId: selectedEvent!.auditEventId,
+		queryFn: ({ signal }) => {
+			const auditEventId = selectedEvent?.auditEventId;
+			if (!auditEventId) {
+				throw new Error("auditEventId is required.");
+			}
+			return dataProvider.getOperatorAuditEvent({
+				auditEventId,
 				signal,
-			}),
+			});
+		},
 		queryKey: ["protected-panel-audit-detail", selectedEvent?.auditEventId ?? null] as const,
 		staleTime: 15_000,
 	});

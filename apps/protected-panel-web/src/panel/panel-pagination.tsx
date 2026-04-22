@@ -96,7 +96,7 @@ export function PanelPagination() {
 		return <Toolbar variant="dense" />;
 	}
 
-	if (total === 0 || page < 1 || (total != null && page > totalPages!)) {
+	if (total === 0 || page < 1 || (total != null && totalPages != null && page > totalPages)) {
 		return null;
 	}
 

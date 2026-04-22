@@ -23,7 +23,6 @@ import { getSerializedChatHistoryKey } from "./history-cache";
 import { mapShellConversationMessages } from "./message-parts";
 import { useChatbotShellRuntime } from "./runtime";
 import { submitShellChatRequest } from "./transport";
-import type { ShellConversationDetail } from "./types";
 
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
 

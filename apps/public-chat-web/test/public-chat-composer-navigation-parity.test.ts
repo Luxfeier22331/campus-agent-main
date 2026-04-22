@@ -6,7 +6,7 @@ import suggestedActionsSource from "../vendor/vercel-ai-chatbot/components/chat/
 
 describe("public chat composer navigation parity", () => {
 	it("pushes the repo chat route before first-turn submit instead of waiting for a server-owned redirect", () => {
-		const routePush = "await router.push(`/chat/${chatId}`);";
+		const routePush = ["await router.push(`/chat/", "${", "chatId", "}`);"].join("");
 		const sendMessageCall = "void sendMessage({";
 
 		expect(multimodalInputSource).toContain(routePush);
@@ -24,11 +24,15 @@ describe("public chat composer navigation parity", () => {
 		expect(activeChatSource).not.toContain(
 			"conversationId ? { conversationId, prompt: trimmedPrompt } : { prompt: trimmedPrompt }",
 		);
-		expect(activeChatSource).not.toContain("await router.push(`/chat/${outcome.conversation.id}`)");
+		expect(activeChatSource).not.toContain(
+			["await router.push(`/chat/", "${", "outcome.conversation.id", "}`)"].join(""),
+		);
 	});
 
 	it("routes suggested actions through the same first-turn chat route ownership", () => {
-		expect(suggestedActionsSource).toContain("await router.push(`/chat/${chatId}`);");
+		expect(suggestedActionsSource).toContain(
+			["await router.push(`/chat/", "${", "chatId", "}`);"].join(""),
+		);
 		expect(suggestedActionsSource).toContain("void sendMessage({");
 	});
 });

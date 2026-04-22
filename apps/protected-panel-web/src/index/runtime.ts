@@ -33,9 +33,13 @@ export async function probeAppApiRuntime(env: Env): Promise<string | null> {
 	if (!hasAppApiBridge(env)) {
 		return "App API binding is not configured.";
 	}
+	const appApi = env.APP_API;
+	if (!appApi) {
+		return "App API binding is not configured.";
+	}
 
 	try {
-		const response = await env.APP_API!.fetch(
+		const response = await appApi.fetch(
 			new Request(new URL("/readyz", env.PANEL_RUNTIME_API_BASE_URL).toString(), {
 				method: "GET",
 			}),

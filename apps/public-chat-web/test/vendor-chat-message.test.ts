@@ -4,7 +4,9 @@ import messageSource from "../vendor/vercel-ai-chatbot/components/chat/message.t
 
 describe("vendor chat messages", () => {
 	it("preserves assistant outcome semantics in the active vendor message chrome", () => {
-		expect(messageSource).toContain("data-testid={`message-${message.role}`}");
+		expect(messageSource).toContain(
+			["data-testid={`message-", "${", "message.role", "}`}"].join(""),
+		);
 		expect(messageSource).toContain("MessageActions");
 		expect(messageSource).toContain("MessageReasoning");
 		expect(messageSource).toContain("ToolHeader");

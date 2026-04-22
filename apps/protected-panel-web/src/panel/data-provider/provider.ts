@@ -17,7 +17,6 @@ import type {
 import { fetchJson } from "../http";
 import {
 	normalizeOverviewRecord,
-	type PanelOverviewRecord,
 	type RawPanelOverviewResponse,
 	type RequestProjectionRecord,
 } from "../types";

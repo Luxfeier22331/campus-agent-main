@@ -17,7 +17,9 @@ describe("public chat sidebar parity", () => {
 			'const activeChatId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : null;',
 		);
 		expect(sidebarHistorySource).toContain('router.replace("/")');
-		expect(sidebarHistoryItemSource).toContain("<Link href={`/chat/${chat.id}`}");
+		expect(sidebarHistoryItemSource).toContain(
+			["<Link href={`/chat/", "${", "chat.id", "}`}"].join(""),
+		);
 	});
 
 	it("delegates authenticated sign-out through the next-auth compat seam instead of mutating session locally", () => {

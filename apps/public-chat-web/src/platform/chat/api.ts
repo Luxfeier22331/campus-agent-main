@@ -120,15 +120,14 @@ export async function submitChatRequest(input: {
 	conversationId?: string;
 	prompt: string;
 }): Promise<ChatAnswerPayload> {
-	const body =
-		input.conversationId && input.conversationId.trim()
-			? {
-					conversationId: input.conversationId,
-					prompt: input.prompt.trim(),
-				}
-			: {
-					prompt: input.prompt.trim(),
-				};
+	const body = input.conversationId?.trim()
+		? {
+				conversationId: input.conversationId,
+				prompt: input.prompt.trim(),
+			}
+		: {
+				prompt: input.prompt.trim(),
+			};
 
 	const payload = await requestJson<{ answer: ChatAnswerPayload }>({
 		body: JSON.stringify(body),

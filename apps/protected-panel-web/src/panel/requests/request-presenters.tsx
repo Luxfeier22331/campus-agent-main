@@ -69,7 +69,7 @@ export function RequestPreviewText({
 	text: string | null;
 	variant?: "body2" | "caption";
 }) {
-	if (!text || !text.trim()) {
+	if (!text?.trim()) {
 		return (
 			<Typography color="text.secondary" variant={variant}>
 				{emptyText}

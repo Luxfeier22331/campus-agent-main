@@ -1,11 +1,6 @@
 import { Chip } from "@mui/material";
 
-import {
-	formatPanelMicrousd,
-	formatPanelTimestamp,
-	PANEL_COPY,
-	translateRuntimeErrorMessage,
-} from "../../panel-copy";
+import { formatPanelMicrousd, PANEL_COPY, translateRuntimeErrorMessage } from "../../panel-copy";
 import type {
 	OperatorMetricRatio,
 	OperatorOverviewRecord,

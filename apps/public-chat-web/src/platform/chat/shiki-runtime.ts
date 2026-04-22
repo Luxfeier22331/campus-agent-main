@@ -86,7 +86,7 @@ type HighlighterOptions = {
 	themes?: readonly [string, string];
 };
 
-const highlighterCache = new Map<string, Promise<any>>();
+const highlighterCache = new Map<string, Promise<CampusLoadedHighlighter>>();
 const tokensCache = new Map<string, CampusCodeHighlightResult>();
 const subscribers = new Map<string, Set<HighlightCallback>>();
 const regexEngine = createJavaScriptRegexEngine({ forgiving: true });

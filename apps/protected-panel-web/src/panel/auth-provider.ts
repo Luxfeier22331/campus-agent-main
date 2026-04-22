@@ -1,7 +1,6 @@
 import type { AuthProvider } from "react-admin";
 
 import { fetchJson } from "./http";
-import { PANEL_COPY } from "./panel-copy";
 import {
 	normalizeOverviewRecord,
 	type PanelOverviewRecord,
