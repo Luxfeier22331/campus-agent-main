@@ -1,9 +1,9 @@
-import { createRuntimeDatabase } from "../../../db/runtime";
-import {
-  metricRollup,
-  qualityGradeProjection,
-  requestObservabilityFact,
-  traceBacklinkProjection,
+import type { createRuntimeDatabase } from "../../../db/runtime";
+import type {
+	metricRollup,
+	qualityGradeProjection,
+	requestObservabilityFact,
+	traceBacklinkProjection,
 } from "../../../db/schema";
 
 export type RequestObservabilityFactRow = typeof requestObservabilityFact.$inferSelect;
@@ -14,6 +14,6 @@ export type RuntimeDatabase = Awaited<ReturnType<typeof createRuntimeDatabase>>;
 export type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export interface OperatorQueryRuntime {
-  getDb: RuntimeDbGetter;
-  now: () => Date;
+	getDb: RuntimeDbGetter;
+	now: () => Date;
 }

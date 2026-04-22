@@ -7,34 +7,34 @@ export const SAFETY_ALERT_LOOKBACK_MS = 15 * 60_000;
 export const SAFETY_ALERT_THRESHOLD = 3;
 
 export type AbuseThrottleReason =
-  | "active_throttle_window"
-  | "requests_per_minute"
-  | "requests_per_ten_minutes"
-  | null;
+	| "active_throttle_window"
+	| "requests_per_minute"
+	| "requests_per_ten_minutes"
+	| null;
 
 export type SafetyAlertCode =
-  | "safety.rate_limit_exceeded"
-  | "safety.remote_content_suspicion_spike"
-  | "safety.provider_content_filter_spike";
+	| "safety.rate_limit_exceeded"
+	| "safety.remote_content_suspicion_spike"
+	| "safety.provider_content_filter_spike";
 
 export interface SafetyIncidentBackfillHint {
-  mode: "incident_backfill" | null;
-  required: boolean;
+	mode: "incident_backfill" | null;
+	required: boolean;
 }
 
 export function buildIncidentBackfillHint(code: SafetyAlertCode): SafetyIncidentBackfillHint {
-  if (
-    code === "safety.remote_content_suspicion_spike" ||
-    code === "safety.provider_content_filter_spike"
-  ) {
-    return {
-      mode: "incident_backfill",
-      required: true,
-    };
-  }
+	if (
+		code === "safety.remote_content_suspicion_spike" ||
+		code === "safety.provider_content_filter_spike"
+	) {
+		return {
+			mode: "incident_backfill",
+			required: true,
+		};
+	}
 
-  return {
-    mode: null,
-    required: false,
-  };
+	return {
+		mode: null,
+		required: false,
+	};
 }

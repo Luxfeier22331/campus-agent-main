@@ -6,17 +6,17 @@ import { createRequestStoreHandlers } from "./store/requests";
 import type { RuntimeDbGetter } from "./store/runtime";
 
 export function createPgOperatorQueryStore(
-  env: Env,
-  input: {
-    getDb?: RuntimeDbGetter;
-    now?: () => Date;
-  } = {},
+	env: Env,
+	input: {
+		getDb?: RuntimeDbGetter;
+		now?: () => Date;
+	} = {},
 ): OperatorQueryStore {
-  const getDb = input.getDb ?? createRuntimeDbGetter(env);
-  const now = input.now ?? (() => new Date());
+	const getDb = input.getDb ?? createRuntimeDbGetter(env);
+	const now = input.now ?? (() => new Date());
 
-  return {
-    ...createRequestStoreHandlers({ getDb, now }),
-    ...createMetricStoreHandlers({ getDb, now }),
-  };
+	return {
+		...createRequestStoreHandlers({ getDb, now }),
+		...createMetricStoreHandlers({ getDb, now }),
+	};
 }
