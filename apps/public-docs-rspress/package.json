@@ -11,7 +11,8 @@
 	},
 	"dependencies": {
 		"@rspress/core": "^2.0.9",
-		"@xyflow/react": "^12.10.2"
+		"@xyflow/react": "^12.10.2",
+		"dagre": "^0.8.5"
 	},
 	"devDependencies": {
 		"@types/node": "^22.8.1",

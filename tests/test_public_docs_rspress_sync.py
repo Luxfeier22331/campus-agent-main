@@ -177,6 +177,75 @@ class PublicDocsRspressSyncTest(unittest.TestCase):
         self.assertNotIn("## 法学专业本科课程结构拓扑图", markdown)
         self.assertIn("## 七、其他说明", markdown)
 
+    def test_infer_course_map_route_group_uses_fixed_keyword_priority(self) -> None:
+        module = self.module
+
+        self.assertEqual(module._infer_course_map_route_group("公共体育（二）"), "foundation")
+        self.assertEqual(
+            module._infer_course_map_route_group("程序设计基础课程设计"),
+            "practice",
+        )
+        self.assertEqual(
+            module._infer_course_map_route_group("专业选修课程"),
+            "extension",
+        )
+        self.assertEqual(module._infer_course_map_route_group("数据结构"), "core")
+
+    def test_build_course_map_data_payload_adds_group_and_edge_counts(self) -> None:
+        module = self.module
+
+        payload = module._build_course_map_data_payload(
+            {
+                "title": "示例课程地图",
+                "documentTitle": "示例培养方案",
+                "documentId": "curriculum:test",
+                "pageNumber": 1,
+                "rowId": "page-0001-block-0001",
+                "parentHeadingHint": "六、课程地图",
+                "displayStageLabels": ["一年级上学期", "一年级下学期"],
+                "nodes": [
+                    {
+                        "node_label": "公共体育（一）",
+                        "stage_label": "一年级上学期",
+                        "category_label": "",
+                    },
+                    {
+                        "node_label": "程序设计基础课程设计",
+                        "stage_label": "一年级下学期",
+                        "category_label": "",
+                    },
+                    {
+                        "node_label": "数据结构",
+                        "stage_label": "一年级下学期",
+                        "category_label": "",
+                    },
+                ],
+                "edges": [
+                    {
+                        "source_label": "公共体育（一）",
+                        "target_label": "程序设计基础课程设计",
+                    },
+                    {
+                        "source_label": "程序设计基础课程设计",
+                        "target_label": "数据结构",
+                    },
+                ],
+                "manualReviewNotes": [],
+                "reviewedAt": "2026-04-22",
+            }
+        )
+
+        nodes = {item["node_label"]: item for item in payload["nodes"]}
+        self.assertEqual(nodes["公共体育（一）"]["route_group"], "foundation")
+        self.assertEqual(nodes["公共体育（一）"]["incoming_count"], 0)
+        self.assertEqual(nodes["公共体育（一）"]["outgoing_count"], 1)
+        self.assertEqual(nodes["程序设计基础课程设计"]["route_group"], "practice")
+        self.assertEqual(nodes["程序设计基础课程设计"]["incoming_count"], 1)
+        self.assertEqual(nodes["程序设计基础课程设计"]["outgoing_count"], 1)
+        self.assertEqual(nodes["数据结构"]["route_group"], "core")
+        self.assertEqual(nodes["数据结构"]["incoming_count"], 1)
+        self.assertEqual(nodes["数据结构"]["outgoing_count"], 0)
+
     def test_collection_index_pages_do_not_inline_document_titles(self) -> None:
         module = self.module
 

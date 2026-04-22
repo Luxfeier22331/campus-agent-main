@@ -30,6 +30,42 @@ COURSE_MAP_REVIEW_MANIFEST_PATH = (
     / "curriculum_plan"
     / "course-map-docs-review.v1.json"
 )
+_COURSE_MAP_PRACTICE_KEYWORDS = (
+    "实习",
+    "论文",
+    "课程设计",
+    "实践",
+    "训练",
+    "毕业",
+)
+_COURSE_MAP_EXTENSION_KEYWORDS = (
+    "选修",
+    "本硕贯通",
+    "跨学科",
+    "行业协同",
+    "行业领域",
+    "全球胜任力",
+    "专业选修",
+)
+_COURSE_MAP_FOUNDATION_KEYWORDS = (
+    "思政",
+    "英语",
+    "体育",
+    "高等数学",
+    "高等工程数学",
+    "线性代数",
+    "概率论",
+    "物理",
+    "物理实验",
+    "汉语",
+    "中华文化",
+    "国家安全",
+    "心理健康",
+    "信息素养",
+    "基本素养",
+    "综合素养",
+    "公共",
+)
 
 
 @dataclass(frozen=True)
@@ -294,9 +330,10 @@ def _sync_curriculum_course_map_artifacts(client) -> dict[str, CourseMapDocEmbed
         image_dir = public_root / doc.slug
         image_dir.mkdir(parents=True, exist_ok=True)
         (image_dir / "map-01.png").write_bytes(artifact.image_bytes)
+        data_payload = _build_course_map_data_payload(artifact.data_payload)
         _write_text(
             generated_dir / data_module_name,
-            _build_course_map_data_module(artifact.data_payload),
+            _build_course_map_data_module(data_payload),
         )
         expected_data_files.add(data_module_name)
         expected_public_dirs.add(doc.slug)
@@ -417,6 +454,48 @@ def _build_course_map_data_module(payload: dict[str, object]) -> str:
             "",
         ]
     )
+
+
+def _build_course_map_data_payload(payload: dict[str, object]) -> dict[str, object]:
+    normalized = dict(payload)
+    edges = [
+        dict(item)
+        for item in list(normalized.get("edges") or [])
+        if isinstance(item, dict)
+    ]
+    incoming_counts: dict[str, int] = {}
+    outgoing_counts: dict[str, int] = {}
+    for edge in edges:
+        source_label = str(edge.get("source_label") or "").strip()
+        target_label = str(edge.get("target_label") or "").strip()
+        if source_label:
+            outgoing_counts[source_label] = outgoing_counts.get(source_label, 0) + 1
+        if target_label:
+            incoming_counts[target_label] = incoming_counts.get(target_label, 0) + 1
+
+    normalized["nodes"] = [
+        {
+            **item,
+            "route_group": _infer_course_map_route_group(str(item.get("node_label") or "")),
+            "incoming_count": incoming_counts.get(str(item.get("node_label") or "").strip(), 0),
+            "outgoing_count": outgoing_counts.get(str(item.get("node_label") or "").strip(), 0),
+        }
+        for item in list(normalized.get("nodes") or [])
+        if isinstance(item, dict)
+    ]
+    normalized["edges"] = edges
+    return normalized
+
+
+def _infer_course_map_route_group(node_label: str) -> str:
+    normalized = node_label.strip()
+    if any(keyword in normalized for keyword in _COURSE_MAP_PRACTICE_KEYWORDS):
+        return "practice"
+    if any(keyword in normalized for keyword in _COURSE_MAP_EXTENSION_KEYWORDS):
+        return "extension"
+    if any(keyword in normalized for keyword in _COURSE_MAP_FOUNDATION_KEYWORDS):
+        return "foundation"
+    return "core"
 
 
 def _is_curriculum_structural_heading_row(*, text: str, row: dict[str, object]) -> bool:
