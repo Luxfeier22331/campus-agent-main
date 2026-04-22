@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.worktree_file_discovery import worktree_paths
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -11,17 +13,10 @@ def repo_root() -> Path:
 
 def tracked_sql_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    result = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "ls-files", "*.sql"],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=base,
-    )
     return tuple(
-        base / line
-        for line in result.stdout.splitlines()
-        if line.strip() and not line.startswith(".planning/")
+        path
+        for path in worktree_paths("*.sql", root=base)
+        if not path.relative_to(base).as_posix().startswith(".planning/")
     )
 
 
@@ -30,9 +25,9 @@ def validate_sql_file(path: Path, *, root: Path | None = None) -> None:
     subprocess.run(
         [
             "sqlfluff",
-            "parse",
-            "--dialect",
-            "postgres",
+            "lint",
+            "--config",
+            ".sqlfluff",
             str(path.relative_to(base)),
         ],
         check=True,
@@ -55,11 +50,11 @@ def main() -> int:
             failures.append(f"{path.relative_to(repo_root())}: {exc}")
 
     if failures:
-        print("SQL parse check failed:", file=sys.stderr)
+        print("SQL lint failed:", file=sys.stderr)
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
-    print(f"Validated {len(files)} tracked SQL files.")
+    print(f"Validated {len(files)} SQL files from current worktree.")
     return 0
 
 

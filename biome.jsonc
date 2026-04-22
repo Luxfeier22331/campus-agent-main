@@ -22,9 +22,7 @@
 			"!!.worktrees",
 			"!!var",
 			"!!apps/public-chat-web/vendor",
-			"!!apps/app-api/drizzle/meta",
-			"!!apps/public-docs-web/worker-configuration.d.ts",
-			"!!apps/public-docs-web/src/routeTree.gen.ts"
+			"!!apps/app-api/drizzle/meta"
 		]
 	},
 	"formatter": {

@@ -7,9 +7,10 @@ import re
 import shlex
 import subprocess
 import tomllib
-from datetime import datetime, timezone
+from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
 DEFAULT_APP_PATHS = (
     "apps/app-api",
@@ -171,7 +172,7 @@ def _parse_iso_timestamp(raw_value: object) -> datetime | None:
         return None
 
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
+        return parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -224,7 +225,7 @@ def _build_wrangler_auth_failure_guidance(*, app_path: str, stdout: str, stderr:
         expiration_dt = metadata.get("expiration_dt")
         expiration_raw = metadata.get("expiration_time")
         if isinstance(expiration_dt, datetime) and isinstance(expiration_raw, str):
-            if expiration_dt <= datetime.now(timezone.utc):
+            if expiration_dt <= datetime.now(UTC):
                 guidance_parts.append(
                     f"Local Wrangler OAuth at {metadata['path']} expired at {expiration_raw}."
                 )

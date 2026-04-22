@@ -1,0 +1,4 @@
+[sqlfluff]
+dialect = postgres
+max_line_length = 100
+rules = LT01,LT02,LT04,LT05,LT09,CP01,CP03,CP05,AM05,AM06

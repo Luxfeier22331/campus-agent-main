@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from scripts.worktree_file_discovery import worktree_paths
+
 _MARKDOWN_TRACKED_PATHS = (
     "README.md",
     "AGENTS.md",
@@ -21,16 +23,11 @@ def repo_root() -> Path:
 
 def tracked_markdown_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    result = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "ls-files", "-z", *_MARKDOWN_TRACKED_PATHS],
-        check=True,
-        capture_output=True,
-        cwd=base,
-    )
     return tuple(
-        base / decoded
-        for item in result.stdout.split(b"\0")
-        if item and _is_tracked_markdown_candidate(decoded := item.decode("utf-8"))
+        path
+        for path in worktree_paths(*_MARKDOWN_TRACKED_PATHS, root=base)
+        for decoded in [path.relative_to(base).as_posix()]
+        if _is_tracked_markdown_candidate(decoded) and path.exists()
     )
 
 
@@ -48,14 +45,14 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
     if path.startswith(("apps/", "packages/", "configs/")):
         if path.endswith(".md"):
             return True
-        return path.startswith("apps/public-docs-rspress/docs/") and path.endswith(".mdx")
+        return path.startswith("apps/public-docs/docs/") and path.endswith(".mdx")
     return False
 
 
 def main() -> int:
     files = tracked_markdown_files()
     if not files:
-        print("No tracked Markdown files matched the live-surface pathspecs.")
+        print("No current-worktree Markdown files matched the live-surface pathspecs.")
         return 0
     command = [
         "pnpm",

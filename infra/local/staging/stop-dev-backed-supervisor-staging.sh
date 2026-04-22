@@ -3,7 +3,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=infra/local/staging/dev-backed-supervisor-common.sh
 source "${script_dir}/dev-backed-supervisor-common.sh"
 
 stop_process() {
@@ -48,7 +48,7 @@ stop_process() {
 }
 
 dev_backed_supervisor_ensure_runtime_dirs
-dev_backed_supervisor_acquire_lock
+dev_backed_supervisor_acquire_lock "${dev_backed_supervisor_lock_wait_seconds}"
 dev_backed_supervisor_adopt_existing_process \
   "cloudflared" \
   "${dev_backed_supervisor_cloudflared_pid_file}" \

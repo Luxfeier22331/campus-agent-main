@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Sequence
 
 from campus_shared import (
     get_repo_env_bootstrap_state,

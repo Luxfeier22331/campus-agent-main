@@ -31,21 +31,25 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
                 "-c",
                 "core.quotePath=false",
                 "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
                 "pnpm-lock.yaml",
                 "**/pnpm-lock.yaml",
             ],
             check=True,
             capture_output=True,
-            text=True,
             cwd=repo_root,
         )
         expected_paths = tuple(
             repo_root / line
-            for line in expected.stdout.splitlines()
-            if line.strip()
-            and not line.startswith(".planning/")
+            for item in expected.stdout.split(b"\0")
+            if item
+            and not (line := item.decode("utf-8")).startswith(".planning/")
             and "/vendor/" not in line
             and "/node_modules/" not in line
+            and (repo_root / line).exists()
         )
         self.assertEqual(tracked_pnpm_lock_files(root=repo_root), expected_paths)
 
@@ -96,27 +100,24 @@ class CheckPnpmLockTrackedTest(unittest.TestCase):
     ) -> None:
         self.assertIsNotNone(main)
         repo_root = Path(__file__).resolve().parents[1]
-        run_mock.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git"],
-                returncode=0,
-                stdout="\n".join(
-                    [
-                        "pnpm-lock.yaml",
-                        "apps/app-api/pnpm-lock.yaml",
-                        "apps/protected-panel-web/pnpm-lock.yaml",
-                    ]
-                ),
+        with patch(
+            "scripts.check_pnpm_lock_tracked.tracked_pnpm_lock_files",
+            return_value=(
+                repo_root / "pnpm-lock.yaml",
+                repo_root / "apps/app-api/pnpm-lock.yaml",
+                repo_root / "apps/protected-panel-web/pnpm-lock.yaml",
             ),
-            subprocess.CompletedProcess(args=["pnpm"], returncode=0),
-            subprocess.CompletedProcess(args=["pnpm"], returncode=0),
-            subprocess.CompletedProcess(args=["pnpm"], returncode=0),
-        ]
+        ):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess(args=["pnpm"], returncode=0),
+                subprocess.CompletedProcess(args=["pnpm"], returncode=0),
+                subprocess.CompletedProcess(args=["pnpm"], returncode=0),
+            ]
 
-        exit_code = main(root=repo_root)
+            exit_code = main(root=repo_root)
 
         self.assertEqual(exit_code, 0)
-        command_calls = [call.args[0] for call in run_mock.call_args_list[1:]]
+        command_calls = [call.args[0] for call in run_mock.call_args_list]
         self.assertEqual(command_calls[0], build_root_pnpm_lock_check_command())
         self.assertEqual(
             command_calls[1],

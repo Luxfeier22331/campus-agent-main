@@ -21,6 +21,9 @@ class CheckEnvExampleTrackedTest(unittest.TestCase):
                 "core.quotePath=false",
                 "ls-files",
                 "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
                 "*.env.example",
                 "*.dev.vars.example",
             ],
@@ -34,6 +37,7 @@ class CheckEnvExampleTrackedTest(unittest.TestCase):
             if item
             and not (decoded := item.decode("utf-8")).startswith(".planning/")
             and "/vendor/" not in decoded
+            and (repo_root / decoded).exists()
         )
         self.assertEqual(tracked_env_example_files(root=repo_root), expected_paths)
 
@@ -77,3 +81,25 @@ class CheckEnvExampleTrackedTest(unittest.TestCase):
             failures = validate_env_example_file(path)
             self.assertEqual(len(failures), 1)
             self.assertIn("surrounding whitespace", failures[0])
+
+    def test_validate_env_example_file_rejects_leading_or_trailing_value_whitespace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "spaced-value.env.example"
+            path.write_text("LEADING= value\nTRAILING=value \n", encoding="utf-8")
+
+            failures = validate_env_example_file(path)
+
+        self.assertEqual(len(failures), 2)
+        self.assertTrue(
+            all("must not contain leading or trailing whitespace" in item for item in failures)
+        )
+
+    def test_validate_env_example_file_rejects_trailing_whitespace_on_comment_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "comment-trailing-space.env.example"
+            path.write_text("# comment  \nVALID_KEY=value\n", encoding="utf-8")
+
+            failures = validate_env_example_file(path)
+
+        self.assertEqual(len(failures), 1)
+        self.assertIn("trailing whitespace is not allowed", failures[0])

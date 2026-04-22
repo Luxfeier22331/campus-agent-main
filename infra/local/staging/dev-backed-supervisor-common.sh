@@ -35,6 +35,32 @@ if [[ -n "${dev_backed_supervisor_app_api_base_url}" ]]; then
   dev_backed_supervisor_app_api_readyz_url="${dev_backed_supervisor_app_api_base_url%/}/readyz"
 fi
 
+dev_backed_supervisor_runtime_globals_declared() {
+  : "${dev_backed_supervisor_runtime_dir}" \
+    "${dev_backed_supervisor_log_dir}" \
+    "${dev_backed_supervisor_lock_file}" \
+    "${dev_backed_supervisor_supervisor_pid_file}" \
+    "${dev_backed_supervisor_cloudflared_pid_file}" \
+    "${dev_backed_supervisor_supervisor_log_file}" \
+    "${dev_backed_supervisor_cloudflared_log_file}" \
+    "${dev_backed_supervisor_host}" \
+    "${dev_backed_supervisor_port}" \
+    "${dev_backed_supervisor_tunnel_name}" \
+    "${dev_backed_supervisor_public_base_url}" \
+    "${dev_backed_supervisor_app_api_base_url}" \
+    "${dev_backed_supervisor_cloudflared_config_file}" \
+    "${dev_backed_supervisor_cloudflared_metrics_address}" \
+    "${dev_backed_supervisor_cloudflared_edge_ip_version}" \
+    "${dev_backed_supervisor_lock_wait_seconds}" \
+    "${dev_backed_supervisor_supervisor_match_pattern}" \
+    "${dev_backed_supervisor_cloudflared_match_pattern}" \
+    "${dev_backed_supervisor_log_rotate_max_bytes}" \
+    "${dev_backed_supervisor_log_rotate_keep_count}" \
+    "${dev_backed_supervisor_local_readyz_url}" \
+    "${dev_backed_supervisor_public_readyz_url}" \
+    "${dev_backed_supervisor_app_api_readyz_url}"
+}
+
 dev_backed_supervisor_ensure_runtime_dirs() {
   mkdir -p "${dev_backed_supervisor_log_dir}"
 }

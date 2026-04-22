@@ -3,7 +3,7 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=infra/local/staging/dev-backed-supervisor-common.sh
 source "${script_dir}/dev-backed-supervisor-common.sh"
 
 strict_mode=0

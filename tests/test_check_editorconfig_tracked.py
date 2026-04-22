@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from scripts.check_editorconfig_tracked import (
+    _materialize_check_tree,
     editorconfig_checker_binary,
     main,
     tracked_editorconfig_files,
@@ -15,15 +17,43 @@ from scripts.check_editorconfig_tracked import (
 class CheckEditorconfigTrackedTest(unittest.TestCase):
     def test_tracked_editorconfig_files_match_repo_dotfile_inventory(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        self.assertEqual(
-            tracked_editorconfig_files(root=repo_root),
-            (
-                repo_root / ".editorconfig",
-                repo_root / ".gitignore",
-                repo_root / "apps/public-docs-rspress/.gitignore",
-                repo_root / "apps/public-docs-web/.gitignore",
-            ),
+        expected = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                ".editorconfig",
+                ".gitattributes",
+                ".gitignore",
+                "**/.gitignore",
+            ],
+            check=True,
+            capture_output=True,
+            cwd=repo_root,
         )
+        expected_paths = tuple(
+            repo_root / decoded
+            for item in expected.stdout.split(b"\0")
+            if item
+            for decoded in [item.decode("utf-8")]
+            if not any(
+                decoded.startswith(prefix)
+                for prefix in (
+                    ".planning/",
+                    ".tmp/",
+                    ".worktrees/",
+                    "node_modules/",
+                    "apps/public-chat-web/vendor/",
+                )
+            )
+            and (repo_root / decoded).exists()
+        )
+        self.assertEqual(tracked_editorconfig_files(root=repo_root), expected_paths)
 
     def test_editorconfig_checker_binary_resolves_to_repo_node_modules(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -41,16 +71,19 @@ class CheckEditorconfigTrackedTest(unittest.TestCase):
     ) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         binary_mock.return_value = repo_root / "node_modules/.bin/editorconfig-checker"
-        run_mock.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git"],
-                returncode=0,
-                stdout=".editorconfig\n.gitignore\napps/public-docs-rspress/.gitignore\napps/public-docs-web/.gitignore\n",
+        with patch(
+            "scripts.check_editorconfig_tracked.tracked_editorconfig_files",
+            return_value=(
+                repo_root / ".editorconfig",
+                repo_root / ".gitignore",
+                repo_root / "apps/public-docs/.gitignore",
             ),
-            subprocess.CompletedProcess(args=["editorconfig-checker"], returncode=0),
-        ]
+        ):
+            run_mock.return_value = subprocess.CompletedProcess(
+                args=["editorconfig-checker"], returncode=0
+            )
 
-        exit_code = main()
+            exit_code = main()
 
         self.assertEqual(exit_code, 0)
         args = run_mock.call_args.args[0]
@@ -60,3 +93,21 @@ class CheckEditorconfigTrackedTest(unittest.TestCase):
             args,
             [str(repo_root / "node_modules/.bin/editorconfig-checker"), "-no-color"],
         )
+
+    def test_materialize_check_tree_skips_missing_tracked_files(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target_dir = Path(temp_dir)
+            _materialize_check_tree(
+                target_dir,
+                (
+                    repo_root / ".gitignore",
+                    repo_root / "apps/public-docs" / ".missing.gitignore",
+                ),
+                root=repo_root,
+            )
+
+            self.assertTrue((target_dir / ".editorconfig").exists())
+            self.assertTrue((target_dir / ".gitignore").exists())
+            self.assertFalse((target_dir / "apps/public-docs/.missing.gitignore").exists())

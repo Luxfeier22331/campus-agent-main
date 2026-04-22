@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-from datetime import datetime, timezone
+from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 from campus_ingestion_core.authenticated_notice_legacy_export import (
@@ -240,7 +241,7 @@ def merge_authenticated_notice_normalized_batches(
         filtered_notice_count=len(merged_records),
         original_notice_count=_resolve_original_notice_count(manifests[0]),
         export_scope=export_scope,
-        exported_at=datetime.now(timezone.utc).isoformat(),
+        exported_at=datetime.now(UTC).isoformat(),
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)

@@ -34,7 +34,7 @@ jobs:
       - name: Run Ruff format check
         run: uv run --all-packages ruff format . --check
 
-  yaml-structure:
+  yaml-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,7 +51,7 @@ jobs:
       - name: Sync workspace
         run: uv sync --all-packages --dev
 
-      - name: Run YAML structure check
+      - name: Run YAML lint
         run: uv run --all-packages python -m scripts.check_yaml_tracked
 
   toml-structure:
@@ -74,7 +74,7 @@ jobs:
       - name: Run TOML structure check
         run: uv run --all-packages python -m scripts.check_toml_syntax
 
-  shell-syntax:
+  shellcheck:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -91,8 +91,8 @@ jobs:
       - name: Sync workspace
         run: uv sync --all-packages --dev
 
-      - name: Run shell syntax check
-        run: uv run --all-packages python -m scripts.check_shell_syntax
+      - name: Run shell lint
+        run: uv run --all-packages python -m scripts.check_shell_tracked
 
   xml-structure:
     runs-on: ubuntu-latest
@@ -114,6 +114,26 @@ jobs:
       - name: Run XML structure check
         run: uv run --all-packages python -m scripts.check_xml_tracked
 
+  html-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run HTML structure check
+        run: uv run --all-packages python -m scripts.check_html_tracked
+
   jsonl-structure:
     runs-on: ubuntu-latest
     steps:
@@ -134,7 +154,7 @@ jobs:
       - name: Run JSONL structure check
         run: uv run --all-packages python -m scripts.check_jsonl_tracked
 
-  sql-parse:
+  sqlfluff-lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -151,7 +171,7 @@ jobs:
       - name: Sync workspace
         run: uv sync --all-packages --dev
 
-      - name: Run SQL parse check
+      - name: Run SQL lint
         run: uv run --all-packages python -m scripts.check_sql_tracked
 
   js-biome:
@@ -208,6 +228,66 @@ jobs:
 
       - name: Run Markdown lint
         run: pnpm docs:lint
+
+  lint-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run tracked lint coverage audit
+        run: uv run --all-packages python -m scripts.check_lint_coverage_tracked
+
+  decomposition-budget:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run tracked decomposition audit
+        run: uv run --all-packages python -m scripts.check_decomposition_tracked
+
+  java-spotless:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run Java lint
+        run: uv run --all-packages python -m scripts.check_java_tracked
 
   editorconfig:
     runs-on: ubuntu-latest

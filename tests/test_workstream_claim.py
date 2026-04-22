@@ -34,7 +34,7 @@ def _seed_repo(root: Path, *workstreams: str) -> None:
     for workstream in workstreams:
         _write(
             root / ".planning" / "workstreams" / workstream / "STATE.md",
-            "---\nworkstream: %s\n---\n" % workstream,
+            f"---\nworkstream: {workstream}\n---\n",
         )
 
 

@@ -8,10 +8,12 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+  "html5lib>=1.1",
   "pre-commit>=4.2.0",
   "pytest>=8.0.0",
   "ruff>=0.15.11",
   "sqlfluff>=3.4.2",
+  "yamllint>=1.37.1",
 ]
 
 [tool.pytest.ini_options]
@@ -31,10 +33,48 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I"]
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "W",
+  "B017",
+  "B006",
+  "B007",
+  "B008",
+  "B011",
+  "B015",
+  "B018",
+  "B019",
+  "B020",
+  "B021",
+  "B022",
+  "B023",
+  "B024",
+  "B028",
+  "B031",
+  "B039",
+  "B904",
+  "B905",
+  "UP031",
+  "UP007",
+  "UP012",
+  "UP017",
+  "UP033",
+  "UP034",
+  "UP035",
+  "UP037",
+  "UP040",
+  "UP042",
+  "UP046",
+  "UP047",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/ingestion/*_suite.py" = ["F405"]
+"tests/contracts/*_suite.py" = ["F403", "F405"]
+"tests/ingestion/*_suite.py" = ["F403", "F405"]
 "tests/ingestion/*_support.py" = ["F401", "F405", "I001"]
 "tests/ingestion/*_test_support.py" = ["E402", "F401", "F405", "I001"]
 

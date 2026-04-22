@@ -1,0 +1,11 @@
+{
+	"threshold": 800,
+	"admitted": {
+		"packages/ingestion-core/src/campus_ingestion_core/curriculum_course_map_multimodal_probe_runtime.py": {
+			"max_lines": 815
+		},
+		"tests/test_public_docs_sync.py": {
+			"max_lines": 868
+		}
+	}
+}

@@ -14,7 +14,12 @@ class CheckBiomeTrackedTest(unittest.TestCase):
         expected = subprocess.run(
             [
                 "git",
+                "-c",
+                "core.quotePath=false",
                 "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
                 ".markdownlint-cli2.jsonc",
                 "biome.jsonc",
                 "package.json",
@@ -32,16 +37,16 @@ class CheckBiomeTrackedTest(unittest.TestCase):
         )
         expected_paths = tuple(
             path
-            for line in expected.stdout.splitlines()
+            for line in dict.fromkeys(expected.stdout.splitlines())
             if line.strip()
             for path in [repo_root / line]
             if path.exists()
         )
         self.assertEqual(tracked_biome_files(root=repo_root), expected_paths)
 
-    @patch("scripts.check_biome_tracked.subprocess.run")
+    @patch("scripts.worktree_file_discovery.subprocess.run")
     def test_tracked_biome_files_skip_missing_worktree_paths(
-        self, run_mock: subprocess.CompletedProcess[str]
+        self, run_mock: subprocess.CompletedProcess[bytes]
     ) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         existing_file = repo_root / "package.json"
@@ -50,7 +55,7 @@ class CheckBiomeTrackedTest(unittest.TestCase):
         run_mock.return_value = subprocess.CompletedProcess(
             args=["git"],
             returncode=0,
-            stdout="package.json\nconfigs/ingestion/regulations/student_handbook/README.md\n",
+            stdout=(b"package.json\0configs/ingestion/regulations/student_handbook/README.md\0"),
         )
 
         self.assertEqual(tracked_biome_files(root=repo_root), (existing_file,))

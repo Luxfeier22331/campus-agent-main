@@ -17,10 +17,30 @@ from scripts.check_dockerfile_tracked import (
 class CheckDockerfileTrackedTest(unittest.TestCase):
     def test_tracked_dockerfiles_match_repo_inventory(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
-        self.assertEqual(
-            tracked_dockerfiles(root=repo_root),
-            (repo_root / "apps/legacy-office-conversion-service/Dockerfile",),
+        expected = subprocess.run(
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "Dockerfile*",
+                "*.dockerfile",
+                "apps/**/Dockerfile*",
+            ],
+            check=True,
+            capture_output=True,
+            cwd=repo_root,
         )
+        expected_paths = tuple(
+            repo_root / decoded
+            for item in expected.stdout.split(b"\0")
+            if item and (decoded := item.decode("utf-8")) and (repo_root / decoded).exists()
+        )
+        self.assertEqual(tracked_dockerfiles(root=repo_root), expected_paths)
 
     def test_build_local_hadolint_command_uses_repo_config_and_relative_path(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -74,17 +94,15 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         run_mock: subprocess.CompletedProcess[str],
         which_mock: shutil.which,
     ) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
         which_mock.side_effect = lambda name: f"/usr/bin/{name}" if name == "hadolint" else None
-        run_mock.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git"],
-                returncode=0,
-                stdout="apps/legacy-office-conversion-service/Dockerfile\n",
-            ),
-            subprocess.CompletedProcess(args=["hadolint"], returncode=0),
-        ]
+        with patch(
+            "scripts.check_dockerfile_tracked.tracked_dockerfiles",
+            return_value=(repo_root / "apps/legacy-office-conversion-service/Dockerfile",),
+        ):
+            run_mock.return_value = subprocess.CompletedProcess(args=["hadolint"], returncode=0)
 
-        exit_code = main()
+            exit_code = main()
 
         self.assertEqual(exit_code, 0)
         args = run_mock.call_args.args[0]
@@ -97,17 +115,15 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         run_mock: subprocess.CompletedProcess[str],
         which_mock: shutil.which,
     ) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
         which_mock.side_effect = lambda name: "/usr/bin/docker" if name == "docker" else None
-        run_mock.side_effect = [
-            subprocess.CompletedProcess(
-                args=["git"],
-                returncode=0,
-                stdout="apps/legacy-office-conversion-service/Dockerfile\n",
-            ),
-            subprocess.CompletedProcess(args=["docker"], returncode=0),
-        ]
+        with patch(
+            "scripts.check_dockerfile_tracked.tracked_dockerfiles",
+            return_value=(repo_root / "apps/legacy-office-conversion-service/Dockerfile",),
+        ):
+            run_mock.return_value = subprocess.CompletedProcess(args=["docker"], returncode=0)
 
-        exit_code = main()
+            exit_code = main()
 
         self.assertEqual(exit_code, 0)
         args = run_mock.call_args.args[0]

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from scripts.worktree_file_discovery import worktree_paths
 
 
 def repo_root() -> Path:
@@ -12,17 +13,10 @@ def repo_root() -> Path:
 
 def tracked_xml_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    result = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "ls-files", "*.xml"],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=base,
-    )
     return tuple(
-        base / line
-        for line in result.stdout.splitlines()
-        if line.strip() and not line.startswith(".planning/")
+        path
+        for path in worktree_paths("*.xml", root=base)
+        if not path.relative_to(base).as_posix().startswith(".planning/")
     )
 
 
@@ -43,7 +37,7 @@ def main() -> int:
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
-    print(f"Validated {len(files)} tracked XML files.")
+    print(f"Validated {len(files)} XML files from current worktree.")
     return 0
 
 

@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.worktree_file_discovery import worktree_paths
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -11,25 +13,11 @@ def repo_root() -> Path:
 
 def tracked_pnpm_lock_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    result = subprocess.run(
-        [
-            "git",
-            "-c",
-            "core.quotePath=false",
-            "ls-files",
-            "pnpm-lock.yaml",
-            "**/pnpm-lock.yaml",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=base,
-    )
     return tuple(
-        base / line
-        for line in dict.fromkeys(result.stdout.splitlines())
-        if line.strip()
-        and not line.startswith(".planning/")
+        path
+        for path in worktree_paths("pnpm-lock.yaml", "**/pnpm-lock.yaml", root=base)
+        for line in [path.relative_to(base).as_posix()]
+        if not line.startswith(".planning/")
         and "/vendor/" not in line
         and "/node_modules/" not in line
     )
@@ -105,7 +93,7 @@ def main(*, root: Path | None = None) -> int:
         for failure in failures:
             print(f"- {failure}", file=sys.stderr)
         return 1
-    print(f"Validated {len(files)} tracked pnpm lockfiles.")
+    print(f"Validated {len(files)} pnpm lockfiles from current worktree.")
     return 0
 
 

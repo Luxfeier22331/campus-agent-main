@@ -46,7 +46,7 @@ class _ReadyzServer:
         self.port = self._server.server_address[1]
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
-    def __enter__(self) -> "_ReadyzServer":
+    def __enter__(self) -> _ReadyzServer:
         self._thread.start()
         return self
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from scripts.worktree_file_discovery import worktree_paths
+
 _BIOME_TRACKED_PATHS = (
     ".markdownlint-cli2.jsonc",
     "biome.jsonc",
@@ -22,26 +24,13 @@ def repo_root() -> Path:
 
 def tracked_biome_files(*, root: Path | None = None) -> tuple[Path, ...]:
     base = root or repo_root()
-    result = subprocess.run(
-        ["git", "ls-files", *_BIOME_TRACKED_PATHS],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=base,
-    )
-    return tuple(
-        path
-        for line in result.stdout.splitlines()
-        if line.strip()
-        for path in [base / line]
-        if path.exists()
-    )
+    return tuple(path for path in worktree_paths(*_BIOME_TRACKED_PATHS, root=base) if path.exists())
 
 
 def main() -> int:
     files = tracked_biome_files()
     if not files:
-        print("No tracked files matched the Biome live-surface pathspecs.")
+        print("No current-worktree files matched the Biome live-surface pathspecs.")
         return 0
     command = [
         "pnpm",
