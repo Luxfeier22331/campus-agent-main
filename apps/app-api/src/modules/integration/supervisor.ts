@@ -11,6 +11,7 @@ import {
 	resolveTracePropagationHeaders,
 	type TracePropagationHeaders,
 } from "../telemetry/trace";
+import { toSupervisorVersionQuery, type VersionQuery } from "../version-query";
 
 export interface RequestedScope {
 	corpus: string;
@@ -71,6 +72,7 @@ export interface SupervisorExecutionInput {
 	traceHeaders?: TracePropagationHeaders;
 	traceId: string;
 	userGoal: string;
+	versionQuery?: VersionQuery | null;
 }
 
 export interface SupervisorExecutionObservability {
@@ -461,6 +463,9 @@ export function createSupervisorExecutionClient(
 						requested_capability: payload.requestedCapability,
 						...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
 						...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
+						...(payload.versionQuery
+							? { version_query: toSupervisorVersionQuery(payload.versionQuery) }
+							: {}),
 						user_goal: payload.userGoal,
 					};
 

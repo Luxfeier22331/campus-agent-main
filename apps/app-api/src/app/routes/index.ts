@@ -4,6 +4,7 @@ import type { Env } from "../../config";
 import type { AppDependencies, AppRequestScope, AppRuntimeReadinessResult } from "../types";
 import { registerAuthRoutes } from "./auth";
 import { registerChatRoutes } from "./chat";
+import { registerDocsRoutes } from "./docs";
 import { registerInternalRoutes } from "./internal";
 import { registerOfficialWebRoutes } from "./official-web";
 import { registerOperatorRoutes } from "./operator";
@@ -40,6 +41,12 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
+	});
+	registerDocsRoutes({
+		app: input.app,
+		createRequestScope: input.createRequestScope,
+		env: input.env,
+		getPrincipal: input.getPrincipal,
 	});
 	registerOfficialWebRoutes({
 		app: input.app,

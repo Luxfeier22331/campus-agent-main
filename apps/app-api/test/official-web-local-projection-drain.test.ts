@@ -11,6 +11,12 @@ import {
 } from "../scripts/drain-official-web-projection";
 
 const appRoot = resolve(import.meta.dirname, "..");
+const tsxExecutablePath = resolve(
+	appRoot,
+	"node_modules",
+	".bin",
+	process.platform === "win32" ? "tsx.cmd" : "tsx",
+);
 
 describe("official web local projection drain helper", () => {
 	it("maps local app-api env into a Node runtime env and enables handoff when configured", () => {
@@ -66,19 +72,15 @@ describe("official web local projection drain helper", () => {
 	});
 
 	it("loads under tsx and fails closed when local runtime db env is missing", () => {
-		const result = spawnSync(
-			"pnpm",
-			["exec", "tsx", "./scripts/drain-official-web-projection.ts"],
-			{
-				cwd: appRoot,
-				env: {
-					HOME: process.env.HOME,
-					PATH: process.env.PATH,
-					SHELL: process.env.SHELL,
-				},
-				encoding: "utf8",
+		const result = spawnSync(tsxExecutablePath, ["./scripts/drain-official-web-projection.ts"], {
+			cwd: appRoot,
+			env: {
+				HOME: process.env.HOME,
+				PATH: process.env.PATH,
+				SHELL: process.env.SHELL,
 			},
-		);
+			encoding: "utf8",
+		});
 
 		expect(result.status).toBe(1);
 		expect(`${result.stdout}${result.stderr}`).toContain(

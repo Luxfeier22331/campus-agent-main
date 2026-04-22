@@ -49,6 +49,7 @@ export function toRequestProjectionRecord(
 		requestId: row.requestId,
 		requestedCapability: row.requestedCapability ?? null,
 		requestedScope: row.requestedScopeJson ?? null,
+		...(row.versionQueryJson ? { versionQuery: row.versionQueryJson } : {}),
 		resolvedScope: row.resolvedScopeJson ?? null,
 		selectedTarget: row.selectedTarget ?? null,
 		sourceDocIds: row.sourceDocIdsJson ?? [],

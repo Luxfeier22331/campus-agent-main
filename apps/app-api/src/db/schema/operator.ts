@@ -1,6 +1,7 @@
 import { index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
+import type { VersionQuery } from "../../modules/version-query";
 
 const operator = pgSchema("operator");
 
@@ -52,6 +53,7 @@ export const requestProjection = operator.table(
 		applicabilityScope: text("applicability_scope"),
 		requestedCapability: text("requested_capability"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
+		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
 		selectedTarget: text("selected_target"),
 		status: text("status").notNull(),

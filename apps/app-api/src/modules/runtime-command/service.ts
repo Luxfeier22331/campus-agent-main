@@ -81,6 +81,7 @@ export function buildChatCommandService(
 						prompt: validatedPayload.prompt,
 						requestedCapability: validatedPayload.requestedCapability,
 						requestedScope: validatedPayload.requestedScope,
+						versionQuery: validatedPayload.versionQuery,
 					})
 				: null;
 
@@ -161,6 +162,7 @@ export function buildChatCommandService(
 				requestId,
 				requestedCapability: validatedPayload.requestedCapability,
 				requestedScope: validatedPayload.requestedScope,
+				versionQuery: validatedPayload.versionQuery,
 				safetyIdentifier,
 				surface,
 				traceId,
@@ -242,6 +244,7 @@ export function buildChatCommandService(
 						requestId,
 						requestedCapability: validatedPayload.requestedCapability,
 						requestedScope: validatedPayload.requestedScope,
+						versionQuery: validatedPayload.versionQuery,
 						safetyIdentifier,
 						surface,
 						traceHeaders: telemetry?.getTraceHeaders(),
@@ -292,6 +295,7 @@ export function buildChatCommandService(
 				requestedCapability: validatedPayload.requestedCapability,
 				requestedScope: validatedPayload.requestedScope,
 				response: executionResponse,
+				versionQuery: validatedPayload.versionQuery,
 				safetyIdentifier,
 				surface,
 				startedAt: acceptedAt,
@@ -318,6 +322,7 @@ export function buildChatCommandService(
 			finalized.write.requestExecution.questionPreview = previewText(validatedPayload.prompt);
 			finalized.write.requestExecution.requestedCapability = validatedPayload.requestedCapability;
 			finalized.write.requestExecution.requestedScope = validatedPayload.requestedScope;
+			finalized.write.requestExecution.versionQuery = validatedPayload.versionQuery;
 
 			const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
 			await telemetry?.recordProjectionEnqueued({

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
-from typing import Callable, Mapping
 
 from campus_protected_panel_web.settings import ProtectedPanelSettings
 

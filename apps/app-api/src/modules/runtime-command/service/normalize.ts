@@ -3,6 +3,11 @@ import { createHash, createHmac, randomUUID } from "node:crypto";
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatMessageStructuredPart, ChatPlaceCard } from "../../chat";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
+import {
+	normalizeVersionQuery,
+	type VersionQuery,
+	VersionQueryValidationError,
+} from "../../version-query";
 import { createPreAcceptError } from "./errors";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
 
@@ -19,6 +24,7 @@ export function defaultComputeFingerprint(input: {
 	prompt: string;
 	requestedCapability: string;
 	requestedScope: RequestedScope | null;
+	versionQuery: VersionQuery | null;
 }): string {
 	return createHash("sha256")
 		.update(
@@ -27,6 +33,7 @@ export function defaultComputeFingerprint(input: {
 				prompt: input.prompt,
 				requestedCapability: input.requestedCapability,
 				requestedScope: input.requestedScope,
+				versionQuery: input.versionQuery,
 			}),
 		)
 		.digest("hex");
@@ -295,11 +302,26 @@ export function resolveValidatedPayload(payload: ChatCommandPayload): ValidatedC
 	}
 
 	const requestedScope = normalizeRequestedScope(payload.requestedScope);
+	let versionQuery: VersionQuery | null;
+	try {
+		versionQuery = normalizeVersionQuery(payload.versionQuery);
+	} catch (error) {
+		if (error instanceof VersionQueryValidationError) {
+			throw createPreAcceptError({
+				code: "validation_failed",
+				details: { field: error.field },
+				message: error.message,
+				status: 422,
+			});
+		}
+		throw error;
+	}
 
 	return {
 		conversationId,
 		prompt,
 		requestedCapability,
 		requestedScope,
+		versionQuery,
 	};
 }

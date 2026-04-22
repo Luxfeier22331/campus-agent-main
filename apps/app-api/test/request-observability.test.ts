@@ -82,6 +82,11 @@ describe("request observability", () => {
 			startedAt: "2026-04-05T08:00:00.000Z",
 			surface: "public_chat_web",
 			traceId: "trace_01HQ",
+			versionQuery: {
+				compareToVersionId: "v2025-student-rules",
+				mode: "compare",
+				versionId: "v2024-student-rules",
+			},
 		});
 
 		const finalized = buildFinalizedRequestObservabilityFact({
@@ -110,10 +115,19 @@ describe("request observability", () => {
 			status: "completed",
 			surface: "public_chat_web",
 			traceId: "trace_01HQ",
+			versionQuery: {
+				compareToVersionId: "v2025-student-rules",
+				mode: "compare",
+				versionId: "v2024-student-rules",
+			},
 		});
 
 		expect(accepted.safetyIdentifier).toBe(safetyIdentifier);
 		expect(finalized.safetyIdentifier).toBe(safetyIdentifier);
+		expect(accepted.versionQueryMode).toBe("compare");
+		expect(accepted.versionQuerySummary).toBe("compare:v2024-student-rules->v2025-student-rules");
+		expect(finalized.versionQueryMode).toBe("compare");
+		expect(finalized.versionQuerySummary).toBe("compare:v2024-student-rules->v2025-student-rules");
 	});
 
 	it("derives semantic outcome fields for in-scope no-answer responses", () => {

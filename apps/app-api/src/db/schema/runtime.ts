@@ -16,6 +16,7 @@ import type {
 	RequestSourceTrustSummary,
 } from "../../modules/request-diagnostics";
 import type { ObservedSourceTraceEntry } from "../../modules/source-trace";
+import type { VersionQuery, VersionQueryMode } from "../../modules/version-query";
 
 const runtime = pgSchema("runtime");
 
@@ -43,6 +44,7 @@ export const requestExecution = runtime.table(
 		safetyIdentifier: text("safety_identifier"),
 		requestedCapability: text("requested_capability"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
+		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
 		selectedTarget: text("selected_target"),
 		status: text("status").notNull(),
@@ -115,6 +117,8 @@ export const requestObservabilityFact = runtime.table(
 		policyReason: text("policy_reason"),
 		requestedCapability: text("requested_capability"),
 		requestedScopeSummary: text("requested_scope_summary"),
+		versionQueryMode: text("version_query_mode").$type<VersionQueryMode | null>(),
+		versionQuerySummary: text("version_query_summary"),
 		resolvedScopeSummary: text("resolved_scope_summary"),
 		collection: text("collection"),
 		selectedTarget: text("selected_target"),

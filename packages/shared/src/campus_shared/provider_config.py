@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 LLM_API_KEY_PRECEDENCE = ("EVAL_LLM_API_KEY", "LLM_API_KEY")
 LLM_BASE_URL_PRECEDENCE = ("EVAL_LLM_BASE_URL", "LLM_BASE_URL")

@@ -75,6 +75,10 @@ describe("POST /api/chat/requests", () => {
 			new Request("https://app-api.internal/api/chat/requests", {
 				body: JSON.stringify({
 					prompt: "图书馆开放到几点？",
+					versionQuery: {
+						mode: "as_of",
+						asOf: "2024-06-01",
+					},
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -108,6 +112,10 @@ describe("POST /api/chat/requests", () => {
 			idempotencyKey: "idem-001",
 			payload: {
 				prompt: "图书馆开放到几点？",
+				versionQuery: {
+					asOf: "2024-06-01",
+					mode: "as_of",
+				},
 			},
 			principal: expect.objectContaining({
 				principal: expect.objectContaining({
@@ -357,6 +365,11 @@ describe("POST /api/internal/evals/chat/requests", () => {
 						corpus: "regulations",
 						collection: "student_rules",
 					},
+					versionQuery: {
+						mode: "compare",
+						versionId: "v2024-student-rules",
+						compareToVersionId: "v2025-student-rules",
+					},
 				}),
 				headers: {
 					"content-type": "application/json",
@@ -447,6 +460,11 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				requestedScope: {
 					corpus: "regulations",
 					collection: "student_rules",
+				},
+				versionQuery: {
+					compareToVersionId: "v2025-student-rules",
+					mode: "compare",
+					versionId: "v2024-student-rules",
 				},
 			},
 			principal: expect.objectContaining({

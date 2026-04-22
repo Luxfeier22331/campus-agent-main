@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict, dataclass, is_dataclass
-from typing import Generic, Literal, Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar
 
 import httpx
 from campus_contracts import PromptTrace
@@ -82,8 +82,8 @@ class NormalizedProviderGroundingSupport:
 
 
 @dataclass(frozen=True, slots=True)
-class StructuredOutputExecutionResult(Generic[StructuredOutputModel]):
-    output: StructuredOutputModel
+class StructuredOutputExecutionResult[StructuredOutputResultT: BaseModel]:
+    output: StructuredOutputResultT
     provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = ()
 
 
@@ -623,11 +623,11 @@ def _extract_refusal_text(payload: dict[str, object]) -> str | None:
     return None
 
 
-def _extract_structured_output_model(
+def _extract_structured_output_model[StructuredOutputResultT: BaseModel](
     payload: dict[str, object],
     *,
-    response_model: type[StructuredOutputModel],
-) -> StructuredOutputModel:
+    response_model: type[StructuredOutputResultT],
+) -> StructuredOutputResultT:
     output_parsed = payload.get("output_parsed")
     if output_parsed is not None:
         try:

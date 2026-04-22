@@ -6,6 +6,7 @@ import type {
 	SupervisorExecutionResponse,
 } from "../../integration";
 import type { AppTelemetry } from "../../telemetry";
+import type { VersionQuery } from "../../version-query";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 
@@ -14,6 +15,7 @@ export interface ChatCommandPayload {
 	prompt?: unknown;
 	requestedCapability?: unknown;
 	requestedScope?: unknown;
+	versionQuery?: unknown;
 }
 
 export type ChatCommandResult =
@@ -57,6 +59,7 @@ export interface ChatCommandServiceDependencies {
 		prompt: string;
 		requestedCapability: string;
 		requestedScope: RequestedScope | null;
+		versionQuery: VersionQuery | null;
 	}) => string;
 	conversationStore: ChatConversationStore;
 	deriveSafetyIdentifier?: (principal: ResolvedAppPrincipal) => string | null;
@@ -73,4 +76,5 @@ export interface ValidatedChatCommandPayload {
 	prompt: string;
 	requestedCapability: string;
 	requestedScope: RequestedScope | null;
+	versionQuery: VersionQuery | null;
 }

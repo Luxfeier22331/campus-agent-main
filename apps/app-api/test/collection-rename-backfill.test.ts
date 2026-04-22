@@ -49,9 +49,7 @@ describe("collection rename backfill helpers", () => {
 		);
 		expect(resolveProjectionReplayEventType("no_answer")).toBe("request.no_answer");
 		expect(resolveProjectionReplayEventType("error")).toBe("request.error");
-		expect(resolveProjectionReplayEventType("approval_required")).toBe(
-			"request.approval_required",
-		);
+		expect(resolveProjectionReplayEventType("approval_required")).toBe("request.approval_required");
 		expect(resolveProjectionReplayEventType("rejected")).toBe("request.rejected");
 	});
 

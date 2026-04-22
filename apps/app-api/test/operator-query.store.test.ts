@@ -121,6 +121,111 @@ describe("pg operator query store", () => {
 		});
 	});
 
+	it("returns raw versionQuery on request detail and safe version summary on observability detail", async () => {
+		const responses = [
+			[
+				{
+					requestId: "req_versioned_01HQ",
+					traceId: "trace_versioned_01HQ",
+					conversationId: "conv_versioned_01HQ",
+					surface: "public_chat_web",
+					status: "completed",
+					requestedCapability: "knowledge",
+					requestedScopeJson: {
+						corpus: "regulations",
+						collection: "student_rules",
+					},
+					versionQueryJson: {
+						mode: "compare",
+						versionId: "v2024-student-rules",
+						compareToVersionId: "v2025-student-rules",
+					},
+					resolvedScopeJson: {
+						corpus: "regulations",
+						collection: "student_rules",
+					},
+					selectedTarget: "rag-agent",
+					startedAt: new Date("2026-03-28T08:00:00.000Z"),
+					completedAt: new Date("2026-03-28T08:00:01.000Z"),
+					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
+					durationMs: 842,
+					diagnosticsJson: null,
+				},
+			],
+			[
+				{
+					requestId: "req_versioned_01HQ",
+					traceId: "trace_versioned_01HQ",
+					conversationId: "conv_versioned_01HQ",
+					surface: "public_chat_web",
+					status: "completed",
+					requestedCapability: "knowledge",
+					requestedScopeJson: {
+						corpus: "regulations",
+						collection: "student_rules",
+					},
+					versionQueryJson: {
+						mode: "compare",
+						versionId: "v2024-student-rules",
+						compareToVersionId: "v2025-student-rules",
+					},
+					resolvedScopeJson: {
+						corpus: "regulations",
+						collection: "student_rules",
+					},
+					selectedTarget: "rag-agent",
+					startedAt: new Date("2026-03-28T08:00:00.000Z"),
+					completedAt: new Date("2026-03-28T08:00:01.000Z"),
+					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
+					durationMs: 842,
+					diagnosticsJson: null,
+				},
+			],
+			[
+				{
+					requestId: "req_versioned_01HQ",
+					retrievalAttempted: true,
+					candidateCount: 4,
+					retrievedSourcesJson: [],
+					supportingSourcesJson: [],
+					citationCount: 0,
+					versionQueryMode: "compare",
+					versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
+					measuredAt: new Date("2026-03-28T08:00:03.000Z"),
+				},
+			],
+			[],
+			[],
+			[],
+		];
+		const limit = vi.fn().mockImplementation(async () => responses.shift() ?? []);
+		const orderBy = vi.fn().mockImplementation(async () => responses.shift() ?? []);
+		const where = vi.fn(() => ({ limit, orderBy }));
+		const from = vi.fn(() => ({ where }));
+		const select = vi.fn(() => ({ from }));
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never, {
+			now: () => new Date("2026-03-28T09:00:00.000Z"),
+		});
+
+		const request = await store.getById("req_versioned_01HQ");
+		const observability = await store.getObservabilityById("req_versioned_01HQ");
+
+		expect(request?.versionQuery).toEqual({
+			compareToVersionId: "v2025-student-rules",
+			mode: "compare",
+			versionId: "v2024-student-rules",
+		});
+		expect(observability?.observability).toMatchObject({
+			versionQueryMode: "compare",
+			versionQuerySummary: "compare:v2024-student-rules->v2025-student-rules",
+		});
+	});
+
 	it("derives safety alerts and incident backfill requirements from observability facts", async () => {
 		const where = vi.fn().mockResolvedValue([
 			{

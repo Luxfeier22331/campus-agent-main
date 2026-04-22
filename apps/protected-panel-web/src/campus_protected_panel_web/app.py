@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 from campus_protected_panel_web.api import HttpResponse, HttpRoute, build_routes
 from campus_protected_panel_web.settings import ProtectedPanelSettings

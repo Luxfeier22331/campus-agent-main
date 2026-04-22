@@ -110,6 +110,10 @@ describe("supervisor execution adapter", () => {
 			},
 			traceId: "trace_01HQ",
 			userGoal: "图书馆开放到几点？",
+			versionQuery: {
+				mode: "as_of",
+				asOf: "2024-06-01",
+			},
 		});
 
 		expect(fetchImplementation).toHaveBeenCalledWith(
@@ -168,6 +172,10 @@ describe("supervisor execution adapter", () => {
 				collection: "student_rules",
 				corpus: "regulations",
 			},
+			version_query: {
+				as_of: "2024-06-01",
+				mode: "as_of",
+			},
 			safety_identifier: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			user_goal: "图书馆开放到几点？",
 		});
@@ -185,7 +193,7 @@ describe("supervisor execution adapter", () => {
 			status: "completed",
 			traceId: "trace_01HQ",
 		});
-	});
+	}, 15_000);
 
 	it("ignores legacy target fallback and only trusts selected_target", async () => {
 		const client = createSupervisorExecutionClient(

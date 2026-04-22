@@ -11,6 +11,7 @@ import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
 } from "../../request-observability";
+import type { VersionQuery } from "../../version-query";
 import {
 	buildSupervisorSessionProjection,
 	deriveCurriculumSessionSlots,
@@ -69,6 +70,7 @@ export function buildAcceptedWrite(input: {
 	requestId: string;
 	requestedCapability: string;
 	requestedScope: RequestedScope | null;
+	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
@@ -114,6 +116,7 @@ export function buildAcceptedWrite(input: {
 			safetyIdentifier: input.safetyIdentifier,
 			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,
+			versionQuery: input.versionQuery,
 			resolvedScope: null,
 			selectedTarget: null,
 			status: "accepted",
@@ -139,6 +142,7 @@ export function buildAcceptedWrite(input: {
 			startedAt: input.now,
 			surface: input.surface,
 			traceId: input.traceId,
+			versionQuery: input.versionQuery,
 		}),
 		outboxEvent: {
 			eventId: input.outboxEventId,
@@ -188,6 +192,7 @@ export function buildFinalizedWrite(input: {
 	requestedCapability: string;
 	requestedScope: RequestedScope | null;
 	response: SupervisorExecutionResponse;
+	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
 	surface: string;
 	startedAt: string;
@@ -342,6 +347,7 @@ export function buildFinalizedWrite(input: {
 			safetyIdentifier: input.safetyIdentifier,
 			requestedCapability: "knowledge",
 			requestedScope: input.requestedScope,
+			versionQuery: input.versionQuery,
 			resolvedScope,
 			selectedTarget: input.response.selectedTarget,
 			status,
@@ -374,6 +380,7 @@ export function buildFinalizedWrite(input: {
 			status,
 			surface: input.surface,
 			traceId: normalizedTraceId,
+			versionQuery: input.versionQuery,
 		}),
 		outboxEvent: {
 			eventId: input.outboxEventId,

@@ -8,6 +8,7 @@ import type {
 } from "../request-diagnostics";
 import type { AbuseThrottleReason } from "../safety-ops-policy";
 import type { ObservedSourceTraceEntry } from "../source-trace";
+import type { VersionQuery, VersionQueryMode } from "../version-query";
 import type { ChatCommandResponse } from "./service";
 
 export type RequestExecutionStatus =
@@ -41,6 +42,7 @@ export interface RequestExecutionWrite {
 	safetyIdentifier?: string | null;
 	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
+	versionQuery: VersionQuery | null;
 	resolvedScope: RequestedScope | null;
 	selectedTarget: string | null;
 	status: RequestExecutionStatus;
@@ -80,6 +82,8 @@ export interface RequestObservabilityFactWrite {
 	policyReason: string | null;
 	requestedCapability: string | null;
 	requestedScopeSummary: string | null;
+	versionQueryMode: VersionQueryMode | null;
+	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
 	collection: string | null;
 	selectedTarget: string | null;

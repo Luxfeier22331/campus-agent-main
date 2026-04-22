@@ -42,6 +42,7 @@ function createExecutionSource(
 			collection: "student_rules",
 			corpus: "regulations",
 		},
+		versionQuery: null,
 		resolvedScope: {
 			collection: "student_rules",
 			corpus: "regulations",
@@ -73,7 +74,15 @@ function createPendingEvent(overrides: Partial<ProjectionOutboxEvent> = {}): Pro
 describe("request projection projector", () => {
 	it("materializes request_execution truth into operator.request_projection and marks events processed", async () => {
 		const store: RequestProjectionProjectorStore = {
-			getRequestExecution: vi.fn().mockResolvedValue(createExecutionSource()),
+			getRequestExecution: vi.fn().mockResolvedValue(
+				createExecutionSource({
+					versionQuery: {
+						compareToVersionId: "v2025-student-rules",
+						mode: "compare",
+						versionId: "v2024-student-rules",
+					},
+				}),
+			),
 			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
 			listPendingEventsForRequest: vi.fn(),
 			markEventFailed: vi.fn(),
@@ -115,6 +124,11 @@ describe("request projection projector", () => {
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
+			},
+			versionQuery: {
+				compareToVersionId: "v2025-student-rules",
+				mode: "compare",
+				versionId: "v2024-student-rules",
 			},
 			resolvedScope: {
 				collection: "student_rules",

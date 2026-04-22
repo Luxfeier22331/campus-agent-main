@@ -11,6 +11,7 @@ import type {
 	RequestObservabilityFactWrite,
 } from "./runtime-command/store";
 import { extractObservedSourcesFromResult } from "./source-trace";
+import { summarizeVersionQuery, type VersionQuery } from "./version-query";
 
 function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
 	if (!scope?.corpus || !scope?.collection) {
@@ -242,7 +243,10 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	surface: string;
 	startedAt: string;
 	traceId: string;
+	versionQuery?: VersionQuery | null;
 }): RequestObservabilityFactWrite {
+	const versionSummary = summarizeVersionQuery(input.versionQuery);
+
 	return {
 		aclAnomalyCode: null,
 		aclDecision: null,
@@ -284,6 +288,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		requestId: input.requestId,
 		requestedCapability: input.requestedCapability,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
+		versionQueryMode: versionSummary.mode,
+		versionQuerySummary: versionSummary.summary,
 		resolvedScopeSummary: toScopeSummary(input.resolvedScope),
 		refusalClass: null,
 		scopeClass: null,
@@ -320,8 +326,10 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	surface: string;
 	traceId: string;
 	conversationId: string;
+	versionQuery?: VersionQuery | null;
 }): RequestObservabilityFactWrite {
 	const observability = input.response.observability;
+	const versionSummary = summarizeVersionQuery(input.versionQuery);
 	const supportingSources = extractObservedSourcesFromResult(input.response.result);
 	const retrievedSources = observability?.retrievedSources ?? [];
 	const retrievalAttempted =
@@ -395,6 +403,8 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		requestId: input.requestId,
 		requestedCapability: input.requestedCapability,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
+		versionQueryMode: versionSummary.mode,
+		versionQuerySummary: versionSummary.summary,
 		resolvedScopeSummary: toScopeSummary(input.resolvedScope),
 		refusalClass: normalizeRefusalClass(input.diagnostics, input.response, input.status),
 		scopeClass: normalizeScopeClass({

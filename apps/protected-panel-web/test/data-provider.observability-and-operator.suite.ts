@@ -1,0 +1,306 @@
+import { expect, it, vi } from "vitest";
+
+import { protectedPanelDataProvider } from "../src/panel/data-provider";
+import { createJsonResponse } from "./data-provider.test-support";
+
+export function registerDataProviderObservabilityAndOperatorSuite() {
+	it("loads request observability detail from the protected same-site seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				auditSummary: {
+					auditEventCount: 2,
+					latestTerminalCode: "completed",
+				},
+				links: {
+					issueFingerprint: "timeout:supervisor-api",
+					issueLink: "https://sentry.example/issues/123",
+					traceLink: "https://sentry.example/traces/trace_01HQ",
+				},
+				observability: {
+					aclAnomalyCode: null,
+					aclDecision: "allowed",
+					cachedInputTokens: 0,
+					candidateCount: 4,
+					citationCount: 2,
+					citationExpected: true,
+					citationMissing: false,
+					durationMs: 842,
+					emptyRecall: false,
+					estimatedCost: {
+						currency: "USD",
+						microusd: 3810,
+					},
+					failClosed: false,
+					inputTokens: 812,
+					measuredAt: "2026-03-28T08:00:01.000Z",
+					model: {
+						name: "gpt-5.2-mini",
+						provider: "openai",
+					},
+					outputTokens: 229,
+					projectionLagMs: 420,
+					refusalClass: null,
+					retrievedSourceCount: 2,
+					retrievalAttempted: true,
+					traceAvailable: true,
+				},
+				request: {
+					completedAt: "2026-03-28T08:00:01.000Z",
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					requestedCapability: "knowledge",
+					requestedScope: {
+						collection: "student_rules",
+						corpus: "regulations",
+					},
+					selectedTarget: "rag-agent",
+					startedAt: "2026-03-28T08:00:00.000Z",
+					status: "completed",
+					surface: "public_chat_web",
+					traceId: "trace_01HQ",
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getRequestObservability({
+				requestId: "req_01HQ",
+			}),
+		).resolves.toMatchObject({
+			data: {
+				links: {
+					issueFingerprint: "timeout:supervisor-api",
+					traceLink: "https://sentry.example/traces/trace_01HQ",
+				},
+				observability: {
+					candidateCount: 4,
+					durationMs: 842,
+				},
+				request: {
+					requestId: "req_01HQ",
+				},
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/requests/req_01HQ/observability",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("encodes explicit default overview filters onto the operator overview seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				alerts: [
+					{
+						alertId: "opalert_01HQ",
+						code: "safety.remote_content_suspicion_spike",
+						domain: "safety",
+						incidentBackfill: {
+							mode: "incident_backfill",
+							required: true,
+						},
+						requestCount: 3,
+						severity: "high",
+						startedAt: "2026-03-28T07:55:00.000Z",
+						status: "open",
+					},
+				],
+				asOf: "2026-03-28T08:00:10.000Z",
+				overview: {
+					aclAnomalyRate: { count: 0, eligibleCount: 4, value: 0 },
+					citationMissRate: { count: 1, eligibleCount: 3, value: 0.3333 },
+					emptyRecallRate: { count: 1, eligibleCount: 4, value: 0.25 },
+					estimatedCost: { currency: "USD", microusd: 7620 },
+					failureRate: { count: 1, eligibleCount: 4, value: 0.25 },
+					latency: {
+						p50Ms: 842,
+						p95Ms: 1600,
+						p99Ms: 1600,
+					},
+					refusalRate: { count: 1, eligibleCount: 4, value: 0.25 },
+					requestVolume: {
+						accepted: 4,
+						completed: 3,
+						errored: 1,
+					},
+					sinkHealth: {
+						missingTraceRate: { count: 0, eligibleCount: 4, value: 0 },
+						projectionFailureCount: 0,
+					},
+				},
+				window: {
+					from: "2026-03-27T08:00:10.000Z",
+					granularity: "1h",
+					to: "2026-03-28T08:00:10.000Z",
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getOperatorOverview({
+				selectedTarget: "rag-agent",
+				signal: undefined,
+				surface: "public_chat_web",
+			}),
+		).resolves.toMatchObject({
+			data: {
+				alerts: [
+					expect.objectContaining({
+						alertId: "opalert_01HQ",
+					}),
+				],
+				overview: {
+					requestVolume: {
+						accepted: 4,
+					},
+				},
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/overview?window=24h&surface=public_chat_web&selectedTarget=rag-agent",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("encodes operator quality summary filters without rewriting the app-api query contract", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				asOf: "2026-03-28T08:00:10.000Z",
+				runtime: {
+					citationMissRate: { count: 1, eligibleCount: 2, value: 0.5 },
+					emptyRecallRate: { count: 1, eligibleCount: 3, value: 0.3333 },
+					refusalDistribution: {
+						approvalRequired: 1,
+						needsClarification: 1,
+						noAnswer: 1,
+						rejected: 0,
+					},
+					requestCount: 4,
+				},
+				sampledGrades: {
+					badcaseOpenCount: 1,
+					citationPassRate: { count: 1, eligibleCount: 2, value: 0.5 },
+					coverageRate: { count: 2, eligibleCount: 4, value: 0.5 },
+					groundingPassRate: { count: 1, eligibleCount: 2, value: 0.5 },
+					policyPassRate: { count: 2, eligibleCount: 2, value: 1 },
+				},
+				window: {
+					from: "2026-03-27T08:00:10.000Z",
+					granularity: "1h",
+					to: "2026-03-28T08:00:10.000Z",
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getOperatorQualitySummary({
+				collection: "student_rules",
+				requestedCapability: "knowledge",
+				signal: undefined,
+				surface: "public_chat_web",
+				window: "24h",
+			}),
+		).resolves.toMatchObject({
+			data: {
+				runtime: {
+					requestCount: 4,
+				},
+				sampledGrades: {
+					badcaseOpenCount: 1,
+				},
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/quality/summary?window=24h&surface=public_chat_web&requestedCapability=knowledge&collection=student_rules",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("encodes operator cost timeseries filters and returns the timeseries payload", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				asOf: "2026-03-28T08:00:10.000Z",
+				series: [
+					{
+						bucketEnd: "2026-03-28T08:00:00.000Z",
+						bucketStart: "2026-03-28T07:00:00.000Z",
+						cachedInputTokens: 0,
+						estimatedCostMicrousd: 3810,
+						inputTokens: 812,
+						outputTokens: 229,
+					},
+				],
+				window: {
+					from: "2026-03-27T08:00:10.000Z",
+					granularity: "1h",
+					to: "2026-03-28T08:00:10.000Z",
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getOperatorCostTimeseries({
+				granularity: "1h",
+				modelName: "gpt-5.2-mini",
+				signal: undefined,
+				surface: "public_chat_web",
+				window: "24h",
+			}),
+		).resolves.toMatchObject({
+			data: {
+				series: [
+					expect.objectContaining({
+						estimatedCostMicrousd: 3810,
+					}),
+				],
+				window: {
+					granularity: "1h",
+				},
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=gpt-5.2-mini",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("fails closed on invalid operator timeseries window and granularity combinations", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+		await expect(
+			protectedPanelDataProvider.getOperatorCostTimeseries({
+				granularity: "1d",
+				signal: undefined,
+				window: "1h",
+			}),
+		).rejects.toMatchObject({
+			status: 400,
+		});
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+}

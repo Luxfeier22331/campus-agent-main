@@ -308,7 +308,7 @@ function constantTimeEqualBytes(left: Uint8Array, right: Uint8Array): boolean {
 
 	let diff = 0;
 	for (let index = 0; index < left.byteLength; index += 1) {
-		diff |= left[index] ?? 0 ^ right[index] ?? 0;
+		diff |= (left[index] ?? 0) ^ (right[index] ?? 0);
 	}
 
 	return diff === 0;

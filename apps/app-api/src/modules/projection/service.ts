@@ -1,6 +1,7 @@
 import { formatOperatorTargetSummaryLabel } from "../operator-target-labels";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 import type { RequestExecutionStatus } from "../runtime-command";
+import type { VersionQuery } from "../version-query";
 
 export interface ProjectionOutboxEvent {
 	eventId: string;
@@ -28,6 +29,7 @@ export interface RequestExecutionProjectionSource {
 	applicabilityScope: string | null;
 	requestedCapability: string | null;
 	requestedScope: Record<string, unknown> | null;
+	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
 	selectedTarget: string | null;
 	status: RequestExecutionStatus;
@@ -63,6 +65,7 @@ export interface RequestProjectionMaterialization {
 	applicabilityScope: string | null;
 	requestedCapability: string | null;
 	requestedScope: Record<string, unknown> | null;
+	versionQuery: VersionQuery | null;
 	resolvedScope: Record<string, unknown> | null;
 	selectedTarget: string | null;
 	status: RequestExecutionStatus;
@@ -444,6 +447,7 @@ export function toRequestProjectionMaterialization(input: {
 		requestId: input.execution.requestId,
 		requestedCapability: input.execution.requestedCapability,
 		requestedScope: input.execution.requestedScope,
+		versionQuery: input.execution.versionQuery,
 		resolvedScope: input.execution.resolvedScope,
 		selectedTarget: input.execution.selectedTarget,
 		diagnostics: input.execution.diagnostics,

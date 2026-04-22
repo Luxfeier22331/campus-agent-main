@@ -13,7 +13,7 @@ class ProtectedPanelSettings:
     protection_envelope: str = "required"
 
     @classmethod
-    def from_env(cls) -> "ProtectedPanelSettings":
+    def from_env(cls) -> ProtectedPanelSettings:
         return cls(
             app_name=os.getenv("PANEL_APP_NAME", f"{APP_NAME}-protected-panel"),
             runtime_api_base_url=os.getenv("PANEL_RUNTIME_API_BASE_URL", ""),

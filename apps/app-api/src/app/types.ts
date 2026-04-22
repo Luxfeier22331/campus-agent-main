@@ -1,6 +1,7 @@
 import type { Env } from "../config";
 import type { AppAuthGetter, AppAuthResolutionInput, ResolvedAppPrincipal } from "../modules/auth";
 import type { ChatConversationService } from "../modules/chat";
+import type { DocsService } from "../modules/docs";
 import type { OfficialWebCommandService } from "../modules/official-web-command";
 import type { OfficialWebExecutionStatusService } from "../modules/official-web-execution";
 import type { OfficialWebPlannerService } from "../modules/official-web-planner";
@@ -18,6 +19,7 @@ export interface AppDependencies {
 	) => Promise<Response> | Response;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
+	docsService?: DocsService;
 	getPrincipal?: (
 		request: Request,
 		env: Env,
@@ -55,6 +57,7 @@ export interface AppRequestScope {
 	getAppAuth: AppAuthGetter;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
+	resolveDocsService(): DocsService;
 	resolveOfficialWebCommandService(): OfficialWebCommandService;
 	resolveOfficialWebQueryService(): OfficialWebQueryService;
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;

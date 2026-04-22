@@ -1,5 +1,6 @@
 import type { Env } from "../config";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
+import { buildUnavailableDocsService } from "../modules/docs";
 import { createSupervisorExecutionClient } from "../modules/integration";
 import {
 	buildOfficialWebCommandService,
@@ -45,6 +46,7 @@ export function createRequestScopeFactory(input: {
 			const runtime = createRequestRuntimeScope(input.env);
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
+			let docsService = input.dependencies.docsService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
 			let operatorObservabilityCommandService =
@@ -91,6 +93,15 @@ export function createRequestScopeFactory(input: {
 				return officialWebCommandService;
 			}
 
+			function resolveDocsService() {
+				if (docsService) {
+					return docsService;
+				}
+
+				docsService = buildUnavailableDocsService();
+				return docsService;
+			}
+
 			function resolveOfficialWebQueryService() {
 				if (officialWebQueryService) {
 					return officialWebQueryService;
@@ -131,6 +142,7 @@ export function createRequestScopeFactory(input: {
 				getAppAuth: runtime.getAppAuth,
 				resolveChatCommandService,
 				resolveChatConversationService,
+				resolveDocsService,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
 				resolveOperatorObservabilityCommandService,

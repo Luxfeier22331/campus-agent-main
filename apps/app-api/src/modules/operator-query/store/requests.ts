@@ -175,6 +175,12 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					retrievalPlan: projection.diagnosticsJson?.retrievalPlanSummary ?? null,
 					retrievalAttempted,
 					traceAvailable: fact?.traceAvailable ?? Boolean(projection.traceId),
+					...(fact?.versionQueryMode || fact?.versionQuerySummary
+						? {
+								versionQueryMode: fact?.versionQueryMode ?? null,
+								versionQuerySummary: fact?.versionQuerySummary ?? null,
+							}
+						: {}),
 				},
 				request: {
 					completedAt: toIsoString(projection.completedAt),
@@ -182,6 +188,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					requestId: projection.requestId,
 					requestedCapability: projection.requestedCapability ?? null,
 					requestedScope: projection.requestedScopeJson ?? null,
+					...(projection.versionQueryJson ? { versionQuery: projection.versionQueryJson } : {}),
 					resolvedScope: projection.resolvedScopeJson ?? null,
 					selectedTarget: projection.selectedTarget ?? null,
 					startedAt: projection.startedAt.toISOString(),
