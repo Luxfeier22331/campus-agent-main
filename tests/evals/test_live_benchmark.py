@@ -67,7 +67,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "run"
             with patch(
-                "campus_evals.live_benchmark.run_handbook_formal_benchmark",
+                "campus_evals.live_benchmark.run_formal_benchmark",
                 return_value={"benchmark_type": "test_live_gate"},
             ) as run_benchmark:
                 summary = run_live_benchmark_profile(
@@ -102,7 +102,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
             benchmark_dir = Path(tmpdir) / "benchmark"
             output_dir = Path(tmpdir) / "repair"
             with patch(
-                "campus_evals.live_benchmark.repair_handbook_formal_benchmark",
+                "campus_evals.live_benchmark.repair_formal_benchmark",
                 return_value={"benchmark_type": "test_live_gate_repair"},
             ) as repair_benchmark:
                 summary = repair_live_benchmark_profile(
@@ -172,7 +172,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                     "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
                 ) as run_profile,
                 patch(
-                    "campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets",
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
                     return_value=[{"case_id": "c1"}],
                 ) as collect_targets,
                 patch(
@@ -245,7 +245,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                     "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
                 ),
                 patch(
-                    "campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets",
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
                     return_value=[],
                 ),
                 patch(
@@ -317,7 +317,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                     "campus_evals.live_benchmark.run_live_benchmark_profile", side_effect=fake_run
                 ),
                 patch(
-                    "campus_evals.live_benchmark.collect_repairable_handbook_benchmark_targets",
+                    "campus_evals.live_benchmark.collect_repairable_benchmark_targets",
                     return_value=[],
                 ),
                 patch(

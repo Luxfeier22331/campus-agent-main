@@ -307,15 +307,53 @@ class HandbookLiveExecutorTest(unittest.TestCase):
             result.response.result.evidence.sources,
         )
 
-    def test_build_app_api_handbook_live_executor_rejects_non_current_version_query(self) -> None:
+    def test_build_app_api_handbook_live_executor_accepts_non_current_version_query(self) -> None:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = request.content.decode("utf-8")
+            return httpx.Response(
+                200,
+                request=request,
+                headers={
+                    "x-request-id": "req_eval_historical_01HQ",
+                    "x-trace-id": "trace_eval_historical_01HQ",
+                },
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conv_eval_historical_01HQ",
+                            "title": "学生证管理",
+                            "createdAt": "2026-04-03T00:00:00.000Z",
+                            "updatedAt": "2026-04-03T00:00:01.000Z",
+                            "messages": [],
+                        },
+                        "result": {
+                            "kind": "answer",
+                            "text": "2024 版学生手册中学生证补办需先挂失。",
+                            "requestId": "req_eval_historical_01HQ",
+                            "traceId": "trace_eval_historical_01HQ",
+                        },
+                    },
+                    "supervisor": {
+                        "answerText": "2024 版学生手册中学生证补办需先挂失。",
+                        "followUpQuestion": "",
+                        "selectedTarget": "rag-agent",
+                        "status": "completed",
+                        "traceId": "trace_eval_historical_01HQ",
+                        "result": None,
+                        "observability": None,
+                        "error": None,
+                    },
+                },
+            )
+
         settings = AppApiEvalClientSettings(
             app_api_base_url="https://app-api.internal",
             internal_shared_secret="trusted-secret",
             eval_user_email="eval-benchmark@example.edu",
         )
-        transport = httpx.MockTransport(
-            lambda request: httpx.Response(200, request=request, json={})
-        )
+        transport = httpx.MockTransport(handler)
         client = httpx.Client(base_url="https://app-api.internal", transport=transport)
 
         try:
@@ -323,10 +361,19 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 settings=settings,
                 client=client,
             )
-            with self.assertRaisesRegex(ValueError, "version_query"):
-                executor(_case(version_query=VersionQuery(mode="historical")))
+            result = executor(
+                _case(
+                    version_query=VersionQuery(mode="historical", version_id="v2024-student-rules")
+                )
+            )
         finally:
             client.close()
+
+        self.assertEqual(result.response.status, "completed")
+        self.assertEqual(
+            captured["body"],
+            '{"prompt":"学生证丢了怎么办","requestedCapability":"knowledge","requestedScope":{"corpus":"regulations","collection":"student_rules"},"versionQuery":{"mode":"historical","versionId":"v2024-student-rules"}}',
+        )
 
     def test_build_app_api_handbook_live_executor_renders_trace_backlink_from_template(
         self,
@@ -588,9 +635,7 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
                     return_value="executor",
                 ),
-                patch(
-                    "campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark"
-                ) as run_benchmark,
+                patch("campus_evals.handbook_live_benchmark.run_formal_benchmark") as run_benchmark,
             ):
                 exit_code = main(["run", "--reruns", "3"])
 
@@ -627,7 +672,7 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     "campus_evals.handbook_live_benchmark.build_handbook_live_executor",
                     return_value="executor",
                 ),
-                patch("campus_evals.handbook_live_benchmark.run_handbook_formal_benchmark"),
+                patch("campus_evals.handbook_live_benchmark.run_formal_benchmark"),
             ):
                 exit_code = main(["run", "--reruns", "1"])
 
@@ -662,7 +707,7 @@ class HandbookLiveBenchmarkCliTest(unittest.TestCase):
                     return_value="executor",
                 ),
                 patch(
-                    "campus_evals.handbook_live_benchmark.repair_handbook_formal_benchmark"
+                    "campus_evals.handbook_live_benchmark.repair_formal_benchmark"
                 ) as repair_benchmark,
             ):
                 exit_code = main(["repair", "--benchmark-dir", str(benchmark_dir)])

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Callable, Sequence, TypeVar
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import (
@@ -95,7 +95,6 @@ _QDRANT_TRANSIENT_ERROR_TEXT = (
 )
 _SAME_DOC_SCROLL_BATCH_LIMIT = 64
 _SAME_DOC_SCROLL_MAX_RECORDS = 256
-_RetryResult = TypeVar("_RetryResult")
 
 
 def _build_hybrid_prefetch(
@@ -615,7 +614,7 @@ class QdrantRetrievalBackend:
             limit = min(_SAME_DOC_SCROLL_BATCH_LIMIT, remaining)
             try:
                 batch, offset = _retry_qdrant_read(
-                    lambda: self.qdrant_client.scroll(
+                    lambda limit=limit, offset=offset: self.qdrant_client.scroll(
                         collection_name=qdrant_collection_name,
                         scroll_filter=source_scoped_filter,
                         limit=limit,
@@ -726,7 +725,7 @@ def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
     )
 
 
-def _retry_qdrant_read(operation: Callable[[], _RetryResult]) -> _RetryResult:
+def _retry_qdrant_read[RetryResultT](operation: Callable[[], RetryResultT]) -> RetryResultT:
     last_error: ResponseHandlingException | None = None
     for attempt in range(1, _QDRANT_READ_RETRY_ATTEMPTS + 1):
         try:

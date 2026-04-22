@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Sequence
+from collections.abc import Sequence
 
 from campus_contracts import EvidenceSource
 from campus_ingestion_core.corpus_profiles import (

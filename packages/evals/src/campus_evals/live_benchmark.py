@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
 
 from campus_shared import load_repo_env
 
-from campus_evals.handbook_benchmark import (
-    collect_repairable_handbook_benchmark_targets,
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
+from campus_evals.formal_benchmark import (
+    collect_repairable_benchmark_targets,
+    repair_formal_benchmark,
+    run_formal_benchmark,
 )
 from campus_evals.models import GoldenCase
 from campus_evals.operator_observability import publish_case_results_artifact
@@ -167,7 +167,7 @@ def run_live_benchmark_profile(
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
-    resolved_run_benchmark_fn = run_benchmark_fn or run_handbook_formal_benchmark
+    resolved_run_benchmark_fn = run_benchmark_fn or run_formal_benchmark
     kwargs: dict[str, object] = {
         "cases": profile.cases_factory(),
         "executor": profile.executor_factory(),
@@ -196,7 +196,7 @@ def repair_live_benchmark_profile(
     verbose: bool = False,
     runtime_events_path: str | Path | None = None,
 ) -> dict[str, object]:
-    resolved_repair_benchmark_fn = repair_benchmark_fn or repair_handbook_formal_benchmark
+    resolved_repair_benchmark_fn = repair_benchmark_fn or repair_formal_benchmark
     kwargs: dict[str, object] = {
         "cases": profile.cases_factory(),
         "executor": profile.executor_factory(),
@@ -246,7 +246,7 @@ def accept_live_benchmark_profile(
     if verbose:
         print("[accept] stage=run status=completed")
 
-    repair_targets = collect_repairable_handbook_benchmark_targets(initial_run_dir)
+    repair_targets = collect_repairable_benchmark_targets(initial_run_dir)
     selected_target_count = len(repair_targets)
     final_source_summary = initial_summary
     resolved_repair_dir: Path | None = None

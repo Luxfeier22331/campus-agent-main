@@ -265,11 +265,11 @@ def _extract_chat_completions_message_text(payload: dict[str, t.Any]) -> str:
     )
 
 
-def _extract_structured_output_model(
+def _extract_structured_output_model[ResponseModelT: BaseModel](
     payload: dict[str, t.Any],
     *,
-    response_model: type[StructuredOutputModel],
-) -> StructuredOutputModel:
+    response_model: type[ResponseModelT],
+) -> ResponseModelT:
     output_parsed = payload.get("output_parsed")
     if output_parsed is not None:
         try:
@@ -289,11 +289,11 @@ def _extract_structured_output_model(
     return response_model.model_validate_json(_extract_output_text(payload))
 
 
-def _extract_chat_completions_structured_output_model(
+def _extract_chat_completions_structured_output_model[ResponseModelT: BaseModel](
     payload: dict[str, t.Any],
     *,
-    response_model: type[StructuredOutputModel],
-) -> StructuredOutputModel:
+    response_model: type[ResponseModelT],
+) -> ResponseModelT:
     choices = payload.get("choices")
     if not isinstance(choices, list):
         raise ValueError(

@@ -76,7 +76,7 @@ class OperatorObservabilityClientSettings:
     def from_env(
         cls,
         env: dict[str, str] | None = None,
-    ) -> "OperatorObservabilityClientSettings":
+    ) -> OperatorObservabilityClientSettings:
         source = env if env is not None else os.environ
         app_api_base_url = str(source.get("APP_API_BASE_URL") or "").strip()
         internal_shared_secret = str(source.get("APP_API_INTERNAL_SHARED_SECRET") or "").strip()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter_metrics import (

@@ -3,10 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Iterator, Sequence
 from unittest.mock import patch
 
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module

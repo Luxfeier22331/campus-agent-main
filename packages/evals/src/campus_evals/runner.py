@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
 from dataclasses import replace
 from statistics import fmean
-from typing import Callable, Protocol
+from typing import Protocol
 
 from campus_evals.expectations import KNOWN_DETERMINISTIC_METRICS, evaluate_case
 from campus_evals.models import (

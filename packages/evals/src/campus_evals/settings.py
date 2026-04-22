@@ -91,7 +91,7 @@ class SupplementalHTTPSettings:
             )
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "SupplementalHTTPSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> SupplementalHTTPSettings:
         source = env if env is not None else os.environ
         explicit_request_interval = _read_optional_float(
             _read_first_non_empty(
@@ -258,7 +258,7 @@ class RagasSettings:
         *,
         http_settings: SupplementalHTTPSettings | None = None,
         faithfulness_nli_batch_size: int = DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE,
-    ) -> "RagasSettings":
+    ) -> RagasSettings:
         source = env if env is not None else os.environ
         llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
         embedding_provider = resolve_embedding_provider_config("eval.ragas", env=source)
@@ -370,7 +370,7 @@ class JudgeLLMSettings:
         env: dict[str, str] | None = None,
         *,
         http_settings: SupplementalHTTPSettings | None = None,
-    ) -> "JudgeLLMSettings":
+    ) -> JudgeLLMSettings:
         source = env if env is not None else os.environ
         llm_provider = resolve_llm_provider_config("eval.judge", env=source)
         return cls(

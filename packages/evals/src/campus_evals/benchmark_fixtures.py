@@ -112,12 +112,10 @@ def validate_retrieval_qrels_fixture(
         if len(matched_titles) < 2 or not case.expected_sources:
             continue
         issues.append(
-            (
-                f"{ambiguity_severity}: case {case.case_id} query {case.query!r} ambiguously matches "
-                f"{len(matched_titles)} current {scope_label} titles "
-                f"({', '.join(item.title for item in matched_titles[:3])}); canonical qrels must not lock this "
-                f"to a single retrieval truth. Move it to a needs_clarification workflow case or diagnostic fixture."
-            )
+            f"{ambiguity_severity}: case {case.case_id} query {case.query!r} ambiguously matches "
+            f"{len(matched_titles)} current {scope_label} titles "
+            f"({', '.join(item.title for item in matched_titles[:3])}); canonical qrels must not lock this "
+            f"to a single retrieval truth. Move it to a needs_clarification workflow case or diagnostic fixture."
         )
     return tuple(issues)
 

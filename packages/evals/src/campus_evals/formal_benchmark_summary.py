@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from statistics import fmean
 
-from campus_evals.handbook_benchmark_io import _case_set_summary, _write_json
-from campus_evals.handbook_benchmark_preflight import _skipped_supplemental_metric_details
+from campus_evals.formal_benchmark_artifacts import _case_set_summary, _write_json
+from campus_evals.formal_benchmark_preflight import _skipped_supplemental_metric_details
 from campus_evals.judge_gate import evaluate_judge_gate
 from campus_evals.models import GoldenCase, RunReport, SupplementalResult
 from campus_evals.supplemental_http import classify_runtime_failure

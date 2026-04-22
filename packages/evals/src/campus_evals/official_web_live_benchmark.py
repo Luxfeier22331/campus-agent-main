@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
 from unittest.mock import patch
 
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
@@ -20,10 +21,7 @@ from campus_contracts import (
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import retrieve_sources
 
-from campus_evals.handbook_benchmark import (
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
-)
+from campus_evals.formal_benchmark import repair_formal_benchmark, run_formal_benchmark
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
@@ -167,8 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         profile=profile,
         argv=forwarded_argv,
         output_dir_builder=build_default_output_dir,
-        run_benchmark_fn=run_handbook_formal_benchmark,
-        repair_benchmark_fn=repair_handbook_formal_benchmark,
+        run_benchmark_fn=run_formal_benchmark,
+        repair_benchmark_fn=repair_formal_benchmark,
         accept_benchmark_fn=accept_live_benchmark_profile,
     )
 

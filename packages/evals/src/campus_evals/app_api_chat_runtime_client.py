@@ -65,7 +65,7 @@ class AppApiEvalClientSettings:
         env: dict[str, str] | None = None,
         *,
         default_timeout_seconds: float = 15.0,
-    ) -> "AppApiEvalClientSettings":
+    ) -> AppApiEvalClientSettings:
         source = env if env is not None else os.environ
         timeout_raw = str(source.get("APP_API_EVAL_HTTP_TIMEOUT_SECONDS") or "").strip()
         timeout_seconds = float(timeout_raw) if timeout_raw else default_timeout_seconds
@@ -127,8 +127,6 @@ class AppApiEvalClient:
         *,
         case: GoldenCase,
     ) -> AppApiEvalExecution:
-        if case.version_query.mode != "current":
-            raise ValueError("AppApiEvalClient does not support non-current version_query cases")
         turns = case.conversation_turns or (case.user_goal,)
         conversation_key = self._resolve_conversation_key(case)
         conversation_id = self._conversation_ids.get(conversation_key)
@@ -146,6 +144,9 @@ class AppApiEvalClient:
             }
             if conversation_id is not None:
                 body["conversationId"] = conversation_id
+            version_query_body = self._build_version_query_body(case)
+            if version_query_body is not None:
+                body["versionQuery"] = version_query_body
             response = self._post_chat_request(body, headers=headers)
             execution = self._decode_execution(
                 response=response,
@@ -162,6 +163,20 @@ class AppApiEvalClient:
         if conversation_key and conversation_id is not None:
             self._conversation_ids[conversation_key] = conversation_id
         return execution
+
+    def _build_version_query_body(self, case: GoldenCase) -> dict[str, object] | None:
+        version_query = case.version_query
+        if version_query.mode == "current":
+            return None
+
+        body: dict[str, object] = {"mode": version_query.mode}
+        if version_query.as_of:
+            body["asOf"] = version_query.as_of
+        if version_query.version_id:
+            body["versionId"] = version_query.version_id
+        if version_query.compare_to_version_id:
+            body["compareToVersionId"] = version_query.compare_to_version_id
+        return body
 
     def _post_chat_request(
         self, body: dict[str, object], *, headers: dict[str, str]

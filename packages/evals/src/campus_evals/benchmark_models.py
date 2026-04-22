@@ -141,7 +141,7 @@ class RetrievalMetricSummary:
     doc_precision_at_5: float
     doc_mrr_at_5: float
     forbidden_hit_rate: float
-    by_split: dict[str, "RetrievalMetricSummary"] = field(default_factory=dict)
+    by_split: dict[str, RetrievalMetricSummary] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

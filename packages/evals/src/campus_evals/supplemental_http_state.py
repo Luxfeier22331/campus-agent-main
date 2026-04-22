@@ -5,7 +5,7 @@ import json
 import time
 import typing as t
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from threading import Lock
 from urllib.parse import urlparse
@@ -14,15 +14,15 @@ import httpx
 
 from campus_evals.settings import SupplementalHTTPSettings
 
-_REQUEST_PACERS: dict[tuple[str, float], "RequestPacer"] = {}
+_REQUEST_PACERS: dict[tuple[str, float], RequestPacer] = {}
 _REQUEST_PACERS_LOCK = Lock()
-_PROVIDER_CIRCUIT_BREAKERS: dict[tuple[str, int, float], "ProviderCircuitBreaker"] = {}
+_PROVIDER_CIRCUIT_BREAKERS: dict[tuple[str, int, float], ProviderCircuitBreaker] = {}
 _PROVIDER_CIRCUIT_BREAKERS_LOCK = Lock()
 _SHARED_SYNC_CLIENTS: dict[tuple[object, ...], httpx.Client] = {}
 _SHARED_SYNC_CLIENTS_LOCK = Lock()
 _SHARED_ASYNC_CLIENTS: dict[tuple[object, ...], httpx.AsyncClient] = {}
 _SHARED_ASYNC_CLIENTS_LOCK = Lock()
-_PREFLIGHT_CACHE: dict[tuple[str, str, str], "_PreflightCacheEntry"] = {}
+_PREFLIGHT_CACHE: dict[tuple[str, str, str], _PreflightCacheEntry] = {}
 _PREFLIGHT_CACHE_LOCK = Lock()
 
 
@@ -300,8 +300,8 @@ def _parse_retry_after_seconds(headers: httpx.Headers) -> float | None:
         except (TypeError, ValueError):
             return None
         if retry_at.tzinfo is None:
-            retry_at = retry_at.replace(tzinfo=timezone.utc)
-        seconds = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            retry_at = retry_at.replace(tzinfo=UTC)
+        seconds = (retry_at - datetime.now(UTC)).total_seconds()
     return max(0.0, seconds)
 
 

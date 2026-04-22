@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable
 
 from campus_evals.faithfulness_runtime import bind_faithfulness_artifact_context
-from campus_evals.handbook_benchmark_io import (
+from campus_evals.formal_benchmark_artifacts import (
     _case_set_summary,
     _deserialize_case_result,
     _load_json,
@@ -18,14 +18,14 @@ from campus_evals.handbook_benchmark_io import (
     _write_repair_summary,
     _write_run_artifacts,
 )
-from campus_evals.handbook_benchmark_preflight import (
+from campus_evals.formal_benchmark_preflight import (
     _raise_for_blocking_preflight_entries,
     _run_supplemental_preflight,
     _select_repair_adapters,
     _select_runnable_supplemental_adapters,
     _skipped_supplemental_metric_details,
 )
-from campus_evals.handbook_benchmark_summary import _write_benchmark_summary
+from campus_evals.formal_benchmark_summary import _write_benchmark_summary
 from campus_evals.judge_gate import load_judge_gate_policy
 from campus_evals.models import (
     CaseResult,
@@ -46,7 +46,7 @@ from campus_evals.supplemental_http import classify_runtime_failure
 Executor = Callable[[GoldenCase], ExecutionResult]
 
 
-def run_handbook_formal_benchmark(
+def run_formal_benchmark(
     *,
     cases: tuple[GoldenCase, ...],
     executor: Executor,
@@ -147,7 +147,7 @@ def run_handbook_formal_benchmark(
     )
 
 
-def collect_repairable_handbook_benchmark_targets(
+def collect_repairable_benchmark_targets(
     benchmark_dir: str | Path,
 ) -> list[dict[str, object]]:
     grouped: dict[tuple[int, str, str], dict[str, object]] = {}
@@ -200,7 +200,7 @@ def collect_repairable_handbook_benchmark_targets(
     return resolved
 
 
-def repair_handbook_formal_benchmark(
+def repair_formal_benchmark(
     *,
     cases: tuple[GoldenCase, ...],
     executor: Executor,
@@ -232,7 +232,7 @@ def repair_handbook_formal_benchmark(
         ):
             original_config = _load_json(resolved_benchmark_dir / "benchmark-config.json")
             policy = load_judge_gate_policy(policy_path or original_config.get("policy_path"))
-            targets = collect_repairable_handbook_benchmark_targets(resolved_benchmark_dir)
+            targets = collect_repairable_benchmark_targets(resolved_benchmark_dir)
             grouped_targets = _group_repair_targets_by_run_case(targets)
             case_index = {case.case_id: case for case in cases}
             original_run_payloads = _load_run_case_result_payloads(resolved_benchmark_dir)

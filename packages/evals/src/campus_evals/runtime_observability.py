@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
-from typing import Iterator
 from uuid import uuid4
 
-_CURRENT_RUNTIME_EVENT_SINK: ContextVar["RuntimeEventWriter | None"] = ContextVar(
+_CURRENT_RUNTIME_EVENT_SINK: ContextVar[RuntimeEventWriter | None] = ContextVar(
     "campus_evals_runtime_event_sink",
     default=None,
 )
 _CURRENT_RUNTIME_EVENT_CONTEXT: ContextVar[dict[str, object]] = ContextVar(
     "campus_evals_runtime_event_context",
-    default={},
+    default=None,
 )
 
 
@@ -36,7 +36,7 @@ class RuntimeEventWriter:
 
     def emit(self, event_type: str, **payload: object) -> None:
         record = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "event_type": event_type,
             "session_id": self.session_id,
             **current_runtime_event_context(),
@@ -78,7 +78,7 @@ def bind_runtime_event_context(**fields: object) -> Iterator[dict[str, object]]:
 
 
 def current_runtime_event_context() -> dict[str, object]:
-    return dict(_CURRENT_RUNTIME_EVENT_CONTEXT.get())
+    return dict(_CURRENT_RUNTIME_EVENT_CONTEXT.get() or {})
 
 
 def emit_runtime_event(event_type: str, **payload: object) -> None:

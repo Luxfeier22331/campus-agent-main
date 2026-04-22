@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import httpx
 from campus_contracts import (
@@ -17,10 +17,7 @@ from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import RetrievalBackendError, retrieve_sources
 
 from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
-from campus_evals.handbook_benchmark import (
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
-)
+from campus_evals.formal_benchmark import repair_formal_benchmark, run_formal_benchmark
 from campus_evals.live_benchmark import (
     BenchmarkProfile,
     accept_live_benchmark_profile,
@@ -217,8 +214,8 @@ def main(argv: list[str] | None = None) -> int:
         profile=build_curriculum_live_profile(),
         argv=argv,
         output_dir_builder=build_default_output_dir,
-        run_benchmark_fn=run_handbook_formal_benchmark,
-        repair_benchmark_fn=repair_handbook_formal_benchmark,
+        run_benchmark_fn=run_formal_benchmark,
+        repair_benchmark_fn=repair_formal_benchmark,
         accept_benchmark_fn=accept_live_benchmark_profile,
     )
 

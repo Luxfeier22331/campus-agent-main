@@ -589,7 +589,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
                     return_value="executor",
                 ),
                 patch(
-                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                    "campus_evals.official_web_live_benchmark.run_formal_benchmark"
                 ) as run_benchmark,
             ):
                 exit_code = main(
@@ -638,7 +638,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
                     return_value="executor",
                 ),
                 patch(
-                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                    "campus_evals.official_web_live_benchmark.run_formal_benchmark"
                 ) as run_benchmark,
             ):
                 exit_code = main(
@@ -686,7 +686,7 @@ class OfficialWebLiveBenchmarkCliTest(unittest.TestCase):
                     return_value="executor",
                 ),
                 patch(
-                    "campus_evals.official_web_live_benchmark.run_handbook_formal_benchmark"
+                    "campus_evals.official_web_live_benchmark.run_formal_benchmark"
                 ) as run_benchmark,
             ):
                 exit_code = main(

@@ -227,7 +227,7 @@ class CaseResult:
     metric_results: dict[str, DimensionResult] = field(default_factory=dict)
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
-    supplemental_results: tuple["SupplementalResult", ...] = field(default_factory=tuple)
+    supplemental_results: tuple[SupplementalResult, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)

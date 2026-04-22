@@ -26,10 +26,10 @@ from campus_evals.benchmark import (
     validate_retrieval_qrels_fixture,
 )
 from campus_evals.expectations import evaluate_case
-from campus_evals.handbook_benchmark import (
-    collect_repairable_handbook_benchmark_targets,
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
+from campus_evals.formal_benchmark import (
+    collect_repairable_benchmark_targets,
+    repair_formal_benchmark,
+    run_formal_benchmark,
 )
 from campus_evals.judge_adapters import (
     build_answer_rubric_adapter,
@@ -276,7 +276,7 @@ __all__ = [
     "curriculum_regression_locked_cases",
     "curriculum_release_gate_cases",
     "curriculum_smoke_cases",
-    "collect_repairable_handbook_benchmark_targets",
+    "collect_repairable_benchmark_targets",
     "evaluate_judge_gate",
     "evaluate_retrieval_case",
     "evaluate_retrieval_run",
@@ -303,9 +303,9 @@ __all__ = [
     "render_retrieval_summary_text",
     "render_publish_summary_text",
     "resolve_retrieval_fixture_manifest_path",
-    "repair_handbook_formal_benchmark",
+    "repair_formal_benchmark",
     "repair_live_benchmark_profile",
-    "run_handbook_formal_benchmark",
+    "run_formal_benchmark",
     "run_cases",
     "run_live_benchmark_profile",
     "handbook_error_gate_cases",

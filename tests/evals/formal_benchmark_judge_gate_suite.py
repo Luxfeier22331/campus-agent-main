@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.evals.handbook_benchmark_test_support import (
+from tests.evals.formal_benchmark_test_support import (
     ExecutionResult,
     ObservedTrace,
     Path,
@@ -10,7 +10,7 @@ from tests.evals.handbook_benchmark_test_support import (
     evaluate_judge_gate,
     json,
     load_judge_gate_policy,
-    run_handbook_formal_benchmark,
+    run_formal_benchmark,
     unittest,
 )
 
@@ -148,7 +148,7 @@ class JudgeGatePolicyTest(unittest.TestCase):
         self.assertEqual(report["overall_verdict"], "pass")
         self.assertEqual(report["metrics"], [])
 
-    def test_run_handbook_formal_benchmark_applies_optional_deterministic_gate_policy(self) -> None:
+    def test_run_formal_benchmark_applies_optional_deterministic_gate_policy(self) -> None:
         cases = (_completed_case(),)
 
         with TemporaryDirectory() as tmpdir:
@@ -172,7 +172,7 @@ class JudgeGatePolicyTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            summary = run_handbook_formal_benchmark(
+            summary = run_formal_benchmark(
                 cases=cases,
                 executor=lambda case: ExecutionResult(
                     response=_response(status="no_answer"),

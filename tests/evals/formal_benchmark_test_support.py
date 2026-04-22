@@ -22,10 +22,10 @@ from campus_evals import (
     expected_source_ref,
 )
 from campus_evals.faithfulness_runtime import current_faithfulness_artifact_context
-from campus_evals.handbook_benchmark import (
-    collect_repairable_handbook_benchmark_targets,
-    repair_handbook_formal_benchmark,
-    run_handbook_formal_benchmark,
+from campus_evals.formal_benchmark import (
+    collect_repairable_benchmark_targets,
+    repair_formal_benchmark,
+    run_formal_benchmark,
 )
 from campus_evals.judge_gate import evaluate_judge_gate, load_judge_gate_policy
 from campus_evals.operator_observability import OperatorRequestCorrelation
@@ -122,9 +122,9 @@ __all__ = (
     "TraceExpectation",
     "expected_source_ref",
     "current_faithfulness_artifact_context",
-    "collect_repairable_handbook_benchmark_targets",
-    "repair_handbook_formal_benchmark",
-    "run_handbook_formal_benchmark",
+    "collect_repairable_benchmark_targets",
+    "repair_formal_benchmark",
+    "run_formal_benchmark",
     "evaluate_judge_gate",
     "load_judge_gate_policy",
     "OperatorRequestCorrelation",

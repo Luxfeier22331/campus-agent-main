@@ -3,12 +3,13 @@ from __future__ import annotations
 import copy
 import json
 import math
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from campus_evals.runtime_observability import bind_runtime_event_context, emit_runtime_event
 
@@ -274,7 +275,9 @@ def execute_staged_faithfulness(
                 _bind_metric_stage_http_settings(metric, stage_name="nli_verdicts"),
             ):
                 verdict_output = ragas_run(
-                    lambda: metric._create_verdicts(row, batch_statements, callbacks=None)
+                    lambda batch_statements=batch_statements: metric._create_verdicts(
+                        row, batch_statements, callbacks=None
+                    )
                 )
         except Exception as exc:
             state["stages"]["nli_verdicts"] = {

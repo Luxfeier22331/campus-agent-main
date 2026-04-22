@@ -72,7 +72,7 @@ class RetrievalSettings:
                 )
 
     @classmethod
-    def from_env(cls, env: dict[str, str] | None = None) -> "RetrievalSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> RetrievalSettings:
         source = env if env is not None else os.environ
         qdrant_url = (source.get("QDRANT_URL") or "").strip()
         if not qdrant_url:

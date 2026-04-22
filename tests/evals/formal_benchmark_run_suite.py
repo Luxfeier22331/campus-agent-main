@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.evals.handbook_benchmark_test_support import (
+from tests.evals.formal_benchmark_test_support import (
     HANDBOOK_SCOPE,
     ExecutionResult,
     ObservedTrace,
@@ -14,31 +14,31 @@ from tests.evals.handbook_benchmark_test_support import (
     _source,
     current_faithfulness_artifact_context,
     json,
-    run_handbook_formal_benchmark,
+    run_formal_benchmark,
     unittest,
 )
 
 
-class HandbookBenchmarkFacadeTest(unittest.TestCase):
-    def test_handbook_benchmark_module_keeps_public_exports(self) -> None:
-        import campus_evals.handbook_benchmark as handbook_benchmark_module
+class FormalBenchmarkFacadeTest(unittest.TestCase):
+    def test_formal_benchmark_module_keeps_public_exports(self) -> None:
+        import campus_evals.formal_benchmark as formal_benchmark_module
 
         for name in (
-            "collect_repairable_handbook_benchmark_targets",
-            "repair_handbook_formal_benchmark",
-            "run_handbook_formal_benchmark",
+            "collect_repairable_benchmark_targets",
+            "repair_formal_benchmark",
+            "run_formal_benchmark",
         ):
-            self.assertTrue(hasattr(handbook_benchmark_module, name), name)
+            self.assertTrue(hasattr(formal_benchmark_module, name), name)
 
 
 class HandbookBenchmarkRunTest(unittest.TestCase):
-    def test_run_handbook_formal_benchmark_persists_case_level_request_correlation(self) -> None:
+    def test_run_formal_benchmark_persists_case_level_request_correlation(self) -> None:
         cases = (_completed_case(),)
 
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "benchmark"
 
-            run_handbook_formal_benchmark(
+            run_formal_benchmark(
                 cases=cases,
                 executor=lambda case: ExecutionResult(
                     response=_response(
@@ -80,7 +80,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             },
         )
 
-    def test_run_handbook_formal_benchmark_binds_faithfulness_artifact_context_per_run(
+    def test_run_formal_benchmark_binds_faithfulness_artifact_context_per_run(
         self,
     ) -> None:
         cases = (_completed_case(),)
@@ -120,7 +120,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "benchmark"
 
-            run_handbook_formal_benchmark(
+            run_formal_benchmark(
                 cases=cases,
                 executor=lambda case: ExecutionResult(
                     response=_response(
@@ -146,7 +146,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             ],
         )
 
-    def test_run_handbook_formal_benchmark_skips_unavailable_supplemental_adapters_and_preserves_deterministic_runs(
+    def test_run_formal_benchmark_skips_unavailable_supplemental_adapters_and_preserves_deterministic_runs(
         self,
     ) -> None:
         cases = (_completed_case(),)
@@ -196,7 +196,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "benchmark"
 
-            run_handbook_formal_benchmark(
+            run_formal_benchmark(
                 cases=cases,
                 executor=lambda case: ExecutionResult(
                     response=_response(
@@ -249,7 +249,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             self.assertNotIn("min_run_average_score_below_threshold", gate_metric["reasons"])
             self.assertNotIn("run_average_drift_above_threshold", gate_metric["reasons"])
 
-    def test_run_handbook_formal_benchmark_raises_for_non_retryable_preflight_failure(self) -> None:
+    def test_run_formal_benchmark_raises_for_non_retryable_preflight_failure(self) -> None:
         cases = (_completed_case(),)
 
         class InvalidRequestAdapter:
@@ -272,7 +272,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 RuntimeError, "non-retryable supplemental preflight failure"
             ):
-                run_handbook_formal_benchmark(
+                run_formal_benchmark(
                     cases=cases,
                     executor=lambda case: ExecutionResult(
                         response=_response(
@@ -303,7 +303,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             )
             self.assertEqual(preflight["adapters"][0]["run_action"], "abort_benchmark")
 
-    def test_run_handbook_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
+    def test_run_formal_benchmark_writes_expected_artifacts_and_summaries(self) -> None:
         cases = (_completed_case(), _no_answer_case())
         adapter = type(
             "Adapter",
@@ -360,7 +360,7 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            run_handbook_formal_benchmark(
+            run_formal_benchmark(
                 cases=cases,
                 executor=lambda case: ExecutionResult(
                     response=_response(
