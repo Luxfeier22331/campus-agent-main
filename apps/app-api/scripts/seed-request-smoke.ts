@@ -91,7 +91,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 			key: "library-hours-answer",
 			prompt: "图书馆周末开到几点？",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			response: {
@@ -113,7 +113,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 					modelProvider: "openai",
 					outputTokens: 86,
 					refusalClass: null,
-					resolvedScopeCollection: "student_handbook",
+					resolvedScopeCollection: "student_rules",
 					resolvedScopeCorpus: "regulations",
 					retrievedSourceCount: 1,
 					retrievalAttempted: true,
@@ -127,7 +127,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 						semantic_outcome: "answered",
 					},
 					evidence: {
-						collection: "student_handbook",
+						collection: "student_rules",
 						corpus: "regulations",
 						query_text: "图书馆周末开到几点？",
 						sources: [
@@ -312,7 +312,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 			key: "no-answer-mars-campus",
 			prompt: "民大 2035 年火星校区什么时候开学？",
 			requestedScope: {
-				collection: "student_handbook",
+				collection: "student_rules",
 				corpus: "regulations",
 			},
 			response: {
@@ -334,7 +334,7 @@ export function buildRequestSmokeSeedScenarios(): RequestSmokeSeedScenario[] {
 					modelProvider: "openai",
 					outputTokens: 22,
 					refusalClass: null,
-					resolvedScopeCollection: "student_handbook",
+					resolvedScopeCollection: "student_rules",
 					resolvedScopeCorpus: "regulations",
 					retrievedSourceCount: 0,
 					retrievalAttempted: true,

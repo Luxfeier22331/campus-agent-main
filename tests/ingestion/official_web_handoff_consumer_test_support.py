@@ -5,7 +5,9 @@ from pathlib import Path
 
 from campus_ingestion_core.campusrag_ingestion_reporting import ImportReport
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
-from campus_ingestion_core.official_web_chunking_audit import OfficialWebProjectionChunkingAuditReport
+from campus_ingestion_core.official_web_chunking_audit import (
+    OfficialWebProjectionChunkingAuditReport,
+)
 from campus_ingestion_core.official_web_projection_shared import (
     OfficialWebProjectionReplayReport,
     OfficialWebProjectionValidationReport,
