@@ -252,7 +252,7 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         rows = normalize_handbook_provider_result(
             source_pdf="学生手册_2018.pdf",
             provider_jsonl_bytes=Path(
-                "tests/fixtures/student_rules/provider-result-updated.jsonl"
+                "tests/fixtures/student_handbook/provider-result-updated.jsonl"
             ).read_bytes(),
             ocr_provider="paddleocr_async",
             ocr_model="PaddleOCR-VL-1.5",

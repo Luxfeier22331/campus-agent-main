@@ -57,7 +57,7 @@ from tests.ingestion._handbook_chunking_test_support import build_hermetic_handb
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_rules"
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 
 SOURCE_BUCKET = "campus-rag-source"
 

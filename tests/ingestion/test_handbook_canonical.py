@@ -10,7 +10,7 @@ from campus_ingestion_core.handbook_cleanup import cleanup_handbook_document
 from campus_ingestion_core.handbook_provider_normalize import normalize_handbook_provider_result
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
-FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_rules"
+FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "student_handbook"
 SOURCE_ROW_SEQUENCE = count(1)
 
 
