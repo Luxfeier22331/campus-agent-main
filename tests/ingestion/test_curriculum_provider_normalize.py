@@ -645,6 +645,67 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[0]["heading_level"], None)
         self.assertEqual(rows[0]["title_candidate_score"], 0.0)
 
+    def test_normalize_curriculum_provider_result_repairs_cross_page_merged_table_placeholders(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-010",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table>"
+                                        "<tr><th>类别</th><th>课程</th><th>学分</th></tr>"
+                                        '<tr><td rowspan="4">基本素养课</td><td>大学英语(一)</td><td>2</td></tr>'
+                                        "<tr><td>大学英语(二)</td><td>2</td></tr>"
+                                        "<tr><td>大学英语(三)</td><td>2</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 11,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table>"
+                                        '<tr><td rowspan="1"></td><td>大学英语(四)</td><td>2</td></tr>'
+                                        "</table>"
+                                    ),
+                                    "block_id": 21,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    },
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        first_table = next(row for row in rows if row["provider_block_id"] == "11")
+        second_table = next(row for row in rows if row["provider_block_id"] == "21")
+
+        self.assertEqual(second_table["relation_type"], "table_continuation")
+        self.assertEqual(second_table["owner_row_id"], first_table["row_id"])
+        self.assertIn(">基本素养课<", second_table["html"])
+        self.assertEqual(second_table["table_cells"][0]["text"], "基本素养课")
+        self.assertEqual(second_table["table_cells"][0]["rowspan"], 1)
+
     def test_normalize_curriculum_provider_result_provider_fixture_regression(self) -> None:
         rows = self._normalize_fixture_rows(
             "tests/fixtures/curriculum_plan/provider-result-sample.jsonl"
