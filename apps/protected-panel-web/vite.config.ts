@@ -1,6 +1,6 @@
+import path from "node:path";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import react from "@vitejs/plugin-react";
-import path from "node:path";
 import { defineConfig } from "vite";
 import { protectedPanelManualChunks } from "./config/manual-chunks";
 
@@ -10,37 +10,37 @@ const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.l
 const useLiveSmokeAuxiliaryWorker = process.env.PANEL_LIVE_SMOKE === "1";
 
 if (useLiveSmokeAuxiliaryWorker) {
-  try {
-    process.loadEnvFile(liveSmokeAppApiEnvPath);
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
+	try {
+		process.loadEnvFile(liveSmokeAppApiEnvPath);
+	} catch (error) {
+		if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+			throw error;
+		}
+	}
 }
 
 export default defineConfig({
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: protectedPanelManualChunks,
-      },
-    },
-  },
-  plugins: [
-    react(),
-    cloudflare({
-      ...(useLiveSmokeAuxiliaryWorker
-        ? {
-            configPath: liveSmokePanelConfigPath,
-            auxiliaryWorkers: [
-              {
-                configPath: liveSmokeAppApiConfigPath,
-              },
-            ],
-            inspectorPort: false,
-          }
-        : {}),
-    }),
-  ],
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: protectedPanelManualChunks,
+			},
+		},
+	},
+	plugins: [
+		react(),
+		cloudflare({
+			...(useLiveSmokeAuxiliaryWorker
+				? {
+						configPath: liveSmokePanelConfigPath,
+						auxiliaryWorkers: [
+							{
+								configPath: liveSmokeAppApiConfigPath,
+							},
+						],
+						inspectorPort: false,
+					}
+				: {}),
+		}),
+	],
 });

@@ -8,11 +8,11 @@ import "./styles.css";
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-  throw new Error(PANEL_COPY.rootElementMissing);
+	throw new Error(PANEL_COPY.rootElementMissing);
 }
 
 createRoot(rootElement).render(
-  <StrictMode>
-    <ProtectedPanelAdminApp />
-  </StrictMode>,
+	<StrictMode>
+		<ProtectedPanelAdminApp />
+	</StrictMode>,
 );

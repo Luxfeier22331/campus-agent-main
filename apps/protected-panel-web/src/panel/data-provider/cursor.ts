@@ -1,120 +1,120 @@
-import { HttpError, type GetListParams } from "react-admin";
+import { type GetListParams, HttpError } from "react-admin";
 
 import { fetchJson } from "../http";
 
 const sequentialPageCursors = new Map<string, Map<number, string | null>>();
 
 export type SequentialCursorListResult<RecordType> = {
-  data: RecordType[];
-  pageInfo: {
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
+	data: RecordType[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
 };
 
 export function normalizeFilterValue(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function buildCursorKey(input: {
-  resource: string;
-  filter: GetListParams["filter"];
-  perPage: number;
+	resource: string;
+	filter: GetListParams["filter"];
+	perPage: number;
 }) {
-  const entries = Object.entries(input.filter ?? {})
-    .map(([key, value]) => [key, normalizeFilterValue(value)] as const)
-    .filter(([, value]) => Boolean(value))
-    .sort(([left], [right]) => left.localeCompare(right));
+	const entries = Object.entries(input.filter ?? {})
+		.map(([key, value]) => [key, normalizeFilterValue(value)] as const)
+		.filter(([, value]) => Boolean(value))
+		.sort(([left], [right]) => left.localeCompare(right));
 
-  return JSON.stringify({
-    entries,
-    perPage: input.perPage,
-    resource: input.resource,
-  });
+	return JSON.stringify({
+		entries,
+		perPage: input.perPage,
+		resource: input.resource,
+	});
 }
 
 function getCursorHistory(cursorKey: string) {
-  let history = sequentialPageCursors.get(cursorKey);
-  if (!history) {
-    history = new Map<number, string | null>([[1, null]]);
-    sequentialPageCursors.set(cursorKey, history);
-  }
+	let history = sequentialPageCursors.get(cursorKey);
+	if (!history) {
+		history = new Map<number, string | null>([[1, null]]);
+		sequentialPageCursors.set(cursorKey, history);
+	}
 
-  return history;
+	return history;
 }
 
 function pruneCursorHistory(history: Map<number, string | null>, currentPage: number) {
-  for (const knownPage of [...history.keys()]) {
-    if (knownPage > currentPage) {
-      history.delete(knownPage);
-    }
-  }
+	for (const knownPage of [...history.keys()]) {
+		if (knownPage > currentPage) {
+			history.delete(knownPage);
+		}
+	}
 }
 
 export async function getSequentialCursorList<
-  RawResponse extends {
-    page: {
-      nextCursor: string | null;
-    };
-  },
-  RawRecord,
-  RecordType,
+	RawResponse extends {
+		page: {
+			nextCursor: string | null;
+		};
+	},
+	RawRecord,
+	RecordType,
 >(input: {
-  buildQuery(query: URLSearchParams): void;
-  cursorFilter: GetListParams["filter"];
-  normalizeRecord(record: RawRecord): RecordType;
-  page?: number;
-  perPage?: number;
-  resource: string;
-  resourceLabel: string;
-  responseItems(payload: RawResponse): RawRecord[];
-  signal?: AbortSignal;
-  sourcePath: string;
+	buildQuery(query: URLSearchParams): void;
+	cursorFilter: GetListParams["filter"];
+	normalizeRecord(record: RawRecord): RecordType;
+	page?: number;
+	perPage?: number;
+	resource: string;
+	resourceLabel: string;
+	responseItems(payload: RawResponse): RawRecord[];
+	signal?: AbortSignal;
+	sourcePath: string;
 }): Promise<SequentialCursorListResult<RecordType>> {
-  const perPage = input.perPage ?? 20;
-  const page = input.page ?? 1;
-  const cursorKey = buildCursorKey({
-    filter: input.cursorFilter,
-    perPage,
-    resource: input.resource,
-  });
-  const cursorHistory = getCursorHistory(cursorKey);
+	const perPage = input.perPage ?? 20;
+	const page = input.page ?? 1;
+	const cursorKey = buildCursorKey({
+		filter: input.cursorFilter,
+		perPage,
+		resource: input.resource,
+	});
+	const cursorHistory = getCursorHistory(cursorKey);
 
-  if (page > 1 && !cursorHistory.has(page)) {
-    throw new HttpError(
-      `Protected panel ${input.resourceLabel} pagination currently supports sequential next-page navigation only.`,
-      400,
-      {
-        error: {
-          code: "cursor_not_available",
-          message: `Protected panel ${input.resourceLabel} pagination currently supports sequential next-page navigation only.`,
-        },
-      },
-    );
-  }
+	if (page > 1 && !cursorHistory.has(page)) {
+		throw new HttpError(
+			`Protected panel ${input.resourceLabel} pagination currently supports sequential next-page navigation only.`,
+			400,
+			{
+				error: {
+					code: "cursor_not_available",
+					message: `Protected panel ${input.resourceLabel} pagination currently supports sequential next-page navigation only.`,
+				},
+			},
+		);
+	}
 
-  const query = new URLSearchParams();
-  query.set("limit", String(perPage));
-  input.buildQuery(query);
+	const query = new URLSearchParams();
+	query.set("limit", String(perPage));
+	input.buildQuery(query);
 
-  const cursor = cursorHistory.get(page);
-  if (cursor) {
-    query.set("cursor", cursor);
-  }
+	const cursor = cursorHistory.get(page);
+	if (cursor) {
+		query.set("cursor", cursor);
+	}
 
-  const payload = await fetchJson<RawResponse>(`${input.sourcePath}?${query.toString()}`, {
-    signal: input.signal,
-  });
-  pruneCursorHistory(cursorHistory, page);
-  if (payload.page.nextCursor) {
-    cursorHistory.set(page + 1, payload.page.nextCursor);
-  }
+	const payload = await fetchJson<RawResponse>(`${input.sourcePath}?${query.toString()}`, {
+		signal: input.signal,
+	});
+	pruneCursorHistory(cursorHistory, page);
+	if (payload.page.nextCursor) {
+		cursorHistory.set(page + 1, payload.page.nextCursor);
+	}
 
-  return {
-    data: input.responseItems(payload).map(input.normalizeRecord),
-    pageInfo: {
-      hasNextPage: Boolean(payload.page.nextCursor),
-      hasPreviousPage: page > 1,
-    },
-  };
+	return {
+		data: input.responseItems(payload).map(input.normalizeRecord),
+		pageInfo: {
+			hasNextPage: Boolean(payload.page.nextCursor),
+			hasPreviousPage: page > 1,
+		},
+	};
 }
