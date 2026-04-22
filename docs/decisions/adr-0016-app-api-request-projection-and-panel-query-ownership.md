@@ -138,5 +138,5 @@ updated: 2026-04-10
 
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`

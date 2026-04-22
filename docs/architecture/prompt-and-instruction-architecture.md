@@ -272,7 +272,7 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 具体约束：
 
 - 不允许模型在 evidence 不足时用世界知识或常识自动补齐 institution truth
-- 不允许 specialist 因为没有识别到 campus signal，就默认把问题回退成某个现有 collection 的普通问句
+- 不允许 agent 因为没有识别到 campus signal，就默认把问题回退成某个现有 collection 的普通问句
 - citation-expected 的回答必须能回链到 explicit evidence bundle
 - high-structure deterministic answer path 继续优先于 prompt-only freeform synthesis
 - live / remote retrieval output 继续视为 untrusted evidence payload，不得进入 developer instruction zone
@@ -344,7 +344,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 1. `platform/runtime invariants`
 
 - 来自产品边界、架构边界、安全边界
-- 例如当前 `supervisor-led orchestration`、`specialist contract`、`restricted deny no leak`
+- 例如当前 `supervisor-led orchestration`、`agent contract`、`restricted deny no leak`
 
 2. `role instructions`
 
@@ -466,7 +466,7 @@ Return only schema-compliant output. Code-side finalization is authoritative.
 repo 最终追求的是：
 
 - 一个极薄、稳定、可版本化的 repo-global invariants block
-- 按 supervisor / specialist / mode 拆分的 package-owned prompt family
+- 按 supervisor / agent / mode 拆分的 package-owned prompt family
 - 明确的 trusted task packet 与 untrusted evidence packet 分区
 - strict structured outputs、grounding validator 与 code-owned finalization
 
@@ -514,7 +514,7 @@ repo 当前推荐的 system / role 设计固定为：
 
 - 不拥有 execution prompt 真相
 - 只拥有 product-layer session / principal / request context projection
-- 可拥有 consumer-facing UX copy prompt，但不拥有 specialist instructions
+- 可拥有 consumer-facing UX copy prompt，但不拥有 agent instructions
 
 ### `apps/supervisor-api`
 
@@ -542,7 +542,7 @@ repo 当前推荐的 system / role 设计固定为：
 
 ## Prompt Family Model
 
-每个 specialist / supervisor 不维护一份“大 prompt”，而维护 `prompt family + mode`。
+每个 agent / supervisor 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
 第一阶段推荐 family 如下：
 
@@ -654,7 +654,7 @@ task packet 由 code 生成，不由模型猜。
 - `response_constraints`
 - `output_schema_name`
 
-RAG specialist 可额外带：
+RAG agent 可额外带：
 
 - `query_plan_kind`
 - `clarification_reason`
@@ -883,7 +883,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 仍属当前 follow-up 但不在本文维护执行顺序的工作：
 
 - 更强的 provider-agnostic grounded-generation runtime
-- 更广的 claim taxonomy 与 specialist-side unsupported diagnostics
+- 更广的 claim taxonomy 与 agent-side unsupported diagnostics
 - prompt-family live gate artifact 的持续更新
 
 这些工作属于当前项目级 active lane，执行顺序与完成状态以 `.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`、对应 workstream `STATE.md` 与对应 active plan 为准。
@@ -918,7 +918,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 ## 相关稳定文档
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`

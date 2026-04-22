@@ -23,7 +23,7 @@ updated: 2026-03-27
 ## 原因
 
 - `corpus` 在本仓库里表示长期知识域，而不是来源站点或原始文件夹
-- 电话目录与服务入口同属校园服务发现语料，但与规章问答的查询面、字段形状和后续 specialist 语义不同
+- 电话目录与服务入口同属校园服务发现语料，但与规章问答的查询面、字段形状和后续 agent 语义不同
 - raw/source artifact 已经是 corpus-agnostic；问题只在 document-level 投影和默认查询面
 - 继续把电话目录留在 `regulations` 会让规章查询面和服务导航查询面长期混杂
 
@@ -50,7 +50,7 @@ updated: 2026-03-27
 
 - 两个 collection 当前都只进入 offline data-plane，不开放 retrieval 或默认 query-serving
 - 不在本轮把 `campusRAG` canonical 目录直接当成运行时真相
-- 不在本轮实现新的 retrieval 路由、specialist 暴露或 query-serving 开关
+- 不在本轮实现新的 retrieval 路由、agent 暴露或 query-serving 开关
 
 ## 对现有 handbook truth 的影响
 

@@ -4,11 +4,11 @@
 
 ## Overview
 
-当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led` 的校园助理系统：公开聊天面、受保护运营面、共享 `app-api`、内部 `supervisor-api`，以及按能力边界拆分的 specialist / retrieval / ingestion packages。
+当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`chat-first`、`supervisor-led` 的校园助理系统：公开聊天面、受保护运营面、共享 `app-api`、内部 `supervisor-api`，以及按能力边界拆分的 agent / retrieval / ingestion packages。
 
 当前 merged truth 的主路径为：
 
-`browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api -> supervisor-core -> specialist`
+`browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api -> supervisor-core -> agent`
 
 该仓库当前的核心约束包括：
 

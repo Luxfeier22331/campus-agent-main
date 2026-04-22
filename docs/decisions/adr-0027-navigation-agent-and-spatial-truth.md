@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0027
 status: accepted
 created: 2026-04-05
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # ADR-0027 Navigation Agent And Spatial Truth
@@ -17,7 +17,7 @@ Accepted on 2026-04-05.
 `campus-agent` 当前已经冻结了以下长期边界：
 
 - `supervisor` 是唯一顶层协调入口
-- specialist 表示稳定 capability boundary
+- agent 表示稳定 capability boundary
 - `apps/app-api` 是 canonical identity / authz / memory owner
 - execution path 只消费 typed projection
 - source truth 与 document / chunk / index truth 持续分层
@@ -123,7 +123,7 @@ Accepted on 2026-04-05.
 它不是：
 
 - canonical spatial truth
-- navigation specialist capability boundary
+- navigation agent capability boundary
 - shared contract vocabulary
 
 直接含义：
@@ -196,7 +196,7 @@ Accepted on 2026-04-05.
 
 - `docs/architecture/navigation-and-wayfinding-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/data-plane-architecture.md`

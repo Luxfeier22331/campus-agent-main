@@ -4,7 +4,7 @@
 
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
-- 当前主路径是 `supervisor-api -> supervisor-core -> rag-specialist -> retrieval-core`
+- 当前主路径是 `supervisor-api -> supervisor-core -> rag-agent -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平 tool
 - 当前 accepted merged truth 已具备 `student_handbook` 与 `curriculum_plan` 两条受控 query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
@@ -26,7 +26,7 @@
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/data-plane-architecture.md`
@@ -47,7 +47,7 @@
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
@@ -191,7 +191,7 @@
 以下规则只在“用户原意已经被准确理解之后”生效。
 
 - 不要把 retrieval 实现细节、索引构建逻辑或向量数据库特定代码拉回 `packages/supervisor-core`
-- 不要把 `campusRAG` 再建模成入口 agent 直接调用的扁平 tool；v2 的主模型是 supervisor -> specialist handoff
+- 不要把 `campusRAG` 再建模成入口 agent 直接调用的扁平 tool；v2 的主模型是 supervisor -> agent handoff
 - 不要让 `Agno`、`LlamaIndex`、`Qdrant`、`MinIO` 或其他具体基础设施类型泄漏进 `packages/contracts`
 - 不要把 online query path 和 offline ingestion/data plane 混在同一层
 - 不要把本机目录语义提升成长期对象存储真相源；当前阶段对象存储虽然可本机部署，但架构语义上仍是 `S3-compatible object storage`
@@ -237,7 +237,7 @@
 优先把可独立处理的子任务拆开处理，但前提是任务天然可并行、边界清晰、责任可分配。
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
-- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-specialist` / `supervisor-core`、`evals`
+- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、`rag-agent` / `supervisor-core`、`evals`
 - 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan 为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
 - `contracts` 未冻结前，不要并行推进依赖它的接口形状；关键 contract 变更统一由主代理收口
@@ -326,9 +326,9 @@ pnpm web:build:affected
 - `apps/supervisor-api`: 对外服务边界与 transport adapter；不要把核心编排逻辑塞进这里
 - `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
 - `packages/supervisor-core`: supervisor 的路由、委派、答案组装与升级逻辑
-- `packages/rag-specialist`: 知识域 specialist 入口；负责 retrieval 导向的 query/answer/confidence 逻辑
+- `packages/rag-agent`: 知识域 agent 入口；负责 retrieval 导向的 query/answer/confidence 逻辑
 - `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
 - `packages/ingestion-core`: ingestion/data plane 的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
-- `packages/contracts`: supervisor -> specialist handoff、evidence bundle 与共享 schema；不要泄漏运行时或基础设施类型
+- `packages/contracts`: supervisor -> agent handoff、evidence bundle 与共享 schema；不要泄漏运行时或基础设施类型
 - `packages/evals`: 回归场景、基线与 smoke/eval 入口
 - `packages/shared`: 轻量共享常量和工具；不要演变成业务逻辑垃圾桶

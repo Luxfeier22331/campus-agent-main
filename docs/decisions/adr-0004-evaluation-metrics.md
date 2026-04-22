@@ -83,14 +83,14 @@ answer 层长期至少保留以下指标族：
 
 ## 决策 4：Workflow 的核心指标族
 
-对 `supervisor -> specialist -> retrieval` 这类 agentic workflow，长期至少保留以下指标族：
+对 `supervisor -> agent -> retrieval` 这类 agentic workflow，长期至少保留以下指标族：
 
 - `status accuracy`
   `completed`、`needs_clarification`、`no_answer`、`error` 是否与 truth 一致
 - `intent-frame accuracy`
   top-level intent / task framing 是否与 truth 一致
 - `routing accuracy`
-  是否选择了正确的 specialist，或在不该委派时正确保持不委派
+  是否选择了正确的 agent，或在不该委派时正确保持不委派
 - `slot completeness / missing-slot accuracy`
   是否识别出 cohort、major、campus、target policy 等关键缺失信息
 - `clarification accuracy`
@@ -100,13 +100,13 @@ answer 层长期至少保留以下指标族：
 - `personalization correctness`
   是否正确使用 verified identity / typed memory 做 personalization，且没有错误过拟合到未验证个人背景
 - `delegation / handoff accuracy`
-  是否发生了正确的 specialist delegation / handoff，且没有越级绕过 supervisor policy
+  是否发生了正确的 agent delegation / handoff，且没有越级绕过 supervisor policy
 - `trace path correctness`
   是否发生了正确的 retrieval 调用、fail-closed 行为与其他关键中间路径
 
 补充约束：
 
-- 新 specialist、新 routing 或新 handoff 在进入 `release_gate` 前，必须先具备 machine-grade trace 点
+- 新 agent、新 routing 或新 handoff 在进入 `release_gate` 前，必须先具备 machine-grade trace 点
 - 缺少 trace observability 的设计，视为 workflow 指标不完整，而不是“暂时不评”
 
 workflow 指标属于正式门禁对象，不得被最终答案文本指标替代。
@@ -135,7 +135,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 - `regression_locked`
   必须覆盖 retrieval、answer、workflow 三层正式指标
 - `release_gate`
-  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新 specialist、routing、handoff、approval path 或 personalization / memory projection 时，必须显式覆盖对应维度
+  必须覆盖 retrieval、answer、workflow 与 safety/gate 指标；当本轮变化涉及新 agent、routing、handoff、approval path 或 personalization / memory projection 时，必须显式覆盖对应维度
 - `exploratory`
   允许试验新指标，但试验指标不自动升级为正式门禁
 

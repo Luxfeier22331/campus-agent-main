@@ -17,7 +17,7 @@
 
 它不负责：
 
-- supervisor / specialist 编排
+- supervisor / agent 编排
 - ingestion、cleanup、chunking 或 index 构建编排
 - API transport 或 auth
 

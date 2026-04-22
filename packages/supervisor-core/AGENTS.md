@@ -6,9 +6,9 @@
 
 这个目录是 `supervisor` 的唯一策略实现层。
 
-- 负责用户目标路由、specialist 委派、结果组装、澄清升级和最小审计
+- 负责用户目标路由、agent 委派、结果组装、澄清升级和最小审计
 - 当前默认 query-serving 主线仍是 `rag-agent`
-- 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal specialist handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
+- 当前接受的实现形态已经是 `supervisor-facing request -> routing -> internal agent handoff` 的 coordinator，后续演进应在这个边界上继续深化，而不是退回透传包装
 
 ## Source Of Truth
 
@@ -16,7 +16,7 @@
 
 - `../../AGENTS.md`
 - `../../docs/architecture/target-architecture.md`
-- `../../docs/architecture/execution-and-specialists-architecture.md`
+- `../../docs/architecture/execution-and-agents-architecture.md`
 - `../../docs/reference/runtime-serving-and-index-terms.md`
 - `../../docs/architecture/target-architecture.md`
 - `src/campus_supervisor_core/__init__.py`
@@ -26,11 +26,11 @@
 
 - request framing：把共享 `SupervisorRequest` 投影成 supervisor 内部上下文，并在内部构造 `SpecialistRequest`
 - 会话入口后的意图框定
-- 选择委派给哪个 specialist
+- 选择委派给哪个 agent
 - 当前 corpus routing decision
-- specialist 结果 finalization policy
+- agent 结果 finalization policy
 - 在置信度或范围不足时发起澄清
-- 组合 specialist 结果并形成对外可消费的响应
+- 组合 agent 结果并形成对外可消费的响应
 - 最小审计字段收集与 audit projection
 
 当前最小审计字段至少包括：
@@ -57,7 +57,7 @@
 
 - `apps/supervisor-api` 负责 AgentOS/runtime 与外部 API 壳；不要把 transport/auth 设置回灌到这里
 - `apps/supervisor-api` 只负责 auth mapping、trace propagation、`SupervisorRequest` 构造、route dispatch 和 HTTP JSON projection；不要把 routing、policy、response assembly 放回 API shell
-- `packages/rag-agent` 负责 retrieval 导向的 specialist 逻辑；不要在这里越级实现 specialist 内部策略
+- `packages/rag-agent` 负责 retrieval 导向的 agent 逻辑；不要在这里越级实现 agent 内部策略
 - `packages/contracts` 是唯一共享 request/handoff/schema 边界；不要绕过 `SupervisorRequest` / `SpecialistRequest` / `SpecialistResponse` 私自发明并行接口
 
 ## Current Serving Constraints
@@ -66,12 +66,12 @@
 - 当前默认 retrieval 问答主线仍然优先走 `rag-agent`，但 API shell 不应再把它写死成唯一 transport 构造
 - 已冻结但未放开的 data-plane corpus 不能在 supervisor 内被静默放开为查询默认范围；范围真相以 runtime profile 为准
 - 不要直接拼接对象存储逻辑
-- 不要越过 specialist/retrieval 层访问 registry、Qdrant 或 MinIO
-- 优先保持 `supervisor -> specialist` handoff 清晰，而不是引入快捷路径
+- 不要越过 agent/retrieval 层访问 registry、Qdrant 或 MinIO
+- 优先保持 `supervisor -> agent` handoff 清晰，而不是引入快捷路径
 
 ## Coordination Over Pass-Through
 
-- 不要把 supervisor 长期保留为对 specialist 的薄透传
+- 不要把 supervisor 长期保留为对 agent 的薄透传
 - 如果新增逻辑，优先收敛成真正的 coordination 层，而不是继续叠加直连调用
 - 不要把 transport、auth、retrieval 细节补进 supervisor 作为临时方案
 - 如果问题来自 handoff 或 orchestration 边界错误，优先修 supervisor 的编排边界，不要靠外围适配层兜底
@@ -87,7 +87,7 @@
 这个目录鼓励把工作按职责拆开处理，但不要共享写集。
 
 - 可以把 `response shaping`、`audit fields`、`tests` 拆成独立子任务
-- 不要把最终路由规则、specialist 选择逻辑或接口取舍完全交给被委派的子任务；主代理保留最终编排责任
+- 不要把最终路由规则、agent 选择逻辑或接口取舍完全交给被委派的子任务；主代理保留最终编排责任
 - 只有在 `contracts` 已冻结时，才并行推进 supervisor 内实现
 - 若与 `packages/rag-agent` 或 `packages/contracts` 同时改动，先切清写集再并行
 

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # Architecture
@@ -27,8 +27,8 @@ updated: 2026-04-21
   - docs-first 文档站、canonical reader 与 source-card jump 的前向 architecture
 - `runtime-delivery-and-release-hardening-architecture.md`
   - staging baseline、release identity、deploy gate 与 post-deploy evidence closure
-- `execution-and-specialists-architecture.md`
-  - supervisor-led orchestration、specialist boundary 与 prompt assembly seam
+- `execution-and-agents-architecture.md`
+  - supervisor-led orchestration、agent boundary 与 prompt assembly seam
 - `prompt-and-instruction-architecture.md`
   - prompt hierarchy、trusted/untrusted zoning 与 grounded generation path
 - `identity-and-authorization-architecture.md`

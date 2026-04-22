@@ -48,7 +48,7 @@ protected panel 已经被长期文档冻结为：
 
 原因：
 
-- `apps/supervisor-api`、ingestion、specialist 与其他 app boundary 仍有各自 runtime shape
+- `apps/supervisor-api`、ingestion、agent 与其他 app boundary 仍有各自 runtime shape
 - panel runtime freeze 不应反向扩大成仓库级单一 runtime 承诺
 
 ## 决策 3：UI shell 优先采用开源 admin framework 改造

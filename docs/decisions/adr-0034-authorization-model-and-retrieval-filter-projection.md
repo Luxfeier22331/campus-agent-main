@@ -108,7 +108,7 @@ Accepted on 2026-03-29.
 
 - JWT claims、Access envelope、Worker admission 事实可以作为 boundary input
 - 这些输入必须在 app-layer boundary 内完成映射、裁剪、版本化和最小化投影
-- 不允许把 raw token claims 直接一路传给 specialist / retrieval，作为长期 contract
+- 不允许把 raw token claims 直接一路传给 agent / retrieval，作为长期 contract
 
 ## 决策 7：当前 phase-1 的 `groups + campus_scope` 只是一种 transitional shape
 

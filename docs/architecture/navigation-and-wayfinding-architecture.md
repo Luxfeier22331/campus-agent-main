@@ -20,7 +20,7 @@ updated: 2026-04-21
 
 它不负责：
 
-- 当前是否已经落地导航 specialist
+- 当前是否已经落地导航 agent
 - 某一轮 phase 的执行顺序
 - 某个 provider、SDK 或路径算法的最终实现选型
 - 某个前端地图组件的具体交互设计
@@ -118,7 +118,7 @@ updated: 2026-04-21
 - route planning inside the capability boundary
 - ambiguity handling and clarification
 - navigation answer shaping
-- provider fallback orchestration inside the specialist boundary
+- provider fallback orchestration inside the agent boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
 
 长期不负责：
@@ -181,8 +181,8 @@ updated: 2026-04-21
 
 其中：
 
-- `place_catalog` 可以表现为 specialist-consumable internal retrieval / facts surface
-- `route_graph` 默认视为 specialist-private execution artifact，而不是自动提升为默认公开 query-serving surface
+- `place_catalog` 可以表现为 agent-consumable internal retrieval / facts surface
+- `route_graph` 默认视为 agent-private execution artifact，而不是自动提升为默认公开 query-serving surface
 
 长期规则：
 
@@ -242,14 +242,14 @@ updated: 2026-04-21
 
 - canonical spatial truth
 - route correctness truth
-- specialist capability boundary
+- agent capability boundary
 - shared contract vocabulary
 
 长期 provider posture 固定为：
 
 - browser geolocation 是 input source，不是 canonical truth
 - map / geocode / route provider 是 adapter，不是 campus truth owner
-- provider geocode、POI search、fallback route 可以参与 specialist 内部执行
+- provider geocode、POI search、fallback route 可以参与 agent 内部执行
 - provider-specific IDs、SDK types、payload shapes 不进入 `packages/contracts`
 
 针对“学校 + 周边关键地点”的底图、自建范围与 provider 成本 posture，见 `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`。
@@ -286,7 +286,7 @@ updated: 2026-04-21
 ## Related Stable Docs
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
 - `docs/architecture/data-plane-architecture.md`

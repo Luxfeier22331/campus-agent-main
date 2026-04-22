@@ -35,11 +35,11 @@ updated: 2026-04-21
 当前还存在若干 internal retrieval surface，但它们不因此自动成为默认公开 query-serving collection：
 
 - `curriculum/course_facts`
-  internal specialist retrieval surface
+  internal agent retrieval surface
 - `curriculum/program_family_facts`
-  internal specialist retrieval surface
+  internal agent retrieval surface
 - `curriculum/program_semester_facts`
-  internal specialist retrieval surface
+  internal agent retrieval surface
 
 当前 accepted retrieval baseline 是：
 
@@ -47,7 +47,7 @@ updated: 2026-04-21
 - registry-backed evidence
 - metadata pre-filter
 - evidence bundle 回链
-- specialist 可以在 `curriculum_plan` 选中 scope 下内部切到 `course_facts`、`program_family_facts`、`program_semester_facts`；selected scope 不因此漂移
+- agent 可以在 `curriculum_plan` 选中 scope 下内部切到 `course_facts`、`program_family_facts`、`program_semester_facts`；selected scope 不因此漂移
 
 ## Current Baseline Vs Target Agentic Retrieval
 
@@ -79,7 +79,7 @@ retrieval path 固定拆成：
 
 owner 分层固定为：
 
-- specialist：query framing、ambiguity handling、surface / entity planning
+- agent：query framing、ambiguity handling、surface / entity planning
 - retrieval-core：candidate retrieval、fusion、evidence shaping
 - registry / serving profile：version / visibility / serving scope truth
 
@@ -163,7 +163,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 
 `curriculum/course_facts` 的长期定位保持为：
 
-- specialist internal retrieval surface
+- agent-internal retrieval surface
 - 用于课程 / 课程族实体与 alias governance
 - 不自动提升成默认公开 query-serving collection
 
@@ -171,7 +171,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 
 `curriculum/program_family_facts` 的长期定位保持为：
 
-- specialist internal retrieval surface
+- agent-internal retrieval surface
 - 用于培养方案家族 membership / alias resolution
 - 不自动提升成默认公开 query-serving collection
 
@@ -179,7 +179,7 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 
 `curriculum/program_semester_facts` 的长期定位保持为：
 
-- specialist internal retrieval surface
+- agent-internal retrieval surface
 - 用于 resolved single-program + single-semester 课程清单问句
 - 上游 truth 来自 canonical `curriculum_plan document-units` 的派生物化，而不是 raw/source bucket replay
 - 不自动提升成默认公开 query-serving collection

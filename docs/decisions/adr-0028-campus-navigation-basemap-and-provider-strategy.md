@@ -16,7 +16,7 @@ Accepted on 2026-04-05.
 
 `ADR-0027` 已经冻结了以下长期边界：
 
-- 导航是独立 specialist family
+- 导航是独立 agent family
 - 校园空间真相属于 repo-owned institutional knowledge 子域
 - 瓦片地图只是 runtime presentation concern
 - 外部地图 provider 只允许作为 adapter 参与
@@ -99,7 +99,7 @@ OSMF 公共服务不是当前生产链路的可接受依赖。
 
 - 优先评估天地图这类低成本、合规导向的底图能力
 - 底图只承载浏览、定位辅助与 route overlay，不承载校园真相
-- 如果后续需要切换底图 provider，不应改动导航 contract 和 specialist truth model
+- 如果后续需要切换底图 provider，不应改动导航 contract 和 agent truth model
 
 明确不做：
 

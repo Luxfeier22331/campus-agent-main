@@ -20,7 +20,7 @@ updated: 2026-04-20
 ## Current Canonical Entry
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 
 如需完整旧正文，请通过 git history 追溯。

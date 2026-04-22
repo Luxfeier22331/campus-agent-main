@@ -102,7 +102,7 @@ execution path 的长期规则：
 
 - `apps/app-api` 提供最小 typed actor/context
 - `apps/supervisor-api` 只做 caller admission，不恢复最终业务 actor
-- supervisor / specialist 基于 typed projection 做 planning、clarification、wording
+- supervisor / agent 基于 typed projection 做 planning、clarification、wording
 
 ## Restricted Documents And Retrieval
 
@@ -139,7 +139,7 @@ Turnstile 这类 human verification 属于 auth admission hardening，不属于 
 ## Forbidden Shapes
 
 - 不把 memory 提升成授权来源
-- 不把 raw JWT / raw session 洩漏给 supervisor / specialist / retrieval
+- 不把 raw JWT / raw session 洩漏给 supervisor / agent / retrieval
 - 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization truth
 - 不把 retrieval payload ACL 字段误读成 canonical authz truth
 - 不让 operator panel 旁路 `app-api` 直接做授权解释

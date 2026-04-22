@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
 # 目标架构
@@ -36,7 +36,7 @@ updated: 2026-04-21
 
 长期主链路固定为：
 
-`client/channel -> web surface -> shared app-api -> execution engine -> supervisor core -> specialist planner -> retrieval plan -> retrieval core executor -> supporting evidence -> specialist synthesis -> supervisor finalization -> response`
+`client/channel -> web surface -> shared app-api -> execution engine -> supervisor core -> agent planner -> retrieval plan -> retrieval core executor -> supporting evidence -> agent synthesis -> supervisor finalization -> response`
 
 长期摄入链路固定为：
 
@@ -63,7 +63,7 @@ updated: 2026-04-21
 - `apps/supervisor-api` 持续只是 internal execution engine
 - `apps/app-api` 已冻结为 Worker；这不反推 `apps/supervisor-api` 必须是同一 runtime
 
-## 长期 execution / specialist 形态
+## 长期 execution / agent 形态
 
 - `supervisor` 保持 invariant top-level role name；长期不引入 `supervisor-agent`
 - repo-wide execution capability family 采用三层术语：
@@ -80,17 +80,17 @@ updated: 2026-04-21
 - 早期实验性的 `availability-specialist` 占位 capability 已退休；当前不再保留 `availability-agent` 之类前向 alias
 - 对已完成收口的 capability family，不再维护 `*-specialist` current-truth alias；后续也不得继续无规则地新增混合命名
 - supervisor 负责 policy-driven orchestration、handoff、response finalization
-- domain agent / specialist 负责明确能力边界内的 planning / evidence consumption / answer shaping
+- domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - `campus-services-agent` 长期承接 transport schedule、service status、temporary override 等结构化校园服务真相
 - `notice-agent` 长期承接 notice discovery、canonical notice reading、historical downgrade 与 source-linked notice rendering
 - `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有 timetable truth 或 service-status truth；当前 runtime package 为 `packages/navigation-agent`
 - `rag-agent` 长期拆成 scope resolution、retrieval planning、answer synthesis、grounding validation 等内部角色；当前 runtime package 为 `packages/rag-agent`
 - `retrieval-core` 长期负责 retrieval execution、rerank / merge / dedupe、query activity 与 candidate-set shaping
-- retrieval backend、vector infra、framework 选择隐藏在 specialist / retrieval boundary 之后
+- retrieval backend、vector infra、framework 选择隐藏在 agent / retrieval boundary 之后
 - 非 RAG capability 只要是长期稳定能力边界，也应作为稳定 domain family 落地，而不是回退成 supervisor inline tool
 - 对 `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/get` 这类结构化 runtime capability，长期实现形态固定为 `projection-backed internal query service + thin tool adapter + domain-agent`，而不是 query-time raw source scan、browser/public API 直连，或 execution path 回调 `app-api` loopback HTTP
 
-如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 specialist 接入，并拥有单独的 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
+如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。
 
 ## 长期 identity / authorization / memory 形态
 

@@ -18,7 +18,7 @@ updated: 2026-03-29
 - `packages/supervisor-core` 编排与审计投影
 - `packages/rag-agent` / `packages/retrieval-core` 的在线回答链路
 - `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
-- 后续 Cloudflare public entry、consumer app 与其他 specialist 的运行时壳
+- 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 
 因此系统需要同时满足两类不同的运行诉求：
 
@@ -106,7 +106,7 @@ updated: 2026-03-29
 
 原因：
 
-- 这样可以避免在 supervisor、specialist、ingestion 各层复制厂商逻辑
+- 这样可以避免在 supervisor、agent、ingestion 各层复制厂商逻辑
 - 方便在 `Axiom` 与 `Sentry` 之间执行不同的采样和字段保留策略
 - 后续若替换 sink，不需要回改核心业务语义
 
@@ -203,6 +203,6 @@ updated: 2026-03-29
 ## 相关文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

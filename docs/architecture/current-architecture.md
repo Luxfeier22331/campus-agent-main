@@ -28,7 +28,7 @@ updated: 2026-04-22
 
 当前接受的主拓扑固定为：
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core -> specialist`
+`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core -> agent`
 
 `browser -> protected-panel-web -> app-api -> request projection / operator read model`
 
@@ -58,11 +58,11 @@ updated: 2026-04-22
 - `regulations/scoped_rules`
   notice-derived scoped-rule holding collection；当前 posture 仍是 `offline_preparation`，repo 已冻结其作为 `annual_cycle_rule` / `time_bound_operational_rule` 的统一下游承接面，materialization 与 local-only chunk acceptance 已补齐，但继续保持 `query_enabled=false`
 - `curriculum/course_facts`
-  specialist internal retrieval surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
+  agent-internal retrieval surface；`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `curriculum/program_family_facts`
-  specialist internal retrieval surface；用于培养方案家族成员关系与别名治理，`retrieval_enabled=true`，`query_enabled_by_default=false`
+  agent-internal retrieval surface；用于培养方案家族成员关系与别名治理，`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `curriculum/program_semester_facts`
-  specialist internal retrieval surface；用于 single-program + single-semester 课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
+  agent-internal retrieval surface；用于 single-program + single-semester 课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
 - `campus_services/*`
   当前仍保持 `offline_preparation`
 
@@ -98,7 +98,7 @@ updated: 2026-04-22
 
 - internal execution admission 与 execution transport boundary
 - 接收 typed context / actor 投影
-- 进入 `packages/supervisor-core -> specialist`
+- 进入 `packages/supervisor-core -> agent`
 
 ### `apps/ingestion-worker`
 
@@ -116,7 +116,7 @@ updated: 2026-04-22
 - `packages/supervisor-core`
   top-level request framing、routing、delegation、response finalization
 - `packages/rag-agent`
-  当前默认 knowledge specialist，负责 retrieval-specific planning、clarification、grounded answer synthesis
+  当前默认 knowledge agent，负责 retrieval-specific planning、clarification、grounded answer synthesis
 - `packages/navigation-agent`
   已接受的 navigation capability boundary；当前 package / contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close
 - `packages/retrieval-core`
@@ -124,7 +124,7 @@ updated: 2026-04-22
 - `packages/ingestion-core`
   ingestion/data-plane consumption logic
 - `packages/contracts`
-  supervisor / specialist handoff 与 shared typed seam
+  supervisor / agent handoff 与 shared typed seam
 
 ## 当前术语真相
 
@@ -135,6 +135,7 @@ updated: 2026-04-22
   - `campus-services-agent`
   - `notice-agent`
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current runtime truth 已经对齐；active canonical surface 不再维护单独的 `*-specialist` current-truth alias。
+- shared DTO 仍保留 `SpecialistRequest` / `SpecialistResponse` 等 legacy seam 名称；这些类型名不再代表 repo 的 canonical runtime vocabulary。
 - 未来新增 capability family 的命名规则与 reopen 条件，以已完成的 `execution-capability-family-convergence` workstream 为准。
 
 ## 当前文档地图
@@ -143,7 +144,7 @@ updated: 2026-04-22
 - 当前架构：本文
 - 目标架构：`docs/architecture/target-architecture.md`
 - 产品/runtime supporting architecture：`docs/architecture/product-runtime-architecture.md`
-- execution/specialist supporting architecture：`docs/architecture/execution-and-specialists-architecture.md`
+- execution/agent supporting architecture：`docs/architecture/execution-and-agents-architecture.md`
 - prompt/instruction supporting architecture：`docs/architecture/prompt-and-instruction-architecture.md`
 - identity / authorization supporting architecture：`docs/architecture/identity-and-authorization-architecture.md`
 - retrieval / serving supporting architecture：`docs/architecture/retrieval-serving-architecture.md`

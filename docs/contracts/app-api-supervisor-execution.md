@@ -15,7 +15,7 @@ updated: 2026-04-20
 
 - shared product topology：`docs/architecture/product-runtime-architecture.md`
 - `app-api` runtime 边界：`docs/architecture/product-runtime-architecture.md`
-- supervisor execution engine 边界：`docs/architecture/execution-and-specialists-architecture.md`
+- supervisor execution engine 边界：`docs/architecture/execution-and-agents-architecture.md`
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - execution admission ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`

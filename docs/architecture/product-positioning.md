@@ -24,7 +24,7 @@ updated: 2026-04-21
 - 当前 merged truth 拓扑快照
 - 某一轮 phase 的执行顺序
 - 某个 app / package 的实现职责
-- 某个 specialist、地图 SDK 或 provider 的具体技术选型
+- 某个 agent、地图 SDK 或 provider 的具体技术选型
 
 ## 核心定位
 
@@ -72,7 +72,7 @@ updated: 2026-04-21
 - fail-close
   面对权限不足、地点歧义、证据不足或真相层缺失时，优先澄清、拒答或说明边界，而不是强行猜测
 - productized capabilities
-  用稳定的 supervisor / specialist capability family 承接能力，不把产品长期形态退化成一个拼接临时 tools 的聊天壳
+  用稳定的 supervisor / agent capability family 承接能力，不把产品长期形态退化成一个拼接临时 tools 的聊天壳
 - chat-first experience
   默认以聊天交互为主；地图、卡片、点位预览和后续路线预览属于 chat surface 的增强视图，而不是平行真相产品
 

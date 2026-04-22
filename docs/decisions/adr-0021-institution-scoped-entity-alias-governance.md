@@ -58,7 +58,7 @@ decision_id: ADR-0021
 
 直接含义：
 
-- alias 解析结果应进入 specialist 的 typed planning 语义
+- alias 解析结果应进入 agent 的 typed planning 语义
 - retrieval 不直接消费 alias 文本真相，而是消费 canonical entity/filter truth
 - eval 不再把高歧义 alias 的单目标 retrieval 排序结果当作 canonical truth
 
@@ -156,7 +156,7 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 
 直接含义：
 
-- specialist 可以做 entity-aware planning
+- agent 可以做 entity-aware planning
 - retrieval 不应再吸收“某个 alias 到底代表什么”的业务规则
 - alias 不是 retrieval backend 的 query rewrite 插件
 
@@ -239,7 +239,7 @@ family alias 的完成合同不能一刀切。
 对未来 `course-centric` 能力，这个 ADR 直接要求：
 
 - 离线派生 `course_facts` / `course_family_facts`
-- 在 specialist 中形成 canonical course/course_family resolution
+- 在 agent 中形成 canonical course/course_family resolution
 - retrieval 通过 canonical payload/filter 命中 facts collection
 - answer shaping 根据 `resolved_single` / `resolved_family` / `partial answer` 语义输出
 
@@ -258,8 +258,8 @@ canonical golden/eval truth 必须同步遵守：
 
 - `docs/architecture/target-architecture.md`
   只记录 alias/entity resolution 的 owner boundary
-- `docs/architecture/execution-and-specialists-architecture.md`
-  负责 specialist 对 alias/entity resolution 的长期职责
+- `docs/architecture/execution-and-agents-architecture.md`
+  负责 agent 对 alias/entity resolution 的长期职责
 - `docs/architecture/retrieval-serving-architecture.md`
   负责 retrieval 如何消费 canonical entity/filter truth
 - `docs/reference/eval-gold-truth-model.md`

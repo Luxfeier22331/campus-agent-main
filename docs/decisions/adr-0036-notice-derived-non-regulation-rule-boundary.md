@@ -64,7 +64,7 @@ Accepted on 2026-04-11.
 
 原因：
 
-- repo 当前还没有 admissions/operator-facing specialist 或对应 query-serving surface
+- repo 当前还没有 admissions/operator-facing agent 或对应 query-serving surface
 - 当前 merged truth 里不存在与这两类文档对应的产品入口
 - 在无明确 owner 的情况下新增 collection scaffold，会把“未来可能的 collection 名”误写成当前架构真相
 

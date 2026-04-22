@@ -24,7 +24,7 @@ updated: 2026-04-21
 ## Current Canonical Entry
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `.planning/WORKSTREAMS.md`

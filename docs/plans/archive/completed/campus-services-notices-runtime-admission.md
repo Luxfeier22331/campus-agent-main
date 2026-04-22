@@ -27,7 +27,7 @@ projection-backed internal query service seam，以及 supervisor handoff / owne
 
 ## Current Canonical Entry
 
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`
 - `docs/contracts/app-api-supervisor-execution.md`

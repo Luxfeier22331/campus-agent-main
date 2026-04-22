@@ -93,7 +93,7 @@ Accepted on 2026-03-28.
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
-`app-api -> supervisor-api -> specialist` 链路默认只允许传递最小化、结构化的上下文投影。
+`app-api -> supervisor-api -> agent` 链路默认只允许传递最小化、结构化的上下文投影。
 
 长期默认允许的内容包括：
 
@@ -166,9 +166,9 @@ Accepted on 2026-03-28.
   负责 canonical authz truth、retrieval filter projection 与 visibility / applicability 分层
 - `docs/architecture/product-runtime-architecture.md`
   负责 canonical identity、authorization 与 memory ownership 所在的 app boundary
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
   负责 supervisor 如何消费 typed identity / authorization / memory projection
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
   负责 retrieval-specific personalization 与 `RagIntentFrame`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
   负责长期 authorization model 与 retrieval filter projection 决策
@@ -194,8 +194,8 @@ Accepted on 2026-03-28.
 - `docs/architecture/target-architecture.md`
 - `docs/architecture/product-runtime-architecture.md`
 - `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`

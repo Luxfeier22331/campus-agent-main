@@ -2,32 +2,32 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-21
+updated: 2026-04-22
 ---
 
-# Execution And Specialists Architecture
+# Execution And Agents Architecture
 
 ## 文档边界
 
-本文冻结 execution engine、supervisor 与 specialist supporting architecture。
+本文冻结 execution engine、supervisor 与 agent supporting architecture。
 
 它回答的是：
 
 - `apps/supervisor-api` 与 `packages/supervisor-core` 分别负责什么
-- supervisor 如何与 specialist 交互
+- supervisor 如何与 agent 交互
 - RAG agent 与其他 domain capability family 的长期角色是什么
 
 ## Execution Chain
 
 当前与长期都遵循：
 
-`app-api -> supervisor-api -> supervisor-core -> specialist -> retrieval-core -> evidence -> supervisor response`
+`app-api -> supervisor-api -> supervisor-core -> agent -> retrieval-core -> evidence -> supervisor response`
 
 边界固定如下：
 
 - `apps/supervisor-api` 负责 internal execution admission 与 transport
 - `packages/supervisor-core` 负责 policy-driven orchestration
-- specialist 负责能力边界内的 planning / evidence consumption / answer shaping
+- agent 负责能力边界内的 planning / evidence consumption / answer shaping
 - `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval execution 与 query activity，不负责顶层产品编排
 
 ## Supervisor Responsibilities
@@ -36,7 +36,7 @@ supervisor 长期负责：
 
 - intent framing
 - risk / safety gate
-- specialist routing
+- agent routing
 - handoff shaping
 - response finalization
 - fail-close terminal semantics
@@ -46,11 +46,11 @@ supervisor 不负责：
 - retrieval backend 细节
 - collection-specific ingestion logic
 - product-layer auth/session ownership
-- 将 specialist 降级成扁平 tool bundle
+- 将 agent 降级成扁平 tool bundle
 
-## Specialist Model
+## Agent Model
 
-specialist 是稳定能力边界，不等于某个底层框架对象。
+agent 是稳定能力边界，不等于某个底层框架对象。
 
 当前 merged-truth 已接受的 current-truth runtime / package label：
 
@@ -78,6 +78,7 @@ specialist 是稳定能力边界，不等于某个底层框架对象。
   - `notice-agent`
 - 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`
 - 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain capability，需要先冻结 family label，再决定其 package/runtime admission 形态
+- 当前 shared contract seam 仍保留 `SpecialistRequest` / `SpecialistResponse` 等 legacy DTO 名称；这些类型名暂不代表 canonical runtime vocabulary。
 
 ## Structured Service And Notice Runtime Pattern
 
@@ -181,7 +182,7 @@ projection owner 继续显式分层：
 
 长期固定采用：
 
-`specialist planner -> retrieval-core executor`
+`agent planner -> retrieval-core executor`
 
 其中：
 
@@ -215,10 +216,10 @@ projection owner 继续显式分层：
 
 ## Retrieval And Execution Contract
 
-- specialist 与 supervisor 通过 `packages/contracts` 交互
+- agent 与 supervisor 通过 `packages/contracts` 交互
 - retrieval / infra types 不进入 shared contract
 - `ContextProjection` / `SupervisorResponse` 是当前 merged truth 的 shared seam
-- future specialist growth 只能在这个 seam 之后扩张
+- future agent growth 只能在这个 seam 之后扩张
 - target-state agentic retrieval 必须继续通过 typed plan / query activity / evidence summary seam 扩张，而不是退回 hidden prompt state
 
 ## Runtime Posture
@@ -229,7 +230,7 @@ projection owner 继续显式分层：
 
 - transport 留在 `apps/*`
 - orchestration 留在 `packages/supervisor-core`
-- specialist behavior 留在 specialist package
+- agent behavior 留在 agent package
 
 ## Prompt And Instruction Ownership
 
@@ -260,7 +261,7 @@ execution path 的最终 prompt stack 也固定为：
 ## Forbidden Shapes
 
 - 不把 supervisor 重新写成被动转发层
-- 不把 specialist 重新降级成 `campusRAG` 式扁平 tool
+- 不把 agent 重新降级成 `campusRAG` 式扁平 tool
 - 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic RAG 或单一 mega-tool router
 - 不把 retrieval implementation 细节塞回 `packages/supervisor-core`
 - 不让 `apps/supervisor-api` 恢复 product backend、operator query 或 browser API 责任

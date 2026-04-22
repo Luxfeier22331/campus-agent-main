@@ -13,7 +13,7 @@ Evaluation helpers for campus-agent v2.
 - curriculum live fixture 必须跟随当前 `curriculum/curriculum_plan` 的真实 manifest 边界收口；重点覆盖标题命中、短事实 section、table retrieval、同专业不同方案区分、needs-clarification 与 no-hit
 - `policy_title_exact_match` 与 `fixed_phrase_sparse_win` 类 live 样本必须至少能锚定到当前 handbook manifest 的标题关键词；相关 drift guard 由 `tests/evals/test_retrieval_benchmark.py` 覆盖
 - curriculum qrels 当前同样采取 `doc_id-level truth first`，第二学士学位、强基计划、创新班与课程教学计划是首批固定回归样本
-- curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 specialist 在课程型问句上内部切换到这个 collection
+- curriculum 课程 alias / family alias 现在额外有一条 internal `course_facts` serving surface：它不属于默认 external query-enabled scope，但 golden/scenario truth 会要求 agent 在课程型问句上内部切换到这个 collection
 - curriculum program-family alias 现在额外有一条 internal `program_family_facts` serving surface：`民族班有哪些` / `基地班有哪些` / `强基有哪些专业` / `二学位有哪些专业` / `实验班有哪些` / `创新班有哪些` 这类问句都应走 family-aware completed；其中 `实验班` / `创新班` 的 truth 是“当前已采集、名称模式命中的培养方案集合”，不是官方统一 family taxonomy
 - curriculum program + semester 课表问句现在额外有一条 internal `program_semester_facts` serving surface：像 `法学民族班培养方案里大二下有什么课` 这类 resolved single-doc + semester course-list 问句应优先切到这个 collection，而不是继续依赖 raw `curriculum_plan` table chunks
 - `民族实验班有哪些`、`强基计划有哪些专业`、`第二学士学位有哪些专业`、`名称里带实验班的培养方案有哪些`、`名称里带创新班的培养方案有哪些` 现在也属于固定 program-family completed lanes；full alias 与显式 name-pattern 问句都不能再退回 doc-level qrels truth
@@ -173,7 +173,7 @@ student handbook formal benchmark：
     - `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
 - 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`selected_target`、`corpus`、`collection`
   - 其中 `selected_target` 继续只表示 raw runtime target correlation field；report/display 需要 family wording 时应显式派生独立标签
-  - 如需保留 trace-rich specialist/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
+  - 如需保留 trace-rich agent/retrieval 单元行为，测试或局部调试应显式使用 `build_legacy_handbook_live_executor(...)`
 - curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run --reruns 3`
   - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark repair --benchmark-dir <formal-benchmark-dir>`

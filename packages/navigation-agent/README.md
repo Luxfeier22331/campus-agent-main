@@ -1,6 +1,6 @@
 # campus-navigation-agent
 
-校园地点寻找 specialist。
+校园地点寻找 agent。
 
 当前首发 slice 只覆盖 `place_lookup` / `place_finding`：
 

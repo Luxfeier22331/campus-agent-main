@@ -21,7 +21,7 @@ updated: 2026-04-20
 ## Current Canonical Entry
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/runbooks/public-product-path-safety-ops-runbook.md`
 - `docs/plans/README.md`
 - `.planning/WORKSTREAMS.md`

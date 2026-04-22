@@ -338,7 +338,7 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 ## 相关稳定文档
 
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-specialists-architecture.md`
+- `docs/architecture/execution-and-agents-architecture.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/architecture/prompt-and-instruction-architecture.md`
 - `docs/architecture/operator-observability-architecture.md`

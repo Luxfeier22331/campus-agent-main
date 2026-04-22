@@ -77,7 +77,7 @@ notice-family 分层不能回退成“只抓某一类通知”。
 
 - 同一条 notice 后续可能服务多个 collection / projection
 - portal 栏目与长期知识价值不是一一对应关系
-- 现在判断为低优先级的题材，后续仍可能进入别的 specialist 或别的人工治理路径
+- 现在判断为低优先级的题材，后续仍可能进入别的 agent 或别的人工治理路径
 
 ### 决策 3：family 分层主轴不是 portal `notice_type`
 

@@ -30,7 +30,7 @@ Accepted on 2026-04-06.
 - 把 `out_of_scope` 重新解释成“先去 web 上试一下”
 - 在 campus path 内引入 silent fallback，稀释当前 institution-scoped trust model
 - 把开放域回答与校园受控回答混在同一条 policy / eval / operator 路径里
-- 为了“更像通用助手”而绕开 `ADR-0006` 对 specialist 准入和安全边界的要求
+- 为了“更像通用助手”而绕开 `ADR-0006` 对 agent 准入和安全边界的要求
 
 ## 决策
 
@@ -72,13 +72,13 @@ Accepted on 2026-04-06.
 
 - 这不是当前 target architecture 的既有组成部分
 - 这不是当前 campus path 的隐含 backlog
-- 它不能以“先接一个 web specialist 试试”的方式绕过产品决策
+- 它不能以“先接一个 web agent 试试”的方式绕过产品决策
 
 ### 决策 5：未来开放域能力若被批准，必须以独立边界接入，而不是污染当前 campus path
 
 如果未来确实接受开放域能力，至少需要同时满足以下准入条件：
 
-- 独立 capability boundary 或 specialist boundary
+- 独立 capability boundary 或 agent boundary
 - 显式 routing / admission 规则，区分 campus path 与 open-domain path
 - 独立的 policy、prompt、grounding 与 refusal 语义
 - 独立的 eval lane、release gate 与 operator observability 维度
@@ -86,13 +86,13 @@ Accepted on 2026-04-06.
 
 禁止做法：
 
-- 让 campus specialist 在失败时静默切到 web
+- 让 campus agent 在失败时静默切到 web
 - 把开放域 evidence 和 institution truth 放进同一个真实性承诺
 - 因为存在 generalist 能力，就放松当前 campus path 的 fail-close 约束
 
 ### 决策 6：本 ADR 不引入任何新的开放域实现
 
-本 ADR 只冻结产品与架构决策，不引入新的 web capability、generalist specialist 或开放域运行时路径。
+本 ADR 只冻结产品与架构决策，不引入新的 web capability、generalist agent 或开放域运行时路径。
 
 ## 结果
 
