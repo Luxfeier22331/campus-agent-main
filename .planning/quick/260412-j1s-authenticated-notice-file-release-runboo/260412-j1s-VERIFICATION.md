@@ -8,8 +8,8 @@
 ```bash
 rg -n "authenticated_notice_file_release_export_v1|file_release|reference_only|object_store_write|collector-owned|capture/" \
   docs/reference/authenticated-notice-file-release-export-contract.md \
-  docs/architecture/authenticated-notice-source-architecture.md \
-  docs/architecture/authenticated-notice-source-truth-contract.md \
+  docs/architecture/domains/authenticated-notice/architecture.md \
+  docs/data/authenticated-notice-source-truth-schema.md \
   apps/authenticated-notice-collector/README.md
 ```
 

@@ -275,7 +275,7 @@ Phase C 还应显式承认当前本机环境事实：
 - `/home/reptilian/code/campus-agent/.planning/workstreams/shared-file-asset-loader-contract/STATE.md`
 - `/home/reptilian/code/campus-agent/.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/CONTEXT.md`
 - `/home/reptilian/code/campus-agent/.planning/workstreams/shared-file-asset-loader-contract/phases/phase-b-bounded-backend-evaluation/PLAN.md`
-- `/home/reptilian/code/campus-agent/docs/architecture/file-asset-loader-architecture.md`
+- `/home/reptilian/code/campus-agent/docs/architecture/system/file-asset-loader-architecture.md`
 - `/home/reptilian/code/campus-agent/packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py`
 - `/home/reptilian/code/campus-agent/apps/ingestion-worker/src/campus_ingestion_worker/normalize_authenticated_notice_legacy_office_attachment.py`
 - `/home/reptilian/code/campus-agent/packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`

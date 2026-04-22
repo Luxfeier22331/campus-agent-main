@@ -130,7 +130,7 @@ updated: 2026-04-21
 - `.planning/workstreams/execution-capability-family-convergence/STATE.md`
 - `docs/plans/execution-capability-family-convergence.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/current-architecture.md`
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `packages/availability-specialist/README.md`

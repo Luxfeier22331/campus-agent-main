@@ -39,14 +39,14 @@ status: planned
   - current serialized contract 不承载 forward family label
   - panel 已通过显式 mapping 展示 operator-friendly target label
 - prompt / instruction surfaces 仍存在 mixed wording：
-  - `docs/architecture/prompt-and-instruction-architecture.md` 同时使用 package path、`rag-specialist` role wording 和 forward architecture 讨论
+  - `docs/architecture/system/prompt-and-instruction-architecture.md` 同时使用 package path、`rag-specialist` role wording 和 forward architecture 讨论
   - `packages/rag-specialist/src/campus_rag_specialist/prompts/*.md` 直接写 `rag-specialist clarification/no-answer/unsupported composer`
 - eval surfaces 仍存在 raw handoff wording 与 report wording 混层：
   - `packages/evals/src/campus_evals/models.py` 里 `TraceExpectation.expected_handoff` 仍把 raw runtime target 当唯一 handoff label
   - `packages/evals/src/campus_evals/scenarios.py`、`expectations.py`、若干 benchmark/runtime helper 仍把 `rag-specialist` 写成 report-visible truth
   - `packages/evals/README.md`、artifact summary 里继续直接外露 `selected_target`
 - observability / operator wording 仍以 raw target 为中心：
-  - `docs/architecture/operator-observability-architecture.md` 把 `selected_target` 作为 monitoring 维度与 request-scoped summary truth
+  - `docs/architecture/system/operator-observability-architecture.md` 把 `selected_target` 作为 monitoring 维度与 request-scoped summary truth
   - `apps/app-api` telemetry / projection / operator query surfaces 继续以 `selected_target` 为 canonical raw field
   - `protected-panel-web` 已完成 display mapping，但 schema / filter field 继续使用 `selectedTarget`
 - 当前 repo 已明确：
@@ -93,8 +93,8 @@ status: planned
 - `.planning/workstreams/execution-capability-family-convergence/STATE.md`
 - `.planning/workstreams/execution-capability-family-convergence/phases/phase-2-current-truth-contract-label-migration/SUMMARY.md`
 - `docs/plans/execution-capability-family-convergence.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/data/app-api-schema.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/`

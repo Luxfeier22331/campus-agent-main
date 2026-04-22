@@ -148,13 +148,13 @@ status: planned
 - `.planning/workstreams/notice-consumption-layer/phases/phase-2-consumption-unit-schema/CONTEXT.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-2-consumption-unit-schema/RESEARCH.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-2-consumption-unit-schema/PLAN.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
-- `docs/architecture/file-asset-loader-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth.py`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_truth_inventory.py`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py`

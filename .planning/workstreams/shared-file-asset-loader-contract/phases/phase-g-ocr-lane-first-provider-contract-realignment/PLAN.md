@@ -41,8 +41,8 @@ updated: 2026-04-20
 ### Slice 1: Freeze The Canonical OCR Contract
 
 - 对齐并裁决以下文档之间的冲突：
-  - `docs/architecture/file-asset-loader-architecture.md`
-  - `docs/architecture/authenticated-notice-source-architecture.md`
+  - `docs/architecture/system/file-asset-loader-architecture.md`
+  - `docs/architecture/domains/authenticated-notice/architecture.md`
   - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
   - `.planning/workstreams/authenticated-notice-regulation-consumption/REQUIREMENTS.md`
 - 明确写清：
@@ -81,7 +81,7 @@ updated: 2026-04-20
 
 - `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`
 - `packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections.py`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/environment/README.md`
 - `docs/environment/provider-and-secret-inventory.md`

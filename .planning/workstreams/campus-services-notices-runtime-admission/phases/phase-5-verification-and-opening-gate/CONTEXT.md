@@ -82,10 +82,10 @@ status: planned
 - `.planning/workstreams/campus-services-notices-runtime-admission/ROADMAP.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/STATE.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-4-internal-query-service-and-supervisor-handoff-wiring/SUMMARY.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `packages/campus-services-agent/src/campus_services_agent/query_service.py`
 - `packages/notice-agent/src/campus_notice_agent/query_service.py`

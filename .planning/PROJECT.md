@@ -27,7 +27,9 @@
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
+- repo 级默认 agent execution 入口现已提升为 `scripts.workstream_harness`：底层继续复用 `workstream_claim` lease/heartbeat substrate，但默认终态已收口为 `completed / blocked / failed_needs_repair` 的 harness contract；runtime ledger 只写入 gitignored `.planning/runtime/harness/`
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
+- 正式 `apps/public-docs` docs shell 已在当前工作树落地；当前仍由 `document-site-and-canonical-reader` workstream 继续收口 published reader assets、same-site docs control-plane 与 shell consumption truth
 - `public-chat-web` 当前 public auth family 已覆盖 `/login`、`/register`、`/forgot-password`、`/reset-password`；`protected-panel-web` 的 `/login` 继续只代表 Cloudflare Access reentry
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
 - `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
@@ -154,6 +156,7 @@
 | canonical request projection 由 shared `apps/app-api` command path 一次产出，并由 `app-api` 暴露 panel `Requests` query surface | 这能避免把 panel、consumer chat、telemetry sink 或 `apps/supervisor-api` 错当成 request list/detail truth | — Accepted on 2026-03-28 |
 | `apps/app-api` 是唯一的 product-layer auth/session/principal owner；`apps/supervisor-api` 只做 internal execution caller admission | 这能避免 execution engine 继续从 edge/header 恢复最终业务 actor，并把 product identity 明确收口在 shared app boundary | — Accepted on 2026-03-28 |
 | repo 级执行面采用原生 GSD workstream-first 多线开发；repo 总览固定写入 `.planning/WORKSTREAMS.md`，单条线状态写入 `.planning/workstreams/<slug>/STATE.md` | 当前会话已按模块边界并行推进不同工作；继续维持共享根 `STATE.md` 会让 planning 入口真相失真，也会诱导会话互相改写不相关 workstream 状态 | — Accepted on 2026-04-19 |
+| repo-wide harness engineering 必须作为独立 execution infrastructure workstream 推进，并以 vendor-neutral contract + Codex first adapter 落地；不得把产品侧 `approval_required` 或任何产品 runtime state 复用到 harness | 这条线服务的是仓库执行语义，而不是产品请求生命周期；如果把 harness 混入 product/panel/runtime state，会污染产品 contract，也会让非产品 workstream 无法复用统一执行入口 | — Accepted on 2026-04-23 |
 | `apps/app-api`、`apps/public-chat-web`、`apps/protected-panel-web` 的后续验收 / 硬化必须作为单条 `shared product surfaces` workstream 推进，固定顺序为 `app-api -> public-chat-web -> protected-panel-web -> integrated acceptance` | 三者共享同一 product backend seam 与 request projection ownership；如果拆成三个并发 workstream，容易把 backend seam defect 错判成 surface 局部问题，并继续积累局部 patch | — Accepted on 2026-04-18 |
 | `public-chat-web` 的 end-user auth shell productization、forgot/reset password、mailer contract 与 browser smoke 必须作为 `shared product surfaces acceptance / hardening` 的后续 phases 推进，而不是拆成独立 workstream | 这些层仍属于 shared `app-api + public-chat-web` 的同一产品面；如果另起一条 auth workstream，会把已有 product surface closeout 和 auth follow-up 人为割裂 | — Accepted on 2026-04-19 |
 | public auth family 的 abuse-control posture 固定为 always-on Turnstile verification，interactive challenge 只在 elevated risk 时由 Cloudflare managed posture 自适应提升；repo 不自建手动 attack-mode 开关 | 这样可以把 human verification 保持为单一路径 auth admission hardening，而不是把 challenge policy 分叉成 repo-owned 运维开关、环境级双逻辑或 page-level patch | — Accepted on 2026-04-19 |

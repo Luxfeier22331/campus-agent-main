@@ -8,9 +8,9 @@
 - Local object storage is only a temporary implementation detail; `docs/decisions/adr-0002-local-minio-conventions.md` treats MinIO as an S3-compatible facade so future cloud migration does not leak filesystem paths.
 
 ## Package boundaries
-- `apps/` directories (for example `apps/supervisor-api`) host transport/runtime shells while `packages/` folders declare stable capabilities such as `packages/contracts`, `packages/ingestion-core`, and `packages/retrieval-core` (see `AGENTS.md` and `docs/architecture/data-plane-architecture.md`).
+- `apps/` directories (for example `apps/supervisor-api`) host transport/runtime shells while `packages/` folders declare stable capabilities such as `packages/contracts`, `packages/ingestion-core`, and `packages/retrieval-core` (see `AGENTS.md` and `docs/architecture/system/data-plane-architecture.md`).
 - `packages/contracts` defines schema-only dataclasses (`packages/contracts/src/campus_contracts/models.py`), `packages/supervisor-core` coordinates policies, `packages/rag-specialist` performs retrieval-oriented delegation, and `packages/retrieval-core` is the evidence abstraction; retrieval details are not permitted to bleed into supervisor contracts or Multi-agent orchestration layers (`AGENTS.md`).
-- Ingestion work stays inside `packages/ingestion-core` and the `apps/ingestion-worker` runtime shells, with document/registry rules traced in `docs/architecture/data-plane-architecture.md`.
+- Ingestion work stays inside `packages/ingestion-core` and the `apps/ingestion-worker` runtime shells, with document/registry rules traced in `docs/architecture/system/data-plane-architecture.md`.
 
 ## Documentation lifecycle
 - Canonical docs reside under `docs/` and obey the front-matter schema described in `docs/README.md` (metadata keys like `doc_type`, `status`, `created`, `updated`, and `decision_id` for ADRs).
@@ -70,7 +70,7 @@
 ## Anti-patterns explicitly forbidden
 - Do not drag retrieval implementation details or vendor-specific objects (Agno, LlamaIndex, Qdrant, MinIO internals) into `packages/contracts` or other contract layers; `AGENTS.md` and `docs/architecture/target-architecture.md` insist infrastructure stays behind the supervisor-specialist boundary.
 - Avoid flattening the `campusRAG` stack back into a tool-adapter; follow the supervisor-led orchestration plan, not the old bootstrap path mentioned in `AGENTS.md`.
-- Never mix online query logic with ingestion/data-plane responsibilities; `docs/architecture/data-plane-architecture.md` spells out separate `Raw`/`Processed`/`Chunk/Index` layers.
+- Never mix online query logic with ingestion/data-plane responsibilities; `docs/architecture/system/data-plane-architecture.md` spells out separate `Raw`/`Processed`/`Chunk/Index` layers.
 
 ## Workflow expectations
 - Before any structural change read the `Source Of Truth` list in `AGENTS.md`, respect the contract/package boundaries, and verify the new behavior with the baseline command `uv run --all-packages python -m unittest discover -s tests -t .` referenced in the same file.

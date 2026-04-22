@@ -43,7 +43,7 @@ status: active
 - `docs/architecture/current-architecture.md` 仍把当前 package truth 写成：
   - `packages/rag-specialist`
   - `packages/availability-specialist`
-- `docs/architecture/execution-and-agents-architecture.md` 与 `docs/architecture/target-architecture.md` 已开始写入前向 `<domain>-agent` 规则，并显式使用：
+- `docs/architecture/system/execution-and-agents-architecture.md` 与 `docs/architecture/target-architecture.md` 已开始写入前向 `<domain>-agent` 规则，并显式使用：
   - `campus-services-agent`
   - `notice-agent`
   - `navigation-agent`
@@ -106,7 +106,7 @@ status: active
 - `.planning/workstreams/execution-capability-family-convergence/STATE.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/supervisor-core/src/campus_supervisor_core/agent.py`

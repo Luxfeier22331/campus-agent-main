@@ -121,8 +121,8 @@ status: completed
 
 ## Canonical References
 
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/identity-and-authorization-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/current-architecture.md`
 - `docs/environment/provider-and-secret-inventory.md`
 - `docs/runbooks/staging-worker-deploy-runbook.md`

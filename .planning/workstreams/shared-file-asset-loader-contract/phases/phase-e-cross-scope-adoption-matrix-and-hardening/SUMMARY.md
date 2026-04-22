@@ -20,7 +20,7 @@ status: completed
 - xlrd PyPI docs: https://pypi.org/project/xlrd-2024/
 - `uv run --all-packages python -m unittest tests.ingestion.test_file_asset_substrate.FileAssetHardeningContractTest tests.ingestion.test_online_ocr_routing`
 - `uv run --all-packages python -m unittest tests.ingestion.test_file_asset_substrate tests.ingestion.test_process_raw_ingestion_job`
-- `docs/architecture/file-asset-loader-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/plans/archive/completed/shared-file-asset-loader-contract.md`
 
 ## Handoff

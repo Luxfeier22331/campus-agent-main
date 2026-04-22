@@ -27,9 +27,9 @@ status: completed
 ## Fresh Evidence
 
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_query_policy tests.specialist.test_availability_specialist tests.specialist.test_navigation_specialist`
 - `uv run --all-packages python -m unittest tests.specialist.test_rag_specialist.RagSpecialistTest.test_official_web_no_evidence_uses_scope_specific_no_answer_copy tests.specialist.test_rag_specialist.RagSpecialistTest.test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy`

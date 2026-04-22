@@ -37,8 +37,8 @@ status: completed
 - `.planning/workstreams/campus-services-offline-preparation-hardening/STATE.md`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_service_navigation_hybrid_materialization.py`
 - `tests/ingestion/test_handbook_service_navigation_hybrid_materialization.py`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 
 ## Standard Stack
 

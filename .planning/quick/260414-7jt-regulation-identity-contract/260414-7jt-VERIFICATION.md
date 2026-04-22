@@ -3,7 +3,7 @@
 ## Verification Performed
 
 - `rg -n "ADR-0040|approved migration target|regulation_work_title|regulation_edition_label|regulation_display_title" docs configs .planning/quick/260414-7jt-regulation-identity-contract .planning/STATE.md -S`
-- `git diff -- docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md docs/decisions/README.md docs/architecture/authenticated-notice-source-architecture.md docs/reference/institutional-regulations-promotion-quality-acceptance.md configs/ingestion/regulations/institutional_regulations/README.md .planning/STATE.md .planning/quick/260414-7jt-regulation-identity-contract`
+- `git diff -- docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md docs/decisions/README.md docs/architecture/domains/authenticated-notice/architecture.md docs/reference/institutional-regulations-promotion-quality-acceptance.md configs/ingestion/regulations/institutional_regulations/README.md .planning/STATE.md .planning/quick/260414-7jt-regulation-identity-contract`
 
 ## Verified Outcomes
 

@@ -115,7 +115,7 @@ This means a full rename would need to touch:
 
 Evidence:
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 
 Current truth already says:

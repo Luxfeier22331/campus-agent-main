@@ -74,7 +74,7 @@ status: planned
 ## Specific Ideas
 
 - 当前最明显的 hardening drift 有三个：
-  - `docs/architecture/file-asset-loader-architecture.md` 与 workstream phase wording 容易让人误读成 `.doc` 已在 `authenticated_notice` lane 内 admitted；而当前 config README 明确 `.doc` 仍 fail-close
+  - `docs/architecture/system/file-asset-loader-architecture.md` 与 workstream phase wording 容易让人误读成 `.doc` 已在 `authenticated_notice` lane 内 admitted；而当前 config README 明确 `.doc` 仍 fail-close
   - `packages/ingestion-core/pyproject.toml` 仍带 `xlrd>=2.0.1`，但 shared substrate 代码真相已切到 LibreOffice normalization + OOXML parse
   - compatibility shim 还在，但它们已经不是 forward owner；如果继续保留，需要在 docs / matrix 中写清原因
 - 当前未发现必须立即继续抽 shared helper 的第二个 consumer gap；Phase E 更像 matrix / drift closeout，而不是 reopen implementation substrate
@@ -91,9 +91,9 @@ status: planned
 - `docs/plans/archive/completed/shared-file-asset-loader-contract.md`
 
 ### Architecture and source boundaries
-- `docs/architecture/file-asset-loader-architecture.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 
 ### Code truth to audit
 - `packages/ingestion-core/src/campus_ingestion_core/file_asset_contract.py`

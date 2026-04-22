@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 ---
 
 # Phase 1 Plan
@@ -14,7 +14,7 @@ updated: 2026-04-21
 ## Tasks
 
 1. 新增 `document-site-architecture.md`
-   - 冻结 `public-docs-web` 的 surface ownership
+   - 冻结 `public-docs` 的 surface ownership
    - 冻结 docs-first / static-reader-assets / canonical-reader / source-card jump posture
    - 明确 docs search、reader、chat 三者的分层
 

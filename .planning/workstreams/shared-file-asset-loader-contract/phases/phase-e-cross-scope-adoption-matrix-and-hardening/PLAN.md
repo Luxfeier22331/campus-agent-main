@@ -83,7 +83,7 @@ Phase D 已经完成首个 source-channel migration，但还剩三类 planning d
 
 ## Proposed Write Set
 
-- `docs/architecture/file-asset-loader-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/plans/archive/completed/shared-file-asset-loader-contract.md`
 - `configs/ingestion/campus_notices/internal_notice/README.md`
 - `packages/ingestion-core/pyproject.toml`

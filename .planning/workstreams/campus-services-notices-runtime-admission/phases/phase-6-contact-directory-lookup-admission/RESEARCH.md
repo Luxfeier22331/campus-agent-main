@@ -32,7 +32,7 @@ status: completed
 
 - `docs/decisions/adr-0005-campus-services-taxonomy.md`
 - `configs/ingestion/campus_services/contact_directory/runtime-profile.json`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/policies/official-web-cleaning-and-chunking-policy.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`

@@ -95,7 +95,7 @@ status: planned
 - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/SUMMARY.md`
 - `docs/plans/execution-capability-family-convergence.md`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `packages/rag-specialist/pyproject.toml`
 - `packages/navigation-specialist/pyproject.toml`

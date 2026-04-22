@@ -23,9 +23,9 @@ status: completed
 - `.planning/workstreams/versioned-history-query-foundation/phases/phase-1-request-protocol/RESEARCH.md`
 - `docs/plans/archive/completed/versioned-history-query-foundation.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/agentic-retrieval-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `packages/contracts/src/campus_contracts/models.py`

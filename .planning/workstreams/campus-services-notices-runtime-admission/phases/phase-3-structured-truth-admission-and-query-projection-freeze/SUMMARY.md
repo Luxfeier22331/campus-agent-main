@@ -12,9 +12,9 @@ status: completed
 
 - 把 `Phase 3` 的 projection truth owner 写进长期文档，不再只留在 phase-local planning：
   - [campus-services-notices-runtime-admission.md](/home/reptilian/code/campus-agent/docs/plans/archive/completed/campus-services-notices-runtime-admission.md)
-  - [execution-and-agents-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/execution-and-agents-architecture.md)
-  - [retrieval-serving-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/retrieval-serving-architecture.md)
-  - [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-serving-and-news-retrieval-strategy.md)
+  - [execution-and-agents-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/system/execution-and-agents-architecture.md)
+  - [retrieval-serving-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/system/retrieval-serving-architecture.md)
+  - [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md)
   - [internal-notice-offline-preparation-strategy.md](/home/reptilian/code/campus-agent/docs/reference/internal-notice-offline-preparation-strategy.md)
 - 固定了 `service_status_lookup` / `transport_schedule_lookup` 的 truth owner：
   - 前者只读 current-effective status projection
@@ -32,11 +32,11 @@ status: completed
 ## Fresh Evidence
 
 - [campus-services-notices-runtime-admission.md](/home/reptilian/code/campus-agent/docs/plans/archive/completed/campus-services-notices-runtime-admission.md)
-- [execution-and-agents-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/execution-and-agents-architecture.md)
-- [retrieval-serving-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/retrieval-serving-architecture.md)
-- [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/official-web-serving-and-news-retrieval-strategy.md)
+- [execution-and-agents-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/system/execution-and-agents-architecture.md)
+- [retrieval-serving-architecture.md](/home/reptilian/code/campus-agent/docs/architecture/system/retrieval-serving-architecture.md)
+- [official-web-serving-and-news-retrieval-strategy.md](/home/reptilian/code/campus-agent/docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md)
 - [internal-notice-offline-preparation-strategy.md](/home/reptilian/code/campus-agent/docs/reference/internal-notice-offline-preparation-strategy.md)
-- `git diff --check -- docs/plans/archive/completed/campus-services-notices-runtime-admission.md docs/architecture/execution-and-agents-architecture.md docs/architecture/retrieval-serving-architecture.md docs/architecture/official-web-serving-and-news-retrieval-strategy.md docs/reference/internal-notice-offline-preparation-strategy.md`
+- `git diff --check -- docs/plans/archive/completed/campus-services-notices-runtime-admission.md docs/architecture/system/execution-and-agents-architecture.md docs/architecture/system/retrieval-serving-architecture.md docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md docs/reference/internal-notice-offline-preparation-strategy.md`
 
 ## Handoff
 

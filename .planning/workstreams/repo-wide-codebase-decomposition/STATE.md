@@ -9,14 +9,14 @@ updated: 2026-04-23
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 8
-**Current Phase Name:** Ingestion Test Decomposition II
+**Current Phase:** 9
+**Current Phase Name:** Residual Mid-size Package, Script, And Test Decomposition
 **Current Plan:** `<none>`
 **Total Phases:** 9
 **Total Plans in Phase:** 0
-**Progress:** 6/9 phases complete
+**Progress:** 9/9 phases complete
 **Last Activity:** 2026-04-23
-**Last Activity Description:** Clean-lane fallback advanced into Phase 9. `packages/ingestion-core/src/campus_ingestion_core/curriculum_budget_evaluation.py` now acts as a thin façade over split `*_shared.py` / `*_documents.py` / `*_probe.py` / `*_reporting.py` modules, and targeted `test_curriculum_budget_evaluation` plus `test_curriculum_chunking` both passed. Planning truth was also updated to remove already-subthreshold files from residual admission and to add newly confirmed `800+` suite debt.
+**Last Activity Description:** Remaining mandatory `800+` residuals `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py` and `tests/ingestion/test_curriculum_course_map_multimodal_probe.py` are now decomposed into thin façade + focused helper/suite modules. Targeted regressions passed, fresh inventory re-scan returned no remaining `800+` handwritten code/test files, and the decomposition baseline is now empty.
 
 ## Current Slice
 
@@ -27,42 +27,9 @@ updated: 2026-04-23
   - `apps/app-api/drizzle/meta/**`
   - other generated artifacts
 - admitted oversized handwritten production files currently mapped into later phases:
-  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_chunk_units.py`
-  - `packages/ingestion-core/src/campus_ingestion_core/registry.py`
-  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_course_map_multimodal_probe.py`
-  - `packages/ingestion-core/src/campus_ingestion_core/process_candidate_merging.py`
-  - `packages/contracts/src/campus_contracts/models.py`
-  - `apps/app-api/src/modules/operator-query/service.ts`
-  - `apps/authenticated-notice-collector/src/bootstrap-export.ts`
-  - `apps/authenticated-notice-collector/src/file-release-export.ts`
-  - `apps/app-api/scripts/seed-request-smoke.ts`
+  - `<none>`
 - admitted oversized handwritten test/app files currently mapped into later phases:
-  - `tests/retrieval/test_service.py`
-  - `apps/app-api/test/chat-command.service.test.ts`
-  - `apps/app-api/test/operator-query.route.test.ts`
-  - `apps/protected-panel-web/test/worker.test.ts`
-  - `tests/ingestion/test_registry_models.py`
-  - `tests/api/test_supervisor_api.py`
-  - `tests/supervisor/test_supervisor_core.py`
-  - `apps/protected-panel-web/test/data-provider.test.ts`
-  - `tests/contracts/test_models.py`
-  - `tests/ingestion/test_campusrag_ingestion_support.py`
-  - `apps/authenticated-notice-collector/test/bootstrap-export.test.ts`
-  - `tests/ingestion/official_web_projection_listing_units_suite.py`
-  - `tests/ingestion/official_web_projection_core_suite.py`
-  - `tests/ingestion/processing_pipeline_policy_chunking_suite.py`
-  - `tests/specialist/rag_specialist_curriculum_family_facts_suite.py`
-  - `tests/specialist/rag_specialist_request_prompt_suite.py`
-  - `tests/specialist/rag_specialist_curriculum_resolution_suite.py`
-  - `tests/specialist/rag_specialist_official_web_suite.py`
-  - `tests/specialist/rag_specialist_curriculum_structured_lookup_suite.py`
-  - `tests/evals/retrieval_benchmark_qrels_suite.py`
-  - `tests/evals/ragas_runtime_http_transport_suite.py`
-  - `tests/evals/curriculum_live_benchmark_executor_suite.py`
-  - `tests/evals/ragas_runtime_scorer_suite.py`
-  - `tests/evals/handbook_benchmark_repair_suite.py`
-  - `tests/retrieval/backend_qdrant_execution_suite.py`
-  - `tests/retrieval/backend_qdrant_curriculum_ranking_suite.py`
+  - `<none>`
 - recently completed clean-tranche decompositions now below threshold:
   - `packages/rag-agent/src/campus_rag_agent/service.py`
   - `packages/retrieval-core/src/campus_retrieval_core/evidence_ranking.py`
@@ -89,9 +56,25 @@ updated: 2026-04-23
   - `tests/ingestion/test_rebuild_local_data.py`
   - `tests/ingestion/test_chunking_policy.py`
   - `tests/ingestion/test_internal_notice_regulation_promotion.py`
+  - `tests/ingestion/test_registry_models.py`
+  - `tests/ingestion/test_campusrag_ingestion_support.py`
+  - `packages/contracts/src/campus_contracts/models.py`
+  - `tests/contracts/test_models.py`
+  - `apps/ingestion-worker/src/campus_ingestion_worker/official_web_handoff_consumer.py`
+  - `apps/app-api/scripts/seed-request-smoke.ts`
+  - `apps/app-api/src/modules/operator-query/service.ts`
+  - `apps/app-api/test/operator-query.route.test.ts`
+  - `apps/app-api/test/chat-command.service.test.ts`
   - `packages/ingestion-core/src/campus_ingestion_core/curriculum_budget_evaluation.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_chunk_units.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_course_map_multimodal_probe.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/process_candidate_merging.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/registry.py`
   - `packages/rag-agent/src/campus_rag_agent/grounding_validation.py`
   - `packages/rag-agent/src/campus_rag_agent/agent.py`
+  - `packages/ingestion-core/src/campus_ingestion_core/curriculum_provider_normalize.py`
+  - `apps/public-docs/scripts/sync_real_docs.py`
+  - `apps/app-api/scripts/collection-rename-backfill.ts`
   - `tests/evals/test_golden_cases.py`
   - `tests/evals/test_ragas_runtime.py`
   - `tests/evals/test_retrieval_benchmark.py`
@@ -99,27 +82,70 @@ updated: 2026-04-23
   - `tests/evals/test_curriculum_live_benchmark.py`
   - `tests/retrieval/test_backend_qdrant.py`
   - `tests/specialist/test_rag_specialist.py`
+  - `apps/protected-panel-web/test/worker.test.ts`
+  - `apps/protected-panel-web/test/data-provider.test.ts`
+  - `apps/authenticated-notice-collector/src/bootstrap-export.ts`
+  - `apps/authenticated-notice-collector/src/file-release-export.ts`
+  - `apps/authenticated-notice-collector/test/bootstrap-export.test.ts`
+  - `tests/api/test_supervisor_api.py`
+  - `tests/supervisor/test_supervisor_core.py`
+  - `tests/retrieval/test_service.py`
+  - `tests/ingestion/official_web_projection_listing_units_suite.py`
+  - `tests/ingestion/official_web_projection_core_suite.py`
+  - `tests/ingestion/processing_pipeline_policy_chunking_suite.py`
+  - `tests/specialist/rag_specialist_curriculum_family_facts_suite.py`
+  - `tests/specialist/rag_specialist_request_prompt_suite.py`
+  - `tests/specialist/rag_specialist_curriculum_resolution_suite.py`
+  - `tests/specialist/rag_specialist_official_web_suite.py`
+  - `tests/specialist/rag_specialist_curriculum_structured_lookup_suite.py`
+  - `tests/evals/retrieval_benchmark_qrels_suite.py`
+  - `tests/evals/ragas_runtime_http_transport_suite.py`
+  - `tests/evals/curriculum_live_benchmark_executor_suite.py`
+  - `tests/evals/ragas_runtime_scorer_suite.py`
+  - `tests/evals/formal_benchmark_repair_suite.py`
+  - `tests/retrieval/backend_qdrant_execution_suite.py`
+  - `tests/retrieval/backend_qdrant_curriculum_ranking_suite.py`
 - current planning rule:
   - inventory freeze contract:
     - current mandatory set is every existing handwritten `800+` line code/test file in the repo
     - sub-800 files only enter this workstream when they already show obvious multi-owner monolith shape
+  - repo-owned gate contract:
+    - `pnpm decomposition:lint` / `scripts.check_decomposition_tracked` is the canonical audit lane for tracked handwritten `py/ts/tsx/js/jsx/mjs/cjs`
+    - `configs/lint/decomposition-baseline.json` freezes the current admitted `800+` inventory and must shrink, not grow
+    - fail-close semantics are: no new over-threshold tracked file, no baseline entry growth, and no resolved file lingering in baseline
   - every later phase must split by cohesive owner boundary, not by arbitrary line count
   - every phase must keep behavior stable and run targeted regressions before claiming completion
 
 ## Blockers
 
-- several remaining Phase 4 / 5 / 7 / 8 candidates are concurrently dirty in this worktree, so clean-tranche execution should keep advancing on later admitted files whose write sets remain uncontended instead of forcing shared edits
-- Phase 8 still has two explicit admissions, `tests/ingestion/test_registry_models.py` and `tests/ingestion/test_campusrag_ingestion_support.py`, but both are already dirty from concurrent work in this worktree
+- no hard technical blocker in the current tranche; repo-owned decomposition gate is now the canonical detector for any future `800+` regressions
+- the mandatory `800+` inventory is currently empty; next action is operator choice between archiving/completing this workstream or keeping the gate active for future regressions
 - this workstream must stay independent from ongoing domain workstreams; do not smuggle business behavior changes into decomposition phases
 
 ## Verification
 
 - `git ls-files "*.ts" "*.tsx" "*.js" "*.jsx" "*.mjs" "*.cjs" "*.py" | while IFS= read -r f; do if [ -f "$f" ]; then wc -l "$f"; fi; done | sort -nr | head -n 80`
 - manual inventory review against generated/vendor exclusions
+- `uv run --all-packages python -m unittest tests.test_check_lint_coverage_tracked tests.test_check_decomposition_tracked`
+- `pnpm decomposition:lint`
+- `uv run --all-packages python -m unittest tests.ingestion.test_official_web_handoff_consumer`
+- `pnpm --filter app-api test:node -- test/request-smoke-seed.test.ts`
+- `pnpm --filter app-api test:node -- test/chat-command.service.test.ts test/operator-query.service.test.ts test/operator-query.route.test.ts`
+- `uv run --all-packages python -m unittest tests.ingestion.test_registry_models`
 - `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_budget_evaluation`
 - `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_chunking`
+- `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_course_map_multimodal_probe`
+- `uv run --all-packages python -m unittest tests.ingestion.test_probe_curriculum_course_maps_worker`
+- `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_course_map_docs_surface`
+- `uv run --all-packages python -m unittest tests.ingestion.test_processing_pipeline`
+- `uv run --all-packages python -m unittest tests.test_public_docs_sync`
+- `pnpm exec vitest run -c vitest.node.config.mts test/collection-rename-backfill.test.ts` (workdir: `apps/app-api`)
+- `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_provider_normalize tests.ingestion.test_source_truth_quality_gate`
+- `uv run --all-packages python -m unittest tests.specialist.test_rag_prompting tests.specialist.test_rag_specialist`
+- `uv run --all-packages python -m unittest tests.api.test_supervisor_api tests.supervisor.test_supervisor_core tests.retrieval.test_service`
+- `uv run --all-packages python -m unittest tests.ingestion.test_official_web_projection tests.ingestion.test_processing_pipeline tests.specialist.test_rag_specialist tests.evals.test_retrieval_benchmark tests.evals.test_ragas_runtime tests.evals.test_curriculum_live_benchmark tests.evals.test_formal_benchmark tests.retrieval.test_backend_qdrant`
 
 ## Session Continuity
 
-**Stopped At:** `packages/ingestion-core/src/campus_ingestion_core/curriculum_budget_evaluation.py` has been decomposed into façade + focused helper modules and verified. Phase 8 still has two dirty test admissions, so the next clean-lane fallback remains Phase 9 production decomposition on `packages/ingestion-core/src/campus_ingestion_core/curriculum_chunk_units.py`.
-**Resume File:** `packages/ingestion-core/src/campus_ingestion_core/curriculum_chunk_units.py`
+**Stopped At:** Mandatory `800+` handwritten decomposition inventory is empty; `raw_ingestion.py` and `test_curriculum_course_map_multimodal_probe.py` were the last residual tranche and both are now below threshold.
+**Resume File:** `<none>`

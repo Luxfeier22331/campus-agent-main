@@ -70,7 +70,7 @@ status: active
 - 后续执行期预计还会触及：
   - `packages/ingestion-core/src/campus_ingestion_core/file_asset_legacy_office.py`
   - `apps/ingestion-worker/**`
-  - `docs/architecture/file-asset-loader-architecture.md`
+  - `docs/architecture/system/file-asset-loader-architecture.md`
   - `docs/environment/**`
   - `docs/runbooks/**`
   - 相关 tests

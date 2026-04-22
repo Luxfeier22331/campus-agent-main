@@ -65,7 +65,7 @@ Source:
 当前 repo 设计本身已经和这个方向一致：
 
 - 架构文档已冻结 `semantic owner` 解析，并要求 owner 缺失时 fail-close 到 `manual_review_required`，不能直接把 wrapper notice body promote 成 regulation
-  - `docs/architecture/authenticated-notice-source-architecture.md`
+  - `docs/architecture/domains/authenticated-notice/architecture.md`
 - promotion report 已显式记录 `semantic_owner_kind` 与 `owner_source_missing_reason`
   - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_promotion.py`
 - candidate artifact 已显式保留 `semantic_owner_kind`

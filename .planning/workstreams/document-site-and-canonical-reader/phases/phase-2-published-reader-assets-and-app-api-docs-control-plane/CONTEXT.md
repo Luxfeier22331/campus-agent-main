@@ -2,7 +2,7 @@
 phase: "2"
 name: "Published Reader Assets And App API Docs Control Plane"
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 status: planned
 ---
 
@@ -19,11 +19,11 @@ status: planned
 - 把 canonical document layer 产出成正式的 reader projection 与 published reader assets
 - 把 `app-api` 的 docs navigation / document summary / version list / resolve / search seams 做成 runtime truth
 - 固定 public static bundle、gated asset 与 future restricted/historical delivery 的第一层分发边界
-- 为 `Phase 3` 的 `public-docs-web` shell 提供稳定可消费的 `/api/docs/*` 与 `/_docs/...` 契约
+- 让当前 `public-docs` shell 能稳定消费 `/api/docs/*` 与 `/_docs/...`，而不是继续停留在直接同步公开文档产物的过渡实现
 
 它不负责：
 
-- `public-docs-web` 的视觉 donor shell 或 IA 细节
+- `public-docs` 的大幅视觉 donor shell 或 IA 细节
 - docs landing、reader layout、breadcrumb、outline 交互
 - chat source-card UI 改造
 - restricted surface 的完整 acceptance 或 staging smoke
@@ -35,21 +35,20 @@ status: planned
 ## Current Truth
 
 - `Phase 1` 已完成并冻结：
-  - `public-docs-web` 是独立 browser surface
+  - `public-docs` 是独立 browser surface
   - `app-api` 是 docs control-plane owner
   - canonical reader model 使用 `anchor + rootUnitId`
   - published reader assets 的长期真相固定在对象存储
   - chat/source-card/docs search 必须共用 canonical reader target
-- repo 已有 reader asset key builder：
-  - `packages/ingestion-core/src/campus_ingestion_core/object_store.py`
-- repo 已把 `reader-assets/*` object key 规则写入：
-  - `docs/contracts/document-reader-publish-contract.md`
-  - `docs/decisions/adr-0002-local-minio-conventions.md`
-- repo 目前还没有：
-  - `apps/public-docs-web`
-  - reader projection generator
-  - published reader asset publish pipeline
-  - `app-api` docs HTTP routes/service/store
+- repo 当前已经有：
+  - `apps/public-docs`
+  - `packages/ingestion-core/src/campus_ingestion_core/document_reader_assets.py`
+  - `apps/app-api/src/app/routes/docs.ts`
+  - `apps/app-api/src/modules/docs/index.ts`
+- repo 当前仍未闭环：
+  - runtime-backed `DocsService` 默认 wiring
+  - `public-docs` 对 same-site `/api/docs/*` 与 published reader assets 的正式消费
+  - docs shell 对 navigation / resolve / version / search 的长期 owner 收口
   - browser-safe canonical source-card runtime payload
 
 </current_truth>
@@ -66,15 +65,15 @@ status: planned
   - reader resolve
   - docs search result target
   - deploy sync manifest / published asset admission truth
-- **02-04:** `public-docs-web` 的实现基线固定收口到现有仓库前端主栈：
-  - `React`
-  - `Vite`
-  - `@cloudflare/vite-plugin`
-  docs shell 可以借鉴 Starlight / Docusaurus 的 IA 与交互模式，但这些 donor 不能成为 canonical content、visibility 或 version truth owner。
+- **02-04:** `public-docs` 已经作为正式 docs shell 存在；本 phase 不再讨论“是否创建 docs app”，而是继续把它收口到现有仓库长期 truth：
+  - canonical reader assets
+  - runtime-backed `app-api` docs control-plane
+  - same-site docs seam
+  视觉 donor、组件细节与 IA 精修继续留给后续 phase。
 - **02-05:** public current docs 可以走 `public_static_asset`；restricted/historical docs 即使 payload format 相同，也不得自动进入匿名 bundle。
 - **02-05A:** `gated_asset` 的默认 delivery posture 固定为 same-site controlled proxy，而不是 direct presigned URL：
-  - browser 只请求 `public-docs-web` same-site gated path
-  - `public-docs-web` 先向 `app-api` 做逐请求实时 authz 校验
+  - browser 只请求 `public-docs` same-site gated path
+  - `public-docs` 先向 `app-api` 做逐请求实时 authz 校验
   - 校验通过后再受控读取对象存储 bytes
 - **02-05B:** direct presigned URL 只保留为 future optimization / explicit exception，不作为 first-launch 默认受限交付方案。
 - **02-05C:** short-lived grant token / local verification 只保留为 future optimization；`v1` 不先引入 token 验签分支。
@@ -88,7 +87,7 @@ status: planned
   - `curriculum/curriculum_plan`
   但实现必须保留 corpus/collection 级扩展能力，不写死到单 collection。
 - **02-08:** deploy sync manifest 必须由 app-owned truth 产生；前端 deploy 不允许直接扫描对象存储自行猜测应发布哪些文档版本。
-- **02-09:** same-site `/api/docs/*` 必须服务 `public-docs-web`；即使后续 reader route 继续采用 Worker-hosted React shell，也仍由 `public-docs-web` 暴露 same-site seam，而不是让 browser 直打 `app-api` public hostname。
+- **02-09:** same-site `/api/docs/*` 必须服务 `public-docs`；即使后续 reader route 继续采用 Worker-hosted docs shell，也仍由 `public-docs` 暴露 same-site seam，而不是让 browser 直打 `app-api` public hostname。
 
 </decisions>
 
@@ -96,10 +95,10 @@ status: planned
 ## Specific Gaps
 
 - 当前 data plane 没有 reader projection builder，因此还不能把 canonical artifacts 物化成 `reader.json` / `outline.json` / `meta.json` / `asset-manifest.json`。
-- 当前 `app-api` 还没有 docs domain module、routes 或 read model，`/api/docs/*` 仍只是文档 contract。
-- 当前 repo 只有 object key builder，没有 public publish manifest、bundle admission 规则或静态同步输入。
+- 当前 `app-api` 已有 docs route shell 与 contract types，但默认仍回落到 unavailable service，`/api/docs/*` 还不是 runtime-backed live seam。
+- 当前 repo 已有 publish manifest builder，但 `public-docs` 还没有切到 published reader assets + same-site docs seam 的长期消费方式。
 - 当前 public chat 只有 `place_card` 这类 structured part，没有 canonical source-card payload。
-- 当前 docs site 还不存在，因此如果不先完成 `Phase 2`，`Phase 3` 的 donor shell 会缺乏真实后端 seam，只能伪造 demo data。
+- 当前 `public-docs` shell 已存在，因此 `Phase 2` 的关键不再是“避免未来 donor shell 缺后端”，而是避免已经存在的 docs shell 继续固化为直接同步公开文档产物的过渡实现。
 
 </specifics>
 
@@ -114,14 +113,14 @@ status: planned
 - `.planning/workstreams/document-site-and-canonical-reader/phases/phase-1-document-site-architecture-and-contract-freeze/PLAN.md`
 - `.planning/workstreams/document-site-and-canonical-reader/phases/phase-1-document-site-architecture-and-contract-freeze/SUMMARY.md`
 - `.planning/workstreams/document-site-and-canonical-reader/REQUIREMENTS.md`
-- `docs/architecture/document-site-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
 - `docs/contracts/app-api-document-reader-http.md`
 - `docs/contracts/document-reader-publish-contract.md`
 - `docs/data/canonical-document-reader-model.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `packages/ingestion-core/src/campus_ingestion_core/object_store.py`
 
@@ -144,7 +143,7 @@ status: planned
 ## Deferred Follow-up
 
 - `Phase 3`
-  - `public-docs-web` shell / layout / landing / information architecture
+  - `public-docs` shell / layout / landing / information architecture refinement
 - `Phase 4`
   - docs search UX
   - version navigation state

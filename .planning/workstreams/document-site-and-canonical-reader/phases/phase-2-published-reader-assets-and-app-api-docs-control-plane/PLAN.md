@@ -4,41 +4,41 @@ phase: "2"
 phase_name: "Published Reader Assets And App API Docs Control Plane"
 status: planned
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 ---
 
 # Phase 2 Plan
 
 ## Objective
 
-把 `document-site` 的第二层 runtime truth 落成代码：
+把 `document-site` 的第二层 runtime truth 收口成真实可消费状态：
 让 canonical document artifacts 能稳定产出 published reader assets，
-并让 `app-api` 正式拥有 docs navigation / summary / version / resolve / search control-plane seams，
-为后续 `public-docs-web` shell 提供真实后端与真实发布产物。
+让 `app-api` 正式拥有 runtime-backed docs navigation / summary / version / resolve / search control-plane seams，
+并把已经存在的 `public-docs` shell 从直接同步公开文档产物的过渡实现收口到长期 docs truth。
 
 ## Why This Phase Exists
 
 当前 repo 已经有：
 
 - `Phase 1` 冻结的 architecture / contract / data truth
-- reader asset object key builder
+- reader asset package / publish manifest builder
 - `reader-assets/*` 的对象存储 contract
 - canonical `anchor + rootUnitId` reader target model
+- `app-api` docs route shell 与 browser contract types
+- 正式 `public-docs` docs shell app
 
 当前 repo 还没有：
 
-- reader projection builder
-- published reader asset package materialization
-- docs domain 的 `app-api` runtime seams
-- deploy sync manifest 生成
+- runtime-backed docs service 默认 wiring
+- `public-docs` 对 published reader assets + same-site docs control-plane 的正式消费
 - source-card compatible docs search results
 
-如果不先做这一步，`Phase 3` 的 `public-docs-web` 只能基于 mock data 或 donor demo shell，
+如果不先做这一步，当前 `public-docs` 会继续停留在“shell 已存在，但长期 truth 仍未接入”的过渡状态，
 这会把版本、visibility、resolve、search 和 publish truth 再次分裂成两套。
 
 ## Locked Inputs
 
-- `public-docs-web` 是独立 browser surface，但本 phase 不实现其 shell
+- `public-docs` 是独立 browser surface；本 phase 只做 shell truth convergence，不做大幅 IA / 视觉重做
 - public canonical doc 正文默认不通过 `/api/docs/*` 整篇返回
 - published reader assets 的长期真相固定在对象存储
 - `app-api` 是 docs control-plane owner
@@ -64,9 +64,9 @@ updated: 2026-04-21
 
 ## Execution Slices
 
-### Slice 1: Reader Projection And Asset Package Generation
+### Slice 1: Reader Projection And Asset Package Truth
 
-- 在 `packages/ingestion-core` 新增 reader projection builder。
+- 复核并补齐 `packages/ingestion-core` 中的 reader projection / asset package truth。
 - 输入：
   - canonical document metadata
   - `canonical.md`
@@ -76,21 +76,21 @@ updated: 2026-04-21
   - `outline.json`
   - `meta.json`
   - `asset-manifest.json`
-- 物化时复用已冻结的 `reader-assets/*` object key builder。
+- 物化时继续复用已冻结的 `reader-assets/*` object key builder。
 - 明确 section / block / anchor / rootUnitId 的序列化规则，确保后续 search/source-card 可以直接回链。
 
 ### Slice 2: Publish Admission And Sync Manifest Truth
 
-- 在 `app-api` 增加 docs publish read model/service，至少能回答：
+- 在 `app-api` 补 runtime-backed docs publish read model/service，至少能回答：
   - 哪些 document version 属于 public current published subset
   - 哪些只能标记为 gated delivery
   - 对应的 asset package key 和 static bundle target path 是什么
-- 产出 deploy sync manifest，作为 `public-docs-web` 后续构建输入。
+- 产出 deploy sync manifest，作为 `public-docs` 后续构建输入。
 - 禁止 deploy 直接扫描对象存储猜 public 子集。
 
 ### Slice 3: App API Docs HTTP Control Plane
 
-- 在 `apps/app-api` 增加 docs domain module 和 routes：
+- 在 `apps/app-api` 保持既有 routes/contract 不变，补齐默认 runtime-backed docs service：
   - `GET /api/docs/collections/:corpus/:collection/navigation`
   - `GET /api/docs/collections/:corpus/:collection/search`
   - `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
@@ -103,7 +103,15 @@ updated: 2026-04-21
   - initial `anchor` / `highlightRootUnitIds`
 - `search` 返回 source-card compatible result item。
 
-### Slice 4: Search Target Shaping
+### Slice 4: Public Docs Shell Consumption Convergence
+
+- 把 `public-docs` 从直接同步公开文档产物的过渡实现，收口到长期 docs truth：
+  - published reader assets
+  - same-site `/api/docs/*`
+  - canonical resolve/navigation/version/search seam
+- 保持当前 shell 可构建、可读、可 smoke，但不在本 phase 扩出新的 donor UI 重做。
+
+### Slice 5: Search Target Shaping
 
 - 基于 canonical reader model 输出 section hit：
   - `title`
@@ -115,7 +123,7 @@ updated: 2026-04-21
 - snippet 只能来自 canonical reader units / blocks，不得把 raw chunk payload 直出到 browser contract。
 - current phase 只做 current public docs search，不扩到底层 ranking 调优。
 
-### Slice 5: Focused Tests And Smoke Harness
+### Slice 6: Focused Tests And Smoke Harness
 
 - `ingestion-core`
   - reader projection unit tests
@@ -136,6 +144,7 @@ updated: 2026-04-21
 - `packages/ingestion-core/src/campus_ingestion_core/object_store.py`
 - `apps/app-api/src/` 下新增 docs domain service / routes / types
 - `apps/app-api/test/` 下新增 docs route/service tests
+- `apps/public-docs/` 下收口当前 docs shell 的真实消费方式
 - `tests/ingestion/` 下新增 reader projection tests
 - 如需要 shared type reuse，再评估是否补 repo-local typed schema，但不先把 browser HTTP shape提升到 `packages/contracts`
 
@@ -157,7 +166,7 @@ updated: 2026-04-21
   - browser contract 不泄漏 raw source/object-store locator
   - restricted delivery 不会退化成 public static path
 - boundary verification
-  - 本 phase 不引入 `public-docs-web` shell
+  - 本 phase 不重开第二个 docs app
   - 本 phase 不实现 chat source-card UI
 
 ## Exit Rule
@@ -167,4 +176,4 @@ Phase 2 完成后，repo 应达到：
 - canonical docs 已能生成 published reader assets
 - `app-api` 已拥有 docs control-plane runtime seams
 - public current docs 的 publish subset 已有明确 deploy sync truth
-- `public-docs-web` 可以在 `Phase 3` 直接消费真实 `/api/docs/*` 与 `/_docs/...`，而不再依赖 mock data
+- `public-docs` 可以直接消费真实 `/api/docs/*` 与 `/_docs/...`，而不再依赖直接同步公开文档产物的过渡实现

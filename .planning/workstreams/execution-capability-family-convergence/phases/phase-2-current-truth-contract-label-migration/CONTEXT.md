@@ -94,7 +94,7 @@ status: planned
 - `docs/plans/execution-capability-family-convergence.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/contracts/src/campus_contracts/__init__.py`
 - `packages/supervisor-core/src/campus_supervisor_core/policy.py`

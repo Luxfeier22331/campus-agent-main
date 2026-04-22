@@ -22,10 +22,10 @@ typed plan truth。
 
 ## Repo Facts
 
-- `docs/architecture/retrieval-serving-architecture.md` 已明确：
+- `docs/architecture/system/retrieval-serving-architecture.md` 已明确：
   - 当前 merged truth 仍是 single-shot retrieval baseline
   - full agentic retrieval 仍是 target architecture，而不是 current truth
-- `docs/architecture/agentic-retrieval-architecture.md` 已明确要求：
+- `docs/architecture/system/agentic-retrieval-architecture.md` 已明确要求：
   - planner-first
   - typed `RetrievalPlan`
   - typed `RetrievalStep`

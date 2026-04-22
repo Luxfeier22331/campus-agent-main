@@ -76,9 +76,9 @@ status: planned
 - `docs/decisions/adr-0005-campus-services-taxonomy.md`
 - `configs/ingestion/campus_services/contact_directory/README.md`
 - `configs/ingestion/campus_services/contact_directory/runtime-profile.json`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/policies/official-web-cleaning-and-chunking-policy.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 

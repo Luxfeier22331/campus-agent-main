@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-22
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Requirements: Eval
@@ -35,7 +35,7 @@ updated: 2026-04-22
 
 1. repo planning truth 中存在独立 `eval` workstream，明确拥有 shared eval substrate，而不是继续停留在 deferred reference plan 或与 `golden-dataset-execution-plan.md` 形成平行 owner。
 2. `packages/evals` 的 shared runtime、artifact、repair、accept 与 publish 顺序被正式写成长期 phase，而不是散落在 feature closeout 中。
-3. golden dataset governance 已被正式并入 `eval` 的 Phase 2；coverage matrix / denominator truth、retrieval qrels、workflow/status case、deterministic answer truth 与 synthetic candidate intake 的前向顺序被显式冻结。
+3. golden dataset governance 已被正式并入 `eval` workstream，但它只在采集内容补全后进入独立治理 phase；coverage matrix / denominator truth、retrieval qrels、workflow/status case、deterministic answer truth 与 synthetic candidate intake 的前向顺序被显式冻结。
 4. shared case governance 与 domain truth owner 被显式分离：domain workstream 继续负责业务真相 authoring，`eval` 只拥有共享 case family、artifact family 与 acceptance governance。
 5. operator publish/backflow 与 request correlation 被定义为 eval 的 shared seam，但不反向夺走 `app-api` 的 operator truth owner 身份。
 6. CI / release gate automation 具备明确 owner，不再依赖临时会话或单条 feature workstream 的补充说明。

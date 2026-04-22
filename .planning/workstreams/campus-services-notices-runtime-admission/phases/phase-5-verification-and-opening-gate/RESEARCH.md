@@ -34,8 +34,8 @@ status: completed
 
 ## Repo Pattern Readings
 
-- `docs/architecture/operator-observability-architecture.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-4-internal-query-service-and-supervisor-handoff-wiring/SUMMARY.md`

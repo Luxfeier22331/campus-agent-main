@@ -11,7 +11,7 @@ updated: 2026-04-21
 
 ### Current retrieval baseline is still single-shot
 
-- `docs/architecture/retrieval-serving-architecture.md` 明确区分：
+- `docs/architecture/system/retrieval-serving-architecture.md` 明确区分：
   - current baseline = single-shot hybrid retrieval
   - target shape = planner-first agentic retrieval
 - 当前 retrieval pipeline 仍是：
@@ -70,8 +70,8 @@ updated: 2026-04-21
 
 ### Structured runtime tools are explicitly outside generic retrieval planning
 
-- `docs/architecture/execution-and-agents-architecture.md` 与
-  `docs/architecture/agentic-retrieval-architecture.md` 都已固定：
+- `docs/architecture/system/execution-and-agents-architecture.md` 与
+  `docs/architecture/system/agentic-retrieval-architecture.md` 都已固定：
   - `service_status_lookup`
   - `transport_schedule_lookup`
   - `campus_notice_discover`

@@ -85,9 +85,9 @@ status: completed
 - `docs/plans/archive/completed/shared-file-asset-loader-contract.md` — repo-level workstream 意图与各 phase 边界
 
 ### Architecture constraints
-- `docs/architecture/file-asset-loader-architecture.md` — shared file asset loader 的 canonical owner、family matrix 与 fail-close 约束
-- `docs/architecture/authenticated-notice-source-architecture.md` — authenticated notice source channel owner split 与 attachment handling boundary
-- `docs/architecture/authenticated-notice-source-truth-contract.md` — notice source-truth / attachment refs 的 canonical contract
+- `docs/architecture/system/file-asset-loader-architecture.md` — shared file asset loader 的 canonical owner、family matrix 与 fail-close 约束
+- `docs/architecture/domains/authenticated-notice/architecture.md` — authenticated notice source channel owner split 与 attachment handling boundary
+- `docs/data/authenticated-notice-source-truth-schema.md` — notice source-truth / attachment refs 的 canonical contract
 
 ### Prior phase artifacts
 - `.planning/workstreams/shared-file-asset-loader-contract/phases/phase-c-shared-normalization-and-extraction-substrate/CONTEXT.md` — Phase C 冻结的 implementation boundary

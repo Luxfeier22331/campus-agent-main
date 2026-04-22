@@ -74,8 +74,8 @@ status: completed
 
 ## Canonical References
 
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/environment/provider-and-secret-inventory.md`
 - `docs/contracts/app-api-http.md`
 - `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md`

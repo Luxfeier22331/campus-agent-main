@@ -15,8 +15,8 @@
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
 - `docs/runbooks/README.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `apps/authenticated-notice-collector/README.md`
 - `apps/authenticated-notice-collector/src/auth-check.ts`
 - `apps/authenticated-notice-collector/test/auth-check.test.ts`

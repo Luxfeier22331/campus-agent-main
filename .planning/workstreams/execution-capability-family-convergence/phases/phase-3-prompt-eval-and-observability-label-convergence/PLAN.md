@@ -64,11 +64,11 @@ updated: 2026-04-21
   - eval deterministic assertion vs report/display wording
   - observability raw dimension vs operator-facing label/grouping wording
 - 至少覆盖：
-  - `docs/architecture/prompt-and-instruction-architecture.md`
+  - `docs/architecture/system/prompt-and-instruction-architecture.md`
   - `packages/rag-specialist/src/campus_rag_specialist/prompts/`
   - `packages/evals/src/campus_evals/{models,scenarios,expectations}.py`
   - `packages/evals/README.md`
-  - `docs/architecture/operator-observability-architecture.md`
+  - `docs/architecture/system/operator-observability-architecture.md`
   - `apps/app-api` / `protected-panel-web` 中已有或缺失的 mapping / projection seam
 
 ### Slice 2: Freeze Prompt-Facing Vocabulary
@@ -119,8 +119,8 @@ updated: 2026-04-21
 - `.planning/workstreams/execution-capability-family-convergence/phases/phase-3-prompt-eval-and-observability-label-convergence/PLAN.md`
 - `.planning/workstreams/execution-capability-family-convergence/STATE.md`
 - `docs/plans/execution-capability-family-convergence.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_clarify_v1.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_no_answer_v1.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_unsupported_v1.md`
@@ -154,7 +154,7 @@ updated: 2026-04-21
 
 ## Verification Commands
 
-- `git diff --check -- .planning/workstreams/execution-capability-family-convergence docs/plans/execution-capability-family-convergence.md docs/architecture/prompt-and-instruction-architecture.md docs/architecture/operator-observability-architecture.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_clarify_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_no_answer_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_unsupported_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/registry.py packages/evals/src/campus_evals/models.py packages/evals/src/campus_evals/scenarios.py packages/evals/src/campus_evals/expectations.py packages/evals/README.md`
+- `git diff --check -- .planning/workstreams/execution-capability-family-convergence docs/plans/execution-capability-family-convergence.md docs/architecture/system/prompt-and-instruction-architecture.md docs/architecture/system/operator-observability-architecture.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_clarify_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_no_answer_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/rag_unsupported_v1.md packages/rag-specialist/src/campus_rag_specialist/prompts/registry.py packages/evals/src/campus_evals/models.py packages/evals/src/campus_evals/scenarios.py packages/evals/src/campus_evals/expectations.py packages/evals/README.md`
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases`
 - `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_golden_cases`
 - 如涉及 panel/operator mapping helper，再补：

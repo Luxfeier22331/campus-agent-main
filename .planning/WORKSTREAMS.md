@@ -39,10 +39,11 @@ updated: 2026-04-23
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 新建文档站独立 workstream；当前收口 published reader assets、`app-api` docs seams、canonical reader model 与 source-card jump contract，不做 donor transplant 式 shortcut |
+| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | `Phase 3` | `workstream_harness` wrapper、Codex hooks、result schema 与 runtime ledger 已落地；当前继续把 repo 默认入口切到 harness wrapper，并补真实 run acceptance evidence |
+| `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 正式 `public-docs` app 已提升为 docs shell；当前继续收口 published reader assets、runtime-backed `app-api` docs seams 与 shell consumption truth，避免 docs app 继续停留在直接同步公开产物的过渡实现 |
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | `Phase 7` | 已完成 `institutional_rules` / `scoped_rules` 的 target-side chunk-prep parity；当前进入 `11` 条 admitted target acceptance rerun 与 gap closure，随后冻结 acceptance evidence |
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 5` | 冻结 repo-wide oversized handwritten code inventory，并把 ingestion / retrieval / eval / app surfaces / tests 的所有 admitted split debt 映射到后续 phases；明确排除 vendor / generated / lockfiles |
-| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 1` | 新建 shared eval workstream；当前先冻结 `packages/evals`、golden dataset / case governance、benchmark artifact lifecycle、operator publish seam 与 CI/release-gate automation 的 owner 边界，不把 domain truth 或 operator panel owner 混进来 |
+| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | `Phase 4` | `chat_completions + gpt-5.4` 已完成 fixed sample-set `1-run + 3-run` live rerun，当前 admission 为 `bounded_candidate_for_follow_up`；产品面仍 fail-close，等待 follow-up routing 明确 |
 
 ## Completed

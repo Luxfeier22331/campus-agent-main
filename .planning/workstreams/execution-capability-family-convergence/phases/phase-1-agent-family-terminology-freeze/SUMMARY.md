@@ -28,7 +28,7 @@ status: completed
 - `.planning/workstreams/execution-capability-family-convergence/phases/phase-1-agent-family-terminology-freeze/PLAN.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/decisions/adr-0027-navigation-specialist-and-spatial-truth.md`
 - `packages/availability-specialist/README.md`
 - `packages/navigation-specialist/README.md`

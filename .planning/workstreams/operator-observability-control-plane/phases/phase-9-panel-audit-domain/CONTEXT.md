@@ -178,7 +178,7 @@ status: active
 
 ### Relevant Contracts / Docs
 
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/domains/operator-observability.md`
 
@@ -202,7 +202,7 @@ status: active
 
 ## Canonical References
 
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `.planning/workstreams/operator-observability-control-plane/ROADMAP.md`
 - `.planning/workstreams/operator-observability-control-plane/STATE.md`

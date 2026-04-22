@@ -65,7 +65,7 @@ updated: 2026-04-22
   - targeted tests 当前保留 generic `live_assisted` plan / executor seam coverage，并移除了 official-web `rag-agent -> fresh_news` 自动消费路径断言
   - `Phase 3` 已运行并通过：
     - `uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.specialist.test_rag_retrieval_plan tests.specialist.test_rag_specialist tests.retrieval.test_service`
-    - `git diff --check -- packages/rag-agent/src/campus_rag_agent/service.py packages/rag-agent/src/campus_rag_agent/retrieval_plan.py packages/retrieval-core/src/campus_retrieval_core/service.py packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+    - `git diff --check -- packages/rag-agent/src/campus_rag_agent/service.py packages/rag-agent/src/campus_rag_agent/retrieval_plan.py packages/retrieval-core/src/campus_retrieval_core/service.py packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 
 - current `Phase 4` artifacts:
   - context: `.planning/workstreams/bounded-agentic-retrieval-productization/phases/phase-4-query-activity-evidence-selection-and-observability/CONTEXT.md`

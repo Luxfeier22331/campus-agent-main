@@ -52,7 +52,7 @@ Output: typed conversion client、重写后的 core/worker 调用链，以及对
 @.planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/CONTEXT.md
 @.planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/RESEARCH.md
 @.planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/PATTERNS.md
-@docs/architecture/file-asset-loader-architecture.md
+@docs/architecture/system/file-asset-loader-architecture.md
 @packages/ingestion-core/src/campus_ingestion_core/file_asset_legacy_office.py
 @apps/ingestion-worker/src/campus_ingestion_worker/normalize_authenticated_notice_legacy_office_attachment.py
 @apps/ingestion-worker/src/campus_ingestion_worker/official_web_handoff_consumer.py

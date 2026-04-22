@@ -50,7 +50,7 @@ updated: 2026-04-22
 - `uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.specialist.test_rag_retrieval_plan tests.specialist.test_rag_specialist tests.retrieval.test_service`
   - `Ran 196 tests`
   - `OK`
-- `git diff --check -- packages/rag-agent/src/campus_rag_agent/service.py packages/rag-agent/src/campus_rag_agent/retrieval_plan.py packages/retrieval-core/src/campus_retrieval_core/service.py packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `git diff --check -- packages/rag-agent/src/campus_rag_agent/service.py packages/rag-agent/src/campus_rag_agent/retrieval_plan.py packages/retrieval-core/src/campus_retrieval_core/service.py packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
   - 通过
 
 ## Follow-up

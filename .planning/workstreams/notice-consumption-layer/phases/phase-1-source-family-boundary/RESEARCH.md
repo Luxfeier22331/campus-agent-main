@@ -23,11 +23,11 @@ status: completed
 - `.planning/workstreams/notice-consumption-layer/STATE.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-1-agent-and-tool-boundary-freeze/CONTEXT.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-1-agent-and-tool-boundary-freeze/PLAN.md`

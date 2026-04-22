@@ -18,7 +18,7 @@ files:
   - tests/ingestion/test_authenticated_notice_closeout_async.py
   - tests/ingestion/test_rebuild_authenticated_notice_source_truth_inventory_worker.py
   - docs/runbooks/authenticated-notice-source-truth-replay-runbook.md
-  - docs/architecture/authenticated-notice-source-architecture.md
+  - docs/architecture/domains/authenticated-notice/architecture.md
 ---
 
 ## Problem

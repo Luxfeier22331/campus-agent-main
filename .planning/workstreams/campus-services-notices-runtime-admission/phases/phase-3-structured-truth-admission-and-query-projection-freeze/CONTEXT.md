@@ -108,8 +108,8 @@ status: planned
 - `.planning/workstreams/campus-services-notices-runtime-admission/STATE.md`
 - `.planning/workstreams/campus-services-notices-runtime-admission/phases/phase-2-tool-contract-freeze/SUMMARY.md`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `configs/ingestion/campus_services/service_catalog/runtime-profile.json`
 - `configs/ingestion/campus_notices/internal_notice/runtime-profile.json`

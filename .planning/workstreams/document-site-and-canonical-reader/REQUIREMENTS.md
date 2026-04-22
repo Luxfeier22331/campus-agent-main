@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Requirements: Document Site And Canonical Reader
@@ -14,7 +14,7 @@ updated: 2026-04-22
 
 ## In Scope
 
-- `public-docs-web` 作为独立 browser surface 的产品边界
+- `public-docs` 作为独立 browser surface 的产品边界
 - published static reader assets 的长期 delivery posture
 - object storage key layout 与 deploy sync manifest contract
 - `app-api` docs navigation / search / resolve / version seams
@@ -35,7 +35,7 @@ updated: 2026-04-22
 ## Success Criteria
 
 1. repo 中存在独立 workstream，明确把文档站、reader model、source-card jump 与后续实现顺序收口到同一条线。
-2. `public-docs-web` 被正式定义为独立 browser surface，而不是 `public-chat-web` 的页面模式。
+2. `public-docs` 被正式定义为独立 browser surface，而不是 `public-chat-web` 的页面模式。
 3. public published reader content 被正式定义为静态 reader assets，而不是由 API 每次返回正文。
 4. canonical reader model 明确以 `anchor` 和 `rootUnitId` 为用户态定位单位，不暴露 `chunkId`。
 5. `app-api` docs HTTP seams 被正式写成独立 control-plane contract，覆盖 navigation、resolve、version list 与 docs search。
@@ -43,6 +43,7 @@ updated: 2026-04-22
 7. published reader assets 的长期真相被正式固定在对象存储；deploy 只复制公开子集到 Worker static assets，不把 repo `assets/` 目录当真相。
 8. chat 来源展示被正式定义为 source-card jump 到 canonical reader，而不是把 raw locator 写回正文。
 9. public / restricted / historical reader 的前向路线被写清，后续实现不需要重新争论“是否做两套 reader”。
+10. 当前 repo 中已经存在的 `public-docs` shell 不再被 planning 文档误写成“尚未创建”；后续收口只围绕 contract convergence，而不是重复创建 docs app。
 
 ## Canonical Entry
 

@@ -133,8 +133,8 @@ status: planned
 
 ## Canonical References
 
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/environment/provider-and-secret-inventory.md`
 - `docs/runbooks/staging-worker-deploy-runbook.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/REQUIREMENTS.md`

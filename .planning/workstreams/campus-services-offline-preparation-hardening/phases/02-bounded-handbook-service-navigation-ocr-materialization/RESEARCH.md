@@ -35,7 +35,7 @@ status: completed
 
 - `.planning/workstreams/campus-services-offline-preparation-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/01.1-bounded-service-navigation-multimodal-probe-and-admission/SUMMARY.md`
-- `docs/architecture/file-asset-loader-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `configs/ingestion/regulations/student_rules/source-projections.v1.json`
 - `packages/ingestion-core/src/campus_ingestion_core/handbook_source_projections.py`

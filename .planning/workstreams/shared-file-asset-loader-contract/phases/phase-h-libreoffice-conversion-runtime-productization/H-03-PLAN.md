@@ -18,7 +18,7 @@ files_modified:
   - scripts/doctor_env.py
   - scripts/verify_legacy_office_conversion_runtime.py
   - env/commands/legacy-office-conversion-service.env.example
-  - docs/architecture/file-asset-loader-architecture.md
+  - docs/architecture/system/file-asset-loader-architecture.md
   - docs/environment/README.md
   - docs/runbooks/legacy-office-conversion-runtime.md
 requirements:
@@ -61,7 +61,7 @@ Output: 统一 env/docs/runbook、verification helper、真实资产 evidence bu
 @.planning/workstreams/shared-file-asset-loader-contract/STATE.md
 @.planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/CONTEXT.md
 @.planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/RESEARCH.md
-@docs/architecture/file-asset-loader-architecture.md
+@docs/architecture/system/file-asset-loader-architecture.md
 @apps/ingestion-worker/README.md
 @scripts/doctor_env.py
 </context>
@@ -70,10 +70,10 @@ Output: 统一 env/docs/runbook、verification helper、真实资产 evidence bu
 
 <task type="auto">
   <name>Task 1: 统一 worker/env/docs/operator contract</name>
-  <files>apps/ingestion-worker/pyproject.toml, apps/ingestion-worker/README.md, scripts/doctor_env.py, env/commands/legacy-office-conversion-service.env.example, docs/architecture/file-asset-loader-architecture.md, docs/environment/README.md, docs/runbooks/legacy-office-conversion-runtime.md</files>
-  <read_first>apps/ingestion-worker/pyproject.toml, apps/ingestion-worker/README.md, docs/environment/README.md, docs/architecture/file-asset-loader-architecture.md, scripts/doctor_env.py, .planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/RESEARCH.md</read_first>
-  <action>在 `apps/ingestion-worker/pyproject.toml` 暴露稳定命令 `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment`，并在 README 里明确 required env：`LEGACY_OFFICE_CONVERSION_BASE_URL`、`LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET`，optional env：`LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`。在 `scripts/doctor_env.py` 的 ingestion surface 增加 legacy Office conversion seam required settings。新增 `env/commands/legacy-office-conversion-service.env.example`，写出 caller/service 的 canonical defaults。更新 `docs/architecture/file-asset-loader-architecture.md`、`docs/environment/README.md`、`docs/runbooks/legacy-office-conversion-runtime.md` 与 `apps/ingestion-worker/README.md`，把 canonical endpoint 固定为 `POST /api/internal/legacy-office/conversions`，health routes 固定为 `GET /healthz` / `GET /readyz`，并明确 Phase H 不重开 OCR/provider-routing、`official_web` linked-file adoption、`authenticated_notice file_release`、regulation downstream、query-serving。</action>
-  <verify>uv run --all-packages python -m scripts.doctor_env ingestion --json && uv run --all-packages campus-ingestion-normalize-authenticated-notice-legacy-office-attachment --help && rg -n \"LEGACY_OFFICE_CONVERSION_BASE_URL|LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET|/api/internal/legacy-office/conversions|/healthz|/readyz|x-app-internal-auth\" apps/ingestion-worker/README.md docs/environment/README.md docs/architecture/file-asset-loader-architecture.md docs/runbooks/legacy-office-conversion-runtime.md env/commands/legacy-office-conversion-service.env.example</verify>
+  <files>apps/ingestion-worker/pyproject.toml, apps/ingestion-worker/README.md, scripts/doctor_env.py, env/commands/legacy-office-conversion-service.env.example, docs/architecture/system/file-asset-loader-architecture.md, docs/environment/README.md, docs/runbooks/legacy-office-conversion-runtime.md</files>
+  <read_first>apps/ingestion-worker/pyproject.toml, apps/ingestion-worker/README.md, docs/environment/README.md, docs/architecture/system/file-asset-loader-architecture.md, scripts/doctor_env.py, .planning/workstreams/shared-file-asset-loader-contract/phases/phase-h-libreoffice-conversion-runtime-productization/RESEARCH.md</read_first>
+  <action>在 `apps/ingestion-worker/pyproject.toml` 暴露稳定命令 `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment`，并在 README 里明确 required env：`LEGACY_OFFICE_CONVERSION_BASE_URL`、`LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET`，optional env：`LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS`。在 `scripts/doctor_env.py` 的 ingestion surface 增加 legacy Office conversion seam required settings。新增 `env/commands/legacy-office-conversion-service.env.example`，写出 caller/service 的 canonical defaults。更新 `docs/architecture/system/file-asset-loader-architecture.md`、`docs/environment/README.md`、`docs/runbooks/legacy-office-conversion-runtime.md` 与 `apps/ingestion-worker/README.md`，把 canonical endpoint 固定为 `POST /api/internal/legacy-office/conversions`，health routes 固定为 `GET /healthz` / `GET /readyz`，并明确 Phase H 不重开 OCR/provider-routing、`official_web` linked-file adoption、`authenticated_notice file_release`、regulation downstream、query-serving。</action>
+  <verify>uv run --all-packages python -m scripts.doctor_env ingestion --json && uv run --all-packages campus-ingestion-normalize-authenticated-notice-legacy-office-attachment --help && rg -n \"LEGACY_OFFICE_CONVERSION_BASE_URL|LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET|/api/internal/legacy-office/conversions|/healthz|/readyz|x-app-internal-auth\" apps/ingestion-worker/README.md docs/environment/README.md docs/architecture/system/file-asset-loader-architecture.md docs/runbooks/legacy-office-conversion-runtime.md env/commands/legacy-office-conversion-service.env.example</verify>
   <acceptance_criteria>
     - worker README、environment docs、runbook、architecture doc 与 env example 使用同一组 env 名和 route
     - `doctor_env ingestion` 把 legacy Office conversion seam 当成 canonical ingestion readiness 的一部分

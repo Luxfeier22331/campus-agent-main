@@ -117,8 +117,8 @@ status: active
 
 ## Canonical References
 
-- `docs/architecture/operator-observability-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/domains/operator-observability.md`
 - `.planning/workstreams/operator-observability-control-plane/ROADMAP.md`

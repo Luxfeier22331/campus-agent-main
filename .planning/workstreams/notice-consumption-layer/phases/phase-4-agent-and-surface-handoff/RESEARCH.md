@@ -29,9 +29,9 @@ status: completed
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/RESEARCH.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-3-authority-and-completeness/PLAN.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
 - `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`

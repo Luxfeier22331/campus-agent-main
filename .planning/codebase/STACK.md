@@ -26,7 +26,7 @@
 - Transport/runtime boundaries in the current tracked tree span `apps/supervisor-api`, `apps/ingestion-worker`, `apps/app-api`, `apps/public-chat-web`, and `apps/protected-panel-web`.
 - Historical 04.6/04.7 surfaces such as `public-entry-worker` and `public-consumer-chat` still appear in docs/planning history, but they are not current tracked app directories in merged truth.
 - Capability packages: `packages/supervisor-core`, `packages/rag-specialist`, `packages/navigation-specialist`, `packages/campus-services-agent`, `packages/notice-agent`, `packages/official-web-core`, `packages/retrieval-core`, `packages/ingestion-core`, `packages/contracts`, `packages/shared`, `packages/evals`, each with its own `pyproject.toml` and `src/` entry points.
-- Architecture framing is documented in `docs/architecture/target-architecture.md` and the phase-1 implementation details in `docs/architecture/data-plane-architecture.md`, so stack decisions follow those boundaries.
+- Architecture framing is documented in `docs/architecture/target-architecture.md` and the phase-1 implementation details in `docs/architecture/system/data-plane-architecture.md`, so stack decisions follow those boundaries.
 
 ## Apps & Packages Inventory
 

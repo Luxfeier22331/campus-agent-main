@@ -69,9 +69,9 @@ status: ready
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Repo architecture and workstream truth
-- `docs/architecture/file-asset-loader-architecture.md` — shared file asset loader 的 canonical family matrix、deployment posture 与 fail-close 边界
-- `docs/architecture/data-plane-architecture.md` — shared file asset loader 在 data-plane chain 中的位置与 source-truth guardrails
-- `docs/architecture/authenticated-notice-source-architecture.md` — `authenticated_notice` attachment boundary 与 Phase D migration owner split
+- `docs/architecture/system/file-asset-loader-architecture.md` — shared file asset loader 的 canonical family matrix、deployment posture 与 fail-close 边界
+- `docs/architecture/system/data-plane-architecture.md` — shared file asset loader 在 data-plane chain 中的位置与 source-truth guardrails
+- `docs/architecture/domains/authenticated-notice/architecture.md` — `authenticated_notice` attachment boundary 与 Phase D migration owner split
 - `docs/plans/archive/completed/shared-file-asset-loader-contract.md` — 这条 workstream 的 phase ordering 与 scope
 - `.planning/workstreams/shared-file-asset-loader-contract/REQUIREMENTS.md` — workstream 目标、范围、success criteria
 - `.planning/workstreams/shared-file-asset-loader-contract/STATE.md` — 当前已推进到 Phase C 的 planning truth

@@ -29,7 +29,7 @@
 
 关键依据：
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `configs/ingestion/campus_notices/internal_notice/runtime-profile.json`
 
@@ -201,8 +201,8 @@
 
 ### Repo-local
 
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`

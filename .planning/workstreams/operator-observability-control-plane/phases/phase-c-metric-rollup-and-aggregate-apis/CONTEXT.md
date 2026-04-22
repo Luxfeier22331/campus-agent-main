@@ -88,8 +88,8 @@ status: active
 ## Canonical References
 
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
 - `docs/contracts/app-api-operator-observability-http.md`

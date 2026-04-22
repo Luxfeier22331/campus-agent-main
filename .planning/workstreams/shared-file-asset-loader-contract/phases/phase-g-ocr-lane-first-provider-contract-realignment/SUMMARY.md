@@ -22,7 +22,7 @@ status: completed
 - `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`
 - `tests/ingestion/test_authenticated_notice_source_projections.py`
 - `tests/ingestion/test_process_raw_ingestion_job.py`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/environment/README.md`
 - `docs/environment/provider-and-secret-inventory.md`

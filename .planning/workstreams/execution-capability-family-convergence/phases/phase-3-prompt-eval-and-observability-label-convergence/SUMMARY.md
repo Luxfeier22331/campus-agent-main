@@ -26,13 +26,13 @@ status: completed
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_clarify_v1.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_no_answer_v1.md`
 - `packages/rag-specialist/src/campus_rag_specialist/prompts/rag_unsupported_v1.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 - `packages/evals/src/campus_evals/models.py`
 - `packages/evals/src/campus_evals/expectations.py`
 - `packages/evals/src/campus_evals/scenarios.py`
 - `packages/evals/README.md`
 - `tests/evals/test_golden_cases.py`
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 
 ## Verification
@@ -43,7 +43,7 @@ status: completed
 - `uv run --all-packages python -m unittest tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.evals.test_golden_cases`
   - passed
   - `225` tests passed
-- `git diff --check -- docs/architecture/prompt-and-instruction-architecture.md docs/architecture/operator-observability-architecture.md docs/contracts/app-api-operator-observability-http.md`
+- `git diff --check -- docs/architecture/system/prompt-and-instruction-architecture.md docs/architecture/system/operator-observability-architecture.md docs/contracts/app-api-operator-observability-http.md`
   - passed
 
 ## External Grounding

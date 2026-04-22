@@ -153,9 +153,9 @@ status: planned
 - `.planning/workstreams/notice-consumption-layer/phases/phase-1-source-family-boundary/CONTEXT.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-1-source-family-boundary/RESEARCH.md`
 - `.planning/workstreams/notice-consumption-layer/phases/phase-1-source-family-boundary/PLAN.md`
-- `docs/architecture/data-plane-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`

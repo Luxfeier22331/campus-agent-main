@@ -14,7 +14,7 @@
 | `apps/ingestion-worker/README.md` | config | batch | `apps/ingestion-worker/README.md` | exact |
 | `env/commands/legacy-office-conversion-service.env.example`（likely new） | config | request-response | `env/commands/official-web-handoff-consumer.env.example` | role-match |
 | `docs/environment/README.md` | config | request-response | `docs/environment/README.md` | exact |
-| `docs/architecture/file-asset-loader-architecture.md` | config | transform | `docs/architecture/file-asset-loader-architecture.md` | exact |
+| `docs/architecture/system/file-asset-loader-architecture.md` | config | transform | `docs/architecture/system/file-asset-loader-architecture.md` | exact |
 | `docs/runbooks/legacy-office-conversion-runtime.md`（likely new） | config | request-response | `docs/runbooks/staging-worker-deploy-runbook.md` | role-match |
 | `tests/ingestion/test_file_asset_substrate.py` | test | transform | `tests/ingestion/test_file_asset_substrate.py` | exact |
 | `tests/ingestion/test_normalize_authenticated_notice_legacy_office_attachment_worker.py` | test | batch | `tests/ingestion/test_normalize_authenticated_notice_legacy_office_attachment_worker.py` | exact |
@@ -311,7 +311,7 @@ APP_API_INTERNAL_SHARED_SECRET=replace-with-panel-bridge-secret
 
 ---
 
-### `docs/architecture/file-asset-loader-architecture.md`（config, transform）
+### `docs/architecture/system/file-asset-loader-architecture.md`（config, transform）
 
 **Primary analog:** 当前 LibreOffice canonical truth 段。
 
@@ -594,7 +594,7 @@ self.assertEqual([call["payload"]["status"] for call in reporter.calls], ["runni
 **Sources**
 
 - `packages/ingestion-core/src/campus_ingestion_core/file_asset_legacy_office.py` lines 123-154, 204-243
-- `docs/architecture/file-asset-loader-architecture.md` lines 182-204
+- `docs/architecture/system/file-asset-loader-architecture.md` lines 182-204
 
 **Apply to**
 

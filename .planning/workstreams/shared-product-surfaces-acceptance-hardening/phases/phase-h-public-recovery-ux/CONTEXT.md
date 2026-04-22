@@ -106,8 +106,8 @@ status: completed
 
 ## Canonical References
 
-- `docs/architecture/identity-and-authorization-architecture.md`
-- `docs/architecture/product-runtime-architecture.md`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/product-runtime-architecture.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/ROADMAP.md`
 - `.planning/workstreams/shared-product-surfaces-acceptance-hardening/STATE.md`

@@ -152,7 +152,7 @@ status: active
 
 ### Relevant Docs
 
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 - `docs/runbooks/forward-worker-surface-smoke-runbook.md`
 - `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
@@ -194,7 +194,7 @@ status: active
 
 ## Canonical References
 
-- `docs/architecture/operator-observability-architecture.md`
+- `docs/architecture/system/operator-observability-architecture.md`
 - `docs/contracts/app-api-operator-observability-http.md`
 - `docs/plans/archive/completed/operator-observability-control-plane-foundation.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

@@ -81,10 +81,10 @@ status: planned
 - `configs/ingestion/campus_services/service_catalog/runtime-profile.json`
 - `docs/plans/archive/completed/campus-services-offline-preparation-hardening.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/STATE.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
-- `docs/architecture/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
 
 </canonical_refs>
 

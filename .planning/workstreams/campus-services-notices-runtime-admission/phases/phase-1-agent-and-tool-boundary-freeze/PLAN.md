@@ -158,8 +158,8 @@ updated: 2026-04-21
 - `.planning/workstreams/campus-services-notices-runtime-admission/REQUIREMENTS.md`
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
 - `docs/architecture/target-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 
 ## Verification Matrix

@@ -2,7 +2,7 @@
 doc_type: research
 status: active
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 ---
 
 # Phase 1 Research
@@ -77,7 +77,7 @@ updated: 2026-04-21
 
 对 repo 的直接含义：
 
-- `public-docs-web` 继续保持 Worker 部署目标是成立的
+- `public-docs` 继续保持 Worker 部署目标是成立的
 - public published reader content 适合走 static assets
 - `/api/docs/*` 继续保留 control-plane seam
 - restricted/gated reader 不能因为采用同一种 reader asset format 就退化成匿名 static path
@@ -91,4 +91,4 @@ updated: 2026-04-21
 - version/visibility first-class
 - citation unit 与 raw retrieval trace 分层
 
-因此 `public-docs-web static reader assets + app-api docs control plane + canonical reader projection` 是与仓库最一致的方向。
+因此 `public-docs static reader assets + app-api docs control plane + canonical reader projection` 是与仓库最一致的方向。

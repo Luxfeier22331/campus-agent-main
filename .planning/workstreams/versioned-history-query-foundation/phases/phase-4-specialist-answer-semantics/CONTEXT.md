@@ -87,7 +87,7 @@ status: completed
 - `.planning/workstreams/versioned-history-query-foundation/STATE.md`
 - `.planning/workstreams/versioned-history-query-foundation/phases/phase-3-retrieval-version-filter/SUMMARY.md`
 - `docs/plans/archive/completed/versioned-history-query-foundation.md`
-- `docs/architecture/retrieval-serving-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/rag-agent/src/campus_rag_agent/service.py`

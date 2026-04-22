@@ -2,7 +2,7 @@
 phase: "1"
 name: "Document Site Architecture And Contract Freeze"
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 status: completed
 ---
 
@@ -14,7 +14,7 @@ status: completed
 
 本 phase 已冻结：
 
-- `public-docs-web` 是独立 browser surface，不并入 `public-chat-web`
+- `public-docs` 是独立 browser surface，不并入 `public-chat-web`
 - canonical doc 正文优先走 published static reader assets，而不是 `/api/docs/*` 整篇正文返回
 - `app-api` 是 docs navigation / resolve / version / search 的 control-plane owner
 - `anchor + rootUnitId` 是 reader / search / source-card 统一的用户态定位单位
@@ -23,7 +23,7 @@ status: completed
 
 ## Outputs
 
-- `docs/architecture/document-site-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
 - `docs/contracts/app-api-document-reader-http.md`
 - `docs/contracts/document-reader-publish-contract.md`
 - `docs/data/canonical-document-reader-model.md`

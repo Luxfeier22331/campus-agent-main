@@ -50,7 +50,7 @@ updated: 2026-04-22
 5. 更新 supporting docs
    - 必要时同步更新：
      - `docs/data/retrieval-query-activity-model.md`
-     - `docs/architecture/retrieval-serving-architecture.md`
+     - `docs/architecture/system/retrieval-serving-architecture.md`
      - `docs/contracts/app-api-supervisor-execution.md`
    - 只收口已实现 truth，不扩写新的 product scope
 

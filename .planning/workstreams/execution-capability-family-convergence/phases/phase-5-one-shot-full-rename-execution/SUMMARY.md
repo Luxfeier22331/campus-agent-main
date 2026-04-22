@@ -28,7 +28,7 @@ status: completed
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/supervisor-core/src/campus_supervisor_core/agent.py`
 - `docs/architecture/current-architecture.md`
-- `docs/architecture/execution-and-agents-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/contracts/app-api-supervisor-execution.md`
 - `docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md`
@@ -38,7 +38,7 @@ status: completed
 
 - `rg -n "rag-specialist|navigation-specialist|packages/rag-specialist|packages/navigation-specialist|campus_rag_specialist|campus_navigation_specialist|campus-rag-specialist|campus-navigation-specialist|RagSpecialistAgent|delegate_to_navigation_specialist|_delegate_to_rag_specialist" packages apps tests README.md docs/architecture docs/contracts docs/decisions .planning/PROJECT.md`
   - passed with no matches
-- `git diff --check -- README.md .planning/PROJECT.md docs/architecture/current-architecture.md docs/architecture/execution-and-agents-architecture.md docs/architecture/target-architecture.md docs/contracts/app-api-supervisor-execution.md docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md packages/contracts/src/campus_contracts/models.py`
+- `git diff --check -- README.md .planning/PROJECT.md docs/architecture/current-architecture.md docs/architecture/system/execution-and-agents-architecture.md docs/architecture/target-architecture.md docs/contracts/app-api-supervisor-execution.md docs/decisions/adr-0027-navigation-agent-and-spatial-truth.md packages/contracts/src/campus_contracts/models.py`
   - passed
 - `uv run --all-packages python -m unittest tests.test_workspace_layout tests.contracts.test_models tests.supervisor.test_supervisor_routing tests.supervisor.test_supervisor_policy tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist tests.specialist.test_navigation_specialist tests.evals.test_golden_cases`
   - passed

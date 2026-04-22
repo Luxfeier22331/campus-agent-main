@@ -75,8 +75,8 @@ status: completed
 
 ## Canonical References
 
-- `docs/architecture/identity-and-authorization-architecture.md` — `app-api` 是 canonical auth / session owner。
-- `docs/architecture/product-runtime-architecture.md` — public/protected surface responsibilities。
+- `docs/architecture/system/identity-and-authorization-architecture.md` — `app-api` 是 canonical auth / session owner。
+- `docs/architecture/system/product-runtime-architecture.md` — public/protected surface responsibilities。
 - `apps/public-chat-web/README.md` — 当前 public chat runtime 与 auth shell seam。
 - `apps/protected-panel-web/README.md` — panel auth non-goals。
 - `docs/plans/archive/completed/shared-product-surfaces-acceptance-hardening.md` — workstream-native phase boundary。

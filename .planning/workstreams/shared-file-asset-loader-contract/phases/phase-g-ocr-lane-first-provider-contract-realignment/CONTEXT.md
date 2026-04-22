@@ -32,7 +32,7 @@ status: planned
 <decisions>
 ## Implementation Decisions
 
-- **G-01:** `docs/architecture/file-asset-loader-architecture.md` 与 `file_asset_routing.py` 当前表达的 lane-first OCR routing truth 是本 phase 的主锚点；后续实现、env 和 runbook 必须服从这条 shared owner，而不是继续沿着 `Paddle primary + MinerU supplemental` 的旧口径扩建。
+- **G-01:** `docs/architecture/system/file-asset-loader-architecture.md` 与 `file_asset_routing.py` 当前表达的 lane-first OCR routing truth 是本 phase 的主锚点；后续实现、env 和 runbook 必须服从这条 shared owner，而不是继续沿着 `Paddle primary + MinerU supplemental` 的旧口径扩建。
 - **G-02:** `authenticated_notice` source architecture、ADR-0033、env docs、runbook 和 tests 中凡是把 Paddle 写成 canonical primary provider 的表述，都必须视为 drift 审核，而不是继续当作默认 operator truth。
 - **G-03:** 本 phase 必须显式区分两层概念：
   - lane-level canonical provider selection
@@ -58,9 +58,9 @@ status: planned
 <canonical_refs>
 ## Canonical References
 
-- `docs/architecture/file-asset-loader-architecture.md`
-- `docs/architecture/data-plane-architecture.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
+- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/environment/README.md`
 - `docs/environment/provider-and-secret-inventory.md`

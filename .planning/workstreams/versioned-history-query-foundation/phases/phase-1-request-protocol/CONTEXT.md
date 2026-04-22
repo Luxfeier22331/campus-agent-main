@@ -95,8 +95,8 @@ status: planned
 - `.planning/workstreams/versioned-history-query-foundation/ROADMAP.md`
 - `.planning/workstreams/versioned-history-query-foundation/STATE.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/agentic-retrieval-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/target-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 

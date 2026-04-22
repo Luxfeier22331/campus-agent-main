@@ -111,9 +111,9 @@ updated: 2026-04-21
 ## Proposed Write Set
 
 - `docs/plans/archive/completed/campus-services-notices-runtime-admission.md`
-- `docs/architecture/execution-and-agents-architecture.md`
-- `docs/architecture/retrieval-serving-architecture.md`
-- `docs/architecture/official-web-serving-and-news-retrieval-strategy.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `packages/contracts/src/campus_contracts/models.py`
 - `packages/contracts/src/campus_contracts/__init__.py`

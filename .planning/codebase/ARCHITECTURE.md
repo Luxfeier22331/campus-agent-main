@@ -8,7 +8,7 @@
 
 **Key Characteristics:**
 - Policy-driven multi-agent path: the current forward product topology is `public-chat-web -> app-api -> supervisor-api` for public chat and `protected-panel-web -> app-api` for operator read surfaces; `apps/supervisor-api` then frames a `SupervisorRequest`, routes to an explicit specialist target, and delegates to `packages/rag-specialist` or `packages/availability-specialist` through the shared `SupervisorRequest` / `SpecialistRequest` / `SupervisorResponse` contracts documented in `packages/contracts/src/campus_contracts/models.py` and `docs/architecture/target-architecture.md`.
-- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_rules`/`curriculum_plan`, most of which is described in `docs/architecture/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
+- Phase-1 data plane enforces S3-compatible object storage, registries, and Qdrant-backed chunk indexes for `student_rules`/`curriculum_plan`, most of which is described in `docs/architecture/system/data-plane-architecture.md` and implemented under `packages/ingestion-core/src/campus_ingestion_core`.
 - Explicit boundary governance: `packages/contracts` holds allowed corpora, trace contexts, and error schemas, while `packages/shared` keeps only constants that other packages may import without pulling runtime infrastructure details into coordination logic.
 
 ## Layers
@@ -40,7 +40,7 @@
 **Ingestion & Storage Layer (`packages/ingestion-core`, `configs/ingestion`, `var/`):**
 - Purpose: consume raw documents, normalize them into Postgres-backed registries, chunk/embed them, and persist artifacts in an S3-compatible store backed by MinIO for the current local/shared-dev shape.
 - Contains: `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py`, `.process.py`, `.object_store.py`, `.registry.py`, `.models.py`, `.settings.py`, and per-corpus configs under `configs/ingestion/*/runtime-profile.json`.
-- Depends on: `packages/contracts` for corpus enums, `packages/shared` for constants, and infrastructure (object store, Postgres registry, Qdrant) described in `docs/architecture/data-plane-architecture.md`.
+- Depends on: `packages/contracts` for corpus enums, `packages/shared` for constants, and infrastructure (object store, Postgres registry, Qdrant) described in `docs/architecture/system/data-plane-architecture.md`.
 - Used by: `apps/ingestion-worker` entry scripts, rebuild helpers, and `packages/retrieval-core` via runtime profiles that gate `RetrievalBackend`.
 
 **Contracts & Shared Utilities (`packages/contracts`, `packages/shared`):**
@@ -69,7 +69,7 @@
 4. Chunking, embedding, and Qdrant writes happen as part of `campus_ingestion_core.chunking`/`embed`, and `packages/retrieval-core` uses `QdrantRetrievalBackend` plus `DocumentRegistry` data to produce `EvidenceBundle`.
 
 **State Management:**
-- Source and derived artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/data-plane-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` in `packages/ingestion-core/src/campus_ingestion_core/registry.py` maintain versioned metadata in Postgres for the env-backed runtime path.
+- Source and derived artifacts live in the S3-compatible tier even when served by local MinIO (`packages/ingestion-core/src/campus_ingestion_core/object_store.py` and `docs/architecture/system/data-plane-architecture.md`), while `DocumentRegistry` and `RawAssetRegistry` in `packages/ingestion-core/src/campus_ingestion_core/registry.py` maintain versioned metadata in Postgres for the env-backed runtime path.
 - Chunk metadata and embeddings are exposed through Qdrant (`packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`), and corpora runtime profiles gate query availability (`packages/ingestion-core/src/campus_ingestion_core/corpus_profiles.py` with config roots in `configs/ingestion/`).
 
 ## Key Abstractions

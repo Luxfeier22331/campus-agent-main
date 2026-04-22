@@ -2,16 +2,16 @@
 doc_type: context
 status: active
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-23
 ---
 
 # Phase 1 Context
 
 ## Why This Phase Exists
 
-文档站已经被确认要作为独立长期产品面，但 repo 当前仍缺三类正式真相：
+在启动 `Phase 1` 时，文档站已经被确认要作为独立长期产品面，但 repo 当时仍缺三类正式真相：
 
-- `public-docs-web` 的 supporting architecture
+- `public-docs` 的 supporting architecture
 - published static reader assets 的交付 posture
 - `app-api` docs navigation / resolve / search seam
 - canonical reader projection 的逻辑 model
@@ -27,7 +27,7 @@ updated: 2026-04-21
 
 ## Repo Facts
 
-- 当前 accepted merged truth 仍只有：
+- 在启动 `Phase 1` 时，当前 accepted merged truth 仍只有：
   - `public-chat-web`
   - `protected-panel-web`
   - `app-api`
@@ -42,7 +42,7 @@ updated: 2026-04-21
 ## User Decisions Already Made
 
 - 文档站只提供 canonical doc，不提供 PDF 消费
-- 文档站采用独立 `public-docs-web`
+- 文档站采用独立 `public-docs`
 - 文档正文优先走 static reader assets
 - docs-first shell donor 方向成立
 - `anchor + rootUnitId` 作为用户态定位 contract 成立
@@ -52,7 +52,7 @@ updated: 2026-04-21
 
 本 phase 必须产出并冻结：
 
-- `docs/architecture/document-site-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
 - `docs/contracts/app-api-document-reader-http.md`
 - `docs/contracts/document-reader-publish-contract.md`
 - `docs/data/canonical-document-reader-model.md`

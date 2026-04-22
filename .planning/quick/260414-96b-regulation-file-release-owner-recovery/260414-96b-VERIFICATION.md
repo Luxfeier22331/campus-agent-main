@@ -10,8 +10,8 @@
 2. 检查 authenticated notice import / promotion / architecture / runbook / export contract：
    - `tests/ingestion/test_authenticated_notice_import.py`
    - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_promotion.py`
-   - `docs/architecture/authenticated-notice-source-architecture.md`
-   - `docs/architecture/authenticated-notice-source-truth-contract.md`
+   - `docs/architecture/domains/authenticated-notice/architecture.md`
+   - `docs/data/authenticated-notice-source-truth-schema.md`
    - `docs/reference/authenticated-notice-file-release-export-contract.md`
    - `docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
 3. 检查 repo 内是否存在任何 `file-releases-bundle-*.json` / `file-releases-manifest-*.json`

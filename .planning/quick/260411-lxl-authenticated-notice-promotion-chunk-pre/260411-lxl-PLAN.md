@@ -40,8 +40,8 @@ Output: one research note, one structured manual-review taxonomy artifact, and o
 @.planning/PROJECT.md
 @.planning/ROADMAP.md
 @.planning/STATE.md
-@docs/architecture/authenticated-notice-source-architecture.md
-@docs/architecture/authenticated-notice-source-truth-contract.md
+@docs/architecture/domains/authenticated-notice/architecture.md
+@docs/data/authenticated-notice-source-truth-schema.md
 @docs/reference/internal-notice-offline-preparation-strategy.md
 @docs/reference/internal-notice-offline-preparation-quality-acceptance.md
 @docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md

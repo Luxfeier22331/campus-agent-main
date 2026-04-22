@@ -26,7 +26,7 @@ status: completed
 
 ## Repo Pattern Readings
 
-- `docs/architecture/file-asset-loader-architecture.md`
+- `docs/architecture/system/file-asset-loader-architecture.md`
 - `packages/shared/src/campus_shared/prompt_runtime.py`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/REQUIREMENTS.md`
 - `.planning/workstreams/campus-services-offline-preparation-hardening/phases/01-service-navigation-projection-contract-freeze/PLAN.md`
@@ -88,7 +88,7 @@ status: completed
 
 ### This Is Compatible With Current Architecture
 
-- `docs/architecture/file-asset-loader-architecture.md` 仍然规定：多模态 lane 不能默认替代 document image 的 OCR/layout parser canonical lane。
+- `docs/architecture/system/file-asset-loader-architecture.md` 仍然规定：多模态 lane 不能默认替代 document image 的 OCR/layout parser canonical lane。
 - 因此，这条线唯一成立的方式是：
   - 只把多模态用作 handbook-derived `service_navigation_document` 的 bounded admission gate
   - 如果后续 admission 通过，也只允许它成为这条 target-side materialization 的局部 lane，而不是 repo-wide parser default
