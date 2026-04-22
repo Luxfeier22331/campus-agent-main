@@ -3,6 +3,7 @@
 		"README.md",
 		"AGENTS.md",
 		"CONTRIBUTING.md",
+		".github/pull_request_template.md",
 		"docs/README.md",
 		"docs/architecture/**/*.md",
 		"docs/reference/**/*.md",
@@ -12,6 +13,7 @@
 		"docs/policies/**/*.md",
 		"docs/domains/**/*.md",
 		"docs/environment/**/*.md",
+		"docs/runbooks/**/*.md",
 		"configs/**/README.md"
 	],
 	"ignores": ["docs/**/archive/**", "docs/plans/**"],

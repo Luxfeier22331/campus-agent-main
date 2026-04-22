@@ -1,6 +1,6 @@
 ## Summary
 
-- 
+-
 
 ## Scope
 
@@ -22,4 +22,4 @@
 
 ## Risks / Open Questions
 
-- 
+-

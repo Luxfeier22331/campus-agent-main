@@ -101,9 +101,13 @@ pnpm install
 常用验证入口：
 
 ```bash
+pnpm lint
 pnpm web:lint
 pnpm docs:lint
+pnpm env:lint
 pnpm yaml:lint
+pnpm toml:lint
+pnpm shell:lint
 uv run --all-packages python -m unittest discover -s tests -t .
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
@@ -113,6 +117,8 @@ pnpm web:test:worker
 pnpm web:test:integration
 pnpm web:build
 ```
+
+其中 `pnpm lint` 是仓库级 live-surface lint gate：默认只覆盖 tracked 的源码、tests、repo-owned config、active docs、tracked `.env.example`、tracked YAML/TOML、tracked shell scripts，不进入 `.planning/`、archive/historical 文档、vendor、generated、未跟踪草稿与本地 runtime 产物。
 
 更细的验证 lane 与 smoke 路径见：
 

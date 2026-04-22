@@ -52,7 +52,47 @@ jobs:
         run: uv sync --all-packages --dev
 
       - name: Run YAML structure check
-        run: uv run --all-packages pre-commit run check-yaml --all-files
+        run: uv run --all-packages python -m scripts.check_yaml_tracked
+
+  toml-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run TOML structure check
+        run: uv run --all-packages python -m scripts.check_toml_syntax
+
+  shell-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run shell syntax check
+        run: uv run --all-packages python -m scripts.check_shell_syntax
 
   js-biome:
     runs-on: ubuntu-latest
@@ -97,3 +137,23 @@ jobs:
 
       - name: Run Markdown lint
         run: pnpm docs:lint
+
+  env-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Sync workspace
+        run: uv sync --all-packages --dev
+
+      - name: Run env example lint
+        run: uv run --all-packages python -m scripts.check_env_example_tracked

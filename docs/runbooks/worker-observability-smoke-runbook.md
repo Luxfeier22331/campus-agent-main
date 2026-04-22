@@ -119,7 +119,8 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t "smokes
 env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.check_sentry_lookup_access --json
 ```
 
-  确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
+确认 token 至少能读取目标 org / project，再进入 trace / event 证据留存
+
 - 如果 `organizations/.../issues` 这类 issue/event list endpoint 返回 `403 You do not have permission to perform this action.`，不要把它误判成 staging observability blocker。当前 repo 的默认 closure 路径是直接查询 Sentry Explore `spans`：
 
 ```bash
@@ -133,7 +134,8 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.query_sen
   --markdown-output .tmp/observability-smoke/<timestamp>/trace-query.md
 ```
 
-  这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
+这条脚本复用 repo-local `SENTRY_API_TOKEN`，不需要把更高权限 scope 下发到 Worker secret store
+
 - 建议先用 `docs/runbooks/templates/worker-observability-smoke-artifact-template.md` 填完 handoff 与 evidence 字段，再执行真实环境 smoke
 
 ## Post-Deploy Verification

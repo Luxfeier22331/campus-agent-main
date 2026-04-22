@@ -24,7 +24,10 @@ updated: 2026-03-31
 ```bash
 pnpm web:lint
 pnpm docs:lint
+pnpm env:lint
 pnpm yaml:lint
+pnpm toml:lint
+pnpm shell:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 ```
@@ -32,9 +35,12 @@ uv run --all-packages ruff format . --check
 语义：
 
 - 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
-- JS/TS 与 JSON/JSONC config 侧使用 Biome，统一从 repo root 扫描 `apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 与 root config 文件
-- Markdown 侧使用 `markdownlint-cli2`，只覆盖 root live docs、长期 `docs/**` source-of-truth 文档与 `configs/**/README.md`，不进入 archive / historical plan 文档
-- YAML 侧使用 `pre-commit` 的 `check-yaml` hook，只做结构有效性检查
+- JS/TS 与 JSON/JSONC config 侧使用 Biome，但只检查 tracked live files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked 文件，以及 repo-owned root JSON/JSONC config（如 `package.json`、`turbo.json`、`biome.jsonc`、`.markdownlint-cli2.jsonc`）
+- Markdown 侧使用 `markdownlint-cli2`，覆盖 root live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth 文档、active `docs/runbooks/**` 与 `configs/**/README.md`，不进入 archive / historical plan 文档，也不把 scratch / 临时 markdown 视为默认 lint 面
+- env example 侧使用 repo-owned Python checker，覆盖 tracked 的 root `.env.example` 与 `env/**/*.env.example`，只做结构校验，不进入 `.planning/`
+- YAML 侧通过 repo-owned tracked runner 调用 `pre-commit` 的 `check-yaml` hook，只检查 tracked YAML files，且默认排除 `.planning/`
+- TOML 侧使用 repo-owned Python checker，对所有 tracked `*.toml` 做 `tomllib` 结构校验
+- shell 侧使用 repo-owned Python checker，对所有 tracked `*.sh` 做 `bash -n` 语法校验
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
 
