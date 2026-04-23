@@ -89,7 +89,8 @@ curl -sS http://127.0.0.1:18080/metrics
 - `/metrics = 200`
 - `/readyz`
   - `200 ready`
-  - 或 `503 degraded`，但 body 必须能解释是 bridge / prompt runtime / audit / transport 中哪一层未 ready
+  - 或 `503 degraded`，但 body 必须能解释是 bridge / prompt runtime /
+    audit / transport 中哪一层未 ready
 
 当前 `bridge_runtime` 额外暴露：
 

@@ -89,7 +89,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	startedAt := time.Now()
 	traceID := strings.TrimSpace(request.Header.Get("x-trace-id"))
 	writer := newObservedResponseWriter(response)
-	finish := s.metrics.BeginRequest(path)
+	var finish func(statusCode int, outcome string, duration time.Duration)
+	if path != "/metrics" {
+		finish = s.metrics.BeginRequest(path)
+	}
 
 	switch {
 	case request.Method == http.MethodGet && path == "/healthz":
@@ -121,7 +124,9 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	if outcome == "" {
 		outcome = defaultOutcome(path, statusCode)
 	}
-	finish(statusCode, outcome, time.Since(startedAt))
+	if finish != nil {
+		finish(statusCode, outcome, time.Since(startedAt))
+	}
 	if path == "/api/v1/answer" {
 		if observedTraceID := writer.traceID(); observedTraceID != "" {
 			traceID = observedTraceID
