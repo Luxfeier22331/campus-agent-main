@@ -333,15 +333,9 @@ class ProviderResultReplayRebuildFailureTest(unittest.TestCase):
             raw_asset_registry = InMemoryRawAssetRegistry(
                 backing_path=root / "registry" / "student_handbook_raw_assets.json"
             )
-            build_processed_asset_artifact_key(
-                corpus="regulations",
-                raw_asset_id="asset:student-handbook-pdf",
-                raw_version_id="sha256:b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1",
-                filename="provider-response.jsonl",
-            )
             canonical_provider_key = (
                 "official_pdf/student-handbook/2018/sha256/"
-                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/paddleocr-vl-1-5/provider-response.jsonl"
+                "b618dc93bbe22c6c7683a395688b395268d621ce36360ace2f13f77190f544b1/provider/vlm/provider-response.jsonl"
             )
             canonical_layout_key = (
                 "official_pdf/student-handbook/2018/sha256/"
