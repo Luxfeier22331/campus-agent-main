@@ -107,6 +107,7 @@ class RawIngestionProcessSettings:
     collection: str
     artifact_mode: str
     split_manifest_path: Path | None
+    source_ocr_provider: str
     parser_version: str
     embedding_model: str
     cleaning_policy_version: str
@@ -167,6 +168,7 @@ class RawIngestionProcessSettings:
             collection=request.collection,
             artifact_mode=request.artifact_mode,
             split_manifest_path=request.split_manifest_path,
+            source_ocr_provider=source_ocr_runtime.provider,
             parser_version=source_ocr_runtime.parser_version,
             embedding_model=(
                 source.get("INGESTION_EMBEDDING_MODEL") or source.get("EMBEDDING_MODEL") or ""

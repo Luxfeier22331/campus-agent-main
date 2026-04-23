@@ -344,13 +344,25 @@ def _execute_source_truth_only_routed_online_ocr(
         )
 
     providers_to_try = [route_decision.canonical_provider]
+    allow_fallback_provider = not (
+        settings.source_ocr_provider == ONLINE_OCR_PROVIDER_MINERU_API
+        and route_decision.canonical_provider == ONLINE_OCR_PROVIDER_MINERU_API
+    )
     if (
-        route_decision.fallback_provider
+        allow_fallback_provider
+        and route_decision.fallback_provider
         and route_decision.fallback_provider not in providers_to_try
     ):
         providers_to_try.append(route_decision.fallback_provider)
-
-    errors: list[str] = []
+    elif (
+        route_decision.fallback_provider
+        and route_decision.fallback_provider not in providers_to_try
+    ):
+        errors = [
+            "fallback provider is disabled because collection source OCR provider is pinned to mineru_api"
+        ]
+    else:
+        errors = []
     for route_provider in providers_to_try:
         provider = _resolve_route_provider(settings=settings, provider=route_provider)
         if provider is None:

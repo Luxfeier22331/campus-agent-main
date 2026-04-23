@@ -350,7 +350,7 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                 any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
             )
 
-    def test_source_truth_only_falls_back_to_paddle_when_mineru_primary_fails_for_pdf(self) -> None:
+    def test_source_truth_only_fails_closed_when_mineru_primary_fails_for_pdf(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             raw_bytes = b"%PDF-1.4 mineru fallback"
@@ -410,26 +410,18 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                 raw_asset_registry=raw_asset_registry,
             )
 
-            self.assertEqual(report.success_count, 1)
+            self.assertEqual(report.success_count, 0)
+            self.assertEqual(report.failed_count, 1)
             self.assertEqual(len(mineru_client.calls), 1)
-            self.assertEqual(len(paddle_client.calls), 1)
-            uploaded_keys = [str(upload["key"]) for upload in object_store.uploads]
-            self.assertTrue(any(key.endswith("/provider-response.jsonl") for key in uploaded_keys))
-            self.assertFalse(
-                any(key.endswith("/provider-response-raw.zip") for key in uploaded_keys)
+            self.assertEqual(len(paddle_client.calls), 0)
+            self.assertEqual(object_store.uploads, [])
+            self.assertTrue(
+                any(
+                    "source-truth-only OCR routing failed" in error
+                    and "mineru_api: mineru failed" in error
+                    for error in report.errors
+                )
             )
-            layout_upload = next(
-                upload
-                for upload in object_store.uploads
-                if str(upload["key"]).endswith("/layout-elements.jsonl")
-            )
-            layout_rows = [
-                json.loads(line)
-                for line in layout_upload["data"].decode("utf-8").splitlines()
-                if line.strip()
-            ]
-            self.assertTrue(layout_rows)
-            self.assertTrue(all(row["ocr_provider"] == "paddleocr_async" for row in layout_rows))
 
     def test_source_truth_only_reuses_registered_raw_asset_but_rewrites_provider_result(
         self,
