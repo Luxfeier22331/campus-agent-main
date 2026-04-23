@@ -208,6 +208,9 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		Payload: executionRequest.Payload,
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			return
+		}
 		code := "supervisor_bridge_unavailable"
 		message := err.Error()
 		status := http.StatusBadGateway

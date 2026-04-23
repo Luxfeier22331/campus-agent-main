@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -96,5 +97,21 @@ func TestHTTPClientConfiguredRequiresBaseURLAndSecret(t *testing.T) {
 	}
 	if !NewHTTPClient("http://bridge.local", "secret").Configured() {
 		t.Fatal("expected base URL and secret to configure bridge client")
+	}
+}
+
+func TestHTTPClientExecuteHonorsContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		t.Fatal("request should not be sent when context is already canceled")
+	}))
+	defer server.Close()
+
+	client := NewHTTPClient(server.URL, "bridge-secret")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := client.Execute(ctx, Request{Payload: []byte(`{"user_goal":"hello"}`)})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context canceled", err)
 	}
 }

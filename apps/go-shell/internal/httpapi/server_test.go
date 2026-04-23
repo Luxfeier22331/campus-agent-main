@@ -380,6 +380,38 @@ func TestAnswerMapsBridgeTimeout(t *testing.T) {
 	assertError(t, response, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
 }
 
+func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			<-ctx.Done()
+			return bridge.ExecuteResponse{}, ctx.Err()
+		},
+	})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	canceledContext, cancel := context.WithCancel(request.Context())
+	cancel()
+	request = request.WithContext(canceledContext)
+
+	response := newTrackingResponseWriter()
+	server.ServeHTTP(response, request)
+
+	if response.wrote {
+		t.Fatalf("expected canceled request to stop without writing response, wrote status %d", response.status)
+	}
+}
+
 type fakeBridge struct {
 	configured bool
 	response   bridge.ExecuteResponse
@@ -387,14 +419,18 @@ type fakeBridge struct {
 	executeErr error
 	readyzErr  error
 	seen       bridge.Request
+	executeFn  func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
 }
 
 func (f *fakeBridge) Configured() bool {
 	return f.configured
 }
 
-func (f *fakeBridge) Execute(_ context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+func (f *fakeBridge) Execute(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
 	f.seen = request
+	if f.executeFn != nil {
+		return f.executeFn(ctx, request)
+	}
 	if f.executeErr != nil {
 		return bridge.ExecuteResponse{}, f.executeErr
 	}
@@ -460,4 +496,32 @@ func TestDecodeJSONObjectRejectsNonObjects(t *testing.T) {
 	if !errors.Is(err, err) {
 		t.Fatal("unexpected error shape")
 	}
+}
+
+type trackingResponseWriter struct {
+	header http.Header
+	status int
+	wrote  bool
+}
+
+func newTrackingResponseWriter() *trackingResponseWriter {
+	return &trackingResponseWriter{
+		header: make(http.Header),
+	}
+}
+
+func (w *trackingResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *trackingResponseWriter) Write(body []byte) (int, error) {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
+	}
+	return len(body), nil
+}
+
+func (w *trackingResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.wrote = true
 }

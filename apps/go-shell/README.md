@@ -14,6 +14,16 @@ Current status:
   orchestration bridge at `/internal/bridge/*`.
 - Aggregates Python worker readiness into shell-owned `/readyz`, while keeping
   Go transport admission as the published `transport_runtime`.
+- `Phase 1-3` are in place. Current remaining work is `Phase 4-6`:
+  cancellation semantics, observability hardening, and cutover/runback.
+
+Current cancellation boundary:
+
+- Go shell stops waiting on the Python bridge when the upstream HTTP client
+  disconnects or the shell timeout fires.
+- There is no separate cancel endpoint yet.
+- Once Python orchestration work has been dispatched, the current bridge does
+  not guarantee mid-flight cooperative cancellation inside the Python worker.
 
 Requirements:
 
