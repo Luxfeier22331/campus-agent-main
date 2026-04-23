@@ -16,6 +16,7 @@ updated: 2026-04-23
 ## 长期边界与决策
 
 - `../architecture/domains/campus-services/architecture.md`
+- `../contracts/transport-schedule-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 - `../reference/runtime-serving-and-index-terms.md`

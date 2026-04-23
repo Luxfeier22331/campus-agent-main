@@ -28,6 +28,10 @@ updated: 2026-04-23
 
 - `navigation-place-finding-contract.md`
 
+## Campus services contract
+
+- `transport-schedule-lookup-contract.md`
+
 ## Retrieval internal contract
 
 - `rag-agent-retrieval-plan-contract.md`

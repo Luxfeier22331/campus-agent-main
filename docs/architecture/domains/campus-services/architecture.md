@@ -141,6 +141,7 @@ runtime lane 已开放。
 
 ## 相关稳定文档
 
+- `docs/contracts/transport-schedule-lookup-contract.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
