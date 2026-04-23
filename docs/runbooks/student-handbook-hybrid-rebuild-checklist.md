@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-26
-updated: 2026-04-12
+updated: 2026-04-23
 ---
 # Student Handbook Hybrid Rebuild Checklist
 
@@ -77,6 +77,10 @@ updated: 2026-04-12
 - handbook runtime profile 中的 `qdrant_alias_name` / `qdrant_collection_prefix` /
   vector binding / `retrieval_top_k=8` / hybrid runtime knobs 必须对齐本轮目标索引，不与旧
   dense-only target 混用
+- handbook runtime profile 中的 source OCR truth 必须保持：
+  - `source_ocr_provider=mineru_api`
+  - `source_ocr_model=vlm`
+  - `source_parser_version=mineru-vlm-adapted-v2`
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向本轮 live registry
 - `REBUILD_RESET_QDRANT=true` 或已确认目标 alias family 可以被新 schema 重建
 - replay indexing 现在是 fail-closed：

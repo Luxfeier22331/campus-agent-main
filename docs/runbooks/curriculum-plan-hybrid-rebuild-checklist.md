@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-04-12
+updated: 2026-04-23
 ---
 # Curriculum Plan Hybrid Rebuild Checklist
 
@@ -39,6 +39,10 @@ updated: 2026-04-12
 
 - `.env` 中 dense / sparse / fusion 配置与 handbook accepted baseline 一致
 - runtime profile 指向 `curriculum/curriculum_plan`
+- runtime profile 中的 source OCR truth 必须保持：
+  - `source_ocr_provider=mineru_api`
+  - `source_ocr_model=vlm`
+  - `source_parser_version=mineru-vlm-adapted-v2`
 - serving alias、physical collection prefix 与本轮目标 collection 对齐
 - `DOCUMENT_REGISTRY_DATABASE_URL` 指向当前 curriculum registry truth
 - 如需重建，已明确 alias / collection family 的 reset 策略

@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 
 from campus_ingestion_core.handbook_cleanup_shared import RUNNING_HEADER_LINES
+from campus_ingestion_core.handbook_source_truth_validation import (
+    validate_handbook_source_truth_rows,
+)
 from campus_ingestion_core.source_truth_common import (
     detect_merged_cells,
     enrich_cross_page_continuations,
@@ -74,7 +77,9 @@ def normalize_handbook_provider_result(
             row_index += len(page_rows)
             expected_page_id += 1
 
-    return _enrich_layout_rows(normalized_rows)
+    rows = _enrich_layout_rows(normalized_rows)
+    validate_handbook_source_truth_rows(rows)
+    return rows
 
 
 def serialize_handbook_layout_elements(rows: list[dict[str, object]]) -> bytes:

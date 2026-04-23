@@ -23,6 +23,7 @@
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_rules` 与 `curriculum/curriculum_plan`
+- `student_rules` 与 `curriculum_plan` 的 source OCR runtime profile 当前都已切到 `mineru_api + vlm + mineru-vlm-adapted-v2`；覆盖历史 Paddle 派生 canonical truth 的 cutover 现由独立 `handbook-curriculum-mineru-cutover` workstream 收口
 - `campus_services/*` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息

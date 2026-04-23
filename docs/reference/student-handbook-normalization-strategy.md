@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-22
-updated: 2026-03-28
+updated: 2026-04-23
 ---
 # Student Handbook Normalization Strategy
 
@@ -121,10 +121,10 @@ projection。
 - `document-units.jsonl`
 - chunks
 
-当前 source artifact 的讨论样例可直接按 object key 理解为：
+当前 `student_rules` runtime profile 已固定到 `mineru_api + vlm + mineru-vlm-adapted-v2`。
+source artifact 的讨论样例可直接按 object key 理解为：
 
-`official_pdf/student-handbook/2018/{raw_version_id}/provider/paddleocr-vl-1-5/p
-rovider-response.jsonl`
+`official_pdf/student-handbook/2018/{raw_version_id}/provider/vlm/provider-response.jsonl`
 
 对应的原始来源资产路径应位于 source bucket：
 
@@ -136,6 +136,8 @@ rovider-response.jsonl`
 - `provider-response.jsonl`
   - 保存 provider 原始响应
   - 仅承担 provenance、审计、重放、排障
+  - 当前对 `student_rules` 的前向 runtime truth，
+    provider/model/parser 固定为 `mineru_api + vlm + mineru-vlm-adapted-v2`
 - `layout-elements.jsonl`
   - 保存 asset 级、provider-agnostic 的 source rows
   - 作为 split 和 cleanup 的唯一直接输入
