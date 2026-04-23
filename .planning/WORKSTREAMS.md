@@ -77,6 +77,7 @@ updated: 2026-04-23
 |------------|------|------------|-------|-------------|
 | `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
 | `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
+| `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `no` | `docs/plans/archive/historical/wechat-official-account-public-source-channel.md` | 只有在产品范围显式 admission 校园公众号公开内容采集，且 `notice` / `official_web` downstream consumption 已准备好时才恢复 |
 
 ## Legacy / Follow-up References
 
