@@ -10,9 +10,9 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 4/5 implementation`
-- current slice: `Phase 1-3` 已落地；当前补 current cancellation semantics、metrics/readiness
-  truth 与 cutover/runback 证据
+- current phase: `Phase 6 closeout`
+- current slice: repo-owned environment-side hard-cut scripts/runbooks 已落地；
+  剩余仅是实际环境 cutover / rollback drill 执行
 - owner: unassigned
 - active implementation: yes, `apps/go-shell`
 
@@ -38,10 +38,10 @@ updated: 2026-04-24
 
 - 第一轮迁 runtime shell，不迁业务 agent。
 - Go 侧使用标准库 `net/http` / `http.ServeMux`、`context.Context`、
-  `log/slog`、`testing` / `httptest`，并通过 OpenTelemetry Go 承接
-  traces / metrics。
-- 第一版 bridge 使用稳定 JSON over Unix domain socket 或 loopback 调用长驻
-  Python orchestration worker，不默认引入 gRPC。
+  `log/slog`、`testing` / `httptest`；当前 slice 以 shell-owned `/metrics` 与
+  structured logs 承接 observability，OTel collector / sink fan-out 留待后续重开。
+- 第一版 bridge 使用 private loopback HTTP/JSON 调用长驻 Python orchestration
+  worker，不默认引入 UDS 或 gRPC。
 - `app-api` 继续拥有产品层限流；Go shell 只拥有 execution admission /
   backpressure。
 - provider-backed prompt executor 和 prompt stack assembly 暂不迁，除非后续
@@ -49,14 +49,16 @@ updated: 2026-04-24
 
 ## Blockers
 
-- 尚未完成 `Phase 6` parity/capacity acceptance bundle。
+- repo-local implementation 当前无 blocker。
+- repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响
   product-layer stop/cancel UX、request lifecycle 与可能的 cancel endpoint，
-  但不阻塞当前 shell-side disconnect cancel。
+  但不阻塞当前 go-shell closeout。
 
 ## Verification
 
 - Go check passed on 2026-04-23:
+  Later rerun also passed on 2026-04-24.
 
   ```bash
   PATH="/home/reptilian/code/campus-agent/.tmp/go-toolchain/go/bin:$PATH" pnpm go:check
@@ -76,6 +78,29 @@ updated: 2026-04-24
   - `POST /api/v1/answer` through the two-container harness returns `200`
     with current Python orchestration semantics
     (`needs_clarification` in the recorded smoke).
+- Updated local compose smoke passed again on 2026-04-24 with artifacts under
+  `.tmp/go-shell-local-smoke/20260424T011207/`:
+  - `healthz.json`
+  - `readyz.json`
+  - `metrics-final-clean.txt`
+  - `answer-final.http`
+- Python compatibility parity rerun passed on 2026-04-24:
+  - `python-answer.json` and `go-shell-answer-parity.json` matched on
+    `selected_target` / `status` / `follow_up_question` / `confidence` /
+    `trace_id`
+- Focused markdown lint passed on 2026-04-24 for:
+  - `apps/go-shell/README.md`
+  - `docs/runbooks/go-shell-local-runtime-smoke.md`
+  - `docs/runbooks/README.md`
+- Environment-side hard-cut support validation passed on 2026-04-24:
+  - `bash -n` passed for `infra/local/staging/go-shell-staging-common.sh` and all
+    `go-shell-staging*.sh` lifecycle scripts
+  - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+    passed with dummy bridge / worker secrets
+  - `uv run --all-packages python -m scripts.doctor_env supervisor-api --json`
+    passed
+  - focused markdown lint passed for changed go-shell staging docs and
+    workstream docs
 
 ## Continuity Notes
 
@@ -108,16 +133,31 @@ updated: 2026-04-24
 - Added Go unit coverage for execution projection, bridge client and bridge
   response handling.
 - Confirmed live two-container smoke with Go shell fronting Python orchestration.
+- Added shell-owned Prometheus-style `/metrics` endpoint.
+- Added shell-owned request metrics for request total, duration, inflight,
+  transport saturation and bridge failure classes.
+- Added answer-path structured logs with `trace_id`, `status_code`, `outcome`
+  and `duration_ms`.
+- Added bridge answer success/failure fingerprint fields to `/readyz`.
+- Added cancellation-path behavior that stops waiting on bridge calls after
+  client disconnect.
+- Added repo-owned local smoke / cutover / runback runbook at
+  `docs/runbooks/go-shell-local-runtime-smoke.md`.
+- Confirmed parity against the repo-local Python compatibility entry with the
+  same `trusted-worker` request and fixed `trace_id`.
+- Added repo-owned staging hard-cut lifecycle scripts under
+  `infra/local/staging/go-shell-staging-*`.
+- Added repo-owned go-shell staging scheduled-task installer that disables the
+  legacy dev-backed task before cutover.
+- Added canonical staging runbooks:
+  - `docs/runbooks/go-shell-staging-operations.md`
+  - `docs/runbooks/go-shell-staging-smoke-runbook.md`
+- Demoted `dev-backed-supervisor-staging-*` docs to fallback / rollback truth.
 
 ## Remaining Implementation
 
-- `Phase 4`
-  - make current disconnect/timeout cancellation semantics explicit in code/tests/docs
-  - document that no separate cancel endpoint or Python mid-flight
-    cooperative cancellation exists yet
-- `Phase 5`
-  - expose shell-owned metrics/tracing shape beyond current readiness JSON
-  - make bridge timeout / unavailable / worker degraded fingerprints explicit
-- `Phase 6`
-  - rerun parity matrix against Python baseline
-  - add cutover/runback runbook and capacity smoke evidence
+- repo-local implementation is complete for the current scope
+- future work, if reopened, belongs to:
+  - actual environment cutover / rollback drill execution
+  - later OTel collector / sink fan-out integration
+  - product-layer cancellation UX under `chat-capacity-and-cancellation-hardening`

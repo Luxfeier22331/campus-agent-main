@@ -46,7 +46,7 @@ updated: 2026-04-24
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | `Phase 4` | `chat_completions + gpt-5.4` 已完成 fixed sample-set `1-run + 3-run` live rerun，当前 admission 为 `bounded_candidate_for_follow_up`；产品面仍 fail-close，等待 follow-up routing 明确 |
-| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 4/5 implementation` | Go shell / Python bridge / auth-admission parity / Docker harness 已落地；当前收口 client disconnect cancellation semantics、metrics-readiness truth 与 cutover/runback |
+| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 6 closeout` | repo-owned environment-side hard-cut scripts/runbooks 已落地：canonical staging runtime 已切到 go-shell lifecycle truth；剩余仅是实际环境 cutover / rollback drill 执行 |
 
 ## Completed
 

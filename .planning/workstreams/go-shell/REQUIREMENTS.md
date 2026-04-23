@@ -2,7 +2,7 @@
 doc_type: requirements
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Requirements: go-shell
@@ -38,7 +38,7 @@ Go shell owns:
 - request size / timeout / body validation
 - admission / per-lane budgets / backpressure
 - client disconnect, cancellation and streaming lifecycle
-- health / readiness / metrics / tracing
+- health / readiness / metrics / structured request logs
 - audit/logging non-blocking sink
 - Python orchestration bridge
 - Docker image entrypoint and runtime process supervision
@@ -86,9 +86,11 @@ Do not migrate in the first wave:
 - Product rate limit: keep user/product-layer rate limiting in `app-api`; Go shell
   only owns execution admission and backpressure.
 - Logging: use standard library `log/slog` with JSON output.
-- Tracing / metrics: use OpenTelemetry Go for traces and metrics.
-- Bridge: first version uses HTTP/JSON over Unix domain socket or loopback to a
-  long-running Python orchestration worker.
+- Metrics / observability for the current slice: expose shell-owned
+  Prometheus-style `/metrics` plus structured request logs; OTel collector or
+  sink fan-out stays deferred until a later reopen.
+- Bridge: first version uses private loopback HTTP/JSON to a long-running Python
+  orchestration worker.
 - Tests: use standard library `testing` and `httptest` first.
 - Docker base: prefer Debian slim while Python orchestration remains in the same
   deploy shape; revisit distroless only after Go shell can run independently.
@@ -104,7 +106,6 @@ there is a measured cross-process contract or streaming need.
 - Go container-aware `GOMAXPROCS`: <https://go.dev/blog/container-aware-gomaxprocs>
 - Go `net/http`: <https://pkg.go.dev/net/http>
 - Go `context`: <https://pkg.go.dev/context>
-- OpenTelemetry Go: <https://opentelemetry.io/docs/languages/go/>
 
 ## In Scope
 
@@ -137,8 +138,8 @@ there is a measured cross-process contract or streaming need.
    invoking Python.
 4. Cancellation and client disconnect semantics are explicit, even when Python
    can only cooperate at defined boundaries in the first release.
-5. `healthz` / `readyz` / metrics expose transport, admission, bridge, prompt runtime
-   and audit status clearly.
+5. `healthz` / `readyz` / metrics plus structured request logs expose transport,
+   admission, bridge, prompt runtime and audit status clearly.
 6. Docker packaging can run locally and in the intended internal deployment substrate.
 7. Existing Python tests remain valid for orchestration semantics, and new Go tests
    cover shell behavior.

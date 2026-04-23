@@ -2,10 +2,17 @@
 doc_type: roadmap
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Roadmap: go-shell
+
+## Current Progress
+
+- `Phase 0-6` repo-local implementation 已完成。
+- 剩余动作只在环境侧 deploy adoption / canary / rollback 执行，不再属于新的
+  repo-local implementation item。
+- 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
 
@@ -134,3 +141,9 @@ updated: 2026-04-23
 - rollback to Python entry is documented
 - capacity and saturation behavior are measured
 - docs reflect Go shell as Docker execution entry once accepted
+
+**Closeout Note:**
+
+- repo-local parity rerun、local compose smoke、runback docs 已完成
+- 环境侧 deploy adoption / canary / rollback 若后续执行，属于外部 rollout，不再阻塞当前
+  workstream 的 repo-local closeout
