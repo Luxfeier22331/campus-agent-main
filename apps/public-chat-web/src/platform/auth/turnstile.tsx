@@ -17,11 +17,11 @@ export interface AuthTurnstileController {
 	ensureToken: () => Promise<boolean>;
 }
 
-type TurnstileWidget = {
+interface TurnstileWidget {
 	execute?: (widgetId: string) => void;
 	remove?: (widgetId: string) => void;
 	render: (container: HTMLElement | string, options: Record<string, unknown>) => string;
-};
+}
 
 declare global {
 	interface Window {

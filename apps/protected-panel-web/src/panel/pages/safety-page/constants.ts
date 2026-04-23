@@ -6,7 +6,7 @@ import {
 import type { OperatorOverviewWindow } from "../../types";
 import { formatSafetyAnomalySeverity, formatSafetyAnomalyStatus } from "../safety-domain";
 
-export type SafetyFilterState = {
+export interface SafetyFilterState {
 	anomalyCode: string;
 	page: number;
 	perPage: number;
@@ -15,7 +15,7 @@ export type SafetyFilterState = {
 	status: string;
 	surface: string | null;
 	window: OperatorOverviewWindow;
-};
+}
 
 export const SAFETY_WINDOW_OPTIONS: Array<{
 	label: string;

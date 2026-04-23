@@ -66,6 +66,10 @@ export function resolveProjectionReplayEventType(status: RequestExecutionStatus)
 			return "request.approval_required";
 		case "rejected":
 			return "request.rejected";
+		default: {
+			const exhaustiveStatus: never = status;
+			throw new Error(`Unsupported request execution status: ${String(exhaustiveStatus)}`);
+		}
 	}
 }
 

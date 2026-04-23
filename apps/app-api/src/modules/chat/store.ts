@@ -78,8 +78,8 @@ function toChatConversationSummary(
 
 function toChatConversation(
 	row: typeof conversations.$inferSelect,
-	messageRows: Array<typeof messages.$inferSelect>,
-	sessionSlotRows: Array<typeof sessionSlots.$inferSelect>,
+	messageRows: (typeof messages.$inferSelect)[],
+	sessionSlotRows: (typeof sessionSlots.$inferSelect)[],
 ): ChatConversation {
 	return {
 		id: row.id,

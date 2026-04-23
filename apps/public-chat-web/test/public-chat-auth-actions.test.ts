@@ -13,11 +13,11 @@ const resetPasswordWithToken =
 	vi.fn<(values: { newPassword: string; token: string }) => Promise<void>>();
 
 class MockAuthSubmissionError extends Error {
-	constructor(
-		readonly code: "failed" | "invalid_data" | "invalid_token" | "user_exists",
-		message: string,
-	) {
+	readonly code: "failed" | "invalid_data" | "invalid_token" | "user_exists";
+
+	constructor(code: "failed" | "invalid_data" | "invalid_token" | "user_exists", message: string) {
 		super(message);
+		this.code = code;
 		this.name = "MockAuthSubmissionError";
 	}
 }

@@ -154,7 +154,7 @@ function toFreshnessPageRecord(
 }
 
 function buildFreshnessSummary(
-	rows: Array<typeof pageFreshness.$inferSelect>,
+	rows: (typeof pageFreshness.$inferSelect)[],
 	nowIso: string,
 ): OfficialWebSiteFreshnessSummary {
 	const now = new Date(nowIso).valueOf();

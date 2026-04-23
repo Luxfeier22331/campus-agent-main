@@ -500,7 +500,7 @@ function normalizeHeaderValue(value: string | null): string | null {
 
 function assertNoticeListResponse(
 	payload: NoticeListResponse,
-): asserts payload is NoticeListResponse & { datas: { tables: Array<Record<string, unknown>> } } {
+): asserts payload is NoticeListResponse & { datas: { tables: Record<string, unknown>[] } } {
 	if (!(payload.state && payload.datas && Array.isArray(payload.datas.tables))) {
 		throw new Error(`unexpected notice response: ${JSON.stringify(payload).slice(0, 400)}`);
 	}
@@ -510,8 +510,8 @@ function assertNoticeSelectsResponse(
 	payload: NoticeSelectsResponse,
 ): asserts payload is NoticeSelectsResponse & {
 	datas: {
-		org: Array<Record<string, unknown>>;
-		type: Array<Record<string, unknown>>;
+		org: Record<string, unknown>[];
+		type: Record<string, unknown>[];
 	};
 } {
 	if (
@@ -528,7 +528,7 @@ function assertNoticeSelectsResponse(
 
 function assertFileReleasePageResponse(
 	payload: FileReleasePageResponse,
-): asserts payload is FileReleasePageResponse & { data: Array<Record<string, unknown>> } {
+): asserts payload is FileReleasePageResponse & { data: Record<string, unknown>[] } {
 	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release page response: ${JSON.stringify(payload).slice(0, 400)}`,
@@ -538,7 +538,7 @@ function assertFileReleasePageResponse(
 
 function assertFileReleaseTypeResponse(
 	payload: FileReleaseTypeListResponse,
-): asserts payload is FileReleaseTypeListResponse & { data: Array<Record<string, unknown>> } {
+): asserts payload is FileReleaseTypeListResponse & { data: Record<string, unknown>[] } {
 	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release type response: ${JSON.stringify(payload).slice(0, 400)}`,
@@ -549,7 +549,7 @@ function assertFileReleaseTypeResponse(
 function assertFileReleaseExplainDepartmentResponse(
 	payload: FileReleaseExplainDepartmentListResponse,
 ): asserts payload is FileReleaseExplainDepartmentListResponse & {
-	data: Array<Record<string, unknown>>;
+	data: Record<string, unknown>[];
 } {
 	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
@@ -560,7 +560,7 @@ function assertFileReleaseExplainDepartmentResponse(
 
 function assertFileReleaseCodeTypeResponse(
 	payload: FileReleaseCodeTypeListResponse,
-): asserts payload is FileReleaseCodeTypeListResponse & { data: Array<Record<string, unknown>> } {
+): asserts payload is FileReleaseCodeTypeListResponse & { data: Record<string, unknown>[] } {
 	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release code type response: ${JSON.stringify(payload).slice(0, 400)}`,

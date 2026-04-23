@@ -4,22 +4,22 @@ const authClient = createAuthClient();
 
 export type AuthMode = "sign-in" | "sign-up";
 
-export type AuthFormSubmission = {
+export interface AuthFormSubmission {
 	captchaToken: string;
 	email: string;
 	name: string;
 	password: string;
-};
+}
 
-export type PasswordRecoveryRequestSubmission = {
+export interface PasswordRecoveryRequestSubmission {
 	captchaToken: string;
 	email: string;
-};
+}
 
-export type ResetPasswordSubmission = {
+export interface ResetPasswordSubmission {
 	newPassword: string;
 	token: string;
-};
+}
 
 export type AuthSubmissionErrorCode =
 	| "captcha_required"
@@ -28,22 +28,22 @@ export type AuthSubmissionErrorCode =
 	| "invalid_token"
 	| "user_exists";
 
-export type SignOutChatSessionOptions = {
+export interface SignOutChatSessionOptions {
 	redirectTo?: string;
-};
+}
 
-type ClientAuthResponse = {
+interface ClientAuthResponse {
 	error?: {
 		message?: string;
 	} | null;
-};
+}
 
 export class AuthSubmissionError extends Error {
-	constructor(
-		readonly code: AuthSubmissionErrorCode,
-		message: string,
-	) {
+	readonly code: AuthSubmissionErrorCode;
+
+	constructor(code: AuthSubmissionErrorCode, message: string) {
 		super(message);
+		this.code = code;
 		this.name = "AuthSubmissionError";
 	}
 }

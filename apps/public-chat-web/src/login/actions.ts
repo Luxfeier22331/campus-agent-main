@@ -8,11 +8,11 @@ import {
 const MIN_PASSWORD_LENGTH = 10;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export type LoginActionState = {
+export interface LoginActionState {
 	status: "idle" | "in_progress" | "success" | "failed" | "invalid_data" | "captcha_required";
-};
+}
 
-export type RegisterActionState = {
+export interface RegisterActionState {
 	status:
 		| "idle"
 		| "in_progress"
@@ -21,16 +21,16 @@ export type RegisterActionState = {
 		| "captcha_required"
 		| "user_exists"
 		| "invalid_data";
-};
+}
 
-export type PasswordRecoveryActionState = {
+export interface PasswordRecoveryActionState {
 	status: "idle" | "in_progress" | "success" | "failed" | "invalid_data" | "captcha_required";
-};
+}
 
-export type ResetPasswordActionState = {
+export interface ResetPasswordActionState {
 	status: "idle" | "in_progress" | "success" | "failed" | "invalid_data" | "invalid_token";
 	token: string | null;
-};
+}
 
 function readFormField(formData: FormData, key: string): string {
 	const value = formData.get(key);

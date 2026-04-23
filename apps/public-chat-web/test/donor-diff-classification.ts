@@ -30,14 +30,14 @@ export const acceptedRuntimeCompatibilityDiffPaths = [
 
 export const historicalDebtDiffPaths: readonly string[] = [];
 
-export type ExactCompatSeam = {
+export interface ExactCompatSeam {
 	importerNeedle?: string;
 	kind: "alias" | "importer-scoped-resolver";
 	ownerPath: string;
 	specifier: string;
 	tsconfigNeedle?: string;
 	viteNeedle: string;
-};
+}
 
 export const exactCompatSeams: readonly ExactCompatSeam[] = [
 	{

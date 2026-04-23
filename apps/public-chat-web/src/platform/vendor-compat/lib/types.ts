@@ -2,9 +2,9 @@ import type { UIMessage } from "ai";
 
 export type ArtifactKind = "code" | "image" | "sheet" | "text";
 
-export type MessageMetadata = {
+export interface MessageMetadata {
 	createdAt: string;
-};
+}
 
 export const messageMetadataSchema = {
 	parse(value: unknown) {
@@ -12,7 +12,7 @@ export const messageMetadataSchema = {
 	},
 };
 
-export type SuggestionRecord = {
+export interface SuggestionRecord {
 	createdAt: Date | string;
 	description?: string | null;
 	documentCreatedAt: Date | string;
@@ -22,9 +22,9 @@ export type SuggestionRecord = {
 	originalText: string;
 	suggestedText: string;
 	userId: string;
-};
+}
 
-export type PlaceCardData = {
+export interface PlaceCardData {
 	accessNote?: string;
 	campusScope?: string;
 	campusArea?: string;
@@ -41,9 +41,9 @@ export type PlaceCardData = {
 	};
 	serviceTags?: string[];
 	sourceRefs?: string[];
-};
+}
 
-type WeatherToolOutput = {
+interface WeatherToolOutput {
 	cityName?: string;
 	current: {
 		interval: number;
@@ -80,26 +80,27 @@ type WeatherToolOutput = {
 	timezone: string;
 	timezone_abbreviation: string;
 	utc_offset_seconds: number;
-};
+}
 
-type DocumentToolResultRecord = {
+interface DocumentToolResultRecord {
 	content?: string;
 	id: string;
 	kind: ArtifactKind;
 	title: string;
-};
+}
 
-type DocumentToolError = {
+interface DocumentToolError {
 	error: unknown;
-};
+}
 
-type SuggestionToolResultRecord = {
+interface SuggestionToolResultRecord {
 	id: string;
 	kind: ArtifactKind;
 	message: string;
 	title: string;
-};
+}
 
+// biome-ignore lint/style/useConsistentTypeDefinitions: UIDataTypes expects type-alias structural compatibility without widening to a string index signature.
 export type CustomUIDataTypes = {
 	"chat-title": string;
 	appendMessage: string;
@@ -116,7 +117,7 @@ export type CustomUIDataTypes = {
 	title: string;
 };
 
-export type ChatTools = {
+export interface ChatTools {
 	createDocument: {
 		input: { kind: ArtifactKind; title: string };
 		output: DocumentToolError | DocumentToolResultRecord;
@@ -135,7 +136,7 @@ export type ChatTools = {
 		input: { description: string; id: string };
 		output: DocumentToolError | DocumentToolResultRecord;
 	};
-};
+}
 
 type BaseChatMessage = UIMessage<MessageMetadata, CustomUIDataTypes, ChatTools>;
 
@@ -147,8 +148,8 @@ export type ChatMessage = BaseChatMessage & {
 
 export type ChatMessagePart = ChatMessage["parts"][number];
 
-export type Attachment = {
+export interface Attachment {
 	contentType: string;
 	name: string;
 	url: string;
-};
+}

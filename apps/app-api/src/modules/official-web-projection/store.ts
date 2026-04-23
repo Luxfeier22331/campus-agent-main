@@ -73,7 +73,7 @@ function toArtifactSummary(row: typeof runArtifacts.$inferSelect): OfficialWebAr
 
 function toRunProjectionSource(
 	row: typeof crawlRuns.$inferSelect,
-	artifactRows: Array<typeof runArtifacts.$inferSelect>,
+	artifactRows: (typeof runArtifacts.$inferSelect)[],
 ): OfficialWebRunProjectionSource {
 	return {
 		artifacts: artifactRows.map(toArtifactSummary),

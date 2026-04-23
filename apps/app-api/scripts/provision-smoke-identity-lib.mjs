@@ -247,7 +247,7 @@ export async function provisionSmokeIdentity(input, deps) {
 	};
 }
 
-export async function provisionSmokeIdentityFromEnv(argv, env = process.env, deps) {
+export async function provisionSmokeIdentityFromEnv(argv, deps, env = process.env) {
 	const input = readSmokeIdentityProvisionInput(argv, env);
 	const runtimeEnv = buildSmokeIdentityProvisionRuntimeEnv(input);
 	if (!(deps?.appFetch && deps?.executeSql)) {

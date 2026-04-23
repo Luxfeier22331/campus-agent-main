@@ -38,9 +38,10 @@ export function validateBundlePage(
 		"source-truth/content-blocks.jsonl": resolve(baseDir, "source-truth", "content-blocks.jsonl"),
 	};
 
-	for (const [relativePath, absolutePath] of Object.entries(pagePaths) as Array<
-		[PageArtifactRelativePath, string]
-	>) {
+	for (const [relativePath, absolutePath] of Object.entries(pagePaths) as [
+		PageArtifactRelativePath,
+		string,
+	][]) {
 		if (!existsSync(absolutePath)) {
 			issues.push({
 				severity: "error",

@@ -38,7 +38,7 @@ import {
 	formatAuditStatus,
 } from "./audit-domain";
 
-type AuditFilterState = {
+interface AuditFilterState {
 	eventType: string;
 	page: number;
 	perPage: number;
@@ -48,7 +48,7 @@ type AuditFilterState = {
 	status: string;
 	surface: string | null;
 	traceId: string;
-};
+}
 
 const SURFACE_OPTIONS: Array<{ label: string; value: string | null }> = [
 	{ label: PANEL_COPY.overviewPage.filters.allSurfaces, value: null },

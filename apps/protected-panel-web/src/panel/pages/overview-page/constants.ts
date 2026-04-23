@@ -5,11 +5,11 @@ import {
 } from "../../requests/request-formatters";
 import type { OperatorOverviewWindow } from "../../types";
 
-export type OverviewFilterState = {
+export interface OverviewFilterState {
 	selectedTarget: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
-};
+}
 
 export const OVERVIEW_WINDOW_OPTIONS: Array<{
 	label: string;

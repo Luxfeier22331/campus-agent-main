@@ -40,19 +40,19 @@ import {
 } from "./cost-domain";
 import { resolveOverviewGranularity } from "./overview-domain";
 
-type CostFilterState = {
+interface CostFilterState {
 	selectedTarget: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
-};
+}
 
-type CostDistributionEntry = {
+interface CostDistributionEntry {
 	estimatedCostUsd: number;
 	key: string;
 	label: string;
 	requestCount: number;
 	sharePct: number;
-};
+}
 
 const WINDOW_OPTIONS: Array<{ label: string; value: OperatorOverviewWindow }> = [
 	{ label: "15 分钟", value: "15m" },

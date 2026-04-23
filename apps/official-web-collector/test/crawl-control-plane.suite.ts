@@ -17,7 +17,7 @@ export function registerCrawlControlPlaneSuite() {
 		const lifecycle = {
 			resolvedPlan: null as Record<string, unknown> | null,
 			started: null as Record<string, unknown> | null,
-			heartbeats: [] as Array<Record<string, unknown>>,
+			heartbeats: [] as Record<string, unknown>[],
 			finalized: null as Record<string, unknown> | null,
 		};
 

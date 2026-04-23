@@ -8,13 +8,13 @@ export const titleModel = {
 	gatewayOrder: ["mistral"],
 };
 
-export type ModelCapabilities = {
+export interface ModelCapabilities {
 	tools: boolean;
 	vision: boolean;
 	reasoning: boolean;
-};
+}
 
-type GatewayEndpointsResponse = {
+interface GatewayEndpointsResponse {
 	data?: {
 		architecture?: {
 			input_modalities?: string[];
@@ -23,16 +23,16 @@ type GatewayEndpointsResponse = {
 			supported_parameters?: string[];
 		}>;
 	};
-};
+}
 
-export type ChatModel = {
+export interface ChatModel {
 	id: string;
 	name: string;
 	provider: string;
 	description: string;
 	gatewayOrder?: string[];
 	reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high";
-};
+}
 
 export const chatModels: ChatModel[] = [
 	{
@@ -135,16 +135,16 @@ export async function getCapabilities(): Promise<Record<string, ModelCapabilitie
 
 export const isDemo = process.env.IS_DEMO === "1";
 
-type GatewayModel = {
+interface GatewayModel {
 	id: string;
 	name: string;
 	type?: string;
 	tags?: string[];
-};
+}
 
-type GatewayModelsResponse = {
+interface GatewayModelsResponse {
 	data?: GatewayModel[];
-};
+}
 
 export type GatewayModelWithCapabilities = ChatModel & {
 	capabilities: ModelCapabilities;

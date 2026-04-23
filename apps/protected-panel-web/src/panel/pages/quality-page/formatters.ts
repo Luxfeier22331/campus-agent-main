@@ -7,11 +7,11 @@ import type {
 import { buildRefusalDistributionEntries } from "../quality-domain";
 import { QUALITY_WINDOW_OPTIONS } from "./constants";
 
-export type QualitySummaryCard = {
+export interface QualitySummaryCard {
 	detail: string;
 	label: string;
 	value: string;
-};
+}
 
 export function normalizeFilterValue(value: string) {
 	return value.trim() ? value : null;

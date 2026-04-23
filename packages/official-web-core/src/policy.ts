@@ -94,7 +94,7 @@ export function normalizeOfficialWebUrl(
 	const allowedQueryParams = new Set(
 		(options.allowedQueryParams ?? []).map((item) => item.toLowerCase()),
 	);
-	const retainedEntries: Array<[string, string]> = [];
+	const retainedEntries: [string, string][] = [];
 	const retainedQueryParams = new Set<string>();
 	const removedTrackingQueryParams = new Set<string>();
 	const removedDisallowedQueryParams = new Set<string>();

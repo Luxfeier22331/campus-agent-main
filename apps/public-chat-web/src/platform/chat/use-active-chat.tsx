@@ -28,7 +28,7 @@ export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
 
 type SendMessageInput = Parameters<UseChatHelpers<ChatMessage>["sendMessage"]>[0];
 
-type ActiveChatContextValue = {
+interface ActiveChatContextValue {
 	addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
 	chatId: string;
 	conversationTitle: string | null;
@@ -51,7 +51,7 @@ type ActiveChatContextValue = {
 	threadError: string | null;
 	visibilityType: VisibilityType;
 	votes: undefined;
-};
+}
 
 const ActiveChatContext = createContext<ActiveChatContextValue | null>(null);
 

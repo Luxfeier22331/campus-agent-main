@@ -80,11 +80,11 @@ export type CampusCodeHighlightResult = Pick<TokensResult, "bg" | "fg" | "rootSt
 type CampusLoadedHighlighter = ReturnType<typeof createHighlighterCore>;
 
 type HighlightCallback = (result: CampusCodeHighlightResult) => void;
-type HighlighterOptions = {
+interface HighlighterOptions {
 	code: string;
 	language: string;
 	themes?: readonly [string, string];
-};
+}
 
 const highlighterCache = new Map<string, Promise<CampusLoadedHighlighter>>();
 const tokensCache = new Map<string, CampusCodeHighlightResult>();

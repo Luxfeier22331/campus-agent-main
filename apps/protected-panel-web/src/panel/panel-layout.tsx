@@ -94,10 +94,10 @@ export function ProtectedPanelUserMenu() {
 	);
 }
 
-type ProtectedPanelAppBarProps = {
+interface ProtectedPanelAppBarProps {
 	alwaysOn?: boolean;
 	className?: string;
-};
+}
 
 export function ProtectedPanelAppBar(props: ProtectedPanelAppBarProps) {
 	const isXSmall = useMediaQuery<Theme>((theme) => theme.breakpoints.down("sm"));

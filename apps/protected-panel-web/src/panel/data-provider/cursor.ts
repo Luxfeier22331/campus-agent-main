@@ -4,13 +4,13 @@ import { fetchJson } from "../http";
 
 const sequentialPageCursors = new Map<string, Map<number, string | null>>();
 
-export type SequentialCursorListResult<RecordType> = {
+export interface SequentialCursorListResult<RecordType> {
 	data: RecordType[];
 	pageInfo: {
 		hasNextPage: boolean;
 		hasPreviousPage: boolean;
 	};
-};
+}
 
 export function normalizeFilterValue(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;

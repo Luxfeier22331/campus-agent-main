@@ -13,9 +13,10 @@ import {
 import type { ExtractedBlockCandidate, PageFamilyClassification } from "./page-artifacts-types.ts";
 
 export function countRepeatedCandidateTexts(
-	candidates: ReadonlyArray<
-		Pick<ExtractedBlockCandidate, "blockRole" | "textNormalized" | "isMainContent">
-	>,
+	candidates: readonly Pick<
+		ExtractedBlockCandidate,
+		"blockRole" | "textNormalized" | "isMainContent"
+	>[],
 ): Map<string, number> {
 	const counts = new Map<string, number>();
 

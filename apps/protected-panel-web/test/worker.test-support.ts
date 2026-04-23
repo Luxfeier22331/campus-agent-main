@@ -2,20 +2,19 @@ import type { JWTPayload } from "jose";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { vi } from "vitest";
 
-import { createApp as createAppApi } from "../../app-api/src/app";
 import type { OperatorQueryService } from "../../app-api/src/modules/operator-query";
 import packageManifestRaw from "../package.json?raw";
-import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
-import worker from "../src/index";
-import viteConfigSource from "../vite.config.ts?raw";
-import wranglerConfig from "../wrangler.toml?raw";
 
 export const packageManifest = JSON.parse(packageManifestRaw) as {
 	dependencies?: Record<string, string | undefined>;
 	scripts?: Record<string, string | undefined>;
 };
 
-export { createAppApi, deployStagingSource, viteConfigSource, worker, wranglerConfig };
+export { createApp as createAppApi } from "../../app-api/src/app";
+export { default as deployStagingSource } from "../scripts/deploy-staging.mjs?raw";
+export { default as worker } from "../src/index";
+export { default as viteConfigSource } from "../vite.config.ts?raw";
+export { default as wranglerConfig } from "../wrangler.toml?raw";
 
 export function createOperatorQueryServiceMock(
 	overrides: Partial<OperatorQueryService> = {},

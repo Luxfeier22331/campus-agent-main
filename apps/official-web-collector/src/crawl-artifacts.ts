@@ -264,7 +264,7 @@ function findPageFileObjectKey(page: CollectedPageArtifact, relativePath: string
 	return file.objectKey;
 }
 
-function toJsonLines(records: ReadonlyArray<object>): string {
+function toJsonLines(records: readonly object[]): string {
 	if (records.length === 0) {
 		return "";
 	}

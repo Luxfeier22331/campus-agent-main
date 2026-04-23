@@ -207,7 +207,7 @@ describe("chatbot vendor runtime parity", () => {
 		expect(compatModelsSource).toContain('cache: "force-cache"');
 
 		expect(vendorSchemaSource).toContain('from "drizzle-orm/pg-core"');
-		expect(compatSchemaSource).toContain("export type Chat = {");
+		expect(compatSchemaSource).toContain("export interface Chat {");
 		expect(compatSchemaSource).not.toContain("pgTable");
 
 		expect(vendorTypesSource).toContain("InferUITool");

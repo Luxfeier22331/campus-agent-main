@@ -114,7 +114,7 @@ export function readHeaderValue(
 	return value ?? null;
 }
 
-export function toJsonLines(records: ReadonlyArray<object>): string {
+export function toJsonLines(records: readonly object[]): string {
 	if (records.length === 0) {
 		return "";
 	}

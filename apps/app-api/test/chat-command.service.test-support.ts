@@ -1,36 +1,29 @@
-import { createHmac } from "node:crypto";
-
 import { vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { ChatMessage } from "../src/modules/chat";
-import type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
-import {
-	buildChatCommandService,
-	type ChatCommandStore,
-	type ChatConversationStore,
-	DRAFT_CONVERSATION_TITLE,
-	deriveSafetyIdentifier,
-	type FinalizeRequestWrite,
-	SupervisorTransportError,
-} from "../src/modules/runtime-command";
-import type { AppTelemetry } from "../src/modules/telemetry";
-
-export type {
-	AppTelemetry,
+import type {
 	ChatCommandStore,
 	ChatConversationStore,
 	FinalizeRequestWrite,
-	ResolvedAppPrincipal,
-	SupervisorExecutionClient,
-};
+} from "../src/modules/runtime-command";
+import type { AppTelemetry } from "../src/modules/telemetry";
+
+export { createHmac } from "node:crypto";
+export type { ResolvedAppPrincipal } from "../src/modules/auth";
+export type { SupervisorExecutionClient } from "../src/modules/integration/supervisor";
+export type {
+	ChatCommandStore,
+	ChatConversationStore,
+	FinalizeRequestWrite,
+} from "../src/modules/runtime-command";
 export {
 	buildChatCommandService,
-	createHmac,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	SupervisorTransportError,
-};
+} from "../src/modules/runtime-command";
+export type { AppTelemetry } from "../src/modules/telemetry";
 
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
 export const CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program";

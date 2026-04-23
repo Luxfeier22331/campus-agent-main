@@ -188,7 +188,7 @@ export function buildConversationTitleUpdateValues(input: { title: string; updat
 export function buildSessionSlotInsertValues(input: {
 	conversationId: string;
 	sessionSlots: FinalizeRequestWrite["sessionSlots"];
-}): Array<typeof sessionSlots.$inferInsert> {
+}): (typeof sessionSlots.$inferInsert)[] {
 	return input.sessionSlots.map((slot) => ({
 		conversationId: input.conversationId,
 		name: slot.name,

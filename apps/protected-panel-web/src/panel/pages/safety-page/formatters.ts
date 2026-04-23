@@ -2,11 +2,11 @@ import { PANEL_COPY, translateRuntimeErrorMessage } from "../../panel-copy";
 import type { OperatorOverviewWindow, OperatorSafetySummaryRecord } from "../../types";
 import { SAFETY_WINDOW_OPTIONS } from "./constants";
 
-export type SafetySummaryCard = {
+export interface SafetySummaryCard {
 	detail: string;
 	label: string;
 	value: string;
-};
+}
 
 export function normalizeFilterValue(value: string) {
 	return value.trim() ? value : null;

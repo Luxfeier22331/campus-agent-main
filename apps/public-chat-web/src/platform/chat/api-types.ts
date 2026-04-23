@@ -38,10 +38,10 @@ export interface PlaceCardPayload {
 	sourceRefs?: string[];
 }
 
-export type ChatStructuredPart = {
+export interface ChatStructuredPart {
 	placeCard: PlaceCardPayload;
 	type: "place_card";
-};
+}
 
 export interface ChatMessage {
 	id: string;

@@ -21,7 +21,7 @@ export async function captureDynamicShellNetwork(input: {
 	const browser = await playwright.chromium.launch({ headless: true });
 	const page = await browser.newPage();
 	const captures: DynamicShellNetworkCapture[] = [];
-	const pendingCaptures: Array<Promise<void>> = [];
+	const pendingCaptures: Promise<void>[] = [];
 	const responseWaitPromise = waitForAnyResponse({
 		page,
 		patterns: compilePatterns(input.policy.waitForResponseUrlPatterns),
@@ -120,7 +120,7 @@ export async function captureDynamicShellNetwork(input: {
 	};
 }
 
-async function drainPendingCaptures(pendingCaptures: Array<Promise<void>>): Promise<void> {
+async function drainPendingCaptures(pendingCaptures: Promise<void>[]): Promise<void> {
 	let snapshotSize = -1;
 	while (snapshotSize !== pendingCaptures.length) {
 		snapshotSize = pendingCaptures.length;

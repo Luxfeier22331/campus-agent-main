@@ -1,11 +1,11 @@
-export type SharedProductBootstrapEnv = {
+export interface SharedProductBootstrapEnv {
 	authSchema: string;
 	chatSchema: string;
 	databaseSslMode: string;
 	databaseUrl: string;
 	betterAuthSecret?: string;
 	publicChatOrigin?: string;
-};
+}
 
 export const APP_AUTH_SCHEMA: string;
 export const APP_CHAT_SCHEMA: string;

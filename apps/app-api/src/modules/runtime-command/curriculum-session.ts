@@ -13,7 +13,7 @@ export interface CurriculumFollowUpState {
 }
 
 export function resolveCurriculumFollowUpState(
-	sessionSlots: ReadonlyArray<Pick<ChatSessionSlot, "confirmed" | "name" | "value">>,
+	sessionSlots: readonly Pick<ChatSessionSlot, "confirmed" | "name" | "value">[],
 ): CurriculumFollowUpState {
 	let programFamily = "";
 	let program = "";
@@ -36,7 +36,7 @@ export function resolveCurriculumFollowUpState(
 }
 
 export function buildSupervisorSessionProjection(input: {
-	sessionSlots: ReadonlyArray<ChatSessionSlot>;
+	sessionSlots: readonly ChatSessionSlot[];
 	turnCount: number;
 }): SupervisorContextProjection["session"] {
 	return {
@@ -53,7 +53,7 @@ export function buildSupervisorSessionProjection(input: {
 
 export function deriveCurriculumSessionSlots(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	existingSlots: ReadonlyArray<ChatSessionSlot>;
+	existingSlots: readonly ChatSessionSlot[];
 	finalizedAt: string;
 	status: string;
 }): ChatSessionSlot[] {

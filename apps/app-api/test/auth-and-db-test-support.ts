@@ -3,12 +3,11 @@ import migration0000Raw from "../drizzle/0000_funny_tiger_shark.sql?raw";
 import * as appModule from "../src/app";
 import * as configModule from "../src/config";
 import * as runtimeDbModule from "../src/db/runtime";
-import { appApiSchema } from "../src/db/schema";
 import * as authModule from "../src/modules/auth/auth";
 
 const poolMockState = vi.hoisted(() => ({
-	createdPoolOptions: [] as Array<Record<string, unknown>>,
-	endedPoolOptions: [] as Array<Record<string, unknown>>,
+	createdPoolOptions: [] as Record<string, unknown>[],
+	endedPoolOptions: [] as Record<string, unknown>[],
 	poolErrorHandlers: [] as Array<(error: Error) => void>,
 }));
 
@@ -96,4 +95,4 @@ export const probeAppAuthRuntime = authModule.probeAppAuthRuntime;
 export const resolvePasswordResetRedirectTarget = authModule.resolvePasswordResetRedirectTarget;
 export const verifyAppPassword = authModule.verifyAppPassword;
 export const migration0000 = migration0000Raw;
-export { appApiSchema };
+export { appApiSchema } from "../src/db/schema";

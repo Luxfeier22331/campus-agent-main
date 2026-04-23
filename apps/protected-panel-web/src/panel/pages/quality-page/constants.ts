@@ -6,7 +6,7 @@ import {
 import type { OperatorOverviewWindow } from "../../types";
 import { formatQualityBadcaseStatus } from "../quality-domain";
 
-export type QualityFilterState = {
+export interface QualityFilterState {
 	badcaseCauseClass: string;
 	badcaseDetectedBy: string;
 	badcaseStatus: string;
@@ -15,7 +15,7 @@ export type QualityFilterState = {
 	selectedTarget: string | null;
 	surface: string | null;
 	window: OperatorOverviewWindow;
-};
+}
 
 export const QUALITY_WINDOW_OPTIONS: Array<{
 	label: string;

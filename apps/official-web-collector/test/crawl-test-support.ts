@@ -8,13 +8,12 @@ import {
 } from "official-web-core";
 import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
-import {
+
+export {
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,
 } from "./test-support";
-
-export { SAMPLE_DYNAMIC_SHELL_PAGE_HTML, SAMPLE_PAGE_HTML, writeTestConfigRoot };
 
 export type CrawlSiteFn = (
 	siteId: string,

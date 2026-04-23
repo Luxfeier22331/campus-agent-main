@@ -11,17 +11,17 @@ import {
 
 export type HighlightResult = CampusCodeHighlightResult;
 
-export type HighlightOptions = {
+export interface HighlightOptions {
 	code: string;
 	language: BundledLanguage;
 	themes: [string, string];
-};
+}
 
-export type CodePluginOptions = {
+export interface CodePluginOptions {
 	themes?: [BundledTheme, BundledTheme];
-};
+}
 
-export type CodeHighlighterPlugin = {
+export interface CodeHighlighterPlugin {
 	getSupportedLanguages: () => BundledLanguage[];
 	getThemes: () => [BundledTheme, BundledTheme];
 	highlight: (
@@ -31,7 +31,7 @@ export type CodeHighlighterPlugin = {
 	name: "shiki";
 	supportsLanguage: (language: BundledLanguage) => boolean;
 	type: "code-highlighter";
-};
+}
 
 export const createCodePlugin = (options: CodePluginOptions = {}): CodeHighlighterPlugin => {
 	const themes = normalizeShikiThemes(options.themes ?? DEFAULT_SHIKI_THEMES) as [

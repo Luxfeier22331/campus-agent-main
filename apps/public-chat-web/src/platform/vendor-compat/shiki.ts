@@ -3,13 +3,15 @@ import {
 	getCampusHighlighter,
 	resolveShikiLanguage,
 } from "@platform/chat/shiki-runtime";
-import type { ThemedToken, TokensResult } from "shiki";
+import type { TokensResult } from "shiki";
 import type { BundledLanguage } from "shiki/langs";
 import type { BundledTheme } from "shiki/themes";
 
-export type { BundledLanguage, BundledTheme, ThemedToken, TokensResult };
+export type { ThemedToken, TokensResult } from "shiki";
+export type { BundledLanguage } from "shiki/langs";
+export type { BundledTheme } from "shiki/themes";
 
-export type HighlighterGeneric<Language extends string, Theme extends string> = {
+export interface HighlighterGeneric<Language extends string, Theme extends string> {
 	codeToTokens: (
 		code: string,
 		options: {
@@ -21,15 +23,15 @@ export type HighlighterGeneric<Language extends string, Theme extends string> = 
 		},
 	) => TokensResult;
 	getLoadedLanguages: () => Language[];
-};
+}
 
-type CodeToTokensOptions = {
+interface CodeToTokensOptions {
 	lang: BundledLanguage;
 	themes: {
 		dark: BundledTheme;
 		light: BundledTheme;
 	};
-};
+}
 
 function resolveHighlightedTokens(
 	highlighter: Awaited<ReturnType<typeof getCampusHighlighter>>,

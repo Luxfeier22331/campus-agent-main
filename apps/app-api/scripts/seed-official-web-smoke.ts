@@ -224,7 +224,7 @@ async function finalizeRun(input: {
 	}>;
 	collectorToken: string;
 	finishedAt: string;
-	pageObservations: Array<Record<string, unknown>>;
+	pageObservations: Record<string, unknown>[];
 	runId: string;
 	summary: {
 		failureCount: number;
@@ -638,7 +638,7 @@ export async function seedOfficialWebSmokeSamples(input: {
 		}),
 	);
 	const sitePayload = await expectJsonResponse<{
-		recentPageChanges: Array<unknown>;
+		recentPageChanges: unknown[];
 		recentRuns: Array<{ runId: string }>;
 		site: {
 			latestRunId: string | null;

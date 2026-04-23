@@ -1,4 +1,4 @@
-export type User = {
+export interface User {
 	createdAt: string;
 	email: string;
 	emailVerified: boolean;
@@ -8,40 +8,40 @@ export type User = {
 	name?: string | null;
 	password?: string | null;
 	updatedAt: string;
-};
+}
 
-export type Chat = {
+export interface Chat {
 	createdAt: string;
 	id: string;
 	title: string;
 	updatedAt: string;
 	visibility: "private" | "public";
-};
+}
 
-export type DBMessage = {
+export interface DBMessage {
 	attachments: unknown;
 	createdAt: Date;
 	id: string;
 	parts: unknown;
 	role: string;
-};
+}
 
-export type Vote = {
+export interface Vote {
 	chatId?: string;
 	isUpvoted?: boolean;
 	messageId: string;
-};
+}
 
-export type Document = {
+export interface Document {
 	content?: string | null;
 	createdAt: Date;
 	id: string;
 	kind: "code" | "image" | "sheet" | "text";
 	title: string;
 	userId: string;
-};
+}
 
-export type Suggestion = {
+export interface Suggestion {
 	createdAt: Date;
 	description?: string | null;
 	documentCreatedAt: Date;
@@ -51,10 +51,10 @@ export type Suggestion = {
 	originalText: string;
 	suggestedText: string;
 	userId: string;
-};
+}
 
-export type Stream = {
+export interface Stream {
 	chatId: string;
 	createdAt: Date;
 	id: string;
-};
+}

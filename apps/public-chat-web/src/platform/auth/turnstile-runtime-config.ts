@@ -8,11 +8,11 @@ const TURNSTILE_EXECUTIONS = ["render", "execute"] as const;
 export type TurnstileAppearance = (typeof TURNSTILE_APPEARANCES)[number];
 export type TurnstileExecution = (typeof TURNSTILE_EXECUTIONS)[number];
 
-export type TurnstileRuntimeConfig = {
+export interface TurnstileRuntimeConfig {
 	turnstileAppearance: TurnstileAppearance;
 	turnstileExecution: TurnstileExecution;
 	turnstileSiteKey: string | null;
-};
+}
 
 function normalizeTurnstileSiteKey(value: unknown): string | null {
 	return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
