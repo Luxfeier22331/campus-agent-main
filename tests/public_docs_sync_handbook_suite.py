@@ -176,6 +176,46 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
         self.assertIn("具体测评内容和分值", cleaned)
         self.assertNotIn("||具体测评内容和分值|学生民主互评|测评小组评定|", cleaned)
 
+    def test_clean_handbook_markdown_repairs_credit_rule_table_row_split(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学本科学分制实施办法'",
+                "---",
+                "",
+                "[表格]",
+                (
+                    "<table><tr><td colspan=\"2\">专业类别</td><td>四年制</td><td>五年制</td><td>双学位班专业</td></tr>"
+                    "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr></table>"
+                ),
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>", cleaned)
+        self.assertIn("<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>", cleaned)
+        self.assertNotIn("<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>", cleaned)
+
+    def test_clean_handbook_markdown_repairs_workstudy_hiring_rate_punctuation(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学本(预)科学生勤工助学管理办法'",
+                "---",
+                "",
+                "### 第十二条",
+                "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。。。",
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。", cleaned)
+        self.assertNotIn("$70\\%$。。。", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()

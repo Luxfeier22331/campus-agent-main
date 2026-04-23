@@ -136,6 +136,11 @@ def _clean_handbook_markdown(markdown: str) -> str:
     body = lines[frontmatter_end + 1 :] if frontmatter_end != -1 else lines
     if prefix:
         prefix = _normalize_handbook_frontmatter(prefix)
+    title = _frontmatter_title(prefix)
+    body = _repair_known_handbook_docs_markdown(
+        "\n".join(body),
+        title=title,
+    ).splitlines()
 
     cleaned_body: list[str] = []
     previous_blank = False
@@ -152,8 +157,25 @@ def _clean_handbook_markdown(markdown: str) -> str:
         previous_blank = False
         cleaned_body.append(line.rstrip())
 
-    combined = prefix + _normalize_handbook_body(cleaned_body, title=_frontmatter_title(prefix))
+    combined = prefix + _normalize_handbook_body(cleaned_body, title=title)
     return "\n".join(combined).rstrip() + "\n"
+
+
+def _repair_known_handbook_docs_markdown(markdown: str, *, title: str | None) -> str:
+    repaired = markdown
+    if title == "中央民族大学本科学分制实施办法":
+        repaired = repaired.replace(
+            "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>",
+            "<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>"
+            "<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>",
+        )
+    if title in {"中央民族大学本(预)科学生勤工助学管理办法", "中央民族大学本-预-科学生勤工助学管理办法"}:
+        repaired = re.sub(
+            r"家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 \$70\\%\$[。．…]*",
+            "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。",
+            repaired,
+        )
+    return repaired
 
 
 def _normalize_handbook_frontmatter(frontmatter_lines: list[str]) -> list[str]:
