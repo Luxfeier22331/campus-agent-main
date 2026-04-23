@@ -39,6 +39,7 @@ node_modules/
 .planning/quick/**/materialization-output/
 .planning/active-workstream
 .planning/runtime/
+.planning/reports/
 
 # Local map/screenshot scratch files
 tmp-*.png
