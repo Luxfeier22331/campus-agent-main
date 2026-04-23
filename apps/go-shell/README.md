@@ -4,8 +4,8 @@
 
 Current status:
 
-- Implements the Docker-side HTTP shell for `GET /healthz`, `GET /readyz`, and
-  `POST /api/v1/answer`.
+- Implements the Docker-side HTTP shell for `GET /healthz`, `GET /readyz`,
+  `GET /metrics`, and `POST /api/v1/answer`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
   auth, request projection, fail-closed bridge handling, and global execution
   admission.
@@ -14,8 +14,11 @@ Current status:
   orchestration bridge at `/internal/bridge/*`.
 - Aggregates Python worker readiness into shell-owned `/readyz`, while keeping
   Go transport admission as the published `transport_runtime`.
-- `Phase 1-3` are in place. Current remaining work is `Phase 4-6`:
-  cancellation semantics, observability hardening, and cutover/runback.
+- Exposes shell-owned Prometheus-style runtime counters at `/metrics`.
+- Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
+  and `duration_ms`, without logging raw `user_goal`.
+- `Phase 1-5` are in place. Current remaining work is `Phase 6`:
+  parity/capacity smoke and cutover/runback acceptance.
 
 Current cancellation boundary:
 
@@ -24,6 +27,14 @@ Current cancellation boundary:
 - There is no separate cancel endpoint yet.
 - Once Python orchestration work has been dispatched, the current bridge does
   not guarantee mid-flight cooperative cancellation inside the Python worker.
+
+Current observability boundary:
+
+- `/metrics` is an internal runtime surface, not part of the `app-api` contract.
+- Current shell-owned counters distinguish transport saturation, bridge timeout,
+  bridge unavailability, and aggregate request outcomes.
+- OTel collector / sink fan-out is still deferred; this slice only closes the
+  shell-owned metrics and structured logging seam.
 
 Requirements:
 
@@ -68,6 +79,7 @@ Expected behavior:
 ```bash
 curl http://127.0.0.1:18080/healthz
 curl -i http://127.0.0.1:18080/readyz
+curl http://127.0.0.1:18080/metrics
 curl -i -H 'content-type: application/json' \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
@@ -90,3 +102,7 @@ JSON
 ) \
   http://127.0.0.1:18080/api/v1/answer
 ```
+
+Detailed local smoke / cutover / runback steps:
+
+- [go-shell-local-runtime-smoke.md](/home/reptilian/code/campus-agent/docs/runbooks/go-shell-local-runtime-smoke.md)

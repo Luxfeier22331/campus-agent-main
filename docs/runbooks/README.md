@@ -34,6 +34,7 @@ updated: 2026-04-20
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
+- `go-shell-local-runtime-smoke.md`
 - `qdrant-cloud-backup-and-restore-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
