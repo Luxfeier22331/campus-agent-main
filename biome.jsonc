@@ -31,23 +31,51 @@
 	},
 	"linter": {
 		"enabled": true,
+		"domains": {
+			"project": "recommended",
+			"react": "recommended",
+			"test": "recommended"
+		},
 		"rules": {
+			"recommended": true,
 			"complexity": {
 				"noUselessUndefined": "error",
 				"useSimplifiedLogicExpression": "error"
 			},
 			"style": {
 				"noNegationElse": "error",
+				"noExportedImports": "error",
+				"noParameterProperties": "error",
+				"noSubstr": "error",
 				"useAtIndex": "error",
 				"useCollapsedIf": "error",
 				"useConsistentArrowReturn": "error",
+				"useConsistentArrayType": "error",
 				"useConsistentCurlyBraces": "error",
-				"useExplicitLengthCheck": "error"
+				"useConsistentTypeDefinitions": "error",
+				"useDefaultParameterLast": "error",
+				"useDefaultSwitchClause": "error",
+				"useExplicitLengthCheck": "error",
+				"useNodejsImportProtocol": "error",
+				"useThrowNewError": "error",
+				"useThrowOnlyError": "error"
+			},
+			"security": {
+				"recommended": true,
+				"noBlankTarget": "error",
+				"noDangerouslySetInnerHtml": "error",
+				"noDangerouslySetInnerHtmlWithChildren": "error",
+				"noGlobalEval": "error"
 			},
 			"suspicious": {
+				"noAssignInExpressions": "error",
+				"noDebugger": "error",
+				"noDoubleEquals": "error",
 				"noEmptyBlockStatements": "error",
 				"noEvolvingTypes": "error",
-				"noMisplacedAssertion": "error"
+				"noMisplacedAssertion": "error",
+				"noSkippedTests": "error",
+				"noTsIgnore": "error"
 			}
 		}
 	}
