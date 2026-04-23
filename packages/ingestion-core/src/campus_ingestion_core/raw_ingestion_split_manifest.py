@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Protocol
 
@@ -55,6 +56,9 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
 
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
+_CURRICULUM_STRUCTURAL_HEADING_RE = re.compile(
+    r"^(?:[一二三四五六七八九十]+、|[（(][一二三四五六七八九十]+[)）]|\d+[\.．、])"
+)
 
 
 class _ObjectStoreReader(Protocol):
@@ -608,12 +612,29 @@ def _transform_split_row(
 
 
 def _should_skip_split_manifest_row(row: dict[str, object]) -> bool:
-    if bool(row.get("is_repeated_candidate")):
-        return True
     row_type = str(row.get("row_type") or "")
+    if _is_curriculum_table_continuation(row_type=row_type, row=row):
+        return False
+    if bool(row.get("is_repeated_candidate")) and not _is_curriculum_structural_heading(row):
+        return True
     if row_type in {"header", "footer", "page_number"}:
         return True
-    return bool(row_type in {"paragraph", "list_item", "note"} and _looks_like_curriculum_page_marker_line(_split_manifest_row_text(row)))
+    return bool(
+        row_type in {"paragraph", "list_item", "note"}
+        and _looks_like_curriculum_page_marker_line(_split_manifest_row_text(row))
+    )
+
+
+def _is_curriculum_table_continuation(*, row_type: str, row: dict[str, object]) -> bool:
+    return row_type == "table" and str(row.get("relation_type") or "") == "table_continuation"
+
+
+def _is_curriculum_structural_heading(row: dict[str, object]) -> bool:
+    if str(row.get("row_type") or "") != "heading":
+        return False
+    if str(row.get("section_hint") or "").strip():
+        return True
+    return bool(_CURRICULUM_STRUCTURAL_HEADING_RE.match(_split_manifest_row_text(row).strip()))
 
 
 def _should_merge_split_manifest_row(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from html import escape
 
 from campus_ingestion_core.source_truth_common import (
@@ -16,8 +17,41 @@ from campus_ingestion_core.source_truth_common import (
 
 from .curriculum_provider_normalize_shared import _TABLE_ROW_RE, _TABLE_TAG_RE
 
+_MISSING_TEACHING_HOURS_SECTION_RE = re.compile(
+    r"^(?P<degree>(?:授予学位|学位授予)\s*[:：]\s*.+?(?:第二学士学位|学士学位|学士))"
+    r"(?P<body>(?:将本科修读阶段|本科第二学士学位修读阶段).+)$"
+)
+_SECTION_THREE_STUDY_PERIOD_RE = re.compile(r"^三、学制、总学分和(?:学位授予|授予学位)")
+_SECTION_FOUR_TEACHING_HOURS_RE = re.compile(r"^四、各教学环节学时学分")
+_SECTION_ONE_TRAINING_GOAL_RE = re.compile(r"^一、培养目标")
+_SECTION_TWO_GRADUATION_REQUIREMENTS_RE = re.compile(r"^二、毕业要求")
+_SECTION_THREE_GRADUATION_REQUIREMENTS_RE = re.compile(r"^三、毕业要求")
+_COURSE_SETTINGS_SECTION_RE = re.compile(r"^五、课程设置和修读建议")
+_CHINESE_NUMBERED_SECTION_RE = re.compile(r"^[一二三四五六七八九十]+、")
+_CHINESE_PARENTHESIZED_HEADING_RE = re.compile(
+    r"^(?P<open>[（(])(?P<number>[一二三四五六七八九十]+)(?P<close>[)）])(?P<body>.+)$"
+)
+_ORDERED_LIST_LINE_RE = re.compile(r"^(?P<number>[1-9]\d*)(?P<marker>[.．、])\s*(?P<body>.+)$")
+_CHINESE_NUMBER_BY_INT = {
+    1: "一",
+    2: "二",
+    3: "三",
+    4: "四",
+    5: "五",
+    6: "六",
+    7: "七",
+    8: "八",
+    9: "九",
+    10: "十",
+}
+_INT_BY_CHINESE_NUMBER = {value: key for key, value in _CHINESE_NUMBER_BY_INT.items()}
+
 
 def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
+    _repair_misnumbered_graduation_requirements_section(rows)
+    rows[:] = _repair_missing_teaching_hours_section(rows)
+    _repair_course_settings_parenthesized_heading_sequence(rows)
+    _repair_repeated_ordered_list_markers(rows)
     _repair_cross_page_table_continuations(rows)
     _enrich_relationships(rows)
     enrich_repeated_candidates(rows)
@@ -25,6 +59,285 @@ def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
     enrich_cross_page_continuations(rows, textual_row_types=("paragraph", "list_item"))
     _assign_table_fragment_ids(rows)
     _propagate_table_caption_hints(rows)
+
+
+def _repair_misnumbered_graduation_requirements_section(rows: list[dict[str, object]]) -> None:
+    seen_training_goal = False
+    seen_section_two = False
+    pending_graduation_heading: dict[str, object] | None = None
+
+    for row in rows:
+        row_type = str(row.get("row_type") or "")
+        if row_type != "heading":
+            continue
+        text = normalize_text(str(row.get("text_normalized") or row.get("clean_text") or ""))
+        if _SECTION_ONE_TRAINING_GOAL_RE.match(text):
+            seen_training_goal = True
+            seen_section_two = False
+            pending_graduation_heading = None
+            continue
+        if _SECTION_TWO_GRADUATION_REQUIREMENTS_RE.match(text):
+            seen_section_two = True
+            pending_graduation_heading = None
+            continue
+        if seen_training_goal and not seen_section_two and _SECTION_THREE_GRADUATION_REQUIREMENTS_RE.match(text):
+            pending_graduation_heading = row
+            continue
+        if pending_graduation_heading is not None and _SECTION_THREE_STUDY_PERIOD_RE.match(text):
+            pending_graduation_heading["text_raw"] = "二、毕业要求"
+            pending_graduation_heading["text_normalized"] = "二、毕业要求"
+            pending_graduation_heading["classification_reason"] = (
+                "curriculum_repair:renumber_graduation_requirements_section"
+            )
+            pending_graduation_heading = None
+
+
+def _repair_course_settings_parenthesized_heading_sequence(rows: list[dict[str, object]]) -> None:
+    candidates: list[dict[str, object]] = []
+    in_course_settings_section = False
+
+    def flush_candidates() -> None:
+        if len(candidates) < 3:
+            candidates.clear()
+            return
+        ordinals: list[int] = []
+        for candidate in candidates:
+            text = _row_text(candidate)
+            match = _CHINESE_PARENTHESIZED_HEADING_RE.match(text)
+            if match is None:
+                candidates.clear()
+                return
+            ordinal = _INT_BY_CHINESE_NUMBER.get(match.group("number"))
+            if ordinal is None:
+                candidates.clear()
+                return
+            ordinals.append(ordinal)
+        if not ordinals or ordinals[0] != 1:
+            candidates.clear()
+            return
+        if _is_repairable_one_based_sequence(ordinals):
+            expected = list(range(1, len(candidates) + 1))
+        else:
+            candidates.clear()
+            return
+        for candidate, current, target in zip(candidates, ordinals, expected, strict=True):
+            if current == target:
+                continue
+            _renumber_chinese_parenthesized_heading(candidate, target)
+        candidates.clear()
+
+    for row in rows:
+        if str(row.get("row_type") or "") != "heading":
+            continue
+        text = _row_text(row)
+        if _COURSE_SETTINGS_SECTION_RE.match(text):
+            flush_candidates()
+            in_course_settings_section = True
+            continue
+        if in_course_settings_section and _CHINESE_NUMBERED_SECTION_RE.match(text):
+            flush_candidates()
+            in_course_settings_section = False
+        if (
+            in_course_settings_section
+            and row.get("heading_level") == 3
+            and _CHINESE_PARENTHESIZED_HEADING_RE.match(text)
+        ):
+            candidates.append(row)
+
+    flush_candidates()
+
+
+def _renumber_chinese_parenthesized_heading(row: dict[str, object], target_number: int) -> None:
+    text = _row_text(row)
+    match = _CHINESE_PARENTHESIZED_HEADING_RE.match(text)
+    replacement = _CHINESE_NUMBER_BY_INT.get(target_number)
+    if match is None or replacement is None:
+        return
+    repaired = f"{match.group('open')}{replacement}{match.group('close')}{match.group('body')}"
+    _replace_row_text(
+        row,
+        repaired,
+        reason="curriculum_repair:renumber_course_settings_parenthesized_heading",
+    )
+
+
+def _repair_repeated_ordered_list_markers(rows: list[dict[str, object]]) -> None:
+    for row in rows:
+        if str(row.get("row_type") or "") != "paragraph":
+            continue
+        text = _row_text(row)
+        lines = text.splitlines()
+        if len(lines) < 3:
+            continue
+        matches = [_ORDERED_LIST_LINE_RE.match(line.strip()) for line in lines]
+        if any(match is None for match in matches):
+            continue
+        numbers = [int(match.group("number")) for match in matches if match is not None]
+        if not _is_repairable_one_based_sequence(numbers):
+            continue
+        expected = list(range(1, len(numbers) + 1))
+        repaired_lines: list[str] = []
+        changed = False
+        for expected_number, line, match in zip(expected, lines, matches, strict=True):
+            if match is None:
+                repaired_lines.append(line)
+                continue
+            body = match.group("body").strip()
+            repaired_line = f"{expected_number}. {body}"
+            repaired_lines.append(repaired_line)
+            changed = changed or repaired_line != line
+        if changed:
+            _replace_row_text(
+                row,
+                "\n".join(repaired_lines),
+                reason="curriculum_repair:renumber_repeated_ordered_list_markers",
+            )
+
+
+def _is_repairable_one_based_sequence(numbers: list[int]) -> bool:
+    expected = list(range(1, len(numbers) + 1))
+    if numbers == expected:
+        return False
+    if not numbers or numbers[0] != 1:
+        return False
+    if any(left > right for left, right in zip(numbers, numbers[1:], strict=False)):
+        return False
+    if any(number < 1 or number > len(numbers) for number in numbers):
+        return False
+    missing = [number for number in expected if number not in numbers]
+    duplicated = [number for number in set(numbers) if numbers.count(number) > 1]
+    return len(missing) == 1 and len(duplicated) == 1
+
+
+def _row_text(row: dict[str, object]) -> str:
+    return normalize_text(str(row.get("text_normalized") or row.get("clean_text") or ""))
+
+
+def _replace_row_text(row: dict[str, object], text: str, *, reason: str) -> None:
+    row["text_raw"] = text
+    row["text_normalized"] = text
+    if "clean_text" in row:
+        row["clean_text"] = text
+    current_reason = str(row.get("classification_reason") or "").strip()
+    if reason not in current_reason.split(";"):
+        row["classification_reason"] = f"{current_reason};{reason}" if current_reason else reason
+
+
+def _repair_missing_teaching_hours_section(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    after_study_period_section = False
+
+    for row in rows:
+        row_type = str(row.get("row_type") or "")
+        text = normalize_text(str(row.get("text_normalized") or row.get("clean_text") or ""))
+
+        if row_type == "heading":
+            after_study_period_section = bool(_SECTION_THREE_STUDY_PERIOD_RE.match(text))
+            if _SECTION_FOUR_TEACHING_HOURS_RE.match(text):
+                after_study_period_section = False
+            repaired_rows.append(row)
+            continue
+
+        match = (
+            _MISSING_TEACHING_HOURS_SECTION_RE.match(text)
+            if after_study_period_section and row_type == "paragraph"
+            else None
+        )
+        if match is None:
+            repaired_rows.append(row)
+            continue
+
+        degree_text = match.group("degree").strip()
+        body_text = match.group("body").strip()
+        degree_row = _clone_curriculum_text_row(
+            row,
+            text=degree_text,
+            row_id_suffix=None,
+            row_type="paragraph",
+            block_role="text",
+            heading_level=None,
+            section_hint=None,
+            classification_reason="curriculum_repair:split_inline_degree_before_section_four",
+            preserve_reading_order=True,
+        )
+        heading_row = _clone_curriculum_text_row(
+            row,
+            text="四、各教学环节学时学分",
+            row_id_suffix="section-4-heading",
+            row_type="heading",
+            block_role="inferred_missing_section_heading",
+            heading_level=2,
+            section_hint="section",
+            classification_reason="curriculum_repair:insert_missing_section_four_heading",
+            preserve_reading_order=False,
+        )
+        body_row = _clone_curriculum_text_row(
+            row,
+            text=body_text,
+            row_id_suffix="section-4-body",
+            row_type="paragraph",
+            block_role="text",
+            heading_level=None,
+            section_hint=None,
+            classification_reason="curriculum_repair:split_section_four_body",
+            preserve_reading_order=False,
+        )
+        repaired_rows.extend([degree_row, heading_row, body_row])
+        after_study_period_section = False
+
+    return repaired_rows
+
+
+def _clone_curriculum_text_row(
+    row: dict[str, object],
+    *,
+    text: str,
+    row_id_suffix: str | None,
+    row_type: str,
+    block_role: str,
+    heading_level: int | None,
+    section_hint: str | None,
+    classification_reason: str,
+    preserve_reading_order: bool,
+) -> dict[str, object]:
+    cloned = dict(row)
+    if row_id_suffix is not None:
+        base_row_id = str(row.get("row_id") or "row").strip() or "row"
+        cloned["row_id"] = f"{base_row_id}-{row_id_suffix}"
+        cloned["reading_order"] = None
+    elif not preserve_reading_order:
+        cloned["reading_order"] = None
+    cloned["row_type"] = row_type
+    cloned["block_role"] = block_role
+    cloned["heading_level"] = heading_level
+    cloned["text_raw"] = text
+    cloned["text_normalized"] = text
+    cloned["html"] = None
+    cloned["table_cells"] = None
+    cloned["is_blank"] = False
+    cloned["title_candidate_score"] = 0.75 if row_type == "heading" else 0.0
+    cloned["section_hint"] = section_hint
+    cloned["classification_confidence"] = 0.82
+    cloned["classification_reason"] = classification_reason
+    cloned["repeat_cluster_id"] = None
+    cloned["repeat_frequency"] = 0
+    cloned["repeat_position_band"] = None
+    cloned["parent_heading_hint"] = None
+    cloned["list_level_hint"] = None
+    cloned["continues_from_previous_page"] = False
+    cloned["continues_to_next_page"] = False
+    cloned["table_fragment_id"] = None
+    cloned["table_header_rows"] = None
+    cloned["table_row_count"] = None
+    cloned["table_column_count"] = None
+    cloned["table_has_merged_cells"] = None
+    cloned["table_caption_hint"] = None
+    cloned["owner_row_id"] = None
+    cloned["relation_type"] = None
+    cloned["continuation_group_id"] = None
+    return cloned
 
 
 def _repair_cross_page_table_continuations(rows: list[dict[str, object]]) -> None:

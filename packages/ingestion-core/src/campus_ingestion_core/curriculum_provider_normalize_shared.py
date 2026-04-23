@@ -24,8 +24,19 @@ _SENTENCE_PUNCTUATION_RE = re.compile(r"[。！？；?!;]")
 _LIST_LIKE_LINE_RE = re.compile(
     r"^(?:[-*•]|[0-9]+[\.．、)]|[（(][一二三四五六七八九十]+[)）]|[一二三四五六七八九十]+、|第[一二三四五六七八九十百千万〇零0-9]+[章节])"
 )
+_FIELD_LABEL_LINE_RE = re.compile(
+    r"^(?:备注|课程类|课程号|课程名称|学分|学时|实践学时|开设学期|修读学期)[:：]"
+)
+_DECIMAL_LIST_MARKER_AFTER_SENTENCE_RE = re.compile(
+    r"(?<=[。！？；!?;])(?=\d+\.\d+\s)"
+)
+_MISSING_NUMERIC_LIST_DOT_RE = re.compile(
+    r"(?m)^(?P<number>[1-9]\d?)(?P<body>[\u4e00-\u9fff][^:\n：]{0,24}[:：])"
+)
+_SPACED_NUMERIC_RANGE_RE = re.compile(r"(?<=\d)-\s+(?=\d)")
 _TABLE_TAG_RE = re.compile(r"<[^>]+>")
 _TABLE_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
+_GLOBAL_COMPETENCE_PLACEHOLDER = "学校通开的全球胜任力培养课程"
 
 
 def _normalize_page_payload(
@@ -318,7 +329,7 @@ def _looks_like_heading(text: str) -> bool:
 def _infer_heading_level(text: str) -> int:
     if _CHAPTER_RE.match(text) or _CN_SECTION_RE.match(text):
         return 2
-    if _looks_like_subsection_heading(text):
+    if _CN_SUBSECTION_RE.match(text):
         return 3
     if _NUMERIC_HEADING_RE.match(text):
         return 4
@@ -330,9 +341,9 @@ def _section_hint(text: str) -> str | None:
         return "chapter"
     if _CN_SECTION_RE.match(text):
         return "section"
-    if _looks_like_subsection_heading(text):
+    if _CN_SUBSECTION_RE.match(text):
         return "subsection"
-    if _looks_like_numeric_heading(text):
+    if _NUMERIC_HEADING_RE.match(text):
         return "numeric_heading"
     return None
 
@@ -340,7 +351,110 @@ def _section_hint(text: str) -> str | None:
 def _normalize_text(text: str) -> str:
     normalized = normalize_text(text or "")
     compact = _repair_sentence_wraps([line for line in normalized.split("\n") if line])
+    compact = _DECIMAL_LIST_MARKER_AFTER_SENTENCE_RE.sub("\n", compact)
+    compact = _repair_mineru_text_artifacts(compact)
     return compact.strip()
+
+
+def _repair_mineru_text_artifacts(text: str) -> str:
+    repaired = _MISSING_NUMERIC_LIST_DOT_RE.sub(r"\g<number>. \g<body>", text)
+    repaired = _SPACED_NUMERIC_RANGE_RE.sub("-", repaired)
+    repaired = repaired.replace("建议续深造学生选修", "建议继续深造学生选修")
+    repaired = repaired.replace("马克主义", "马克思主义")
+    repaired = repaired.replace("具备具有", "具备")
+    repaired = repaired.replace(">全球胜<", ">全球胜任力培养课程<")
+    repaired = repaired.replace(">任力培养课程<", ">全球胜任力培养课程<")
+    repaired = repaired.replace(">建议拟出国学<", ">建议拟出国学生选修<")
+    repaired = repaired.replace(">生选修<", ">建议拟出国学生选修<")
+    repaired = repaired.replace("高光谱成像级应用", "高光谱成像及应用")
+    repaired = _repair_curriculum_summary_table_artifacts(repaired)
+    repaired = _repair_global_competence_placeholder_row(repaired)
+    repaired = _repair_industry_collaboration_label_split(repaired)
+    return _repair_biology_cross_course_table_artifact(repaired)
+
+
+def _repair_curriculum_summary_table_artifacts(text: str) -> str:
+    if "<table" not in text or "培养阶段" not in text:
+        return text
+    repaired = text
+    repaired = re.sub(
+        r"<tr><td>专业</td><td>专业教育</td><td>专业核心课</td>",
+        "<tr><td>专业培养</td><td>专业教育</td><td>专业核心课</td>",
+        repaired,
+    )
+    repaired = re.sub(
+        r"<tr><td>培养</td><td></td><td>专业选修课</td>",
+        "<tr><td>专业培养</td><td>专业教育</td><td>专业选修课</td>",
+        repaired,
+    )
+    return re.sub(
+        r"<tr><td></td><td>学科基础教育</td><td>学科基础课</td>",
+        "<tr><td>大类培养</td><td>学科基础教育</td><td>学科基础课</td>",
+        repaired,
+    )
+
+
+def _repair_global_competence_placeholder_row(text: str) -> str:
+    if _GLOBAL_COMPETENCE_PLACEHOLDER not in text or "<table" not in text:
+        return text
+
+    placeholder_cell = rf"<td>{re.escape(_GLOBAL_COMPETENCE_PLACEHOLDER)}/?</td>"
+    pattern = re.compile(
+        rf"<tr><td>(?P<course_class>全球胜任力(?:培养)?课程)</td>"
+        rf"(?P<fields>{placeholder_cell}(?:{placeholder_cell}){{5}})"
+        rf"(?P<remark><td>[^<]*</td>)?</tr>"
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        course_class = match.group("course_class")
+        remark = match.group("remark") or ""
+        return (
+            f"<tr><td>{course_class}</td><td></td>"
+            f"<td>{_GLOBAL_COMPETENCE_PLACEHOLDER}</td>"
+            f"<td></td><td></td><td></td><td></td>{remark}</tr>"
+        )
+
+    return pattern.sub(replace, text)
+
+
+def _repair_biology_cross_course_table_artifact(text: str) -> str:
+    if "1043040223" not in text or "1043040603" not in text:
+        return text
+    repaired = text.replace(
+        '<td rowspan="2">跨学科交叉课程</td><td>1043040223</td>',
+        '<td rowspan="3">跨学科交叉课程</td><td>1043040223</td>',
+    )
+    repaired = repaired.replace(
+        '<td rowspan="2">学生可选择修读建议列表中课程,也可根据个人兴趣选择其他专业的</td>',
+        '<td rowspan="3">学生可选择修读建议列表中课程,也可根据个人兴趣选择其他专业的其他课程。此模块建议所有学生选修至少2学分</td>',
+    )
+    return repaired.replace(
+        '<tr><td></td><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td><td>其他课程。此模块建议所有学生选修至少2学分</td></tr>',
+        '<tr><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td></tr>',
+    )
+
+
+def _repair_industry_collaboration_label_split(text: str) -> str:
+    if "行业领域" not in text or "协同" not in text or "<table" not in text:
+        return text
+
+    pattern = re.compile(
+        r"<tr><td>行业领域</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr><td(?:\s+rowspan=\"(?P<rowspan>\d+)\")?>(?P<suffix>协同(?:育人)?课程)</td>"
+        r"(?P<second_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        rowspan = int(match.group("rowspan") or "1")
+        suffix = match.group("suffix")
+        combined = f"行业领域{suffix}"
+        rowspan_attr = f' rowspan="{rowspan + 1}"' if rowspan + 1 > 1 else ""
+        return (
+            f"<tr><td{rowspan_attr}>{combined}</td>{match.group('first_rest')}</tr>"
+            f"<tr>{match.group('second_rest')}</tr>"
+        )
+
+    return pattern.sub(replace, text)
 
 
 def _slugify_filename(filename: str) -> str:
@@ -387,7 +501,12 @@ def _should_preserve_line_break(previous: str, current: str) -> bool:
     previous_tail = previous.rstrip()
     if not previous_tail:
         return False
+    previous_line = previous_tail.rsplit("\n", maxsplit=1)[-1]
     if previous_tail.endswith(("。", "！", "？", "；", ":", "：")):
+        return True
+    if _FIELD_LABEL_LINE_RE.match(previous_line):
+        return True
+    if _FIELD_LABEL_LINE_RE.match(current):
         return True
     return bool(_LIST_LIKE_LINE_RE.match(current))
 

@@ -398,6 +398,106 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                 upload_keys,
             )
 
+    def test_process_raw_ingestion_job_curriculum_plan_split_manifest_fails_closed_when_mineru_primary_fails(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_bytes = b"%PDF-1.4 curriculum mineru fail closed"
+            raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+            raw_version_id = f"sha256:{raw_hash}"
+            raw_key = (
+                f"official_pdf/curriculum-plan-master/undated/sha256/{raw_hash}/"
+                "capture/curriculum-plan.pdf"
+            )
+            split_manifest_path = root / "configs" / "split-manifest.v1.json"
+            split_manifest_path.parent.mkdir(parents=True)
+            split_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "manifest_version": "curriculum_plan_split_manifest_v1",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "raw_asset_id": "asset:curriculum-plan-master-pdf",
+                        "documents": [
+                            {
+                                "document_id": "curriculum:plan-001",
+                                "title": "Plan 001",
+                                "page_start": 1,
+                                "page_end": 1,
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            object_store = _FakeObjectStore()
+            object_store.objects[(SOURCE_BUCKET, raw_key)] = raw_bytes
+            paddle_client = _TrackingPaddleOnlineOcrClient()
+            mineru_client = _FailingMineruCanonicalClient()
+            registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "curriculum_plan_documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "curriculum_plan_raw_assets.json"
+            )
+            raw_asset_registry.upsert(
+                _curriculum_raw_asset_record(
+                    raw_asset_id="asset:curriculum-plan-master-pdf",
+                    raw_version_id=raw_version_id,
+                    raw_source_uri=(
+                        "s3://campus-rag-source/official_pdf/"
+                        "curriculum-plan-master/curriculum-plan.pdf"
+                    ),
+                    content_hash=raw_hash,
+                    source_filename="curriculum-plan.pdf",
+                    object_key=raw_key,
+                )
+            )
+
+            report = process_raw_ingestion_job(
+                env={
+                    "RAW_ASSET_ID": "asset:curriculum-plan-master-pdf",
+                    "RAW_VERSION_ID": raw_version_id,
+                    "INGESTION_CORPUS": "curriculum",
+                    "INGESTION_COLLECTION": "curriculum_plan",
+                    "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
+                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_API_KEY": "token",
+                    "OCR_MINERU_BASE_URL": "https://mineru.example",
+                    "OCR_MINERU_API_KEY": "mineru-token",
+                    "OCR_MINERU_PROVIDER_MODE": "mineru_api",
+                    "OCR_MINERU_MODEL": "vlm",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "IMPORT_REPORT_DIR": str(root / "reports"),
+                    "INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                },
+                object_store=object_store,
+                online_ocr_clients={
+                    "paddleocr_async_jobs": paddle_client,
+                    "mineru_api": mineru_client,
+                },
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            self.assertEqual(report.success_count, 0)
+            self.assertEqual(report.failed_count, 1)
+            self.assertEqual(len(mineru_client.calls), 1)
+            self.assertEqual(len(paddle_client.calls), 0)
+            self.assertEqual(object_store.uploads, [])
+            self.assertTrue(
+                any(
+                    "source-truth-only OCR routing failed" in error
+                    and "mineru_api: mineru failed" in error
+                    for error in report.errors
+                )
+            )
+
     def test_process_raw_ingestion_job_supports_curriculum_plan_source_truth_only_presplit(
         self,
     ) -> None:
