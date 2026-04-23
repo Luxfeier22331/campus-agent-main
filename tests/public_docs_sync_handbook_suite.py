@@ -129,6 +129,29 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
         self.assertNotIn("|姓名|", cleaned)
         self.assertNotIn("|照片", cleaned)
 
+    def test_clean_handbook_markdown_preserves_multirow_header_table_as_html(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学本科学生综合素质测评办法'",
+                "---",
+                "",
+                "[表格]",
+                (
+                    '<table><tr><td rowspan="2">奖项级别</td><td colspan="2">国家级</td><td colspan="2">校级</td></tr>'
+                    "<tr><td>个人</td><td>集体</td><td>个人</td><td>集体</td></tr>"
+                    "<tr><td>第一名(一等奖)</td><td>1.7</td><td>1.5</td><td>0.9</td><td>0.8</td></tr></table>"
+                ),
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("<table>", cleaned)
+        self.assertIn('rowspan="2">奖项级别</td>', cleaned)
+        self.assertNotIn("|奖项级别|国家级|国家级|", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -340,22 +340,22 @@ def _dedupe_handbook_heading(heading: str, *, heading_counts: dict[str, int]) ->
 
 
 def _append_handbook_table_blocks(lines: list[str], html: str) -> None:
-    if _should_preserve_handbook_table_as_html(html):
+    if _should_preserve_table_as_html(html):
         if lines and lines[-1] != "":
             lines.append("")
-        lines.extend([html.strip(), ""])
+        lines.extend([_sanitize_preserved_html_for_mdx(html), ""])
         return
 
     blocks = _convert_table_html_to_markdown_blocks(html)
     if any(block_type != "table" for block_type, _ in blocks):
         if lines and lines[-1] != "":
             lines.append("")
-        lines.extend([html.strip(), ""])
+        lines.extend([_sanitize_preserved_html_for_mdx(html), ""])
         return
     if not blocks:
         if lines and lines[-1] != "":
             lines.append("")
-        lines.extend([html.strip(), ""])
+        lines.extend([_sanitize_preserved_html_for_mdx(html), ""])
         return
     for block_type, block_text in blocks:
         if lines and lines[-1] != "":
@@ -367,12 +367,19 @@ def _append_handbook_table_blocks(lines: list[str], html: str) -> None:
         lines.append("")
 
 
-def _should_preserve_handbook_table_as_html(html: str) -> bool:
-    parser = _TableHTMLParser()
-    parser.feed(html)
-    parser.close()
-    rows = parser.rows
+def _should_preserve_table_as_html(html: str) -> bool:
+    rows = _parse_table_rows(html)
     if not rows:
+        return False
+    if _should_preserve_handbook_table_as_html(rows):
+        return True
+    return any(cell.rowspan > 1 or cell.colspan > 1 for cell in rows[0])
+
+
+def _should_preserve_handbook_table_as_html(rows: list[list[_TableCell]]) -> bool:
+    if not rows:
+        return False
+    if any(cell.rowspan > 1 or cell.colspan > 1 for cell in rows[0]):
         return False
     if len(rows) < 4:
         return False
@@ -399,6 +406,22 @@ def _should_preserve_handbook_table_as_html(html: str) -> bool:
             if label in field_labels or label.startswith("照片"):
                 field_like_label_count += 1
     return empty_cell_count >= 3 and merged_cell_count >= 1 and field_like_label_count >= 4
+
+
+def _parse_table_rows(html: str) -> list[list[_TableCell]]:
+    parser = _TableHTMLParser()
+    parser.feed(html)
+    parser.close()
+    return parser.rows
+
+
+def _sanitize_preserved_html_for_mdx(html: str) -> str:
+    return (
+        html.strip()
+        .replace("*", "&#42;")
+        .replace("{", "&#123;")
+        .replace("}", "&#125;")
+    )
 
 
 def _escape_handbook_placeholder_underscores(line: str) -> str:
@@ -467,6 +490,8 @@ def _normalize_table_cell_text(text: str) -> str:
 
 
 def _convert_table_html_to_markdown_blocks(html: str) -> list[tuple[str, str]]:
+    if _should_preserve_table_as_html(html):
+        return [("block", _sanitize_preserved_html_for_mdx(html))]
     parser = _TableHTMLParser()
     parser.feed(html)
     parser.close()

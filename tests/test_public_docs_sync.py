@@ -376,6 +376,85 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertEqual(markdown.count("|---|---|---|"), 1)
         self.assertNotIn("|实践环节|社会实践|2|\n|---|---|---|", markdown)
 
+    def test_curriculum_markdown_preserves_summary_table_with_merged_header_as_html(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"哲学类本科人才培养方案","heading_level":1}',
+                (
+                    '{"row_type":"table","html":"<table><tr><td>培养阶段</td><td>板块名称</td><td colspan=\\"2\\">类别</td><td>学分设置</td></tr>'
+                    '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td colspan=\\"2\\">思政课</td><td>16</td></tr>'
+                    '<tr><td colspan=\\"2\\">基本素养课</td><td>19</td></tr>'
+                    '<tr><td colspan=\\"2\\">综合素养课</td><td>10</td></tr>'
+                    '<tr><td>学科基础教育</td><td colspan=\\"2\\">学科基础课</td><td>25</td></tr></table>",'
+                    '"clean_text":"<table><tr><td>培养阶段</td><td>板块名称</td><td colspan=\\"2\\">类别</td><td>学分设置</td></tr>'
+                    '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td colspan=\\"2\\">思政课</td><td>16</td></tr>'
+                    '<tr><td colspan=\\"2\\">基本素养课</td><td>19</td></tr>'
+                    '<tr><td colspan=\\"2\\">综合素养课</td><td>10</td></tr>'
+                    '<tr><td>学科基础教育</td><td colspan=\\"2\\">学科基础课</td><td>25</td></tr></table>"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="哲学类本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("<table>", markdown)
+        self.assertIn('colspan="2">类别</td>', markdown)
+        self.assertNotIn("|培养阶段|板块名称|类别|类别|", markdown)
+
+    def test_curriculum_markdown_preserves_multirow_header_matrix_as_html(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"计算机科学与技术（民族实验班）本科人才培养方案","heading_level":1}',
+                (
+                    '{"row_type":"table","html":"<table><tr><td rowspan=\\"2\\">毕业要求</td><td colspan=\\"2\\">培养目标</td></tr>'
+                    '<tr><td>培养目标1</td><td>培养目标2</td></tr>'
+                    '<tr><td>1.工程知识</td><td>✓</td><td></td></tr></table>",'
+                    '"clean_text":"<table><tr><td rowspan=\\"2\\">毕业要求</td><td colspan=\\"2\\">培养目标</td></tr>'
+                    '<tr><td>培养目标1</td><td>培养目标2</td></tr>'
+                    '<tr><td>1.工程知识</td><td>✓</td><td></td></tr></table>"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="计算机科学与技术（民族实验班）本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("<table>", markdown)
+        self.assertIn('rowspan="2">毕业要求</td>', markdown)
+        self.assertNotIn("|毕业要求|培养目标|培养目标|", markdown)
+
+    def test_curriculum_markdown_escapes_mdx_sensitive_text_inside_preserved_html_table(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"中央民族大学通识课程“国家安全教育”课程教学计划","heading_level":1}',
+                (
+                    '{"row_type":"table","html":"<table><tr><td colspan=\\"2\\">训练内容</td></tr>'
+                    '<tr><td rowspan=\\"2\\">防卫技能与战时防护训练</td><td>*战场医疗救护</td></tr>'
+                    '<tr><td>*核生化防护</td></tr></table>",'
+                    '"clean_text":"<table><tr><td colspan=\\"2\\">训练内容</td></tr>'
+                    '<tr><td rowspan=\\"2\\">防卫技能与战时防护训练</td><td>*战场医疗救护</td></tr>'
+                    '<tr><td>*核生化防护</td></tr></table>"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="中央民族大学通识课程“国家安全教育”课程教学计划",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("&#42;战场医疗救护", markdown)
+        self.assertIn("&#42;核生化防护", markdown)
+        self.assertNotIn("<td>*战场医疗救护</td>", markdown)
+
     def test_curriculum_markdown_keeps_sectioned_table_headers(self) -> None:
         module = self.module
         jsonl_text = "\n".join(
