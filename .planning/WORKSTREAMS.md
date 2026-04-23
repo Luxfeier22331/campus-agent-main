@@ -39,7 +39,6 @@ updated: 2026-04-23
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | `Phase 3` | `workstream_harness` wrapper、Codex hooks、result schema 与 runtime ledger 已落地；当前继续把 repo 默认入口切到 harness wrapper，并补真实 run acceptance evidence |
 | `handbook curriculum MinerU cutover` | `handbook-curriculum-mineru-cutover` | `yes` | `.planning/workstreams/handbook-curriculum-mineru-cutover/README.md` | `Phase 2` | `student_rules` 与 `curriculum_plan` 的 runtime profile 已指向 MinerU；当前补齐 handbook source-truth hard gate、对齐测试/runbook/reference，到位后再进入 shadow rebuild 与 alias cutover |
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 正式 `public-docs` app 已提升为 docs shell；当前继续收口 published reader assets、runtime-backed `app-api` docs seams 与 shell consumption truth，避免 docs app 继续停留在直接同步公开产物的过渡实现 |
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | `Phase 7` | 已完成 `institutional_rules` / `scoped_rules` 的 target-side chunk-prep parity；当前进入 `11` 条 admitted target acceptance rerun 与 gap closure，随后冻结 acceptance evidence |
@@ -62,6 +61,7 @@ updated: 2026-04-23
 | `authenticated-notice file_release owner recovery` | `authenticated-notice-file-release-owner-recovery` | `yes` | `docs/plans/archive/completed/authenticated-notice-file-release-owner-recovery.md` | 只有在新的显式 non-excluded target 被 admission、认证窗口重新可用且产品范围重新恢复 bounded owner recovery 优先级时才恢复 |
 | `notice consumption layer` | `notice-consumption-layer` | `yes` | `docs/plans/archive/completed/notice-consumption-layer.md` | 只有在 admitted notice source family 被显式改写、derived consumption unit schema 被显式改写、authority/completeness contract 被显式改写，或新的产品 adoption target family 被正式 admission 时才恢复 |
 | `versioned history query foundation` | `versioned-history-query-foundation` | `yes` | `docs/plans/archive/completed/versioned-history-query-foundation.md` | 只有在 repo 重新 admission runtime-facing non-current query route contract、`app-api` live benchmark 正式承载 non-current `version_query`、或显式改写 `current / historical / as_of / compare` 的 request / resolution / retrieval / answer / eval truth 时才恢复 |
+| `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | 只有在 repo 重新 admission 非-Codex adapter implementation、显式改写 terminal-result transport / blocker taxonomy / hook contract，或需要再次调整默认 execution entrypoint 时才恢复 |
 
 ## Deferred
 

@@ -16,10 +16,12 @@ blocker 和 verification 语义。
 - 适用于 repo 内通过 harness wrapper 运行的 agent session
 - 运行时状态只写入 gitignored `.planning/runtime/harness/`
 - 不复用产品侧 `approval_required`
+- `SessionStart` / `Stop` 的 harness contract 只在 wrapper 注入的 harness session env 存在时生效
+- 普通 repo 讨论会话不消费 terminal result contract；它们只继续复用 repo-wide 安全 guardrails
 
-## Terminal Result
+## Terminal Result Schema
 
-final result 必须携带一个机器可读 JSON 对象：
+terminal result 的 canonical schema 固定为一个机器可读 JSON 对象：
 
 ```json
 {
@@ -36,6 +38,36 @@ final result 必须携带一个机器可读 JSON 对象：
 }
 ```
 
+推荐直接复用这个最小模板，不要自定义 `success`、`verification[]` 之类的旧形状。
+
+## Terminal Result Transport
+
+canonical transport 不是“把 JSON 直接显示给用户”，而是写入 gitignored runtime result artifact。
+
+默认写入方式：
+
+```bash
+uv run --all-packages python -m scripts.workstream_harness result write \
+  --result completed \
+  --summary "string" \
+  --verification-status passed \
+  --verification-command "pnpm web:lint" \
+  --verification-notes "string" \
+  --next-action "string"
+```
+
+补充规则：
+
+- `result write` 默认从当前 harness session env 读取：
+  - `CAMPUS_WORKSTREAM_RUN_ID`
+  - `CAMPUS_WORKSTREAM_REPO_ROOT`
+  - `CAMPUS_WORKSTREAM_RESULT_PATH`
+- `blocked` 必须额外提供：
+  - `--blocker-kind`
+  - `--blocker-message`
+- shell / exec 都只读取 result artifact 来决定是否允许 stop 或 finalize run
+- final assistant message 应该保留给人看，不再承担 terminal result transport
+
 ### `result`
 
 - `completed`
@@ -44,6 +76,34 @@ final result 必须携带一个机器可读 JSON 对象：
   - 遇到真实外部 blocker，无法继续自解
 - `failed_needs_repair`
   - 本轮执行未达到合法终态，需要恢复并修复
+
+## Compatibility Normalization
+
+harness 会在输入端兼容少量已观测到的新 agent 旧形状，但持久化到 runtime ledger 的 payload
+仍然必须回写为 canonical `workstream_harness_result_v1`。
+
+source precedence 已收口为单一 truth source：
+
+1. `result_file`
+
+如果 `result_file` 不存在、不可读或不可解析，hook / wrapper 会直接拒绝 stop 或把 run 记为
+`failed_needs_repair`，不再静默回退到 message JSON。
+
+当前受支持的兼容输入：
+
+- `result: "success"` / `"done"` / `"complete"`
+  - 归一化为 `completed`
+- `result: "failed"` / `"error"` / `"needs_repair"`
+  - 归一化为 `failed_needs_repair`
+- `verification` 为数组，元素形状类似：
+  - `{ "command": "...", "result": "passed", "details": "..." }`
+- `verification` 为对象但使用旧键：
+  - `result` -> `status`
+  - `command` -> `commands: [...]`
+  - `details` -> `notes`
+
+兼容层的目标是适配 agent 新行为，不是放宽 canonical schema。
+如果 payload 语义仍然不明确，hook 依旧会拒绝停止。
 
 ## Blocker Taxonomy
 
@@ -76,6 +136,23 @@ final result 必须携带一个机器可读 JSON 对象：
 - `blocked` 必须给出 blocker，并且要明确下一步恢复动作
 - `failed_needs_repair` 不能伪装成 blocker；如果真的是外部阻塞，应该改成 `blocked`
 
+如果你需要手动构造 payload，保持下面的 canonical 形状：
+
+```json
+{
+  "schema_version": "workstream_harness_result_v1",
+  "result": "completed",
+  "summary": "Implemented the requested change.",
+  "verification": {
+    "status": "passed",
+    "commands": ["pnpm web:lint"],
+    "notes": "Lint passed."
+  },
+  "blocker": null,
+  "next_action": "Commit the isolated change if desired."
+}
+```
+
 ## Runtime Ledger
 
 gitignored runtime ledger 固定在：
@@ -83,5 +160,25 @@ gitignored runtime ledger 固定在：
 - `.planning/runtime/harness/runs/<run_id>.json`
 - `.planning/runtime/harness/events/<run_id>.jsonl`
 - `.planning/runtime/harness/latest/<workstream>.json`
+- `.planning/runtime/harness/outputs/<run_id>.result.json`
+- `.planning/runtime/harness/outputs/<run_id>.assistant-message.txt`
 
-它不是 tracked planning truth，也不回写 `.planning/workstreams/<slug>/STATE.md`。
+run ledger 会额外记录 `result_source`，用于区分本次终态来自：
+
+- `result_file`
+- `synthetic_failure`
+
+这些文件和字段都不是 tracked planning truth，也不回写 `.planning/workstreams/<slug>/STATE.md`。
+
+## Future Adapter Boundary
+
+当前只实现 Codex adapter，但 future adapter contract 已固定：
+
+- adapter 必须负责启动前注入：
+  - `CAMPUS_WORKSTREAM_RUN_ID`
+  - `CAMPUS_WORKSTREAM_REPO_ROOT`
+  - `CAMPUS_WORKSTREAM_RESULT_PATH`
+  - `CAMPUS_WORKSTREAM_HARNESS_MODE`
+- adapter 可以额外保存自己的 assistant message / transcript artifact，但不得把它重新提升为 terminal result source
+- terminal result 必须写入 canonical result artifact，wrapper / hook 只认这一条通道
+- 非 Codex runtime 如果不能消费 repo-local hook，也必须在 wrapper 退出前完成等价的 result validation 与 run persistence

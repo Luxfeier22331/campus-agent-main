@@ -159,6 +159,9 @@ lane，默认不并入 `pnpm lint`。
 
 `feature/worktree -> develop -> main`
 
+plain `codex` 继续用于讨论、评审、问答和方案分析；
+只有真正进入某条 workstream 的执行会话时，才进入 harness-managed session。
+
 并发推进不同 workstream 时，repo 内部的认领与交接统一走 repo-owned claim workflow：
 
 ```bash
@@ -169,6 +172,9 @@ uv run --all-packages python -m scripts.workstream_harness codex shell \
 uv run --all-packages python -m scripts.workstream_harness codex exec \
   <workstream-slug> -- "<task>"
 ```
+
+会话终态默认通过 `scripts.workstream_harness result write ...` 写入 gitignored runtime
+artifact；final assistant message 保留给人读，不再要求把 terminal JSON 直接显示在用户界面。
 
 底层 `workstream_claim session shell/start` 仍保留为恢复与非-Codex runtime 的 escape
 hatch；tracked planning truth 继续写在 `.planning/WORKSTREAMS.md` 与

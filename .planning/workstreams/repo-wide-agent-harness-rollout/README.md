@@ -13,12 +13,12 @@ updated: 2026-04-23
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 2`
-- current focus: `workstream_harness` wrapper、repo-local Codex hooks、
-  result schema 与 runtime ledger 已落地；
-  当前继续收口默认入口切换、真实 run evidence
-  与后续非-Codex adapter 边界
+- status: `completed`
+- current phase: `Phase 4`
+- current focus: artifact-only terminal result contract、
+  discussion-vs-execution split、wrapper self-finalization、
+  默认入口切换、真实 run evidence 与 future adapter boundary
+  已全部收口
 
 ## Native Planning Truth
 

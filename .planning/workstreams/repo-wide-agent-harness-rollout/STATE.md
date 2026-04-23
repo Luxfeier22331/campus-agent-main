@@ -8,20 +8,22 @@ updated: 2026-04-23
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** 3
-**Current Phase Name:** Default Entry Cutover And Real Run Acceptance
+**Status:** Completed
+**Current Phase:** 4
+**Current Phase Name:** Future Adapter Boundary And Closeout
 **Current Plan:** baseline 已直接落地到 repo code/docs；
 当前不另建 phase-local PLAN，
 继续以本 worktree 的 harness runtime/test/doc truth 为准
 **Total Phases:** 4
 **Total Plans in Phase:** 0
-**Progress:** 2/4 phases complete
+**Progress:** 4/4 phases complete
 **Last Activity:** 2026-04-23
-**Last Activity Description:** Added `workstream_harness` wrapper,
-Codex hooks, result schema, runtime ledger, tests,
-and started cutting the repo default entrypoints
-over from raw claim sessions to harness-managed sessions.
+**Last Activity Description:** Closed the harness rollout:
+artifact-only terminal-result transport is enforced,
+`codex exec` no longer emits JSONL event mode by default,
+exec prompt parsing now accepts options after `<slug>`,
+repo docs were aligned, and two real acceptance-smoke runs
+completed through the wrapper with `result_source=result_file`.
 
 ## Current Slice
 
@@ -33,37 +35,46 @@ over from raw claim sessions to harness-managed sessions.
 
 - completed `Phase 2` truth:
   - `scripts/workstream_harness.py` 已落地 `codex shell` / `codex exec` /
-    `status` / `doctor`
+    `status` / `doctor` / `result write`
   - `.codex/hooks.json` 与
     `SessionStart / PreToolUse / PermissionRequest / Stop`
     hook wrappers 已落地
   - `.planning/runtime/harness/` 已成为 gitignored run/event/latest ledger
   - Python tests 已覆盖 result parsing、hooks 与 wrapper baseline
 
-- current `Phase 3` focus:
-  - README / CONTRIBUTING / AGENTS / runbook 默认入口切换
-  - `WORKSTREAMS.md` / `PROJECT.md` 的 repo truth refresh
-  - 至少一轮真实 harness run evidence 与 doctor continuity
+- completed `Phase 3` truth:
+  - README / CONTRIBUTING / AGENTS / runbook 默认入口已切到 harness wrapper
+  - 已完成两轮真实 `workstream_harness codex exec` acceptance smoke
+  - 最新 runtime ledger 已确认 `result_source=result_file`、
+    `state=completed`、claim release 正常
+
+- completed `Phase 4` truth:
+  - terminal result transport 已收口为 artifact-only
+  - future adapter boundary / escape hatch 语义已冻结到 contract
+  - `codex exec` 默认不再开启 JSONL event mode
+  - exec prompt parsing 已兼容 `codex exec <slug> --option ... -- "<task>"`
 
 ## Blockers
 
-- 当前只实现 Codex adapter；非 Codex runtime 仍未接入。
-- interactive `codex shell` 的 terminal result 主要依赖 Stop hook 持久化，
-  而不是 wrapper 自己读取 session transcript。
-- repo 还缺一轮真实 acceptance evidence，
-  用于确认“默认不再在局部里程碑处停下”。
+- 当前无 active blocker；后续只在 reopen 条件触发时恢复。
 
 ## Verification
 
 - 需要稳定通过的本轮验证：
-  - `uv run --all-packages python -m unittest tests.test_workstream_claim tests.test_workstream_harness`
+  - `uv run --all-packages python -m unittest tests.test_workstream_harness`
   - `uv run --all-packages ruff check scripts/workstream_harness.py \
     scripts/workstream_harness_result.py scripts/workstream_harness_runtime.py \
     scripts/workstream_harness_hooks.py tests/test_workstream_harness.py`
+  - `uv run --all-packages python -m scripts.workstream_harness codex exec \
+    --operator-id codex --session-key acceptance-smoke \
+    --skip-git-repo-check repo-wide-agent-harness-rollout -- "<prompt>"`
+  - `uv run --all-packages python -m scripts.workstream_harness codex exec \
+    repo-wide-agent-harness-rollout --operator-id codex \
+    --session-key acceptance-smoke-2 --skip-git-repo-check -- "<prompt>"`
 
 ## Session Continuity
 
-**Stopped At:** wrapper / hooks / schema / runtime ledger baseline 已经落地，
-下一次恢复应先完成 docs + planning truth cutover，
-然后做一次真实 harness run smoke。
-**Resume File:** README.md
+**Stopped At:** workstream 已完成；
+只有在新增非-Codex adapter、改写 terminal-result contract、
+或需要再次调整 repo 默认 execution entrypoint 时才应恢复。
+**Resume File:** .planning/WORKSTREAMS.md

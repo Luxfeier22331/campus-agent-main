@@ -14,7 +14,7 @@ from .workstream_runtime_shared import (
     validate_workstream_name,
 )
 
-RUN_SCHEMA_VERSION = 1
+RUN_SCHEMA_VERSION = 2
 
 
 def harness_root(repo_root: Path | str) -> Path:
@@ -62,6 +62,14 @@ def output_file_path(repo_root: Path | str, run_id: str) -> Path:
     return harness_outputs_root(repo_root) / f"{run_id}.json"
 
 
+def result_file_path(repo_root: Path | str, run_id: str) -> Path:
+    return harness_outputs_root(repo_root) / f"{run_id}.result.json"
+
+
+def assistant_message_file_path(repo_root: Path | str, run_id: str) -> Path:
+    return harness_outputs_root(repo_root) / f"{run_id}.assistant-message.txt"
+
+
 def create_run_record(
     repo_root: Path | str,
     *,
@@ -80,6 +88,7 @@ def create_run_record(
     exit_code: int | None = None,
     artifacts: dict[str, object] | None = None,
     result_payload: dict[str, object] | None = None,
+    result_source: str | None = None,
 ) -> dict[str, object]:
     ensure_harness_layout(repo_root)
     now = utc_now()
@@ -104,6 +113,7 @@ def create_run_record(
         "exit_code": exit_code,
         "artifacts": dict(artifacts or {}),
         "result_payload": result_payload,
+        "result_source": result_source,
     }
     _write_json_atomic(run_file_path(repo_root, run_id), payload)
     _write_json_atomic(latest_file_path(repo_root, workstream), payload)
