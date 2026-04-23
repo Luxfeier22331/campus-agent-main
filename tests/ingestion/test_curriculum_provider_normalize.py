@@ -592,6 +592,97 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertNotIn("<td>专业</td><td>专业教育</td>", html)
         self.assertNotIn("<td>培养</td><td></td>", html)
 
+    def test_normalize_curriculum_provider_result_repairs_personalized_guidance_intro(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-personalized-guidance-intro-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "为充分对接学生未来发展、满足学生个性化选择,设置本硕贯通课程、跨学科交叉课程、"
+                                        "全球胜任力培养课程和行业领域协同育人课程,学生可根据未来发展意向选择修读相关课程,"
+                                        "此部分至少修读6学分。修读建议拟继续深造学生建议选择修读本硕贯通专业选修课程。"
+                                        "免试推荐攻读本校研究生的本科生可提前学习研究生课程,并计入研究生学分。"
+                                    ),
+                                    "block_id": 431,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        paragraph = next(row for row in rows if row["row_type"] == "paragraph")
+        text = str(paragraph["text_normalized"])
+        self.assertIn("此部分至少修读6学分。修读建议如下:拟继续深造学生建议选择修读本硕贯通专业选修课程。", text)
+        self.assertNotIn("修读建议拟继续深造学生建议", text)
+
+    def test_normalize_curriculum_provider_result_repairs_design_summary_major_split(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-design-summary-major-split-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>培养阶段</td><td>板块名称</td><td colspan=\"2\">类别</td><td>学分设置</td><td>修读性质</td><td>总学时</td><td>理论学时</td><td>实践学时</td></tr>"
+                                        '<tr><td rowspan="7">专业培养</td><td rowspan="7">专业教育</td><td rowspan="2">视觉传达设计</td><td>专业核心课</td><td>33</td><td>必修</td><td>1188</td><td>/</td><td>1188</td></tr>'
+                                        "<tr><td>专业选修课</td><td>14</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+                                        '<tr><td rowspan="2">视觉传达设计(影像设计)</td><td>专业核心课</td><td>33</td><td>必修</td><td>1152</td><td>36</td><td>1116</td></tr>'
+                                        "<tr><td>专业选修课</td><td>14</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+                                        '<tr><td rowspan="2">环境设计</td><td>专业核心课</td><td>33</td><td>必修</td><td>1152</td><td>36</td><td>1116</td></tr>'
+                                        "<tr><td>专业选修课</td><td>7</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+                                        "<tr><td>服装与服饰设</td><td>专业核心课</td><td>33</td><td>必修</td><td>1116</td><td>72</td><td>1044</td></tr>"
+                                        "<tr><td></td><td></td><td>计</td><td>专业选修课</td><td>5</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 432,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        table = next(row for row in rows if row["row_type"] == "table")
+        html = str(table["html"])
+        self.assertIn('<tr><td rowspan="8">专业培养</td><td rowspan="8">专业教育</td>', html)
+        self.assertIn(
+            '<tr><td rowspan="2">服装与服饰设计</td><td>专业核心课</td><td>33</td><td>必修</td><td>1116</td><td>72</td><td>1044</td></tr>',
+            html,
+        )
+        self.assertIn(
+            "<tr><td>专业选修课</td><td>5</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>",
+            html,
+        )
+        self.assertNotIn("<tr><td>服装与服饰设</td>", html)
+        self.assertNotIn("<td>计</td><td>专业选修课</td>", html)
+
     def test_normalize_curriculum_provider_result_repairs_global_competence_placeholder_row(
         self,
     ) -> None:

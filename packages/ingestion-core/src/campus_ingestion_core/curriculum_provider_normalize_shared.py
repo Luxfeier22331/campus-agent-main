@@ -367,10 +367,20 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = repaired.replace(">建议拟出国学<", ">建议拟出国学生选修<")
     repaired = repaired.replace(">生选修<", ">建议拟出国学生选修<")
     repaired = repaired.replace("高光谱成像级应用", "高光谱成像及应用")
+    repaired = _repair_personalized_study_guidance_intro(repaired)
     repaired = _repair_curriculum_summary_table_artifacts(repaired)
     repaired = _repair_global_competence_placeholder_row(repaired)
     repaired = _repair_industry_collaboration_label_split(repaired)
     return _repair_biology_cross_course_table_artifact(repaired)
+
+
+def _repair_personalized_study_guidance_intro(text: str) -> str:
+    if "修读建议拟继续深造学生建议" not in text:
+        return text
+    return text.replace(
+        "修读建议拟继续深造学生建议",
+        "修读建议如下:拟继续深造学生建议",
+    )
 
 
 def _repair_curriculum_summary_table_artifacts(text: str) -> str:
@@ -387,10 +397,30 @@ def _repair_curriculum_summary_table_artifacts(text: str) -> str:
         "<tr><td>专业培养</td><td>专业教育</td><td>专业选修课</td>",
         repaired,
     )
-    return re.sub(
+    repaired = re.sub(
         r"<tr><td></td><td>学科基础教育</td><td>学科基础课</td>",
         "<tr><td>大类培养</td><td>学科基础教育</td><td>学科基础课</td>",
         repaired,
+    )
+    return _repair_design_summary_table_major_split(repaired)
+
+
+def _repair_design_summary_table_major_split(text: str) -> str:
+    if "服装与服饰设" not in text or "<table" not in text:
+        return text
+    repaired = text.replace(
+        '<tr><td rowspan="7">专业培养</td><td rowspan="7">专业教育</td>',
+        '<tr><td rowspan="8">专业培养</td><td rowspan="8">专业教育</td>',
+    )
+    return repaired.replace(
+        (
+            "<tr><td>服装与服饰设</td><td>专业核心课</td><td>33</td><td>必修</td><td>1116</td><td>72</td><td>1044</td></tr>"
+            "<tr><td></td><td></td><td>计</td><td>专业选修课</td><td>5</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+        ),
+        (
+            '<tr><td rowspan="2">服装与服饰设计</td><td>专业核心课</td><td>33</td><td>必修</td><td>1116</td><td>72</td><td>1044</td></tr>'
+            "<tr><td>专业选修课</td><td>5</td><td>选修</td><td>/</td><td>/</td><td>/</td></tr>"
+        ),
     )
 
 
