@@ -373,6 +373,10 @@ def _should_preserve_table_as_html(html: str) -> bool:
         return False
     if _should_preserve_handbook_table_as_html(rows):
         return True
+    if any(cell.rowspan > 1 for row in rows for cell in row):
+        return True
+    if _has_blank_leading_header_cell(rows):
+        return True
     return any(cell.rowspan > 1 or cell.colspan > 1 for cell in rows[0])
 
 
@@ -406,6 +410,12 @@ def _should_preserve_handbook_table_as_html(rows: list[list[_TableCell]]) -> boo
             if label in field_labels or label.startswith("照片"):
                 field_like_label_count += 1
     return empty_cell_count >= 3 and merged_cell_count >= 1 and field_like_label_count >= 4
+
+
+def _has_blank_leading_header_cell(rows: list[list[_TableCell]]) -> bool:
+    if not rows or not rows[0]:
+        return False
+    return len(rows[0]) >= 3 and not rows[0][0].text
 
 
 def _parse_table_rows(html: str) -> list[list[_TableCell]]:

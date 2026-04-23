@@ -115,9 +115,7 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "第六条 按国家招生规定录取的新生,须持录取通知书办理入学手续。",
                 ),
             ],
-            manifest_document=_manifest_document(
-                96, 96, title="中央民族大学学生管理规定"
-            ),
+            manifest_document=_manifest_document(96, 96, title="中央民族大学学生管理规定"),
             source_doc="学生手册_2018.pdf",
         )
 
@@ -229,7 +227,9 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         )
 
         self.assertIn("拟被处分或者处理学生认为听证主持人与本事件有直接利害关系", normalized)
-        self.assertIn("(二) 调查人员提出拟被处分或者处理学生违法或违规违纪的事实、证据。", normalized)
+        self.assertIn(
+            "(二) 调查人员提出拟被处分或者处理学生违法或违规违纪的事实、证据。", normalized
+        )
         self.assertIn("(六) 拟被处分或者处理学生做最后陈述", normalized)
         self.assertIn("各院系根据转专业的原则和条件对申请学生进行审核", normalized)
         self.assertNotIn("拟被处分或者处理\n学生", normalized)
@@ -268,6 +268,38 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("从\n校级优秀本科毕业生", normalized)
         self.assertNotIn("有要求\n学生申诉处理委员会", normalized)
         self.assertNotIn("分级审定拟定名单", normalized)
+
+    def test_normalize_handbook_article_body_text_repairs_round9_soft_wraps_and_phrase_splits(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "第十二条 本科学生专项奖学金按以下程序",
+                    "进行评选:",
+                    "(七)临时困难补助学生在校学习期间因本人或家庭出现特殊情况,可申请补助。",
+                    "(八)绿色通道学校在每学年新生入学时为家庭经济特别困难新生办理入学手续。",
+                    "(二) 学生参加勤工助学的工作时间",
+                    "原则上每周不超过10小时,每月不超过40小时。",
+                    "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$",
+                    "做好对参加勤工助学",
+                    "学生的考勤管理,并组织岗位培训。",
+                ]
+            )
+        )
+
+        self.assertIn("本科学生专项奖学金按以下程序进行评选:", normalized)
+        self.assertIn("(七)临时困难补助\n学生在校学习期间因本人或家庭出现特殊情况,可申请补助。", normalized)
+        self.assertIn(
+            "(八)绿色通道\n学校在每学年新生入学时为家庭经济特别困难新生办理入学手续。",
+            normalized,
+        )
+        self.assertIn("学生参加勤工助学的工作时间原则上每周不超过10小时", normalized)
+        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。", normalized)
+        self.assertIn("做好对参加勤工助学学生的考勤管理,并组织岗位培训。", normalized)
+        self.assertNotIn("按以下程序\n进行评选", normalized)
+        self.assertNotIn("工作时间\n原则上每周", normalized)
+        self.assertNotIn("做好对参加勤工助学\n学生的考勤管理", normalized)
 
     def test_normalize_handbook_article_body_text_splits_glued_short_heading_from_body(
         self,
@@ -334,11 +366,18 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         )
 
         self.assertIn("(二) 学生申请\n本科学生根据学校公布的转专业计划提出转专业申请。", normalized)
-        self.assertIn("(三) 院系审核,提交材料\n各院系根据转专业的原则和条件对申请学生进行审核。", normalized)
-        self.assertIn("(四) 公布参加转专业考试学生名单及考试具体安排\n教务处对所有转专业学生申请材料进行复核。", normalized)
+        self.assertIn(
+            "(三) 院系审核,提交材料\n各院系根据转专业的原则和条件对申请学生进行审核。", normalized
+        )
+        self.assertIn(
+            "(四) 公布参加转专业考试学生名单及考试具体安排\n教务处对所有转专业学生申请材料进行复核。",
+            normalized,
+        )
         self.assertIn("1. 考核方式\n考核形式由各院系确定,原则上考核包括笔试和面试。", normalized)
         self.assertIn("1. 拟接收名单的确定\n院系按照笔试和面试总成绩从高到低排序。", normalized)
-        self.assertIn("(七) 手续办理\n学校确定正式名单后,转专业学生凭教务处通知办理转专业手续。", normalized)
+        self.assertIn(
+            "(七) 手续办理\n学校确定正式名单后,转专业学生凭教务处通知办理转专业手续。", normalized
+        )
         self.assertNotIn("学生申请本科学生", normalized)
         self.assertNotIn("考核方式考核形式", normalized)
 
@@ -508,3 +547,86 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertEqual(len(article_units), 1)
         self.assertIn("不合格的;", article_units[0]["clean_text"])
         self.assertNotIn("不合\n格的;", article_units[0]["clean_text"])
+
+    def test_normalize_handbook_body_text_repairs_round8_phrase_errors(self) -> None:
+        normalized = normalize_handbook_body_text(
+            "\n".join(
+                [
+                    "开展争创先十佳大学生评选活动是我校德育教育的重要组成部分。",
+                    "入围名单确定后,如有项目名额出现空缺,或有人围学生中途放弃时,教务处根据排名递补。",
+                ]
+            )
+        )
+
+        self.assertIn("开展争创十佳大学生评选活动", normalized)
+        self.assertNotIn("开展争创先十佳大学生评选活动", normalized)
+        self.assertIn("或有入围学生中途放弃时", normalized)
+        self.assertNotIn("或有人围学生中途放弃时", normalized)
+
+    def test_normalize_handbook_article_body_text_merges_fragmented_applicant_material_subject(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "第七条 选拔程序与要求",
+                    "(三)报名审核",
+                    "各院系负责审核并将符合项目选拔要求的申请",
+                    "学生材料及相关材料统一报教务处。教务处复核后通知符合项目要求的申请学生参加具体选拔。",
+                ]
+            )
+        )
+
+        self.assertIn(
+            "各院系负责审核并将符合项目选拔要求的申请学生材料及相关材料统一报教务处。",
+            normalized,
+        )
+        self.assertNotIn("申请\n学生材料", normalized)
+
+    def test_normalize_handbook_article_body_text_repairs_commissioned_selection_phrase(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "(二)发布选拔要求与通知",
+                    "1. 委托院系选拔方式,主要适用于对于只涉及 1 个学院的项目,在学校统一公布项目要求后,教务处委托相关院系按照学校的标准要求组织选拔。",
+                ]
+            )
+        )
+
+        self.assertIn("主要适用于只涉及1个学院的项目", normalized)
+        self.assertNotIn("主要适用于对于只涉及", normalized)
+
+    def test_normalize_handbook_article_body_text_keeps_interview_assessment_sentence_inline(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "(六)面试考核",
+                    "1. 面试主要考核申请者的口语表达能力和综合素质。",
+                ]
+            )
+        )
+
+        self.assertIn("1. 面试主要考核申请者的口语表达能力和综合素质。", normalized)
+        self.assertNotIn("1. 面试主要考核\n申请者的口语表达能力和综合素质。", normalized)
+
+    def test_normalize_handbook_body_text_repairs_grade_conversion_table_headers(self) -> None:
+        normalized = normalize_handbook_body_text(
+            "\n".join(
+                [
+                    "境外等级 成绩",
+                    "校内百分 制成绩",
+                    "境外 5 分制",
+                ]
+            )
+        )
+
+        self.assertIn("境外等级成绩", normalized)
+        self.assertIn("校内百分制成绩", normalized)
+        self.assertIn("境外5分制", normalized)
+        self.assertNotIn("境外等级 成绩", normalized)
+        self.assertNotIn("校内百分 制成绩", normalized)
+        self.assertNotIn("境外 5 分制", normalized)

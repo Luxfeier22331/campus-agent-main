@@ -27,9 +27,7 @@ _LIST_LIKE_LINE_RE = re.compile(
 _FIELD_LABEL_LINE_RE = re.compile(
     r"^(?:备注|课程类|课程号|课程名称|学分|学时|实践学时|开设学期|修读学期)[:：]"
 )
-_DECIMAL_LIST_MARKER_AFTER_SENTENCE_RE = re.compile(
-    r"(?<=[。！？；!?;])(?=\d+\.\d+\s)"
-)
+_DECIMAL_LIST_MARKER_AFTER_SENTENCE_RE = re.compile(r"(?<=[。！？；!?;])(?=\d+\.\d+\s)")
 _MISSING_NUMERIC_LIST_DOT_RE = re.compile(
     r"(?m)^(?P<number>[1-9]\d?)(?P<body>[\u4e00-\u9fff][^:\n：]{0,24}[:：])"
 )
@@ -359,9 +357,15 @@ def _normalize_text(text: str) -> str:
 def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = _MISSING_NUMERIC_LIST_DOT_RE.sub(r"\g<number>. \g<body>", text)
     repaired = _SPACED_NUMERIC_RANGE_RE.sub("-", repaired)
+    repaired = re.sub(
+        r"应修学分(?P<credits>\d+(?:\.\d+)?)学分",
+        r"应修\g<credits>学分",
+        repaired,
+    )
     repaired = repaired.replace("建议续深造学生选修", "建议继续深造学生选修")
     repaired = repaired.replace("马克主义", "马克思主义")
     repaired = repaired.replace("具备具有", "具备")
+    repaired = repaired.replace("全球胜任力培养客户", "全球胜任力培养课程")
     repaired = repaired.replace(">全球胜<", ">全球胜任力培养课程<")
     repaired = repaired.replace(">任力培养课程<", ">全球胜任力培养课程<")
     repaired = repaired.replace(">建议拟出国学<", ">建议拟出国学生选修<")
@@ -370,7 +374,14 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = _repair_personalized_study_guidance_intro(repaired)
     repaired = _repair_curriculum_summary_table_artifacts(repaired)
     repaired = _repair_global_competence_placeholder_row(repaired)
+    repaired = _repair_global_competence_label_split(repaired)
+    repaired = _repair_basic_literacy_label_split(repaired)
     repaired = _repair_industry_collaboration_label_split(repaired)
+    repaired = _repair_public_management_table_artifacts(repaired)
+    repaired = _repair_public_management_elective_intro(repaired)
+    repaired = _repair_minority_preparatory_program_artifacts(repaired)
+    repaired = _repair_ethnology_second_bachelor_table_artifact(repaired)
+    repaired = _repair_paleography_program_table_artifacts(repaired)
     return _repair_biology_cross_course_table_artifact(repaired)
 
 
@@ -459,9 +470,32 @@ def _repair_biology_cross_course_table_artifact(text: str) -> str:
         '<td rowspan="3">学生可选择修读建议列表中课程,也可根据个人兴趣选择其他专业的其他课程。此模块建议所有学生选修至少2学分</td>',
     )
     return repaired.replace(
-        '<tr><td></td><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td><td>其他课程。此模块建议所有学生选修至少2学分</td></tr>',
-        '<tr><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td></tr>',
+        "<tr><td></td><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td><td>其他课程。此模块建议所有学生选修至少2学分</td></tr>",
+        "<tr><td>1043040603</td><td>化学生物学</td><td>2</td><td>36</td><td>/</td><td>6</td></tr>",
     )
+
+
+def _repair_global_competence_label_split(text: str) -> str:
+    if "全球胜任力培" not in text or "养课程" not in text or "<table" not in text:
+        return text
+
+    pattern = re.compile(
+        r"<tr><td rowspan=\"2\">全球胜任力培</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr>(?P<second_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr><td rowspan=\"2\">养课程</td>(?P<third_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr>(?P<fourth_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        return (
+            '<tr><td rowspan="4">全球胜任力培养课程</td>'
+            f"{match.group('first_rest')}</tr>"
+            f"<tr>{match.group('second_rest')}</tr>"
+            f"<tr>{match.group('third_rest')}</tr>"
+            f"<tr>{match.group('fourth_rest')}</tr>"
+        )
+
+    return pattern.sub(replace, text)
 
 
 def _repair_industry_collaboration_label_split(text: str) -> str:
@@ -485,6 +519,169 @@ def _repair_industry_collaboration_label_split(text: str) -> str:
         )
 
     return pattern.sub(replace, text)
+
+
+def _repair_basic_literacy_label_split(text: str) -> str:
+    if "基本素" not in text or "养课" not in text or "<table" not in text:
+        return text
+
+    pattern = re.compile(
+        r"<tr><td>基本素</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr><td rowspan=\"(?P<rowspan>\d+)\">养课</td>(?P<second_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        rowspan = int(match.group("rowspan"))
+        return (
+            f'<tr><td rowspan="{rowspan + 1}">基本素养课</td>'
+            f"{match.group('first_rest')}</tr>"
+            f"<tr>{match.group('second_rest')}</tr>"
+        )
+
+    return pattern.sub(replace, text)
+
+
+def _repair_public_management_table_artifacts(text: str) -> str:
+    if "2-4沟通与合作能够力" not in text and "3-3-1热忱对待公共管理事业" not in text:
+        return text
+
+    repaired = text.replace("2-4沟通与合作能够力", "2-4沟通与合作能力")
+    repaired = repaired.replace(
+        "2-4-3能够初步地进行专业领域的国际交流",
+        "2-4-3 能够初步地进行专业领域的国际交流",
+    )
+    repaired = repaired.replace(
+        "2-5-3形成公共管理学专业所需的人文关怀和实践创新能力",
+        "2-5-3 形成公共管理学专业所需的人文关怀和实践创新能力",
+    )
+    repaired = repaired.replace(
+        "3-1-4具有维护民族团结和祖国统一的使命感和中华民族共同体意识",
+        "3-1-4 具有维护民族团结和祖国统一的使命感和中华民族共同体意识",
+    )
+    repaired = repaired.replace(
+        "3-2-3积极践行社会主义核心价值观", "3-2-3 积极践行社会主义核心价值观"
+    )
+    pattern = re.compile(
+        r"<tr>(?P<prefix>(?:<td[^>]*>.*?</td>)?)<td>3-3职业素养</td>"
+        r"<td>3-3-1\s*热忱对待公共管理事业,对国家与社会发展</td></tr>"
+        r"<tr>(?:<td[^>]*>\s*</td>){1,2}<td>有责任心</td></tr>"
+        r"<tr><td>3-3-2\s*乐于、甘于投身祖国的公共管理事业</td></tr>"
+    )
+    return pattern.sub(
+        lambda match: (
+            f'<tr>{match.group("prefix")}<td rowspan="2">3-3职业素养</td>'
+            "<td>3-3-1 热忱对待公共管理事业,对国家与社会发展有责任心</td></tr>"
+            "<tr><td>3-3-2 乐于、甘于投身祖国的公共管理事业</td></tr>"
+        ),
+        repaired,
+    )
+
+
+def _repair_public_management_elective_intro(text: str) -> str:
+    if "选修列表中的所有课程,原则上两个专业学生均可选修。为区分专业" not in text:
+        return text
+    return text.replace(
+        "选修列表中的所有课程,原则上两个专业学生均可选修。为区分专业",
+        "选修列表中的所有课程,原则上两个专业学生均可选修。",
+    )
+
+
+def _repair_minority_preparatory_program_artifacts(text: str) -> str:
+    repaired = text.replace("文化引领为一体、根据教学内容和学生特点", "文化引领为一体,根据教学内容和学生特点")
+    repaired = repaired.replace(
+        "大学体育、心理健康主干课程:大学语文、实用写作、高等数学、大学英语基础课程:理科班增设普通化学和大学物理",
+        "大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。基础课程:理科班增设普通化学和大学物理。",
+    )
+
+    summary_bad = (
+        "<table><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+        "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+        "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+        "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr>"
+        "<tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
+        "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+        "<tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>"
+    )
+    summary_good = (
+        "<table><tr><td colspan=\"5\">文科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+        "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+        "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+        "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td colspan=\"5\">理科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+        "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
+        "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>"
+    )
+    repaired = repaired.replace(summary_bad, summary_good)
+
+    detail_bad = (
+        "<table><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>"
+        "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr><tr><td rowspan=\"8\">通识教育课</td><td>1037010044</td><td>中华民族共同体概论</td><td>2</td><td>36</td><td>/</td><td>2</td><td>/</td><td rowspan=\"8\">必修</td></tr>"
+        "<tr><td>1037010040</td><td>形势与政策</td><td>/</td><td>8</td><td>/</td><td>√</td><td>/</td></tr><tr><td>1044020003</td><td>信息素养(一)</td><td>2</td><td>54</td><td>36</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1044020004</td><td>信息素养(二)</td><td>2</td><td>54</td><td>36</td><td>/</td><td>2</td></tr><tr><td>1049020001</td><td>大学体育(一)</td><td>1</td><td>36</td><td>36</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1049020002</td><td>大学体育(二)</td><td>1</td><td>36</td><td>36</td><td>/</td><td>2</td></tr><tr><td>000000006</td><td>心理健康</td><td>0</td><td>36</td><td>16</td><td>2</td><td>/</td></tr>"
+        "<tr><td>0011010036</td><td>劳动教育</td><td>/</td><td>10</td><td>10</td><td>√</td><td>√</td></tr><tr><td rowspan=\"7\">主干课</td><td>1052030033</td><td>大学语文(一)</td><td>4</td><td>72</td><td>12</td><td>4</td><td>/</td><td rowspan=\"7\">必修</td></tr>"
+        "<tr><td>1052030034</td><td>大学语文(二)</td><td>4</td><td>72</td><td>12</td><td>/</td><td>4</td></tr><tr><td>1052030068</td><td>实用写作</td><td>2</td><td>36</td><td>8</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1052030031</td><td>高等数学(一)</td><td>4</td><td>72</td><td>12</td><td>4</td><td>/</td></tr><tr><td>1052030032</td><td>高等数学(二)</td><td>4</td><td>72</td><td>12</td><td>/</td><td>4</td></tr>"
+        "<tr><td>1042010079</td><td>大学英语(一)</td><td>2</td><td>72</td><td>36</td><td>4</td><td>/</td></tr><tr><td>1042010080</td><td>大学英语(二)</td><td>2</td><td>72</td><td>36</td><td>/</td><td>4</td></tr><tr><td rowspan=\"3\">语文限选课</td><td>1052040014</td><td>中国古代文学经典选读</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期选一门,两学期不得重复选修同一门课。</td></tr>"
+        "<tr><td>1052040015</td><td>文学鉴赏与写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td>1052040012</td><td>普通话语音辨正</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td rowspan=\"3\">英语限选课</td><td>1052030049</td><td>英语视听说</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期选一门,两学期不得重复选修同一门课。</td></tr><tr><td>1052030050</td><td>英语阅读训练</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td>1052030051</td><td>英语实用写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td rowspan=\"3\">任选课</td><td>1052040016</td><td>小说创作</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td rowspan=\"3\">选修:根据兴趣及需求选修,可多选</td></tr>"
+        "<tr><td>1052040017</td><td>唐诗名家十五讲</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040018</td><td>文学与人生</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td></td><td>1052040019</td><td>中西文化专题</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr>"
+        "<tr><td></td><td>1052040020</td><td>神话导读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052040021</td><td>大学数学导引</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052030054</td><td>英语语音语调</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr>"
+        "<tr><td></td><td>1052040013</td><td>英语语法基础与提高</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052040022</td><td>英美原著选读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr></table>"
+    )
+    detail_good = (
+        "<table><tr><td colspan=\"9\">文科班</td></tr><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>"
+        "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr><tr><td rowspan=\"8\">通识教育课</td><td>1037010044</td><td>中华民族共同体概论</td><td>2</td><td>36</td><td>/</td><td>2</td><td>/</td><td rowspan=\"8\">必修</td></tr>"
+        "<tr><td>1037010040</td><td>形势与政策</td><td>/</td><td>8</td><td>/</td><td>√</td><td>/</td></tr><tr><td>1044020003</td><td>信息素养(一)</td><td>2</td><td>54</td><td>36</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1044020004</td><td>信息素养(二)</td><td>2</td><td>54</td><td>36</td><td>/</td><td>2</td></tr><tr><td>1049020001</td><td>大学体育(一)</td><td>1</td><td>36</td><td>36</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1049020002</td><td>大学体育(二)</td><td>1</td><td>36</td><td>36</td><td>/</td><td>2</td></tr><tr><td>000000006</td><td>心理健康</td><td>0</td><td>36</td><td>16</td><td>2</td><td>/</td></tr>"
+        "<tr><td>0011010036</td><td>劳动教育</td><td>/</td><td>10</td><td>10</td><td>√</td><td>√</td></tr><tr><td rowspan=\"7\">主干课</td><td>1052030033</td><td>大学语文(一)</td><td>4</td><td>72</td><td>12</td><td>4</td><td>/</td><td rowspan=\"7\">必修</td></tr>"
+        "<tr><td>1052030034</td><td>大学语文(二)</td><td>4</td><td>72</td><td>12</td><td>/</td><td>4</td></tr><tr><td>1052030068</td><td>实用写作</td><td>2</td><td>36</td><td>8</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1052030031</td><td>高等数学(一)</td><td>4</td><td>72</td><td>12</td><td>4</td><td>/</td></tr><tr><td>1052030032</td><td>高等数学(二)</td><td>4</td><td>72</td><td>12</td><td>/</td><td>4</td></tr>"
+        "<tr><td>1042010079</td><td>大学英语(一)</td><td>2</td><td>72</td><td>36</td><td>4</td><td>/</td></tr><tr><td>1042010080</td><td>大学英语(二)</td><td>2</td><td>72</td><td>36</td><td>/</td><td>4</td></tr><tr><td rowspan=\"3\">语文限选课</td><td>1052040014</td><td>中国古代文学经典选读</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期选一门,两学期不得重复选修同一门课。</td></tr>"
+        "<tr><td>1052040015</td><td>文学鉴赏与写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td>1052040012</td><td>普通话语音辨正</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td rowspan=\"3\">英语限选课</td><td>1052030049</td><td>英语视听说</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期选一门,两学期不得重复选修同一门课。</td></tr><tr><td>1052030050</td><td>英语阅读训练</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td>1052030051</td><td>英语实用写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td rowspan=\"9\">任选课</td><td>1052040016</td><td>小说创作</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td rowspan=\"9\">选修:根据兴趣及需求选修,可多选</td></tr>"
+        "<tr><td>1052040017</td><td>唐诗名家十五讲</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040018</td><td>文学与人生</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040019</td><td>中西文化专题</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr>"
+        "<tr><td>1052040020</td><td>神话导读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040021</td><td>大学数学导引</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052030054</td><td>英语语音语调</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr>"
+        "<tr><td>1052040013</td><td>英语语法基础与提高</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040022</td><td>英美原著选读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td colspan=\"9\">理科班</td></tr>"
+        "<tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr>"
+        "<tr><td rowspan=\"8\">通识教育课</td><td>1037010044</td><td>中华民族共同体概论</td><td>2</td><td>36</td><td>/</td><td>2</td><td>/</td><td rowspan=\"8\">必修</td></tr><tr><td>1037010040</td><td>形势与政策</td><td>/</td><td>8</td><td>/</td><td>√</td><td>/</td></tr>"
+        "<tr><td>1044020003</td><td>信息素养(一)</td><td>2</td><td>54</td><td>36</td><td>2</td><td>/</td></tr><tr><td>1044020004</td><td>信息素养(二)</td><td>2</td><td>54</td><td>36</td><td>/</td><td>2</td></tr><tr><td>1049020001</td><td>大学体育(一)</td><td>1</td><td>36</td><td>36</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1049020002</td><td>大学体育(二)</td><td>1</td><td>36</td><td>36</td><td>/</td><td>2</td></tr><tr><td>000000006</td><td>心理健康</td><td>0</td><td>36</td><td>16</td><td>2</td><td>/</td></tr><tr><td>0011010036</td><td>劳动教育</td><td>/</td><td>10</td><td>10</td><td>√</td><td>√</td></tr>"
+        "<tr><td rowspan=\"7\">主干课</td><td>1052030033</td><td>大学语文(一)</td><td>4</td><td>72</td><td>12</td><td>4</td><td>/</td><td rowspan=\"7\">必修</td></tr><tr><td>1052030034</td><td>大学语文(二)</td><td>4</td><td>72</td><td>12</td><td>/</td><td>4</td></tr><tr><td>1052030068</td><td>实用写作</td><td>2</td><td>36</td><td>8</td><td>2</td><td>/</td></tr>"
+        "<tr><td>1052030063</td><td>高等数学(一)</td><td>6</td><td>108</td><td>12</td><td>6</td><td>/</td></tr><tr><td>1052030064</td><td>高等数学(二)</td><td>6</td><td>108</td><td>12</td><td>/</td><td>6</td></tr><tr><td>1042010079</td><td>大学英语(一)</td><td>2</td><td>72</td><td>36</td><td>4</td><td>/</td></tr><tr><td>1042010080</td><td>大学英语(二)</td><td>2</td><td>72</td><td>36</td><td>/</td><td>4</td></tr>"
+        "<tr><td rowspan=\"2\">基础课</td><td>1052030065</td><td>普通化学</td><td></td><td>72</td><td>18</td><td>4</td><td>/</td><td rowspan=\"2\">必修(实验18学时)</td></tr><tr><td>1052030066</td><td>大学物理</td><td></td><td>72</td><td>18</td><td>/</td><td>4</td></tr>"
+        "<tr><td rowspan=\"3\">语文限选课</td><td>1052040014</td><td>中国古代文学经典选读</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期限选一门,两学期不得重复选修同一门课。</td></tr><tr><td>1052040015</td><td>文学鉴赏与写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td>1052040012</td><td>普通话语音辩正</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td rowspan=\"3\">英语限选课</td><td>1052030049</td><td>英语视听说</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td><td rowspan=\"3\">选修:每学期限选一门,两学期不得重复选修同一门课。</td></tr><tr><td>1052030050</td><td>英语阅读训练</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr><tr><td>1052030051</td><td>英语实用写作</td><td>2</td><td>36</td><td>/</td><td>2</td><td>2</td></tr>"
+        "<tr><td rowspan=\"9\">任选课</td><td>1052040016</td><td>小说创作</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td rowspan=\"9\">选修:根据兴趣及需求选修,可多选</td></tr><tr><td>1052040017</td><td>唐诗名家十五讲</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040018</td><td>文学与人生</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr>"
+        "<tr><td>1052040019</td><td>中西文化专题</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040020</td><td>神话导读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040021</td><td>大学数学导引</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr>"
+        "<tr><td>1052030054</td><td>英语语音语调</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040013</td><td>英语语法基础与提高</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr><tr><td>1052040022</td><td>英美原著选读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td></tr></table>"
+    )
+    return repaired.replace(detail_bad, detail_good)
+
+
+def _repair_ethnology_second_bachelor_table_artifact(text: str) -> str:
+    if "专业必修课共30学分" not in text or "专业选修课须修满12学分" not in text:
+        return text
+    repaired = text.replace(
+        '<td rowspan="13">专业教育</td><td rowspan="13">专业必修课共30学分</td>',
+        '<td rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>',
+    )
+    return repaired.replace(
+        "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>",
+        "",
+    )
+
+
+def _repair_paleography_program_table_artifacts(text: str) -> str:
+    if "全球胜任力培养</td>" not in text and "370</td><td>350</td><td>120" not in text:
+        return text
+    repaired = text.replace(">全球胜任力培养<", ">全球胜任力培养课程<")
+    return repaired.replace(
+        "<td>思政课</td><td>19</td><td>必修</td><td>370</td><td>350</td><td>120</td>",
+        "<td>思政课</td><td>19</td><td>必修</td><td>370</td><td>250</td><td>120</td>",
+    )
 
 
 def _slugify_filename(filename: str) -> str:
@@ -512,7 +709,10 @@ def _looks_like_subsection_heading(text: str) -> bool:
     remainder = text[match.end() :].strip()
     if not remainder or len(remainder) > 18 or _SENTENCE_PUNCTUATION_RE.search(remainder):
         return False
-    return not any(token in remainder for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解"))
+    return not any(
+        token in remainder
+        for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解")
+    )
 
 
 def _repair_sentence_wraps(lines: list[str]) -> str:

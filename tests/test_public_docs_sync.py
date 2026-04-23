@@ -430,6 +430,35 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn('rowspan="2">毕业要求</td>', markdown)
         self.assertNotIn("|毕业要求|培养目标|培养目标|", markdown)
 
+    def test_curriculum_markdown_preserves_summary_table_with_later_rowspans_as_html(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"历史学（强基计划）本科人才培养方案","heading_level":1}',
+                (
+                    '{"row_type":"table","html":"<table><tr><td>培养阶段</td><td>板块名称</td><td>类别</td><td>学分设置</td></tr>'
+                    '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td>思政课</td><td>16</td></tr>'
+                    '<tr><td>基本素养课</td><td>19</td></tr>'
+                    '<tr><td>综合素养课</td><td>10</td></tr>'
+                    '<tr><td>学科基础教育</td><td>学科基础课</td><td>21</td></tr></table>",'
+                    '"clean_text":"<table><tr><td>培养阶段</td><td>板块名称</td><td>类别</td><td>学分设置</td></tr>'
+                    '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td>思政课</td><td>16</td></tr>'
+                    '<tr><td>基本素养课</td><td>19</td></tr>'
+                    '<tr><td>综合素养课</td><td>10</td></tr>'
+                    '<tr><td>学科基础教育</td><td>学科基础课</td><td>21</td></tr></table>"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="历史学（强基计划）本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("<table>", markdown)
+        self.assertIn('rowspan="4">大类培养</td>', markdown)
+        self.assertNotIn("|培养阶段|板块名称|类别|学分设置||", markdown)
+
     def test_curriculum_markdown_escapes_mdx_sensitive_text_inside_preserved_html_table(self) -> None:
         module = self.module
         jsonl_text = "\n".join(

@@ -170,9 +170,7 @@ def _should_merge_article_soft_wrap(previous: str, current: str) -> bool:
         return True
     if _looks_like_enumerated_clause_continuation(normalized_previous, normalized_current):
         return True
-    if _looks_like_fragmented_policy_subject_continuation(
-        normalized_previous, normalized_current
-    ):
+    if _looks_like_fragmented_policy_subject_continuation(normalized_previous, normalized_current):
         return True
     if _looks_like_fragmented_applicant_subject_continuation(
         normalized_previous, normalized_current
@@ -213,6 +211,10 @@ def _looks_like_intended_structural_split(previous: str, current: str) -> bool:
     normalized_current = _normalize_body_fragment(current)
     if not normalized_previous or not normalized_current:
         return False
+    if _looks_like_confirmed_handbook_inline_heading_split(
+        normalized_previous, normalized_current
+    ):
+        return True
     if len(normalized_current) < 8:
         return False
     if not _is_short_heading_fragment(normalized_previous) and not _is_semantic_heading_fragment(
@@ -291,13 +293,19 @@ def _looks_like_enumerated_clause_continuation(previous: str, current: str) -> b
 def _looks_like_fragmented_policy_subject_continuation(previous: str, current: str) -> bool:
     normalized_previous = _normalize_body_fragment(previous)
     normalized_current = _normalize_body_fragment(current)
-    return normalized_previous.endswith("拟被处分或者处理") and normalized_current.startswith("学生")
+    return normalized_previous.endswith("拟被处分或者处理") and normalized_current.startswith(
+        "学生"
+    )
 
 
 def _looks_like_fragmented_applicant_subject_continuation(previous: str, current: str) -> bool:
     normalized_previous = _normalize_body_fragment(previous)
     normalized_current = _normalize_body_fragment(current)
-    return normalized_previous.endswith("对申请") and normalized_current.startswith("学生进行审核")
+    return (
+        (normalized_previous.endswith("对申请") and normalized_current.startswith("学生进行审核"))
+        or (normalized_previous.endswith("的申请") and normalized_current.startswith("学生材料"))
+        or (normalized_previous.endswith("申请") and normalized_current.startswith("学生材料"))
+    )
 
 
 def _looks_like_confirmed_handbook_soft_wrap_continuation(previous: str, current: str) -> bool:
@@ -306,10 +314,25 @@ def _looks_like_confirmed_handbook_soft_wrap_continuation(previous: str, current
     confirmed_pairs = (
         ("有要求", "学生申诉处理委员会"),
         ("毕业生从", "校级优秀本科毕业生中"),
+        ("本科学生专项奖学金按以下程序", "进行评选:"),
+        ("参加勤工助学的工作时间", "原则上每周"),
+        ("做好对参加勤工助学", "学生的考勤管理"),
     )
     return any(
-        normalized_previous.endswith(previous_tail)
-        and normalized_current.startswith(current_head)
+        normalized_previous.endswith(previous_tail) and normalized_current.startswith(current_head)
+        for previous_tail, current_head in confirmed_pairs
+    )
+
+
+def _looks_like_confirmed_handbook_inline_heading_split(previous: str, current: str) -> bool:
+    normalized_previous = _normalize_body_fragment(previous)
+    normalized_current = _normalize_body_fragment(current)
+    confirmed_pairs = (
+        ("临时困难补助", "学生在校学习期间"),
+        ("绿色通道", "学校在每学年新生入学时"),
+    )
+    return any(
+        normalized_previous.endswith(previous_tail) and normalized_current.startswith(current_head)
         for previous_tail, current_head in confirmed_pairs
     )
 
@@ -480,6 +503,8 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
         return semantic_heading
     plain_heading = _split_plain_heading_from_body(normalized)
     if plain_heading is not None:
+        if _looks_like_enumerated_clause_false_heading_split(*plain_heading):
+            return None
         return plain_heading
     marker_re = re.compile(
         r"(?P<marker>(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]))"
@@ -594,8 +619,26 @@ def _looks_like_enumerated_clause_false_heading_split(heading: str, remainder: s
         return True
     if normalized_heading.endswith("对申请") and normalized_remainder.startswith("学生进行审核"):
         return True
+    if normalized_heading.endswith("的申请") and normalized_remainder.startswith("学生材料"):
+        return True
+    if normalized_heading.endswith("申请") and normalized_remainder.startswith("学生材料"):
+        return True
+    if normalized_heading.endswith("主要考核") and normalized_remainder.startswith("申请者"):
+        return True
     if normalized_heading.endswith("有要求") and normalized_remainder.startswith(
         "学生申诉处理委员会"
+    ):
+        return True
+    if normalized_heading.endswith("本科学生专项奖学金按以下程序") and normalized_remainder.startswith(
+        "进行评选"
+    ):
+        return True
+    if normalized_heading.endswith("学生参加勤工助学的工作时间") and normalized_remainder.startswith(
+        "原则上每周"
+    ):
+        return True
+    if normalized_heading.endswith("做好对参加勤工助学") and normalized_remainder.startswith(
+        "学生的考勤管理"
     ):
         return True
     if normalized_heading.endswith("毕业生从") and normalized_remainder.startswith(
@@ -747,7 +790,35 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = normalized.replace("财务被盗", "财物被盗")
     normalized = normalized.replace("本人本人违法", "本人违法")
     normalized = normalized.replace("调查人行使", "调查人员行使")
-    return normalized.replace("助学服务中心中心", "助学服务中心")
+    normalized = normalized.replace("助学服务中心中心", "助学服务中心")
+    normalized = normalized.replace("有人围学生", "有入围学生")
+    normalized = normalized.replace("境外等级 成绩", "境外等级成绩")
+    normalized = normalized.replace("校内百分 制成绩", "校内百分制成绩")
+    normalized = normalized.replace("境外 5 分制", "境外5分制")
+    normalized = normalized.replace(
+        "(七)临时困难补助学生在校学习期间",
+        "(七)临时困难补助\n学生在校学习期间",
+    )
+    normalized = normalized.replace(
+        "(八)绿色通道学校在每学年新生入学时",
+        "(八)绿色通道\n学校在每学年新生入学时",
+    )
+    normalized = re.sub(
+        r"家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 \$70\\%\$[。．…]*",
+        "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。",
+        normalized,
+    )
+    normalized = re.sub(
+        r"主要适用于对于只涉及\s*(\d+)\s*个学院",
+        r"主要适用于只涉及\1个学院",
+        normalized,
+    )
+    normalized = re.sub(
+        r"(?<!。)(1\.\s*面试主要考核申请者的口语表达能力和综合素质)$",
+        r"\1。",
+        normalized,
+    )
+    return normalized.replace("争创先十佳大学生", "争创十佳大学生")
 
 
 def _strip_inline_ocr_reference_markers(text: str) -> str:

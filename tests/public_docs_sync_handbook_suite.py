@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import importlib
 import sys
 import unittest
 from pathlib import Path
-
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "apps" / "public-docs" / "scripts"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _sync_real_docs.handbook import _clean_handbook_markdown
+_clean_handbook_markdown = importlib.import_module(
+    "_sync_real_docs.handbook"
+)._clean_handbook_markdown
 
 
 _FORM_TABLE_HTML = """<table><tr><td rowspan="6">本人情况</td><td>姓名</td><td colspan="2"></td><td>性别</td><td></td><td>出生年月</td><td></td><td rowspan="6">照片</td></tr><tr><td>民族</td><td colspan="2"></td><td>政治面貌</td><td></td><td>入学时间</td><td></td></tr><tr><td>身份证号码</td><td colspan="4"></td><td>个人联系电话</td><td></td></tr><tr><td>学号</td><td colspan="4"></td><td>贫困认定等级</td><td></td></tr><tr><td colspan="2">学校的办理农行卡号</td><td colspan="5"></td></tr><tr><td colspan="7">院系 专业 班级</td></tr><tr><td rowspan="3">家庭经济情况</td><td>家庭户口</td><td colspan="5">A、城镇 B、农村</td><td>家庭电话</td><td></td></tr><tr><td>家庭月总收入</td><td colspan="2"></td><td colspan="2">人均月收入</td><td></td><td>收入来源</td><td></td></tr><tr><td>家庭住址</td><td colspan="5"></td><td>邮政编码</td><td></td></tr><tr><td rowspan="6">家庭成员情况</td><td>姓名</td><td colspan="2">年龄</td><td colspan="2">与本人关系</td><td colspan="3">工作单位及职务</td></tr><tr><td></td><td colspan="2"></td><td colspan="2"></td><td colspan="3"></td></tr><tr><td></td><td colspan="2"></td><td colspan="2"></td><td colspan="3"></td></tr><tr><td></td><td colspan="2"></td><td colspan="2"></td><td colspan="3"></td></tr><tr><td></td><td colspan="2"></td><td colspan="2"></td><td colspan="3"></td></tr><tr><td></td><td colspan="2"></td><td colspan="2"></td><td colspan="3"></td></tr><tr><td colspan="9">曾获资助情况:</td></tr><tr><td colspan="9">申请理由:\n申请人签名: 年 月 日</td></tr><tr><td colspan="6">院系审核意见:\n(公章)\n年 月 日</td><td colspan="3">助学服务中心审核意见:\n(公章)年 月 日</td></tr></table>"""
@@ -151,6 +153,28 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
         self.assertIn("<table>", cleaned)
         self.assertIn('rowspan="2">奖项级别</td>', cleaned)
         self.assertNotIn("|奖项级别|国家级|国家级|", cleaned)
+
+    def test_clean_handbook_markdown_preserves_blank_leading_header_matrix_as_html(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学本科学生综合素质测评办法'",
+                "---",
+                "",
+                "[表格]",
+                (
+                    "<table><tr><td></td><td>具体测评内容和分值</td><td>学生民主互评</td><td>测评小组评定</td></tr>"
+                    "<tr><td>思想政治表现(30分)</td><td>拥护党的领导</td><td></td><td></td></tr></table>"
+                ),
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("<table>", cleaned)
+        self.assertIn("具体测评内容和分值", cleaned)
+        self.assertNotIn("||具体测评内容和分值|学生民主互评|测评小组评定|", cleaned)
 
 
 if __name__ == "__main__":

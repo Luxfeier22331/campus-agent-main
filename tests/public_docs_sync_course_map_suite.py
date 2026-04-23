@@ -164,6 +164,31 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         self.assertNotIn("## 六、课程地图", markdown)
         self.assertNotIn("历史学强基计划本科课程结构拓扑图", markdown)
 
+    def test_curriculum_markdown_omits_numbered_course_map_subheadings_without_published_surface(
+        self,
+    ) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"公共管理类本科人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"六、课程地图","heading_level":2,"section_hint":"section"}',
+                '{"row_type":"heading","clean_text":"1.公共事业管理","heading_level":4}',
+                '{"row_type":"heading","clean_text":"2.行政管理","heading_level":4}',
+                '{"row_type":"heading","clean_text":"七、其他说明","heading_level":2,"section_hint":"section"}',
+                '{"row_type":"paragraph","clean_text":"允许国际学分转换。"}',
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="公共管理类本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("## 七、其他说明", markdown)
+        self.assertNotIn("## 六、课程地图", markdown)
+        self.assertNotIn("#### 1. 公共事业管理", markdown)
+        self.assertNotIn("#### 2. 行政管理", markdown)
+
     def test_curriculum_markdown_keeps_long_paragraphs_unbroken_for_rendered_accuracy(
         self,
     ) -> None:
@@ -376,7 +401,7 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
     def test_build_course_map_data_module_formats_with_biome(self) -> None:
         module = self.module
 
-        expected = '\n'.join(
+        expected = "\n".join(
             [
                 "const data = {",
                 '\tgeneratedAt: "2026-04-22T00:00:00+00:00",',
@@ -389,6 +414,7 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         )
 
         with patch("_sync_real_docs.course_map.subprocess", create=True) as subprocess_mock:
+
             def _fake_run(
                 argv: list[str],
                 *,

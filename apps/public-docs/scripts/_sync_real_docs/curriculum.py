@@ -127,25 +127,35 @@ def _build_curriculum_markdown(
     for row in _coalesce_curriculum_table_continuations(tuple(_iter_rows(jsonl_text))):
         row_type = str(row.get("row_type") or "")
         if row_type in {"heading", "paragraph", "table_caption"}:
-            text = _normalize_curriculum_body_text(row.get("clean_text"))
+            text = _repair_known_curriculum_docs_text_artifacts(
+                title=title,
+                text=_normalize_curriculum_body_text(row.get("clean_text")),
+            )
         else:
             text = _normalize_text(row.get("clean_text"))
 
         if row_type == "page_number":
             continue
         if in_course_map_section:
-            if row_type == "heading" and _is_curriculum_structural_heading_row(text=text, row=row):
+            if row_type == "heading" and _is_curriculum_course_map_section_boundary_row(
+                text=text,
+                row=row,
+            ):
                 in_course_map_section = False
             else:
                 continue
         if row_type == "heading":
             if _is_curriculum_course_map_heading(text):
+                section_hint = _normalize_text(row.get("section_hint"))
                 if course_map_embed is not None:
                     heading_text = _normalize_curriculum_heading_text(text)
                     blocks.append(("block", f"## {heading_text}"))
                     blocks.append(("block", _build_course_map_section_block(course_map_embed)))
                     inserted_course_map_section = True
-                in_course_map_section = True
+                in_course_map_section = course_map_embed is not None or section_hint in {
+                    "section",
+                    "chapter",
+                }
                 last_heading_level = 2
                 continue
             if text == title and not blocks:
@@ -165,7 +175,10 @@ def _build_curriculum_markdown(
             )
             continue
         if row_type == "table":
-            html = _normalize_text(row.get("html")) or text
+            html = _repair_known_curriculum_docs_table_html(
+                title=title,
+                html=_normalize_text(row.get("html")) or text,
+            )
             if html:
                 for block_type, block_text in _convert_table_html_to_markdown_blocks(html):
                     if block_type == "section_label":
@@ -192,6 +205,52 @@ def _build_curriculum_markdown(
     if course_map_embed is not None and not inserted_course_map_section:
         raise ValueError(f"missing 课程地图 section while published blocks exist for {title}")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _repair_known_curriculum_docs_text_artifacts(*, title: str, text: str) -> str:
+    if not text:
+        return text
+    if title != "少数民族预科教育人才培养方案":
+        return text
+    repaired = text.replace("大学体育、心理健康主干课程:", "大学体育、心理健康。主干课程:")
+    repaired = repaired.replace("大学英语基础课程:", "大学英语。基础课程:")
+    return re.sub(
+        r"理科班增设普通化学和大学物理(?![。；])",
+        "理科班增设普通化学和大学物理。",
+        repaired,
+    )
+
+
+def _repair_known_curriculum_docs_table_html(*, title: str, html: str) -> str:
+    if not html:
+        return html
+    if title == "少数民族预科教育人才培养方案":
+        html = html.replace(
+            "<table><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+            "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+            "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr>"
+            "<tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
+            "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+            "<tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>",
+            "<table><tr><td colspan=\"5\">文科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+            "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+            "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td colspan=\"5\">理科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
+            "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>",
+        )
+        return html
+    if title == "民族学本科第二学士学位人才培养方案":
+        html = html.replace(
+            '<td rowspan="13">专业教育</td><td rowspan="13">专业必修课共30学分</td>',
+            '<td rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>',
+        )
+        return html.replace(
+            "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>",
+            "",
+        )
+    return html
 
 
 def _coalesce_curriculum_table_continuations(
@@ -526,6 +585,21 @@ def _is_curriculum_structural_heading_row(*, text: str, row: dict[str, object]) 
         re.match(r"^[一二三四五六七八九十]+、", normalized)
         or re.match(r"^[（(][一二三四五六七八九十]+[)）]", normalized)
         or re.match(r"^[（(]?\d+[)）.、]", normalized)
+        or re.match(r"^第[一二三四五六七八九十百千万〇零两0-9]+[章节部分]", normalized)
+    )
+
+
+def _is_curriculum_course_map_section_boundary_row(*, text: str, row: dict[str, object]) -> bool:
+    if str(row.get("row_type") or "") != "heading":
+        return False
+    section_hint = _normalize_text(row.get("section_hint"))
+    if section_hint in {"section", "chapter"}:
+        return True
+    normalized = text.strip()
+    if not normalized:
+        return False
+    return bool(
+        re.match(r"^[一二三四五六七八九十]+、", normalized)
         or re.match(r"^第[一二三四五六七八九十百千万〇零两0-9]+[章节部分]", normalized)
     )
 

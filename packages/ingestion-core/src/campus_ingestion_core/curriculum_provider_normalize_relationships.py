@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from html import escape
+from itertools import pairwise
 
 from campus_ingestion_core.source_truth_common import (
     detect_merged_cells,
@@ -12,6 +13,7 @@ from campus_ingestion_core.source_truth_common import (
     infer_table_column_count,
     infer_table_header_rows,
     infer_table_row_count,
+    looks_like_cross_page_continuation,
     normalize_text,
 )
 
@@ -27,6 +29,7 @@ _SECTION_ONE_TRAINING_GOAL_RE = re.compile(r"^一、培养目标")
 _SECTION_TWO_GRADUATION_REQUIREMENTS_RE = re.compile(r"^二、毕业要求")
 _SECTION_THREE_GRADUATION_REQUIREMENTS_RE = re.compile(r"^三、毕业要求")
 _COURSE_SETTINGS_SECTION_RE = re.compile(r"^五、课程设置和修读建议")
+_CROSS_PAGE_BRIDGE_ROW_RE = re.compile(r"^(?:如下|具体如下|说明如下|安排如下)[:：]?$")
 _CHINESE_NUMBERED_SECTION_RE = re.compile(r"^[一二三四五六七八九十]+、")
 _CHINESE_PARENTHESIZED_HEADING_RE = re.compile(
     r"^(?P<open>[（(])(?P<number>[一二三四五六七八九十]+)(?P<close>[)）])(?P<body>.+)$"
@@ -55,6 +58,7 @@ def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
     _repair_cross_page_table_continuations(rows)
     _enrich_relationships(rows)
     enrich_repeated_candidates(rows)
+    _repair_cross_page_bridge_rows(rows)
     enrich_parent_heading_hints(rows)
     enrich_cross_page_continuations(rows, textual_row_types=("paragraph", "list_item"))
     _assign_table_fragment_ids(rows)
@@ -200,7 +204,7 @@ def _is_repairable_one_based_sequence(numbers: list[int]) -> bool:
         return False
     if not numbers or numbers[0] != 1:
         return False
-    if any(left > right for left, right in zip(numbers, numbers[1:], strict=False)):
+    if any(left > right for left, right in pairwise(numbers)):
         return False
     if any(number < 1 or number > len(numbers) for number in numbers):
         return False
@@ -455,6 +459,92 @@ def _coerce_table_cells(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
     return [dict(cell) for cell in value if isinstance(cell, dict)]
+
+
+def _repair_cross_page_bridge_rows(rows: list[dict[str, object]]) -> None:
+    for index, row in enumerate(rows):
+        if not bool(row.get("is_repeated_candidate")):
+            continue
+        if str(row.get("row_type") or "") not in {"paragraph", "list_item"}:
+            continue
+        bridge_text = _row_text(row)
+        if not _CROSS_PAGE_BRIDGE_ROW_RE.fullmatch(bridge_text):
+            continue
+        previous_row = _find_previous_textual_row(rows, index=index)
+        next_row = _find_next_textual_row(rows, index=index)
+        if previous_row is None or next_row is None:
+            continue
+        current_page = row.get("page_start")
+        if (
+            not isinstance(current_page, int)
+            or previous_row.get("page_end") != current_page - 1
+            or next_row.get("page_start") != current_page
+        ):
+            continue
+        previous_text = _row_text(previous_row)
+        if not previous_text:
+            continue
+        if not (
+            bool(previous_row.get("continues_to_next_page"))
+            or looks_like_cross_page_continuation(
+                current_text=previous_text,
+                next_text=bridge_text,
+            )
+        ):
+            continue
+        next_text = _row_text(next_row)
+        if not next_text:
+            continue
+        _replace_row_text(
+            next_row,
+            f"{bridge_text}{_text_joiner(bridge_text, next_text)}{next_text}",
+            reason="curriculum_repair:merge_cross_page_bridge_row",
+        )
+        previous_row["continues_to_next_page"] = True
+        next_row["continues_from_previous_page"] = True
+        row["continues_from_previous_page"] = False
+        row["continues_to_next_page"] = False
+
+
+def _find_previous_textual_row(
+    rows: list[dict[str, object]], *, index: int
+) -> dict[str, object] | None:
+    for candidate in reversed(rows[:index]):
+        if bool(candidate.get("is_repeated_candidate")):
+            continue
+        if str(candidate.get("row_type") or "") in {"paragraph", "list_item"}:
+            return candidate
+    return None
+
+
+def _find_next_textual_row(
+    rows: list[dict[str, object]], *, index: int
+) -> dict[str, object] | None:
+    current_page = rows[index].get("page_start")
+    if not isinstance(current_page, int):
+        return None
+    for candidate in rows[index + 1 :]:
+        candidate_page = candidate.get("page_start")
+        if isinstance(candidate_page, int) and candidate_page != current_page:
+            return None
+        if bool(candidate.get("is_repeated_candidate")):
+            continue
+        if str(candidate.get("row_type") or "") in {"paragraph", "list_item"}:
+            return candidate
+    return None
+
+
+def _text_joiner(previous: str, current: str) -> str:
+    if not previous or not current:
+        return ""
+    if (
+        previous[-1].isascii()
+        and previous[-1].isalnum()
+        and current[0].isascii()
+        and current[0].isalnum()
+    ):
+        return " "
+    return ""
 
 
 def _serialize_table_cells_html(table_cells: list[dict[str, object]]) -> str:

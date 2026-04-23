@@ -260,6 +260,35 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(rows[1]["table_header_rows"], [["项目", "说明"]])
         self.assertIsNone(rows[1]["table_fragment_id"])
 
+    def test_normalize_repairs_credit_rule_table_row_split(self) -> None:
+        provider_jsonl = (
+            _provider_batch(
+                _provider_pruned_page(
+                    _provider_parsing_block(
+                        "table",
+                        "<table><tr><td colspan=\"2\">专业类别</td><td>学分要求</td><td></td><td></td></tr>"
+                        "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr></table>",
+                        block_id="b-1",
+                        block_order=1,
+                    ),
+                ),
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=provider_jsonl,
+            ocr_provider="mineru_api",
+            ocr_model="vlm",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["row_type"], "table")
+        self.assertIn("<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>", rows[0]["html"])
+        self.assertIn("<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>", rows[0]["html"])
+        self.assertNotIn("<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>", rows[0]["html"])
+
     def test_normalize_demotes_empty_provider_table_block_out_of_table_lane(self) -> None:
         provider_jsonl = (
             _provider_batch(

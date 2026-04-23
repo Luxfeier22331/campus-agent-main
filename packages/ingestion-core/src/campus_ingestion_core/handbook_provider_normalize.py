@@ -357,16 +357,24 @@ def _extract_text_raw(item: dict[str, object]) -> str:
 def _extract_html(item: dict[str, object]) -> str | None:
     block_content = item.get("block_content")
     if isinstance(block_content, str) and "<table" in block_content.lower():
-        return block_content
+        return _repair_known_handbook_table_html(block_content)
     markdown = item.get("markdown")
     if isinstance(markdown, dict):
         value = markdown.get("html")
         if isinstance(value, str) and value.strip():
-            return value
+            return _repair_known_handbook_table_html(value)
     value = item.get("html")
     if isinstance(value, str) and value.strip():
-        return value
+        return _repair_known_handbook_table_html(value)
     return None
+
+
+def _repair_known_handbook_table_html(html: str) -> str:
+    return html.replace(
+        "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>",
+        "<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>"
+        "<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>",
+    )
 
 
 def _extract_table_cells(item: dict[str, object]) -> list[list[str]] | None:
