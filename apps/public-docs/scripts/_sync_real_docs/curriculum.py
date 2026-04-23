@@ -22,6 +22,10 @@ from .shared import (
 )
 from .storage import _list_object_keys, _read_text_object
 
+_HTML_TABLE_ROW_RE = re.compile(r"<tr\b[^>]*>.*?</tr>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_MARKDOWN_HEADING_BLOCK_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+
 
 def _build_curriculum_plan_index() -> str:
     return "\n".join(
@@ -120,7 +124,7 @@ def _build_curriculum_markdown(
     inserted_course_map_section = False
     last_heading_level: int | None = None
 
-    for row in _iter_rows(jsonl_text):
+    for row in _coalesce_curriculum_table_continuations(tuple(_iter_rows(jsonl_text))):
         row_type = str(row.get("row_type") or "")
         if row_type in {"heading", "paragraph", "table_caption"}:
             text = _normalize_curriculum_body_text(row.get("clean_text"))
@@ -129,18 +133,19 @@ def _build_curriculum_markdown(
 
         if row_type == "page_number":
             continue
-        if course_map_embed is not None and in_course_map_section:
+        if in_course_map_section:
             if row_type == "heading" and _is_curriculum_structural_heading_row(text=text, row=row):
                 in_course_map_section = False
             else:
                 continue
         if row_type == "heading":
-            if course_map_embed is not None and _is_curriculum_course_map_heading(text):
-                heading_text = _normalize_curriculum_heading_text(text)
-                blocks.append(("block", f"## {heading_text}"))
-                blocks.append(("block", _build_course_map_section_block(course_map_embed)))
+            if _is_curriculum_course_map_heading(text):
+                if course_map_embed is not None:
+                    heading_text = _normalize_curriculum_heading_text(text)
+                    blocks.append(("block", f"## {heading_text}"))
+                    blocks.append(("block", _build_course_map_section_block(course_map_embed)))
+                    inserted_course_map_section = True
                 in_course_map_section = True
-                inserted_course_map_section = True
                 last_heading_level = 2
                 continue
             if text == title and not blocks:
@@ -189,6 +194,106 @@ def _build_curriculum_markdown(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _coalesce_curriculum_table_continuations(
+    rows: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    coalesced: list[dict[str, object]] = []
+    index = 0
+    while index < len(rows):
+        row = rows[index]
+        if str(row.get("row_type") or "") != "table":
+            coalesced.append(row)
+            index += 1
+            continue
+
+        if _is_curriculum_table_continuation(row):
+            coalesced.append(row)
+            index += 1
+            continue
+
+        owner_row_id = str(row.get("row_id") or "").strip()
+        continuation_group_id = str(row.get("continuation_group_id") or owner_row_id).strip()
+        merged_html = _normalize_text(row.get("html")) or _normalize_text(row.get("clean_text"))
+        merged_row = row
+        next_index = index + 1
+        did_merge = False
+
+        while next_index < len(rows):
+            candidate = rows[next_index]
+            if str(candidate.get("row_type") or "") == "page_number":
+                next_index += 1
+                continue
+            if not _is_curriculum_table_continuation_of(
+                candidate,
+                owner_row_id=owner_row_id,
+                continuation_group_id=continuation_group_id,
+            ):
+                break
+            continuation_html = _normalize_text(candidate.get("html")) or _normalize_text(
+                candidate.get("clean_text")
+            )
+            if merged_html and continuation_html:
+                merged_html = _merge_curriculum_table_html(merged_html, continuation_html)
+                did_merge = True
+            next_index += 1
+
+        if did_merge:
+            merged_row = dict(row)
+            merged_row["html"] = merged_html
+            merged_row["clean_text"] = merged_html
+        coalesced.append(merged_row)
+        index = next_index
+
+    return tuple(coalesced)
+
+
+def _is_curriculum_table_continuation(row: dict[str, object]) -> bool:
+    return (
+        str(row.get("row_type") or "") == "table"
+        and str(row.get("relation_type") or "") == "table_continuation"
+    )
+
+
+def _is_curriculum_table_continuation_of(
+    row: dict[str, object],
+    *,
+    owner_row_id: str,
+    continuation_group_id: str,
+) -> bool:
+    if not _is_curriculum_table_continuation(row):
+        return False
+    row_owner_id = str(row.get("owner_row_id") or "").strip()
+    row_group_id = str(row.get("continuation_group_id") or "").strip()
+    return bool(
+        (owner_row_id and row_owner_id == owner_row_id)
+        or (continuation_group_id and row_group_id == continuation_group_id)
+    )
+
+
+def _merge_curriculum_table_html(base_html: str, continuation_html: str) -> str:
+    base_rows = _extract_curriculum_html_table_rows(base_html)
+    continuation_rows = _extract_curriculum_html_table_rows(continuation_html)
+    if not base_rows or not continuation_rows:
+        return f"{base_html}\n{continuation_html}"
+
+    rows_to_append = continuation_rows
+    base_header_signature = _html_row_text_signature(base_rows[0])
+    if (
+        base_header_signature
+        and _html_row_text_signature(continuation_rows[0]) == base_header_signature
+    ):
+        rows_to_append = continuation_rows[1:]
+    return "<table>" + "".join([*base_rows, *rows_to_append]) + "</table>"
+
+
+def _extract_curriculum_html_table_rows(html: str) -> tuple[str, ...]:
+    return tuple(match.group(0) for match in _HTML_TABLE_ROW_RE.finditer(html))
+
+
+def _html_row_text_signature(row_html: str) -> str:
+    return " ".join(_HTML_TAG_RE.sub(" ", row_html).split()).strip().lower()
+
+
 def _is_curriculum_course_map_heading(text: str) -> bool:
     normalized = _normalize_curriculum_heading_text(text)
     return "课程地图" in normalized
@@ -207,12 +312,56 @@ def _append_curriculum_heading(
     if heading_text.endswith("如下"):
         blocks.append(("block", heading_text))
         return last_heading_level
+    if _looks_like_curriculum_version_note(heading_text):
+        blocks.append(("paragraph", heading_text))
+        return last_heading_level
+    if _looks_like_curriculum_course_requirement_sentence(heading_text):
+        blocks.append(("paragraph", heading_text))
+        return last_heading_level
     level = _normalize_curriculum_heading_level(
         source_level=source_level,
         last_heading_level=last_heading_level,
     )
+    heading_family = _curriculum_same_level_heading_family(heading_text)
+    if heading_family is not None:
+        previous_family_heading = _find_last_curriculum_heading_family_block(
+            blocks,
+            heading_family,
+        )
+        if previous_family_heading is not None:
+            level = previous_family_heading[0]
+        elif last_heading_level is not None and level <= last_heading_level:
+            level = min(last_heading_level + 1, 6)
     blocks.append(("block", f"{'#' * level} {heading_text}"))
     return level
+
+
+def _find_last_curriculum_heading_block(
+    blocks: list[tuple[str, str]],
+) -> tuple[int, str] | None:
+    for _, block_text in reversed(blocks):
+        match = _MARKDOWN_HEADING_BLOCK_RE.match(block_text)
+        if match is None:
+            continue
+        return (len(match.group(1)), match.group(2).strip())
+    return None
+
+
+def _find_last_curriculum_heading_family_block(
+    blocks: list[tuple[str, str]],
+    family: str,
+) -> tuple[int, str] | None:
+    for _, block_text in reversed(blocks):
+        match = _MARKDOWN_HEADING_BLOCK_RE.match(block_text)
+        if match is None:
+            continue
+        level = len(match.group(1))
+        heading_text = match.group(2).strip()
+        if _curriculum_same_level_heading_family(heading_text) == family:
+            return (level, heading_text)
+        if level <= 2:
+            break
+    return None
 
 
 def _append_curriculum_caption_block(
@@ -230,6 +379,20 @@ def _append_curriculum_caption_block(
         )
         heading_text = _normalize_curriculum_heading_text(text)
         if heading_text:
+            heading_family = _curriculum_same_level_heading_family(heading_text)
+            previous_family_heading = (
+                _find_last_curriculum_heading_family_block(blocks, heading_family)
+                if heading_family is not None
+                else None
+            )
+            if previous_family_heading is not None:
+                level = previous_family_heading[0]
+            elif (
+                heading_family is not None
+                and last_heading_level is not None
+                and level <= last_heading_level
+            ):
+                level = min(last_heading_level + 1, 6)
             blocks.append(("block", f"{'#' * level} {heading_text}"))
             return level
         return last_heading_level
@@ -281,6 +444,32 @@ def _looks_like_curriculum_nested_module_label(text: str) -> bool:
     return bool(re.match(r"^模块[一二三四五六七八九十0-9]+[：:]", text.strip()))
 
 
+def _looks_like_curriculum_numbered_heading(text: str) -> bool:
+    return bool(re.match(r"^(?:[（(]?\d+[)）.、]|[0-9]+[.．])", text.strip()))
+
+
+def _looks_like_curriculum_chinese_parenthesized_heading(text: str) -> bool:
+    return bool(re.match(r"^[（(][一二三四五六七八九十]+[)）]", text.strip()))
+
+
+def _looks_like_curriculum_course_requirement_sentence(text: str) -> bool:
+    return bool(re.match(r"^[（(]\d+[)）]\s*.+课程.+\d+\s*学分[。.]?$", text.strip()))
+
+
+def _looks_like_curriculum_version_note(text: str) -> bool:
+    return bool(re.fullmatch(r"[（(]?\d{4}\s*版[)）]?", text.strip()))
+
+
+def _curriculum_same_level_heading_family(text: str) -> str | None:
+    if _looks_like_curriculum_numbered_heading(text):
+        return "numbered"
+    if _looks_like_curriculum_chinese_parenthesized_heading(text):
+        return "chinese_parenthesized"
+    if _looks_like_curriculum_nested_module_label(text):
+        return "module"
+    return None
+
+
 def _should_render_curriculum_caption_as_heading(text: str) -> bool:
     normalized = text.strip()
     if not normalized or _looks_like_curriculum_figure_or_table_caption(normalized):
@@ -304,9 +493,24 @@ def _normalize_curriculum_body_text(value: object) -> str:
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
     normalized = _MARKDOWN_LIST_PREFIX_WITH_BREAK_RE.sub(r"\1 ", normalized)
     normalized = _MARKDOWN_LIST_PREFIX_WITHOUT_SPACE_RE.sub(r"\g<marker> \g<rest>", normalized)
+    lines = [re.sub(r"[ \t]+", " ", line.strip()) for line in normalized.split("\n")]
+    lines = [line for line in lines if line]
+    if len(lines) > 1 and _looks_like_curriculum_list_lines(lines):
+        return "\n".join(lines)
     normalized = re.sub(r"\s*\n\s*", "", normalized)
     normalized = re.sub(r"[ \t]+", " ", normalized)
     return normalized.strip()
+
+
+def _looks_like_curriculum_list_lines(lines: list[str]) -> bool:
+    return (
+        sum(
+            1
+            for line in lines
+            if _MARKDOWN_ORDERED_LIST_RE.match(line) or _MARKDOWN_DECIMAL_LABEL_RE.match(line)
+        )
+        >= 2
+    )
 
 
 def _is_curriculum_structural_heading_row(*, text: str, row: dict[str, object]) -> bool:
@@ -356,14 +560,30 @@ def _render_markdown_block_lines(block_text: str) -> list[str]:
     if block_text.startswith(("#", "<", "import ", "|")):
         return block_text.splitlines()
     if "\n" in block_text:
-        return [line.rstrip() for line in block_text.splitlines()]
+        raw_lines = [line.rstrip() for line in block_text.splitlines()]
+        stripped_lines = [line.strip() for line in raw_lines if line.strip()]
+        if stripped_lines and all(
+            _MARKDOWN_ORDERED_LIST_RE.match(line) or _MARKDOWN_DECIMAL_LABEL_RE.match(line)
+            for line in stripped_lines
+        ):
+            rendered: list[str] = []
+            for line in stripped_lines:
+                rendered.extend(_render_markdown_block_lines(line))
+            return rendered
+        return raw_lines
+    ordered_list_match = _MARKDOWN_ORDERED_LIST_RE.match(block_text)
+    if ordered_list_match:
+        marker = ordered_list_match.group(0).strip()
+        content = block_text[ordered_list_match.end() :]
+        return _wrap_markdown_text_lines(
+            content,
+            initial_prefix=f"{marker} ",
+            subsequent_prefix=" " * (len(marker) + 1),
+        )
     decimal_label_match = _MARKDOWN_DECIMAL_LABEL_RE.match(block_text)
     if decimal_label_match:
         escaped_label = decimal_label_match.group("label").replace(".", r"\.", 1)
         return _wrap_markdown_text_lines(f"{escaped_label}{decimal_label_match.group('rest')}")
-    if _MARKDOWN_ORDERED_LIST_RE.match(block_text):
-        _, _, content = block_text.partition(" ")
-        return _wrap_markdown_text_lines(content, initial_prefix="1. ", subsequent_prefix="   ")
     if _MARKDOWN_UNORDERED_LIST_RE.match(block_text):
         marker, _, content = block_text.partition(" ")
         return _wrap_markdown_text_lines(
@@ -375,16 +595,5 @@ def _render_markdown_block_lines(block_text: str) -> list[str]:
 
 
 def _dedupe_curriculum_heading_blocks(blocks: list[tuple[str, str]]) -> None:
-    seen_headings: dict[str, int] = {}
-    for index, (block_type, block_text) in enumerate(blocks):
-        if block_type != "block" or not block_text.startswith("#"):
-            continue
-        marker, _, heading_text = block_text.partition(" ")
-        if not heading_text:
-            continue
-        count = seen_headings.get(heading_text, 0)
-        seen_headings[heading_text] = count + 1
-        if not count:
-            continue
-        suffix = "（续）" if count == 1 else f"（续{count}）"
-        blocks[index] = (block_type, f"{marker} {heading_text}{suffix}")
+    # Keep visible text source-faithful; the docs renderer owns duplicate heading anchors.
+    del blocks

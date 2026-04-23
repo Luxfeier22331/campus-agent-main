@@ -9,9 +9,9 @@ import {
 
 const CourseRelationGraphView = lazy(() => import("./CourseRelationGraphView"));
 
-type Props = {
+interface Props {
 	data: CourseMapDocumentData;
-};
+}
 
 type CourseMapViewMode = "route" | "graph";
 

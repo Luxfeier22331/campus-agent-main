@@ -336,14 +336,22 @@ def _dedupe_handbook_heading(heading: str, *, heading_counts: dict[str, int]) ->
         return heading
     count = heading_counts.get(text, 0)
     heading_counts[text] = count + 1
-    if not count:
-        return heading
-    suffix = "（续）" if count == 1 else f"（续{count}）"
-    return f"{marker} {text}{suffix}"
+    return heading
 
 
 def _append_handbook_table_blocks(lines: list[str], html: str) -> None:
+    if _should_preserve_handbook_table_as_html(html):
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.extend([html.strip(), ""])
+        return
+
     blocks = _convert_table_html_to_markdown_blocks(html)
+    if any(block_type != "table" for block_type, _ in blocks):
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.extend([html.strip(), ""])
+        return
     if not blocks:
         if lines and lines[-1] != "":
             lines.append("")
@@ -357,6 +365,40 @@ def _append_handbook_table_blocks(lines: list[str], html: str) -> None:
         else:
             lines.extend(block_text.splitlines())
         lines.append("")
+
+
+def _should_preserve_handbook_table_as_html(html: str) -> bool:
+    parser = _TableHTMLParser()
+    parser.feed(html)
+    parser.close()
+    rows = parser.rows
+    if not rows:
+        return False
+    if len(rows) < 4:
+        return False
+    empty_cell_count = sum(1 for row in rows for cell in row if not cell.text)
+    merged_cell_count = sum(
+        1 for row in rows for cell in row if cell.rowspan > 1 or cell.colspan > 1
+    )
+    field_labels = {
+        "姓名",
+        "学号",
+        "民族",
+        "学院(系)",
+        "专业",
+        "学制",
+        "出生年月日",
+        "家庭所在地",
+        "火车到站站名",
+        "学院(系)领导签字",
+    }
+    field_like_label_count = 0
+    for row in rows:
+        for cell in row:
+            label = re.sub(r"\s+", "", cell.text)
+            if label in field_labels or label.startswith("照片"):
+                field_like_label_count += 1
+    return empty_cell_count >= 3 and merged_cell_count >= 1 and field_like_label_count >= 4
 
 
 def _escape_handbook_placeholder_underscores(line: str) -> str:
@@ -552,11 +594,7 @@ def _render_markdown_records(rows: list[list[str]]) -> str:
     for row in rows[1:]:
         record_lines: list[str] = []
         first_field = True
-        for index, cell in enumerate(row):
-            value = cell.strip()
-            if not value:
-                continue
-            header = headers[index].strip() if index < len(headers) else ""
+        for header, value in _iter_markdown_record_entries(headers=headers, row=row):
             label = f"{header}：" if header else ""
             if first_field:
                 record_lines.extend(
@@ -578,3 +616,63 @@ def _render_markdown_records(rows: list[list[str]]) -> str:
         if record_lines:
             records.append("\n".join(record_lines))
     return "\n\n".join(records)
+
+
+def _iter_markdown_record_entries(*, headers: list[str], row: list[str]) -> list[tuple[str, str]]:
+    compacted_course_entries = _compact_curriculum_course_colspan_entries(
+        headers=headers,
+        row=row,
+    )
+    if compacted_course_entries is not None:
+        return compacted_course_entries
+
+    entries: list[tuple[str, str]] = []
+    for index, cell in enumerate(row):
+        value = _normalize_markdown_record_value(cell)
+        if not value:
+            continue
+        header = headers[index].strip() if index < len(headers) else ""
+        entries.append((header, value))
+    return entries
+
+
+def _compact_curriculum_course_colspan_entries(
+    *,
+    headers: list[str],
+    row: list[str],
+) -> list[tuple[str, str]] | None:
+    normalized_headers = [header.strip() for header in headers]
+    if normalized_headers[:8] != [
+        "课程类",
+        "课程号",
+        "课程名称",
+        "学分",
+        "学时",
+        "实践学时",
+        "开设学期",
+        "备注",
+    ]:
+        return None
+
+    values = [_normalize_markdown_record_value(cell) for cell in row]
+    if len(values) < 7 or not values[0]:
+        return None
+
+    merged_value = values[1]
+    if not merged_value:
+        return None
+    merged_cells = values[1:7]
+    if len(merged_cells) != 6 or merged_cells != [merged_value] * 6:
+        return None
+
+    entries: list[tuple[str, str]] = [("课程类", values[0]), ("课程名称", merged_value)]
+    if len(values) > 7 and values[7]:
+        entries.append(("备注", values[7]))
+    return entries
+
+
+def _normalize_markdown_record_value(value: str) -> str:
+    normalized = value.strip()
+    if normalized == "学校通开的全球胜任力培养课程/":
+        return "学校通开的全球胜任力培养课程"
+    return normalized

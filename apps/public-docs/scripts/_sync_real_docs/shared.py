@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,7 +50,9 @@ _COURSE_MAP_FOUNDATION_KEYWORDS = (
 )
 _MARKDOWN_ORDERED_LIST_RE = re.compile(r"^\d+\.\s+")
 _MARKDOWN_UNORDERED_LIST_RE = re.compile(r"^[-*+]\s+")
-_MARKDOWN_DECIMAL_LABEL_RE = re.compile(r"^(?P<label>\d+\.\d+(?:\.\d+)*)(?P<rest>\s*.*)$")
+_MARKDOWN_DECIMAL_LABEL_RE = re.compile(
+    r"^(?P<label>\d+\.\d+(?:\.\d+)*)(?P<rest>(?:\s+|$).*)$"
+)
 _MARKDOWN_LIST_PREFIX_WITH_BREAK_RE = re.compile(r"(?m)^((?:\d+(?:\.\d+)*\.?)|[-*+])\s*\n+\s*")
 _MARKDOWN_LIST_PREFIX_WITHOUT_SPACE_RE = re.compile(r"(?m)^(?P<marker>\d+\.(?!\d))(?P<rest>\S)")
 _HANDBOOK_CHAPTER_HEADING_RE = re.compile(r"^第[0-9一二三四五六七八九十百千零〇]+章(?:\s+.+)?$")
@@ -129,16 +130,11 @@ def _wrap_markdown_text_lines(
     stripped = text.strip()
     if not stripped:
         return [""]
-    wrapper = textwrap.TextWrapper(
-        width=_MARKDOWN_LINE_LIMIT,
-        initial_indent=initial_prefix,
-        subsequent_indent=subsequent_prefix,
-        break_long_words=True,
-        break_on_hyphens=False,
-        replace_whitespace=False,
-        drop_whitespace=True,
-    )
-    return wrapper.fill(stripped).splitlines()
+    return [
+        f"{initial_prefix if index == 0 else subsequent_prefix}{line.strip()}"
+        for index, line in enumerate(stripped.splitlines())
+        if line.strip()
+    ]
 
 
 def _json_string(value: str) -> str:

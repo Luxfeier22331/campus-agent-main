@@ -15,18 +15,18 @@ import { memo, useMemo } from "react";
 import "@xyflow/react/dist/style.css";
 import { buildNodeKey, type CourseMapBlock, type CourseMapNode } from "./course-map-types";
 
-type Props = {
+interface Props {
 	data: CourseMapBlock;
 	activeNodeKey: string | null;
 	onSelectNode: (nodeKey: string) => void;
-};
+}
 
-type GraphNodeData = {
+interface GraphNodeData {
 	label: string;
 	stage: string;
 	groupLabel: string;
 	related: boolean;
-};
+}
 
 const NODE_WIDTH = 196;
 const NODE_HEIGHT = 84;
