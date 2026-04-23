@@ -301,9 +301,9 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 
 func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Request) (json.RawMessage, bool) {
 	limited := http.MaxBytesReader(response, request.Body, s.config.RequestBodyLimitBytes)
-	defer limited.Close()
 
 	body, err := io.ReadAll(limited)
+	closeErr := limited.Close()
 	if err != nil {
 		setOutcome(response, "request_body_too_large")
 		writeError(
@@ -311,6 +311,17 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 			http.StatusRequestEntityTooLarge,
 			"request_body_too_large",
 			"Request body exceeds supervisor execution limit.",
+			false,
+		)
+		return nil, false
+	}
+	if closeErr != nil {
+		setOutcome(response, "request_body_unreadable")
+		writeError(
+			response,
+			http.StatusBadRequest,
+			"request_body_unreadable",
+			"Request body could not be fully read.",
 			false,
 		)
 		return nil, false

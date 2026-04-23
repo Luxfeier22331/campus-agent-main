@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,11 +17,15 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/config"
 )
 
+func newTestRequest(method string, target string, body io.Reader) *http.Request {
+	return httptest.NewRequestWithContext(context.Background(), method, target, body)
+}
+
 func TestHealthzReturnsOk(t *testing.T) {
 	server := NewServer(config.Config{AppName: "campus-agent"}, nil)
 	response := httptest.NewRecorder()
 
-	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/healthz", nil))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.Code)
@@ -42,7 +47,7 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	}, nil)
 	response := httptest.NewRecorder()
 
-	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", response.Code)
@@ -78,7 +83,7 @@ func TestReadyzMergesWorkerReadinessAndGoTransportStatus(t *testing.T) {
 	})
 	response := httptest.NewRecorder()
 
-	server.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
@@ -117,7 +122,7 @@ func TestAnswerRejectsInvalidJSON(t *testing.T) {
 
 	server.ServeHTTP(
 		response,
-		httptest.NewRequest(http.MethodPost, "/api/v1/answer", strings.NewReader("{")),
+		newTestRequest(http.MethodPost, "/api/v1/answer", strings.NewReader("{")),
 	)
 
 	assertError(t, response, http.StatusBadRequest, "invalid_json")
@@ -135,7 +140,7 @@ func TestAnswerRejectsMissingBearerToken(t *testing.T) {
 
 	server.ServeHTTP(
 		response,
-		httptest.NewRequest(http.MethodPost, "/api/v1/answer", strings.NewReader(`{"user_goal":"hello"}`)),
+		newTestRequest(http.MethodPost, "/api/v1/answer", strings.NewReader(`{"user_goal":"hello"}`)),
 	)
 
 	assertError(t, response, http.StatusUnauthorized, "unauthorized")
@@ -150,7 +155,7 @@ func TestAnswerRejectsBodyTooLarge(t *testing.T) {
 
 	server.ServeHTTP(
 		response,
-		httptest.NewRequest(http.MethodPost, "/api/v1/answer", bytes.NewBufferString(`{"x":"too-large"}`)),
+		newTestRequest(http.MethodPost, "/api/v1/answer", bytes.NewBufferString(`{"x":"too-large"}`)),
 	)
 
 	assertError(t, response, http.StatusRequestEntityTooLarge, "request_body_too_large")
@@ -165,7 +170,7 @@ func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
 		MaxConcurrentAnswers:  8,
 	}, nil)
 	response := httptest.NewRecorder()
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -197,7 +202,7 @@ func TestAnswerReturnsTransportSaturated(t *testing.T) {
 		limiter,
 	)
 	response := httptest.NewRecorder()
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -230,7 +235,7 @@ func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
 		RequestBodyLimitBytes: 1_048_576,
 		MaxConcurrentAnswers:  8,
 	}, bridgeClient)
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{
@@ -287,7 +292,7 @@ func TestAnswerPassesSupervisorErrorsThrough(t *testing.T) {
 			}`),
 		},
 	})
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -315,7 +320,7 @@ func TestAnswerMapsBridgeInvalidRequestToBadGateway(t *testing.T) {
 			Body:       json.RawMessage(`{"error":{"code":"invalid_request","message":"bad"}}`),
 		},
 	})
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -343,7 +348,7 @@ func TestAnswerRejectsMissingBridgeEnvelope(t *testing.T) {
 			Body:       json.RawMessage(`{}`),
 		},
 	})
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -368,7 +373,7 @@ func TestAnswerMapsBridgeTimeout(t *testing.T) {
 		configured: true,
 		executeErr: context.DeadlineExceeded,
 	})
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -395,7 +400,7 @@ func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
 			return bridge.ExecuteResponse{}, ctx.Err()
 		},
 	})
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -443,7 +448,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 		nil,
 	)
 
-	successRequest := httptest.NewRequest(
+	successRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -459,7 +464,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	if !ok {
 		t.Fatal("expected limiter acquire to succeed for saturation setup")
 	}
-	saturatedRequest := httptest.NewRequest(
+	saturatedRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -470,7 +475,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	release()
 	assertError(t, saturatedResponse, http.StatusServiceUnavailable, "transport_saturated")
 
-	timeoutRequest := httptest.NewRequest(
+	timeoutRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -481,7 +486,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	assertError(t, timeoutResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
 
 	metricsResponse := httptest.NewRecorder()
-	server.ServeHTTP(metricsResponse, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if metricsResponse.Code != http.StatusOK {
 		t.Fatalf("metrics status = %d, want 200", metricsResponse.Code)
 	}
@@ -541,7 +546,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 		nil,
 	)
 
-	timeoutRequest := httptest.NewRequest(
+	timeoutRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -551,7 +556,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	server.ServeHTTP(timeoutResponse, timeoutRequest)
 	assertError(t, timeoutResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
 
-	successRequest := httptest.NewRequest(
+	successRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"hello"}`),
@@ -564,7 +569,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	}
 
 	readyzResponse := httptest.NewRecorder()
-	server.ServeHTTP(readyzResponse, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	server.ServeHTTP(readyzResponse, newTestRequest(http.MethodGet, "/readyz", nil))
 	if readyzResponse.Code != http.StatusOK {
 		t.Fatalf("readyz status = %d, want 200", readyzResponse.Code)
 	}
@@ -608,7 +613,7 @@ func TestAnswerLogsTraceAndOutcomeWithoutUserGoal(t *testing.T) {
 		nil,
 	)
 
-	request := httptest.NewRequest(
+	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
 		strings.NewReader(`{"user_goal":"secret-question"}`),
@@ -642,6 +647,8 @@ type fakeBridge struct {
 	seen       bridge.Request
 	executeFn  func(context.Context, bridge.Request) (bridge.ExecuteResponse, error)
 }
+
+var _ bridge.Client = (*fakeBridge)(nil)
 
 func (f *fakeBridge) Configured() bool {
 	return f.configured
@@ -699,13 +706,6 @@ func assertError(t *testing.T, response *httptest.ResponseRecorder, status int, 
 	errorBody := expectRecord(t, body["error"], "error")
 	if errorBody["code"] != code {
 		t.Fatalf("error code = %v, want %s", errorBody["code"], code)
-	}
-}
-
-func TestFakeBridgeImplementsClient(t *testing.T) {
-	var client bridge.Client = &fakeBridge{}
-	if client == nil {
-		t.Fatal("bridge client should not be nil")
 	}
 }
 

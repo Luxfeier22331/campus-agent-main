@@ -41,9 +41,12 @@
 		"xml:lint": "uv run --all-packages python -m scripts.check_xml_tracked",
 		"yaml:lint": "uv run --all-packages python -m scripts.check_yaml_tracked",
 		"go:fmt:check": "test -z \"$(gofmt -l apps/go-shell)\"",
+		"go:vet": "cd apps/go-shell && go vet ./...",
+		"go:lint": "command -v golangci-lint >/dev/null 2>&1 || { echo 'golangci-lint v2.11.4 is required. Install it from https://golangci-lint.run/welcome/install/'; exit 1; } && cd apps/go-shell && golangci-lint run ./...",
+		"go:static:check": "pnpm go:fmt:check && pnpm go:vet && pnpm go:lint",
 		"go:test": "cd apps/go-shell && go test ./...",
-		"go:check": "pnpm go:fmt:check && pnpm go:test",
-		"lint": "pnpm web:lint && pnpm docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm py:lint && pnpm py:format:check",
+		"go:check": "pnpm go:static:check && pnpm go:test",
+		"lint": "pnpm web:lint && pnpm docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
 		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
 	},
 	"devDependencies": {

@@ -49,6 +49,15 @@ jobs:
       - name: Check Go formatting
         run: test -z "$(gofmt -l apps/go-shell)"
 
+      - name: Run Go vet
+        run: cd apps/go-shell && go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.11.4
+          working-directory: apps/go-shell
+
       - name: Run Go tests
         run: cd apps/go-shell && go test ./...
 

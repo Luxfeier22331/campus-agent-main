@@ -40,7 +40,15 @@ Current observability boundary:
 Requirements:
 
 - Go `1.26.x`
+- `golangci-lint v2.11.4` for local static checks
 - Docker for container smoke checks
+
+Official local install for `golangci-lint`:
+
+```bash
+curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.11.4
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
 
 Key env:
 
@@ -54,6 +62,7 @@ export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
 Local verification:
 
 ```bash
+pnpm go:static:check
 pnpm go:check
 ```
 

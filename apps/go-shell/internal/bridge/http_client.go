@@ -84,11 +84,14 @@ func (c *HTTPClient) do(
 	if err != nil {
 		return rawResponse{}, err
 	}
-	defer response.Body.Close()
 
-	responseBody, err := io.ReadAll(response.Body)
-	if err != nil {
-		return rawResponse{}, err
+	responseBody, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return rawResponse{}, readErr
+	}
+	if closeErr != nil {
+		return rawResponse{}, closeErr
 	}
 
 	return rawResponse{

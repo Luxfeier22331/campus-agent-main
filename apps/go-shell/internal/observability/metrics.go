@@ -146,14 +146,13 @@ func (m *Metrics) Prometheus() []byte {
 	builder.WriteString("# HELP campus_go_shell_requests_total Total requests handled by go-shell.\n")
 	builder.WriteString("# TYPE campus_go_shell_requests_total counter\n")
 	for _, key := range sortedRequestKeys(m.requestTotals) {
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_requests_total{route=%q,outcome=%q,status_class=%q} %d\n",
-				key.Route,
-				key.Outcome,
-				key.StatusClass,
-				m.requestTotals[key],
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_requests_total{route=%q,outcome=%q,status_class=%q} %d\n",
+			key.Route,
+			key.Outcome,
+			key.StatusClass,
+			m.requestTotals[key],
 		)
 	}
 
@@ -162,68 +161,61 @@ func (m *Metrics) Prometheus() []byte {
 	for _, route := range sortedRoutes(m.requestDurations) {
 		histogram := m.requestDurations[route]
 		for index, bound := range durationBucketsMS {
-			builder.WriteString(
-				fmt.Sprintf(
-					"campus_go_shell_request_duration_ms_bucket{route=%q,le=%q} %d\n",
-					route,
-					formatFloat(bound),
-					histogram.Buckets[index],
-				),
+			fmt.Fprintf(
+				&builder,
+				"campus_go_shell_request_duration_ms_bucket{route=%q,le=%q} %d\n",
+				route,
+				formatFloat(bound),
+				histogram.Buckets[index],
 			)
 		}
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_request_duration_ms_bucket{route=%q,le=\"+Inf\"} %d\n",
-				route,
-				histogram.Count,
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_request_duration_ms_bucket{route=%q,le=\"+Inf\"} %d\n",
+			route,
+			histogram.Count,
 		)
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_request_duration_ms_sum{route=%q} %s\n",
-				route,
-				formatFloat(histogram.SumMS),
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_request_duration_ms_sum{route=%q} %s\n",
+			route,
+			formatFloat(histogram.SumMS),
 		)
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_request_duration_ms_count{route=%q} %d\n",
-				route,
-				histogram.Count,
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_request_duration_ms_count{route=%q} %d\n",
+			route,
+			histogram.Count,
 		)
 	}
 
 	builder.WriteString("# HELP campus_go_shell_inflight_requests Current inflight requests by route.\n")
 	builder.WriteString("# TYPE campus_go_shell_inflight_requests gauge\n")
 	for _, route := range sortedRoutesInt64(m.inflight) {
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_inflight_requests{route=%q} %d\n",
-				route,
-				m.inflight[route],
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_inflight_requests{route=%q} %d\n",
+			route,
+			m.inflight[route],
 		)
 	}
 
 	builder.WriteString("# HELP campus_go_shell_transport_saturated_total Total requests rejected by transport admission saturation.\n")
 	builder.WriteString("# TYPE campus_go_shell_transport_saturated_total counter\n")
-	builder.WriteString(
-		fmt.Sprintf(
-			"campus_go_shell_transport_saturated_total %d\n",
-			m.transportSaturatedTotal,
-		),
+	fmt.Fprintf(
+		&builder,
+		"campus_go_shell_transport_saturated_total %d\n",
+		m.transportSaturatedTotal,
 	)
 
 	builder.WriteString("# HELP campus_go_shell_bridge_failures_total Total bridge failures by kind.\n")
 	builder.WriteString("# TYPE campus_go_shell_bridge_failures_total counter\n")
 	for _, kind := range sortedStringKeys(m.bridgeFailureTotals) {
-		builder.WriteString(
-			fmt.Sprintf(
-				"campus_go_shell_bridge_failures_total{kind=%q} %d\n",
-				kind,
-				m.bridgeFailureTotals[kind],
-			),
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_bridge_failures_total{kind=%q} %d\n",
+			kind,
+			m.bridgeFailureTotals[kind],
 		)
 	}
 
