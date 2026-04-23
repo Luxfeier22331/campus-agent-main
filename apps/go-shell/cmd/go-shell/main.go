@@ -20,7 +20,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              address,
-		Handler:           httpapi.NewServer(cfg, bridgeClient),
+		Handler:           httpapi.NewServerWithDependencies(cfg, bridgeClient, nil, logger, nil),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -409,6 +410,226 @@ func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
 
 	if response.wrote {
 		t.Fatalf("expected canceled request to stop without writing response, wrote status %d", response.status)
+	}
+}
+
+func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing.T) {
+	limiter := admission.NewLimiter(1)
+	callCount := 0
+	server := NewServerWithDependencies(
+		config.Config{
+			AuthMode:              "bearer",
+			BearerToken:           "secret-token",
+			DefaultActorID:        "runtime-bearer-user",
+			RequestBodyLimitBytes: 1_048_576,
+			MaxConcurrentAnswers:  1,
+		},
+		&fakeBridge{
+			configured: true,
+			executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+				callCount++
+				if callCount == 1 {
+					return bridge.ExecuteResponse{
+						StatusCode: http.StatusOK,
+						Kind:       "supervisor_response",
+						Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+					}, nil
+				}
+				return bridge.ExecuteResponse{}, context.DeadlineExceeded
+			},
+		},
+		limiter,
+		nil,
+		nil,
+	)
+
+	successRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	successRequest.Header.Set("authorization", "Bearer secret-token")
+	successResponse := httptest.NewRecorder()
+	server.ServeHTTP(successResponse, successRequest)
+	if successResponse.Code != http.StatusOK {
+		t.Fatalf("success status = %d, want 200", successResponse.Code)
+	}
+
+	release, ok := limiter.TryAcquire()
+	if !ok {
+		t.Fatal("expected limiter acquire to succeed for saturation setup")
+	}
+	saturatedRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	saturatedRequest.Header.Set("authorization", "Bearer secret-token")
+	saturatedResponse := httptest.NewRecorder()
+	server.ServeHTTP(saturatedResponse, saturatedRequest)
+	release()
+	assertError(t, saturatedResponse, http.StatusServiceUnavailable, "transport_saturated")
+
+	timeoutRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	timeoutRequest.Header.Set("authorization", "Bearer secret-token")
+	timeoutResponse := httptest.NewRecorder()
+	server.ServeHTTP(timeoutResponse, timeoutRequest)
+	assertError(t, timeoutResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if metricsResponse.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d, want 200", metricsResponse.Code)
+	}
+	metricsBody := metricsResponse.Body.String()
+	expectedSnippets := []string{
+		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="supervisor_response",status_class="2xx"} 1`,
+		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="transport_saturated",status_class="5xx"} 1`,
+		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="supervisor_bridge_timeout",status_class="5xx"} 1`,
+		`campus_go_shell_transport_saturated_total 1`,
+		`campus_go_shell_bridge_failures_total{kind="timeout"} 1`,
+		`campus_go_shell_inflight_requests{route="/api/v1/answer"} 0`,
+	}
+	for _, snippet := range expectedSnippets {
+		if !strings.Contains(metricsBody, snippet) {
+			t.Fatalf("expected metrics body to contain %q, got:\n%s", snippet, metricsBody)
+		}
+	}
+}
+
+func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
+	callCount := 0
+	server := NewServerWithDependencies(
+		config.Config{
+			AuthMode:              "bearer",
+			BearerToken:           "secret-token",
+			DefaultActorID:        "runtime-bearer-user",
+			RequestBodyLimitBytes: 1_048_576,
+			MaxConcurrentAnswers:  8,
+		},
+		&fakeBridge{
+			configured: true,
+			executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+				callCount++
+				if callCount == 1 {
+					return bridge.ExecuteResponse{}, context.DeadlineExceeded
+				}
+				return bridge.ExecuteResponse{
+					StatusCode: http.StatusOK,
+					Kind:       "supervisor_response",
+					Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+				}, nil
+			},
+			readyz: bridge.ReadyzResponse{
+				StatusCode: http.StatusOK,
+				Body: json.RawMessage(`{
+					"status":"ready",
+					"runtime_provider":"mock-runtime",
+					"prompt_runtime":{"provider":"mock-runtime","admitted":true},
+					"prompt_http_pool":{"healthy":true,"max_connections":32},
+					"audit_runtime":{"healthy":true,"queue_depth":0},
+					"transport_runtime":{"healthy":true,"active_answers":0,"max_concurrent_answers":8}
+				}`),
+			},
+		},
+		nil,
+		nil,
+		nil,
+	)
+
+	timeoutRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	timeoutRequest.Header.Set("authorization", "Bearer secret-token")
+	timeoutResponse := httptest.NewRecorder()
+	server.ServeHTTP(timeoutResponse, timeoutRequest)
+	assertError(t, timeoutResponse, http.StatusGatewayTimeout, "supervisor_bridge_timeout")
+
+	successRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	successRequest.Header.Set("authorization", "Bearer secret-token")
+	successResponse := httptest.NewRecorder()
+	server.ServeHTTP(successResponse, successRequest)
+	if successResponse.Code != http.StatusOK {
+		t.Fatalf("success status = %d, want 200", successResponse.Code)
+	}
+
+	readyzResponse := httptest.NewRecorder()
+	server.ServeHTTP(readyzResponse, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if readyzResponse.Code != http.StatusOK {
+		t.Fatalf("readyz status = %d, want 200", readyzResponse.Code)
+	}
+	body := decodeBody(t, readyzResponse)
+	bridgeRuntime := expectRecord(t, body["bridge_runtime"], "bridge_runtime")
+	if bridgeRuntime["last_answer_failure_code"] != "timeout" {
+		t.Fatalf(
+			"bridge_runtime.last_answer_failure_code = %v, want timeout",
+			bridgeRuntime["last_answer_failure_code"],
+		)
+	}
+	if bridgeRuntime["last_answer_failure_at"] == "" {
+		t.Fatal("expected bridge_runtime.last_answer_failure_at to be populated")
+	}
+	if bridgeRuntime["last_answer_success_at"] == "" {
+		t.Fatal("expected bridge_runtime.last_answer_success_at to be populated")
+	}
+}
+
+func TestAnswerLogsTraceAndOutcomeWithoutUserGoal(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
+	server := NewServerWithDependencies(
+		config.Config{
+			AuthMode:              "bearer",
+			BearerToken:           "secret-token",
+			DefaultActorID:        "runtime-bearer-user",
+			RequestBodyLimitBytes: 1_048_576,
+			MaxConcurrentAnswers:  8,
+		},
+		&fakeBridge{
+			configured: true,
+			response: bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+			},
+		},
+		nil,
+		logger,
+		nil,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"secret-question"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-log-1")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", response.Code)
+	}
+
+	logOutput := logBuffer.String()
+	if !strings.Contains(logOutput, `"trace_id":"trace-log-1"`) {
+		t.Fatalf("expected log output to contain trace id, got: %s", logOutput)
+	}
+	if !strings.Contains(logOutput, `"outcome":"supervisor_response"`) {
+		t.Fatalf("expected log output to contain outcome, got: %s", logOutput)
+	}
+	if strings.Contains(logOutput, "secret-question") {
+		t.Fatalf("log output should not contain raw user_goal, got: %s", logOutput)
 	}
 }
 

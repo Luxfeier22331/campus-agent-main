@@ -5,19 +5,24 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/observability"
 )
 
 type Server struct {
 	config  config.Config
 	bridge  bridge.Client
 	limiter *admission.Limiter
+	logger  *slog.Logger
+	metrics *observability.Metrics
 }
 
 type errorInfo struct {
@@ -27,10 +32,12 @@ type errorInfo struct {
 }
 
 func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
-	return NewServerWithLimiter(
+	return NewServerWithDependencies(
 		cfg,
 		bridgeClient,
 		admission.NewLimiter(cfg.MaxConcurrentAnswers),
+		nil,
+		nil,
 	)
 }
 
@@ -38,6 +45,16 @@ func NewServerWithLimiter(
 	cfg config.Config,
 	bridgeClient bridge.Client,
 	limiter *admission.Limiter,
+) *Server {
+	return NewServerWithDependencies(cfg, bridgeClient, limiter, nil, nil)
+}
+
+func NewServerWithDependencies(
+	cfg config.Config,
+	bridgeClient bridge.Client,
+	limiter *admission.Limiter,
+	logger *slog.Logger,
+	metrics *observability.Metrics,
 ) *Server {
 	if cfg.AppName == "" {
 		cfg.AppName = "campus-agent"
@@ -51,34 +68,65 @@ func NewServerWithLimiter(
 	if limiter == nil {
 		limiter = admission.NewLimiter(cfg.MaxConcurrentAnswers)
 	}
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	if metrics == nil {
+		metrics = observability.NewMetrics()
+	}
 
 	return &Server{
 		config:  cfg,
 		bridge:  bridgeClient,
 		limiter: limiter,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	path := request.URL.Path
+	startedAt := time.Now()
+	traceID := strings.TrimSpace(request.Header.Get("x-trace-id"))
+	writer := newObservedResponseWriter(response)
+	finish := s.metrics.BeginRequest(path)
+
 	switch {
 	case request.Method == http.MethodGet && path == "/healthz":
-		writeJSON(response, http.StatusOK, map[string]any{
+		setOutcome(writer, "ok")
+		writeJSON(writer, http.StatusOK, map[string]any{
 			"status":   "ok",
 			"app_name": s.config.AppName,
 		})
 	case request.Method == http.MethodGet && path == "/readyz":
-		s.handleReadyz(response, request)
+		s.handleReadyz(writer, request)
+	case request.Method == http.MethodGet && path == "/metrics":
+		setOutcome(writer, "ok")
+		s.handleMetrics(writer)
 	case request.Method == http.MethodPost && path == "/api/v1/answer":
-		s.handleAnswer(response, request)
+		s.handleAnswer(writer, request)
 	default:
+		setOutcome(writer, "not_found")
 		writeError(
-			response,
+			writer,
 			http.StatusNotFound,
 			"not_found",
 			"Route not found.",
 			false,
 		)
+	}
+
+	statusCode := writer.statusCode()
+	outcome := writer.outcome()
+	if outcome == "" {
+		outcome = defaultOutcome(path, statusCode)
+	}
+	finish(statusCode, outcome, time.Since(startedAt))
+	if path == "/api/v1/answer" {
+		if observedTraceID := writer.traceID(); observedTraceID != "" {
+			traceID = observedTraceID
+		}
+		s.logAnswerRequest(request.Context(), traceID, statusCode, outcome, time.Since(startedAt))
 	}
 }
 
@@ -126,6 +174,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		statusText = "degraded"
 	}
 
+	bridgeSnapshot := s.metrics.BridgeRuntimeSnapshot()
 	responseBody := map[string]any{
 		"status":            statusText,
 		"transport_runtime": transportStatus,
@@ -145,6 +194,9 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 			"status_code":              bridgeStatusCode,
 			"worker_transport_runtime": bridgeWorkerTransport,
 			"last_error":               bridgeLastError,
+			"last_answer_failure_code": bridgeSnapshot.LastAnswerFailureCode,
+			"last_answer_failure_at":   bridgeSnapshot.LastAnswerFailureAt,
+			"last_answer_success_at":   bridgeSnapshot.LastAnswerSuccessAt,
 		},
 	}
 	for _, key := range []string{
@@ -163,6 +215,12 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	writeJSON(response, statusCode, responseBody)
 }
 
+func (s *Server) handleMetrics(response http.ResponseWriter) {
+	response.Header().Set("content-type", "text/plain; version=0.0.4")
+	response.WriteHeader(http.StatusOK)
+	_, _ = response.Write(s.metrics.Prometheus())
+}
+
 func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Request) {
 	body, ok := s.readJSONBody(response, request)
 	if !ok {
@@ -174,12 +232,16 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		s.config,
 	)
 	if httpErr != nil {
+		setOutcome(response, httpErr.Code)
 		writeExecutionError(response, httpErr)
 		return
 	}
+	setTraceID(response, executionRequest.TraceID)
 
 	release, admitted := s.limiter.TryAcquire()
 	if !admitted {
+		s.metrics.RecordTransportSaturated()
+		setOutcome(response, "transport_saturated")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -192,6 +254,7 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	defer release()
 
 	if s.bridge == nil || !s.bridge.Configured() {
+		setOutcome(response, "bridge_not_configured")
 		writeError(
 			response,
 			http.StatusServiceUnavailable,
@@ -209,16 +272,21 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			setOutcome(response, "client_canceled")
 			return
 		}
 		code := "supervisor_bridge_unavailable"
 		message := err.Error()
 		status := http.StatusBadGateway
+		failureKind := "unavailable"
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			code = "supervisor_bridge_timeout"
 			message = "Supervisor Python bridge timed out."
 			status = http.StatusGatewayTimeout
+			failureKind = "timeout"
 		}
+		s.metrics.RecordBridgeFailure(failureKind)
+		setOutcome(response, code)
 		writeError(response, status, code, message, true)
 		return
 	}
@@ -232,6 +300,7 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 
 	body, err := io.ReadAll(limited)
 	if err != nil {
+		setOutcome(response, "request_body_too_large")
 		writeError(
 			response,
 			http.StatusRequestEntityTooLarge,
@@ -247,6 +316,7 @@ func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Reques
 
 	var decoded map[string]any
 	if err := json.Unmarshal(body, &decoded); err != nil || decoded == nil {
+		setOutcome(response, "invalid_json")
 		writeError(
 			response,
 			http.StatusBadRequest,
@@ -310,8 +380,11 @@ func (s *Server) writeBridgeResponse(
 ) {
 	switch bridgeResponse.Kind {
 	case "supervisor_response":
+		setOutcome(response, "supervisor_response")
 		body, err := injectTraceID(bridgeResponse.Body, traceID)
 		if err != nil {
+			s.metrics.RecordBridgeFailure("invalid_response")
+			setOutcome(response, "supervisor_bridge_invalid_response")
 			writeError(
 				response,
 				http.StatusBadGateway,
@@ -321,10 +394,14 @@ func (s *Server) writeBridgeResponse(
 			)
 			return
 		}
+		s.metrics.RecordBridgeSuccess()
 		writeRawJSON(response, bridgeResponse.StatusCode, body)
 	case "supervisor_error":
+		setOutcome(response, "supervisor_error")
 		body, err := normalizeJSONObjectJSON(bridgeResponse.Body)
 		if err != nil {
+			s.metrics.RecordBridgeFailure("invalid_response")
+			setOutcome(response, "supervisor_bridge_invalid_response")
 			writeError(
 				response,
 				http.StatusBadGateway,
@@ -336,6 +413,7 @@ func (s *Server) writeBridgeResponse(
 		}
 		writeRawJSON(response, bridgeResponse.StatusCode, body)
 	case "bridge_invalid_request":
+		setOutcome(response, "supervisor_bridge_invalid_request")
 		writeError(
 			response,
 			http.StatusBadGateway,
@@ -344,6 +422,8 @@ func (s *Server) writeBridgeResponse(
 			false,
 		)
 	default:
+		s.metrics.RecordBridgeFailure("invalid_response")
+		setOutcome(response, "supervisor_bridge_invalid_response")
 		writeError(
 			response,
 			http.StatusBadGateway,
@@ -408,4 +488,128 @@ func toLowerASCII(value string) string {
 		}
 	}
 	return string(buffer)
+}
+
+func defaultOutcome(path string, statusCode int) string {
+	if path == "/readyz" {
+		if statusCode == http.StatusOK {
+			return "ready"
+		}
+		return "degraded"
+	}
+	if path == "/metrics" || path == "/healthz" {
+		return "ok"
+	}
+	if statusCode == 499 {
+		return "client_canceled"
+	}
+	if statusCode == http.StatusNotFound {
+		return "not_found"
+	}
+	return "unknown"
+}
+
+func (s *Server) logAnswerRequest(
+	ctx context.Context,
+	traceID string,
+	statusCode int,
+	outcome string,
+	duration time.Duration,
+) {
+	level := slog.LevelInfo
+	switch {
+	case outcome == "transport_saturated":
+		level = slog.LevelWarn
+	case outcome == "supervisor_bridge_timeout":
+		level = slog.LevelWarn
+	case outcome == "supervisor_bridge_unavailable":
+		level = slog.LevelWarn
+	case outcome == "supervisor_bridge_invalid_response":
+		level = slog.LevelWarn
+	case statusCode >= 500:
+		level = slog.LevelWarn
+	}
+	s.logger.LogAttrs(
+		ctx,
+		level,
+		"go_shell.answer_request",
+		slog.String("route", "/api/v1/answer"),
+		slog.String("trace_id", traceID),
+		slog.Int("status_code", statusCode),
+		slog.String("outcome", outcome),
+		slog.Int64("duration_ms", duration.Milliseconds()),
+	)
+}
+
+type observedResponseWriter struct {
+	http.ResponseWriter
+	status       int
+	wrote        bool
+	outcomeValue string
+	traceIDValue string
+}
+
+func newObservedResponseWriter(writer http.ResponseWriter) *observedResponseWriter {
+	return &observedResponseWriter{
+		ResponseWriter: writer,
+	}
+}
+
+func (w *observedResponseWriter) Write(body []byte) (int, error) {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(body)
+}
+
+func (w *observedResponseWriter) WriteHeader(status int) {
+	w.status = status
+	w.wrote = true
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *observedResponseWriter) statusCode() int {
+	if w.wrote {
+		return w.status
+	}
+	if w.outcomeValue == "client_canceled" {
+		return 499
+	}
+	return 0
+}
+
+func (w *observedResponseWriter) outcome() string {
+	return w.outcomeValue
+}
+
+func (w *observedResponseWriter) traceID() string {
+	return w.traceIDValue
+}
+
+type outcomeSetter interface {
+	setOutcome(string)
+}
+
+type traceIDSetter interface {
+	setTraceID(string)
+}
+
+func (w *observedResponseWriter) setOutcome(outcome string) {
+	w.outcomeValue = outcome
+}
+
+func (w *observedResponseWriter) setTraceID(traceID string) {
+	w.traceIDValue = traceID
+}
+
+func setOutcome(response http.ResponseWriter, outcome string) {
+	if writer, ok := response.(outcomeSetter); ok {
+		writer.setOutcome(outcome)
+	}
+}
+
+func setTraceID(response http.ResponseWriter, traceID string) {
+	if writer, ok := response.(traceIDSetter); ok {
+		writer.setTraceID(traceID)
+	}
 }
