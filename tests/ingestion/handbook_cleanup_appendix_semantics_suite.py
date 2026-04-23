@@ -30,8 +30,8 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
                 ),
                 _source_row(61, "paragraph", "附件:"),
                 _source_row(61, "heading", "中央民族大学高水平运动员"),
+                _source_row(61, "heading", "免试推荐硕士研究生运动成绩计算标准"),
                 _source_row(62, "paragraph", "1. 网球队"),
-                _source_row(62, "paragraph", "免试推荐硕士研究生运动成绩计算标准"),
                 _source_row(
                     62,
                     "table",
@@ -76,12 +76,20 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
         self.assertEqual(len(policy_units), 0)
         table_units = [row for row in result.document_units if row["unit_type"] == "table_unit"]
         self.assertEqual(len(table_units), 2)
-        self.assertEqual(table_units[0]["anchor"]["section_path"], ["中央民族大学高水平运动员"])
         self.assertEqual(
-            table_units[0]["anchor"]["table_context"], "1. 网球队免试推荐硕士研究生运动成绩计算标准"
+            table_units[0]["anchor"]["section_path"],
+            ["中央民族大学高水平运动员免试推荐硕士研究生运动成绩计算标准"],
         )
-        self.assertEqual(table_units[1]["anchor"]["section_path"], ["中央民族大学高水平运动员"])
+        self.assertEqual(table_units[0]["anchor"]["table_context"], "1. 网球队")
+        self.assertEqual(
+            table_units[1]["anchor"]["section_path"],
+            ["中央民族大学高水平运动员免试推荐硕士研究生运动成绩计算标准"],
+        )
         self.assertEqual(table_units[1]["anchor"]["table_context"], "2. 排球队")
+        self.assertNotIn(
+            "## 中央民族大学高水平运动员\n\n## 免试推荐硕士研究生运动成绩计算标准",
+            result.canonical_markdown,
+        )
 
     def test_cleanup_starts_new_appendix_section_after_marker_only_for_inline_form_template(
         self,

@@ -93,17 +93,18 @@ def filter_content_rows(
     *,
     title: str,
 ) -> list[dict[str, object]]:
-    title_anchor_index = find_title_anchor_index(
+    title_anchor_span = find_title_anchor_span(
         projected_rows,
         title=title,
     )
-    if title_anchor_index is None:
+    if title_anchor_span is None:
         raise ValueError(f"handbook document cleanup missing title anchor for {title!r}")
+    title_anchor_index, title_anchor_end_index = title_anchor_span
     filtered: list[dict[str, object]] = []
-    title_consumed = False
-    normalized_title = normalize_title_for_match(title)
     anchor_page = coerce_int(projected_rows[title_anchor_index].get("page_start"))
-    for row in projected_rows[title_anchor_index:]:
+    for index, row in enumerate(projected_rows[title_anchor_index:], start=title_anchor_index):
+        if index <= title_anchor_end_index:
+            continue
         if bool(row.get("is_repeated_candidate")):
             continue
         if str(row.get("row_type") or "") in {"header", "footer", "page_number"}:
@@ -111,12 +112,8 @@ def filter_content_rows(
         text = row_text(row)
         if not text and str(row.get("row_type") or "") != "table":
             continue
-        if not title_consumed and normalize_title_for_match(text) == normalized_title:
-            title_consumed = True
-            continue
         if (
-            title_consumed
-            and anchor_page is not None
+            anchor_page is not None
             and coerce_int(row.get("page_start")) == anchor_page
             and looks_like_title_variant_suffix_line(text)
         ):
@@ -125,11 +122,11 @@ def filter_content_rows(
     return filtered
 
 
-def find_title_anchor_index(
+def find_title_anchor_span(
     projected_rows: list[dict[str, object]],
     *,
     title: str,
-) -> int | None:
+) -> tuple[int, int] | None:
     normalized_title = normalize_title_for_match(title)
     if not normalized_title:
         return None
@@ -142,7 +139,59 @@ def find_title_anchor_index(
         if not text:
             continue
         if normalize_title_for_match(text) == normalized_title:
-            return index
+            return (index, index)
+        multiline_anchor_span = _find_multiline_title_anchor_span(
+            projected_rows=projected_rows,
+            start_index=index,
+            normalized_title=normalized_title,
+        )
+        if multiline_anchor_span is not None:
+            return multiline_anchor_span
+    return None
+
+
+def find_title_anchor_index(
+    projected_rows: list[dict[str, object]],
+    *,
+    title: str,
+) -> int | None:
+    title_anchor_span = find_title_anchor_span(projected_rows, title=title)
+    if title_anchor_span is None:
+        return None
+    return title_anchor_span[0]
+
+
+def _find_multiline_title_anchor_span(
+    *,
+    projected_rows: list[dict[str, object]],
+    start_index: int,
+    normalized_title: str,
+    max_heading_rows: int = 3,
+) -> tuple[int, int] | None:
+    start_row = projected_rows[start_index]
+    if str(start_row.get("row_type") or "") != "heading":
+        return None
+    start_page = coerce_int(start_row.get("page_start"))
+    if start_page is None:
+        return None
+    combined_text = row_text(start_row)
+    if not combined_text:
+        return None
+    end_limit = min(len(projected_rows), start_index + max_heading_rows)
+    for end_index in range(start_index + 1, end_limit):
+        next_row = projected_rows[end_index]
+        if bool(next_row.get("is_repeated_candidate")):
+            break
+        if coerce_int(next_row.get("page_start")) != start_page:
+            break
+        if str(next_row.get("row_type") or "") != "heading":
+            break
+        next_text = row_text(next_row)
+        if not next_text:
+            break
+        combined_text = f"{combined_text}\n{next_text}"
+        if normalize_title_for_match(combined_text) == normalized_title:
+            return (start_index, end_index)
     return None
 
 
@@ -178,6 +227,7 @@ __all__ = [
     "extract_handbook_title_candidate",
     "filter_content_rows",
     "find_title_anchor_index",
+    "find_title_anchor_span",
     "is_placeholder_title",
     "normalize_title_for_match",
     "project_manifest_rows",

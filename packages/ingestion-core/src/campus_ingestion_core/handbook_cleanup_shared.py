@@ -142,6 +142,8 @@ DECORATIVE_TABLE_KEYWORDS = (
 )
 SHORT_HEADING_BODY_STARTERS = (
     "中央民族大学",
+    "本科学生",
+    "考核形式",
     "学生需要",
     "参加",
     "学校",
@@ -180,6 +182,10 @@ CITATION_CONTINUATION_START_CHARS = {"[", "〔", "(", "（", "《", "“", "‘"
 SHORT_HEADING_WHITELIST = {
     "候选人公示",
     "学生申请",
+    "院系审核,提交材料",
+    "公布参加转专业考试学生名单及考试具体安排",
+    "拟接收名单的确定",
+    "手续办理",
     "毕业、结业与肄业",
     "报名审核",
     "公示",

@@ -202,6 +202,49 @@ class HandbookCleanupManifestTitleTest(unittest.TestCase):
             "中央民族大学本科生专业调整实施办法\n(修订)", result.document_units[0]["clean_text"]
         )
 
+    def test_cleanup_consumes_split_adjacent_title_anchor_rows(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    217,
+                    "heading",
+                    "中央民族大学",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(
+                    217,
+                    "heading",
+                    "家庭经济困难学生临时困难补助管理办法",
+                    block_role="heading",
+                    title_candidate_score=0.95,
+                ),
+                _source_row(217, "paragraph", "民大校发〔2018〕101号"),
+                _source_row(
+                    217,
+                    "paragraph",
+                    "第一条 为规范家庭经济困难学生临时困难补助工作。",
+                ),
+                _source_row(218, "paragraph", "第二条 补助对象与申请条件如下。"),
+            ],
+            manifest_document=_manifest_document(
+                217,
+                219,
+                title="中央民族大学家庭经济困难学生临时困难补助管理办法",
+                handbook_section="中央民族大学学生资助管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertEqual(result.title, "中央民族大学家庭经济困难学生临时困难补助管理办法")
+        self.assertEqual(
+            [row["unit_type"] for row in result.document_units],
+            ["article_body", "article_body"],
+        )
+        self.assertNotIn("中央民族大学\n家庭经济困难学生临时困难补助管理办法", result.canonical_markdown)
+        self.assertNotIn("中央民族大学", result.document_units[0]["clean_text"])
+        self.assertNotIn("家庭经济困难学生临时困难补助管理办法", result.document_units[0]["clean_text"])
+
     def test_cleanup_projects_list_like_sections_into_multiple_policy_pages(self) -> None:
         result = cleanup_handbook_document(
             structured_rows=[

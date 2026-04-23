@@ -298,6 +298,8 @@ def _classify_block(
             return "page_number", "page_number", 0.82, "provider_label:number:page_number_heuristic"
         return "paragraph", "body", 0.55, "provider_label:number:body_fallback"
     if raw_type in {"table"}:
+        if not table_cells and (html is None or "<table" not in html.lower()) and not text_normalized:
+            return "image", "image", 0.55, "provider_label:table:empty_table_fallback"
         return "table", "table", 0.98, "provider_label:table"
     if raw_type == "header_image":
         return "image", "header_image", 0.95, "provider_label:header_image"

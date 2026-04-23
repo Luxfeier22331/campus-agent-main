@@ -326,6 +326,20 @@ def _is_duplicate_attachment_cover_text(
     return bool(current_leaf_body and normalized_body and normalized_body == current_leaf_body)
 
 
+def _is_duplicate_attachment_cover_fragment(
+    *,
+    text: str,
+    current_section_nodes: list[tuple[int, str]],
+) -> bool:
+    normalized = _strip_running_header_prefix(text)
+    if not normalized or len(normalized) < 6 or not current_section_nodes:
+        return False
+    current_leaf = normalize_handbook_body_text(current_section_nodes[-1][1])
+    if not current_leaf or len(current_leaf) <= len(normalized):
+        return False
+    return current_leaf.startswith(normalized) or current_leaf.endswith(normalized)
+
+
 def _attachment_title_body(text: str) -> str:
     normalized = normalize_handbook_body_text(text)
     if not normalized:
@@ -446,6 +460,7 @@ def _looks_like_inline_enumerated_heading(text: str) -> bool:
 __all__ = [
     "_extract_appendix_heading_title",
     "_is_duplicate_attachment_cover_text",
+    "_is_duplicate_attachment_cover_fragment",
     "_looks_like_ancillary_note_line",
     "_looks_like_appendix_heading",
     "_looks_like_appendix_leaf_section_heading",

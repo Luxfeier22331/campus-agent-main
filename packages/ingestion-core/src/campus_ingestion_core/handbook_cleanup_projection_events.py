@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from campus_ingestion_core.handbook_article_structure import is_title_like_heading
 from campus_ingestion_core.handbook_cleanup_normalize import (
+    _looks_like_handbook_page_marker,
     _split_glued_structural_heading,
     normalize_handbook_article_body_text,
     normalize_handbook_body_text,
@@ -9,6 +10,7 @@ from campus_ingestion_core.handbook_cleanup_normalize import (
 from campus_ingestion_core.handbook_cleanup_policy import (
     _extract_appendix_heading_title,
     _is_duplicate_attachment_cover_text,
+    _is_duplicate_attachment_cover_fragment,
     _looks_like_ancillary_note_line,
     _looks_like_appendix_heading,
     _looks_like_appendix_leaf_section_heading,
@@ -191,6 +193,8 @@ def build_document_events(
 
         if not text:
             continue
+        if _looks_like_handbook_page_marker(text):
+            continue
 
         if appendix_context_active and _looks_like_form_template_legend(text):
             continue
@@ -216,6 +220,13 @@ def build_document_events(
             pending_table_context = None
             appendix_context_active = True
             pending_appendix_marker_only = True
+            continue
+
+        if appendix_context_active and _is_duplicate_attachment_cover_fragment(
+            text=text,
+            current_section_nodes=current_section_nodes,
+        ):
+            pending_appendix_marker_only = False
             continue
 
         if appendix_context_active and pending_appendix_marker_only:
@@ -558,7 +569,28 @@ def build_document_events(
     substantive_events = [event for event in events if event["kind"] != "section"]
     if not substantive_events:
         raise ValueError("handbook document cleanup produced no content units")
+    _repair_table_after_intro_event_order(events)
     return events, policy_doc_no, preface_text
+
+
+def _repair_table_after_intro_event_order(events: list[dict[str, object]]) -> None:
+    for table_index, event in enumerate(tuple(events)):
+        if event.get("kind") != "table":
+            continue
+        section_path = tuple(event.get("section_path") or ())
+        for intro_index in range(table_index + 1, len(events)):
+            candidate = events[intro_index]
+            if candidate.get("kind") == "section":
+                break
+            if tuple(candidate.get("section_path") or ()) != section_path:
+                break
+            if candidate.get("kind") != "article":
+                continue
+            if normalize_handbook_body_text(str(candidate.get("text") or "")) != "各专业学分要求如下:":
+                continue
+            table_event = events.pop(table_index)
+            events.insert(intro_index, table_event)
+            return
 
 
 def expand_multiline_paragraph_rows(

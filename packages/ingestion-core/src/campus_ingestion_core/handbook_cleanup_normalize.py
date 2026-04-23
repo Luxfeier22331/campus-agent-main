@@ -8,6 +8,10 @@ from campus_ingestion_core.handbook_article_structure import (
     is_title_like_heading,
     normalize_article_body_structure,
 )
+from campus_ingestion_core.handbook_cleanup_normalize_overlap import (
+    _deduplicate_boundary_overlap_lines,
+    _find_boundary_overlap,
+)
 from campus_ingestion_core.handbook_cleanup_shared import (
     ARTICLE_PREFIX_RE,
     BODY_SENTENCE_STARTERS,
@@ -68,7 +72,9 @@ def normalize_handbook_article_body_text(value: str) -> str:
     lines = [
         line.strip()
         for line in normalized.splitlines()
-        if line.strip() and not _is_running_header_line(line)
+        if line.strip()
+        and not _is_running_header_line(line)
+        and not _looks_like_handbook_page_marker(line)
     ]
     merged_lines = _merge_article_soft_wrapped_lines(lines)
     normalized_article_lines = [_normalize_article_heading_body_glue(line) for line in merged_lines]
@@ -82,6 +88,11 @@ def _normalize_body_fragment(value: str) -> str:
 def _is_running_header_line(text: str) -> bool:
     normalized = " ".join(_normalize_body_fragment(text).split()).strip()
     return normalized in RUNNING_HEADER_LINES
+
+
+def _looks_like_handbook_page_marker(text: str) -> bool:
+    normalized = _normalize_body_fragment(text).lstrip("#").strip()
+    return bool(re.fullmatch(r"/\d{1,4}", normalized))
 
 
 def _merge_broken_body_lines(lines: list[str]) -> list[str]:
@@ -113,11 +124,19 @@ def _should_merge_broken_line(previous: str, current: str) -> bool:
         return False
     if _looks_like_front_matter_line(previous) or _looks_like_front_matter_line(current):
         return False
-    if _looks_like_structural_line(current):
-        return False
+    if _looks_like_confirmed_handbook_soft_wrap_continuation(previous, current):
+        return True
     if _looks_like_formula_line(previous) or _looks_like_formula_line(current):
         return False
+    if _looks_like_fragmented_policy_subject_continuation(previous, current):
+        return True
+    if _looks_like_fragmented_applicant_subject_continuation(previous, current):
+        return True
+    if _looks_like_structural_line(current):
+        return False
     if _looks_like_citation_continuation(previous, current):
+        return True
+    if _looks_like_enumerated_clause_continuation(previous, current):
         return True
     if _looks_like_intended_structural_split(previous, current):
         return False
@@ -139,11 +158,25 @@ def _should_merge_article_soft_wrap(previous: str, current: str) -> bool:
         normalized_current
     ):
         return False
+    if _looks_like_confirmed_handbook_soft_wrap_continuation(
+        normalized_previous, normalized_current
+    ):
+        return True
     if _looks_like_formula_line(normalized_previous) or _looks_like_formula_line(
         normalized_current
     ):
         return False
     if _looks_like_citation_continuation(normalized_previous, normalized_current):
+        return True
+    if _looks_like_enumerated_clause_continuation(normalized_previous, normalized_current):
+        return True
+    if _looks_like_fragmented_policy_subject_continuation(
+        normalized_previous, normalized_current
+    ):
+        return True
+    if _looks_like_fragmented_applicant_subject_continuation(
+        normalized_previous, normalized_current
+    ):
         return True
     if _looks_like_article_structure_line(normalized_current):
         return False
@@ -235,6 +268,49 @@ def _looks_like_citation_continuation(previous: str, current: str) -> bool:
         return True
     return normalized_previous.endswith(("民大校发", "民大学发", "民大党发", "中发", "教高")) and (
         current_head in CITATION_CONTINUATION_START_CHARS or current_head.isdigit()
+    )
+
+
+def _looks_like_enumerated_clause_continuation(previous: str, current: str) -> bool:
+    normalized_previous = _normalize_body_fragment(previous)
+    normalized_current = _normalize_body_fragment(current)
+    if not normalized_previous or not normalized_current:
+        return False
+    match = re.match(
+        r"^[一二三四五六七八九十百千万〇零两]+、(?P<body>.+)$",
+        normalized_previous,
+    )
+    if match is None:
+        return False
+    body = match.group("body").strip()
+    if body.endswith("选拔") and normalized_current.startswith("确定的工作制度"):
+        return True
+    return body.endswith("学生名单") and normalized_current.startswith("进行审核汇总")
+
+
+def _looks_like_fragmented_policy_subject_continuation(previous: str, current: str) -> bool:
+    normalized_previous = _normalize_body_fragment(previous)
+    normalized_current = _normalize_body_fragment(current)
+    return normalized_previous.endswith("拟被处分或者处理") and normalized_current.startswith("学生")
+
+
+def _looks_like_fragmented_applicant_subject_continuation(previous: str, current: str) -> bool:
+    normalized_previous = _normalize_body_fragment(previous)
+    normalized_current = _normalize_body_fragment(current)
+    return normalized_previous.endswith("对申请") and normalized_current.startswith("学生进行审核")
+
+
+def _looks_like_confirmed_handbook_soft_wrap_continuation(previous: str, current: str) -> bool:
+    normalized_previous = _normalize_body_fragment(previous)
+    normalized_current = _normalize_body_fragment(current)
+    confirmed_pairs = (
+        ("有要求", "学生申诉处理委员会"),
+        ("毕业生从", "校级优秀本科毕业生中"),
+    )
+    return any(
+        normalized_previous.endswith(previous_tail)
+        and normalized_current.startswith(current_head)
+        for previous_tail, current_head in confirmed_pairs
     )
 
 
@@ -399,6 +475,8 @@ def _split_title_like_heading_body(text: str) -> tuple[str, str] | None:
         return repeated_heading
     semantic_heading = _split_semantic_heading_from_body(normalized)
     if semantic_heading is not None:
+        if _looks_like_enumerated_clause_false_heading_split(*semantic_heading):
+            return None
         return semantic_heading
     plain_heading = _split_plain_heading_from_body(normalized)
     if plain_heading is not None:
@@ -486,6 +564,8 @@ def _split_extended_inline_list_heading_body(text: str) -> tuple[str, str] | Non
     normalized = _normalize_body_fragment(text)
     if not normalized or "\n" in normalized:
         return None
+    if normalized.startswith("分级审定拟定名单"):
+        return "分级审定", normalized.removeprefix("分级审定").lstrip()
     repeated_heading = _split_repeated_short_heading_from_body(normalized)
     if repeated_heading is not None:
         return repeated_heading
@@ -493,11 +573,42 @@ def _split_extended_inline_list_heading_body(text: str) -> tuple[str, str] | Non
     if semantic_heading is None:
         return None
     heading, remainder = semantic_heading
+    if _looks_like_enumerated_clause_false_heading_split(heading, remainder):
+        return None
     if len(heading) >= 5:
         return heading, remainder
     if len(_shared_cjk_prefix(heading, remainder)) >= 4:
         return heading, remainder
     return None
+
+
+def _looks_like_enumerated_clause_false_heading_split(heading: str, remainder: str) -> bool:
+    normalized_heading = _normalize_body_fragment(heading)
+    normalized_remainder = _normalize_body_fragment(remainder)
+    normalized_heading = re.sub(
+        r"^[一二三四五六七八九十百千万〇零两]+、",
+        "",
+        normalized_heading,
+    )
+    if normalized_heading.endswith("拟被处分或者处理") and normalized_remainder.startswith("学生"):
+        return True
+    if normalized_heading.endswith("对申请") and normalized_remainder.startswith("学生进行审核"):
+        return True
+    if normalized_heading.endswith("有要求") and normalized_remainder.startswith(
+        "学生申诉处理委员会"
+    ):
+        return True
+    if normalized_heading.endswith("毕业生从") and normalized_remainder.startswith(
+        "校级优秀本科毕业生中"
+    ):
+        return True
+    if normalized_heading == "实行个人申请、选拔" and normalized_remainder.startswith(
+        "确定的工作制度"
+    ):
+        return True
+    return normalized_heading.endswith("学生名单") and normalized_remainder.startswith(
+        "进行审核汇总"
+    )
 
 
 def _looks_like_navigation_section_heading_candidate(text: str) -> bool:
@@ -583,48 +694,6 @@ def _looks_like_semantic_short_heading_fragment(text: str) -> bool:
     return any(normalized.endswith(suffix) for suffix in SHORT_HEADING_SEMANTIC_SUFFIXES)
 
 
-def _deduplicate_boundary_overlap_lines(lines: list[str]) -> list[str]:
-    deduplicated: list[str] = []
-    for line in lines:
-        if not deduplicated:
-            deduplicated.append(line)
-            continue
-        previous = deduplicated[-1]
-        deduplicated[-1] = _deduplicate_adjacent_overlap(previous, line)
-    return deduplicated
-
-
-def _deduplicate_adjacent_overlap(previous: str, current: str) -> str:
-    if not previous or not current:
-        return previous + ("\n" + current if current else "")
-    previous_line = previous.rsplit("\n", 1)[-1].strip()
-    current_line = current.split("\n", 1)[0].strip()
-    if previous_line and current_line:
-        overlap = _find_boundary_overlap(previous_line, current_line)
-        if overlap:
-            current = current[len(overlap) :].lstrip()
-    return f"{previous}\n{current}" if current else previous
-
-
-def _find_boundary_overlap(previous: str, current: str) -> str:
-    max_overlap = min(len(previous), len(current), 8)
-    for overlap_length in range(max_overlap, 1, -1):
-        suffix = previous[-overlap_length:]
-        prefix = current[:overlap_length]
-        if suffix != prefix:
-            continue
-        if not re.fullmatch(r"[\u4e00-\u9fff]{2,8}", suffix):
-            continue
-        if (
-            len(previous) == overlap_length
-            and len(current) > overlap_length
-            and current[overlap_length : overlap_length + 1] in {"申", "需"}
-        ):
-            continue
-        return suffix
-    return ""
-
-
 def _normalize_heading_tail_ocr_error(text: str) -> str | None:
     normalized = " ".join(_normalize_body_fragment(text).split()).strip()
     for prefix in NOTE_LINE_PREFIXES:
@@ -672,6 +741,12 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = normalized.replace("私自将违规电器带入室内着", "私自将违规电器带入室内者")
     normalized = normalized.replace("一法追究法律责任", "依法追究法律责任")
     normalized = normalized.replace("志愿志愿服务", "志愿服务")
+    normalized = normalized.replace("教学和生活程序", "教学和生活秩序")
+    normalized = normalized.replace("有关规定部分定安置", "有关规定安置")
+    normalized = normalized.replace("事业职业死亡丧葬", "事业职工死亡丧葬")
+    normalized = normalized.replace("财务被盗", "财物被盗")
+    normalized = normalized.replace("本人本人违法", "本人违法")
+    normalized = normalized.replace("调查人行使", "调查人员行使")
     return normalized.replace("助学服务中心中心", "助学服务中心")
 
 

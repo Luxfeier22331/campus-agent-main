@@ -82,6 +82,49 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("发表一般文章、专著奖励标准准", normalized)
         self.assertNotIn("准备注:", normalized)
 
+    def test_normalize_handbook_article_body_text_removes_slash_page_markers(self) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "第三章 学籍管理\n"
+            "/96\n"
+            "第一节 入学与注册\n"
+            "第六条 按国家招生规定录取的新生,须持录取通知书办理入学手续。"
+        )
+
+        self.assertIn("第三章 学籍管理", normalized)
+        self.assertIn("第一节 入学与注册", normalized)
+        self.assertNotIn("/96", normalized)
+
+    def test_cleanup_handbook_document_removes_slash_page_marker_headings(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    96,
+                    "heading",
+                    "中央民族大学学生管理规定",
+                    block_role="title",
+                    title_candidate_score=0.98,
+                    classification_confidence=0.98,
+                    classification_reason="doc_title:first_page",
+                ),
+                _source_row(96, "heading", "第三章 学籍管理"),
+                _source_row(96, "heading", "/96"),
+                _source_row(96, "heading", "第一节 入学与注册"),
+                _source_row(
+                    96,
+                    "paragraph",
+                    "第六条 按国家招生规定录取的新生,须持录取通知书办理入学手续。",
+                ),
+            ],
+            manifest_document=_manifest_document(
+                96, 96, title="中央民族大学学生管理规定"
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        self.assertIn("## 第三章 学籍管理", result.canonical_markdown)
+        self.assertIn("## 第一节 入学与注册", result.canonical_markdown)
+        self.assertNotIn("/96", result.canonical_markdown)
+
     def test_normalize_handbook_article_body_text_merges_soft_wrap_after_pause_punctuation(
         self,
     ) -> None:
@@ -133,6 +176,12 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "造成严重后果者,一法追究法律责任。",
                     "(六)积极参加集体活动、校内外社会实践、志愿志愿服务和社会公益活动;",
                     "(三)学校助学服务中心中心于每年11月15日前将当年国家助学金政策落实情况进行认真总结,并报上级主管部门备案。",
+                    "为了加强高等学校管理,维护正常的教学和生活程序,保障学生人身和财物的安全。",
+                    "由当地劳动部门按国家关于残疾人劳动就业有关规定部分定安置。",
+                    "由学校或有关单位参照国家关于事业职业死亡丧葬有关规定处理。",
+                    "因本人直接责任造成财务被盗、火灾、事故等而产生临时性生活困难的。",
+                    "(一)如实陈述和申辩本人本人违法、违规或违纪事实和回答主持人的提问;",
+                    "(四)公正地履行主持听证的职责,保证当事人和调查人行使陈述权、申辩权。",
                 ]
             )
         )
@@ -147,6 +196,44 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("志愿志愿服务", normalized)
         self.assertIn("学校助学服务中心于每年11月15日前", normalized)
         self.assertNotIn("助学服务中心中心", normalized)
+        self.assertIn("维护正常的教学和生活秩序", normalized)
+        self.assertNotIn("教学和生活程序", normalized)
+        self.assertIn("残疾人劳动就业有关规定安置", normalized)
+        self.assertNotIn("部分定安置", normalized)
+        self.assertIn("事业职工死亡丧葬有关规定", normalized)
+        self.assertNotIn("事业职业死亡丧葬", normalized)
+        self.assertIn("造成财物被盗、火灾、事故", normalized)
+        self.assertNotIn("财务被盗", normalized)
+        self.assertIn("申辩本人违法、违规或违纪事实", normalized)
+        self.assertNotIn("本人本人违法", normalized)
+        self.assertIn("当事人和调查人员行使陈述权", normalized)
+        self.assertNotIn("调查人行使", normalized)
+
+    def test_normalize_handbook_article_body_text_merges_fragmented_hearing_subject(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "拟被处分或者处理",
+                    "学生认为听证主持人与本事件有直接利害关系的,有权申请回避。",
+                    "(二) 调查人员提出拟被处分或者处理",
+                    "学生违法或违规违纪的事实、证据。",
+                    "(六) 拟被处分或者处理",
+                    "学生做最后陈述",
+                    "(三)院系审核,提交材料",
+                    "各院系根据转专业的原则和条件对申请",
+                    "学生进行审核,并将合格的学生申请材料及汇总表统一报教务处。",
+                ]
+            )
+        )
+
+        self.assertIn("拟被处分或者处理学生认为听证主持人与本事件有直接利害关系", normalized)
+        self.assertIn("(二) 调查人员提出拟被处分或者处理学生违法或违规违纪的事实、证据。", normalized)
+        self.assertIn("(六) 拟被处分或者处理学生做最后陈述", normalized)
+        self.assertIn("各院系根据转专业的原则和条件对申请学生进行审核", normalized)
+        self.assertNotIn("拟被处分或者处理\n学生", normalized)
+        self.assertNotIn("对申请\n学生", normalized)
 
     def test_normalize_handbook_body_text_repairs_missing_closing_parenthesis_after_doc_no(
         self,
@@ -159,6 +246,28 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
 
         self.assertIn("(民大党发〔2009〕41号)的精神", normalized)
         self.assertNotIn("(民大党发〔2009〕41号的精神", normalized)
+
+    def test_normalize_handbook_article_body_text_repairs_confirmed_soft_wraps(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "优秀本科毕业生包括北京市级优秀本科毕业生和校级优秀本科毕业生两个类别。其中,校级优秀本科毕业生总人数不超过应届毕业生总人数的 $10\\%$ ,北京市级优秀本科毕业生从",
+                    "校级优秀本科毕业生中择优产生,总人数不超过应届毕业生总人数的 $5\\%$ 。",
+                    "申诉学生本人有要求",
+                    "学生申诉处理委员会相关成员回避的权利。",
+                    "(三)分级审定拟定名单在全校范围内公示5个工作日。",
+                ]
+            )
+        )
+
+        self.assertIn("北京市级优秀本科毕业生从校级优秀本科毕业生中择优产生", normalized)
+        self.assertIn("申诉学生本人有要求学生申诉处理委员会相关成员回避的权利", normalized)
+        self.assertIn("(三) 分级审定\n拟定名单在全校范围内公示5个工作日。", normalized)
+        self.assertNotIn("从\n校级优秀本科毕业生", normalized)
+        self.assertNotIn("有要求\n学生申诉处理委员会", normalized)
+        self.assertNotIn("分级审定拟定名单", normalized)
 
     def test_normalize_handbook_article_body_text_splits_glued_short_heading_from_body(
         self,
@@ -207,6 +316,102 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("助学金助学金用于", normalized)
         self.assertNotIn("代偿应征入伍服义务兵役", normalized)
         self.assertNotIn("代偿自愿到中西部地区", normalized)
+
+    def test_normalize_handbook_article_body_text_splits_professional_adjustment_inline_headings(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "(二)学生申请本科学生根据学校公布的转专业计划提出转专业申请。",
+                    "(三)院系审核,提交材料各院系根据转专业的原则和条件对申请学生进行审核。",
+                    "(四)公布参加转专业考试学生名单及考试具体安排教务处对所有转专业学生申请材料进行复核。",
+                    "1. 考核方式考核形式由各院系确定,原则上考核包括笔试和面试。",
+                    "1. 拟接收名单的确定院系按照笔试和面试总成绩从高到低排序。",
+                    "(七)手续办理学校确定正式名单后,转专业学生凭教务处通知办理转专业手续。",
+                ]
+            )
+        )
+
+        self.assertIn("(二) 学生申请\n本科学生根据学校公布的转专业计划提出转专业申请。", normalized)
+        self.assertIn("(三) 院系审核,提交材料\n各院系根据转专业的原则和条件对申请学生进行审核。", normalized)
+        self.assertIn("(四) 公布参加转专业考试学生名单及考试具体安排\n教务处对所有转专业学生申请材料进行复核。", normalized)
+        self.assertIn("1. 考核方式\n考核形式由各院系确定,原则上考核包括笔试和面试。", normalized)
+        self.assertIn("1. 拟接收名单的确定\n院系按照笔试和面试总成绩从高到低排序。", normalized)
+        self.assertIn("(七) 手续办理\n学校确定正式名单后,转专业学生凭教务处通知办理转专业手续。", normalized)
+        self.assertNotIn("学生申请本科学生", normalized)
+        self.assertNotIn("考核方式考核形式", normalized)
+
+    def test_normalize_handbook_article_body_text_merges_professional_adjustment_clause_wraps(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "二、实行个人申请、选拔",
+                    "确定的工作制度;",
+                    "四、教务处对院系报送的分专业学生名单",
+                    "进行审核汇总,报主管校领导审批后向全校公示。",
+                ]
+            )
+        )
+
+        self.assertIn("二、实行个人申请、选拔确定的工作制度;", normalized)
+        self.assertIn(
+            "四、教务处对院系报送的分专业学生名单进行审核汇总,报主管校领导审批后向全校公示。",
+            normalized,
+        )
+        self.assertNotIn("选拔\n确定", normalized)
+        self.assertNotIn("名单\n进行", normalized)
+
+    def test_cleanup_places_table_after_its_following_intro_article(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    30,
+                    "heading",
+                    "中央民族大学本科学分制实施办法",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(30, "paragraph", "第一章 总 则"),
+                _source_row(30, "paragraph", "第一条 总则正文。"),
+                _source_row(30, "paragraph", "第二章 学制与学分"),
+                _source_row(
+                    30,
+                    "table",
+                    "<table><tr><td>专业类别</td><td>四年制</td></tr>"
+                    "<tr><td>文史哲经管法教类</td><td>147学分</td></tr></table>",
+                    html=(
+                        "<table><tr><td>专业类别</td><td>四年制</td></tr>"
+                        "<tr><td>文史哲经管法教类</td><td>147学分</td></tr></table>"
+                    ),
+                    table_cells=[
+                        ["专业类别", "四年制"],
+                        ["文史哲经管法教类", "147学分"],
+                    ],
+                ),
+                _source_row(
+                    30,
+                    "paragraph",
+                    "第二条 标准学制为4年的,学习年限为3-5年。",
+                ),
+                _source_row(30, "paragraph", "第三条 各专业学分要求如下:"),
+                _source_row(30, "paragraph", "第四条 提前毕业规定。"),
+            ],
+            manifest_document=_manifest_document(
+                30,
+                30,
+                title="中央民族大学本科学分制实施办法",
+                handbook_section="中央民族大学学生教学管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        markdown = result.canonical_markdown
+        self.assertLess(markdown.index("### 第二条"), markdown.index("### 第三条"))
+        self.assertLess(markdown.index("各专业学分要求如下:"), markdown.index("[表格]"))
+        self.assertLess(markdown.index("[表格]"), markdown.index("### 第四条"))
 
     def test_cleanup_merges_broken_policy_doc_no_citation_lines(self) -> None:
         result = cleanup_handbook_document(

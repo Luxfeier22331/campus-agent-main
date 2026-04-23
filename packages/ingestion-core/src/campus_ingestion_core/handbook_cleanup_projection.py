@@ -5,6 +5,9 @@ from campus_ingestion_core.handbook_cleanup_normalize import (
     build_handbook_version_id,
     normalize_handbook_title,
 )
+from campus_ingestion_core.handbook_cleanup_projection_completion import (
+    repair_projected_content_rows,
+)
 from campus_ingestion_core.handbook_cleanup_projection_events import build_document_events
 from campus_ingestion_core.handbook_cleanup_projection_render import (
     build_canonical_body,
@@ -41,6 +44,11 @@ def cleanup_handbook_document(
 
     title = select_title(projected_rows, manifest_document.title, manifest_document.page_start)
     content_rows = filter_content_rows(projected_rows, title=title)
+    content_rows = repair_projected_content_rows(
+        content_rows=content_rows,
+        structured_rows=structured_rows,
+        title=title,
+    )
     events, policy_doc_no, preface_text = build_document_events(content_rows)
 
     metadata: dict[str, object] = {
