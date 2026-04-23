@@ -41,6 +41,15 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     build_internal_notice_regulation_candidate_artifact_manifest,
     build_internal_notice_regulation_promotion_manifest,
 )
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    rebuild_internal_notice_consumption_projection,
+    select_ready_target_document_ids,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key
 from campus_ingestion_core.registry import (
@@ -100,6 +109,7 @@ def materialize_institutional_regulations_from_internal_notice_scope(
     registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
+    consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
 ) -> InstitutionalRegulationMaterializationReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
@@ -110,7 +120,31 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         source_truth_inventory_store
         or build_authenticated_notice_source_truth_inventory_store_from_env(source)
     )
+    if consumption_projection_store is not None:
+        runtime_consumption_projection_store = consumption_projection_store
+    else:
+        try:
+            runtime_consumption_projection_store = build_notice_consumption_projection_store_from_env(
+                source
+            )
+        except ValueError:
+            runtime_consumption_projection_store = InMemoryNoticeConsumptionProjectionStore()
     object_store_settings = ObjectStoreSettings.from_env(source)
+    projection_entries = rebuild_internal_notice_consumption_projection(
+        request=runtime_request,
+        env=source,
+        registry=runtime_registry,
+        source_truth_inventory_store=runtime_inventory,
+        object_store=runtime_object_store,
+        projection_store=runtime_consumption_projection_store,
+    )
+    ready_document_ids = frozenset(
+        select_ready_target_document_ids(
+            projection_entries,
+            target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            primary_roles=(NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,),
+        )
+    )
 
     promotion_report = build_internal_notice_regulation_promotion_manifest(
         request=runtime_request,
@@ -132,6 +166,7 @@ def materialize_institutional_regulations_from_internal_notice_scope(
         candidate_document
         for candidate_document in candidate_documents
         if candidate_document.target_collection == _TARGET_SCOPE[1]
+        and candidate_document.source_document_id in ready_document_ids
     )
 
     if not candidate_documents:

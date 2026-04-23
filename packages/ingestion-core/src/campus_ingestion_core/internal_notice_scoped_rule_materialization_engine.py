@@ -35,8 +35,20 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticePromotionObjectStore,
     InternalNoticeRegulationPromotionDocumentReport,
     InternalNoticeRegulationPromotionRequest,
-    _extract_candidate_promotion_body,
     build_internal_notice_regulation_promotion_manifest,
+)
+from campus_ingestion_core.internal_notice_regulation_promotion_artifacts import (
+    _extract_candidate_promotion_body,
+)
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+    NOTICE_TARGET_SURFACE_SCOPED_RULES,
+    InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    rebuild_internal_notice_consumption_projection,
+    select_ready_target_document_ids,
 )
 from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared import (
     _SOURCE_URL_PREFIX,
@@ -92,6 +104,7 @@ def materialize_scoped_rules_from_internal_notice_scope(
     registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
+    consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
 ) -> InternalNoticeScopedRuleMaterializationReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
@@ -102,7 +115,34 @@ def materialize_scoped_rules_from_internal_notice_scope(
         source_truth_inventory_store
         or build_authenticated_notice_source_truth_inventory_store_from_env(source)
     )
+    if consumption_projection_store is not None:
+        runtime_consumption_projection_store = consumption_projection_store
+    else:
+        try:
+            runtime_consumption_projection_store = build_notice_consumption_projection_store_from_env(
+                source
+            )
+        except ValueError:
+            runtime_consumption_projection_store = InMemoryNoticeConsumptionProjectionStore()
     object_store_settings = ObjectStoreSettings.from_env(source)
+    projection_entries = rebuild_internal_notice_consumption_projection(
+        request=runtime_request,
+        env=source,
+        registry=runtime_registry,
+        source_truth_inventory_store=runtime_inventory,
+        object_store=runtime_object_store,
+        projection_store=runtime_consumption_projection_store,
+    )
+    ready_document_ids = frozenset(
+        select_ready_target_document_ids(
+            projection_entries,
+            target_surface=NOTICE_TARGET_SURFACE_SCOPED_RULES,
+            primary_roles=(
+                NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+                NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+            ),
+        )
+    )
 
     promotion_report = build_internal_notice_regulation_promotion_manifest(
         request=runtime_request,
@@ -128,6 +168,8 @@ def materialize_scoped_rules_from_internal_notice_scope(
     for report in promotion_report.documents:
         document_nature = _detect_scoped_rule_nature(report)
         if document_nature is None:
+            continue
+        if report.document_id not in ready_document_ids:
             continue
         source_record = source_record_by_lineage.get((report.document_id, report.revision_track))
         if source_record is None:
