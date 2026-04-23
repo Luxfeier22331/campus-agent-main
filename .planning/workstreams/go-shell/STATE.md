@@ -2,7 +2,7 @@
 doc_type: state
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # State: go-shell
@@ -10,8 +10,9 @@ updated: 2026-04-23
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2/3/5 implementation`
-- current slice: Python orchestration bridge, auth/admission parity and Docker harness
+- current phase: `Phase 4/5 implementation`
+- current slice: `Phase 1-3` 已落地；当前补 current cancellation semantics、metrics/readiness
+  truth 与 cutover/runback 证据
 - owner: unassigned
 - active implementation: yes, `apps/go-shell`
 
@@ -48,9 +49,10 @@ updated: 2026-04-23
 
 ## Blockers
 
-- 尚未完成当前 Python `supervisor-api` 行为基线测试清单。
-- `chat-capacity-and-cancellation-hardening` 会影响 cancellation、coalescing、
-  backpressure 与 request lifecycle contract。
+- 尚未完成 `Phase 6` parity/capacity acceptance bundle。
+- `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响
+  product-layer stop/cancel UX、request lifecycle 与可能的 cancel endpoint，
+  但不阻塞当前 shell-side disconnect cancel。
 
 ## Verification
 
@@ -65,10 +67,15 @@ updated: 2026-04-23
   on 2026-04-23.
 - `docker build -f apps/go-shell/Dockerfile -t campus-go-shell:local .` passed on
   2026-04-23.
+- `docker build -f apps/supervisor-api/Dockerfile`
+  `-t campus-supervisor-orchestrator:local .` passed on 2026-04-23.
 - Container smoke passed on 2026-04-23:
-  - `/healthz` returns `200` with `status=ok`.
-  - `/readyz` returns `503` with `status=degraded` while bridge is absent.
-  - `/api/v1/answer` returns `503 bridge_not_configured` while bridge is absent.
+  - `GET /healthz` on Go shell returns `200`.
+  - `GET /readyz` on Go shell returns aggregated `503 degraded`
+    when Python worker prompt runtime is not admitted.
+  - `POST /api/v1/answer` through the two-container harness returns `200`
+    with current Python orchestration semantics
+    (`needs_clarification` in the recorded smoke).
 
 ## Continuity Notes
 
@@ -100,3 +107,17 @@ updated: 2026-04-23
   harness at `infra/local/docker-compose.supervisor-runtime.yml`.
 - Added Go unit coverage for execution projection, bridge client and bridge
   response handling.
+- Confirmed live two-container smoke with Go shell fronting Python orchestration.
+
+## Remaining Implementation
+
+- `Phase 4`
+  - make current disconnect/timeout cancellation semantics explicit in code/tests/docs
+  - document that no separate cancel endpoint or Python mid-flight
+    cooperative cancellation exists yet
+- `Phase 5`
+  - expose shell-owned metrics/tracing shape beyond current readiness JSON
+  - make bridge timeout / unavailable / worker degraded fingerprints explicit
+- `Phase 6`
+  - rerun parity matrix against Python baseline
+  - add cutover/runback runbook and capacity smoke evidence

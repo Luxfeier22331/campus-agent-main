@@ -2,15 +2,22 @@
 doc_type: plan
 status: completed
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Notice Consumption Layer
 
 ## Completion Note
 
-这条 `notice consumption layer` workstream 已关闭。
-它本轮完成的不是新的 projection / runtime 实现，而是 notice semantic modeling 的 planning closeout：
+这份文档现在只保留 2026-04-22 的 semantic-modeling closeout snapshot。
+它记录的是当时已经完成的 planning closeout，而不是当前 repo 的 active execution status。
+
+当前真实执行入口已回到：
+
+- `.planning/workstreams/notice-consumption-layer/README.md`
+- `.planning/workstreams/notice-consumption-layer/STATE.md`
+
+当时完成的不是新的 projection / runtime 实现，而是 notice semantic modeling 的 planning closeout：
 冻结 `source_notice / notice_attachment / derived consumption unit` 的关系、source family boundary、
 authority / completeness contract、agent/surface handoff truth，以及 `Phase 5`
 的 exemplar worked example / adoption routing / no-adoption case。
@@ -31,7 +38,7 @@ authority / completeness contract、agent/surface handoff truth，以及 `Phase 
   - `internal_notice_restricted + roster_publication`
   - `internal_notice_restricted + lecture_activity`
 
-## Current Canonical Entry
+## Historical Canonical Entry
 
 - `.planning/workstreams/notice-consumption-layer/STATE.md`
 - `.planning/workstreams/notice-consumption-layer/ROADMAP.md`

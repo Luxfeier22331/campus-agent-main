@@ -9,14 +9,16 @@ updated: 2026-04-23
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 9
-**Current Phase Name:** Residual Mid-size Package, Script, And Test Decomposition
+**Current Phase:** 10
+**Current Phase Name:** Reopened Regression Inventory Follow-up
 **Current Plan:** `<none>`
-**Total Phases:** 9
+**Total Phases:** 10
 **Total Plans in Phase:** 0
-**Progress:** 9/9 phases complete
+**Progress:** 9/10 phases complete
 **Last Activity:** 2026-04-23
-**Last Activity Description:** Remaining mandatory `800+` residuals `packages/ingestion-core/src/campus_ingestion_core/raw_ingestion.py` and `tests/ingestion/test_curriculum_course_map_multimodal_probe.py` are now decomposed into thin façade + focused helper/suite modules. Targeted regressions passed, fresh inventory re-scan returned no remaining `800+` handwritten code/test files, and the decomposition baseline is now empty.
+**Last Activity Description:** Reopened inventory reappeared after recent notice
+projection / MinerU / public-docs edits; three `800+` handwritten files are now
+explicitly admitted in the baseline until the next isolated split tranche.
 
 ## Current Slice
 
@@ -116,11 +118,15 @@ updated: 2026-04-23
   - every later phase must split by cohesive owner boundary, not by arbitrary line count
   - every phase must keep behavior stable and run targeted regressions before claiming completion
 
+- reopened regression inventory:
+  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulation_materialization.py`
+  - `tests/ingestion/test_curriculum_provider_normalize.py`
+  - `tests/test_public_docs_sync.py`
+
 ## Blockers
 
-- no hard technical blocker in the current tranche; repo-owned decomposition gate is now the canonical detector for any future `800+` regressions
-- the mandatory `800+` inventory is currently empty; next action is operator choice between archiving/completing this workstream or keeping the gate active for future regressions
-- this workstream must stay independent from ongoing domain workstreams; do not smuggle business behavior changes into decomposition phases
+- no hard external blocker; current blocker is work not yet split
+- these three files must be decomposed in a dedicated follow-up tranche instead of remaining as silent drift
 
 ## Verification
 
@@ -147,5 +153,7 @@ updated: 2026-04-23
 
 ## Session Continuity
 
-**Stopped At:** Mandatory `800+` handwritten decomposition inventory is empty; `raw_ingestion.py` and `test_curriculum_course_map_multimodal_probe.py` were the last residual tranche and both are now below threshold.
-**Resume File:** `<none>`
+**Stopped At:** reopened decomposition inventory has been re-admitted in the
+baseline; next step is a dedicated split tranche for the three remaining
+oversized files.
+**Resume File:** .planning/workstreams/repo-wide-codebase-decomposition/STATE.md

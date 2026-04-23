@@ -1,21 +1,21 @@
 ---
 workstream: notice-consumption-layer
 created: 2026-04-21
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Project State
 
 ## Current Position
-**Status:** Completed
-**Current Phase:** Complete
-**Current Phase Name:** Closed Out After Phase 5
-**Current Plan:** `<none>`
-**Total Phases:** 5
-**Total Plans in Phase:** 0
-**Progress:** 5/5 phases complete
-**Last Activity:** 2026-04-22
-**Last Activity Description:** Completed `Phase 5` by freezing the exemplar current-state / future-state route, writing role/source-family adoption routing back to existing repo workstreams, and closing this workstream as completed planning truth.
+**Status:** Active
+**Current Phase:** Phase 6
+**Current Phase Name:** Projection And Consumer Foundation
+**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`
+**Total Phases:** 8
+**Total Plans in Phase:** 1
+**Progress:** 5/8 phases complete
+**Last Activity:** 2026-04-24
+**Last Activity Description:** Reopened the workstream after confirming that `notice-consumption-layer` had only closed semantic modeling, while repo code still lacked a persistent consumption projection between `source_notice` and downstream consumers.
 
 ## Current Slice
 
@@ -40,40 +40,48 @@ updated: 2026-04-22
   - research: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/RESEARCH.md`
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/PLAN.md`
   - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/SUMMARY.md`
+- current `Phase 6` artifact:
+  - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`
 
-- closed truth:
+- preserved modeling truth:
   - `source_notice -> notice_attachment -> derived consumption unit` fan-out boundary 已冻结
   - public/restricted notice source family、authority / completeness / answerability 与 agent/surface handoff 已冻结
   - exemplar `关于启动2026届推荐优秀应届本科毕业生免试攻读研究生工作的通知` 已写实 current-state / future-state 双路由
-- adoption route 已收口为：
+- adoption route 继续有效：
   - `attachment_rule_body` -> `authenticated-notice-regulation-consumption` -> `regulations/institutional_rules`
   - `annual_cycle_rule` / `time_bound_operational_rule` -> `authenticated-notice-regulation-consumption` -> `regulations/scoped_rules`
   - public-source `lecture_activity` / publication-like unit -> backlog `official-web-source-channel-news-opening`
   - `service_status_override` 与 `attachment_form_template` 只冻结 future adoption direction，不编造 native implementation workstream
-- no-adoption truth：
+- no-adoption truth 继续有效：
   - `internal_notice_restricted + roster_publication`
   - `internal_notice_restricted + lecture_activity`
   - 两者继续只保留 source-triage / provenance truth
-- 这条线完成后的默认下一步：
-  - 不再继续扩写 notice consumption modeling
-  - 真正 implementation 必须回到对应 adoption target workstream
+- 当前 reopen 原因：
+  - repo 代码仍缺失 repo-owned notice consumption projection store
+  - `internal_notice` downstream consumer 仍直接从 source holding collection 扫描/判定，而不是读取 persisted derived-unit metadata truth
+  - 因此 “这条线已完成” 只对 modeling 成立，不对 implementation 成立
+- 当前 slice：
+  - 落地 `notice consumption projection` store 与 shared model
+  - 先在 `internal_notice_restricted` source family 上补 canonical rebuild path
+  - 让 `regulations/institutional_rules` / `regulations/scoped_rules` materialization 通过 projection 过滤 ready candidates
 
 ## Blockers
 
-- 无 active blocker。workstream 已完成 closeout。
-- 如需未来重开，前置条件固定为：
-  - source family set 被显式改写
-  - derived-unit schema 被显式改写
-  - authority / completeness contract 被显式改写
-  - 新的产品 adoption target family 被显式 admission
+- 无外部 blocker。
+- 当前约束：
+  - 不在本轮重开 query-serving 或 runtime opening
+  - 不把 procurement / lecture / roster 这类 future/non-adopted family 混进 regulation target hardening
+  - `authenticated-notice-regulation-consumption` 仍只负责 target-side hardening，不承接 generic middle-layer truth
 
 ## Verification
 
-- planning closeout only；本次未实现新的 runtime code、query service 或 ingestion worker
-- `git diff --check -- .planning/WORKSTREAMS.md docs/plans/README.md docs/plans/archive/completed/README.md docs/plans/archive/completed/notice-consumption-layer.md .planning/workstreams/notice-consumption-layer/REQUIREMENTS.md .planning/workstreams/notice-consumption-layer/ROADMAP.md .planning/workstreams/notice-consumption-layer/STATE.md .planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/SUMMARY.md`
-- `rg -n "docs/plans/archive/completed/notice-consumption-layer.md|notice consumption layer" .planning/workstreams/notice-consumption-layer docs/plans .planning/WORKSTREAMS.md`
+- implementation reopen in progress；本轮需要补：
+  - projection store / builder 单元测试
+  - `internal_notice` institutional/scoped materialization targeted tests
+- planning verification:
+  - `git diff --check -- .planning/PROJECT.md .planning/WORKSTREAMS.md .planning/workstreams/notice-consumption-layer/README.md .planning/workstreams/notice-consumption-layer/REQUIREMENTS.md .planning/workstreams/notice-consumption-layer/ROADMAP.md .planning/workstreams/notice-consumption-layer/STATE.md .planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md docs/plans/archive/completed/notice-consumption-layer.md`
 
 ## Session Continuity
 
-**Stopped At:** workstream 已在 `Phase 5` closeout 后关闭；如需继续推进，应进入对应 adoption target，而不是在本线新增 phase
-**Resume File:** `<none>`
+**Stopped At:** `Phase 6` projection/store foundation 与 consumer rewiring 正在推进
+**Resume File:** `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`

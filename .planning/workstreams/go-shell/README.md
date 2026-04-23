@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Workstream: go-shell
@@ -25,10 +25,34 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2/3/5 implementation`
-- current slice: Python orchestration bridge、auth/admission parity 与 Docker harness
-  已落地；后续转向 cancellation、metrics 与 cutover/runback
+- current phase: `Phase 4/5 implementation`
+- current slice: `Phase 1-3` 已落地；当前收口 client disconnect cancellation semantics、
+  metrics/readiness truth 与 cutover/runback 文档
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
+
+## Completed So Far
+
+- `Phase 1`
+  - Go `net/http` shell、Docker image、repo-owned compose harness、`pnpm go:check`
+- `Phase 2`
+  - `SupervisorRequest -> SupervisorResponse` private HTTP bridge
+  - Python bridge worker routes 与 Docker worker image
+  - repo-local two-container smoke
+- `Phase 3`
+  - `bearer` / `trusted-worker` auth parity
+  - request body limit、strict JSON object validation、global admission semaphore
+  - Go `/readyz` 聚合 Python worker readiness
+
+## Remaining Work
+
+- `Phase 4`
+  - 明确并测试 client disconnect / timeout 的当前取消语义
+  - 记录 Python orchestration 仍不支持 mid-flight cooperative cancel 的边界
+- `Phase 5`
+  - 收口 shell-owned metrics / tracing / audit runtime truth
+  - 区分 transport saturation、bridge failure、bridge timeout、worker degraded
+- `Phase 6`
+  - parity rerun、capacity smoke、cutover/runback runbook、deploy acceptance
 
 ## Native Planning Truth
 
