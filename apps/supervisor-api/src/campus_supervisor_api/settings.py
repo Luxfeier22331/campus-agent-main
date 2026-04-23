@@ -5,7 +5,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from campus_shared import APP_NAME
-from campus_shared.prompt_runtime import DEFAULT_PROMPT_RUNTIME_BASE_URL
+from campus_shared.prompt_runtime import (
+    DEFAULT_PROMPT_RUNTIME_BASE_URL,
+    DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS,
+    DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS,
+    DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
+    DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
+)
 
 
 def _read_bool(name: str, *, default: bool) -> bool:
@@ -25,12 +34,33 @@ def _read_optional_int(name: str) -> int | None:
     return int(normalized)
 
 
+def _read_int(name: str, *, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip()
+    if not normalized:
+        return default
+    return int(normalized)
+
+
+def _read_float(name: str, *, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip()
+    if not normalized:
+        return default
+    return float(normalized)
+
+
 @dataclass(frozen=True, slots=True)
 class ApiSettings:
     app_name: str = APP_NAME
     auth_mode: str = "bearer"
     bearer_token: str = ""
     worker_shared_secret: str = ""
+    bridge_shared_secret: str = ""
     default_actor_id: str = ""
     runtime_provider: str = ""
     default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
@@ -44,7 +74,21 @@ class ApiSettings:
     prompt_runtime_base_url: str = DEFAULT_PROMPT_RUNTIME_BASE_URL
     prompt_runtime_reasoning_effort: str | None = None
     prompt_runtime_max_output_tokens: int | None = None
+    prompt_runtime_connect_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS
+    prompt_runtime_read_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS
+    prompt_runtime_write_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS
+    prompt_runtime_pool_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS
+    prompt_runtime_max_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS
+    prompt_runtime_max_keepalive_connections: int = (
+        DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
+    )
+    prompt_runtime_keepalive_expiry_seconds: float = (
+        DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
+    )
     prompt_strict_structured_outputs: bool = True
+    audit_queue_capacity: int = 1024
+    transport_max_concurrent_answers: int = 8
+    transport_worker_threads: int = 8
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -54,6 +98,7 @@ class ApiSettings:
             auth_mode=os.getenv("API_AUTH_MODE", "bearer"),
             bearer_token=os.getenv("API_BEARER_TOKEN", ""),
             worker_shared_secret=os.getenv("API_WORKER_SHARED_SECRET", ""),
+            bridge_shared_secret=os.getenv("SUPERVISOR_PY_BRIDGE_SHARED_SECRET", "").strip(),
             default_actor_id=os.getenv("API_DEFAULT_ACTOR_ID", "").strip(),
             runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
             default_actor_roles=tuple(
@@ -89,8 +134,45 @@ class ApiSettings:
             or DEFAULT_PROMPT_RUNTIME_BASE_URL,
             prompt_runtime_reasoning_effort=(os.getenv("PROMPT_RUNTIME_REASONING_EFFORT") or None),
             prompt_runtime_max_output_tokens=_read_optional_int("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS"),
+            prompt_runtime_connect_timeout_seconds=_read_float(
+                "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
+                default=DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
+            ),
+            prompt_runtime_read_timeout_seconds=_read_float(
+                "PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
+                default=DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
+            ),
+            prompt_runtime_write_timeout_seconds=_read_float(
+                "PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
+                default=DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
+            ),
+            prompt_runtime_pool_timeout_seconds=_read_float(
+                "PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
+                default=DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
+            ),
+            prompt_runtime_max_connections=_read_int(
+                "PROMPT_RUNTIME_MAX_CONNECTIONS",
+                default=DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS,
+            ),
+            prompt_runtime_max_keepalive_connections=_read_int(
+                "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+                default=DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS,
+            ),
+            prompt_runtime_keepalive_expiry_seconds=_read_float(
+                "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
+                default=DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS,
+            ),
             prompt_strict_structured_outputs=_read_bool(
                 "PROMPT_STRICT_STRUCTURED_OUTPUTS",
                 default=True,
+            ),
+            audit_queue_capacity=_read_int("AUDIT_QUEUE_CAPACITY", default=1024),
+            transport_max_concurrent_answers=_read_int(
+                "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
+                default=8,
+            ),
+            transport_worker_threads=_read_int(
+                "SUPERVISOR_API_TRANSPORT_WORKER_THREADS",
+                default=8,
             ),
         )

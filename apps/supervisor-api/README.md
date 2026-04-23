@@ -80,6 +80,22 @@ service。
 - `prompt_runtime.specialist_model`
 - `prompt_runtime.admitted`
 - `prompt_runtime.admission_reason`
+- `prompt_http_pool.healthy`
+- `prompt_http_pool.max_connections`
+- `prompt_http_pool.max_keepalive_connections`
+- `audit_runtime.healthy`
+- `audit_runtime.queue_depth`
+- `audit_runtime.dropped_count`
+- `transport_runtime.healthy`
+- `transport_runtime.active_answers`
+- `transport_runtime.max_concurrent_answers`
+
+`readyz` 在以下任一情况下返回 `503`：
+
+- prompt runtime 未满足 admission 条件
+- prompt HTTP pool 未建立
+- audit writer 发生写入错误或发生 drop
+- transport admission 当前已达到并发上限
 
 这条 seam 的约束是：
 
@@ -109,16 +125,59 @@ forward canonical direction 已冻结为：
 
 当前仓库也提供 repo-local 的 dev HTTP 入口，便于本地 live flow 不再依赖临时 `python -c` runner。
 
-它通过 stdlib `ThreadingHTTPServer` 包装现有 `create_app().handle(...)` app，并仅暴露：
+它通过 ASGI + `uvicorn` 包装现有 `create_app().handle(...)` app，并仅暴露：
 
 - `POST /api/v1/answer`
 - `GET /healthz`
 - `GET /readyz`
 
+ASGI shell 只负责 transport：
+
+- `/api/v1/answer` 进入 app-owned admission gate
+- 阻塞的 supervisor execution 在线程池内执行，不阻塞 event loop
+- admission 饱和时返回 typed `503 transport_saturated`
+- repo 内仍保留 `dispatch_http_request(...)`，用于测试与 in-process compatibility seam
+
 启动命令：
 
 ```bash
 uv run --all-packages campus-supervisor-api-dev
+```
+
+## Private Bridge Worker Entry
+
+当前 Go shell 不再把外部 `/api/v1/answer` body 原样代理进 Python。
+
+Python 侧新增 private bridge worker 入口，只接收已经投影完成的
+`SupervisorRequest` JSON：
+
+- `POST /internal/bridge/supervisor/answer`
+- `GET /internal/bridge/healthz`
+- `GET /internal/bridge/readyz`
+
+这个入口要求：
+
+- `x-supervisor-bridge-auth`
+- `SUPERVISOR_PY_BRIDGE_SHARED_SECRET`
+
+repo-local 启动命令：
+
+```bash
+uv run --all-packages campus-supervisor-orchestrator-dev
+```
+
+默认监听：
+
+```bash
+SUPERVISOR_PY_BRIDGE_HOST=127.0.0.1
+SUPERVISOR_PY_BRIDGE_PORT=18081
+```
+
+Docker worker image：
+
+```bash
+docker build -f apps/supervisor-api/Dockerfile \
+  -t campus-supervisor-orchestrator:local .
 ```
 
 ## Compatibility Local Dev Env
@@ -160,6 +219,16 @@ export PROMPT_RUNTIME_API_KEY=...
 export PROMPT_RUNTIME_BASE_URL=https://api.openai.com/v1
 export PROMPT_RUNTIME_REASONING_EFFORT=low
 export PROMPT_RUNTIME_MAX_OUTPUT_TOKENS=512
+export PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS=10
+export PROMPT_RUNTIME_READ_TIMEOUT_SECONDS=30
+export PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS=10
+export PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS=3
+export PROMPT_RUNTIME_MAX_CONNECTIONS=32
+export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
+export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
+export AUDIT_QUEUE_CAPACITY=1024
+export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
+export SUPERVISOR_API_TRANSPORT_WORKER_THREADS=8
 ```
 
 `PROMPT_RUNTIME_MODEL` 是 shared default。 如果未显式提供 `SUPERVISOR_PROMPT_MODEL` /
@@ -174,6 +243,9 @@ export PROMPT_RUNTIME_MAX_OUTPUT_TOKENS=512
 只有当 provider、api key、supervisor/specialist model 与
 `PROMPT_STRICT_STRUCTURED_OUTPUTS=true` 同时满足时，`prompt_runtime.admitted` 才会为
 `true`。
+
+audit 写入在 request path 上只做 enqueue；后台 writer 负责 JSONL append。audit 写入失败不会把成功回答改写成
+`500`，但会通过 `readyz.audit_runtime.healthy=false` 暴露。
 
 ## Curl Smoke
 

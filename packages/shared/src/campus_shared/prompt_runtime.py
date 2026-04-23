@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict, dataclass, is_dataclass
+from threading import Lock
 from typing import Literal, Protocol, TypeVar
 
 import httpx
@@ -27,6 +28,9 @@ DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS = 30.0
 DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS = 10.0
 DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS = 3.0
+DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS = 32
+DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS = 16
+DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS = 30.0
 
 
 PromptRuntimeTransport = Literal["responses"]
@@ -116,6 +120,9 @@ class PromptRuntimeHTTPSettings:
     read_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS
     write_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS
     pool_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS
+    max_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS
+    max_keepalive_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
+    keepalive_expiry_seconds: float = DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
 
     def __post_init__(self) -> None:
         if self.connect_timeout_seconds <= 0:
@@ -126,6 +133,14 @@ class PromptRuntimeHTTPSettings:
             raise ValueError("write_timeout_seconds must be greater than zero")
         if self.pool_timeout_seconds <= 0:
             raise ValueError("pool_timeout_seconds must be greater than zero")
+        if self.max_connections <= 0:
+            raise ValueError("max_connections must be greater than zero")
+        if self.max_keepalive_connections < 0:
+            raise ValueError("max_keepalive_connections must not be negative")
+        if self.max_keepalive_connections > self.max_connections:
+            raise ValueError("max_keepalive_connections must not exceed max_connections")
+        if self.keepalive_expiry_seconds <= 0:
+            raise ValueError("keepalive_expiry_seconds must be greater than zero")
 
     def to_httpx_timeout(self) -> httpx.Timeout:
         return httpx.Timeout(
@@ -133,6 +148,13 @@ class PromptRuntimeHTTPSettings:
             read=self.read_timeout_seconds,
             write=self.write_timeout_seconds,
             pool=self.pool_timeout_seconds,
+        )
+
+    def to_httpx_limits(self) -> httpx.Limits:
+        return httpx.Limits(
+            max_connections=self.max_connections,
+            max_keepalive_connections=self.max_keepalive_connections,
+            keepalive_expiry=self.keepalive_expiry_seconds,
         )
 
 
@@ -160,6 +182,17 @@ class PromptRuntimeProviderConfig:
             raise ValueError("max_output_tokens must be greater than zero")
 
 
+def build_prompt_runtime_http_client(
+    provider_config: PromptRuntimeProviderConfig,
+) -> httpx.Client:
+    return httpx.Client(
+        base_url=provider_config.base_url.rstrip("/"),
+        timeout=provider_config.http_settings.to_httpx_timeout(),
+        limits=provider_config.http_settings.to_httpx_limits(),
+        trust_env=False,
+    )
+
+
 class ResponsesStructuredOutputExecutor:
     def __init__(
         self,
@@ -169,6 +202,8 @@ class ResponsesStructuredOutputExecutor:
     ) -> None:
         self._provider_config = provider_config
         self._http_client = http_client
+        self._owns_http_client = http_client is None
+        self._http_client_lock = Lock()
 
     def execute(
         self,
@@ -259,10 +294,15 @@ class ResponsesStructuredOutputExecutor:
     def _get_http_client(self) -> httpx.Client:
         if self._http_client is not None:
             return self._http_client
-        return httpx.Client(
-            base_url=self._provider_config.base_url.rstrip("/"),
-            trust_env=False,
-        )
+        with self._http_client_lock:
+            if self._http_client is None:
+                self._http_client = build_prompt_runtime_http_client(self._provider_config)
+            return self._http_client
+
+    def close(self) -> None:
+        if not self._owns_http_client or self._http_client is None:
+            return
+        self._http_client.close()
 
 
 def validate_prompt_packet_contract(

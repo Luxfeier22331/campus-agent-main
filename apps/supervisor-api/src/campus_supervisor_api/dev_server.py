@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
+from campus_contracts import ErrorInfo
 from campus_shared import load_repo_env
 from campus_supervisor_core import handle_request
 
-from campus_supervisor_api.api import HttpResponse
+from campus_supervisor_api.api import HttpResponse, error_response
 from campus_supervisor_api.app import SupervisorApiApp, create_app
 from campus_supervisor_api.settings import ApiSettings
 
@@ -33,6 +36,139 @@ class SupervisorApiHttpServer(ThreadingHTTPServer):
     def __init__(self, server_address: tuple[str, int], app: SupervisorApiApp) -> None:
         super().__init__(server_address, _RequestHandler)
         self.app = app
+
+
+class SupervisorApiAsgiApp:
+    def __init__(
+        self,
+        app: SupervisorApiApp,
+        *,
+        max_workers: int | None = None,
+        admission_paths: tuple[str, ...] | None = None,
+    ) -> None:
+        self.app = app
+        self._admission_paths = frozenset(admission_paths or ("/api/v1/answer",))
+        self._executor = ThreadPoolExecutor(
+            max_workers=max_workers or 1,
+            thread_name_prefix="campus-supervisor-api",
+        )
+
+    async def __call__(self, scope, receive, send) -> None:
+        scope_type = scope.get("type")
+        if scope_type == "lifespan":
+            await self._handle_lifespan(receive, send)
+            return
+        if scope_type != "http":
+            await self._send_response(
+                send,
+                error_response(404, ErrorInfo(code="not_found", message="Route not found.")),
+            )
+            return
+
+        method = str(scope.get("method", "GET"))
+        path = str(scope.get("path", "/"))
+        query_string = scope.get("query_string") or b""
+        full_path = path
+        if query_string:
+            full_path = f"{path}?{bytes(query_string).decode('latin-1')}"
+        headers = _decode_asgi_headers(scope.get("headers") or ())
+        raw_body = await self._read_body(receive)
+
+        if method.upper() == "POST" and path in self._admission_paths:
+            if not self.app.transport_runtime.try_acquire_answer():
+                await self._send_response(
+                    send,
+                    error_response(
+                        503,
+                        ErrorInfo(
+                            code="transport_saturated",
+                            message="Supervisor execution admission is saturated.",
+                            retryable=True,
+                        ),
+                    ),
+                )
+                return
+            try:
+                response = await self._dispatch_in_executor(
+                    method=method,
+                    path=full_path,
+                    headers=headers,
+                    raw_body=raw_body,
+                )
+            finally:
+                self.app.transport_runtime.release_answer()
+        else:
+            response = await self._dispatch_in_executor(
+                method=method,
+                path=full_path,
+                headers=headers,
+                raw_body=raw_body,
+            )
+        await self._send_response(send, response)
+
+    async def _dispatch_in_executor(
+        self,
+        *,
+        method: str,
+        path: str,
+        headers: Mapping[str, str],
+        raw_body: bytes | None,
+    ) -> HttpResponse:
+        return await asyncio.get_running_loop().run_in_executor(
+            self._executor,
+            lambda: dispatch_http_request(
+                self.app,
+                method=method,
+                path=path,
+                headers=headers,
+                raw_body=raw_body,
+            ),
+        )
+
+    async def _handle_lifespan(self, receive, send) -> None:
+        while True:
+            message = await receive()
+            message_type = message.get("type")
+            if message_type == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif message_type == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+
+    async def _read_body(self, receive) -> bytes | None:
+        chunks: list[bytes] = []
+        while True:
+            message = await receive()
+            if message.get("type") == "http.disconnect":
+                break
+            body = message.get("body", b"")
+            if body:
+                chunks.append(bytes(body))
+            if not message.get("more_body", False):
+                break
+        return b"".join(chunks) if chunks else None
+
+    async def _send_response(self, send, response: HttpResponse) -> None:
+        payload = json.dumps(response.json_body).encode("utf-8")
+        headers = [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(payload)).encode("ascii")),
+        ]
+        headers.extend(
+            (key.lower().encode("latin-1"), value.encode("latin-1"))
+            for key, value in response.headers.items()
+        )
+        await send(
+            {
+                "type": "http.response.start",
+                "status": int(response.status_code),
+                "headers": headers,
+            }
+        )
+        await send({"type": "http.response.body", "body": payload})
+
+    def close(self) -> None:
+        self._executor.shutdown(wait=True, cancel_futures=True)
 
 
 class _RequestHandler(BaseHTTPRequestHandler):
@@ -146,22 +282,41 @@ def serve(
     settings: ApiSettings | None = None,
     supervisor_handler=handle_request,
 ) -> None:
-    server = create_http_server(
-        host=host,
-        port=port,
-        settings=settings,
-        supervisor_handler=supervisor_handler,
+    import uvicorn
+
+    runtime_settings = settings or ApiSettings.from_env()
+    server_settings = DevServerSettings.from_env()
+    resolved_host = host or server_settings.host
+    resolved_port = port or server_settings.port
+    app = create_app(settings=runtime_settings, supervisor_handler=supervisor_handler)
+    asgi_app = SupervisorApiAsgiApp(
+        app,
+        max_workers=runtime_settings.transport_worker_threads,
     )
     print(
         f"campus-supervisor-api dev server listening on "
-        f"http://{server.server_address[0]}:{server.server_address[1]}"
+        f"http://{resolved_host}:{resolved_port}"
     )
     try:
-        server.serve_forever()
+        uvicorn.run(
+            asgi_app,
+            host=resolved_host,
+            port=resolved_port,
+            log_level="info",
+            lifespan="on",
+        )
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
+        asgi_app.close()
+        app.close()
+
+
+def _decode_asgi_headers(raw_headers: object) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for key, value in raw_headers:
+        headers[bytes(key).decode("latin-1").lower()] = bytes(value).decode("latin-1")
+    return headers
 
 
 def main() -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unittest
 from functools import partial
 from pathlib import Path
@@ -20,6 +21,26 @@ from campus_supervisor_core import (
     DisallowedKnowledgeScopeError,
     handle_request,
 )
+
+
+def _wait_for_audit_lines(
+    audit_path: Path,
+    *,
+    expected_count: int,
+    app: object | None = None,
+    timeout_seconds: float = 1.0,
+) -> list[str]:
+    flush_audit = getattr(app, "flush_audit", None)
+    if callable(flush_audit):
+        flush_audit(timeout_seconds=timeout_seconds)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() <= deadline:
+        if audit_path.exists():
+            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            if len(lines) >= expected_count:
+                return lines
+        time.sleep(0.01)
+    return audit_path.read_text(encoding="utf-8").splitlines() if audit_path.exists() else []
 
 
 class SupervisorApiAuditTest(unittest.TestCase):
@@ -67,7 +88,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            lines = _wait_for_audit_lines(audit_path, expected_count=1, app=app)
             self.assertEqual(len(lines), 1)
             payload = json.loads(lines[0])
             self.assertEqual(payload["request_id"], "req-audit-001")
@@ -209,7 +230,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            lines = _wait_for_audit_lines(audit_path, expected_count=1, app=app)
             self.assertEqual(len(lines), 1)
             payload = json.loads(lines[0])
             self.assertEqual(payload["request_id"], "req-projected-audit-001")
@@ -261,7 +282,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 403)
-            lines = audit_path.read_text(encoding="utf-8").splitlines()
+            lines = _wait_for_audit_lines(audit_path, expected_count=1, app=app)
             self.assertEqual(len(lines), 1)
             payload = json.loads(lines[0])
             self.assertEqual(payload["request_id"], "req-audit-err")
@@ -335,3 +356,54 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 roles=("student",),
             ),
         )
+
+    def test_audit_write_failure_does_not_fail_answer_and_degrades_readyz(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            audit_path = Path(tempdir)
+            app = create_app(
+                settings=ApiSettings(
+                    auth_mode="bearer",
+                    bearer_token="secret-token",
+                    default_actor_id="runtime-bearer-user",
+                    audit_log_path=audit_path,
+                    runtime_provider="openai-responses",
+                    prompt_runtime_provider="openai-responses",
+                    prompt_runtime_api_key="test-key",
+                    supervisor_prompt_model="gpt-supervisor",
+                    specialist_prompt_model="gpt-specialist",
+                ),
+                supervisor_handler=lambda request: SupervisorResponse(
+                    selected_target="rag-agent",
+                    status="completed",
+                    answer_text="The library is open from 08:00 to 22:00.",
+                    confidence="high",
+                ),
+            )
+
+            response = app.handle(
+                "POST",
+                "/api/v1/answer",
+                headers={
+                    "authorization": "Bearer secret-token",
+                    "x-trace-id": "trace-audit-failure",
+                },
+                json_body={
+                    "user_goal": "library hours",
+                    "request_id": "req-audit-failure",
+                    "requested_scope": {
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                    },
+                },
+            )
+            app.flush_audit(timeout_seconds=1.0)
+            ready = app.handle("GET", "/readyz")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(ready.status_code, 503)
+            self.assertFalse(ready.json_body["audit_runtime"]["healthy"])
+            self.assertIn(
+                "failed to write audit log",
+                ready.json_body["audit_runtime"]["last_error"],
+            )
+            app.close()

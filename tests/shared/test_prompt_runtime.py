@@ -8,6 +8,7 @@ import httpx
 from campus_contracts import PromptTrace
 from campus_shared import (
     NormalizedProviderGroundingSupport,
+    build_prompt_runtime_http_client,
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
     PromptRuntimeValidationError,
@@ -20,6 +21,63 @@ from pydantic import BaseModel
 
 
 class PromptRuntimeValidationTest(unittest.TestCase):
+    def test_prompt_runtime_http_settings_builds_connection_limits(self) -> None:
+        settings = PromptRuntimeHTTPSettings(
+            connect_timeout_seconds=1.0,
+            read_timeout_seconds=2.0,
+            write_timeout_seconds=3.0,
+            pool_timeout_seconds=4.0,
+            max_connections=7,
+            max_keepalive_connections=3,
+            keepalive_expiry_seconds=11.0,
+        )
+
+        limits = settings.to_httpx_limits()
+
+        self.assertEqual(limits.max_connections, 7)
+        self.assertEqual(limits.max_keepalive_connections, 3)
+        self.assertEqual(limits.keepalive_expiry, 11.0)
+
+    def test_build_prompt_runtime_http_client_applies_timeout_limits_and_disables_env_proxy(
+        self,
+    ) -> None:
+        config = PromptRuntimeProviderConfig(
+            provider="openai-responses",
+            transport="responses",
+            base_url="https://prompt-runtime.example/v1",
+            api_key="test-api-key",
+            http_settings=PromptRuntimeHTTPSettings(
+                max_connections=5,
+                max_keepalive_connections=2,
+                keepalive_expiry_seconds=9.0,
+            ),
+        )
+
+        client = build_prompt_runtime_http_client(config)
+        try:
+            self.assertEqual(str(client.base_url), "https://prompt-runtime.example/v1/")
+            self.assertEqual(client.timeout.pool, config.http_settings.pool_timeout_seconds)
+            self.assertFalse(client.trust_env)
+        finally:
+            client.close()
+
+    def test_responses_executor_memoizes_owned_http_client(self) -> None:
+        config = PromptRuntimeProviderConfig(
+            provider="openai-responses",
+            transport="responses",
+            base_url="https://prompt-runtime.example/v1",
+            api_key="test-api-key",
+            http_settings=PromptRuntimeHTTPSettings(),
+        )
+        executor = ResponsesStructuredOutputExecutor(config)
+
+        first_client = executor._get_http_client()
+        second_client = executor._get_http_client()
+        try:
+            self.assertIs(first_client, second_client)
+        finally:
+            first_client.close()
+
     def test_validate_prompt_trace_requires_model_metadata(self) -> None:
         spec = get_supervisor_prompt_spec("supervisor_clarify_v1")
         with self.assertRaises(PromptRuntimeValidationError):

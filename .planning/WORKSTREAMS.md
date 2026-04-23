@@ -45,6 +45,7 @@ updated: 2026-04-23
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 5` | 冻结 repo-wide oversized handwritten code inventory，并把 ingestion / retrieval / eval / app surfaces / tests 的所有 admitted split debt 映射到后续 phases；明确排除 vendor / generated / lockfiles |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | `Phase 4` | `chat_completions + gpt-5.4` 已完成 fixed sample-set `1-run + 3-run` live rerun，当前 admission 为 `bounded_candidate_for_follow_up`；产品面仍 fail-close，等待 follow-up routing 明确 |
+| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 2 preparation` | Go shell skeleton 与 Docker harness 已落地；下一步补 Python orchestration bridge、current Python baseline parity 与 internal caller auth parity |
 
 ## Completed
 

@@ -147,8 +147,31 @@ _SURFACE_SPECS = {
                 "surface_name": "supervisor.api",
             },
         },
-        "required_settings": {},
-        "optional_settings": {},
+        "required_settings": {
+            "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "specialist_prompt_model": ("SPECIALIST_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+        },
+        "optional_settings": {
+            "prompt_runtime_transport": ("PROMPT_RUNTIME_TRANSPORT",),
+            "prompt_runtime_base_url": ("PROMPT_RUNTIME_BASE_URL", "LLM_BASE_URL"),
+            "prompt_runtime_connect_timeout_seconds": (
+                "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
+            ),
+            "prompt_runtime_read_timeout_seconds": ("PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",),
+            "prompt_runtime_write_timeout_seconds": ("PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",),
+            "prompt_runtime_pool_timeout_seconds": ("PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",),
+            "prompt_runtime_max_connections": ("PROMPT_RUNTIME_MAX_CONNECTIONS",),
+            "prompt_runtime_max_keepalive_connections": (
+                "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+            ),
+            "prompt_runtime_keepalive_expiry_seconds": (
+                "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
+            ),
+            "audit_log_path": ("AUDIT_LOG_PATH",),
+            "audit_queue_capacity": ("AUDIT_QUEUE_CAPACITY",),
+            "transport_max_concurrent_answers": ("SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",),
+            "transport_worker_threads": ("SUPERVISOR_API_TRANSPORT_WORKER_THREADS",),
+        },
         "files": {},
     },
     "worker-staging": {

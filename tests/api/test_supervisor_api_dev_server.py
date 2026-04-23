@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import json
 import os
+import asyncio
+import threading
 import unittest
 from unittest.mock import patch
 
 from campus_contracts import SupervisorRequest, SupervisorResponse
 from campus_supervisor_api.app import create_app
-from campus_supervisor_api.dev_server import DevServerSettings, dispatch_http_request
+from campus_supervisor_api.dev_server import (
+    DevServerSettings,
+    SupervisorApiAsgiApp,
+    dispatch_http_request,
+)
 from campus_supervisor_api.dev_server import main as dev_server_main
 from campus_supervisor_api.settings import ApiSettings
 
@@ -147,6 +153,98 @@ class SupervisorApiDevServerTest(unittest.TestCase):
 
         load_repo_env.assert_called_once_with()
         serve.assert_called_once_with()
+
+    def test_asgi_answer_route_returns_503_when_transport_admission_is_saturated(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+
+        def slow_supervisor(request: SupervisorRequest) -> SupervisorResponse:
+            started.set()
+            release.wait(timeout=2.0)
+            return SupervisorResponse(
+                selected_target="rag-agent",
+                status="completed",
+                answer_text="ok",
+                confidence="high",
+            )
+
+        app = create_app(
+            settings=ApiSettings(
+                auth_mode="bearer",
+                bearer_token="secret-token",
+                default_actor_id="runtime-bearer-user",
+                transport_max_concurrent_answers=1,
+                transport_worker_threads=1,
+            ),
+            supervisor_handler=slow_supervisor,
+        )
+        asgi_app = SupervisorApiAsgiApp(app)
+
+        async def scenario() -> tuple[dict[str, object], dict[str, object]]:
+            first_task = asyncio.create_task(_call_asgi_answer(asgi_app))
+            await asyncio.to_thread(started.wait, 2.0)
+            second = await _call_asgi_answer(asgi_app)
+            release.set()
+            first = await first_task
+            return first, second
+
+        first, second = asyncio.run(scenario())
+
+        self.assertEqual(first["status"], 200)
+        self.assertEqual(second["status"], 503)
+        self.assertEqual(second["json_body"]["error"]["code"], "transport_saturated")
+        app.close()
+
+
+async def _call_asgi_answer(asgi_app: SupervisorApiAsgiApp) -> dict[str, object]:
+    payload = json.dumps(
+        {
+            "user_goal": "library hours",
+            "request_id": "req-asgi",
+            "requested_scope": {
+                "corpus": "regulations",
+                "collection": "student_rules",
+            },
+        }
+    ).encode("utf-8")
+    messages = [
+        {
+            "type": "http.request",
+            "body": payload,
+            "more_body": False,
+        }
+    ]
+    sent: list[dict[str, object]] = []
+
+    async def receive() -> dict[str, object]:
+        if messages:
+            return messages.pop(0)
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    await asgi_app(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/answer",
+            "query_string": b"",
+            "headers": (
+                (b"content-type", b"application/json"),
+                (b"authorization", b"Bearer secret-token"),
+            ),
+        },
+        receive,
+        send,
+    )
+
+    response_start = next(message for message in sent if message["type"] == "http.response.start")
+    response_body = next(message for message in sent if message["type"] == "http.response.body")
+    return {
+        "status": response_start["status"],
+        "json_body": json.loads(bytes(response_body.get("body", b"")).decode("utf-8")),
+    }
 
 
 if __name__ == "__main__":
