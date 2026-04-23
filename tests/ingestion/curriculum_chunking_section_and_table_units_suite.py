@@ -733,7 +733,7 @@ class CurriculumChunkingSectionAndTableUnitsTest(unittest.TestCase):
             visibility_scope="main",
             status=str(document_input.metadata.get("status") or "active"),
             ingestion_timestamp="2026-03-28T10:00:00+00:00",
-            parser_version="mineru-vlm-adapted-v1",
+            parser_version="mineru-vlm-adapted-v2",
             embedding_model="Qwen3-Embedding-4B",
             source_channel="pdf_ocr",
             is_current=True,

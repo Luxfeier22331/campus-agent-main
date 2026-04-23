@@ -34,7 +34,7 @@ def _make_curriculum_record(
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
-        parser_version="mineru-vlm-adapted-v1",
+        parser_version="mineru-vlm-adapted-v2",
         embedding_model="",
         source_channel="pdf_ocr",
         is_current=True,

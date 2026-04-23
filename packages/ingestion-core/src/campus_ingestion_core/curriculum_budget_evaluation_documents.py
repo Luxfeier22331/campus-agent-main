@@ -15,6 +15,7 @@ from campus_ingestion_core.curriculum_budget_evaluation_shared import (
     CurriculumBudgetProbeCase,
 )
 from campus_ingestion_core.curriculum_chunk_units import _looks_like_curriculum_structure_heading
+from campus_ingestion_core.file_asset_routing import MINERU_ADAPTED_PARSER_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.raw_ingestion import (
     _build_split_manifest_document_input,
@@ -103,7 +104,7 @@ def _load_runtime_fixture_documents() -> tuple[CurriculumBudgetEvaluationDocumen
             visibility_level=str(document_input.metadata.get("visibility_level") or ""),
             status=str(document_input.metadata.get("status") or "active"),
             ingestion_timestamp="2026-03-27T12:00:00+00:00",
-            parser_version="mineru-vlm-adapted-v1",
+            parser_version=MINERU_ADAPTED_PARSER_VERSION,
             embedding_model=_DEFAULT_EMBEDDING_MODEL,
             source_channel="pdf_ocr",
             is_current=True,
@@ -180,14 +181,14 @@ def _default_runtime_probe_cases(title: str) -> tuple[CurriculumBudgetProbeCase,
                 case_id="trade-elective-module",
                 query="国际贸易概论属于哪个模块",
                 expected_keywords=("国际贸易概论", "模块一:国际经贸类"),
-                required_headings=("五、课程设置和修读建议", "2. 专业选修课程"),
+                required_headings=("二、毕业要求", "2. 专业选修课程"),
                 preferred_unit_type="table_unit",
             ),
             CurriculumBudgetProbeCase(
                 case_id="trade-advanced-micro",
                 query="高级微观经济学在哪个建议课程清单里",
                 expected_keywords=("高级微观经济学", "建议课程清单"),
-                required_headings=("五、课程设置和修读建议", "(三)个性化培养"),
+                required_headings=("二、毕业要求", "(三)个性化培养"),
                 preferred_unit_type="table_unit",
             ),
         )
@@ -197,14 +198,14 @@ def _default_runtime_probe_cases(title: str) -> tuple[CurriculumBudgetProbeCase,
                 case_id="economics-history-module",
                 query="中国近现代经济史属于哪个模块",
                 expected_keywords=("中国近现代经济史", "模块一:经济史及世界经济"),
-                required_headings=("五、课程设置和修读建议", "2. 专业选修课程"),
+                required_headings=("二、毕业要求", "2. 专业选修课程"),
                 preferred_unit_type="table_unit",
             ),
             CurriculumBudgetProbeCase(
                 case_id="economics-experimental",
                 query="实验经济学在哪个建议课程清单里",
                 expected_keywords=("实验经济学", "建议续深造学生选修期"),
-                required_headings=("五、课程设置和修读建议", "(三)个性化培养"),
+                required_headings=("二、毕业要求", "(三)个性化培养"),
                 preferred_unit_type="table_unit",
             ),
         )

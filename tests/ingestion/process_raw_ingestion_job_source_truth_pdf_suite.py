@@ -45,7 +45,7 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.online_ocr.provider, "mineru_api")
-        self.assertEqual(settings.parser_version, "mineru-vlm-adapted-v1")
+        self.assertEqual(settings.parser_version, "mineru-vlm-adapted-v2")
 
     def test_process_raw_ingestion_job_source_truth_only_reads_registered_raw_asset_from_object_store(
         self,
@@ -61,6 +61,7 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                 raw_asset_id="asset:student-handbook-pdf",
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
+                model_slug="vlm",
             )
             layout_key = build_processed_asset_artifact_key(
                 corpus="regulations",
@@ -95,8 +96,9 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                     "INGESTION_CORPUS": "regulations",
                     "INGESTION_COLLECTION": "student_rules",
                     "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
-                    "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                    "OCR_BASE_URL": "https://mineru.example",
                     "OCR_API_KEY": "token",
+                    "OCR_PROVIDER_MODE": "mineru_api",
                     "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                     "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                     "OBJECT_STORE_SECRET_KEY": "minioadmin",
@@ -443,6 +445,7 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                 raw_asset_id="asset:volatile-pdf",
                 raw_version_id=raw_version_id,
                 filename="provider-response.jsonl",
+                model_slug="vlm",
             )
             layout_key = build_processed_asset_artifact_key(
                 corpus="regulations",
@@ -459,8 +462,9 @@ class ProcessRawIngestionJobSourceTruthPdfTest(unittest.TestCase):
                 "INGESTION_CORPUS": "regulations",
                 "INGESTION_COLLECTION": "student_rules",
                 "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
-                "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                "OCR_BASE_URL": "https://mineru.example",
                 "OCR_API_KEY": "token",
+                "OCR_PROVIDER_MODE": "mineru_api",
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",

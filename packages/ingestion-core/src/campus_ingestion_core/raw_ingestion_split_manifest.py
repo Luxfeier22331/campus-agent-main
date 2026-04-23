@@ -14,6 +14,9 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     apply_authorization_projection_metadata,
     load_metadata_from_bytes,
 )
+from campus_ingestion_core.curriculum_chunk_units_shared import (
+    _looks_like_curriculum_page_marker_line,
+)
 from campus_ingestion_core.curriculum_course_facts_projection import (
     build_curriculum_course_facts_scope_refresh_documents,
 )
@@ -517,22 +520,36 @@ def _slice_structured_rows_for_manifest_document(
             f"split manifest document {manifest_document.document_id} does not match any OCR pages"
         )
 
-    transformed_rows = [
-        transformed
-        for row in selected_rows
-        for transformed in (
-            _transform_split_row(
-                row=row,
-                document_id=document_id,
-                manifest_title=manifest_document.title,
-                version_id=version_id,
-                source_pdf=source_pdf,
-                source_uri=source_uri,
-                entitlement_groups=manifest_document.resolved_entitlement_groups(),
-            ),
+    transformed_rows: list[dict[str, object]] = []
+    last_emitted_source_row: dict[str, object] | None = None
+    for row in selected_rows:
+        if _should_skip_split_manifest_row(row):
+            continue
+        transformed = _transform_split_row(
+            row=row,
+            document_id=document_id,
+            manifest_title=manifest_document.title,
+            version_id=version_id,
+            source_pdf=source_pdf,
+            source_uri=source_uri,
+            entitlement_groups=manifest_document.resolved_entitlement_groups(),
         )
-        if transformed is not None
-    ]
+        if transformed is None:
+            continue
+        if _should_merge_split_manifest_row(
+            previous_source_row=last_emitted_source_row,
+            current_source_row=row,
+            previous_transformed_row=transformed_rows[-1] if transformed_rows else None,
+            current_transformed_row=transformed,
+        ):
+            _merge_split_manifest_row(
+                target_row=transformed_rows[-1],
+                incoming_row=transformed,
+            )
+            last_emitted_source_row = row
+            continue
+        transformed_rows.append(transformed)
+        last_emitted_source_row = row
     if not transformed_rows:
         raise ValueError(
             f"split manifest document {manifest_document.document_id} does not contain any indexable OCR rows"
@@ -588,6 +605,67 @@ def _transform_split_row(
         "visibility_level": "restricted" if entitlement_groups else "public",
         "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
     }
+
+
+def _should_skip_split_manifest_row(row: dict[str, object]) -> bool:
+    if bool(row.get("is_repeated_candidate")):
+        return True
+    row_type = str(row.get("row_type") or "")
+    if row_type in {"header", "footer", "page_number"}:
+        return True
+    if row_type in {"paragraph", "list_item", "note"} and _looks_like_curriculum_page_marker_line(
+        _split_manifest_row_text(row)
+    ):
+        return True
+    return False
+
+
+def _should_merge_split_manifest_row(
+    *,
+    previous_source_row: dict[str, object] | None,
+    current_source_row: dict[str, object],
+    previous_transformed_row: dict[str, object] | None,
+    current_transformed_row: dict[str, object],
+) -> bool:
+    if previous_source_row is None or previous_transformed_row is None:
+        return False
+    if not bool(current_source_row.get("continues_from_previous_page")):
+        return False
+    if not bool(previous_source_row.get("continues_to_next_page")):
+        return False
+    current_row_type = str(current_source_row.get("row_type") or "")
+    if current_row_type not in {"paragraph", "list_item"}:
+        return False
+    if str(previous_transformed_row.get("row_type") or "") != current_row_type:
+        return False
+    return True
+
+
+def _merge_split_manifest_row(
+    *,
+    target_row: dict[str, object],
+    incoming_row: dict[str, object],
+) -> None:
+    target_text = str(target_row.get("clean_text") or "").strip()
+    incoming_text = str(incoming_row.get("clean_text") or "").strip()
+    target_row["clean_text"] = f"{target_text}{_text_joiner(target_text, incoming_text)}{incoming_text}"
+    target_row["page_end"] = max(
+        int(target_row.get("page_end") or 0),
+        int(incoming_row.get("page_end") or 0),
+    )
+
+
+def _text_joiner(previous: str, current: str) -> str:
+    if not previous or not current:
+        return ""
+    if (
+        previous[-1].isascii()
+        and previous[-1].isalnum()
+        and current[0].isascii()
+        and current[0].isalnum()
+    ):
+        return " "
+    return ""
 
 
 def _row_belongs_to_page_range(*, row: dict[str, object], page_start: int, page_end: int) -> bool:

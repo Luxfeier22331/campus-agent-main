@@ -73,7 +73,7 @@ def scan_curriculum_source_truth_rows(
     )
     cross_page_continuation_miss_count = _count_cross_page_continuation_misses(rows)
     section_hint_missing_count = sum(1 for row in rows if _requires_section_hint(row))
-    parent_heading_hint_missing_count = sum(1 for row in rows if _requires_parent_heading_hint(row))
+    parent_heading_hint_missing_count = _count_parent_heading_hint_misses(rows)
     reading_order_gap_count = _count_reading_order_gaps(rows)
     passed = not any(
         (
@@ -106,6 +106,29 @@ def scan_curriculum_source_truth_rows(
         reading_order_gap_count=reading_order_gap_count,
         passed=passed,
     )
+
+
+def validate_curriculum_source_truth_rows(rows: list[dict[str, object]]) -> None:
+    report = scan_curriculum_source_truth_rows(rows)
+    if report.passed:
+        return
+    failures = {
+        "forbidden_field_count": report.forbidden_field_count,
+        "heading_role_conflict_count": report.heading_role_conflict_count,
+        "page_number_leak_count": report.page_number_leak_count,
+        "footer_leak_count": report.footer_leak_count,
+        "orphan_caption_count": report.orphan_caption_count,
+        "orphan_note_count": report.orphan_note_count,
+        "broken_table_continuation_count": report.broken_table_continuation_count,
+        "cross_page_continuation_miss_count": report.cross_page_continuation_miss_count,
+        "section_hint_missing_count": report.section_hint_missing_count,
+        "parent_heading_hint_missing_count": report.parent_heading_hint_missing_count,
+        "reading_order_gap_count": report.reading_order_gap_count,
+    }
+    failure_summary = ", ".join(
+        f"{key}={value}" for key, value in failures.items() if value
+    ) or "unknown_failure"
+    raise ValueError(f"curriculum source truth validation failed: {failure_summary}")
 
 
 def _has_heading_role_conflict(row: dict[str, object]) -> bool:
@@ -187,13 +210,25 @@ def _requires_section_hint(row: dict[str, object]) -> bool:
     return not str(row.get("section_hint") or "").strip()
 
 
-def _requires_parent_heading_hint(row: dict[str, object]) -> bool:
-    if str(row.get("row_type") or "") != "paragraph":
-        return False
-    list_level_hint = row.get("list_level_hint")
-    if list_level_hint in (None, "", 0):
-        return False
-    return not str(row.get("parent_heading_hint") or "").strip()
+def _count_parent_heading_hint_misses(rows: list[dict[str, object]]) -> int:
+    seen_heading = False
+    misses = 0
+    for row in rows:
+        if bool(row.get("is_repeated_candidate")):
+            continue
+        if str(row.get("row_type") or "") == "heading":
+            seen_heading = True
+            continue
+        if str(row.get("row_type") or "") != "paragraph":
+            continue
+        list_level_hint = row.get("list_level_hint")
+        if list_level_hint in (None, "", 0):
+            continue
+        if not seen_heading:
+            continue
+        if not str(row.get("parent_heading_hint") or "").strip():
+            misses += 1
+    return misses
 
 
 def _count_reading_order_gaps(rows: list[dict[str, object]]) -> int:

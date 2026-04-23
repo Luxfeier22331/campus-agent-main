@@ -442,6 +442,86 @@ class SplitManifestTest(unittest.TestCase):
         self.assertEqual(projected_rows[1]["heading_level"], 2)
         self.assertEqual(projected_rows[1]["section_hint"], "section")
 
+    def test_build_split_manifest_document_input_drops_page_markers_and_merges_cross_page_paragraphs(
+        self,
+    ) -> None:
+        manifest = load_split_manifest(
+            Path("configs/ingestion/curriculum/curriculum_plan/split-manifest.v1.json"),
+            expected_corpus="curriculum",
+            expected_collection="curriculum_plan",
+        )
+        manifest_document = manifest.documents[0]
+        structured_rows = [
+            {
+                "row_id": "page-0020-body",
+                "row_type": "paragraph",
+                "row_index": 10,
+                "reading_order": 1,
+                "text_raw": "复杂软件工程",
+                "text_normalized": "复杂软件工程",
+                "page_start": 20,
+                "page_end": 20,
+                "continues_to_next_page": True,
+            },
+            {
+                "row_id": "page-0021-number",
+                "row_type": "page_number",
+                "row_index": 11,
+                "reading_order": 1,
+                "text_raw": "476",
+                "text_normalized": "476",
+                "page_start": 21,
+                "page_end": 21,
+            },
+            {
+                "row_id": "page-0021-body",
+                "row_type": "paragraph",
+                "row_index": 12,
+                "reading_order": 2,
+                "text_raw": "问题",
+                "text_normalized": "问题",
+                "page_start": 21,
+                "page_end": 21,
+                "continues_from_previous_page": True,
+            },
+            {
+                "row_id": "page-0021-footer",
+                "row_type": "footer",
+                "row_index": 13,
+                "reading_order": 3,
+                "text_raw": "中央民族大学教务处",
+                "text_normalized": "中央民族大学教务处",
+                "page_start": 21,
+                "page_end": 21,
+            },
+        ]
+
+        document_input = _build_split_manifest_document_input(
+            raw_asset_record=_curriculum_raw_asset_record(raw_version_id="sha256:test"),
+            manifest_version=manifest.manifest_version,
+            manifest_document=manifest_document,
+            structured_rows=structured_rows,
+            provider_response_key=(
+                "official_pdf/curriculum-plan/2022/sha256/test/provider/vlm/provider-response.jsonl"
+            ),
+            layout_elements_key="official_pdf/curriculum-plan/2022/sha256/test/source-truth/layout-elements.jsonl",
+            default_visibility_scope="main",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        projected_rows = [
+            json.loads(line)
+            for line in document_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        self.assertEqual(len(projected_rows), 1)
+        self.assertEqual(projected_rows[0]["row_type"], "paragraph")
+        self.assertEqual(projected_rows[0]["clean_text"], "复杂软件工程问题")
+        self.assertEqual(projected_rows[0]["page_start"], 20)
+        self.assertEqual(projected_rows[0]["page_end"], 21)
+
     def test_load_split_manifest_reads_curriculum_plan_documents(self) -> None:
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "split-manifest.v1.json"

@@ -307,12 +307,24 @@ def _classify_block(
     if raw_type in {"list", "list_item", "listitem"}:
         return "list_item", "list_item", 0.88, f"provider_label:{raw_type}"
     if raw_type in {"text", "paragraph", "body"}:
+        if _looks_like_page_number(
+            text_normalized=text_normalized,
+            bbox=bbox,
+            page_height=page_height,
+        ):
+            return "page_number", "page_number", 0.84, f"provider_label:{raw_type}:page_number"
         if infer_list_level_hint(text_normalized) is not None:
             return "list_item", "list_item", 0.72, f"provider_label:{raw_type}:list_heuristic"
         return "paragraph", "body", 0.85, f"provider_label:{raw_type}"
 
     if table_cells or (html is not None and "<table" in html.lower()):
         return "table", "table", 0.86, "html_or_cells:table"
+    if _looks_like_page_number(
+        text_normalized=text_normalized,
+        bbox=bbox,
+        page_height=page_height,
+    ):
+        return "page_number", "page_number", 0.7, "text_presence:page_number_fallback"
     if text_normalized:
         if infer_list_level_hint(text_normalized) is not None:
             return "list_item", "list_item", 0.62, "text_pattern:list_item"

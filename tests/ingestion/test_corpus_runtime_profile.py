@@ -39,6 +39,9 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.no_hit_min_score_gap, 0.1)
         self.assertEqual(profile.cleaning_policy_version, "student_rules_cleaning_v1")
         self.assertEqual(profile.chunk_profile_version, "student_rules_semantic_v3")
+        self.assertEqual(profile.source_ocr_provider, "mineru_api")
+        self.assertEqual(profile.source_ocr_model, "vlm")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "student_rules")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_rules")
 
@@ -72,7 +75,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "curriculum_plan_semantic_v2")
         self.assertEqual(profile.source_ocr_provider, "mineru_api")
         self.assertEqual(profile.source_ocr_model, "vlm")
-        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v1")
+        self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "curriculum_plan")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "curriculum_plan")
 

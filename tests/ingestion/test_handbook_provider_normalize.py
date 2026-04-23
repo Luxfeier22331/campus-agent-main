@@ -188,19 +188,17 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         row = rows[0]
         self.assertEqual(
-            set(
-                [
-                    "source_pdf",
-                    "page_start",
-                    "page_end",
-                    "row_type",
-                    "text_raw",
-                    "text_normalized",
-                    "provider_page_id",
-                    "ocr_provider",
-                    "ocr_model",
-                ]
-            )
+            {
+                "source_pdf",
+                "page_start",
+                "page_end",
+                "row_type",
+                "text_raw",
+                "text_normalized",
+                "provider_page_id",
+                "ocr_provider",
+                "ocr_model",
+            }
             - set(row.keys()),
             set(),
         )
@@ -309,6 +307,45 @@ class HandbookProviderNormalizeTest(unittest.TestCase):
         )
         self.assertEqual(rows[0]["block_role"], "title")
         self.assertEqual(rows[2]["block_role"], "heading")
+
+    def test_normalize_classifies_bottom_band_numeric_text_as_page_number_for_mineru_adapted_rows(
+        self,
+    ) -> None:
+        provider_jsonl = (
+            _provider_batch(
+                _provider_pruned_page(
+                    _provider_parsing_block(
+                        "text",
+                        "114",
+                        block_id="p1-page",
+                        block_order=1,
+                        block_bbox=[360, 1090, 420, 1130],
+                    ),
+                    _provider_parsing_block(
+                        "text",
+                        "第一页正文",
+                        block_id="p1-body",
+                        block_order=2,
+                        block_bbox=[0, 120, 300, 180],
+                    ),
+                ),
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        rows = normalize_handbook_provider_result(
+            source_pdf="学生手册_2018.pdf",
+            provider_jsonl_bytes=provider_jsonl,
+            ocr_provider="mineru_api",
+            ocr_model="vlm",
+        )
+
+        page_row = next(row for row in rows if row["provider_block_id"] == "p1-page")
+        body_row = next(row for row in rows if row["provider_block_id"] == "p1-body")
+
+        self.assertEqual(page_row["row_type"], "page_number")
+        self.assertEqual(page_row["block_role"], "page_number")
+        self.assertEqual(body_row["row_type"], "paragraph")
 
     def test_normalize_prefers_pruned_blocks_over_page_markdown(self) -> None:
         provider_jsonl = (

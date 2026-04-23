@@ -559,6 +559,40 @@ class SourceTruthQualityGateTest(unittest.TestCase):
         self.assertEqual(report.reading_order_gap_count, 1)
         self.assertFalse(report.passed)
 
+    def test_curriculum_provider_normalize_rejects_source_truth_validation_failures(self) -> None:
+        provider_payload = {
+            "logId": "quality-gate-invalid-curriculum",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "height": 1000,
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "number",
+                                    "block_content": "12",
+                                    "block_id": 11,
+                                    "block_order": 1,
+                                    "block_bbox": [200, 200, 240, 240],
+                                }
+                            ],
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        with self.assertRaisesRegex(ValueError, "curriculum source truth validation failed"):
+            normalize_curriculum_provider_result(
+                provider_jsonl_bytes=(json.dumps(provider_payload, ensure_ascii=False) + "\n").encode(
+                    "utf-8"
+                ),
+                source_pdf="curriculum-plan.pdf",
+                ocr_provider="mineru_api",
+                ocr_model="vlm",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@ from .curriculum_provider_normalize_shared import (
     _normalize_page_payload,
     _slugify_filename,
 )
+from .curriculum_source_truth_validation import validate_curriculum_source_truth_rows
 
 
 def normalize_curriculum_provider_result(
@@ -74,4 +75,5 @@ def normalize_curriculum_provider_result(
         raise ValueError("curriculum provider normalization produced no rows")
 
     _enrich_source_truth_rows(rows)
+    validate_curriculum_source_truth_rows(rows)
     return serialize_layout_rows(rows)

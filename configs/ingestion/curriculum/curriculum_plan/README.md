@@ -24,7 +24,7 @@ Current runtime truth:
 - collection prefix: `curriculum_plan`
 - release manifests: `curriculum/releases/curriculum_plan/{release_id}/...`
 - source OCR truth: `mineru_api / vlm`
-- source parser version: `mineru-vlm-adapted-v1`
+- source parser version: `mineru-vlm-adapted-v2`
 
 `process_raw_ingestion_job` supports two canonical entry paths for
 `INGESTION_CORPUS=curriculum` and `INGESTION_COLLECTION=curriculum_plan`:

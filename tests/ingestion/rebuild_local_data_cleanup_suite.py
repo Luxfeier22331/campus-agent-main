@@ -558,7 +558,7 @@ class RebuildLocalDataCleanupTest(unittest.TestCase):
             record = records[0]
             self.assertEqual(record.document_id, "curriculum:plan-001")
             self.assertEqual(record.cleaning_policy_version, "curriculum_plan_cleaning_v1")
-            self.assertEqual(record.parser_version, "mineru-vlm-adapted-v1")
+            self.assertEqual(record.parser_version, "mineru-vlm-adapted-v2")
             layout_elements_key = build_source_truth_artifact_key(
                 raw_asset_id="asset:curriculum-plan-master-pdf",
                 raw_version_id=raw_version_id,

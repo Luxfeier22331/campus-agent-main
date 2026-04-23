@@ -235,6 +235,50 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(len(rows), 3)
         self.assertEqual(len({row["row_id"] for row in rows}), 3)
 
+    def test_normalize_curriculum_provider_result_recognizes_bottom_band_numeric_text_as_page_number(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-003b",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "height": 1600,
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": "476",
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                    "block_bbox": [520, 1500, 580, 1540],
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": "课程说明",
+                                    "block_id": 2,
+                                    "block_order": 2,
+                                    "block_bbox": [100, 200, 600, 260],
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        page_marker = next(row for row in rows if row["provider_block_id"] == "1")
+        body_row = next(row for row in rows if row["provider_block_id"] == "2")
+
+        self.assertEqual(page_marker["row_type"], "page_number")
+        self.assertEqual(page_marker["block_role"], "page_number")
+        self.assertEqual(body_row["row_type"], "paragraph")
+
     def test_normalize_curriculum_provider_result_binds_caption_and_note_to_table(self) -> None:
         provider_payload = {
             "logId": "log-004",

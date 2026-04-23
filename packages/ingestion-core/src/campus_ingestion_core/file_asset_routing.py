@@ -11,6 +11,8 @@ from typing import Any
 
 from PIL import Image
 
+from campus_ingestion_core.source_truth_common import is_bottom_band
+
 _EXTENSION_CONTENT_TYPES = {
     ".csv": "text/csv",
     ".doc": "application/msword",
@@ -61,7 +63,7 @@ _SPATIAL_FILENAME_HINTS = (
 PADDLE_ASYNC_PROVIDER = "paddleocr_async_jobs"
 MINERU_PROVIDER = "mineru_api"
 PADDLE_PARSER_VERSION = "paddleocr-vl-1.5"
-MINERU_ADAPTED_PARSER_VERSION = "mineru-vlm-adapted-v1"
+MINERU_ADAPTED_PARSER_VERSION = "mineru-vlm-adapted-v2"
 RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME = "provider-response-raw.zip"
 RAW_PROVIDER_RESPONSE_MANIFEST_FILENAME = "provider-response-raw.manifest.json"
 RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE = "provider-response-raw.part-{index:04d}.zip"
@@ -654,26 +656,37 @@ def _build_page_payloads(
 
     page_payloads: list[dict[str, Any]] = []
     for page_idx in range(max(items_by_page) + 1):
+        page_items = items_by_page.get(page_idx, [])
+        page_height = _infer_mineru_page_height(page_items)
         blocks = [
-            _content_item_to_parsing_block(item=item, block_order=block_order)
-            for block_order, item in enumerate(items_by_page.get(page_idx, []), start=1)
+            _content_item_to_parsing_block(
+                item=item,
+                block_order=block_order,
+                page_height=page_height,
+            )
+            for block_order, item in enumerate(page_items, start=1)
         ]
         page_markdown = "\n\n".join(
             text
-            for text in (_content_item_markdown(item) for item in items_by_page.get(page_idx, []))
+            for text in (_content_item_markdown(item) for item in page_items)
             if text
         )
         page_payloads.append(
             {
-                "pageInfo": {"height": 1000},
-                "prunedResult": {"parsing_res_list": blocks},
+                "pageInfo": {"height": page_height},
+                "prunedResult": {"height": page_height, "parsing_res_list": blocks},
                 "markdown": {"text": page_markdown},
             }
         )
     return page_payloads
 
 
-def _content_item_to_parsing_block(*, item: dict[str, Any], block_order: int) -> dict[str, Any]:
+def _content_item_to_parsing_block(
+    *,
+    item: dict[str, Any],
+    block_order: int,
+    page_height: float,
+) -> dict[str, Any]:
     item_type = str(item.get("type") or "text").strip().lower()
     bbox = item.get("bbox") if isinstance(item.get("bbox"), list) else None
     block_content = _content_item_text(item)
@@ -686,7 +699,13 @@ def _content_item_to_parsing_block(*, item: dict[str, Any], block_order: int) ->
         block_label = "doc_title"
     elif item_type == "text":
         text_level = _coerce_int(item.get("text_level"), default=0)
-        if text_level >= 1 and block_order == 1:
+        if _looks_like_mineru_page_marker(
+            text=block_content,
+            bbox=bbox,
+            page_height=page_height,
+        ):
+            block_label = "number"
+        elif text_level >= 1 and block_order == 1:
             block_label = "doc_title"
         elif text_level >= 1:
             block_label = "paragraph_title"
@@ -701,6 +720,10 @@ def _content_item_to_parsing_block(*, item: dict[str, Any], block_order: int) ->
         "block_bbox": bbox,
         "block_label": block_label,
         "block_content": block_content,
+        "mineru_item_type": item_type,
+        "mineru_text_level": _coerce_int(item.get("text_level"), default=0),
+        "mineru_page_idx": _coerce_int(item.get("page_idx"), default=0),
+        "mineru_page_height": page_height,
     }
 
 
@@ -732,6 +755,90 @@ def _coerce_int(value: object, *, default: int) -> int:
         return int(value) if value is not None else default
     except (TypeError, ValueError):
         return default
+
+
+def _infer_mineru_page_height(items: list[dict[str, Any]]) -> float:
+    explicit_heights = [
+        height for item in items if (height := _extract_page_height_hint(item)) is not None
+    ]
+    if explicit_heights:
+        return max(explicit_heights)
+    bbox_bottom = max(
+        (
+            float(item["bbox"][3])
+            for item in items
+            if isinstance(item.get("bbox"), list) and len(item["bbox"]) >= 4
+        ),
+        default=0.0,
+    )
+    return bbox_bottom or 1000.0
+
+
+def _extract_page_height_hint(item: dict[str, Any]) -> float | None:
+    candidate_values = [
+        item.get("page_height"),
+        item.get("pageHeight"),
+    ]
+    nested_candidates = [
+        item.get("page_info"),
+        item.get("pageInfo"),
+        item.get("page_size"),
+        item.get("pageSize"),
+        item.get("page_metadata"),
+        item.get("pageMetadata"),
+    ]
+    for value in candidate_values:
+        height = _positive_float(value)
+        if height is not None:
+            return height
+    for value in nested_candidates:
+        height = _extract_height_from_nested_hint(value)
+        if height is not None:
+            return height
+    return None
+
+
+def _extract_height_from_nested_hint(value: object) -> float | None:
+    if isinstance(value, dict):
+        for key in ("height", "page_height", "pageHeight", "h"):
+            height = _positive_float(value.get(key))
+            if height is not None:
+                return height
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return _positive_float(value[1])
+    return None
+
+
+def _positive_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        return numeric if numeric > 0 else None
+    if isinstance(value, str) and value.strip():
+        try:
+            numeric = float(value)
+        except ValueError:
+            return None
+        return numeric if numeric > 0 else None
+    return None
+
+
+def _looks_like_mineru_page_marker(
+    *,
+    text: str,
+    bbox: list[object] | None,
+    page_height: float,
+) -> bool:
+    normalized = text.strip()
+    if not normalized.isdigit() or len(normalized) > 4:
+        return False
+    if not isinstance(bbox, list):
+        return False
+    normalized_bbox = [float(value) for value in bbox if isinstance(value, (int, float))]
+    if len(normalized_bbox) < 4:
+        return False
+    return is_bottom_band(bbox=normalized_bbox, page_height=page_height)
 
 
 __all__ = [

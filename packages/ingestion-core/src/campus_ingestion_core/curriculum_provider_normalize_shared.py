@@ -275,6 +275,12 @@ def _classify_block(
             0.92,
             "provider_label:paragraph_title",
         )
+    if block_label == "text" and _looks_like_page_number(
+        text=text,
+        bbox=bbox,
+        page_height=page_height,
+    ):
+        return "page_number", "page_number", None, 0.84, "provider_label:text:page_number"
     if block_label == "text" and _looks_like_heading(text):
         return (
             "heading",

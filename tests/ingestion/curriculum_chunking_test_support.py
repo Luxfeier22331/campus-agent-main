@@ -45,7 +45,7 @@ def _make_curriculum_record() -> DocumentRegistryRecord:
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
-        parser_version="mineru-vlm-adapted-v1",
+        parser_version="mineru-vlm-adapted-v2",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
@@ -74,7 +74,7 @@ def _make_public_curriculum_record() -> DocumentRegistryRecord:
         visibility_scope="main",
         status="active",
         ingestion_timestamp="2026-03-24T10:00:00+00:00",
-        parser_version="mineru-vlm-adapted-v1",
+        parser_version="mineru-vlm-adapted-v2",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         document_units_object_key=(
@@ -143,7 +143,7 @@ def _build_real_curriculum_projection_chunks(
         visibility_scope=str(document_input.metadata.get("visibility_scope") or "main"),
         status=str(document_input.metadata.get("status") or "active"),
         ingestion_timestamp="2026-03-27T12:00:00+00:00",
-        parser_version="mineru-vlm-adapted-v1",
+        parser_version="mineru-vlm-adapted-v2",
         embedding_model="Qwen3-Embedding-4B",
         source_channel="pdf_ocr",
         is_current=True,

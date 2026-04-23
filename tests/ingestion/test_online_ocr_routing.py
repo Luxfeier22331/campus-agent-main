@@ -37,6 +37,32 @@ def _build_mineru_archive_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _build_mineru_archive_with_page_marker_bytes() -> bytes:
+    content_items = [
+        {
+            "type": "text",
+            "text": "中央民族大学课程安排说明",
+            "text_level": 1,
+            "bbox": [10, 20, 300, 80],
+            "page_idx": 0,
+            "page_height": 1600,
+        },
+        {
+            "type": "text",
+            "text": "476",
+            "text_level": 0,
+            "bbox": [520, 1500, 580, 1540],
+            "page_idx": 0,
+            "page_height": 1600,
+        },
+    ]
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("sample_content_list.json", json.dumps(content_items, ensure_ascii=False))
+        archive.writestr("full.md", "# 中央民族大学课程安排说明\n\n476\n")
+    return buffer.getvalue()
+
+
 class OnlineOcrRoutingTest(unittest.TestCase):
     def test_select_online_ocr_routing_prefers_mineru_for_pdf_when_available(self) -> None:
         decision = select_online_ocr_routing(
@@ -49,7 +75,7 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertEqual(decision.route_id, "pdf_mineru_primary_with_paddle_fallback")
         self.assertEqual(decision.canonical_provider, "mineru_api")
         self.assertEqual(decision.fallback_provider, "paddleocr_async_jobs")
-        self.assertEqual(decision.parser_version, "mineru-vlm-adapted-v1")
+        self.assertEqual(decision.parser_version, "mineru-vlm-adapted-v2")
         self.assertTrue(decision.persist_raw_provider_artifact)
 
     def test_select_online_ocr_routing_keeps_paddle_for_generic_image(self) -> None:
@@ -104,6 +130,25 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertEqual(blocks[0]["block_content"], "中央民族大学课程安排说明")
         self.assertEqual(blocks[1]["block_label"], "table")
         self.assertIn("<table>", blocks[1]["block_content"])
+
+    def test_adapt_mineru_archive_to_canonical_provider_payload_preserves_page_height_and_page_marker_hints(
+        self,
+    ) -> None:
+        payload = adapt_mineru_archive_to_canonical_provider_payload(
+            _build_mineru_archive_with_page_marker_bytes()
+        )
+
+        result = json.loads(payload.decode("utf-8").splitlines()[0])["result"]
+        page_payload = result["layoutParsingResults"][0]
+        blocks = page_payload["prunedResult"]["parsing_res_list"]
+
+        self.assertEqual(page_payload["pageInfo"]["height"], 1600)
+        self.assertEqual(page_payload["prunedResult"]["height"], 1600)
+        self.assertEqual(blocks[1]["block_label"], "number")
+        self.assertEqual(blocks[1]["block_content"], "476")
+        self.assertEqual(blocks[1]["mineru_item_type"], "text")
+        self.assertEqual(blocks[1]["mineru_text_level"], 0)
+        self.assertEqual(blocks[1]["mineru_page_idx"], 0)
 
 
 if __name__ == "__main__":
