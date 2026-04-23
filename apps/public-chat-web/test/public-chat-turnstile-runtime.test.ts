@@ -19,6 +19,6 @@ describe("public chat Turnstile runtime posture", () => {
 		expect(turnstileSource).toContain("AuthTurnstileController");
 		expect(turnstileSource).toContain("ensureToken");
 		expect(turnstileSource).toContain("pendingEnsureResolversRef");
-		expect(turnstileSource).toContain("if (!isPrimed || !siteKey || !widgetRef.current)");
+		expect(turnstileSource).toContain("if (!(isPrimed && siteKey && widgetRef.current))");
 	});
 });
