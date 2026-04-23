@@ -694,9 +694,9 @@ __all__ = [
     "emit_runtime_log",
     "main",
     "resolve_checkpoint_sizes",
-    "run_with_heartbeat",
     "run_closeout_checkpoint",
     "run_full_rerun",
+    "run_with_heartbeat",
 ]
 
 

@@ -28,9 +28,11 @@ describe("official-web-core source-truth helpers", () => {
 		expect(core.buildOfficialWebRawVersionId).toBeTypeOf("function");
 		expect(core.buildOfficialWebSourceArtifactKey).toBeTypeOf("function");
 		if (
-			!core.buildOfficialWebRawAssetId ||
-			!core.buildOfficialWebRawVersionId ||
-			!core.buildOfficialWebSourceArtifactKey
+			!(
+				core.buildOfficialWebRawAssetId &&
+				core.buildOfficialWebRawVersionId &&
+				core.buildOfficialWebSourceArtifactKey
+			)
 		) {
 			return;
 		}

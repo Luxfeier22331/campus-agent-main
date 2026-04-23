@@ -183,7 +183,7 @@ function normalizeResolvePayload(
 ): NormalizedOfficialWebPlannerFilters {
 	const siteId = normalizeString(payload.siteId);
 	const runIntent = normalizeString(payload.runIntent) as OfficialWebRunIntent | null;
-	if (!siteId || !runIntent || !ALLOWED_RUN_INTENTS.has(runIntent)) {
+	if (!(siteId && runIntent && ALLOWED_RUN_INTENTS.has(runIntent))) {
 		throw new AppApiRouteError({
 			code: "validation_failed",
 			details: { field: "siteId|runIntent" },

@@ -121,9 +121,7 @@ def _looks_like_heading_title(rest: str, *, full_text: str) -> bool:
         return False
     if SENTENCE_PUNCTUATION_RE.search(full_text):
         return False
-    if "，" in full_text or "," in full_text:
-        return False
-    return True
+    return not ("，" in full_text or "," in full_text)
 
 
 def _looks_like_article_line(text: str) -> bool:

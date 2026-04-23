@@ -54,7 +54,7 @@ def main() -> None:
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
-__all__ = ["StudentHandbookChunkingValidationReport", "validate_student_handbook_chunking", "main"]
+__all__ = ["StudentHandbookChunkingValidationReport", "main", "validate_student_handbook_chunking"]
 
 
 if __name__ == "__main__":

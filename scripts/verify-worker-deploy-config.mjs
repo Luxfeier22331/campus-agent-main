@@ -23,7 +23,7 @@ async function main() {
 				(candidate) => candidate?.binding === binding && candidate?.service === service,
 			);
 
-			if (!binding || !service) {
+			if (!(binding && service)) {
 				console.error(`Invalid service binding specification: ${assertion}`);
 				process.exit(1);
 			}
@@ -83,7 +83,7 @@ async function main() {
 		const matched = services.some(
 			(candidate) => candidate?.binding === binding && candidate?.service === service,
 		);
-		if (!binding || !service) {
+		if (!(binding && service)) {
 			console.error(`Invalid assertion: ${assertion}`);
 			process.exit(1);
 		}

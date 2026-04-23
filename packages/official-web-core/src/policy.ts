@@ -158,7 +158,7 @@ export function admitOfficialWebUrl(
 	}
 
 	const hostPolicy = findOfficialWebHostPolicy(bundle, parsed.host);
-	if (!hostPolicy || !bundle.site.allowedHosts.includes(parsed.host)) {
+	if (!(hostPolicy && bundle.site.allowedHosts.includes(parsed.host))) {
 		return rejectedAdmission("host_not_allowlisted");
 	}
 	if (

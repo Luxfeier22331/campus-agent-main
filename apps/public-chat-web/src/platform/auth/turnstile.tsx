@@ -141,7 +141,7 @@ export function AuthTurnstileField(props: {
 	}, []);
 
 	useEffect(() => {
-		if (!isPrimed || !siteKey || !widgetRef.current) {
+		if (!(isPrimed && siteKey && widgetRef.current)) {
 			return;
 		}
 

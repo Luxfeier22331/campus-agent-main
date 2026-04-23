@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { expect, vi } from "vitest";
+import { vi } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
 import type { ChatMessage } from "../src/modules/chat";
@@ -212,8 +212,12 @@ export function createTelemetryMock(): AppTelemetry {
 }
 
 export function expectNoInternalLocators(text: string) {
-	expect(text).not.toContain("source-faithful");
-	expect(text).not.toContain("program_semester_facts:");
-	expect(text).not.toContain("chunk-");
-	expect(text).not.toMatch(/\[[^\]]*#[^\]]*\]/);
+	for (const marker of ["source-faithful", "program_semester_facts:", "chunk-"]) {
+		if (text.includes(marker)) {
+			throw new Error(`Unexpected internal locator marker in answer: ${marker}`);
+		}
+	}
+	if (/\[[^\]]*#[^\]]*\]/.test(text)) {
+		throw new Error("Unexpected internal source locator markdown in answer.");
+	}
 }

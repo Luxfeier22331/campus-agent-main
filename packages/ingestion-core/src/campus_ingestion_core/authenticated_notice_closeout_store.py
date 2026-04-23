@@ -81,7 +81,6 @@ def build_authenticated_notice_closeout_store_from_env(
 
 
 __all__ = [
-    "CloseoutStore",
     "DEFAULT_BATCH_TABLE",
     "DEFAULT_CLOSEOUT_SCHEMA",
     "DEFAULT_CLOSEOUT_STORE_ENV_KEY",
@@ -94,6 +93,7 @@ __all__ = [
     "DEFAULT_RUN_TABLE",
     "DEFAULT_SHARD_TABLE",
     "DEFAULT_WORKER_TABLE",
+    "CloseoutStore",
     "InMemoryCloseoutStore",
     "PostgresAuthenticatedNoticeCloseoutStore",
     "build_authenticated_notice_closeout_store_from_env",

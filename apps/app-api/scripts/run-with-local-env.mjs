@@ -12,7 +12,7 @@ for (const path of [localEnvPath, localDevVarsPath]) {
 	try {
 		process.loadEnvFile(path);
 	} catch (error) {
-		if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
 			throw error;
 		}
 	}

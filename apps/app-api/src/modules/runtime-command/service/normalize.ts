@@ -110,7 +110,7 @@ function normalizeRequestedScope(value: unknown): RequestedScope | null {
 	const scope = value as Record<string, unknown>;
 	const corpus = normalizeString(scope.corpus);
 	const collection = normalizeString(scope.collection);
-	if (!corpus || !collection) {
+	if (!(corpus && collection)) {
 		return null;
 	}
 
@@ -142,7 +142,7 @@ export function deriveSafetyIdentifier(
 ): string | null {
 	const source = resolveSafetyIdentifierSource(principal);
 	const normalizedSecret = normalizeString(secret);
-	if (!source || !normalizedSecret) {
+	if (!(source && normalizedSecret)) {
 		return null;
 	}
 
@@ -194,7 +194,7 @@ function normalizePlaceRef(
 	const placeId = normalizeOptionalString(value.place_id);
 	const entityType = normalizeOptionalString(value.entity_type);
 	const displayName = normalizeOptionalString(value.display_name);
-	if (!placeId || !entityType || !displayName) {
+	if (!(placeId && entityType && displayName)) {
 		return null;
 	}
 

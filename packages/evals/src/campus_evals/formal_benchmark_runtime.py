@@ -71,62 +71,61 @@ def run_formal_benchmark(
         else resolved_output_dir / "supplemental-runtime-events.jsonl"
     )
     event_writer = RuntimeEventWriter(path=resolved_runtime_events_path, verbose=verbose)
-    with bind_runtime_event_sink(event_writer):
-        with bind_runtime_event_context(
-            benchmark_type=benchmark_type,
-            benchmark_session_id=event_writer.session_id,
-            benchmark_mode="run",
-        ):
-            policy = load_judge_gate_policy(policy_path)
-            supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
-            supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
-            _write_json(supplemental_preflight_path, supplemental_preflight)
-            _raise_for_blocking_preflight_entries(supplemental_preflight)
-            runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
-                supplemental_adapters=supplemental_adapters,
-                supplemental_preflight=supplemental_preflight,
-            )
+    with bind_runtime_event_sink(event_writer), bind_runtime_event_context(
+        benchmark_type=benchmark_type,
+        benchmark_session_id=event_writer.session_id,
+        benchmark_mode="run",
+    ):
+        policy = load_judge_gate_policy(policy_path)
+        supplemental_preflight = _run_supplemental_preflight(supplemental_adapters)
+        supplemental_preflight_path = resolved_output_dir / "supplemental-preflight.json"
+        _write_json(supplemental_preflight_path, supplemental_preflight)
+        _raise_for_blocking_preflight_entries(supplemental_preflight)
+        runnable_supplemental_adapters = _select_runnable_supplemental_adapters(
+            supplemental_adapters=supplemental_adapters,
+            supplemental_preflight=supplemental_preflight,
+        )
 
-            _write_json(
-                resolved_output_dir / "benchmark-config.json",
-                {
-                    "schema_version": 1,
-                    "benchmark_type": benchmark_type,
-                    "reruns": reruns,
-                    "case_workers": case_workers,
-                    "policy_path": policy.get("path"),
-                    "supplemental_adapters": [
-                        adapter.adapter_id for adapter in supplemental_adapters
-                    ],
-                    "supplemental_preflight_path": str(supplemental_preflight_path),
-                    "supplemental_preflight": supplemental_preflight["summary"],
-                    "runtime_events_path": str(resolved_runtime_events_path),
-                    "case_set": _case_set_summary(cases),
-                },
-            )
+        _write_json(
+            resolved_output_dir / "benchmark-config.json",
+            {
+                "schema_version": 1,
+                "benchmark_type": benchmark_type,
+                "reruns": reruns,
+                "case_workers": case_workers,
+                "policy_path": policy.get("path"),
+                "supplemental_adapters": [
+                    adapter.adapter_id for adapter in supplemental_adapters
+                ],
+                "supplemental_preflight_path": str(supplemental_preflight_path),
+                "supplemental_preflight": supplemental_preflight["summary"],
+                "runtime_events_path": str(resolved_runtime_events_path),
+                "case_set": _case_set_summary(cases),
+            },
+        )
 
-            run_reports: list[RunReport] = []
-            for run_number in range(1, reruns + 1):
-                with bind_faithfulness_artifact_context(
-                    output_dir=resolved_output_dir,
+        run_reports: list[RunReport] = []
+        for run_number in range(1, reruns + 1):
+            with bind_faithfulness_artifact_context(
+                output_dir=resolved_output_dir,
+                run_number=run_number,
+                benchmark_mode="run",
+            ):
+                report = run_cases(
+                    cases,
+                    executor=executor,
+                    supplemental_adapters=runnable_supplemental_adapters,
                     run_number=run_number,
                     benchmark_mode="run",
-                ):
-                    report = run_cases(
-                        cases,
-                        executor=executor,
-                        supplemental_adapters=runnable_supplemental_adapters,
-                        run_number=run_number,
-                        benchmark_mode="run",
-                        case_workers=case_workers,
-                    )
-                run_reports.append(report)
-                _write_run_artifacts(
-                    output_dir=resolved_output_dir,
-                    benchmark_type=benchmark_type,
-                    run_number=run_number,
-                    report=report,
+                    case_workers=case_workers,
                 )
+            run_reports.append(report)
+            _write_run_artifacts(
+                output_dir=resolved_output_dir,
+                benchmark_type=benchmark_type,
+                run_number=run_number,
+                report=report,
+            )
 
     provider_summary = summarize_provider_events(
         resolved_runtime_events_path,
@@ -224,12 +223,11 @@ def repair_formal_benchmark(
         else resolved_output_dir / "supplemental-runtime-events.jsonl"
     )
     event_writer = RuntimeEventWriter(path=resolved_runtime_events_path, verbose=verbose)
-    with bind_runtime_event_sink(event_writer):
-        with bind_runtime_event_context(
-            benchmark_type=benchmark_type,
-            benchmark_session_id=event_writer.session_id,
-            benchmark_mode="repair",
-        ):
+    with bind_runtime_event_sink(event_writer), bind_runtime_event_context(
+        benchmark_type=benchmark_type,
+        benchmark_session_id=event_writer.session_id,
+        benchmark_mode="repair",
+    ):
             original_config = _load_json(resolved_benchmark_dir / "benchmark-config.json")
             policy = load_judge_gate_policy(policy_path or original_config.get("policy_path"))
             targets = collect_repairable_benchmark_targets(resolved_benchmark_dir)

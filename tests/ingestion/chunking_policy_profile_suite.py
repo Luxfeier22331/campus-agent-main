@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .chunking_policy_test_support import *  # noqa: F401,F403
+from .chunking_policy_test_support import *
 
 
 class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
@@ -76,9 +76,8 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
         with mock.patch(
             "campus_ingestion_core.tokenizer_cache._snapshot_download",
             side_effect=RuntimeError("cache miss"),
-        ) as snapshot_download:
-            with self.assertRaisesRegex(RuntimeError, "prefetch"):
-                tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
+        ) as snapshot_download, self.assertRaisesRegex(RuntimeError, "prefetch"):
+            tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
 
         snapshot_download.assert_called_once_with(
             "Qwen/Qwen3-Embedding-4B",
@@ -109,9 +108,8 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
         with mock.patch(
             "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
             return_value="/tmp/qwen-tokenizer",
-        ) as resolve_path:
-            with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
-                result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+        ) as resolve_path, mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
+            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
 
         self.assertIs(result, fake_tokenizer)
         resolve_path.assert_called_once_with("Qwen/Qwen3-Embedding-4B")
@@ -137,18 +135,20 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
             AutoTokenizer=types.SimpleNamespace(from_pretrained=fake_from_pretrained)
         )
 
-        with mock.patch(
-            "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
-            return_value="/tmp/qwen-tokenizer",
+        with (
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
+                return_value="/tmp/qwen-tokenizer",
+            ),
+            mock.patch.dict(sys.modules, {"transformers": fake_transformers}),
+            ThreadPoolExecutor(max_workers=8) as executor,
         ):
-            with mock.patch.dict(sys.modules, {"transformers": fake_transformers}):
-                with ThreadPoolExecutor(max_workers=8) as executor:
-                    results = list(
-                        executor.map(
-                            lambda _: _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B"),
-                            range(8),
-                        )
-                    )
+            results = list(
+                executor.map(
+                    lambda _: _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B"),
+                    range(8),
+                )
+            )
 
         self.assertEqual(call_count[0], 1)
         self.assertEqual(len({id(result) for result in results}), 1)

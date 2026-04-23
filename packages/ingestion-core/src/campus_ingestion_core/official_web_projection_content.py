@@ -260,9 +260,10 @@ def _classify_article_line(*, title: str, document_kind: str, text: str) -> _Art
             ),
         )
     line_class = "narrative_paragraph"
-    if _looks_like_labeled_fact_line(normalized):
-        if not _is_notice_like_article_title(title) or _looks_like_notice_fact_line(normalized):
-            line_class = "labeled_fact_line"
+    if _looks_like_labeled_fact_line(normalized) and (
+        not _is_notice_like_article_title(title) or _looks_like_notice_fact_line(normalized)
+    ):
+        line_class = "labeled_fact_line"
     return _ArticleLineSemantics(
         line_class=line_class,
         content_role=_resolve_projection_content_role(
@@ -320,6 +321,4 @@ def _is_semantic_hash_terminal_boilerplate_line(text: str) -> bool:
         return True
     if "并不代表本网赞同其观点和对其真实性负责" in normalized:
         return True
-    if SEMANTIC_HASH_TERMINAL_COPYRIGHT_PATTERN.match(lowered) is not None:
-        return True
-    return False
+    return SEMANTIC_HASH_TERMINAL_COPYRIGHT_PATTERN.match(lowered) is not None

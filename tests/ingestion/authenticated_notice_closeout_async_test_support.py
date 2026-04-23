@@ -49,7 +49,7 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
-from .authenticated_notice_source_projection_test_support import *  # noqa: F401,F403
+from .authenticated_notice_source_projection_test_support import *
 
 _sample_projection_notice_bundle = _sample_notice_bundle
 

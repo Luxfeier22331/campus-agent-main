@@ -224,14 +224,13 @@ class PostgresDocumentRegistry:
         else:
             delete_query = f"delete from {self.table_name} where corpus = %s and collection = %s"
             delete_params = (corpus, collection)
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(delete_query, delete_params)
-                if records:
-                    cursor.execute(
-                        self._bulk_upsert_query(),
-                        (self._recordset_payload(records),),
-                    )
+        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+            cursor.execute(delete_query, delete_params)
+            if records:
+                cursor.execute(
+                    self._bulk_upsert_query(),
+                    (self._recordset_payload(records),),
+                )
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
@@ -251,53 +250,48 @@ class PostgresDocumentRegistry:
                 primary key (document_id, revision_track, version_id)
             )
             """
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                _ensure_table_schema(cursor, table_name=self.table_name)
-                cursor.execute(create_table_statement)
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{table_index_suffix}_corpus
-                    on {table_sql} (corpus, collection, document_id, revision_track, version_id)
-                    """
-                )
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{table_index_suffix}_latest
-                    on {table_sql} (document_id, revision_track, ingestion_timestamp desc)
-                    """
-                )
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{table_index_suffix}_current
-                    on {table_sql} (document_id, ingestion_timestamp desc)
-                    where (record->>'is_current')::boolean = true
-                    """
-                )
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            _ensure_table_schema(cursor, table_name=self.table_name)
+            cursor.execute(create_table_statement)
+            cursor.execute(
+                f"""
+                create index if not exists idx_{table_index_suffix}_corpus
+                on {table_sql} (corpus, collection, document_id, revision_track, version_id)
+                """
+            )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{table_index_suffix}_latest
+                on {table_sql} (document_id, revision_track, ingestion_timestamp desc)
+                """
+            )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{table_index_suffix}_current
+                on {table_sql} (document_id, ingestion_timestamp desc)
+                where (record->>'is_current')::boolean = true
+                """
+            )
         _INITIALIZED_DOCUMENT_TABLES.add(cache_key)
 
     def _execute(self, query: str, params: tuple[object, ...]) -> None:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
 
     def _executemany(self, query: str, params_seq: tuple[tuple[object, ...], ...]) -> None:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.executemany(query, params_seq)
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.executemany(query, params_seq)
 
     def _fetchone(self, query: str, params: tuple[object, ...]) -> tuple[object, ...] | None:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                row = cursor.fetchone()
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
         return tuple(row) if row is not None else None
 
     def _fetchall(self, query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
     def _scan_scope_record_rows(

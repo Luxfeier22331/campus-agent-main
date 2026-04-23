@@ -43,10 +43,9 @@ class RuntimeEventWriter:
             **payload,
         }
         serialized = json.dumps(record, ensure_ascii=False)
-        with self._lock:
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(serialized)
-                handle.write("\n")
+        with self._lock, self.path.open("a", encoding="utf-8") as handle:
+            handle.write(serialized)
+            handle.write("\n")
         if self.verbose:
             message = _render_verbose_message(record)
             if message:

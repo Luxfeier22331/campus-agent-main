@@ -526,6 +526,7 @@ def main() -> None:
 
 
 __all__ = [
+    "OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION",
     "ErrorInfo",
     "HttpResponse",
     "HttpRoute",
@@ -533,7 +534,6 @@ __all__ = [
     "OfficialWebHandoffReceiverApp",
     "OfficialWebHandoffReceiverSettings",
     "OfficialWebHandoffServerSettings",
-    "OFFICIAL_WEB_HANDOFF_RECORD_SCHEMA_VERSION",
     "accept_handoff",
     "build_routes",
     "create_app",

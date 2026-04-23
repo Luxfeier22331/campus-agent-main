@@ -98,7 +98,9 @@ const env = {
 
 function createExecutionContext(): ExecutionContext {
 	return {
-		passThroughOnException() {},
+		passThroughOnException() {
+			/* noop */
+		},
 		props: {},
 		waitUntil: vi.fn(),
 	} as unknown as ExecutionContext;

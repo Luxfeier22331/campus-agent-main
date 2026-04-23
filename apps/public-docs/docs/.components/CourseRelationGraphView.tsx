@@ -41,7 +41,7 @@ const ROUTE_GROUP_LABELS = {
 const ROUTE_GROUP_ORDER = ["foundation", "core", "extension", "practice"] as const;
 
 function resolveStageLabels(data: CourseMapBlock): string[] {
-	return data.displayStageLabels.length
+	return data.displayStageLabels.length > 0
 		? data.displayStageLabels
 		: Array.from(new Set(data.nodes.map((node) => node.stage_label).filter(Boolean)));
 }
@@ -138,7 +138,7 @@ function buildRelationGraph({
 	for (const [index, edge] of data.edges.entries()) {
 		const sourceNode = data.nodes.find((node) => node.node_label === edge.source_label);
 		const targetNode = data.nodes.find((node) => node.node_label === edge.target_label);
-		if (!sourceNode || !targetNode) {
+		if (!(sourceNode && targetNode)) {
 			continue;
 		}
 		const source = buildNodeKey(sourceNode);

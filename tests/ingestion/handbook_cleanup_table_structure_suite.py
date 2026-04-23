@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .handbook_cleanup_test_support import *  # noqa: F401,F403
+from .handbook_cleanup_test_support import *
 
 
 class HandbookCleanupTableStructureTest(unittest.TestCase):

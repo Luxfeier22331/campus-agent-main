@@ -23,7 +23,7 @@ export function extractPromotedUrlsFromNetworkCaptures(input: {
 
 		for (const rawValue of collectCandidateStrings(capture)) {
 			const resolvedUrl = resolveCandidateUrl(rawValue, input.baseUrl);
-			if (!resolvedUrl || !matchesAny(resolvedUrl, promotedMatchers)) {
+			if (!(resolvedUrl && matchesAny(resolvedUrl, promotedMatchers))) {
 				continue;
 			}
 			promotedUrls.add(resolvedUrl);

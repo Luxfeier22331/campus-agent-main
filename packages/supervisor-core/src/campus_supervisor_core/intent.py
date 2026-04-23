@@ -219,6 +219,4 @@ def _is_targeted_political_persuasion(normalized_goal: str) -> bool:
 
     if has_influence_action and (has_target_audience or has_position_signal):
         return True
-    if has_message_writing and has_target_audience and has_position_signal:
-        return True
-    return False
+    return bool(has_message_writing and has_target_audience and has_position_signal)

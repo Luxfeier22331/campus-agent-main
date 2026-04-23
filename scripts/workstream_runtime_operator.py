@@ -4,6 +4,7 @@ import hashlib
 import os
 import tempfile
 import uuid
+from contextlib import suppress
 from pathlib import Path
 
 from .workstream_runtime_shared import (
@@ -128,10 +129,8 @@ def write_gsd_active_workstream_pointer(
 
 def clear_gsd_active_workstream_pointer(repo_root: Path | str, *, session_key: str) -> None:
     path = get_gsd_session_pointer_file(repo_root, session_key)
-    try:
+    with suppress(FileNotFoundError):
         path.unlink()
-    except FileNotFoundError:
-        pass
     try:
         if path.parent.exists() and not any(path.parent.iterdir()):
             path.parent.rmdir()

@@ -266,9 +266,7 @@ def _is_lint_candidate_path(path: str) -> bool:
         return True
     if path.endswith(_ENV_SUFFIXES):
         return True
-    if suffix in _TEXT_LIKE_SUFFIXES:
-        return True
-    return False
+    return suffix in _TEXT_LIKE_SUFFIXES
 
 
 def main() -> int:

@@ -589,9 +589,7 @@ def _is_program_family_membership_query(normalized_query: str) -> bool:
         return False
     if any(prefix in normalized_query for prefix in _PROGRAM_FAMILY_NAME_PATTERN_PREFIXES):
         return True
-    if any(blocker in normalized_query for blocker in _PROGRAM_FAMILY_QUERY_BLOCKERS):
-        return False
-    return True
+    return not any(blocker in normalized_query for blocker in _PROGRAM_FAMILY_QUERY_BLOCKERS)
 
 
 @lru_cache(maxsize=1)

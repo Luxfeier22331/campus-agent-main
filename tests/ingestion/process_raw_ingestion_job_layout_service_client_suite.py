@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .process_raw_ingestion_job_test_support import *  # noqa: F401,F403
+from .process_raw_ingestion_job_test_support import *
 
 
 class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
@@ -64,12 +64,11 @@ class PaddleOcrLayoutParsingServiceClientTest(unittest.TestCase):
             file_path = Path(temp_dir) / "sample.png"
             file_path.write_bytes(b"png-bytes")
 
-            with patch.dict("sys.modules", {"requests": requests_module}):
-                with self.assertRaisesRegex(
-                    RuntimeError,
-                    "online OCR layout-parsing response for sample.png is missing layoutParsingResults",
-                ):
-                    client.parse_file(file_path)
+            with patch.dict("sys.modules", {"requests": requests_module}), self.assertRaisesRegex(
+                RuntimeError,
+                "online OCR layout-parsing response for sample.png is missing layoutParsingResults",
+            ):
+                client.parse_file(file_path)
 
     def test_build_online_ocr_client_infers_service_provider_from_non_jobs_url(self) -> None:
         settings = OnlineOcrSettings.from_env(

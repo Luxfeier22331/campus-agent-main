@@ -430,8 +430,10 @@ describe("official-web-core policy", () => {
 		expect(buildOfficialWebUrlResultRecord.buildOfficialWebUrlResultRecord).toBeTypeOf("function");
 		expect(buildOfficialWebUrlResultRecord.buildOfficialWebFailureRecord).toBeTypeOf("function");
 		if (
-			!buildOfficialWebUrlResultRecord.buildOfficialWebUrlResultRecord ||
-			!buildOfficialWebUrlResultRecord.buildOfficialWebFailureRecord
+			!(
+				buildOfficialWebUrlResultRecord.buildOfficialWebUrlResultRecord &&
+				buildOfficialWebUrlResultRecord.buildOfficialWebFailureRecord
+			)
 		) {
 			return;
 		}

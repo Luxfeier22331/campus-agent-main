@@ -287,9 +287,7 @@ def _should_render_curriculum_caption_as_heading(text: str) -> bool:
         return False
     if normalized.endswith("如下"):
         return False
-    if bool(re.match(r"^[0-9一二三四五六七八九十]+[.、]", normalized)):
-        return False
-    return True
+    return not bool(re.match(r"^[0-9一二三四五六七八九十]+[.、]", normalized))
 
 
 def _looks_like_curriculum_noise_label(text: str) -> bool:
@@ -340,9 +338,7 @@ def _should_merge_paragraph(previous: str, current: str) -> bool:
         return False
     if previous.endswith(("。", "！", "？", "；", "：", ".", "!", "?", ";", ":")):
         return False
-    if _looks_like_compact_metadata_line(previous):
-        return False
-    return True
+    return not _looks_like_compact_metadata_line(previous)
 
 
 def _looks_like_compact_metadata_line(text: str) -> bool:

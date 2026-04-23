@@ -117,7 +117,7 @@ export function createPgChatCommandStore(
 		async getAbuseControlState(input) {
 			const safetyIdentifier = input.safetyIdentifier.trim();
 			const surface = input.surface.trim();
-			if (!safetyIdentifier || !surface) {
+			if (!(safetyIdentifier && surface)) {
 				return createEmptyAbuseControlState();
 			}
 

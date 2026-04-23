@@ -70,7 +70,7 @@ export function ForgotPasswordPage() {
 				) : null}
 				<SubmitButton isSuccessful={false}>发送重置邮件</SubmitButton>
 				<p className="text-center text-[13px] text-muted-foreground">
-					{"想起密码了？"}
+					想起密码了？
 					<Link className="text-foreground underline-offset-4 hover:underline" href="/login">
 						去登录
 					</Link>

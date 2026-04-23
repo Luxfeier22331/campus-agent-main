@@ -15,9 +15,9 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared im
 )
 
 __all__ = [
+    "InternalNoticeRegulationPromotionRequest",
     "InternalNoticeScopedRuleCandidate",
     "InternalNoticeScopedRuleMaterializationReport",
-    "InternalNoticeRegulationPromotionRequest",
     "ScopedRuleMaterializationObjectStore",
     "_build_scoped_rule_candidate",
     "build_scoped_rule_scope_refresh_documents",

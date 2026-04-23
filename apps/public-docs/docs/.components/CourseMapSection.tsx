@@ -30,7 +30,7 @@ const STATUS_LABELS = {
 } as const;
 
 function resolveStageLabels(data: CourseMapBlock): string[] {
-	return data.displayStageLabels.length
+	return data.displayStageLabels.length > 0
 		? data.displayStageLabels
 		: Array.from(new Set(data.nodes.map((node) => node.stage_label).filter(Boolean)));
 }
@@ -74,7 +74,7 @@ function buildStageGroups({
 }
 
 function shouldShowGraph(data: CourseMapBlock): boolean {
-	return data.nodes.length >= 2 && data.edges.length >= 1;
+	return data.nodes.length >= 2 && data.edges.length > 0;
 }
 
 function CourseRouteMapView({
@@ -100,7 +100,7 @@ function CourseRouteMapView({
 				{stageLabels.map((stageLabel) => {
 					const stageNodes = data.nodes.filter((node) => node.stage_label === stageLabel);
 					const groups = buildStageGroups({ nodes: stageNodes });
-					if (!groups.length) {
+					if (groups.length === 0) {
 						return null;
 					}
 					return (
@@ -139,8 +139,8 @@ function CourseRouteMapView({
 															<span className="course-map-route-card-status">
 																{(node.incoming_count ?? 0) > 0
 																	? `${node.incoming_count} 个前置`
-																	: "无前置"}
-																{" · "}
+																	: "无前置"}{" "}
+																·{" "}
 																{(node.outgoing_count ?? 0) > 0
 																	? `${node.outgoing_count} 个后续`
 																	: "无后续"}
@@ -191,7 +191,7 @@ function CourseMapDetail({
 			<div className="course-map-edge-columns">
 				<div>
 					<h5>前置节点</h5>
-					{incomingEdges.length ? (
+					{incomingEdges.length > 0 ? (
 						<ul>
 							{incomingEdges.map((edge) => (
 								<li key={`${edge.source_label}->${edge.target_label}`}>{edge.source_label}</li>
@@ -203,7 +203,7 @@ function CourseMapDetail({
 				</div>
 				<div>
 					<h5>后续节点</h5>
-					{outgoingEdges.length ? (
+					{outgoingEdges.length > 0 ? (
 						<ul>
 							{outgoingEdges.map((edge) => (
 								<li key={`${edge.source_label}->${edge.target_label}`}>{edge.target_label}</li>
@@ -245,7 +245,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 					<h3>{block.title}</h3>
 					<p className="course-map-meta">
 						来源页 {block.pageNumber}
-						{block.status !== "failed" ? ` · ${summary}` : ""}
+						{block.status === "failed" ? "" : ` · ${summary}`}
 					</p>
 				</div>
 			</header>
@@ -316,7 +316,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 				<img alt={`${block.title} 原始区域图`} src={block.imageSrc} />
 			</details>
 
-			{block.extractionNotes.length ? (
+			{block.extractionNotes.length > 0 ? (
 				<section className="course-map-notes">
 					<h4>抽取提示</h4>
 					<ul>
@@ -331,7 +331,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 }
 
 export default function CourseMapSection({ data }: Props) {
-	if (!data.blocks.length) {
+	if (data.blocks.length === 0) {
 		return null;
 	}
 

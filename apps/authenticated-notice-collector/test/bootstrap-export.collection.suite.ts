@@ -244,7 +244,7 @@ export function registerBootstrapExportCollectionSuite() {
 				},
 			},
 			createApiContext: async () => ({
-				dispose: async () => {},
+				dispose: async () => undefined,
 				get: async () => ({
 					body: async () => Buffer.from("hello"),
 					headers: () => ({
@@ -382,7 +382,7 @@ export function registerBootstrapExportCollectionSuite() {
 				},
 			},
 			createApiContext: async () => ({
-				dispose: async () => {},
+				dispose: async () => undefined,
 				get: async () => ({
 					body: async () => Buffer.from("hello"),
 					headers: () => ({
@@ -487,7 +487,7 @@ export function registerBootstrapExportCollectionSuite() {
 				},
 			},
 			createApiContext: async () => ({
-				dispose: async () => {},
+				dispose: async () => undefined,
 				get: async () => ({
 					body: async () => {
 						throw new Error(

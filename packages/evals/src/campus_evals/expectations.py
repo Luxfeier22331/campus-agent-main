@@ -646,12 +646,7 @@ def _matches_source_ref(source_ref, source) -> bool:
         and source.source_unit_kind != source_ref.source_unit_kind
     ):
         return False
-    if (
-        source_ref.source_unit_key is not None
-        and source.source_unit_key != source_ref.source_unit_key
-    ):
-        return False
-    return True
+    return not (source_ref.source_unit_key is not None and source.source_unit_key != source_ref.source_unit_key)
 
 
 def _require_supported_response(

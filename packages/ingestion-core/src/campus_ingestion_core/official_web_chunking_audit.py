@@ -381,9 +381,7 @@ def _looks_like_headline_only_fragment(text: str) -> bool:
     if any(punctuation in normalized for punctuation in {"。", "！", "？", "；", ";"}):
         return False
     comma_count = normalized.count("，") + normalized.count(",")
-    if comma_count >= 2:
-        return False
-    return True
+    return comma_count < 2
 
 
 def _looks_like_listing_teaser_cluster(text: str) -> bool:
@@ -417,9 +415,7 @@ def _looks_like_listing_teaser_line(text: str) -> bool:
         return False
     if normalized[:1].isdigit() and "张" in normalized[:6]:
         return True
-    if " | " in normalized:
-        return True
-    return False
+    return " | " in normalized
 
 
 def _find_listing_context_pollution(rows: list[dict[str, object]]) -> dict[str, object] | None:
@@ -451,9 +447,7 @@ def _looks_like_listing_context_pollution_leaf(text: str) -> bool:
     normalized = _normalize_text(text)
     if len(normalized) <= _LISTING_CONTEXT_POLLUTION_MIN_CHARS:
         return False
-    if any(punctuation in normalized for punctuation in {"。", "！", "？", "；"}):
-        return False
-    return True
+    return not any(punctuation in normalized for punctuation in {"。", "！", "？", "；"})
 
 
 def _looks_like_row_id_mismatch_after_cleaning(text: str, row_ids: tuple[str, ...]) -> bool:
@@ -475,9 +469,7 @@ def _looks_like_article_section_over_aggregation(
     content_lines = _trim_terminal_boilerplate_lines(lines)
     if len(content_lines) < _ARTICLE_SECTION_OVER_AGGREGATION_MIN_LINES:
         return False
-    if len(row_ids) < len(content_lines):
-        return False
-    return True
+    return len(row_ids) >= len(content_lines)
 
 
 def _trim_terminal_boilerplate_lines(lines: list[str]) -> list[str]:
@@ -548,9 +540,7 @@ def _looks_like_header_context_drift(
         return True
     if not first_line.startswith("标题："):
         return True
-    if effective_section_path and "章节：" not in first_line:
-        return True
-    return False
+    return bool(effective_section_path and "章节：" not in first_line)
 
 
 def _resolve_content_role(row: dict[str, object]) -> str:

@@ -20,14 +20,14 @@ class _ReadyzHandler(http.server.BaseHTTPRequestHandler):
     response_code = 200
     response_body = b'{"status":"ready"}'
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         self.send_response(self.response_code)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(self.response_body)))
         self.end_headers()
         self.wfile.write(self.response_body)
 
-    def log_message(self, format: str, *args: object) -> None:  # noqa: A003
+    def log_message(self, format: str, *args: object) -> None:
         return
 
 

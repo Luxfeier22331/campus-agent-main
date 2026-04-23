@@ -81,8 +81,8 @@ export function ResetPasswordPage() {
 							href="/forgot-password"
 						>
 							重新发送重置邮件
-						</Link>
-						{" · "}
+						</Link>{" "}
+						·{" "}
 						<Link className="text-foreground underline-offset-4 hover:underline" href="/login">
 							返回登录
 						</Link>
@@ -92,7 +92,7 @@ export function ResetPasswordPage() {
 				<PasswordRecoveryResetForm action={handleSubmit}>
 					<SubmitButton isSuccessful={isSuccessful}>更新密码</SubmitButton>
 					<p className="text-center text-[13px] text-muted-foreground">
-						{"还需要新的重置邮件？"}
+						还需要新的重置邮件？
 						<Link
 							className="text-foreground underline-offset-4 hover:underline"
 							href="/forgot-password"

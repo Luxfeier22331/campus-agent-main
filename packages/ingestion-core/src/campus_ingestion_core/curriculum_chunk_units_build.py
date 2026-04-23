@@ -717,11 +717,7 @@ def _looks_like_detached_table_note(text: str) -> bool:
         return False
     if normalized.startswith(("备注", "备注：", "注：", "说明：")):
         return False
-    if _is_table_cue_row(normalized) or _is_table_intro_row(
-        {"clean_text": normalized, "row_type": "paragraph"}
-    ):
-        return True
-    return False
+    return bool(_is_table_cue_row(normalized) or _is_table_intro_row({"clean_text": normalized, "row_type": "paragraph"}))
 
 
 _TABLE_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)

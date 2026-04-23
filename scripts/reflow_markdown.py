@@ -117,7 +117,7 @@ def _render_table(table_lines: list[str]) -> list[str]:
                     if not value:
                         continue
                     prefix = "- " if first else "  "
-                    continuation = "  " if first else "  "
+                    continuation = "  "
                     record_lines.extend(
                         _wrap_text(
                             f"{name}: {value}",

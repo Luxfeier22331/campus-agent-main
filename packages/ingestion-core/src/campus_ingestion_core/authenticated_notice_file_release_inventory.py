@@ -194,9 +194,8 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
         rows = tuple(records)
         if not rows:
             return
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(self._bulk_upsert_query(), (self._recordset_payload(rows),))
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(self._bulk_upsert_query(), (self._recordset_payload(rows),))
 
     def replace_scope(
         self,
@@ -204,15 +203,14 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
         collection: str,
         records: Sequence[AuthenticatedNoticeFileReleaseInventoryEntry],
     ) -> None:
-        with _postgres_connection(self.database_url, autocommit=False) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    f"delete from {self.table_name} where corpus = %s and collection = %s",
-                    (corpus, collection),
-                )
-                rows = tuple(records)
-                if rows:
-                    cursor.execute(self._bulk_upsert_query(), (self._recordset_payload(rows),))
+        with _postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+            cursor.execute(
+                f"delete from {self.table_name} where corpus = %s and collection = %s",
+                (corpus, collection),
+            )
+            rows = tuple(records)
+            if rows:
+                cursor.execute(self._bulk_upsert_query(), (self._recordset_payload(rows),))
 
     def list_by_scope(
         self,
@@ -266,11 +264,10 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
     def _ensure_schema(self) -> None:
         table_sql = _qualified_table_sql(self.table_name)
         suffix = _table_index_suffix(self.table_name)
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                _ensure_table_schema(cursor, table_name=self.table_name)
-                cursor.execute(
-                    f"""
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            _ensure_table_schema(cursor, table_name=self.table_name)
+            cursor.execute(
+                f"""
                     create table if not exists {table_sql} (
                         corpus text not null,
                         collection text not null,
@@ -300,19 +297,18 @@ class PostgresAuthenticatedNoticeFileReleaseInventoryStore:
                         primary key (corpus, collection, file_release_id)
                     )
                     """
-                )
-                cursor.execute(
-                    f"""
+            )
+            cursor.execute(
+                f"""
                     create index if not exists idx_{suffix}_sha
                     on {table_sql} (corpus, collection, released_file_sha256, file_release_id)
                     """
-                )
+            )
 
     def _fetchall(self, query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
     @staticmethod
@@ -547,8 +543,6 @@ def _optional_int(value: object) -> int | None:
 
 
 __all__ = [
-    "AuthenticatedNoticeFileReleaseInventoryEntry",
-    "AuthenticatedNoticeFileReleaseInventoryStore",
     "DEFAULT_FILE_RELEASE_INVENTORY_COLLECTION",
     "DEFAULT_FILE_RELEASE_INVENTORY_CORPUS",
     "DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY",
@@ -557,6 +551,8 @@ __all__ = [
     "DEFAULT_FILE_RELEASE_INVENTORY_SCAN_PAGE_SIZE",
     "DEFAULT_FILE_RELEASE_INVENTORY_SCHEMA",
     "DEFAULT_FILE_RELEASE_INVENTORY_TABLE",
+    "AuthenticatedNoticeFileReleaseInventoryEntry",
+    "AuthenticatedNoticeFileReleaseInventoryStore",
     "InMemoryAuthenticatedNoticeFileReleaseInventoryStore",
     "PostgresAuthenticatedNoticeFileReleaseInventoryStore",
     "build_authenticated_notice_file_release_inventory_store_from_env",

@@ -416,7 +416,7 @@ export function createSupervisorExecutionClient(
 				DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
 			);
 			const timeoutMs = payload.surface === "eval_benchmark" ? evalTimeoutMs : defaultTimeoutMs;
-			if (!baseUrl || !sharedSecret) {
+			if (!(baseUrl && sharedSecret)) {
 				throw new SupervisorTransportError({
 					code: "dependency_not_ready",
 					message: "Supervisor runtime is not configured.",

@@ -84,7 +84,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		throw new Error(`site.sourceChannel must equal ${OFFICIAL_WEB_SOURCE_CHANNEL}`);
 	}
 	validateHostName(bundle.site.entryHost, "site.entryHost");
-	if (!bundle.site.allowedHosts.length) {
+	if (bundle.site.allowedHosts.length === 0) {
 		throw new Error("site.allowedHosts must not be empty");
 	}
 	ensureUnique(bundle.site.allowedHosts, "site.allowedHosts");
@@ -101,7 +101,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 	if (bundle.hosts.hostPolicyVersion !== bundle.site.hostPolicyVersion) {
 		throw new Error("hosts.hostPolicyVersion must match site.hostPolicyVersion");
 	}
-	if (!bundle.hosts.hosts.length) {
+	if (bundle.hosts.hosts.length === 0) {
 		throw new Error("hosts.hosts must not be empty");
 	}
 	ensureUnique(
@@ -134,7 +134,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			if (host.maxPagesPerRun <= 0) {
 				throw new Error(`enabled host ${host.host} must have maxPagesPerRun > 0`);
 			}
-			if (!host.allowedPathPrefixes.length) {
+			if (host.allowedPathPrefixes.length === 0) {
 				throw new Error(`enabled host ${host.host} must define allowedPathPrefixes`);
 			}
 			for (const seedUrl of host.seedUrls) {

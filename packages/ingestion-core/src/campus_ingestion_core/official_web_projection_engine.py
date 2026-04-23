@@ -191,12 +191,14 @@ def _resolve_projection_action(
         if bool(block.get("isMainContent")) and _normalize_block_text(block)
     ]
 
-    if declaration.document_kind == "generic":
-        if _looks_like_portal_generic_page(
+    if declaration.document_kind == "generic" and (
+        _looks_like_portal_generic_page(
             title=title,
             main_blocks=main_blocks,
-        ) or _looks_like_sparse_generic_link_hub(main_blocks):
-            return "manual_review", "staged_only portal_like_generic_page"
+        )
+        or _looks_like_sparse_generic_link_hub(main_blocks)
+    ):
+        return "manual_review", "staged_only portal_like_generic_page"
     if declaration.document_kind == "directory" and _looks_like_portal_directory_page(
         title=title,
         manifest=manifest,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .authenticated_notice_closeout_async_test_support import *  # noqa: F401,F403
+from .authenticated_notice_closeout_async_test_support import *
 
 
 class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.TestCase):
@@ -211,13 +211,12 @@ class AuthenticatedNoticeCloseoutAsyncVerificationAndPromotionTest(unittest.Test
                     raise RuntimeError("copy batch crashed")
                 return original_copy_batch(*args, **kwargs)
 
-            with self.assertRaisesRegex(RuntimeError, "copy batch crashed"):
-                with patch.object(
-                    service.promotion,
-                    "_copy_document_batch",
-                    side_effect=_crashing_copy_batch,
-                ):
-                    service.promote_run("run-1")
+            with self.assertRaisesRegex(RuntimeError, "copy batch crashed"), patch.object(
+                service.promotion,
+                "_copy_document_batch",
+                side_effect=_crashing_copy_batch,
+            ):
+                service.promote_run("run-1")
 
             partial = service.show_run("run-1")
             self.assertEqual(partial["state"], "promoting")

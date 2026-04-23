@@ -103,11 +103,11 @@ export function extractBlockCandidates(input: {
 			headingLevel != null && shouldUpdateHeadingPath($, element, isBoilerplate);
 		const parentHeadingPath = isBoilerplate
 			? []
-			: headingLevel != null
-				? compactHeadingPath(
+			: headingLevel == null
+				? compactHeadingPath(headingPath)
+				: compactHeadingPath(
 						isStructuralHeading ? headingPath.slice(0, Math.max(headingLevel - 1, 0)) : headingPath,
-					)
-				: compactHeadingPath(headingPath);
+					);
 		const textNormalized =
 			tagName === "title"
 				? normalizePageTitle(textRaw, input.siteDisplayName)
@@ -116,8 +116,7 @@ export function extractBlockCandidates(input: {
 			!isBoilerplate &&
 			shouldDemoteAggregateAnchorTitleDescendant($, element, tagName, textNormalized);
 		const isMainContent =
-			!isBoilerplate &&
-			!suppressAggregateAnchorDuplicateTitle &&
+			!(isBoilerplate || suppressAggregateAnchorDuplicateTitle) &&
 			(/^h\d$/.test(tagName) ||
 				tagName === "p" ||
 				(tagName === "table" && isLikelyMainContentTable($, element, hasMainContentAncestor)) ||
@@ -127,9 +126,9 @@ export function extractBlockCandidates(input: {
 					isLikelyMainContentAnchor($, element, hasMainContentAncestor, input.baseUrl)));
 		const sectionHint = isBoilerplate
 			? null
-			: headingLevel != null
-				? textNormalized
-				: (parentHeadingPath.at(-1) ?? null);
+			: headingLevel == null
+				? (parentHeadingPath.at(-1) ?? null)
+				: textNormalized;
 		const parentHeadingHint = parentHeadingPath.at(-1) ?? null;
 
 		if (isStructuralHeading && textNormalized != null && headingLevel != null) {

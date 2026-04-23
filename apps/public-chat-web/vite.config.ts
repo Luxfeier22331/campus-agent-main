@@ -12,7 +12,7 @@ if (useLiveSmokeAuxiliaryWorker) {
 	try {
 		process.loadEnvFile(liveSmokeAppApiEnvPath);
 	} catch (error) {
-		if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
 			throw error;
 		}
 	}

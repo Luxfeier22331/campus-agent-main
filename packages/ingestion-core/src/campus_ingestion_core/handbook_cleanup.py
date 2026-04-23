@@ -30,10 +30,10 @@ from campus_ingestion_core.handbook_cleanup_shared import (
 
 __all__ = [
     "ARTICLE_PREFIX_RE",
-    "HandbookCleanupResult",
-    "NormalizedHandbookTable",
     "SHORT_HEADING_BODY_STARTERS",
     "SHORT_HEADING_WHITELIST",
+    "HandbookCleanupResult",
+    "NormalizedHandbookTable",
     "_find_boundary_overlap",
     "_has_unclosed_citation_context",
     "_looks_like_appendix_leaf_section_heading",

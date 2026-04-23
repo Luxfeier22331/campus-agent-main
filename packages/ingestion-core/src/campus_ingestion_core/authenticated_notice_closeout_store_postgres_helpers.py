@@ -144,19 +144,18 @@ class _PostgresAuthenticatedNoticeCloseoutStoreCursorHelpers:
                 )
             """,
         }
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                for table_name, statement in table_specs.items():
-                    _ensure_table_schema(cursor, table_name=table_name)
-                    table_sql = _qualified_table_sql(table_name)
-                    cursor.execute(statement.format(table_sql=table_sql))
-                    cursor.execute(
-                        f"""
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            for table_name, statement in table_specs.items():
+                _ensure_table_schema(cursor, table_name=table_name)
+                table_sql = _qualified_table_sql(table_name)
+                cursor.execute(statement.format(table_sql=table_sql))
+                cursor.execute(
+                    f"""
                         create index if not exists idx_{_table_index_suffix(table_name)}_updated_at
                         on {table_sql} (updated_at desc)
                         """
-                    )
-                self._ensure_hot_columns_and_indexes(cursor)
+                )
+            self._ensure_hot_columns_and_indexes(cursor)
 
     def _ensure_hot_columns_and_indexes(self, cursor) -> None:
         run_table_sql = _qualified_table_sql(self.run_table)
@@ -566,17 +565,15 @@ class _PostgresAuthenticatedNoticeCloseoutStoreCursorHelpers:
         return int(row[0]) if row else 0
 
     def _fetchone(self, query: str, params: tuple[object, ...]) -> tuple[object, ...] | None:
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                row = cursor.fetchone()
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
         return tuple(row) if row is not None else None
 
     def _fetchall(self, query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
     def _upsert_by_primary_key_cursor(

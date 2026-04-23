@@ -34,7 +34,7 @@ describe("official-web-collector validate", () => {
 		expect(crawlSite).toBeTypeOf("function");
 		expect(validateCollectorOutput).toBeTypeOf("function");
 		expect(buildCollectedPageArtifacts).toBeTypeOf("function");
-		if (!crawlSite || !validateCollectorOutput || !buildCollectedPageArtifacts) {
+		if (!(crawlSite && validateCollectorOutput && buildCollectedPageArtifacts)) {
 			return;
 		}
 
@@ -135,7 +135,7 @@ describe("official-web-collector validate", () => {
 		expect(crawlSite).toBeTypeOf("function");
 		expect(validateCollectorOutput).toBeTypeOf("function");
 		expect(buildCollectedPageArtifacts).toBeTypeOf("function");
-		if (!crawlSite || !validateCollectorOutput || !buildCollectedPageArtifacts) {
+		if (!(crawlSite && validateCollectorOutput && buildCollectedPageArtifacts)) {
 			return;
 		}
 
@@ -258,7 +258,7 @@ describe("official-web-collector validate", () => {
 		expect(crawlSite).toBeTypeOf("function");
 		expect(validateCollectorOutput).toBeTypeOf("function");
 		expect(buildCollectedPageArtifacts).toBeTypeOf("function");
-		if (!crawlSite || !validateCollectorOutput || !buildCollectedPageArtifacts) {
+		if (!(crawlSite && validateCollectorOutput && buildCollectedPageArtifacts)) {
 			return;
 		}
 

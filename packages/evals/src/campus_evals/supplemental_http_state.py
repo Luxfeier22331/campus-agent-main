@@ -238,9 +238,7 @@ def get_shared_async_client(
     settings: SupplementalHTTPSettings,
 ) -> httpx.AsyncClient:
     current_loop = asyncio.get_running_loop()
-    key = _shared_client_key(base_url=base_url, api_key=api_key, settings=settings) + (
-        current_loop,
-    )
+    key = (*_shared_client_key(base_url=base_url, api_key=api_key, settings=settings), current_loop)
     with _SHARED_ASYNC_CLIENTS_LOCK:
         existing = _SHARED_ASYNC_CLIENTS.get(key)
         if existing is not None and not getattr(existing, "is_closed", False):

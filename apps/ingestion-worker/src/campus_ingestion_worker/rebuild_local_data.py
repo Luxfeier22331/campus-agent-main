@@ -47,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
-__all__ = ["LocalDataRebuildReport", "RebuildRequest", "build_parser", "rebuild_local_data", "main"]
+__all__ = ["LocalDataRebuildReport", "RebuildRequest", "build_parser", "main", "rebuild_local_data"]
 
 
 if __name__ == "__main__":

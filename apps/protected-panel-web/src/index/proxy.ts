@@ -34,7 +34,7 @@ export async function proxyToAppApi(input: {
 	const runtimeApiBaseUrl = input.env.PANEL_RUNTIME_API_BASE_URL?.trim();
 	const panelAppApiSharedSecret = input.env.PANEL_APP_API_SHARED_SECRET?.trim();
 
-	if (!appApi || !runtimeApiBaseUrl || !panelAppApiSharedSecret) {
+	if (!(appApi && runtimeApiBaseUrl && panelAppApiSharedSecret)) {
 		return appApiBridgeNotConfiguredResponse();
 	}
 

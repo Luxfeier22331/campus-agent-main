@@ -447,7 +447,7 @@ export function AuditPage() {
 								<Alert severity="info">{PANEL_COPY.auditPage.states.loading}</Alert>
 							) : null}
 
-							{!listErrorMessage && !auditListQuery.isPending && auditEvents.length === 0 ? (
+							{!(listErrorMessage || auditListQuery.isPending) && auditEvents.length === 0 ? (
 								<Alert severity="info">{PANEL_COPY.auditPage.timeline.empty}</Alert>
 							) : null}
 
@@ -697,13 +697,13 @@ export function AuditPage() {
 										{PANEL_COPY.auditPage.detail.issueFingerprint}: {detailLinks.issueFingerprint}
 									</Typography>
 								) : null}
-								{!detailLinks?.traceLink &&
-								!detailLinks?.issueLink &&
-								!detailLinks?.issueFingerprint ? (
+								{detailLinks?.traceLink ||
+								detailLinks?.issueLink ||
+								detailLinks?.issueFingerprint ? null : (
 									<Typography color="text.secondary" variant="body2">
 										{PANEL_COPY.auditPage.detail.noLinks}
 									</Typography>
-								) : null}
+								)}
 							</Stack>
 						</SectionCard>
 					</Stack>

@@ -501,7 +501,7 @@ function normalizeHeaderValue(value: string | null): string | null {
 function assertNoticeListResponse(
 	payload: NoticeListResponse,
 ): asserts payload is NoticeListResponse & { datas: { tables: Array<Record<string, unknown>> } } {
-	if (!payload.state || !payload.datas || !Array.isArray(payload.datas.tables)) {
+	if (!(payload.state && payload.datas && Array.isArray(payload.datas.tables))) {
 		throw new Error(`unexpected notice response: ${JSON.stringify(payload).slice(0, 400)}`);
 	}
 }
@@ -515,10 +515,12 @@ function assertNoticeSelectsResponse(
 	};
 } {
 	if (
-		!payload.state ||
-		!payload.datas ||
-		!Array.isArray(payload.datas.org) ||
-		!Array.isArray(payload.datas.type)
+		!(
+			payload.state &&
+			payload.datas &&
+			Array.isArray(payload.datas.org) &&
+			Array.isArray(payload.datas.type)
+		)
 	) {
 		throw new Error(`unexpected notice selects response: ${JSON.stringify(payload).slice(0, 400)}`);
 	}
@@ -527,7 +529,7 @@ function assertNoticeSelectsResponse(
 function assertFileReleasePageResponse(
 	payload: FileReleasePageResponse,
 ): asserts payload is FileReleasePageResponse & { data: Array<Record<string, unknown>> } {
-	if (!payload.state || !Array.isArray(payload.data)) {
+	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release page response: ${JSON.stringify(payload).slice(0, 400)}`,
 		);
@@ -537,7 +539,7 @@ function assertFileReleasePageResponse(
 function assertFileReleaseTypeResponse(
 	payload: FileReleaseTypeListResponse,
 ): asserts payload is FileReleaseTypeListResponse & { data: Array<Record<string, unknown>> } {
-	if (!payload.state || !Array.isArray(payload.data)) {
+	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release type response: ${JSON.stringify(payload).slice(0, 400)}`,
 		);
@@ -549,7 +551,7 @@ function assertFileReleaseExplainDepartmentResponse(
 ): asserts payload is FileReleaseExplainDepartmentListResponse & {
 	data: Array<Record<string, unknown>>;
 } {
-	if (!payload.state || !Array.isArray(payload.data)) {
+	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release explain department response: ${JSON.stringify(payload).slice(0, 400)}`,
 		);
@@ -559,7 +561,7 @@ function assertFileReleaseExplainDepartmentResponse(
 function assertFileReleaseCodeTypeResponse(
 	payload: FileReleaseCodeTypeListResponse,
 ): asserts payload is FileReleaseCodeTypeListResponse & { data: Array<Record<string, unknown>> } {
-	if (!payload.state || !Array.isArray(payload.data)) {
+	if (!(payload.state && Array.isArray(payload.data))) {
 		throw new Error(
 			`unexpected file release code type response: ${JSON.stringify(payload).slice(0, 400)}`,
 		);

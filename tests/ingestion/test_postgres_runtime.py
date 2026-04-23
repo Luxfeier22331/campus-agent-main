@@ -241,9 +241,8 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ):
-            with runtime.pooled_postgres_connection(SESSION_POOLER_URL):
-                pass
+        ), runtime.pooled_postgres_connection(SESSION_POOLER_URL):
+            pass
 
         self.assertEqual(len(created), 1)
         self.assertEqual(
@@ -290,9 +289,8 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ):
-            with runtime.pooled_postgres_connection("postgresql://registry.example/postgres"):
-                pass
+        ), runtime.pooled_postgres_connection("postgresql://registry.example/postgres"):
+            pass
 
         self.assertEqual(len(created), 1)
         self.assertEqual(
@@ -348,12 +346,11 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
-        ):
-            with runtime.pooled_postgres_connection(
-                "postgresql://registry.example/postgres",
-                autocommit=False,
-            ) as conn:
-                self.assertIs(conn, created[0].connection_object)
+        ), runtime.pooled_postgres_connection(
+            "postgresql://registry.example/postgres",
+            autocommit=False,
+        ) as conn:
+            self.assertIs(conn, created[0].connection_object)
 
         self.assertEqual(created[0].connection_object.commit_count, 1)
         self.assertEqual(created[0].connection_object.rollback_count, 0)
@@ -402,13 +399,11 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.postgres_runtime.ConnectionPool", side_effect=_build_pool
+        ), self.assertRaisesRegex(RuntimeError, "boom"), runtime.pooled_postgres_connection(
+            "postgresql://registry.example/postgres",
+            autocommit=False,
         ):
-            with self.assertRaisesRegex(RuntimeError, "boom"):
-                with runtime.pooled_postgres_connection(
-                    "postgresql://registry.example/postgres",
-                    autocommit=False,
-                ):
-                    raise RuntimeError("boom")
+            raise RuntimeError("boom")
 
         self.assertEqual(created[0].connection_object.commit_count, 0)
         self.assertEqual(created[0].connection_object.rollback_count, 1)

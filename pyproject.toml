@@ -68,6 +68,13 @@ select = [
   "C420",
   "SIM108",
   "SIM114",
+  "SIM117",
+  "SIM102",
+  "SIM103",
+  "SIM105",
+  "SIM113",
+  "SIM118",
+  "SIM210",
   "SIM401",
   "B009",
   "B010",
@@ -77,6 +84,13 @@ select = [
   "PIE808",
   "PIE810",
   "RUF046",
+  "RUF005",
+  "RUF007",
+  "RUF009",
+  "RUF010",
+  "RUF022",
+  "RUF034",
+  "RUF100",
   "UP006",
   "UP031",
   "UP007",
@@ -94,10 +108,14 @@ select = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"tests/*/test_*.py" = ["F403"]
 "tests/contracts/*_suite.py" = ["F403", "F405"]
+"tests/evals/*_suite.py" = ["F403"]
 "tests/ingestion/*_suite.py" = ["F403", "F405"]
-"tests/ingestion/*_support.py" = ["F401", "F405", "I001"]
-"tests/ingestion/*_test_support.py" = ["E402", "F401", "F405", "I001"]
+"tests/ingestion/*_support.py" = ["F401", "F403", "F405", "I001"]
+"tests/ingestion/*_test_support.py" = ["E402", "F401", "F403", "F405", "I001"]
+"tests/retrieval/*_suite.py" = ["F403"]
+"tests/specialist/*_suite.py" = ["F403"]
 
 [tool.uv]
 package = false

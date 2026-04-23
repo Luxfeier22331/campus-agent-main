@@ -844,12 +844,12 @@ def _looks_like_mineru_page_marker(
 __all__ = [
     "MINERU_ADAPTED_PARSER_VERSION",
     "MINERU_PROVIDER",
-    "OnlineOcrRoutingDecision",
     "PADDLE_ASYNC_PROVIDER",
     "PADDLE_PARSER_VERSION",
     "RAW_PROVIDER_RESPONSE_ARCHIVE_FILENAME",
     "RAW_PROVIDER_RESPONSE_MANIFEST_FILENAME",
     "RAW_PROVIDER_RESPONSE_SEGMENT_FILENAME_TEMPLATE",
+    "OnlineOcrRoutingDecision",
     "RawAssetTypeRefinement",
     "RawAssetTypedMetadata",
     "adapt_mineru_archive_to_canonical_provider_payload",

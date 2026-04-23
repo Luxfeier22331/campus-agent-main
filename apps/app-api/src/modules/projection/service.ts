@@ -199,7 +199,7 @@ function computeRetryDelayMs(attemptCount: number): number {
 function computeProjectionLagMs(input: { projectedAt: string; startedAt: string }): number | null {
 	const projectedAtMs = Date.parse(input.projectedAt);
 	const startedAtMs = Date.parse(input.startedAt);
-	if (!Number.isFinite(projectedAtMs) || !Number.isFinite(startedAtMs)) {
+	if (!(Number.isFinite(projectedAtMs) && Number.isFinite(startedAtMs))) {
 		return null;
 	}
 

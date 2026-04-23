@@ -66,12 +66,11 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
         rows = tuple(records)
         if not rows:
             return
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    self._bulk_upsert_query(),
-                    (self._recordset_payload(rows),),
-                )
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(
+                self._bulk_upsert_query(),
+                (self._recordset_payload(rows),),
+            )
 
     def replace_scope(
         self,
@@ -79,18 +78,17 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
         collection: str,
         records: Sequence[AuthenticatedNoticeSourceTruthInventoryEntry],
     ) -> None:
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn:
-            with conn.cursor() as cursor:
+        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+            cursor.execute(
+                f"delete from {self.table_name} where corpus = %s and collection = %s",
+                (corpus, collection),
+            )
+            rows = tuple(records)
+            if rows:
                 cursor.execute(
-                    f"delete from {self.table_name} where corpus = %s and collection = %s",
-                    (corpus, collection),
+                    self._bulk_upsert_query(),
+                    (self._recordset_payload(rows),),
                 )
-                rows = tuple(records)
-                if rows:
-                    cursor.execute(
-                        self._bulk_upsert_query(),
-                        (self._recordset_payload(rows),),
-                    )
 
     def list_by_scope(
         self,
@@ -140,55 +138,53 @@ class PostgresAuthenticatedNoticeSourceTruthInventoryStore:
     def _ensure_schema(self) -> None:
         table_sql = _qualified_table_sql(self.table_name)
         suffix = _table_index_suffix(self.table_name)
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                _ensure_table_schema(cursor, table_name=self.table_name)
-                cursor.execute(
-                    f"""
-                    create table if not exists {table_sql} (
-                        corpus text not null,
-                        collection text not null,
-                        notice_id text not null,
-                        site_id text not null,
-                        document_id text not null,
-                        revision_track text not null,
-                        version_id text not null,
-                        raw_asset_id text not null,
-                        raw_version_id text not null,
-                        source_home_url text not null,
-                        embedding_model text not null,
-                        notice_manifest_key text not null,
-                        content_blocks_key text not null,
-                        attachment_refs_key text not null,
-                        attachment_document_count integer not null,
-                        text_extractable_count integer not null,
-                        ocr_required_count integer not null,
-                        reference_only_count integer not null,
-                        planning_weight integer not null,
-                        updated_at timestamptz not null,
-                        record jsonb not null,
-                        primary key (corpus, collection, notice_id)
-                    )
-                    """
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            _ensure_table_schema(cursor, table_name=self.table_name)
+            cursor.execute(
+                f"""
+                create table if not exists {table_sql} (
+                    corpus text not null,
+                    collection text not null,
+                    notice_id text not null,
+                    site_id text not null,
+                    document_id text not null,
+                    revision_track text not null,
+                    version_id text not null,
+                    raw_asset_id text not null,
+                    raw_version_id text not null,
+                    source_home_url text not null,
+                    embedding_model text not null,
+                    notice_manifest_key text not null,
+                    content_blocks_key text not null,
+                    attachment_refs_key text not null,
+                    attachment_document_count integer not null,
+                    text_extractable_count integer not null,
+                    ocr_required_count integer not null,
+                    reference_only_count integer not null,
+                    planning_weight integer not null,
+                    updated_at timestamptz not null,
+                    record jsonb not null,
+                    primary key (corpus, collection, notice_id)
                 )
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{suffix}_notice
-                    on {table_sql} (corpus, collection, planning_weight desc, notice_id asc)
-                    """
-                )
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{suffix}_raw
-                    on {table_sql} (corpus, collection, raw_asset_id, raw_version_id)
-                    """
-                )
+                """
+            )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{suffix}_notice
+                on {table_sql} (corpus, collection, planning_weight desc, notice_id asc)
+                """
+            )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{suffix}_raw
+                on {table_sql} (corpus, collection, raw_asset_id, raw_version_id)
+                """
+            )
 
     def _fetchall(self, query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
     def _bulk_upsert_query(self) -> str:
@@ -380,10 +376,9 @@ def _page_postgres_document_registry_scope_records(
             params.extend(last_key)
         query += "order by document_id asc, revision_track asc, version_id asc limit %s"
         params.append(normalized_page_size)
-        with _patched_postgres_connection(database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, tuple(params))
-                rows = cursor.fetchall()
+        with _patched_postgres_connection(database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, tuple(params))
+            rows = cursor.fetchall()
         if not rows:
             break
         page_records = tuple(
@@ -423,10 +418,9 @@ def _page_postgres_raw_asset_registry_scope_records(
             params.extend(last_key)
         query += "order by raw_asset_id asc, raw_version_id asc limit %s"
         params.append(normalized_page_size)
-        with _patched_postgres_connection(database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, tuple(params))
-                rows = cursor.fetchall()
+        with _patched_postgres_connection(database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, tuple(params))
+            rows = cursor.fetchall()
         if not rows:
             break
         page_records = tuple(

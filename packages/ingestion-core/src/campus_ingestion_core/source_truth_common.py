@@ -289,9 +289,7 @@ def looks_like_cross_page_continuation(*, current_text: str, next_text: str) -> 
         return False
     if current_text.endswith(_CONTINUATION_ENDINGS):
         return True
-    if len(current_text) >= 8 and not next_text.startswith(("第", "附件", "附表")):
-        return True
-    return False
+    return bool(len(current_text) >= 8 and not next_text.startswith(("第", "附件", "附表")))
 
 
 def extract_html_table_grid(html: str) -> list[list[str]] | None:

@@ -43,8 +43,7 @@ export function buildListingRequeueRequests(input: {
 
 	for (const link of input.page.discoveredLinks) {
 		if (
-			!link.admitted ||
-			!link.normalizedUrl ||
+			!(link.admitted && link.normalizedUrl) ||
 			link.normalizedUrl === input.page.pageManifest.normalizedCanonicalUrl
 		) {
 			continue;

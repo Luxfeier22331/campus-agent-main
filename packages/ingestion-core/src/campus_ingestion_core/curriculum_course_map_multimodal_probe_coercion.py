@@ -416,7 +416,7 @@ __all__ = [
     "_first_non_empty_string",
     "_loads_json_object_loose",
     "_normalize_course_map_finding_payload",
+    "_normalize_label",
     "_normalize_string_sequence",
     "_sort_detected_regions",
-    "_normalize_label",
 ]

@@ -77,7 +77,7 @@ function normalizeAllowedEmail(value: string | null | undefined): string | null 
 	}
 
 	const [localPart, domain] = normalized.split("@", 2);
-	if (!localPart || !domain) {
+	if (!(localPart && domain)) {
 		return null;
 	}
 
@@ -160,7 +160,7 @@ export function enforceEndUserEmailAdmission(input: {
 	email: string | null;
 	policy: EndUserEmailAdmissionPolicy;
 }): void {
-	if (!input.path || !END_USER_EMAIL_PASSWORD_AUTH_PATHS.has(input.path)) {
+	if (!(input.path && END_USER_EMAIL_PASSWORD_AUTH_PATHS.has(input.path))) {
 		return;
 	}
 	if (input.email && isEndUserEmailAllowedForAuth(input.email, input.policy)) {

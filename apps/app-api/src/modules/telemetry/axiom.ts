@@ -170,7 +170,7 @@ export function createAxiomRuntimeEventSink(
 
 	return {
 		async emit(payload) {
-			if (!dataset || !token) {
+			if (!(dataset && token)) {
 				return;
 			}
 

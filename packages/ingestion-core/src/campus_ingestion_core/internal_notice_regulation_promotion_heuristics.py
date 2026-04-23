@@ -254,13 +254,7 @@ def _is_wrapper_leading_line(
         keyword in normalized for keyword in ("印发", "发布", "修订")
     ):
         return True
-    if (
-        regulation_title_normalized
-        and regulation_title_normalized in normalized
-        and any(keyword in normalized for keyword in ("印发", "发布", "修订", "通知如下"))
-    ):
-        return True
-    return False
+    return bool(regulation_title_normalized and regulation_title_normalized in normalized and any(keyword in normalized for keyword in ("印发", "发布", "修订", "通知如下")))
 
 
 def _is_wrapper_trailing_line(line: str) -> bool:
@@ -273,11 +267,7 @@ def _is_wrapper_trailing_line(line: str) -> bool:
         return True
     if shared._DATE_RE.fullmatch(normalized) is not None:
         return True
-    if len(normalized) <= 24 and any(
-        keyword in normalized for keyword in ("中央民族大学", "处", "部", "学院", "中心", "办公室")
-    ):
-        return True
-    return False
+    return bool(len(normalized) <= 24 and any(keyword in normalized for keyword in ("中央民族大学", "处", "部", "学院", "中心", "办公室")))
 
 
 def _is_document_number_line(line: str) -> bool:

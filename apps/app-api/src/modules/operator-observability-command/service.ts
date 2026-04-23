@@ -1,5 +1,9 @@
 import { AppApiRouteError } from "../../http";
-import type { OperatorObservabilityCommandStore } from "./store";
+import type {
+	OperatorObservabilityCommandStore,
+	QualityGradeProjectionWrite,
+	TraceBacklinkProjectionWrite,
+} from "./store";
 
 const ALLOWED_GRADE_DOMAINS = new Set(["grounding", "citation", "policy"]);
 const ALLOWED_GRADE_VERDICTS = new Set(["pass", "fail", "needs_review"]);
@@ -202,7 +206,7 @@ export function buildOperatorObservabilityCommandService(
 	return {
 		async ingestGrades(input) {
 			const grades = ensureArray<OperatorQualityGradePayloadItem>(input.payload.grades, "grades");
-			const writes = [];
+			const writes: QualityGradeProjectionWrite[] = [];
 
 			for (let index = 0; index < grades.length; index += 1) {
 				const item = grades[index] ?? {};
@@ -294,7 +298,7 @@ export function buildOperatorObservabilityCommandService(
 				input.payload.backlinks,
 				"backlinks",
 			);
-			const writes = [];
+			const writes: TraceBacklinkProjectionWrite[] = [];
 
 			for (let index = 0; index < backlinks.length; index += 1) {
 				const item = backlinks[index] ?? {};

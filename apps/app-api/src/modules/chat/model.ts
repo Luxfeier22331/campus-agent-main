@@ -164,7 +164,7 @@ function normalizePlaceCard(value: unknown): ChatPlaceCard | null {
 	const placeId = normalizeOptionalString(value.placeId);
 	const entityType = normalizeOptionalString(value.entityType);
 	const displayName = normalizeOptionalString(value.displayName);
-	if (!placeId || !entityType || !displayName) {
+	if (!(placeId && entityType && displayName)) {
 		return null;
 	}
 

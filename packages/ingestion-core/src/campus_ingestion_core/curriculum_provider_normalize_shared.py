@@ -358,9 +358,7 @@ def _looks_like_numeric_heading(text: str) -> bool:
     remainder = text[match.end() :].strip()
     if not remainder or len(remainder) > 20 or _SENTENCE_PUNCTUATION_RE.search(remainder):
         return False
-    if any(token in remainder for token in ("，", ",", "、", "以及", "并", "能够", "可以")):
-        return False
-    return True
+    return not any(token in remainder for token in ("，", ",", "、", "以及", "并", "能够", "可以"))
 
 
 def _looks_like_subsection_heading(text: str) -> bool:
@@ -370,12 +368,7 @@ def _looks_like_subsection_heading(text: str) -> bool:
     remainder = text[match.end() :].strip()
     if not remainder or len(remainder) > 18 or _SENTENCE_PUNCTUATION_RE.search(remainder):
         return False
-    if any(
-        token in remainder
-        for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解")
-    ):
-        return False
-    return True
+    return not any(token in remainder for token in ("，", ",", "、", "能够", "可以", "具备", "具有", "掌握", "理解"))
 
 
 def _repair_sentence_wraps(lines: list[str]) -> str:
@@ -396,9 +389,7 @@ def _should_preserve_line_break(previous: str, current: str) -> bool:
         return False
     if previous_tail.endswith(("。", "！", "？", "；", ":", "：")):
         return True
-    if _LIST_LIKE_LINE_RE.match(current):
-        return True
-    return False
+    return bool(_LIST_LIKE_LINE_RE.match(current))
 
 
 def _joiner_between(previous: str, current: str) -> str:

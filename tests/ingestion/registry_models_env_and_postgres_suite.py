@@ -60,16 +60,19 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             )
 
     def test_build_document_registry_from_env_rejects_supabase_direct_connection(self) -> None:
-        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
-            with self.assertRaisesRegex(ValueError, "session pooler"):
-                build_document_registry_from_env(
-                    {
-                        "DOCUMENT_REGISTRY_DATABASE_URL": (
-                            "postgresql://postgres:secret@"
-                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
-                        )
-                    }
-                )
+        with patch.object(
+            PostgresDocumentRegistry,
+            "_ensure_schema",
+            return_value=None,
+        ), self.assertRaisesRegex(ValueError, "session pooler"):
+            build_document_registry_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": (
+                        "postgresql://postgres:secret@"
+                        "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                    )
+                }
+            )
 
     def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
@@ -141,16 +144,19 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             )
 
     def test_build_raw_asset_registry_from_env_rejects_supabase_transaction_pooler(self) -> None:
-        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
-            with self.assertRaisesRegex(ValueError, "session pooler"):
-                build_raw_asset_registry_from_env(
-                    {
-                        "RAW_ASSET_REGISTRY_DATABASE_URL": (
-                            "postgresql://postgres:secret@"
-                            "db.project-ref.supabase.co:6543/postgres?sslmode=require"
-                        )
-                    }
-                )
+        with patch.object(
+            PostgresRawAssetRegistry,
+            "_ensure_schema",
+            return_value=None,
+        ), self.assertRaisesRegex(ValueError, "session pooler"):
+            build_raw_asset_registry_from_env(
+                {
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": (
+                        "postgresql://postgres:secret@"
+                        "db.project-ref.supabase.co:6543/postgres?sslmode=require"
+                    )
+                }
+            )
 
     def test_build_raw_asset_registry_from_env_accepts_dedicated_database_url_without_document_registry(
         self,
@@ -170,16 +176,15 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             PostgresAuthenticatedNoticeCloseoutStore,
             "_ensure_schema",
             return_value=None,
-        ):
-            with self.assertRaisesRegex(ValueError, "session pooler"):
-                build_authenticated_notice_closeout_store_from_env(
-                    {
-                        "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": (
-                            "postgresql://postgres:secret@"
-                            "db.project-ref.supabase.co:5432/postgres?sslmode=require"
-                        )
-                    }
-                )
+        ), self.assertRaisesRegex(ValueError, "session pooler"):
+            build_authenticated_notice_closeout_store_from_env(
+                {
+                    "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL": (
+                        "postgresql://postgres:secret@"
+                        "db.project-ref.supabase.co:5432/postgres?sslmode=require"
+                    )
+                }
+            )
 
     def test_build_closeout_store_from_env_prefers_operator_database_url_when_requested(
         self,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .process_raw_ingestion_job_test_support import *  # noqa: F401,F403
+from .process_raw_ingestion_job_test_support import *
 
 
 class PaddleOcrAsyncClientTest(unittest.TestCase):
@@ -59,10 +59,9 @@ class PaddleOcrAsyncClientTest(unittest.TestCase):
                 patch(
                     "campus_ingestion_core.raw_ingestion_online_ocr.time.monotonic",
                     side_effect=(0.0, 0.0, 0.5, 1.5, 1.5),
-                ),
+                ),self.assertRaises(OnlineOcrProviderContractError) as raised
             ):
-                with self.assertRaises(OnlineOcrProviderContractError) as raised:
-                    client.parse_file(file_path)
+                client.parse_file(file_path)
 
         self.assertIn("file=sample.png", str(raised.exception))
         self.assertIn("job_id=job-1", str(raised.exception))

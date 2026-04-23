@@ -8,7 +8,7 @@ describe("authenticated notice collector auth save", () => {
 		const result = await saveAuthStorageState({
 			authStorageStatePath: "/tmp/collector-storage-state.json",
 			authTimeoutMs: 1_000,
-			confirmLogin: async () => {},
+			confirmLogin: async () => undefined,
 			launchBrowser: async () => ({
 				close: async () => {
 					calls.push("browser.close");
@@ -25,7 +25,7 @@ describe("authenticated notice collector auth save", () => {
 				}),
 			}),
 			logger: {
-				log: () => {},
+				log: () => undefined,
 			},
 			portalPageUrl: "https://portal.example.edu/page/11#/",
 		});
@@ -56,13 +56,13 @@ describe("authenticated notice collector auth save", () => {
 					},
 					newContext: async () => ({
 						newPage: async () => ({
-							goto: async () => {},
+							goto: async () => undefined,
 						}),
-						storageState: async () => {},
+						storageState: async () => undefined,
 					}),
 				}),
 				logger: {
-					log: () => {},
+					log: () => undefined,
 				},
 				portalPageUrl: "https://portal.example.edu/page/11#/",
 			}),

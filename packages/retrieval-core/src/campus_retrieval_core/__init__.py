@@ -26,9 +26,7 @@ from campus_retrieval_core.service import (
 from campus_retrieval_core.settings import RetrievalSettings
 
 __all__ = [
-    "build_retrieval_backend",
     "CorpusQueryDisabledError",
-    "execute_retrieval_plan",
     "QdrantRetrievalBackend",
     "RestrictedDocumentAccessDeniedError",
     "RetrievalBackendError",
@@ -45,5 +43,7 @@ __all__ = [
     "RetrievalStepBudget",
     "RetrievalStepFailure",
     "RetrievalStepResult",
+    "build_retrieval_backend",
+    "execute_retrieval_plan",
     "retrieve_sources",
 ]

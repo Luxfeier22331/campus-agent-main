@@ -166,4 +166,4 @@ def _match_open_domain_political_fact(normalized_goal: str) -> str | None:
     return office_signal
 
 
-__all__ = ["ScopeDecision", "ScopeClass", "evaluate_knowledge_scope"]
+__all__ = ["ScopeClass", "ScopeDecision", "evaluate_knowledge_scope"]

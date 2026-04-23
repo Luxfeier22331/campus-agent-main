@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, type SQL } from "drizzle-orm";
 
 import {
 	qualityBadcaseProjection,
@@ -431,7 +431,7 @@ export function createMetricStoreHandlers(runtime: OperatorQueryRuntime) {
 
 		async listQualityBadcases(filters: NormalizedOperatorQualityBadcaseListFilters) {
 			const db = await runtime.getDb();
-			const conditions = [];
+			const conditions: SQL[] = [];
 
 			if (filters.status) {
 				conditions.push(eq(qualityBadcaseProjection.status, filters.status));

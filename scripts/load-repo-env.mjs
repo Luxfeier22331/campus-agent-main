@@ -10,7 +10,7 @@ export function loadRepoEnvFile(importMetaUrl, repoRootRelativePath = ".") {
 	try {
 		process.loadEnvFile(repoEnvPath);
 	} catch (error) {
-		if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") {
+		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
 			throw error;
 		}
 	}

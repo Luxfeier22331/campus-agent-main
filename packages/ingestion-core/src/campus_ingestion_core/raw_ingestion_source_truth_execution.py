@@ -556,6 +556,6 @@ def _persist_source_truth_execution_sidecars(
 
 __all__ = (
     "_execute_source_truth_only_routed_online_ocr",
-    "_persist_source_truth_only_ocr_results",
     "_persist_source_truth_execution_sidecars",
+    "_persist_source_truth_only_ocr_results",
 )

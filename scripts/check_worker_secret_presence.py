@@ -395,7 +395,7 @@ def collect_worker_secret_presence(
             ]
             app_status["audit_command"] = audit_command
             app_status["ready"] = len(missing_secrets) == 0
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             app_status["error"] = str(exc)
 
         apps[app_path] = app_status

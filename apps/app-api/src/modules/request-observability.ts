@@ -14,7 +14,7 @@ import { extractObservedSourcesFromResult } from "./source-trace";
 import { summarizeVersionQuery, type VersionQuery } from "./version-query";
 
 function toScopeSummary(scope: RequestedScope | null | undefined): string | null {
-	if (!scope?.corpus || !scope?.collection) {
+	if (!(scope?.corpus && scope?.collection)) {
 		return null;
 	}
 
@@ -171,13 +171,12 @@ function normalizeScopeClass(input: {
 		return "out_of_scope";
 	}
 	if (
-		input.status === "completed" ||
-		input.status === "needs_clarification" ||
-		input.status === "no_answer"
+		(input.status === "completed" ||
+			input.status === "needs_clarification" ||
+			input.status === "no_answer") &&
+		(input.resolvedScope || input.requestedScope)
 	) {
-		if (input.resolvedScope || input.requestedScope) {
-			return "in_scope";
-		}
+		return "in_scope";
 	}
 	return null;
 }

@@ -58,7 +58,7 @@ describe("authenticated notice collector api", () => {
 			pageSize: 3,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 2,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 
 		expect(result.datas?.tables).toHaveLength(1);
@@ -99,7 +99,7 @@ describe("authenticated notice collector api", () => {
 				pageSize: 3,
 				requestBackoffBaseMs: 1,
 				requestMaxRetries: 1,
-				sleep: async () => {},
+				sleep: async () => undefined,
 			}),
 		).rejects.toThrow("auth-expired: getNoticeByPage failed: session invalid");
 	});
@@ -131,7 +131,7 @@ describe("authenticated notice collector api", () => {
 			attachmentUrl: "https://portal.example.edu/download?id=1",
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 
 		expect(result.body.toString("utf-8")).toBe("hello");
@@ -275,27 +275,27 @@ describe("authenticated notice collector api", () => {
 			pageSize: 10,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 		const detail = await fetchFileReleaseDetail({
 			apiContext,
 			fileReleaseId: 646,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 		const downloadUrl = await fetchFileReleaseDownloadUrl({
 			apiContext,
 			fileReleaseId: 646,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 		const fileTypes = await fetchFileReleaseTypes({
 			apiContext,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 
 		expect(page.data?.[0]?.id).toBe(646);
@@ -415,19 +415,19 @@ describe("authenticated notice collector api", () => {
 			pageSize: 15,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 		const explainDepartments = await fetchFileReleaseExplainDepartments({
 			apiContext,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 		const codeTypes = await fetchFileReleaseCodeTypes({
 			apiContext,
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
-			sleep: async () => {},
+			sleep: async () => undefined,
 		});
 
 		expect(noticeSelects.datas?.type).toHaveLength(2);

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .process_raw_ingestion_job_test_support import *  # noqa: F401,F403
+from .process_raw_ingestion_job_test_support import *
 
 
 class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
@@ -68,8 +68,9 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         "INGESTION_COLLECTION": "student_rules",
                         "RAW_INGESTION_ARTIFACT_MODE": "source_truth_only",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                        "OCR_BASE_URL": "https://mineru.example/api/v1/extract",
                         "OCR_API_KEY": "token",
+                        "OCR_PROVIDER_MODE": "mineru_api",
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",
@@ -556,8 +557,9 @@ class ProcessRawIngestionJobCurriculumAndManifestTest(unittest.TestCase):
                         "INGESTION_CORPUS": "regulations",
                         "INGESTION_COLLECTION": "student_rules",
                         "INGESTION_SPLIT_MANIFEST_PATH": str(split_manifest_path),
-                        "OCR_BASE_URL": "https://paddleocr.example/api/v2/ocr/jobs",
+                        "OCR_BASE_URL": "https://mineru.example/api/v1/extract",
                         "OCR_API_KEY": "token",
+                        "OCR_PROVIDER_MODE": "mineru_api",
                         "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                         "OBJECT_STORE_SECRET_KEY": "minioadmin",

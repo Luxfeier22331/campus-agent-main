@@ -557,9 +557,7 @@ def _is_pure_structure_heading_line(text: str) -> bool:
         return False
     if any(token in normalized for token in ("。", ":", "：", ";", "；", ",", "，")):
         return False
-    if len(normalized) > 48:
-        return False
-    return True
+    return len(normalized) <= 48
 
 
 def _preview_text(text: str, *, limit: int = 120) -> str:

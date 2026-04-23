@@ -174,9 +174,7 @@ def _should_skip_listing_line(text: str, section_heading: str) -> bool:
         return True
     if _contains_terminal_ellipsis(text):
         return True
-    if LISTING_UPPERCASE_BADGE_PATTERN.fullmatch(text) and text.upper() in section_heading.upper():
-        return True
-    return False
+    return bool(LISTING_UPPERCASE_BADGE_PATTERN.fullmatch(text) and text.upper() in section_heading.upper())
 
 
 def _is_listing_pagination_token(text: str) -> bool:
@@ -306,9 +304,7 @@ def _looks_like_listing_teaser_line(text: str) -> bool:
         return False
     if re.match(r"^\d+\s*张[，,、 ]?", normalized):
         return True
-    if " | " in normalized:
-        return True
-    return False
+    return " | " in normalized
 
 
 def _looks_like_short_label_cluster(text: str) -> bool:
@@ -375,9 +371,7 @@ def _looks_like_short_label_token(text: str) -> bool:
         punctuation in normalized for punctuation in {"。", "！", "？", "；", "：", ":", "，", ","}
     ):
         return False
-    if any(character.isdigit() for character in normalized):
-        return False
-    return True
+    return not any(character.isdigit() for character in normalized)
 
 
 def _looks_like_headline_only_fragment(text: str) -> bool:
@@ -391,9 +385,7 @@ def _looks_like_headline_only_fragment(text: str) -> bool:
     if any(punctuation in normalized for punctuation in {"。", "！", "？", "；", ";"}):
         return False
     comma_count = normalized.count("，") + normalized.count(",")
-    if comma_count >= 2:
-        return False
-    return True
+    return comma_count < 2
 
 
 def _looks_like_portal_generic_page(*, title: str, main_blocks: list[dict[str, object]]) -> bool:
@@ -433,11 +425,13 @@ def _looks_like_portal_directory_page(
 ) -> bool:
     normalized_title = " ".join(title.split()).strip()
     normalized_url = str(manifest.get("normalizedCanonicalUrl") or "").strip().rstrip("/")
-    if normalized_title not in {"首页", "中央民族大学"} and not normalized_url.endswith(
-        "://www.example.edu"
+    if (
+        normalized_title not in {"首页", "中央民族大学"}
+        and not normalized_url.endswith("://www.example.edu")
+        and not normalized_url.endswith("://www.muc.edu.cn")
+        and normalized_title != "门户首页"
     ):
-        if not normalized_url.endswith("://www.muc.edu.cn") and normalized_title != "门户首页":
-            return False
+        return False
     heading_count = 0
     link_like_count = 0
     date_like_count = 0
@@ -487,14 +481,7 @@ def _should_skip_generic_noise_line(
         return True
     if _contains_terminal_ellipsis(normalized):
         return True
-    if (
-        portal_like_generic_page
-        and seen_primary_narrative
-        and block_role in {"paragraph", "link", "list_item"}
-        and _looks_like_headline_only_fragment(normalized)
-    ):
-        return True
-    return False
+    return bool(portal_like_generic_page and seen_primary_narrative and block_role in {"paragraph", "link", "list_item"} and _looks_like_headline_only_fragment(normalized))
 
 
 def _looks_like_low_value_article_tail_line(text: str) -> bool:
@@ -503,6 +490,4 @@ def _looks_like_low_value_article_tail_line(text: str) -> bool:
         return False
     if OFFICIAL_WEB_LOW_VALUE_QR_SIGNUP_PATTERN.match(normalized):
         return True
-    if OFFICIAL_WEB_LOW_VALUE_ACTIVITY_POINTS_PATTERN.match(normalized):
-        return True
-    return False
+    return bool(OFFICIAL_WEB_LOW_VALUE_ACTIVITY_POINTS_PATTERN.match(normalized))

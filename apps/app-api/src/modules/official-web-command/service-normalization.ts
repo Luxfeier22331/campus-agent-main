@@ -174,7 +174,7 @@ function normalizeArtifacts(value: unknown): OfficialWebArtifactRecord[] {
 		const artifactType = normalizeString(artifact.artifactType);
 		const objectKey = normalizeString(artifact.objectKey);
 		const contentSha256 = normalizeString(artifact.contentSha256);
-		if (!artifactType || !ALLOWED_ARTIFACT_TYPES.has(artifactType)) {
+		if (!(artifactType && ALLOWED_ARTIFACT_TYPES.has(artifactType))) {
 			throw new AppApiRouteError({
 				code: "validation_failed",
 				details: { field: `artifacts[${index}].artifactType` },
@@ -183,7 +183,7 @@ function normalizeArtifacts(value: unknown): OfficialWebArtifactRecord[] {
 				status: 422,
 			});
 		}
-		if (!objectKey || !contentSha256) {
+		if (!(objectKey && contentSha256)) {
 			throw new AppApiRouteError({
 				code: "validation_failed",
 				details: { field: `artifacts[${index}]` },
@@ -281,13 +281,15 @@ function normalizePageObservations(value: unknown): NormalizedPageObservation[] 
 		const pageTitleNormalized = normalizeString(observation.pageTitleNormalized);
 		const discoveryMethod = normalizeString(observation.discoveryMethod);
 		if (
-			!requestedUrl ||
-			!finalUrl ||
-			!normalizedCanonicalUrl ||
-			!host ||
-			!pageFamily ||
-			!pageTitleNormalized ||
-			!discoveryMethod
+			!(
+				requestedUrl &&
+				finalUrl &&
+				normalizedCanonicalUrl &&
+				host &&
+				pageFamily &&
+				pageTitleNormalized &&
+				discoveryMethod
+			)
 		) {
 			throw new AppApiRouteError({
 				code: "validation_failed",
@@ -335,13 +337,15 @@ export function normalizeStartPayload(payload: OfficialWebStartPayload): Normali
 	const crawlPolicyVersion = normalizeString(payload.crawlPolicyVersion);
 
 	if (
-		!siteId ||
-		!schedulerRunKey ||
-		!runIntent ||
-		!triggerType ||
-		!collectorVersion ||
-		!configVersion ||
-		!crawlPolicyVersion
+		!(
+			siteId &&
+			schedulerRunKey &&
+			runIntent &&
+			triggerType &&
+			collectorVersion &&
+			configVersion &&
+			crawlPolicyVersion
+		)
 	) {
 		throw new AppApiRouteError({
 			code: "validation_failed",

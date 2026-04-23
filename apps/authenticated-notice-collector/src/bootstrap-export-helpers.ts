@@ -121,7 +121,7 @@ export function normalizeObservedOrganizations(
 	for (const item of response.datas?.org ?? []) {
 		const organizationId = normalizeNullableText(item.organization_id);
 		const organizationName = normalizeNullableText(item.organization_name);
-		if (!organizationId || !organizationName || seen.has(organizationId)) {
+		if (!(organizationId && organizationName) || seen.has(organizationId)) {
 			continue;
 		}
 		seen.add(organizationId);

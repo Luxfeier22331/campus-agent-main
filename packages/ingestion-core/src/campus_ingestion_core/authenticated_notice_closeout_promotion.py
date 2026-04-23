@@ -435,7 +435,7 @@ def _chunked(
 
 
 __all__ = [
-    "CloseoutPromotionCoordinator",
     "DEFAULT_PROMOTION_COPY_BATCH_SIZE",
     "DEFAULT_PROMOTION_ID",
+    "CloseoutPromotionCoordinator",
 ]

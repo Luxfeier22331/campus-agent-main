@@ -437,11 +437,11 @@ def takeover_workstream_claim(
         if (
             current is not None
             and get_effective_claim_status(current, now=current_time) != "expired"
+            and not force
         ):
-            if not force:
-                raise ClaimConflictError(
-                    f"Workstream '{slug}' is still actively claimed by {current.get('operator_id')}"
-                )
+            raise ClaimConflictError(
+                f"Workstream '{slug}' is still actively claimed by {current.get('operator_id')}"
+            )
 
         record = _create_claim_record(
             workstream=slug,

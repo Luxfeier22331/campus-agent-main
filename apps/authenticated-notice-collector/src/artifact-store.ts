@@ -82,9 +82,9 @@ export function createAuthenticatedNoticeArtifactStoreFromEnv(
 	const configuredCount = [endpoint, accessKey, secretKey].filter(Boolean).length;
 
 	if (configuredCount === 0) {
-		return undefined;
+		return;
 	}
-	if (!endpoint || !accessKey || !secretKey) {
+	if (!(endpoint && accessKey && secretKey)) {
 		throw new Error(
 			"OBJECT_STORE_ENDPOINT plus a complete source-bucket credential pair are required. Use OBJECT_STORE_SOURCE_ACCESS_KEY/OBJECT_STORE_SOURCE_SECRET_KEY or shared OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY.",
 		);

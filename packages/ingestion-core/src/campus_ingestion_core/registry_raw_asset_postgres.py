@@ -67,12 +67,11 @@ class PostgresRawAssetRegistry:
     def upsert_many(self, records: tuple[RawAssetRecord, ...]) -> None:
         if not records:
             return
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    self._bulk_upsert_query(),
-                    (self._recordset_payload(records),),
-                )
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(
+                self._bulk_upsert_query(),
+                (self._recordset_payload(records),),
+            )
 
     def list_by_corpus(self, corpus: str) -> tuple[RawAssetRecord, ...]:
         return self.list_by_scope(corpus)
@@ -119,24 +118,23 @@ class PostgresRawAssetRegistry:
             "ingestion_timestamp = excluded.ingestion_timestamp, "
             "record = excluded.record"
         )
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(delete_query, delete_params)
-                if records:
-                    cursor.executemany(
-                        upsert_query,
-                        tuple(
-                            (
-                                record.raw_asset_id,
-                                record.raw_version_id,
-                                record.corpus,
-                                record.collection,
-                                _parse_timestamp(record.ingestion_timestamp),
-                                json.dumps(asdict(record), ensure_ascii=False),
-                            )
-                            for record in records
-                        ),
-                    )
+        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+            cursor.execute(delete_query, delete_params)
+            if records:
+                cursor.executemany(
+                    upsert_query,
+                    tuple(
+                        (
+                            record.raw_asset_id,
+                            record.raw_version_id,
+                            record.corpus,
+                            record.collection,
+                            _parse_timestamp(record.ingestion_timestamp),
+                            json.dumps(asdict(record), ensure_ascii=False),
+                        )
+                        for record in records
+                    ),
+                )
 
     def _ensure_schema(self) -> None:
         cache_key = (self.database_url, self.table_name)
@@ -155,35 +153,31 @@ class PostgresRawAssetRegistry:
                 primary key (raw_asset_id, raw_version_id)
             )
             """
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                _ensure_table_schema(cursor, table_name=self.table_name)
-                cursor.execute(create_table_statement)
-                cursor.execute(
-                    f"""
-                    create index if not exists idx_{table_index_suffix}_corpus
-                    on {table_sql} (corpus, collection, raw_asset_id, raw_version_id)
-                    """
-                )
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            _ensure_table_schema(cursor, table_name=self.table_name)
+            cursor.execute(create_table_statement)
+            cursor.execute(
+                f"""
+                create index if not exists idx_{table_index_suffix}_corpus
+                on {table_sql} (corpus, collection, raw_asset_id, raw_version_id)
+                """
+            )
         _INITIALIZED_RAW_ASSET_TABLES.add(cache_key)
 
     def _execute(self, query: str, params: tuple[object, ...]) -> None:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
 
     def _fetchone(self, query: str, params: tuple[object, ...]) -> tuple[object, ...] | None:
-        with _patched_postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                row = cursor.fetchone()
+        with _patched_postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            row = cursor.fetchone()
         return tuple(row) if row is not None else None
 
     def _fetchall(self, query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-        with _postgres_connection(self.database_url) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
         return tuple(tuple(row) for row in rows)
 
     def _scan_scope_record_rows(

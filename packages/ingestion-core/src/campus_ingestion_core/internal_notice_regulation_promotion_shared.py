@@ -325,14 +325,14 @@ def _is_missing_metadata(
 
 
 __all__ = [
-    "InternalNoticePromotionObjectStore",
     "InternalNoticeParentRegulationBodyPreview",
+    "InternalNoticePromotionObjectStore",
     "InternalNoticePromotionRoutingClassConfig",
     "InternalNoticePromotionRoutingConfig",
-    "InternalNoticeRegulationPromotionRequest",
-    "InternalNoticeRegulationPromotionDocumentReport",
-    "InternalNoticeRegulationPromotionManifestReport",
-    "InternalNoticeRegulationCandidateArtifactRef",
     "InternalNoticeRegulationCandidateArtifactDocument",
     "InternalNoticeRegulationCandidateArtifactManifest",
+    "InternalNoticeRegulationCandidateArtifactRef",
+    "InternalNoticeRegulationPromotionDocumentReport",
+    "InternalNoticeRegulationPromotionManifestReport",
+    "InternalNoticeRegulationPromotionRequest",
 ]

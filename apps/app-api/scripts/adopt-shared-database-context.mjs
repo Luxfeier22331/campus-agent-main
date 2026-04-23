@@ -62,7 +62,7 @@ export function loadMigrationContext() {
 		tag: journal.entries[index].tag,
 	}));
 	const snapshots = new Map(journal.entries.map((entry) => [entry.tag, loadSnapshot(entry)]));
-	const latestTag = journal.entries[journal.entries.length - 1]?.tag;
+	const latestTag = journal.entries.at(-1)?.tag;
 	if (!latestTag) {
 		throw new Error("app-api drizzle meta journal is empty");
 	}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .rebuild_local_data_test_support import *  # noqa: F401,F403
+from .rebuild_local_data_test_support import *
 
 
 class RebuildLocalDataRuntimeTest(unittest.TestCase):

@@ -113,6 +113,6 @@ export function resolveWaitUntil(
 	try {
 		return context?.executionCtx?.waitUntil.bind(context.executionCtx);
 	} catch {
-		return undefined;
+		return;
 	}
 }

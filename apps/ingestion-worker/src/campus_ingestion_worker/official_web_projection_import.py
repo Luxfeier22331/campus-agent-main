@@ -393,7 +393,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
-__all__ = ["build_parser", "import_projection_output", "main", "ObjectStoreSettings"]
+__all__ = ["ObjectStoreSettings", "build_parser", "import_projection_output", "main"]
 
 
 if __name__ == "__main__":

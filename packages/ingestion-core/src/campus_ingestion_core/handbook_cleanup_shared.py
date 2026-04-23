@@ -287,7 +287,7 @@ NAVIGATION_LEAF_FORBIDDEN_FRAGMENTS = (
 )
 LEAF_SECTION_PUNCTUATION_RE = re.compile(r"[，,。；;：:！？!?]")
 RUNNING_HEADER_LINES = frozenset({"学生手册"})
-FORM_COVER_KEYWORDS = ATTACHMENT_TITLE_SUFFIXES + ("报送时间",)
+FORM_COVER_KEYWORDS = (*ATTACHMENT_TITLE_SUFFIXES, "报送时间")
 
 
 @dataclass(frozen=True, slots=True)

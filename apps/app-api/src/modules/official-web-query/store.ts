@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lt, lte, not, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, lte, not, or, type SQL } from "drizzle-orm";
 
 import { decodeBase64UrlJson, encodeBase64UrlJson } from "../../base64url";
 import type { Env } from "../../config";
@@ -368,7 +368,7 @@ export function createPgOfficialWebQueryStore(
 
 		async listRuns(filters) {
 			const db = await getDb();
-			const conditions = [];
+			const conditions: SQL[] = [];
 
 			if (filters.siteId) {
 				conditions.push(eq(officialWebRunProjection.siteId, filters.siteId));

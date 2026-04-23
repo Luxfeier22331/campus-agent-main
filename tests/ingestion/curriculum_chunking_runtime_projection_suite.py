@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .curriculum_chunking_test_support import *  # noqa: F401,F403
+from .curriculum_chunking_test_support import *
 
 
 class CurriculumChunkingRuntimeProjectionTest(unittest.TestCase):

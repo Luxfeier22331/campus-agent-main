@@ -131,7 +131,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 			createRequestContext: async (input) => {
 				calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
 				return {
-					dispose: async () => {},
+					dispose: async () => undefined,
 					get: async () => {
 						throw new Error("unexpected get");
 					},
@@ -218,7 +218,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 			createRequestContext: async (input) => {
 				calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
 				return {
-					dispose: async () => {},
+					dispose: async () => undefined,
 					get: async () => {
 						throw new Error("unexpected get");
 					},

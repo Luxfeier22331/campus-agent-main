@@ -29,7 +29,7 @@ export function normalizeOptionalString(value: string | null | undefined): strin
 }
 
 export function normalizeLimit(value: number | null | undefined): number {
-	if (!Number.isFinite(value) || !value || value < 1) {
+	if (!(Number.isFinite(value) && value) || value < 1) {
 		return DEFAULT_LIMIT;
 	}
 

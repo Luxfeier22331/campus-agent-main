@@ -20,7 +20,7 @@ export function resolveCurriculumFollowUpState(
 	let semester = "";
 
 	for (const slot of sessionSlots) {
-		if (!slot.confirmed || !slot.value.trim()) {
+		if (!(slot.confirmed && slot.value.trim())) {
 			continue;
 		}
 		if (slot.name === CURRICULUM_PROGRAM_FAMILY_SLOT_NAME) {
@@ -67,7 +67,7 @@ export function deriveCurriculumSessionSlots(input: {
 		semester: input.diagnostics.sessionSemester?.trim() || "",
 	};
 
-	if (!nextState.programFamily && !nextState.program && !nextState.semester) {
+	if (!(nextState.programFamily || nextState.program || nextState.semester)) {
 		return [];
 	}
 

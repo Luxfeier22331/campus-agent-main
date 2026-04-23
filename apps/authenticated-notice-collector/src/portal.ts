@@ -127,7 +127,7 @@ function defaultCreateRequestContext(input: {
 function readStoredAuthStorageState(storageStatePath: string): PortalStorageState {
 	const raw = fs.readFileSync(storageStatePath, "utf-8");
 	const parsed = JSON.parse(raw) as PortalStorageState;
-	if (!Array.isArray(parsed.cookies) || !Array.isArray(parsed.origins)) {
+	if (!(Array.isArray(parsed.cookies) && Array.isArray(parsed.origins))) {
 		throw new Error(`invalid storage state: ${storageStatePath}`);
 	}
 	return parsed;

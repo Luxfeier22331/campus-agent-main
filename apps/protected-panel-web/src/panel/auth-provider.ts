@@ -103,7 +103,9 @@ export const protectedPanelAuthProvider: AuthProvider = {
 			id: operator.operatorId,
 		};
 	},
-	async login() {},
+	async login() {
+		/* noop */
+	},
 	async logout(params) {
 		clearOverviewCache();
 

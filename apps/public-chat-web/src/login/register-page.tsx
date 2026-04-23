@@ -66,7 +66,7 @@ export function RegisterPage() {
 			<AuthForm action={handleSubmit} defaultEmail={email}>
 				<SubmitButton isSuccessful={isSuccessful}>注册</SubmitButton>
 				<p className="text-center text-[13px] text-muted-foreground">
-					{"已有账号？"}
+					已有账号？
 					<Link className="text-foreground underline-offset-4 hover:underline" href="/login">
 						去登录
 					</Link>

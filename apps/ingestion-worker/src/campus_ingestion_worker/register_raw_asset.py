@@ -145,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-__all__ = ["RawAssetRegistrationResult", "build_parser", "register_raw_asset", "main"]
+__all__ = ["RawAssetRegistrationResult", "build_parser", "main", "register_raw_asset"]
 
 
 if __name__ == "__main__":

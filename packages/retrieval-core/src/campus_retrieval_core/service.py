@@ -115,7 +115,7 @@ def execute_retrieval_plan(
     retrieve_live_step: ExecutableLiveLookupFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
 ) -> RetrievalExecutionResult:
-    runtime_backend = backend if retrieve_step is None else backend
+    runtime_backend = backend
     needs_indexed_executor = any(step.step_type == "indexed_lookup" for step in plan.steps)
     if runtime_backend is None and retrieve_step is None and needs_indexed_executor:
         runtime_backend = build_retrieval_backend()

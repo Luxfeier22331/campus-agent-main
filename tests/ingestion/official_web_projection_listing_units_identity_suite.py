@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .official_web_projection_test_support import *  # noqa: F401,F403
+from .official_web_projection_test_support import *
 
 
 class OfficialWebProjectionListingUnitsIdentityTest(unittest.TestCase):

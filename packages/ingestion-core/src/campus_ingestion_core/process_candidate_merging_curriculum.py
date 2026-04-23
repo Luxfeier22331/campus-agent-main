@@ -213,9 +213,7 @@ def curriculum_table_section_paths_are_compatible(
         return False
     if current_path[: len(incoming_path)] == incoming_path:
         return True
-    if incoming_path[: len(current_path)] == current_path:
-        return True
-    return False
+    return incoming_path[:len(current_path)] == current_path
 
 
 def curriculum_section_context_candidates_are_compatible(
@@ -296,14 +294,11 @@ def curriculum_section_to_table_candidates_are_compatible(
         and current_path[:-1] == incoming_path[:-1]
         and curriculum_candidate_is_heading_only(current)
     ):
-        if curriculum_path_leaf_is_top_level_heading(
-            current_path
-        ) or curriculum_path_leaf_is_top_level_heading(incoming_path):
-            return False
-        return True
-    if curriculum_candidate_is_title_only(current) and incoming_path:
-        return True
-    return False
+        return not (
+            curriculum_path_leaf_is_top_level_heading(current_path)
+            or curriculum_path_leaf_is_top_level_heading(incoming_path)
+        )
+    return bool(curriculum_candidate_is_title_only(current) and incoming_path)
 
 
 def is_absorbable_curriculum_section_candidate(candidate: _ChunkCandidate) -> bool:
@@ -456,11 +451,7 @@ def curriculum_candidate_has_short_parent_intro_body(candidate: _ChunkCandidate)
     if contribution_lines[0] != section_path[-1]:
         return False
     first_body_line = contribution_lines[1]
-    if _CURRICULUM_TOP_LEVEL_HEADING_RE.match(first_body_line) or _NESTED_NUMBERED_LINE_RE.match(
-        first_body_line
-    ):
-        return False
-    return True
+    return not (_CURRICULUM_TOP_LEVEL_HEADING_RE.match(first_body_line) or _NESTED_NUMBERED_LINE_RE.match(first_body_line))
 
 
 def curriculum_candidate_has_structural_continuation_beyond_anchor(

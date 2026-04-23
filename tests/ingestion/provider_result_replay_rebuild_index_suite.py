@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .provider_result_replay_rebuild_test_support import *  # noqa: F401,F403
+from .provider_result_replay_rebuild_test_support import *
 
 
 class ProviderResultReplayIndexTest(unittest.TestCase):
@@ -32,25 +32,25 @@ class ProviderResultReplayIndexTest(unittest.TestCase):
                 "campus_ingestion_core.local_rebuild_indexing.build_sparse_embedding_model",
                 return_value=object(),
             ),
-        ):
-            with self.assertRaisesRegex(
+            self.assertRaisesRegex(
                 ValueError,
                 "missing registry record for replayed document regulations/student_rules handbook:missing-record@v1:missing-record",
-            ):
-                _index_replayed_documents(
-                    source={
-                        "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                        "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                        "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                        "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
-                        "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
-                        "EMBEDDING_PROVIDER": "mock",
-                    },
-                    registry=InMemoryDocumentRegistry(),
-                    documents=documents,
-                    object_store=_FakeObjectStore(provider_result_bytes=b""),
-                    qdrant_client=QdrantClient(location=":memory:"),
-                )
+            ),
+        ):
+            _index_replayed_documents(
+                source={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "EMBEDDING_PROVIDER": "mock",
+                },
+                registry=InMemoryDocumentRegistry(),
+                documents=documents,
+                object_store=_FakeObjectStore(provider_result_bytes=b""),
+                qdrant_client=QdrantClient(location=":memory:"),
+            )
 
     def test_index_replayed_documents_fails_closed_when_document_produces_no_chunks(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -104,11 +104,11 @@ class ProviderResultReplayIndexTest(unittest.TestCase):
                     "campus_ingestion_core.local_rebuild_indexing.build_indexable_chunks_from_jsonl",
                     return_value=(),
                 ),
-            ):
-                with self.assertRaisesRegex(
+                self.assertRaisesRegex(
                     ValueError,
                     "replayed document regulations/student_rules handbook:empty-chunks@v1:empty-chunks produced no chunks",
-                ):
+                ),
+            ):
                     _index_replayed_documents(
                         source={
                             "OBJECT_STORE_ENDPOINT": "http://localhost:9000",

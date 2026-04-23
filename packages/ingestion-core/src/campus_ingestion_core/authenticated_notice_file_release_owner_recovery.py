@@ -351,9 +351,7 @@ def _released_file_has_recoverable_source(released_file: FileReleaseResolvedFile
         and released_file.sha256
     ):
         return True
-    if released_file.storage_provider == "local" and released_file.local_path:
-        return True
-    return False
+    return bool(released_file.storage_provider == "local" and released_file.local_path)
 
 
 def _inventory_entries_export_manifest(

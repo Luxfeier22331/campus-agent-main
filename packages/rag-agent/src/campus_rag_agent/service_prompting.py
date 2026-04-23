@@ -208,9 +208,7 @@ def _is_ambiguous_title_fragment_goal(user_goal: str, sources: tuple[EvidenceSou
     query_key = _match_key(user_goal)
     if not _is_short_title_fragment(query_key):
         return False
-    if any(_source_title_matches_exact_query(query_key, source) for source in distinct_sources):
-        return False
-    return True
+    return not any(_source_title_matches_exact_query(query_key, source) for source in distinct_sources)
 
 
 def _build_clarification_question(

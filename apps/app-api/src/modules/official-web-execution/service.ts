@@ -51,8 +51,10 @@ function normalizeOptionalString(value: unknown): string | null {
 function normalizeRequiredStatus(value: unknown): OfficialWebIngestionExecutionStatus {
 	const normalized = normalizeOptionalString(value);
 	if (
-		!normalized ||
-		!ALLOWED_EXECUTION_STATUSES.has(normalized as OfficialWebIngestionExecutionStatus)
+		!(
+			normalized &&
+			ALLOWED_EXECUTION_STATUSES.has(normalized as OfficialWebIngestionExecutionStatus)
+		)
 	) {
 		throw new AppApiRouteError({
 			code: "validation_failed",

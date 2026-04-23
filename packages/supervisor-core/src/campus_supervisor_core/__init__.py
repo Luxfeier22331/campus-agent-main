@@ -64,17 +64,17 @@ def handle_specialist_request(
 
 
 __all__ = [
-    "SupervisorAgent",
-    "SupervisorAuditRecord",
-    "SupervisorError",
+    "DisallowedKnowledgeScopeError",
     "InvalidSpecialistToolPolicyError",
     "InvalidSupervisorRequestError",
     "MissingRoutingInputError",
-    "UnsupportedCapabilityError",
-    "DisallowedKnowledgeScopeError",
     "MissingSpecialistDelegateError",
-    "handle_request",
-    "handle_specialist_request",
+    "SupervisorAgent",
+    "SupervisorAuditRecord",
+    "SupervisorError",
+    "UnsupportedCapabilityError",
     "build_audit_record",
     "build_error_audit_record",
+    "handle_request",
+    "handle_specialist_request",
 ]

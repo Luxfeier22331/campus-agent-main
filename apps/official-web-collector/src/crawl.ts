@@ -193,8 +193,8 @@ export async function crawlSite(
 
 	try {
 		const aggregatedResults =
-			options.crawlHosts != null
-				? await options.crawlHosts({
+			options.crawlHosts == null
+				? await crawlHostsWithCrawlee({
 						bundle,
 						dynamicPlan: dynamicPlan.plan,
 						plan,
@@ -205,7 +205,7 @@ export async function crawlSite(
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
 						reportProgress,
 					})
-				: await crawlHostsWithCrawlee({
+				: await options.crawlHosts({
 						bundle,
 						dynamicPlan: dynamicPlan.plan,
 						plan,
@@ -285,15 +285,15 @@ export async function crawlSite(
 			pages: normalizedResults.pages,
 		});
 		const uploadResult =
-			options.artifactStore != null
-				? await uploadCollectorArtifacts({
+			options.artifactStore == null
+				? { uploadedArtifacts: [], artifactUploadCount: 0 }
+				: await uploadCollectorArtifacts({
 						siteId: plan.siteId,
 						crawlRunId: plan.crawlRunId,
 						artifactStore: options.artifactStore,
 						runArtifacts,
 						pages: normalizedResults.pages,
-					})
-				: { uploadedArtifacts: [], artifactUploadCount: 0 };
+					});
 		const previousProgress = latestProgress;
 		const finalProgress = summarizeProgressCounts(
 			normalizedResults,

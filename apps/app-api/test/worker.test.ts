@@ -71,7 +71,9 @@ function createCampusPrincipal() {
 
 function createExecutionContext(waitUntil = vi.fn()): ExecutionContext {
 	return {
-		passThroughOnException() {},
+		passThroughOnException() {
+			/* noop */
+		},
 		props: {},
 		waitUntil,
 	} as unknown as ExecutionContext;

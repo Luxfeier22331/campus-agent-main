@@ -60,8 +60,8 @@ __all__ = [
     "OnlineOcrProviderResult",
     "RawIngestionRequest",
     "build_parser",
-    "process_raw_ingestion_job",
     "main",
+    "process_raw_ingestion_job",
 ]
 
 

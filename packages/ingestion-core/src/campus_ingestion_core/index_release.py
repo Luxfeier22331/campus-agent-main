@@ -5,6 +5,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from itertools import pairwise
 from typing import Any, Protocol
 
 from qdrant_client import QdrantClient
@@ -413,9 +414,7 @@ def _validate_curriculum_release(chunks: Sequence[IndexableChunk]) -> IndexRelea
         rows.append(
             {
                 "tokens": int(chunk.metadata.get("final_token_count") or 0),
-                "duplicated_heading": any(
-                    a == b for a, b in zip(leading, leading[1:], strict=False)
-                ),
+                "duplicated_heading": any(a == b for a, b in pairwise(leading)),
                 "path_mismatch": (
                     chunk.metadata.get("unit_type") == "section_text"
                     and bool(leading)

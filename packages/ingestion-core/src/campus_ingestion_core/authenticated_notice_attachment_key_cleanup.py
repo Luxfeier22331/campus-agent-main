@@ -242,8 +242,8 @@ def _is_missing_object_error(exc: Exception) -> bool:
 
 
 __all__ = [
+    "LEGACY_ATTACHMENT_OBJECT_KEY_RE",
     "AuthenticatedNoticeAttachmentKeyCleanupRequest",
     "AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore",
-    "LEGACY_ATTACHMENT_OBJECT_KEY_RE",
     "cleanup_authenticated_notice_source_attachment_keys",
 ]

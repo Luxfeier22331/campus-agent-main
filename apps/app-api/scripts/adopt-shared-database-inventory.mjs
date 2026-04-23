@@ -146,16 +146,20 @@ export function validateInventoryAgainstExpectedTables(
 		}
 		for (const columnName of actualColumns.keys()) {
 			if (
-				!expectedColumns.has(columnName) &&
-				!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)
+				!(
+					expectedColumns.has(columnName) ||
+					hasPlannedTarget(plannedTargetKeys, `${qualifiedName}:${columnName}`, qualifiedName)
+				)
 			) {
 				mismatches.push(`${qualifiedName} unexpected column ${columnName}`);
 			}
 		}
 		for (const constraint of expectedTable.constraints) {
 			if (
-				!actualTable.constraints.has(constraint) &&
-				!hasPlannedTarget(plannedTargetKeys, `${qualifiedName}#${constraint}`, qualifiedName)
+				!(
+					actualTable.constraints.has(constraint) ||
+					hasPlannedTarget(plannedTargetKeys, `${qualifiedName}#${constraint}`, qualifiedName)
+				)
 			) {
 				mismatches.push(`${qualifiedName} missing constraint ${constraint}`);
 			}

@@ -109,16 +109,17 @@ def matching_curriculum_doc_ids(
             _compact_curriculum_title_key(candidate)
             for candidate in _source_title_candidates(source)
         }
-        if interpretation.program_compact_key in compact_keys:
-            if source.doc_id not in exact_doc_ids:
-                exact_doc_ids.append(source.doc_id)
+        if (
+            interpretation.program_compact_key in compact_keys
+            and source.doc_id not in exact_doc_ids
+        ):
+            exact_doc_ids.append(source.doc_id)
             continue
         if any(
             interpretation.program_compact_key and interpretation.program_compact_key in compact_key
             for compact_key in compact_keys
-        ):
-            if source.doc_id not in partial_doc_ids:
-                partial_doc_ids.append(source.doc_id)
+        ) and source.doc_id not in partial_doc_ids:
+            partial_doc_ids.append(source.doc_id)
     if exact_doc_ids:
         return tuple(exact_doc_ids)
     return tuple(partial_doc_ids)

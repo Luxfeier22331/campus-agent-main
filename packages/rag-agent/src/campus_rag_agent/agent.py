@@ -10,9 +10,9 @@ from .agent_selection import _query_mode, _select_answer_support_rows
 
 DEFAULT_MAX_ANSWER_SOURCES = 3
 __all__ = (
+    "DEFAULT_MAX_ANSWER_SOURCES",
     "AnswerDraft",
     "RagAgent",
-    "DEFAULT_MAX_ANSWER_SOURCES",
     "_query_mode",
     "_select_answer_support_rows",
 )

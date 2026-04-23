@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .authenticated_notice_source_projection_base_support import *  # noqa: F401,F403
+from .authenticated_notice_source_projection_base_support import *
 
 
 def _build_map_like_png_bytes() -> bytes:

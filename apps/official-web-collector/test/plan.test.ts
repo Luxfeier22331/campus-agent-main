@@ -18,7 +18,7 @@ describe("official-web-collector plan shell", () => {
 	});
 
 	it("prints plan json from the CLI entrypoint", () => {
-		const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+		const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
 		try {
 			main(["--site-id", "muc_public", "--crawl-run-id", "manual-001", "--run-intent", "hot"]);

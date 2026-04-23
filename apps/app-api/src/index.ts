@@ -60,7 +60,7 @@ function scrubSensitiveRecord(value: unknown): void {
 function createSentryOptions(env: Env): CloudflareOptions | undefined {
 	const dsn = env.SENTRY_DSN?.trim();
 	if (!dsn) {
-		return undefined;
+		return;
 	}
 
 	return {

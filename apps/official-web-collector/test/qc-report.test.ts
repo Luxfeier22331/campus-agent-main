@@ -253,8 +253,6 @@ async function writeOutputDir(input: {
 		crawlRunId: input.crawlRunId,
 	});
 	const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
-
-	expect(hostPolicy).not.toBeNull();
 	if (!hostPolicy) {
 		throw new Error("expected test host policy");
 	}

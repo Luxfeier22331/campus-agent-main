@@ -166,7 +166,7 @@ export function OverviewPage() {
 						<Alert severity="error">{primaryErrorMessage}</Alert>
 					) : null}
 
-					{!isPending && !primaryErrorMessage && overviewRecord ? (
+					{!(isPending || primaryErrorMessage) && overviewRecord ? (
 						<OverviewPrimaryContent
 							costSeries={costSeries}
 							overviewRecord={overviewRecord}

@@ -4,8 +4,6 @@ import {
 	findOfficialWebHostPolicy,
 	loadOfficialWebConfig,
 } from "official-web-core";
-import { expect } from "vitest";
-
 import type { CollectedPageArtifact } from "../src/page-artifacts";
 import * as pageArtifactsModule from "../src/page-artifacts";
 
@@ -37,8 +35,9 @@ export interface BuildPageArtifactsForTestInput {
 
 export function getBuildCollectedPageArtifacts(): NonNullable<BuildCollectedPageArtifactsFn> {
 	const buildCollectedPageArtifacts = pageArtifactsModule.buildCollectedPageArtifacts;
-
-	expect(buildCollectedPageArtifacts).toBeTypeOf("function");
+	if (typeof buildCollectedPageArtifacts !== "function") {
+		throw new TypeError("buildCollectedPageArtifacts must be a function");
+	}
 	return buildCollectedPageArtifacts as NonNullable<BuildCollectedPageArtifactsFn>;
 }
 
@@ -48,8 +47,6 @@ function resolveHostPolicy(input: {
 	publicKind?: TestPublicKind;
 }) {
 	const hostPolicy = findOfficialWebHostPolicy(input.bundle, input.host);
-
-	expect(hostPolicy).not.toBeNull();
 	if (!hostPolicy) {
 		throw new Error(`Missing host policy for ${input.host}`);
 	}

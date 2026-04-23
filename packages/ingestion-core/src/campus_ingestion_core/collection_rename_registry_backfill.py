@@ -214,10 +214,9 @@ def resolve_registry_collection_rename_targets(
 
 
 def _count_legacy_rows(target: _RegistryBackfillTarget) -> int:
-    with open_postgres_connection(target.database_url) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                f"""
+    with open_postgres_connection(target.database_url) as conn, conn.cursor() as cursor:
+        cursor.execute(
+            f"""
                 select count(*)::int
                 from {target.table_name}
                 where corpus = %s
@@ -226,9 +225,9 @@ def _count_legacy_rows(target: _RegistryBackfillTarget) -> int:
                     or record->>'collection' = any(%s::text[])
                   )
                 """,
-                (REGULATIONS_CORPUS, list(LEGACY_COLLECTION_NAMES), list(LEGACY_COLLECTION_NAMES)),
-            )
-            row = cursor.fetchone()
+            (REGULATIONS_CORPUS, list(LEGACY_COLLECTION_NAMES), list(LEGACY_COLLECTION_NAMES)),
+        )
+        row = cursor.fetchone()
     return int(row[0] if row is not None else 0)
 
 
@@ -240,10 +239,9 @@ def _sample_legacy_rows(
         if target.kind == "document_registry"
         else "concat_ws('@', raw_asset_id, raw_version_id)"
     )
-    with open_postgres_connection(target.database_url) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                f"""
+    with open_postgres_connection(target.database_url) as conn, conn.cursor() as cursor:
+        cursor.execute(
+            f"""
                 select
                     {identity_sql} as identity,
                     collection,
@@ -257,14 +255,14 @@ def _sample_legacy_rows(
                 order by identity asc
                 limit %s
                 """,
-                (
-                    REGULATIONS_CORPUS,
-                    list(LEGACY_COLLECTION_NAMES),
-                    list(LEGACY_COLLECTION_NAMES),
-                    _SAMPLE_LIMIT,
-                ),
-            )
-            rows = cursor.fetchall()
+            (
+                REGULATIONS_CORPUS,
+                list(LEGACY_COLLECTION_NAMES),
+                list(LEGACY_COLLECTION_NAMES),
+                _SAMPLE_LIMIT,
+            ),
+        )
+        rows = cursor.fetchall()
     return tuple(
         RegistryCollectionRenameSample(
             identity=str(row[0]),
@@ -293,23 +291,21 @@ def audit_registry_collection_rename_backfill(
 
 
 def _apply_legacy_row_backfill(target: _RegistryBackfillTarget) -> int:
-    with open_postgres_connection(target.database_url, autocommit=False) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                f"""
-                update {target.table_name}
-                set collection = {_COLLECTION_CASE_SQL},
-                    record = {_RECORD_COLLECTION_CASE_SQL}
-                where corpus = %s
-                  and (
-                    collection = any(%s::text[])
-                    or record->>'collection' = any(%s::text[])
-                  )
-                """,
-                (REGULATIONS_CORPUS, list(LEGACY_COLLECTION_NAMES), list(LEGACY_COLLECTION_NAMES)),
-            )
-            updated_row_count = int(cursor.rowcount or 0)
-    return updated_row_count
+    with open_postgres_connection(target.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        cursor.execute(
+            f"""
+            update {target.table_name}
+            set collection = {_COLLECTION_CASE_SQL},
+                record = {_RECORD_COLLECTION_CASE_SQL}
+            where corpus = %s
+              and (
+                collection = any(%s::text[])
+                or record->>'collection' = any(%s::text[])
+              )
+            """,
+            (REGULATIONS_CORPUS, list(LEGACY_COLLECTION_NAMES), list(LEGACY_COLLECTION_NAMES)),
+        )
+        return int(cursor.rowcount or 0)
 
 
 def apply_registry_collection_rename_backfill(

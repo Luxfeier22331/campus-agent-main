@@ -65,7 +65,7 @@ function scrubSensitiveRecord(value: unknown): void {
 function createSentryOptions(env: Env): CloudflareOptions | undefined {
 	const dsn = env.SENTRY_DSN?.trim();
 	if (!dsn) {
-		return undefined;
+		return;
 	}
 
 	return {
@@ -246,7 +246,7 @@ function appApiBridgeNotConfiguredResponse(): Response {
 }
 
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
-	if (!env.APP_API || !env.APP_API_BASE_URL) {
+	if (!(env.APP_API && env.APP_API_BASE_URL)) {
 		return appApiBridgeNotConfiguredResponse();
 	}
 
@@ -333,7 +333,7 @@ function injectAuthRuntimeConfig(html: string, env: Env): string {
 }
 
 async function servePublicShell(request: Request, env: Env): Promise<Response> {
-	if (!env.APP_API || !env.APP_API_BASE_URL) {
+	if (!(env.APP_API && env.APP_API_BASE_URL)) {
 		return appApiBridgeNotConfiguredResponse();
 	}
 
@@ -374,7 +374,7 @@ function withNoStore(response: Response): Response {
 }
 
 async function probeAppApiRuntime(env: Env): Promise<string | null> {
-	if (!env.APP_API || !env.APP_API_BASE_URL) {
+	if (!(env.APP_API && env.APP_API_BASE_URL)) {
 		return "App API binding is not configured.";
 	}
 

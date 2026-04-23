@@ -68,9 +68,10 @@ export function PanelPagination() {
 	const isSmall = useMediaQuery((theme: { breakpoints: { down: (key: string) => string } }) =>
 		theme.breakpoints.down("md"),
 	);
-	const totalPages = useMemo(() => {
-		return total != null ? Math.ceil(total / perPage) : undefined;
-	}, [perPage, total]);
+	const totalPages = useMemo(
+		() => (total == null ? undefined : Math.ceil(total / perPage)),
+		[perPage, total],
+	);
 
 	const handlePageChange = useCallback<TablePageChangeHandler>(
 		(event, nextPage) => {
@@ -129,7 +130,7 @@ export function PanelPagination() {
 
 	return (
 		<TablePagination
-			ActionsComponent={total != null ? PanelPaginationActions : undefined}
+			ActionsComponent={total == null ? undefined : PanelPaginationActions}
 			backIconButtonProps={{
 				disabled: page <= 1,
 			}}

@@ -45,13 +45,13 @@ def validate_student_handbook_chunking(
 
 
 __all__ = [
+    "DEFAULT_HANDBOOK_MANIFEST_PATH",
     "ChunkValidationArtifactReader",
     "ChunkValidationFailure",
-    "DEFAULT_HANDBOOK_MANIFEST_PATH",
     "StudentHandbookChunkingScanResult",
+    "StudentHandbookChunkingValidationReport",
     "StudentHandbookScannedDocument",
     "StudentHandbookValidationInputs",
-    "StudentHandbookChunkingValidationReport",
     "build_student_handbook_chunking_validation_report",
     "export_student_handbook_chunk_samples",
     "scan_student_handbook_chunking",

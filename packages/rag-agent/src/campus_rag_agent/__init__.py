@@ -5,8 +5,8 @@ from campus_rag_agent.query_planning import plan_curriculum_query, plan_student_
 from campus_rag_agent.service import delegate_to_rag_agent
 
 __all__ = [
-    "RagIntentFrame",
     "RagAgent",
+    "RagIntentFrame",
     "build_personalization_hint",
     "delegate_to_rag_agent",
     "derive_confidence",

@@ -466,9 +466,9 @@ def _inventory_from_entries(
 
 
 __all__ = [
+    "SOURCE_TRUTH_REPLAY_INPUT_KIND",
     "AuthenticatedNoticeSourceTruthReplayInventory",
     "AuthenticatedNoticeSourceTruthReplayRequest",
-    "SOURCE_TRUTH_REPLAY_INPUT_KIND",
     "build_authenticated_notice_source_truth_replay_batch_input_payload",
     "build_authenticated_notice_source_truth_replay_documents",
     "build_authenticated_notice_source_truth_replay_expected_scope",

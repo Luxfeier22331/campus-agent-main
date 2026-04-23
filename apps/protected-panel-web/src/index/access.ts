@@ -143,7 +143,7 @@ export async function validateProtectedApiRequest(
 
 	const issuer = normalizeConfiguredAccessTeamDomain(env.ACCESS_TEAM_DOMAIN);
 	const audience = normalizeConfiguredAccessPolicyAud(env.ACCESS_POLICY_AUD);
-	if (!issuer || !audience) {
+	if (!(issuer && audience)) {
 		return {
 			error: protectionNotConfiguredResponse(getMissingAccessConfig(env)),
 			operatorContext: null,

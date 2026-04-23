@@ -158,7 +158,7 @@ export function OverviewDiagnosticsCard(props: {
 				<Alert severity="warning">{props.errorMessage}</Alert>
 			) : null}
 
-			{!props.isPending && !props.errorMessage && props.runtimeDiagnostics ? (
+			{!(props.isPending || props.errorMessage) && props.runtimeDiagnostics ? (
 				<Stack spacing={2}>
 					<Box
 						sx={{
@@ -198,9 +198,8 @@ export function OverviewDiagnosticsCard(props: {
 								<Typography color="text.secondary" variant="body2">
 									{props.runtimeDiagnostics.operatorContext.displayName ||
 										props.runtimeDiagnostics.operatorContext.email ||
-										props.runtimeDiagnostics.operatorContext.operatorId}
-									{" · "}
-									{formatPrincipalClass(props.runtimeDiagnostics.operatorContext.principalClass)}
+										props.runtimeDiagnostics.operatorContext.operatorId}{" "}
+									· {formatPrincipalClass(props.runtimeDiagnostics.operatorContext.principalClass)}
 								</Typography>
 							</Stack>
 						</>

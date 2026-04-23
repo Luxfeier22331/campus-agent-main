@@ -135,8 +135,8 @@ def _build_local_snapshot_runtime(
 
 __all__ = [
     "InstitutionalRegulationMaterializationReport",
-    "LocalFilesystemObjectStore",
     "InternalNoticeRegulationPromotionRequest",
+    "LocalFilesystemObjectStore",
     "build_parser",
     "main",
     "materialize_institutional_regulations_from_internal_notice_scope",

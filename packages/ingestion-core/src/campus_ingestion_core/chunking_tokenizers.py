@@ -124,9 +124,9 @@ def normalize_embedding_model_name(model_name: str) -> str:
 
 __all__ = [
     "DEFAULT_TOKENIZER_NAME",
-    "HuggingFaceTokenCounter",
     "QWEN3_EMBEDDING_MODEL",
     "QWEN3_EMBEDDING_REPO",
+    "HuggingFaceTokenCounter",
     "RegexApproxTokenCounter",
     "TiktokenTokenCounter",
     "TokenCounter",

@@ -143,10 +143,10 @@ def _validate_prompt_trace(prompt_trace: object, *, prompt_id: str) -> PromptTra
 
 
 __all__ = [
+    "StrictValidatedSupervisorPromptExecutor",
     "SupervisorClarifyPromptOutput",
     "SupervisorPromptExecutionResult",
     "SupervisorPromptExecutor",
-    "StrictValidatedSupervisorPromptExecutor",
     "SupervisorTerminalPromptOutput",
     "wrap_supervisor_prompt_executor",
 ]

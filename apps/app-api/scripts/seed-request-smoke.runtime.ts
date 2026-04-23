@@ -117,10 +117,10 @@ function scopesMatch(
 	left: RequestedScope | null | undefined,
 	right: RequestedScope | null | undefined,
 ): boolean {
-	if (!left && !right) {
+	if (!(left || right)) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!(left && right)) {
 		return false;
 	}
 

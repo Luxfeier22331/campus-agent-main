@@ -164,8 +164,8 @@ def _looks_like_curriculum_version_note(text: str) -> bool:
 
 
 __all__ = [
-    "DerivedStructuredUnit",
     "_CURRICULUM_COURSE_MAP_HEADING",
+    "DerivedStructuredUnit",
     "_curriculum_structural_level",
     "_is_curriculum_course_map_section_path",
     "_is_curriculum_course_map_title_line",

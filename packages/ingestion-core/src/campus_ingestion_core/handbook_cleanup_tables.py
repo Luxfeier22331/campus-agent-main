@@ -194,9 +194,7 @@ def _is_semantic_table_column(
     decorative_value_count = sum(
         1 for value in column_values if _looks_like_decorative_table_cell(value)
     )
-    if decorative_value_count >= max(1, len(column_values)):
-        return False
-    return True
+    return not decorative_value_count >= max(1, len(column_values))
 
 
 def _build_table_column_paths(

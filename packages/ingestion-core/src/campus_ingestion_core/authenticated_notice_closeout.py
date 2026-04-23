@@ -39,6 +39,13 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
 )
 
 __all__ = [
+    "DEFAULT_CLOSEOUT_BATCH_SIZE",
+    "DEFAULT_CLOSEOUT_LEASE_SECONDS",
+    "DEFAULT_CLOSEOUT_MAX_CONCURRENCY",
+    "DEFAULT_CLOSEOUT_NOTICE_CONCURRENCY",
+    "DEFAULT_CLOSEOUT_OBJECT_STORE_CONCURRENCY",
+    "DEFAULT_CLOSEOUT_OPERATION",
+    "DEFAULT_CLOSEOUT_SHARD_SIZE",
     "AuthenticatedNoticeCloseoutService",
     "AuthenticatedNoticeSourceTruthReplayRequest",
     "CloseoutBatch",
@@ -54,13 +61,6 @@ __all__ = [
     "CloseoutVerifier",
     "CloseoutWorker",
     "CloseoutWorkerState",
-    "DEFAULT_CLOSEOUT_BATCH_SIZE",
-    "DEFAULT_CLOSEOUT_LEASE_SECONDS",
-    "DEFAULT_CLOSEOUT_MAX_CONCURRENCY",
-    "DEFAULT_CLOSEOUT_NOTICE_CONCURRENCY",
-    "DEFAULT_CLOSEOUT_OBJECT_STORE_CONCURRENCY",
-    "DEFAULT_CLOSEOUT_OPERATION",
-    "DEFAULT_CLOSEOUT_SHARD_SIZE",
     "InMemoryCloseoutStore",
     "PostgresAuthenticatedNoticeCloseoutStore",
     "build_authenticated_notice_closeout_store_from_env",

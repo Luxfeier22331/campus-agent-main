@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .authenticated_notice_source_projection_test_support import *  # noqa: F401,F403
+from .authenticated_notice_source_projection_test_support import *
 
 
 class AuthenticatedNoticeSourceProjectionAttachmentExtractableTest(unittest.TestCase):

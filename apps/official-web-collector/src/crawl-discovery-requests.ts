@@ -207,7 +207,7 @@ export function buildConditionalHeaders(page: OfficialWebPlannerPageCandidate | 
 	  }
 	| undefined {
 	if (!page) {
-		return undefined;
+		return;
 	}
 	const headers: {
 		ifModifiedSince?: string;

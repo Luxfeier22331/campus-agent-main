@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .internal_notice_regulation_promotion_test_support import *  # noqa: F401,F403
+from .internal_notice_regulation_promotion_test_support import *
 
 
 class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):

@@ -124,7 +124,7 @@ export function buildFileReleaseRecord(input: {
 	const filename = normalizeRequiredText(input.item.filename ?? input.detail.filename, "filename");
 	const fileTypeId = normalizeNullableNumber(input.detail.filetypeid);
 	const fileTypeName =
-		(fileTypeId !== null ? input.fileTypeNameById.get(fileTypeId) : null) ??
+		(fileTypeId === null ? null : input.fileTypeNameById.get(fileTypeId)) ??
 		normalizeNullableText(input.item.typename);
 	const originalPortalFileUrl = normalizeNullableText(input.detail.fileurl ?? input.item.fileurl);
 	const resolvedDownloadUrl = resolveAbsoluteUrl(

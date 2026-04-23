@@ -264,13 +264,13 @@ def _load_jsonl_bytes(payload: bytes) -> tuple[dict[str, object], ...]:
 
 
 __all__ = [
+    "_is_curriculum_course_map_candidate",
+    "_load_jsonl_bytes",
+    "_load_split_manifest_document_ranges",
+    "_resolve_document_for_page",
     "build_curriculum_course_map_inventory",
     "load_curriculum_course_map_gold_manifest",
     "load_curriculum_course_map_sample_manifest",
     "load_provider_page_heights",
     "select_curriculum_course_map_samples",
-    "_is_curriculum_course_map_candidate",
-    "_load_jsonl_bytes",
-    "_load_split_manifest_document_ranges",
-    "_resolve_document_for_page",
 ]

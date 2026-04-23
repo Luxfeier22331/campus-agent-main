@@ -35,7 +35,7 @@ class BenchmarkProfile:
     cases_factory: CasesFactory
     executor_factory: Callable[[], Executor]
     supplemental_adapters_factory: SupplementalAdaptersFactory
-    http_settings: SupplementalHTTPSettings = SupplementalHTTPSettings()
+    http_settings: SupplementalHTTPSettings = field(default_factory=SupplementalHTTPSettings)
     case_workers: int = 1
     pass_policy_path_to_core: bool = True
     pass_benchmark_type_to_core: bool = True

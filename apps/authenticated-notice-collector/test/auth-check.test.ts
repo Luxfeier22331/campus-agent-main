@@ -75,7 +75,7 @@ describe("authenticated notice collector auth check", () => {
 						status: () => 200,
 						statusText: () => "OK",
 					}),
-					dispose: async () => {},
+					dispose: async () => undefined,
 				}),
 				fetchNoticePage: async () => ({
 					datas: { tables: [] },
@@ -108,7 +108,7 @@ describe("authenticated notice collector auth check", () => {
 						status: () => 200,
 						statusText: () => "OK",
 					}),
-					dispose: async () => {},
+					dispose: async () => undefined,
 				}),
 				fetchNoticePage: async () => ({
 					datas: {

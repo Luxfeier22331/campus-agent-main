@@ -123,7 +123,7 @@ export async function fetchWithErrorHandlers(input: RequestInfo | URL, init?: Re
 }
 
 export function getDocumentTimestampByIndex(documents: Document[], index: number) {
-	if (!documents.length || index >= documents.length) {
+	if (documents.length === 0 || index >= documents.length) {
 		return new Date();
 	}
 

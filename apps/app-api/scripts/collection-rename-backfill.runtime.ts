@@ -11,7 +11,7 @@ function readOptionalString(
 ): string | undefined {
 	const value = env[key];
 	if (typeof value !== "string") {
-		return undefined;
+		return;
 	}
 	const trimmed = value.trim();
 	return trimmed ? trimmed : undefined;

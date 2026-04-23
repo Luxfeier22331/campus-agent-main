@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, lt, or } from "drizzle-orm";
+import { and, desc, eq, ilike, lt, or, type SQL } from "drizzle-orm";
 
 import {
 	requestAuditProjection,
@@ -201,7 +201,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 
 		async list(filters: NormalizedOperatorRequestListFilters) {
 			const db = await runtime.getDb();
-			const conditions = [];
+			const conditions: SQL[] = [];
 
 			if (filters.q) {
 				const pattern = `%${escapeLikePattern(filters.q)}%`;
@@ -275,7 +275,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 
 		async listAudit(filters: NormalizedOperatorAuditListFilters) {
 			const db = await runtime.getDb();
-			const conditions = [];
+			const conditions: SQL[] = [];
 
 			if (filters.requestId) {
 				conditions.push(eq(requestAuditProjection.requestId, filters.requestId));

@@ -261,7 +261,7 @@ def _build_asset_manifest(
             "versionId": record.version_id,
         },
         "supplementFiles": [
-            name for name in assets.keys() if name not in _CORE_READER_ASSET_FILENAMES
+            name for name in assets if name not in _CORE_READER_ASSET_FILENAMES
         ],
         "versionId": record.version_id,
     }

@@ -26,8 +26,8 @@ const runtimeDbState = vi.hoisted(() => ({
 
 vi.mock("pg", () => ({
 	Client: class MockClient {
-		connect = vi.fn(async () => {});
-		end = vi.fn(async () => {});
+		connect = vi.fn(async () => undefined);
+		end = vi.fn(async () => undefined);
 		options: unknown;
 
 		constructor(options: unknown) {

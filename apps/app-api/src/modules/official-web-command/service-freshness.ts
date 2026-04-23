@@ -17,9 +17,9 @@ function classifyPageObservation(input: {
 		return {
 			changeStatus: "fetch_failed",
 			reason:
-				observation.httpStatus != null
-					? `fetch_failed_http_${observation.httpStatus}`
-					: "fetch_failed",
+				observation.httpStatus == null
+					? "fetch_failed"
+					: `fetch_failed_http_${observation.httpStatus}`,
 		};
 	}
 	if (

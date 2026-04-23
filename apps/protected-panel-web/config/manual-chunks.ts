@@ -38,7 +38,7 @@ const CHUNK_GROUPS = [
 
 export function protectedPanelManualChunks(id: string): string | undefined {
 	if (!id.includes("/node_modules/")) {
-		return undefined;
+		return;
 	}
 
 	for (const group of CHUNK_GROUPS) {
@@ -47,5 +47,5 @@ export function protectedPanelManualChunks(id: string): string | undefined {
 		}
 	}
 
-	return undefined;
+	return;
 }

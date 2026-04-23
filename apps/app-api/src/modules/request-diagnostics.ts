@@ -236,7 +236,7 @@ function summarizeRetrievalStepActivities(
 		const corpus = normalizeOptionalString(readField(record, "corpus", "corpus"));
 		const collection = normalizeOptionalString(readField(record, "collection", "collection"));
 		const status = normalizeOptionalString(readField(record, "status", "status"));
-		if (!stepId || !stepType || !corpus || !collection || !status) {
+		if (!(stepId && stepType && corpus && collection && status)) {
 			return [];
 		}
 		return [
@@ -282,7 +282,7 @@ function summarizeRetrievalPlan(
 	const terminalState = normalizeOptionalString(
 		readField(rawSummary, "terminal_state", "terminalState"),
 	);
-	if (!planId || !queryMode || !terminalState) {
+	if (!(planId && queryMode && terminalState)) {
 		return null;
 	}
 

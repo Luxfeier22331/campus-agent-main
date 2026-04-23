@@ -6,8 +6,6 @@ import {
 	findOfficialWebHostPolicy,
 	loadOfficialWebConfig,
 } from "official-web-core";
-import { expect } from "vitest";
-
 import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
 import {
@@ -29,8 +27,9 @@ export function getCrawlSite(): CrawlSiteFn {
 			crawlSite?: CrawlSiteFn;
 		}
 	).crawlSite;
-
-	expect(crawlSite).toBeTypeOf("function");
+	if (typeof crawlSite !== "function") {
+		throw new TypeError("collector.crawlSite must be a function");
+	}
 	return crawlSite as CrawlSiteFn;
 }
 
@@ -45,8 +44,9 @@ export function getResolveCollectorCrawlMainInput(): ResolveCollectorCrawlMainIn
 			resolveCollectorCrawlMainInput?: ResolveCollectorCrawlMainInputFn;
 		}
 	).resolveCollectorCrawlMainInput;
-
-	expect(resolveCollectorCrawlMainInput).toBeTypeOf("function");
+	if (typeof resolveCollectorCrawlMainInput !== "function") {
+		throw new TypeError("collector.resolveCollectorCrawlMainInput must be a function");
+	}
 	return resolveCollectorCrawlMainInput as ResolveCollectorCrawlMainInputFn;
 }
 
@@ -58,8 +58,9 @@ export function getBuildCollectedPageArtifacts(): NonNullable<BuildCollectedPage
 			buildCollectedPageArtifacts?: BuildCollectedPageArtifactsFn;
 		}
 	).buildCollectedPageArtifacts;
-
-	expect(buildCollectedPageArtifacts).toBeTypeOf("function");
+	if (typeof buildCollectedPageArtifacts !== "function") {
+		throw new TypeError("pageArtifactsModule.buildCollectedPageArtifacts must be a function");
+	}
 	return buildCollectedPageArtifacts as NonNullable<BuildCollectedPageArtifactsFn>;
 }
 
@@ -78,7 +79,6 @@ export function createCollectedPageArtifactForTest(input: {
 		crawlRunId: input.crawlRunId,
 	});
 	const hostPolicy = findOfficialWebHostPolicy(bundle, "www.example.edu");
-	expect(hostPolicy).not.toBeNull();
 	if (!hostPolicy) {
 		throw new Error("hostPolicy is required");
 	}

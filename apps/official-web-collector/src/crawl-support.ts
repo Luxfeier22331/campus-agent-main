@@ -109,7 +109,7 @@ export function uniqueStrings(values: string[]): string[] {
 
 export function parseOptionalInt(raw: string | undefined): number | undefined {
 	if (typeof raw !== "string" || raw.length === 0) {
-		return undefined;
+		return;
 	}
 	const parsed = Number.parseInt(raw, 10);
 	return Number.isFinite(parsed) ? parsed : undefined;
@@ -122,12 +122,12 @@ export function firstNonEmptyString(...values: Array<string | undefined>): strin
 		}
 	}
 
-	return undefined;
+	return;
 }
 
 export function parseRunIntent(value: string | undefined): OfficialWebRunIntent | undefined {
 	if (!value) {
-		return undefined;
+		return;
 	}
 	if (value === "baseline" || value === "hot" || value === "repair") {
 		return value;
@@ -138,7 +138,7 @@ export function parseRunIntent(value: string | undefined): OfficialWebRunIntent 
 
 export function parseTriggerType(value: string | undefined): OfficialWebTriggerType | undefined {
 	if (!value) {
-		return undefined;
+		return;
 	}
 	if (value === "manual" || value === "scheduled" || value === "replay") {
 		return value;
@@ -151,7 +151,7 @@ export function buildConfiguredControlPlaneClient(input: {
 	appApiBaseUrl?: string;
 	serviceToken?: string;
 }): OfficialWebControlPlaneClient {
-	if (!input.appApiBaseUrl || !input.serviceToken) {
+	if (!(input.appApiBaseUrl && input.serviceToken)) {
 		throw new Error(
 			"--app-api-base-url/OFFICIAL_WEB_APP_API_BASE_URL and --service-token/OFFICIAL_WEB_SERVICE_TOKEN must be provided together.",
 		);

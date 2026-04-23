@@ -221,9 +221,7 @@ def _looks_like_curriculum_table_unit(
         return False
     if "修读学期" in normalized_snippet or "开设学期" in normalized_snippet:
         return True
-    if "table_group_id" in anchor and "课程清单如下" in normalized_snippet:
-        return True
-    return False
+    return bool("table_group_id" in anchor and "课程清单如下" in normalized_snippet)
 
 
 def _is_curriculum_course_list_table_source(source: EvidenceSource) -> bool:

@@ -28,7 +28,7 @@ export function parseAllowedReviewFamilies(
 	values: string[] | undefined,
 ): OfficialWebPageFamily[] | undefined {
 	if (!values) {
-		return undefined;
+		return;
 	}
 
 	return values.map((value) => {

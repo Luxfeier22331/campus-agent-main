@@ -127,9 +127,7 @@ def _should_merge_broken_line(previous: str, current: str) -> bool:
     current_head = current[0]
     if previous_tail in SOFT_WRAP_CONTINUATION_CHARS and _is_sentence_char(current_head):
         return True
-    if not (_is_sentence_char(previous_tail) and _is_sentence_char(current_head)):
-        return False
-    return True
+    return _is_sentence_char(previous_tail) and _is_sentence_char(current_head)
 
 
 def _should_merge_article_soft_wrap(previous: str, current: str) -> bool:
@@ -163,9 +161,7 @@ def _should_merge_article_soft_wrap(previous: str, current: str) -> bool:
         _is_sentence_char(normalized_previous[-1]) and _is_sentence_char(normalized_current[0])
     ):
         return False
-    if len(normalized_previous) <= 2:
-        return False
-    return True
+    return len(normalized_previous) > 2
 
 
 def _looks_like_article_structure_line(text: str) -> bool:
@@ -278,9 +274,7 @@ def _looks_like_formula_line(text: str) -> bool:
     operator_count = sum(
         normalized.count(marker) for marker in ("=", "×", "÷", "/", "+", "-", "<", ">")
     )
-    if operator_count >= 2:
-        return True
-    return False
+    return operator_count >= 2
 
 
 def _is_sentence_char(value: str) -> bool:

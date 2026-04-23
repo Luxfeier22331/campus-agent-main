@@ -42,8 +42,8 @@ __all__ = [
     "StudentHandbookMigrationReport",
     "StudentHandbookSourceAssetRequest",
     "build_parser",
-    "migrate_student_handbook_source_faithful",
     "main",
+    "migrate_student_handbook_source_faithful",
 ]
 
 

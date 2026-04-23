@@ -115,7 +115,7 @@ export function classifyBetterAuthTableOwnership(input) {
 	const anyAuthSchema = BETTER_AUTH_TABLES.some((tableName) => authTables.has(tableName));
 	const anyPublicSchema = BETTER_AUTH_TABLES.some((tableName) => publicTables.has(tableName));
 
-	if (!anyAuthSchema && !anyPublicSchema) {
+	if (!(anyAuthSchema || anyPublicSchema)) {
 		return "fresh";
 	}
 	if (allAuthSchema && !anyPublicSchema) {

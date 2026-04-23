@@ -30,6 +30,25 @@
 		"lineWidth": 100
 	},
 	"linter": {
-		"enabled": true
+		"enabled": true,
+		"rules": {
+			"complexity": {
+				"noUselessUndefined": "error",
+				"useSimplifiedLogicExpression": "error"
+			},
+			"style": {
+				"noNegationElse": "error",
+				"useAtIndex": "error",
+				"useCollapsedIf": "error",
+				"useConsistentArrowReturn": "error",
+				"useConsistentCurlyBraces": "error",
+				"useExplicitLengthCheck": "error"
+			},
+			"suspicious": {
+				"noEmptyBlockStatements": "error",
+				"noEvolvingTypes": "error",
+				"noMisplacedAssertion": "error"
+			}
+		}
 	}
 }

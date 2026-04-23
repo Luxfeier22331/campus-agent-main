@@ -177,14 +177,14 @@ class _CollectionChunkStrategy:
 
 
 __all__ = [
+    "_SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD",
+    "_SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD",
+    "_SHORT_TEXTUAL_MAX_MEMBER_COUNT",
+    "_SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS",
     "IndexableChunk",
     "ProcessArtifactReader",
     "StructuredUnit",
     "_ChunkCandidate",
     "_ChunkMember",
     "_CollectionChunkStrategy",
-    "_SHORT_TEXTUAL_DISPLAY_TOKEN_THRESHOLD",
-    "_SHORT_TEXTUAL_HEADER_RATIO_THRESHOLD",
-    "_SHORT_TEXTUAL_MAX_MEMBER_COUNT",
-    "_SHORT_TEXTUAL_TARGET_DISPLAY_TOKENS",
 ]

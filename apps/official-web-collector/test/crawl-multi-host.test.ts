@@ -75,7 +75,7 @@ describe("official-web-collector multi-host crawl", () => {
 								body: html,
 								$: load(html),
 								crawler: {
-									addRequests: async () => {},
+									addRequests: async () => undefined,
 								},
 							});
 						}

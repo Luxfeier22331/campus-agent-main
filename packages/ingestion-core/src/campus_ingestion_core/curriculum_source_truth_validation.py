@@ -147,9 +147,7 @@ def _has_valid_owner(row: dict[str, object], *, row_ids: set[str]) -> bool:
         return False
     if not relation_type:
         return False
-    if not continuation_group_id:
-        return False
-    return True
+    return bool(continuation_group_id)
 
 
 def _is_broken_table_continuation(row: dict[str, object], *, row_ids: set[str]) -> bool:
@@ -161,9 +159,7 @@ def _is_broken_table_continuation(row: dict[str, object], *, row_ids: set[str]) 
     continuation_group_id = str(row.get("continuation_group_id") or "").strip()
     if not owner_row_id or owner_row_id not in row_ids:
         return True
-    if not continuation_group_id or continuation_group_id != owner_row_id:
-        return True
-    return False
+    return not continuation_group_id or continuation_group_id != owner_row_id
 
 
 def _count_cross_page_continuation_misses(rows: list[dict[str, object]]) -> int:
@@ -186,11 +182,14 @@ def _count_cross_page_continuation_misses(rows: list[dict[str, object]]) -> int:
         next_row = next_rows[0]
         current_text = str(current.get("text_normalized") or "").strip()
         next_text = str(next_row.get("text_normalized") or "").strip()
-        if looks_like_cross_page_continuation(current_text=current_text, next_text=next_text):
-            if not bool(current.get("continues_to_next_page")) or not bool(
-                next_row.get("continues_from_previous_page")
-            ):
-                misses += 1
+        if looks_like_cross_page_continuation(
+            current_text=current_text,
+            next_text=next_text,
+        ) and (
+            not bool(current.get("continues_to_next_page"))
+            or not bool(next_row.get("continues_from_previous_page"))
+        ):
+            misses += 1
     return misses
 
 

@@ -28,7 +28,8 @@ HEADING_SUFFIXES = (
     "申请",
     "考核",
 )
-TITLE_HEADING_SUFFIXES = HEADING_SUFFIXES + (
+TITLE_HEADING_SUFFIXES = (
+    *HEADING_SUFFIXES,
     "计划",
     "通知",
     "奖励",
@@ -249,9 +250,7 @@ def _is_heading_candidate(text: str) -> bool:
         return False
     if any(fragment in text for fragment in HEADING_FORBIDDEN_FRAGMENTS):
         return False
-    if text.endswith(("的", "地", "得", "了", "时", "后", "前")):
-        return False
-    return True
+    return not text.endswith(("的", "地", "得", "了", "时", "后", "前"))
 
 
 def _split_note_marker_body(text: str) -> tuple[str, str] | None:
@@ -305,9 +304,9 @@ def _normalize_fragment(value: str) -> str:
 
 
 __all__ = [
-    "ArticleStructureGroup",
-    "TOP_LEVEL_CLAUSE_RE",
     "NUMERIC_SUBCLAUSE_RE",
+    "TOP_LEVEL_CLAUSE_RE",
+    "ArticleStructureGroup",
     "article_structure_has_nested_subclauses",
     "build_article_structure_groups",
     "is_title_like_heading",

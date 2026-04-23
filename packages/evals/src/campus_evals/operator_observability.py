@@ -341,7 +341,7 @@ def build_case_results_publish_batch(
 
         for metric_name, raw_metric in metric_results.items():
             metric = dict(raw_metric or {})
-            metric_key = f"deterministic.{str(metric_name)}"
+            metric_key = f"deterministic.{metric_name!s}"
             mapped_verdict = _map_deterministic_publishable_verdict(metric)
             if mapped_verdict is None:
                 skipped.append(

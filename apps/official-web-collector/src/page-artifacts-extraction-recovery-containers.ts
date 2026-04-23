@@ -71,8 +71,10 @@ export function analyzeVisibleContentContainers(
 		const classOrId =
 			`${$(element).attr("class") ?? ""} ${$(element).attr("id") ?? ""}`.toLowerCase();
 		if (
-			!/(^|[\s_-])(content|main|detail|panel|box|txt|article|post)([\s_-]|$)/.test(classOrId) &&
-			!looksLikeRepeatedCardClusterContainer($, element)
+			!(
+				/(^|[\s_-])(content|main|detail|panel|box|txt|article|post)([\s_-]|$)/.test(classOrId) ||
+				looksLikeRepeatedCardClusterContainer($, element)
+			)
 		) {
 			continue;
 		}

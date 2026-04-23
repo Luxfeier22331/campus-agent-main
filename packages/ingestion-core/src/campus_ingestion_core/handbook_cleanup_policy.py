@@ -323,9 +323,7 @@ def _is_duplicate_attachment_cover_text(
         return True
     if current_leaf_body and normalized == current_leaf_body:
         return True
-    if current_leaf_body and normalized_body and normalized_body == current_leaf_body:
-        return True
-    return False
+    return bool(current_leaf_body and normalized_body and normalized_body == current_leaf_body)
 
 
 def _attachment_title_body(text: str) -> str:

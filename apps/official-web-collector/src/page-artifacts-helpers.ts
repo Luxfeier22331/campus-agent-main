@@ -212,7 +212,7 @@ export function extractCanonicalPublishedAt(input: {
 		if (text == null) {
 			continue;
 		}
-		if (!containsPublicationLabel(text) && !looksLikeDateText(text)) {
+		if (!(containsPublicationLabel(text) || looksLikeDateText(text))) {
 			continue;
 		}
 		const publishedAt = parseCanonicalPublishedAt(text);
@@ -265,9 +265,9 @@ function parseCanonicalPublishedAt(value: string | null): string | null {
 		year: Number(match[1]),
 		month: Number(match[2]),
 		day: Number(match[3]),
-		hour: match[4] != null ? Number(match[4]) : 0,
-		minute: match[5] != null ? Number(match[5]) : 0,
-		second: match[6] != null ? Number(match[6]) : 0,
+		hour: match[4] == null ? 0 : Number(match[4]),
+		minute: match[5] == null ? 0 : Number(match[5]),
+		second: match[6] == null ? 0 : Number(match[6]),
 	});
 }
 

@@ -50,7 +50,7 @@ describe("official-web-collector robots handling", () => {
 							body: html,
 							$: load(html),
 							crawler: {
-								addRequests: async () => {},
+								addRequests: async () => undefined,
 							},
 						});
 					}

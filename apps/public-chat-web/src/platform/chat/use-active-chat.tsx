@@ -218,7 +218,9 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 
 	const value = useMemo<ActiveChatContextValue>(
 		() => ({
-			async addToolApprovalResponse() {},
+			async addToolApprovalResponse() {
+				/* noop */
+			},
 			chatId: conversationId ?? tempChatIdRef.current,
 			conversationTitle,
 			currentModelId,

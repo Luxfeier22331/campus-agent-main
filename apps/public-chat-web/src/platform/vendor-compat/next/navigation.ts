@@ -8,7 +8,9 @@ export function useRouter() {
 	return {
 		back: router.back,
 		forward: router.forward,
-		async prefetch(_href: AppHref) {},
+		async prefetch(_href: AppHref) {
+			/* noop */
+		},
 		async push(href: AppHref) {
 			await router.push(normalizeDonorAppHref(href));
 		},

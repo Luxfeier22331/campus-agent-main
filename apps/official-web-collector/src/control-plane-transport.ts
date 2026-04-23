@@ -22,7 +22,7 @@ export async function requestJson<T>(input: {
 }): Promise<T> {
 	const baseUrl = input.baseUrl?.trim();
 	const serviceToken = input.serviceToken?.trim();
-	if (!baseUrl || !serviceToken) {
+	if (!(baseUrl && serviceToken)) {
 		throw new OfficialWebControlPlaneTransportError({
 			code: "dependency_not_ready",
 			message: "Official-web control plane is not configured.",

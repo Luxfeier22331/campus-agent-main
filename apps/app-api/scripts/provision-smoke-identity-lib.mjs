@@ -250,7 +250,7 @@ export async function provisionSmokeIdentity(input, deps) {
 export async function provisionSmokeIdentityFromEnv(argv, env = process.env, deps) {
 	const input = readSmokeIdentityProvisionInput(argv, env);
 	const runtimeEnv = buildSmokeIdentityProvisionRuntimeEnv(input);
-	if (!deps?.appFetch || !deps?.executeSql) {
+	if (!(deps?.appFetch && deps?.executeSql)) {
 		throw new Error(
 			"provisionSmokeIdentityFromEnv requires appFetch and executeSql implementations.",
 		);

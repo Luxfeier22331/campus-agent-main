@@ -159,7 +159,7 @@ export function hasMatchingInternalSecret(
 ): boolean {
 	const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET ?? null);
 	const provided = normalizeHeaderValue(request.headers.get("x-app-internal-auth"));
-	if (!expected || !provided) {
+	if (!(expected && provided)) {
 		return false;
 	}
 
@@ -200,7 +200,7 @@ function isCampusEndUserPrincipalType(
 function hasMatchingBearerToken(request: Request, token: string | null): boolean {
 	const expected = normalizeHeaderValue(token);
 	const authorization = normalizeHeaderValue(request.headers.get("authorization"));
-	if (!expected || !authorization) {
+	if (!(expected && authorization)) {
 		return false;
 	}
 	if (!authorization.toLowerCase().startsWith("bearer ")) {
@@ -508,7 +508,7 @@ function parseCampusIdentityClaims(
 	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
 ): CampusIdentityClaimsInput | undefined {
 	if (!hasMatchingInternalSecret(request, env)) {
-		return undefined;
+		return;
 	}
 
 	const principalType = normalizeHeaderValue(request.headers.get("x-app-campus-principal-type"));
@@ -546,10 +546,10 @@ function parseCampusIdentityClaims(
 			claims.visibilityScope ||
 			claims.applicabilityScope ||
 			claims.visibilityLevel ||
-			claims.actorRoles?.length ||
-			claims.departments?.length ||
-			claims.entitlementGroups?.length ||
-			claims.ownershipScopes?.length,
+			claims.actorRoles?.length > 0 ||
+			claims.departments?.length > 0 ||
+			claims.entitlementGroups?.length > 0 ||
+			claims.ownershipScopes?.length > 0,
 	);
 
 	return hasMaterialClaims ? claims : undefined;

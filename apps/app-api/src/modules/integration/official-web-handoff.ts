@@ -45,7 +45,7 @@ function readHandoffRuntimeConfig(
 } {
 	const url = env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim();
 	const token = env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim();
-	if (!url || !token) {
+	if (!(url && token)) {
 		throw new OfficialWebHandoffTransportError({
 			code: "dependency_not_ready",
 			message: "Official web ingestion handoff runtime is not configured.",

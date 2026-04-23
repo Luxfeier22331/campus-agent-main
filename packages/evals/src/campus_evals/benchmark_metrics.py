@@ -282,9 +282,7 @@ def _matches_expected(source_ref: RetrievalQrelsSourceRef, source: EvidenceSourc
         return False
     if source_ref.version_id is not None and source.version_id != source_ref.version_id:
         return False
-    if source_ref.chunk_id is not None and source.chunk_id != source_ref.chunk_id:
-        return False
-    return True
+    return not (source_ref.chunk_id is not None and source.chunk_id != source_ref.chunk_id)
 
 
 def _average(values) -> float:

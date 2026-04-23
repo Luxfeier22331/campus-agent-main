@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .curriculum_course_map_multimodal_probe_test_support import *  # noqa: F401,F403
+from .curriculum_course_map_multimodal_probe_test_support import *
 
 
 class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):

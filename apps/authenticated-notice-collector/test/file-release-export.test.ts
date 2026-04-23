@@ -267,7 +267,7 @@ describe("authenticated notice collector file release export", () => {
 
 		const result = await collectFileReleaseBundle({
 			createApiContext: async () => ({
-				dispose: async () => {},
+				dispose: async () => undefined,
 				get: async () => ({
 					body: async () => Buffer.from(""),
 					json: async () => ({}),
@@ -386,7 +386,7 @@ describe("authenticated notice collector file release export", () => {
 		await expect(
 			collectFileReleaseBundle({
 				createApiContext: async () => ({
-					dispose: async () => {},
+					dispose: async () => undefined,
 					get: async () => ({
 						body: async () => Buffer.from(""),
 						json: async () => ({}),
@@ -496,7 +496,7 @@ describe("authenticated notice collector file release export", () => {
 				},
 			},
 			createApiContext: async () => ({
-				dispose: async () => {},
+				dispose: async () => undefined,
 				get: async () => ({
 					body: async () => Buffer.from("hello"),
 					headers: () => ({

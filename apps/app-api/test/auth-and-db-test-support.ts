@@ -40,7 +40,9 @@ vi.mock("pg", () => ({
 		async connect() {
 			return {
 				query: this.query.bind(this),
-				release() {},
+				release() {
+					/* noop */
+				},
 			};
 		}
 

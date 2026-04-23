@@ -169,9 +169,10 @@ def build_indexable_chunks_from_jsonl(
     chunks: list[IndexableChunk] = []
     document_entitlement_groups = record.entitlement_groups
     document_visibility_scope = record.visibility_scope
-    chunk_order = 0
-    for candidate, embedding in zip(chunk_candidates, dense_embeddings, strict=True):
-        chunk_order += 1
+    for chunk_order, (candidate, embedding) in enumerate(
+        zip(chunk_candidates, dense_embeddings, strict=True),
+        start=1,
+    ):
         chunk_id = f"{record.document_id}:{record.revision_track}:{record.version_id}:chunk-{chunk_order:04d}"
         effective_visibility_level = resolve_effective_visibility_level(
             unit_visibility_level=candidate.visibility_level,

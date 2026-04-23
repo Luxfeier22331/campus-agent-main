@@ -135,13 +135,13 @@ def official_web_retain_inventory_only_titles() -> frozenset[str]:
 
 __all__ = [
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
+    "load_official_web_current_truth_inventory",
     "official_web_current_truth_doc_ids_by_bucket",
     "official_web_future_fresh_news_doc_ids",
     "official_web_future_fresh_news_titles",
-    "load_official_web_current_truth_inventory",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_inventory_only_titles_by_disposition",
+    "official_web_release_gate_doc_ids",
     "official_web_retain_inventory_only_doc_ids",
     "official_web_retain_inventory_only_titles",
-    "official_web_release_gate_doc_ids",
 ]

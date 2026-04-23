@@ -613,11 +613,7 @@ def _should_skip_split_manifest_row(row: dict[str, object]) -> bool:
     row_type = str(row.get("row_type") or "")
     if row_type in {"header", "footer", "page_number"}:
         return True
-    if row_type in {"paragraph", "list_item", "note"} and _looks_like_curriculum_page_marker_line(
-        _split_manifest_row_text(row)
-    ):
-        return True
-    return False
+    return bool(row_type in {"paragraph", "list_item", "note"} and _looks_like_curriculum_page_marker_line(_split_manifest_row_text(row)))
 
 
 def _should_merge_split_manifest_row(
@@ -636,9 +632,7 @@ def _should_merge_split_manifest_row(
     current_row_type = str(current_source_row.get("row_type") or "")
     if current_row_type not in {"paragraph", "list_item"}:
         return False
-    if str(previous_transformed_row.get("row_type") or "") != current_row_type:
-        return False
-    return True
+    return str(previous_transformed_row.get("row_type") or "") == current_row_type
 
 
 def _merge_split_manifest_row(

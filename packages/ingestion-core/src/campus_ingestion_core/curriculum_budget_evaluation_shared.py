@@ -217,6 +217,12 @@ def build_default_curriculum_budget_candidates() -> tuple[CurriculumBudgetCandid
 
 
 __all__ = [
+    "_DEFAULT_EMBEDDING_MODEL",
+    "_DEFAULT_LAYOUT_FIXTURE_PATH",
+    "_DEFAULT_RUNTIME_TITLES",
+    "_DEFAULT_SAMPLE_INDEX_PATH",
+    "_DEFAULT_SPLIT_MANIFEST_PATH",
+    "_REPO_ROOT",
     "CurriculumBudgetAggregate",
     "CurriculumBudgetCandidate",
     "CurriculumBudgetCandidateResult",
@@ -229,11 +235,5 @@ __all__ = [
     "CurriculumBudgetProbeSummary",
     "CurriculumBudgetProfileSpec",
     "CurriculumBudgetTokenSummary",
-    "_DEFAULT_EMBEDDING_MODEL",
-    "_DEFAULT_LAYOUT_FIXTURE_PATH",
-    "_DEFAULT_RUNTIME_TITLES",
-    "_DEFAULT_SAMPLE_INDEX_PATH",
-    "_DEFAULT_SPLIT_MANIFEST_PATH",
-    "_REPO_ROOT",
     "build_default_curriculum_budget_candidates",
 ]

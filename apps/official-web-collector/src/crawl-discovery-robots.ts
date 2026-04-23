@@ -78,8 +78,6 @@ export async function loadRobotsState(
 			};
 		} catch (error) {
 			lastError = error;
-			if (attempt < maxAttempts) {
-			}
 		}
 	}
 

@@ -58,11 +58,11 @@ export function LoginPage() {
 			<AuthForm action={handleSubmit} defaultEmail={email}>
 				<SubmitButton isSuccessful={isSuccessful}>登录</SubmitButton>
 				<p className="text-center text-[13px] text-muted-foreground">
-					{"还没有账号？"}
+					还没有账号？
 					<Link className="text-foreground underline-offset-4 hover:underline" href="/register">
 						注册
-					</Link>
-					{" · "}
+					</Link>{" "}
+					·{" "}
 					<Link
 						className="text-foreground underline-offset-4 hover:underline"
 						href="/forgot-password"
