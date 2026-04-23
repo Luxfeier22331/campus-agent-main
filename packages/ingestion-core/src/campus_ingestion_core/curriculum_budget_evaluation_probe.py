@@ -361,7 +361,7 @@ def _normalize_probe_text(text: str) -> str:
 def _build_character_ngrams(text: str, size: int) -> set[str]:
     if len(text) < size:
         return {text} if text else set()
-    return {text[index : index + size] for index in range(0, len(text) - size + 1)}
+    return {text[index : index + size] for index in range(len(text) - size + 1)}
 
 
 def _probe_any_hit_in_ranked(

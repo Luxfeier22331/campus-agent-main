@@ -100,7 +100,7 @@ def _is_curriculum_table_heading(source: EvidenceSource, statement: str) -> bool
         return True
     if "课程清单如下" in normalized:
         return True
-    if normalized.startswith("课程类别 |") or normalized.startswith("专业方向 |"):
+    if normalized.startswith(("课程类别 |", "专业方向 |")):
         return True
     return False
 

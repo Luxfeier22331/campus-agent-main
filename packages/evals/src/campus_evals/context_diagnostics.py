@@ -159,7 +159,7 @@ def _scenario_cases(scenario_set: str) -> tuple[GoldenCase, ...]:
 
 
 def _artifact_metric_scores(payload: dict[str, object]) -> dict[str, float | None]:
-    scores: dict[str, float | None] = {metric_name: None for metric_name in CONTEXT_METRIC_NAMES}
+    scores: dict[str, float | None] = dict.fromkeys(CONTEXT_METRIC_NAMES, None)
     for result in payload.get("supplemental_results") or ():
         item = dict(result)
         metric_name = str(item.get("metric_name") or "")

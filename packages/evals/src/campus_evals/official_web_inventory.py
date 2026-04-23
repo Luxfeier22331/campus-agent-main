@@ -27,9 +27,7 @@ def load_official_web_current_truth_inventory() -> dict[str, object]:
     if not isinstance(inventory_triage_summary, dict):
         raise ValueError("official_web current truth inventory summary must be an object")
 
-    computed_inventory_counts: dict[str, int] = {
-        disposition: 0 for disposition in _ALLOWED_INVENTORY_DISPOSITIONS
-    }
+    computed_inventory_counts: dict[str, int] = dict.fromkeys(_ALLOWED_INVENTORY_DISPOSITIONS, 0)
 
     for raw_entry in documents:
         if not isinstance(raw_entry, dict):

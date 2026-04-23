@@ -197,7 +197,7 @@ def _load_safe_alias_replacements() -> tuple[tuple[str, str], ...]:
         / "query-planning.json"
     )
     payload = json.loads(config_path.read_text(encoding="utf-8"))
-    replacements = tuple(
+    return tuple(
         (
             str(item.get("alias", "")).strip(),
             str(item.get("canonical", "")).strip(),
@@ -207,7 +207,6 @@ def _load_safe_alias_replacements() -> tuple[tuple[str, str], ...]:
         and str(item.get("alias", "")).strip()
         and str(item.get("canonical", "")).strip()
     )
-    return replacements
 
 
 def _extract_semester_labels(query_text: str) -> tuple[str, ...]:

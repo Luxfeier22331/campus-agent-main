@@ -19,8 +19,8 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertTrue(hasattr(campus_evals, "load_retrieval_hybrid_query_dataset"))
         self.assertTrue(hasattr(campus_evals, "RetrievalHybridQueryDataset"))
 
-        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
-        dataset_type = getattr(campus_evals, "RetrievalHybridQueryDataset")
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
+        dataset_type = campus_evals.RetrievalHybridQueryDataset
 
         dataset = load_fixture(HYBRID_FIXTURE_PATH)
 
@@ -35,7 +35,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self.assertEqual(len(dataset.cases), 7)
 
     def test_load_hybrid_fixture_rejects_unsupported_category(self) -> None:
-        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
 
         with TemporaryDirectory() as temp_dir:
             fixture_path = Path(temp_dir) / "hybrid.json"
@@ -63,7 +63,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
                 load_fixture(fixture_path)
 
     def test_load_hybrid_fixture_accepts_canonical_scope_keys(self) -> None:
-        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
 
         with TemporaryDirectory() as temp_dir:
             fixture_path = Path(temp_dir) / "hybrid.json"
@@ -102,7 +102,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         )
 
     def test_load_hybrid_fixture_rejects_unsupported_scope_keys(self) -> None:
-        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
 
         with TemporaryDirectory() as temp_dir:
             fixture_path = Path(temp_dir) / "hybrid.json"
@@ -211,7 +211,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         self,
     ) -> None:
         self.assertTrue(hasattr(campus_evals, "validate_retrieval_hybrid_query_fixture"))
-        validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
+        validate_fixture = campus_evals.validate_retrieval_hybrid_query_fixture
 
         with TemporaryDirectory() as temp_dir:
             fixture_path = Path(temp_dir) / "hybrid.json"
@@ -281,7 +281,7 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         )
 
     def test_validate_hybrid_fixture_accepts_current_official_fixture(self) -> None:
-        validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
+        validate_fixture = campus_evals.validate_retrieval_hybrid_query_fixture
         errors = validate_fixture(HYBRID_FIXTURE_PATH, manifest_path=HANDBOOK_MANIFEST_PATH)
 
         self.assertEqual(errors, ())
@@ -289,8 +289,8 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
 
 class CurriculumHybridFixtureTest(unittest.TestCase):
     def test_load_curriculum_hybrid_fixture_reads_curriculum_baseline(self) -> None:
-        load_fixture = getattr(campus_evals, "load_retrieval_hybrid_query_dataset")
-        dataset_type = getattr(campus_evals, "RetrievalHybridQueryDataset")
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
+        dataset_type = campus_evals.RetrievalHybridQueryDataset
 
         dataset = load_fixture(CURRICULUM_HYBRID_FIXTURE_PATH)
 
@@ -333,7 +333,7 @@ class CurriculumHybridFixtureTest(unittest.TestCase):
         )
 
     def test_validate_curriculum_hybrid_fixture_accepts_current_fixture(self) -> None:
-        validate_fixture = getattr(campus_evals, "validate_retrieval_hybrid_query_fixture")
+        validate_fixture = campus_evals.validate_retrieval_hybrid_query_fixture
         errors = validate_fixture(
             CURRICULUM_HYBRID_FIXTURE_PATH, manifest_path=CURRICULUM_MANIFEST_PATH
         )

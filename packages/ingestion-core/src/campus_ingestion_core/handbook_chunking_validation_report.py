@@ -559,7 +559,7 @@ def _has_unclosed_citation_context_in_chunk(chunk: object) -> bool:
         return False
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     for line in lines:
-        if line.startswith("标题：") or line.startswith("文号："):
+        if line.startswith(("标题：", "文号：")):
             continue
         if _has_unclosed_citation_context(line):
             return True
@@ -604,7 +604,7 @@ def _validation_line_body(line: str) -> str:
 
 def _extract_validation_heading_body_glue(line: str) -> tuple[str, str] | None:
     stripped = line.strip()
-    if not stripped or stripped.startswith("标题：") or stripped.startswith("文号："):
+    if not stripped or stripped.startswith(("标题：", "文号：")):
         return None
     if " / " in stripped:
         return None

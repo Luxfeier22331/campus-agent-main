@@ -54,19 +54,19 @@ def build_http_ragas_llm(
         api_key=settings.llm_api_key,
         settings=settings.http_settings,
     )
-    llm_kwargs = dict(
-        base_url=settings.llm_base_url or "https://api.openai.com/v1",
-        api_key=settings.llm_api_key,
-        model=settings.llm_model,
-        http_settings=settings.http_settings,
-        reasoning_effort=settings.reasoning_effort,
-        text_verbosity=settings.text_verbosity,
-        max_output_tokens=settings.max_output_tokens,
-        request_pacer=request_pacer,
-        circuit_breaker=circuit_breaker,
-        sync_client=sync_client,
-        async_client=async_client,
-    )
+    llm_kwargs = {
+        "base_url": settings.llm_base_url or "https://api.openai.com/v1",
+        "api_key": settings.llm_api_key,
+        "model": settings.llm_model,
+        "http_settings": settings.http_settings,
+        "reasoning_effort": settings.reasoning_effort,
+        "text_verbosity": settings.text_verbosity,
+        "max_output_tokens": settings.max_output_tokens,
+        "request_pacer": request_pacer,
+        "circuit_breaker": circuit_breaker,
+        "sync_client": sync_client,
+        "async_client": async_client,
+    }
     if settings.llm_transport == "chat_completions":
         return OpenAICompatibleTextChatCompletionsLLM(**llm_kwargs)
     return OpenAICompatibleTextResponsesLLM(**llm_kwargs)

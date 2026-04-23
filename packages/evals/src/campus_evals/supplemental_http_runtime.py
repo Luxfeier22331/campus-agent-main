@@ -403,8 +403,7 @@ def sanitize_runtime_message(message: str) -> str:
         return ""
     sanitized = _BEARER_TOKEN_RE.sub("Bearer <redacted>", sanitized)
     sanitized = _RUNTIME_SCOPE_SECRET_RE.sub("::<redacted>", sanitized)
-    sanitized = _SK_LIKE_TOKEN_RE.sub("sk-<redacted>", sanitized)
-    return sanitized
+    return _SK_LIKE_TOKEN_RE.sub("sk-<redacted>", sanitized)
 
 
 def format_runtime_exception_message(exc: Exception) -> str:

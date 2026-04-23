@@ -161,10 +161,10 @@ def _crop_png_with_normalized_bbox(
 ) -> bytes:
     with Image.open(BytesIO(image_bytes)) as image:
         width, height = image.size
-        x0 = max(0, min(width - 1, int(math.floor(normalized_bbox[0] * width))))
-        y0 = max(0, min(height - 1, int(math.floor(normalized_bbox[1] * height))))
-        x1 = max(x0 + 1, min(width, int(math.ceil(normalized_bbox[2] * width))))
-        y1 = max(y0 + 1, min(height, int(math.ceil(normalized_bbox[3] * height))))
+        x0 = max(0, min(width - 1, math.floor(normalized_bbox[0] * width)))
+        y0 = max(0, min(height - 1, math.floor(normalized_bbox[1] * height)))
+        x1 = max(x0 + 1, min(width, math.ceil(normalized_bbox[2] * width)))
+        y1 = max(y0 + 1, min(height, math.ceil(normalized_bbox[3] * height)))
         cropped = image.crop((x0, y0, x1, y1))
         buffer = BytesIO()
         cropped.save(buffer, format="PNG")

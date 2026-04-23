@@ -12,8 +12,7 @@ def normalize_curriculum_title_for_match(value: str) -> str:
     if not normalized:
         return ""
     normalized = " ".join(normalized.split())
-    normalized = _TRAILING_EDITION_SUFFIX_PATTERN.sub("", normalized).strip()
-    return normalized
+    return _TRAILING_EDITION_SUFFIX_PATTERN.sub("", normalized).strip()
 
 
 def canonicalize_curriculum_manifest_heading(

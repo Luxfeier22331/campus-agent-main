@@ -9,6 +9,13 @@ from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection import _query_mode, _select_answer_support_rows
 
 DEFAULT_MAX_ANSWER_SOURCES = 3
+__all__ = (
+    "AnswerDraft",
+    "RagAgent",
+    "DEFAULT_MAX_ANSWER_SOURCES",
+    "_query_mode",
+    "_select_answer_support_rows",
+)
 
 
 @dataclass(frozen=True, slots=True)

@@ -130,7 +130,7 @@ def _record(
 class _FakeWriter:
     def __init__(self, *, existing_objects: tuple[tuple[str, str], ...] = ()) -> None:
         self.puts: list[tuple[str, str]] = []
-        self.objects = {key: b"" for key in existing_objects}
+        self.objects = dict.fromkeys(existing_objects, b"")
 
     def put_bytes(
         self,

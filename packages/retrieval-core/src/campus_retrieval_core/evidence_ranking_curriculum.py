@@ -51,7 +51,7 @@ def select_curriculum_lookup_support_sources(
         for feature in eligible_features
         if feature.source.chunk_id not in selected_chunk_ids
     )
-    ordered_features = tuple((*selected_features, *remaining_features))
+    ordered_features = (*selected_features, *remaining_features)
     return tuple(feature.source for feature in ordered_features[:max_sources])
 
 

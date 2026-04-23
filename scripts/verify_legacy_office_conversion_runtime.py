@@ -137,7 +137,7 @@ def list_authenticated_notice_legacy_office_source_keys(
             if key is None or _CAPTURE_SEGMENT not in key:
                 continue
             lower_key = key.lower()
-            if lower_key.endswith(".doc") or lower_key.endswith(".xls"):
+            if lower_key.endswith((".doc", ".xls")):
                 discovered.append(key)
         if not response.get("IsTruncated"):
             break

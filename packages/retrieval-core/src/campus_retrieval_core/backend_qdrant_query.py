@@ -223,7 +223,7 @@ def _prefer_curriculum_semester_course_list_sources(
     remaining_sources = tuple(
         source for source in sources if source.chunk_id not in preferred_chunk_ids
     )
-    return tuple((*ordered_preferred_sources, *remaining_sources))
+    return (*ordered_preferred_sources, *remaining_sources)
 
 
 def _order_curriculum_semester_course_list_sources(
@@ -252,7 +252,7 @@ def _order_curriculum_semester_course_list_sources(
             seen_sections.add(section_key)
             continue
         secondary.append(source)
-    return tuple((*primary, *secondary))
+    return (*primary, *secondary)
 
 
 def _curriculum_course_list_section_key(source: EvidenceSource) -> str:

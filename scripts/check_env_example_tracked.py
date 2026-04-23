@@ -19,7 +19,7 @@ def tracked_env_example_files(*, root: Path | None = None) -> tuple[Path, ...]:
         path
         for path in worktree_paths("*.env.example", "*.dev.vars.example", root=base)
         for decoded in [path.relative_to(base).as_posix()]
-        if (decoded.endswith(".env.example") or decoded.endswith(".dev.vars.example"))
+        if decoded.endswith((".env.example", ".dev.vars.example"))
         and not decoded.startswith(".planning/")
         and "/vendor/" not in decoded
     )

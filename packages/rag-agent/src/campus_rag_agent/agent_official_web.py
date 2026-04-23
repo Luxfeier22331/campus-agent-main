@@ -66,8 +66,7 @@ def _normalize_official_web_statement_line(*, line: str, title: str) -> str:
     if _looks_like_official_web_low_value_tail(normalized):
         return ""
     if title and normalized.startswith(title):
-        salvaged = _salvage_official_web_title_tail(normalized, title=title)
-        return salvaged
+        return _salvage_official_web_title_tail(normalized, title=title)
     return normalized
 
 
@@ -311,8 +310,7 @@ def _simplify_school_intro_sentence(sentence: str) -> str:
         return ""
     simplified = sentence.replace("中央民族大学是党和国家为", "中央民族大学是一所为")
     simplified = simplified.replace("、促进中华民族大团结", "")
-    simplified = simplified.replace("的一所特色鲜明的高等院校", "创建的特色鲜明高等院校")
-    return simplified
+    return simplified.replace("的一所特色鲜明的高等院校", "创建的特色鲜明高等院校")
 
 
 def _simplify_school_origin_sentence(sentence: str) -> str:
@@ -320,12 +318,11 @@ def _simplify_school_origin_sentence(sentence: str) -> str:
         return ""
     simplified = sentence.replace("学校前身是中国共产党", "前身是")
     simplified = simplified.replace("学校前身是", "前身是")
-    simplified = re.sub(
+    return re.sub(
         r"前身是(\d{4})年\d{1,2}月在延安创办的延安民族学院",
         r"前身是\1年在延安创办的延安民族学院",
         simplified,
     )
-    return simplified
 
 
 def _build_official_web_school_reference_fragments(sentences: tuple[str, ...]) -> tuple[str, ...]:
@@ -475,10 +472,9 @@ def _official_web_section_path(source: EvidenceSource) -> tuple[str, ...]:
     )
     if not isinstance(raw_section_path, (list, tuple)):
         return ()
-    normalized = tuple(
+    return tuple(
         _normalize_snippet(str(item)) for item in raw_section_path if _normalize_snippet(str(item))
     )
-    return normalized
 
 
 def _extract_official_web_scholar_name(
@@ -547,8 +543,7 @@ def _simplify_official_web_school_role(role_text: str) -> str:
     normalized = _normalize_snippet(role_text)
     if "中央民族大学" in normalized:
         normalized = normalized[normalized.rfind("中央民族大学") + len("中央民族大学") :]
-    normalized = normalized.strip("，,、 ")
-    return normalized
+    return normalized.strip("，,、 ")
 
 
 def _extract_official_web_roster_entry(statement: str) -> str:
@@ -629,10 +624,9 @@ def _build_official_web_news_fragments(
     if law_anchor and not any("民族团结进步促进法" in fragment for fragment in fragments):
         fragments.insert(0, _simplify_official_web_news_sentence(law_anchor))
     title_fragment = _summarize_official_web_news_title(lead_title)
-    if title_fragment and not any("民族团结进步促进法" in fragment for fragment in fragments):
-        fragments.insert(0, title_fragment)
-    elif title_fragment and not any(
-        "统战新语" in fragment and "强世功" in fragment for fragment in fragments
+    if title_fragment and (
+        not any("民族团结进步促进法" in fragment for fragment in fragments)
+        or not any("统战新语" in fragment and "强世功" in fragment for fragment in fragments)
     ):
         fragments.insert(0, title_fragment)
     return tuple(fragment for fragment in fragments if fragment)

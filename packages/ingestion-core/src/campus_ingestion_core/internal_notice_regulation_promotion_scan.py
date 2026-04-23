@@ -338,9 +338,7 @@ def _apply_duplicate_resolution(
         primary = min(group, key=_candidate_sort_key)
         rewritten[primary.document_id] = _replace_document_report(
             primary,
-            quality_gates_passed=tuple(
-                sorted(set((*primary.quality_gates_passed, "duplicate_check_passed")))
-            ),
+            quality_gates_passed=tuple(sorted({*primary.quality_gates_passed, "duplicate_check_passed"})),
         )
         for duplicate in group:
             if duplicate.document_id == primary.document_id:

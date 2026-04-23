@@ -175,12 +175,8 @@ SUPPORTED_AUTHORIZATION_METADATA_KEYS = frozenset(
 
 def looks_like_authorization_projection_key(key: str) -> bool:
     return (
-        key.startswith("entitlement_")
-        or key.startswith("visibility_")
-        or key.startswith("policy_projection_")
-        or key.endswith("_groups")
-        or key.endswith("_scope")
-        or key.endswith("_level")
+        key.startswith(("entitlement_", "visibility_", "policy_projection_"))
+        or key.endswith(("_groups", "_scope", "_level"))
     )
 
 

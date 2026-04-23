@@ -271,11 +271,11 @@ def _is_eligibility_rule(*, detail_label: str, anchor: Mapping[str, object], tex
     if any(keyword in scope for keyword in _ELIGIBILITY_KEYWORDS):
         return True
     normalized = _normalize_text(text)
-    return normalized.startswith("凡符合") or normalized.startswith("符合")
+    return normalized.startswith(("凡符合", "符合"))
 
 
 def _is_definition_rule(*, detail_label: str, text: str) -> bool:
-    if "释义" in detail_label or "定义" in detail_label:
+    if any(token in detail_label for token in ("释义", "定义")):
         return True
     return bool(_DEFINITION_RE.match(_normalize_text(text)))
 

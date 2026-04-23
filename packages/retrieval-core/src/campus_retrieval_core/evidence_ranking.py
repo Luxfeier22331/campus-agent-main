@@ -172,7 +172,7 @@ def select_supporting_evidence_sources(
         if normalized_snippet:
             seen_snippets.add(normalized_snippet)
 
-    selected = tuple((*primary, *secondary, *same_doc_secondary))[:max_sources]
+    selected = (*primary, *secondary, *same_doc_secondary)[:max_sources]
     if selected:
         return selected
 

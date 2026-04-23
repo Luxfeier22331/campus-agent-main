@@ -80,8 +80,8 @@ def delegate_to_navigation_agent(request: SpecialistRequest) -> SpecialistRespon
 
 
 def _format_place_answer(entry: object) -> str:
-    place_card = getattr(entry, "place_card")
-    place_ref = getattr(entry, "place_ref")
+    place_card = entry.place_card
+    place_ref = entry.place_ref
     segments = [
         f"{place_ref.display_name}在{place_card.location_description}",
     ]
@@ -93,8 +93,8 @@ def _format_place_answer(entry: object) -> str:
 
 
 def _format_candidate_option(candidate: object) -> str:
-    place = getattr(candidate, "place")
-    clarification_hint = getattr(candidate, "clarification_hint", "")
+    place = candidate.place
+    clarification_hint = candidate.clarification_hint
     if clarification_hint:
         return f"{place.display_name}（{clarification_hint}）"
     return str(place.display_name)

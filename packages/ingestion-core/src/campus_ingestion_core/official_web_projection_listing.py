@@ -290,7 +290,7 @@ def _contains_cjk_character(text: str) -> bool:
 
 def _contains_terminal_ellipsis(text: str) -> bool:
     normalized = " ".join(text.split()).strip()
-    return normalized.endswith("...") or normalized.endswith("…")
+    return normalized.endswith(("...", "…"))
 
 
 def _looks_like_listing_series_anchor(text: str) -> bool:

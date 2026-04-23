@@ -564,10 +564,7 @@ def _resolve_regulation_block_structure(
                 next_top_level_path=path,
                 next_nested_path=(),
             )
-        if current_top_level_path:
-            path = (*current_top_level_path, normalized)
-        else:
-            path = (normalized,)
+        path = (*current_top_level_path, normalized) if current_top_level_path else (normalized,)
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,

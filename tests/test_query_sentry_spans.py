@@ -39,7 +39,7 @@ class QuerySentrySpansTest(unittest.TestCase):
                     ],
                     "meta": {
                         "dataset": "spans",
-                        "fields": {field: "string" for field in DEFAULT_FIELDS},
+                        "fields": dict.fromkeys(DEFAULT_FIELDS, "string"),
                     },
                 }
 

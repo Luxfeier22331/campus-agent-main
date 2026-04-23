@@ -52,8 +52,7 @@ def _normalize_policy_doc_no(text: str) -> str:
     normalized = normalize_handbook_body_text(text)
     normalized = re.sub(r"\s*([\[〔])\s*", r"\1", normalized)
     normalized = re.sub(r"\s*([\]〕])\s*", r"\1", normalized)
-    normalized = re.sub(r"(?<=[\]〕])\s+(?=\d)", "", normalized)
-    return normalized
+    return re.sub(r"(?<=[\]〕])\s+(?=\d)", "", normalized)
 
 
 def _looks_like_list_entry(text: str) -> bool:

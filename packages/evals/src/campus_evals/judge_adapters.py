@@ -263,26 +263,26 @@ def _build_json_judge_runtime(
     OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM, JudgeFn, Callable[[], object]
 ]:
     base_url = settings.llm_base_url or "https://api.openai.com/v1"
-    llm_kwargs = dict(
-        base_url=base_url,
-        api_key=settings.llm_api_key,
-        model=settings.llm_model,
-        http_settings=settings.http_settings,
-        reasoning_effort=settings.reasoning_effort,
-        text_verbosity=settings.text_verbosity,
-        max_output_tokens=settings.max_output_tokens,
-        request_pacer=get_request_pacer(
+    llm_kwargs = {
+        "base_url": base_url,
+        "api_key": settings.llm_api_key,
+        "model": settings.llm_model,
+        "http_settings": settings.http_settings,
+        "reasoning_effort": settings.reasoning_effort,
+        "text_verbosity": settings.text_verbosity,
+        "max_output_tokens": settings.max_output_tokens,
+        "request_pacer": get_request_pacer(
             base_url=base_url,
             api_key=settings.llm_api_key,
             min_interval_seconds=settings.http_settings.request_min_interval_seconds,
         ),
-        circuit_breaker=get_provider_circuit_breaker(
+        "circuit_breaker": get_provider_circuit_breaker(
             base_url=base_url,
             api_key=settings.llm_api_key,
             settings=settings.http_settings,
         ),
-        sync_client=sync_client,
-    )
+        "sync_client": sync_client,
+    }
     if settings.llm_transport == "chat_completions":
         llm = OpenAICompatibleChatCompletionsLLM(**llm_kwargs)
     else:

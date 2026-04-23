@@ -375,7 +375,7 @@ def _transform_split_row(
     )
     page_start = int(row["page_start"])
     page_end = int(row["page_end"])
-    projected = {
+    return {
         "doc_id": document_id,
         "version_id": version_id,
         "chunk_id": _projected_chunk_id(row=row, page_start=page_start),
@@ -402,7 +402,6 @@ def _transform_split_row(
         "visibility_level": "restricted" if entitlement_groups else "public",
         "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
     }
-    return projected
 
 
 def _required_row_id(row: Mapping[str, object]) -> str:

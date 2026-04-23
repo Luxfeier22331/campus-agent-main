@@ -233,9 +233,7 @@ def extract_legacy_office_text_blocks(
         extraction_strategy=(
             f"legacy_office_conversion_then_{normalized_extraction.extraction_strategy}"
         ),
-        artifact_refs=tuple(
-            (*normalized_result.artifact_refs, *normalized_extraction.artifact_refs)
-        ),
+        artifact_refs=(*normalized_result.artifact_refs, *normalized_extraction.artifact_refs),
         source_extension=normalized_result.source_extension,
         normalized_extension=normalized_result.normalized_extension,
         normalized_sha256=normalized_result.normalized_sha256,

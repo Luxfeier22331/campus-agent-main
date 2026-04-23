@@ -204,9 +204,9 @@ def _select_repair_adapters(
 
 def _adapter_metric_keys(adapter: SupplementalAdapter) -> tuple[str, ...]:
     if hasattr(adapter, "metric_names"):
-        metric_names = tuple(str(item) for item in getattr(adapter, "metric_names"))
+        metric_names = tuple(str(item) for item in adapter.metric_names)
         return tuple(f"{adapter.adapter_id}.{metric_name}" for metric_name in metric_names)
-    metric_name = getattr(adapter, "metric_name", None)
+    metric_name = adapter.metric_name if hasattr(adapter, "metric_name") else None
     if isinstance(metric_name, str) and metric_name.strip():
         return (f"{adapter.adapter_id}.{metric_name}",)
     return ()

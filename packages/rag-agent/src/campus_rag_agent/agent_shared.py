@@ -28,8 +28,7 @@ def _render_source_support(source: EvidenceSource) -> str:
             continue
         filtered_lines.append(line)
     rendered = " ".join(filtered_lines) if filtered_lines else normalized
-    rendered = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, rendered)
-    return rendered
+    return re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, rendered)
 
 
 def _lead_source_title(sources: tuple[EvidenceSource, ...]) -> str:

@@ -137,7 +137,7 @@ def execute_staged_faithfulness(
         _checkpoint_path(
             checkpoint_context.output_dir,
             checkpoint_context.run_number,
-            getattr(projection, "case_id"),
+            projection.case_id,
         )
         if checkpoint_context is not None
         else None
@@ -146,7 +146,7 @@ def execute_staged_faithfulness(
         _checkpoint_path(
             checkpoint_context.source_output_dir,
             checkpoint_context.run_number,
-            getattr(projection, "case_id"),
+            projection.case_id,
         )
         if checkpoint_context is not None and checkpoint_context.source_output_dir is not None
         else None
@@ -154,13 +154,13 @@ def execute_staged_faithfulness(
     state, loaded_from = _load_checkpoint_state(
         checkpoint_path=checkpoint_path,
         source_checkpoint_path=source_checkpoint_path,
-        case_id=getattr(projection, "case_id"),
+        case_id=projection.case_id,
         sample_hash=sample_hash,
         prompt_version=prompt_version,
     )
     if state is None:
         state = _build_initial_state(
-            case_id=getattr(projection, "case_id"),
+            case_id=projection.case_id,
             sample_hash=sample_hash,
             prompt_version=prompt_version,
             nli_batch_size=nli_batch_size,
@@ -169,9 +169,9 @@ def execute_staged_faithfulness(
         _write_checkpoint(checkpoint_path, state)
 
     row = {
-        "user_input": getattr(projection, "user_input"),
-        "response": getattr(projection, "response"),
-        "retrieved_contexts": list(getattr(projection, "retrieved_contexts")),
+        "user_input": projection.user_input,
+        "response": projection.response,
+        "retrieved_contexts": list(projection.retrieved_contexts),
     }
 
     statement_stage = dict(state["stages"]["statement_generation"])
@@ -388,14 +388,12 @@ def _run_config_for_metric(metric: object, run_config: object) -> object:
         stage_http_settings = _metric_stage_http_settings(metric, stage_name=stage_name)
         if stage_http_settings is None:
             continue
-        timeout_seconds = max(
-            timeout_seconds, int(math.ceil(stage_http_settings.read_timeout_seconds))
-        )
+        timeout_seconds = max(timeout_seconds, math.ceil(stage_http_settings.read_timeout_seconds))
     current_timeout = int(getattr(run_config, "timeout", 0) or 0)
     if timeout_seconds <= current_timeout:
         return run_config
     cloned = copy.copy(run_config)
-    setattr(cloned, "timeout", timeout_seconds)
+    cloned.timeout = timeout_seconds
     return cloned
 
 
@@ -406,15 +404,15 @@ def _bind_metric_stage_http_settings(metric: object, *, stage_name: str) -> Iter
     if llm is None or stage_http_settings is None or not hasattr(llm, "http_settings"):
         yield
         return
-    original_http_settings = getattr(llm, "http_settings", None)
+    original_http_settings = llm.http_settings
     if original_http_settings == stage_http_settings:
         yield
         return
-    setattr(llm, "http_settings", stage_http_settings)
+    llm.http_settings = stage_http_settings
     try:
         yield
     finally:
-        setattr(llm, "http_settings", original_http_settings)
+        llm.http_settings = original_http_settings
 
 
 def _metric_stage_http_settings(metric: object, *, stage_name: str):
@@ -433,11 +431,11 @@ def _resolve_faithfulness_nli_batch_size(metric: object) -> int:
 
 def _projection_sample_hash(projection: object) -> str:
     payload = {
-        "case_id": getattr(projection, "case_id"),
-        "user_input": getattr(projection, "user_input"),
-        "response": getattr(projection, "response"),
-        "retrieved_contexts": list(getattr(projection, "retrieved_contexts")),
-        "reference": getattr(projection, "reference"),
+        "case_id": projection.case_id,
+        "user_input": projection.user_input,
+        "response": projection.response,
+        "retrieved_contexts": list(projection.retrieved_contexts),
+        "reference": projection.reference,
     }
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return sha256(serialized.encode("utf-8")).hexdigest()

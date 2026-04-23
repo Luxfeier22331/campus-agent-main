@@ -495,9 +495,7 @@ def check_snapshot_gc_eligibility(
     elif target_manifest.physical_collection_name in request.protected_physical_collection_names:
         role = "migration_baseline"
         blockers.append("migration_baseline_protected")
-    if target_manifest.validation_summary_object_key is None:
-        blockers.append("missing_validation_summary")
-    elif not _object_exists(
+    if target_manifest.validation_summary_object_key is None or not _object_exists(
         object_store=runtime_object_store,
         bucket=bucket_derived,
         key=target_manifest.validation_summary_object_key,

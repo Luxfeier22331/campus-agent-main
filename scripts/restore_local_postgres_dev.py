@@ -450,7 +450,7 @@ def _rewrite_root_env_for_local_postgres(
     target_path = repo_root / ".env"
     content = replace_or_append_env_values(
         load_target_seed(target_path),
-        {key: local_postgres_url for key in _ROOT_LOCAL_POSTGRES_ENV_KEYS},
+        dict.fromkeys(_ROOT_LOCAL_POSTGRES_ENV_KEYS, local_postgres_url),
     )
     target_path.write_text(content, encoding="utf-8")
     return target_path

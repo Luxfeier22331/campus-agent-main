@@ -156,7 +156,7 @@ def run_session_command(
     try:
         result = runner(command, cwd=repo, env=child_env)
         exit_code = int(getattr(result, "returncode", result))
-        return exit_code
+        return int(getattr(result, "returncode", result))
     finally:
         stop_event.set()
         heartbeat_thread.join(timeout=2)
@@ -349,7 +349,7 @@ def main(argv: list[str] | None = None) -> int:
                 if not command:
                     raise ValueError("session start requires a command after `--`")
 
-            exit_code = run_session_command(
+            return run_session_command(
                 repo_root=repo_root,
                 workstream=args.workstream,
                 command=command,
@@ -358,7 +358,6 @@ def main(argv: list[str] | None = None) -> int:
                 lease_seconds=args.lease_seconds,
                 heartbeat_interval_seconds=args.heartbeat_seconds,
             )
-            return exit_code
 
         if args.command == "claim":
             if args.claim_command == "list":

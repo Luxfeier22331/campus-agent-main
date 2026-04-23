@@ -100,7 +100,7 @@ def _build_table_unit_semantics(
         return None
     caption_lines = (caption_text,) if caption_text else ()
     return NormalizedHandbookTable(
-        matrix=tuple((*filtered_header_rows, *filtered_body_rows)),
+        matrix=(*filtered_header_rows, *filtered_body_rows),
         header_rows=filtered_header_rows,
         body_rows=filtered_body_rows,
         column_paths=column_paths,

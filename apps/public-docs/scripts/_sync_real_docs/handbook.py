@@ -243,13 +243,16 @@ def _normalize_handbook_body(lines: list[str], *, title: str | None) -> list[str
                 saw_chapter_heading = True
             continue
 
-        if _is_markdown_list_item(stripped) and normalized and normalized[-1] != "":
-            normalized.append("")
-        elif (
+        if (
             normalized
-            and _is_markdown_list_item(normalized[-1])
             and normalized[-1] != ""
-            and not _is_markdown_list_item(stripped)
+            and (
+                _is_markdown_list_item(stripped)
+                or (
+                    _is_markdown_list_item(normalized[-1])
+                    and not _is_markdown_list_item(stripped)
+                )
+            )
         ):
             normalized.append("")
         normalized.extend(_render_handbook_body_lines(line.rstrip()))
@@ -378,7 +381,7 @@ class _TableHTMLParser(HTMLParser):
             if self._in_cell and tag == "br":
                 self._cell_parts.append("\n")
             return
-        attr_map = {key: value for key, value in attrs}
+        attr_map = dict(attrs)
         self._cell_parts = []
         self._cell_rowspan = _parse_positive_int(attr_map.get("rowspan"))
         self._cell_colspan = _parse_positive_int(attr_map.get("colspan"))

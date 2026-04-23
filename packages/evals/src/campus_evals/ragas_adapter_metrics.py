@@ -245,22 +245,14 @@ def _actual_metric_name_for_requested_name(
 def _configure_metric_runtime(metric: object, *, settings: RagasSettings) -> None:
     if str(getattr(metric, "name", "")) != "faithfulness":
         return
-    setattr(
-        metric,
-        "_campus_stage_http_settings",
-        {
-            "statement_generation": settings.http_settings_for_metric_stage(
-                metric_name="faithfulness",
-                stage_name="statement_generation",
-            ),
-            "nli_verdicts": settings.http_settings_for_metric_stage(
-                metric_name="faithfulness",
-                stage_name="nli_verdicts",
-            ),
-        },
-    )
-    setattr(
-        metric,
-        "_campus_faithfulness_nli_batch_size",
-        settings.faithfulness_nli_batch_size,
-    )
+    metric._campus_stage_http_settings = {
+        "statement_generation": settings.http_settings_for_metric_stage(
+            metric_name="faithfulness",
+            stage_name="statement_generation",
+        ),
+        "nli_verdicts": settings.http_settings_for_metric_stage(
+            metric_name="faithfulness",
+            stage_name="nli_verdicts",
+        ),
+    }
+    metric._campus_faithfulness_nli_batch_size = settings.faithfulness_nli_batch_size

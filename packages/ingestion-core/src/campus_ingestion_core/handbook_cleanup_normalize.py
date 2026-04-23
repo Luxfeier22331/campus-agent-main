@@ -678,8 +678,7 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = normalized.replace("私自将违规电器带入室内着", "私自将违规电器带入室内者")
     normalized = normalized.replace("一法追究法律责任", "依法追究法律责任")
     normalized = normalized.replace("志愿志愿服务", "志愿服务")
-    normalized = normalized.replace("助学服务中心中心", "助学服务中心")
-    return normalized
+    return normalized.replace("助学服务中心中心", "助学服务中心")
 
 
 def _strip_inline_ocr_reference_markers(text: str) -> str:
