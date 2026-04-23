@@ -445,6 +445,7 @@ def _build_retrieval_request_from_step(
         authorized_filter=authorized_filter,
         personalization_hint=personalization_hint,
         top_k=step.budget.top_k,
+        timeout_ms=step.budget.timeout_ms,
     )
 
 

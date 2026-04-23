@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
+from threading import RLock
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import (
@@ -11,6 +13,7 @@ from campus_ingestion_core.corpus_profiles import (
     load_runtime_profile,
 )
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     build_document_registry_from_env,
@@ -23,7 +26,6 @@ from campus_ingestion_core.sparse import (
 from llama_index.core.schema import MetadataMode
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
-from qdrant_client.http.exceptions import ResponseHandlingException
 
 from campus_retrieval_core.backend_qdrant_filters import (
     _apply_preferred_document_bias,
@@ -48,8 +50,15 @@ from campus_retrieval_core.backend_qdrant_query import (
     _merge_evidence_sources,
     _prefer_curriculum_semester_course_list_sources,
 )
-from campus_retrieval_core.backend_qdrant_query import (
-    _build_hybrid_prefetch as _build_hybrid_prefetch_impl,
+from campus_retrieval_core.backend_qdrant_runtime import (
+    DEFAULT_DENSE_QUERY_CACHE_MAX_ENTRIES,
+    DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS,
+    DEFAULT_REGISTRY_LOOKUP_CACHE_MAX_ENTRIES,
+    DEFAULT_REGISTRY_LOOKUP_CACHE_TTL_SECONDS,
+    _build_hybrid_prefetch,
+    _build_qdrant_client,
+    _RetrievalDeadline,
+    _retry_qdrant_read,
 )
 from campus_retrieval_core.backend_qdrant_source_metadata import (
     _coerce_dict,
@@ -80,42 +89,10 @@ from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 
 __all__ = ("_build_metadata_filters",)
-
 DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
-DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS = 300.0
 _SCORE_TIE_EPSILON = 1e-6
-_QDRANT_READ_RETRY_ATTEMPTS = 3
-_QDRANT_READ_RETRY_BACKOFF_SECONDS = 0.5
-_QDRANT_TRANSIENT_ERROR_TEXT = (
-    "timed out",
-    "timeout",
-    "temporarily unavailable",
-    "connection reset",
-    "handshake",
-)
 _SAME_DOC_SCROLL_BATCH_LIMIT = 64
 _SAME_DOC_SCROLL_MAX_RECORDS = 256
-
-
-def _build_hybrid_prefetch(
-    *,
-    request: RetrievalRequest,
-    profile: CollectionRuntimeProfile,
-    embedding_model: object,
-    sparse_embedding_model: SparseEmbeddingModel,
-    dense_query_embedding: Sequence[float] | None = None,
-    query_filter: qdrant_models.Filter | None = None,
-    build_qdrant_filter_fn=_build_qdrant_filter,
-) -> list[qdrant_models.Prefetch]:
-    return _build_hybrid_prefetch_impl(
-        request=request,
-        profile=profile,
-        embedding_model=embedding_model,
-        sparse_embedding_model=sparse_embedding_model,
-        dense_query_embedding=dense_query_embedding,
-        query_filter=query_filter,
-        build_qdrant_filter_fn=build_qdrant_filter_fn,
-    )
 
 
 class RetrievalBackendError(RuntimeError):
@@ -138,9 +115,20 @@ class QdrantRetrievalBackend:
     embedding_model: object | None = None
     sparse_embedding_model: SparseEmbeddingModel | None = None
     dense_query_cache_ttl_seconds: float = DEFAULT_DENSE_QUERY_CACHE_TTL_SECONDS
-    _dense_query_cache: dict[str, tuple[float, tuple[float, ...]]] = field(
-        default_factory=dict, init=False
+    dense_query_cache_max_entries: int = DEFAULT_DENSE_QUERY_CACHE_MAX_ENTRIES
+    registry_lookup_cache_ttl_seconds: float = DEFAULT_REGISTRY_LOOKUP_CACHE_TTL_SECONDS
+    registry_lookup_cache_max_entries: int = DEFAULT_REGISTRY_LOOKUP_CACHE_MAX_ENTRIES
+    _dense_query_cache: OrderedDict[str, tuple[float, tuple[float, ...]]] = field(
+        default_factory=OrderedDict, init=False
     )
+    _dense_query_cache_lock: RLock = field(default_factory=RLock, init=False, repr=False)
+    _registry_record_cache: OrderedDict[
+        tuple[str, str, str], tuple[float, DocumentRegistryRecord | None]
+    ] = field(default_factory=OrderedDict, init=False)
+    _registry_current_version_cache: OrderedDict[
+        tuple[str, tuple[str, ...]], tuple[float, DocumentRegistryRecord | None]
+    ] = field(default_factory=OrderedDict, init=False)
+    _registry_cache_lock: RLock = field(default_factory=RLock, init=False, repr=False)
     _known_collection_names: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
@@ -168,6 +156,7 @@ class QdrantRetrievalBackend:
 
     def retrieve(self, request: RetrievalRequest) -> EvidenceBundle:
         profile = load_runtime_profile(request.corpus, request.collection)
+        deadline = _RetrievalDeadline.from_timeout_ms(request.timeout_ms)
         if not profile.retrieval_enabled:
             raise CorpusQueryDisabledError(
                 f"{request.corpus}/{request.collection} retrieval is disabled by runtime profile"
@@ -186,7 +175,8 @@ class QdrantRetrievalBackend:
         try:
             if qdrant_collection_name not in self._known_collection_names:
                 if not _retry_qdrant_read(
-                    lambda: self.qdrant_client.collection_exists(qdrant_collection_name)
+                    lambda: self.qdrant_client.collection_exists(qdrant_collection_name),
+                    deadline=deadline,
                 ):
                     return EvidenceBundle(
                         query_text=request.query_text,
@@ -213,7 +203,9 @@ class QdrantRetrievalBackend:
                     limit=initial_query_limit,
                     with_payload=True,
                     with_vectors=False,
-                )
+                    timeout=deadline.qdrant_timeout_seconds(),
+                ),
+                deadline=deadline,
             )
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
@@ -249,6 +241,7 @@ class QdrantRetrievalBackend:
                 qdrant_collection_name=qdrant_collection_name,
                 dense_query_embedding=dense_query_embedding,
                 sources=ranked_sources,
+                deadline=deadline,
             )
         )
         ranked_final_sources = prioritize_evidence_sources(
@@ -304,11 +297,11 @@ class QdrantRetrievalBackend:
                 or collection is None
                 or is_current is None
             ):
-                record = self.registry.get(document_id, revision_track, version_id)
+                record = self._get_registry_record(document_id, revision_track, version_id)
                 if record is None:
                     continue
                 runtime_profile = load_runtime_profile(record.corpus, record.collection)
-                latest_record = self.registry.current_version(
+                latest_record = self._get_current_registry_version(
                     document_id,
                     preferred_revision_tracks=runtime_profile.serving_revision_tracks
                     or DEFAULT_LATEST_REVISION_TRACKS,
@@ -404,7 +397,7 @@ class QdrantRetrievalBackend:
 
         denied_target_found = False
         for document_id in request.target_document_ids:
-            record = self.registry.current_version(
+            record = self._get_current_registry_version(
                 document_id,
                 preferred_revision_tracks=profile.serving_revision_tracks
                 or DEFAULT_LATEST_REVISION_TRACKS,
@@ -434,19 +427,90 @@ class QdrantRetrievalBackend:
             instruction=profile.embedding_query_instruction,
         )
         now = time.monotonic()
-        cached = self._dense_query_cache.get(normalized_query)
-        if cached is not None:
-            expires_at, embedding = cached
-            if expires_at > now:
-                return embedding
+        with self._dense_query_cache_lock:
+            cached = self._dense_query_cache.get(normalized_query)
+            if cached is not None:
+                expires_at, embedding = cached
+                if expires_at > now:
+                    self._dense_query_cache.move_to_end(normalized_query)
+                    return embedding
+                self._dense_query_cache.pop(normalized_query, None)
         embedding = tuple(
             float(item) for item in self.embedding_model.get_query_embedding(normalized_query)
         )
-        self._dense_query_cache[normalized_query] = (
-            now + self.dense_query_cache_ttl_seconds,
-            embedding,
-        )
+        if self.dense_query_cache_ttl_seconds > 0 and self.dense_query_cache_max_entries > 0:
+            with self._dense_query_cache_lock:
+                self._dense_query_cache[normalized_query] = (
+                    now + self.dense_query_cache_ttl_seconds,
+                    embedding,
+                )
+                self._dense_query_cache.move_to_end(normalized_query)
+                self._trim_dense_query_cache(now=now)
         return embedding
+
+    def _trim_dense_query_cache(self, *, now: float) -> None:
+        expired_keys = [
+            key for key, (expires_at, _) in self._dense_query_cache.items() if expires_at <= now
+        ]
+        for key in expired_keys:
+            self._dense_query_cache.pop(key, None)
+        while len(self._dense_query_cache) > self.dense_query_cache_max_entries:
+            self._dense_query_cache.popitem(last=False)
+
+    def _get_registry_record(
+        self,
+        document_id: str,
+        revision_track: str,
+        version_id: str,
+    ) -> DocumentRegistryRecord | None:
+        key = (document_id, revision_track, version_id)
+        return self._get_cached_registry_lookup(
+            cache=self._registry_record_cache,
+            key=key,
+            loader=lambda: self.registry.get(document_id, revision_track, version_id),
+        )
+
+    def _get_current_registry_version(
+        self,
+        document_id: str,
+        *,
+        preferred_revision_tracks: tuple[str, ...] = (),
+    ) -> DocumentRegistryRecord | None:
+        key = (document_id, preferred_revision_tracks)
+        return self._get_cached_registry_lookup(
+            cache=self._registry_current_version_cache,
+            key=key,
+            loader=lambda: self.registry.current_version(
+                document_id,
+                preferred_revision_tracks=preferred_revision_tracks,
+            ),
+        )
+
+    def _get_cached_registry_lookup(
+        self,
+        *,
+        cache: OrderedDict[object, tuple[float, DocumentRegistryRecord | None]],
+        key: object,
+        loader: Callable[[], DocumentRegistryRecord | None],
+    ) -> DocumentRegistryRecord | None:
+        if self.registry_lookup_cache_ttl_seconds <= 0:
+            return loader()
+        now = time.monotonic()
+        with self._registry_cache_lock:
+            cached = cache.get(key)
+            if cached is not None:
+                expires_at, record = cached
+                if expires_at > now:
+                    cache.move_to_end(key)
+                    return record
+                cache.pop(key, None)
+        record = loader()
+        with self._registry_cache_lock:
+            cache[key] = (now + self.registry_lookup_cache_ttl_seconds, record)
+            cache.move_to_end(key)
+            while len(cache) > self.registry_lookup_cache_max_entries:
+                cache.popitem(last=False)
+        return record
 
     def _resolve_initial_query_limit(
         self,
@@ -525,7 +589,10 @@ class QdrantRetrievalBackend:
         qdrant_collection_name: str,
         dense_query_embedding: Sequence[float],
         sources: Sequence[EvidenceSource],
+        deadline: _RetrievalDeadline,
     ) -> tuple[EvidenceSource, ...]:
+        if deadline.is_expired():
+            return tuple(sources)
         target_source = next(
             (
                 source
@@ -567,9 +634,13 @@ class QdrantRetrievalBackend:
                     limit=max(support_request.top_k, profile.document_support_limit),
                     with_payload=True,
                     with_vectors=False,
-                )
+                    timeout=deadline.qdrant_timeout_seconds(),
+                ),
+                deadline=deadline,
             )
         except Exception:
+            return tuple(sources)
+        if deadline.is_expired():
             return tuple(sources)
         additional_sources = self._build_evidence_sources(response.points or ())
         curriculum_semester_sources = self._supplement_curriculum_same_doc_semester_sources(
@@ -577,6 +648,7 @@ class QdrantRetrievalBackend:
             qdrant_collection_name=qdrant_collection_name,
             source_scoped_filter=source_scoped_filter,
             default_score=target_source.score,
+            deadline=deadline,
         )
         merged_sources = _merge_evidence_sources(
             preferred=sources,
@@ -591,6 +663,7 @@ class QdrantRetrievalBackend:
             qdrant_collection_name=qdrant_collection_name,
             target_source=target_source,
             sources=merged_sources,
+            deadline=deadline,
         )
 
     def _supplement_curriculum_same_doc_semester_sources(
@@ -600,7 +673,10 @@ class QdrantRetrievalBackend:
         qdrant_collection_name: str,
         source_scoped_filter: qdrant_models.Filter,
         default_score: float,
+        deadline: _RetrievalDeadline,
     ) -> tuple[EvidenceSource, ...]:
+        if deadline.is_expired():
+            return ()
         if request.corpus != "curriculum" or request.collection != "curriculum_plan":
             return ()
         interpretation = interpret_curriculum_query(request.query_text)
@@ -610,6 +686,8 @@ class QdrantRetrievalBackend:
         offset: int | str | None = None
         records: list[qdrant_models.Record] = []
         while len(records) < _SAME_DOC_SCROLL_MAX_RECORDS:
+            if deadline.is_expired():
+                return ()
             remaining = _SAME_DOC_SCROLL_MAX_RECORDS - len(records)
             limit = min(_SAME_DOC_SCROLL_BATCH_LIMIT, remaining)
             try:
@@ -621,7 +699,9 @@ class QdrantRetrievalBackend:
                         offset=offset,
                         with_payload=True,
                         with_vectors=False,
-                    )
+                        timeout=deadline.qdrant_timeout_seconds(),
+                    ),
+                    deadline=deadline,
                 )
             except Exception:
                 return ()
@@ -658,7 +738,10 @@ class QdrantRetrievalBackend:
         qdrant_collection_name: str,
         target_source: EvidenceSource,
         sources: tuple[EvidenceSource, ...],
+        deadline: _RetrievalDeadline,
     ) -> tuple[EvidenceSource, ...]:
+        if deadline.is_expired():
+            return sources
         if not is_official_web_stable_reference_like_profile(profile):
             return sources
         normalized_query = _normalize_low_signal_query(request.query_text)
@@ -670,16 +753,20 @@ class QdrantRetrievalBackend:
         ):
             return sources
         try:
-            scrolled_records, _ = self.qdrant_client.scroll(
-                collection_name=qdrant_collection_name,
-                scroll_filter=_build_source_scoped_qdrant_filter(
-                    request=request,
-                    profile=profile,
-                    source=target_source,
+            scrolled_records, _ = _retry_qdrant_read(
+                lambda: self.qdrant_client.scroll(
+                    collection_name=qdrant_collection_name,
+                    scroll_filter=_build_source_scoped_qdrant_filter(
+                        request=request,
+                        profile=profile,
+                        source=target_source,
+                    ),
+                    limit=max(profile.document_support_limit, 8),
+                    with_payload=True,
+                    with_vectors=False,
+                    timeout=deadline.qdrant_timeout_seconds(),
                 ),
-                limit=max(profile.document_support_limit, 8),
-                with_payload=True,
-                with_vectors=False,
+                deadline=deadline,
             )
         except Exception:
             return sources
@@ -710,39 +797,3 @@ class QdrantRetrievalBackend:
         if not lead_sources:
             return sources
         return _merge_evidence_sources(preferred=sources, additional=lead_sources)
-
-
-def _build_qdrant_client(settings: RetrievalSettings) -> QdrantClient:
-    if settings.qdrant_url == ":memory:":
-        return QdrantClient(location=":memory:")
-    return QdrantClient(
-        url=settings.qdrant_url,
-        api_key=settings.qdrant_api_key,
-        timeout=settings.qdrant_timeout_seconds,
-        cloud_inference=True,
-        check_compatibility=False,
-        trust_env=False,
-    )
-
-
-def _retry_qdrant_read[RetryResultT](operation: Callable[[], RetryResultT]) -> RetryResultT:
-    last_error: ResponseHandlingException | None = None
-    for attempt in range(1, _QDRANT_READ_RETRY_ATTEMPTS + 1):
-        try:
-            return operation()
-        except ResponseHandlingException as exc:
-            if (
-                not _looks_like_transient_qdrant_error(exc)
-                or attempt >= _QDRANT_READ_RETRY_ATTEMPTS
-            ):
-                raise
-            last_error = exc
-            time.sleep(_QDRANT_READ_RETRY_BACKOFF_SECONDS * attempt)
-    if last_error is not None:
-        raise last_error
-    raise RuntimeError("retry helper exhausted without result")
-
-
-def _looks_like_transient_qdrant_error(error: ResponseHandlingException) -> bool:
-    normalized = str(error).strip().lower()
-    return any(fragment in normalized for fragment in _QDRANT_TRANSIENT_ERROR_TEXT)

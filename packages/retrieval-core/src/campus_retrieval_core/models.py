@@ -339,11 +339,14 @@ class RetrievalRequest:
     authorized_filter: AuthorizedRetrievalFilter | None = None
     personalization_hint: PersonalizationHint | None = None
     top_k: int = 3
+    timeout_ms: int | None = None
 
     def __post_init__(self) -> None:
         assert_known_scope(self.corpus, self.collection)
         if self.top_k <= 0:
             raise ValueError("top_k must be greater than zero")
+        if self.timeout_ms is not None and self.timeout_ms < 0:
+            raise ValueError("timeout_ms must not be negative")
         normalized_target_document_ids = tuple(
             doc_id.strip()
             for doc_id in self.target_document_ids

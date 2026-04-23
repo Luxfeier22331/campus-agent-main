@@ -20,6 +20,7 @@ _COLLECTION_MINIMUM_SOURCE_TRUST_TIER = {
     "stable_reference": "T2",
     "fresh_news": "T3",
 }
+DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS = 8000
 
 
 def build_ordered_retrieval_plan(
@@ -41,6 +42,7 @@ def build_ordered_retrieval_plan(
     comparison_version_id: str = "",
     max_replans: int = 1,
     allow_live_source_lookup: bool = False,
+    indexed_lookup_timeout_ms: int | None = DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
 ) -> RetrievalPlan:
     admitted_scope = RetrievalScope(corpus=scope.corpus, collection=retrieval_collection)
     base_selector = RetrievalSelector(
@@ -51,7 +53,7 @@ def build_ordered_retrieval_plan(
         canonical_course_family_ids=canonical_course_family_ids,
         canonical_program_family_ids=canonical_program_family_ids,
     )
-    step_budget = RetrievalStepBudget(top_k=top_k)
+    step_budget = RetrievalStepBudget(top_k=top_k, timeout_ms=indexed_lookup_timeout_ms)
 
     if query_mode == "compare":
         normalized_primary_version_id = primary_version_id.strip()
