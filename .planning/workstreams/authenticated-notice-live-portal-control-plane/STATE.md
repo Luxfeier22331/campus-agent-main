@@ -1,7 +1,7 @@
 ---
 workstream: authenticated-notice-live-portal-control-plane
 created: 2026-04-19
-updated: 2026-04-22
+updated: 2026-04-23
 ---
 
 # Project State
@@ -15,8 +15,8 @@ updated: 2026-04-22
 **Total Phases:** 6
 **Total Plans in Phase:** N/A
 **Progress:** 0/6 phases complete
-**Last Activity:** 2026-04-19
-**Last Activity Description:** Registered this deferred lane as a native workstream instead of leaving it only in the shared root board.
+**Last Activity:** 2026-04-23
+**Last Activity Description:** Added a future follow-up for notices whose body declares attachments but current detail/source-truth payloads materialize no attachment entities or refs.
 
 ## Reopen Rule
 
@@ -26,6 +26,7 @@ updated: 2026-04-22
 
 - 缺少当前可用的认证窗口与登录凭据
 - collector runtime / control-plane 还未被拉回 active implementation lane
+- 已知 source-channel gap 尚未进入 active implementation：部分 notice 正文会声明附件，但当前 payload / source-truth 可能返回空 `notice_attachments`、空 `attachments` 与 `attachment_ref_count=0`；reopen 后必须把这类 mismatch 做成 machine-readable truth
 
 ## Session Continuity
 

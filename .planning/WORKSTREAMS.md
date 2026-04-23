@@ -78,6 +78,9 @@ updated: 2026-04-23
 | `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
 | `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `no` | `docs/plans/archive/historical/wechat-official-account-public-source-channel.md` | 只有在产品范围显式 admission 校园公众号公开内容采集，且 `notice` / `official_web` downstream consumption 已准备好时才恢复 |
+| `internal-notice procurement notice classification` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围显式 admission 为 restricted notice / publication storage 新增稳定 `procurement_notice` 分类，或基于该分类继续做历史查询时才恢复 |
+| `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
+| `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution shell / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
 
 ## Legacy / Follow-up References
 
