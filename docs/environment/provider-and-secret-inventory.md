@@ -171,13 +171,24 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   获取方式: 在 Zero Trust 创建 self-hosted Access application，复制 team domain 与
   Application Audience (AUD) Tag
 
+- Provider / system: Go-shell staging operator shell
+  作用: 这台开发机上的 staging named tunnel、go-shell 双容器 runtime、自愈任务与 strict
+  health check
+  主要 env keys: `GO_SHELL_STAGING_TUNNEL_NAME`
+  `GO_SHELL_STAGING_PUBLIC_BASE_URL`
+  `GO_SHELL_STAGING_APP_API_BASE_URL`
+  `GO_SHELL_STAGING_BRIDGE_SHARED_SECRET`
+  放置位置: operator shell / Windows scheduled task action
+  何时必需: 当前 canonical staging execution runtime 需要
+  获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
+
 - Provider / system: Dev-backed staging operator shell
-  作用: 这台开发机上的 staging named tunnel、自愈任务与 strict health check
+  作用: fallback `campus-supervisor-api-dev` runtime、自愈任务与 rollback health check
   主要 env keys: `DEV_BACKED_SUPERVISOR_TUNNEL_NAME`
   `DEV_BACKED_SUPERVISOR_PUBLIC_BASE_URL`
   `DEV_BACKED_SUPERVISOR_APP_API_BASE_URL`
   放置位置: operator shell / Windows scheduled task action
-  何时必需: 只有当前 dev-backed staging host 需要
+  何时必需: 只有 rollback / fallback 时才需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
 
 ## Provider 详情

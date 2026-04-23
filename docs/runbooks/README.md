@@ -25,6 +25,8 @@ updated: 2026-04-20
 
 ## Environment-Specific Smoke / Evidence
 
+- `go-shell-staging-operations.md`
+- `go-shell-staging-smoke-runbook.md`
 - `dev-backed-supervisor-staging-operations.md`
 - `dev-backed-supervisor-staging-smoke-runbook.md`
 - `worker-observability-smoke-runbook.md`

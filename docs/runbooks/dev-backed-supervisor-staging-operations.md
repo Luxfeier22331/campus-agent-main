@@ -2,24 +2,27 @@
 doc_type: runbook
 status: active
 created: 2026-04-19
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Dev-Backed Supervisor Staging Operations
 
 ## 文档边界
 
-这份 runbook 只回答当前 staging execution upstream 的长期运维真相：
+这份 runbook 只回答 legacy dev-backed staging fallback 的运维真相：
 
-- 这台开发机是当前 accepted staging compatibility host
+- 当前 canonical staging execution runtime 不可用时，如何回退到
+  `campus-supervisor-api-dev`
 - `exec-staging.ayafeed.com` 通过 named tunnel 指回这台主机上的本地 `supervisor-api`
-- 这条姿势只作为 Docker-first deploy truth 落地前的兼容桥接路径存在
+- 这条姿势现在只作为 rollback / fallback 路径存在
 
-它不覆盖 browser smoke 证据采集；那部分继续看 `dev-backed-supervisor-staging-smoke-runbook.md`。
+它不覆盖 canonical go-shell 运维；那部分统一看 `go-shell-staging-operations.md`。
 
-## 当前真相
+## Fallback Truth
 
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
+- 当前 canonical staging execution runtime 已是 `go-shell + supervisor-orchestrator`
+- 只有在 canonical runtime 无法及时恢复时，才回退到这条 dev-backed 路径
 - 本地 `supervisor-api`
   - `uv run --all-packages campus-supervisor-api-dev`
   - `trusted-worker`
@@ -36,7 +39,7 @@ updated: 2026-04-23
 
 重要限制：
 
-- 当前 runbook 描述的是 compatibility host，不是 forward Docker deployment truth
+- 当前 runbook 描述的是 fallback host，不是 canonical staging runtime
 - 当前计划任务使用 Windows 当前登录用户的 `Interactive` principal
 - 这意味着该 Windows 账号必须保持登录，或由 repo 外部机制保证 auto-login
 - 本仓库当前不实现“未登录也自启”的第二套 headless 任务模型
@@ -48,6 +51,9 @@ updated: 2026-04-23
 ```bash
 infra/local/staging/install-dev-backed-supervisor-staging-task.sh
 ```
+
+只有在你明确要执行 rollback / fallback 时才重装这条任务；canonical staging runtime 默认由
+`install-go-shell-staging-task.sh` 管理。
 
 安装后核对：
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-14
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Runtime Delivery And Release Hardening Architecture
 
@@ -26,8 +26,11 @@ updated: 2026-04-23
 执行级 runbook 统一看：
 
 - `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/go-shell-staging-operations.md`
+- `docs/runbooks/go-shell-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 - `docs/runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
+  - 只用于 rollback / fallback
 
 ## 核心结论
 
@@ -46,8 +49,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   service
 - `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前仍在使用的 dev-backed supervisor host 只应被理解为 staging compatibility bridge，
-  不再代表 forward deploy truth
+- 当前 repo-owned staging execution runtime 已收敛到 `go-shell + supervisor-orchestrator`
+  双容器；legacy dev-backed supervisor host 只保留为 rollback / fallback 路径
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
 
@@ -109,8 +112,8 @@ release identity 的长期规则固定为：
 - `app-api` deploy 时必须显式注入真实可达的 `SUPERVISOR_API_BASE_URL`
 - forward deploy truth 应指向 Docker-first `apps/supervisor-api` execution origin
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
-- 在 repo-owned Docker packaging / automation 尚未落地前，runbook 中记录的 dev-backed
-  host 只作为兼容桥接路径存在
+- repo-owned staging runbook 现在默认消费 `go-shell` execution origin；只有 rollback / fallback
+  才回到 dev-backed compatibility path
 
 ## Protected Access And Operator Admission
 

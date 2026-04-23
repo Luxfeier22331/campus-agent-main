@@ -17,8 +17,9 @@ Current status:
 - Exposes shell-owned Prometheus-style runtime counters at `/metrics`.
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
-- `Phase 1-5` are in place. Current remaining work is `Phase 6`:
-  parity/capacity smoke and cutover/runback acceptance.
+- Repo-local `Phase 1-6` implementation is in place:
+  cancellation semantics, shell-owned observability, local compose smoke,
+  Python parity rerun, and runback docs are all landed.
 
 Current cancellation boundary:
 

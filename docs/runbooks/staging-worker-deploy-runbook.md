@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Staging Worker Deploy Runbook
 
@@ -30,9 +30,11 @@ updated: 2026-04-23
 
 - `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
-- 当前 repo-owned staging compatibility bridge 仍是这台开发机上的 dev-backed supervisor；
-  在 repo-owned Docker packaging / automation 落地前，runbook 继续记录这条过渡姿势
-- 这条兼容桥接主机的运维姿势、计划任务、自愈与日志规则统一记录在
+- 当前 repo-owned staging execution runtime 已收敛到这台开发机上的
+  `go-shell + supervisor-orchestrator` 双容器
+- 这条 canonical execution runtime 的运维姿势、计划任务、自愈与日志规则统一记录在
+  `go-shell-staging-operations.md`
+- `campus-supervisor-api-dev` 只保留为 rollback / fallback 路径，相关步骤统一记录在
   `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
@@ -161,20 +163,26 @@ truth，而不是这些旧值的继续合法化。
 ### 5. Supervisor upstream
 
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
-  service，但当前 repo 仍未落地 repo-owned Docker packaging / automation
+  service
 - 当前阶段仍不冻结 `apps/supervisor-api` 的 repo-level staging hostname
 - `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
-- 在 repo-owned Docker packaging / automation 落地前，当前 accepted staging
-  compatibility posture 不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
-  `supervisor-api-staging` 持续承接 `<https://exec-staging.ayafeed.com`>
-- 只要 production execution substrate 还没有接管，且 repo-owned Docker 部署尚未接管这条线，
-  staging operator 就应优先维护这台开发机上的长期常驻链路，而不是每轮重新发一个随机 quick tunnel
-- 当前 repo-owned compatibility upstream 实际来自：
-  - 本地 `uv run --all-packages campus-supervisor-api-dev` + named tunnel
+- 当前 repo-owned staging execution origin 默认继续复用
+  `<https://exec-staging.ayafeed.com`>，但它背后承接的是
+  `infra/local/docker-compose.supervisor-runtime.yml`
+- canonical 常驻方式不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
+  `supervisor-api-staging` 持续承接 go-shell runtime
+- 只要 production execution substrate 还没有接管，staging operator 就应优先维护这台主机上的
+  canonical go-shell 常驻链路，而不是每轮重新发一个随机 quick tunnel
+- 当前 repo-owned execution upstream 实际来自：
+  - 本地 `infra/local/staging/start-go-shell-staging.sh`
+  - strict health gate `infra/local/staging/status-go-shell-staging.sh --check`
+- 如果 execution upstream URL 保持不变，就不需要为了这次 hard cut 重新 deploy `app-api`
 - 如果 repo 外已有稳定 Docker supervisor origin，可作为显式注入的上游；但它不由当前仓库 runbook
-  直接声明为 repo-owned 现状
+  直接声明为 repo-owned canonical 现状
 - `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
-- 当前这台兼容桥接开发机的常驻安装、冷启动恢复与 `status --check` health gate，见
+- 当前这台 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
+  health gate，见 `docs/runbooks/go-shell-staging-operations.md`
+- legacy dev-backed fallback 仅在 rollback 需要时才使用，见
   `docs/runbooks/dev-backed-supervisor-staging-operations.md`
 
 ## Secret Matrix

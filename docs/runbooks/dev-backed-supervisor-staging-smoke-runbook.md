@@ -2,33 +2,32 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Dev-Backed Supervisor Staging Smoke Runbook
 
 ## 文档边界
 
-这份 runbook 只覆盖一种环境特定的 staging smoke：
+这份 runbook 只覆盖一种 fallback staging smoke：
 
 - `public-chat-web`
 - `app-api`
-- `supervisor-api` 由当前 repo-owned dev-backed compatibility host 临时承接
+- `supervisor-api` 由 legacy dev-backed compatibility host 临时承接
 
 它回答的是：
 
-- 在 repo-owned Docker packaging / automation 尚未落地时，如何把 staging chat
-  execution 跑通
+- 当 canonical go-shell staging runtime 失效时，如何把 staging chat execution 临时跑通
 - 每轮 smoke 最少要验证哪些链路
 - 哪些结果可以算这条 dev-backed staging 链路可用
 
-它不把 dev-backed upstream 写成 repo-level production truth。
+它不把 dev-backed upstream 写成当前 staging 真相。
 
 当前补充真相：
 
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal
   execution service
-- 在 repo-owned Docker packaging / automation 落地前，这台开发机仍是 accepted staging
-  compatibility host
+- 当前 repo-owned staging execution runtime 已是 `go-shell + supervisor-orchestrator`
+- 只有 rollback / fallback 时，才回到这台开发机上的 dev-backed host
 - 这条长期运维姿势与计划任务、自愈检查、日志轮转相关的内容，统一看 `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
@@ -46,6 +45,7 @@ updated: 2026-04-23
 
 适用于以下模式：
 
+- canonical go-shell runtime 当前不可用
 - 当前 repo-owned `uv run --all-packages campus-supervisor-api-dev`
 - 通过 tunnel 暴露当前兼容 host
 - 或验证一个 repo 外已存在的 Docker supervisor upstream
@@ -118,8 +118,8 @@ infra/local/staging/install-dev-backed-supervisor-staging-task.sh
 
 - 上述 `campus-supervisor-api-dev` 仍只是当前 repo-owned compatibility bridge
 - forward deploy truth 已冻结为 Docker-first `apps/supervisor-api`
-- 在 repo-owned Docker packaging / automation 落地前，这份 runbook 继续描述当前可重复执行的
-  smoke 路径
+- 这份 runbook 现在只描述 rollback / fallback 路径；canonical 路径统一看
+  `go-shell-staging-smoke-runbook.md`
 
 ## Step 2. 暴露临时 upstream
 
