@@ -44,6 +44,7 @@ model`
 - panel 不绕过 `apps/app-api`
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
 - `apps/supervisor-api` 是 internal execution engine，不是产品后端
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - online query path 与 offline data plane 持续分层
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
@@ -119,8 +120,11 @@ model`
 ### `apps/supervisor-api`
 
 - internal execution admission 与 execution transport boundary
+- Docker-first internal execution service
 - 接收 typed context / actor 投影
 - 进入 `packages/supervisor-core -> agent`
+- repo-local `campus-supervisor-api-dev` 继续只是 compatibility / debug / staging bridge
+  入口，不代表 forward deploy truth 已回退
 
 ### `apps/ingestion-worker`
 

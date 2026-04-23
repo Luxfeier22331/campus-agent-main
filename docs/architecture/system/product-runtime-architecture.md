@@ -36,7 +36,7 @@ model`
   不自动升级成整个产品的顶层 IA
 - `apps/public-docs` 是独立 docs-first browser surface
 - `apps/app-api` 是 shared product/control-plane backend
-- `apps/supervisor-api` 是 internal execution engine
+- `apps/supervisor-api` 是 Docker-first internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
 
 补充结论：
@@ -125,6 +125,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - internal execution admission
 - typed execution transport
+- forward deploy substrate 已冻结为 Docker-first internal execution service
 - 不承担 browser-facing product backend 责任
 
 ## Request Projection And Read Model
@@ -207,7 +208,10 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/supervisor-api` 的 runtime 选择仍保持边界先行，不因 `app-api` 已是 Worker 而被提前冻结
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
+- repo-local `campus-supervisor-api-dev` 仍是 compatibility / debug 路径，直到 repo-owned
+  Docker packaging / automation 落地
 
 ## Forbidden Shapes
 
@@ -230,6 +234,7 @@ contract 或 auth family route/endpoint truth。
 - `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
   md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
 - `docs/architecture/system/operator-observability-architecture.md`

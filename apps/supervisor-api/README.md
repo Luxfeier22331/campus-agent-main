@@ -29,6 +29,27 @@
 因此这里不是产品后端，也不是“未来再补的 bootstrap app”，而是稳定的 execution API shell；核心编排继续留在
 `packages/supervisor-core`。
 
+## Deployment Posture
+
+`apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal execution
+service。
+
+这项冻结只表达部署形态，不额外冻结：
+
+- 单一 Python/HTTP framework
+- repo-level staging hostname
+- browser-facing exposure model
+
+当前仓库仍提供 repo-local `campus-supervisor-api-dev` HTTP 入口，但它只应被理解为：
+
+- local debug / smoke 入口
+- staging compatibility bridge
+
+而不是：
+
+- forward deploy truth 的替代品
+- `apps/supervisor-api` 长期继续未冻结的依据
+
 ## Prompt Runtime Seam
 
 当前 repo-default prompt stack 已明确拆成：
@@ -194,5 +215,6 @@ curl -s \
 - query-serving surface 由 collection runtime profile 控制；当前 query-enabled scope 为
   `regulations/student_rules` 与 `curriculum/curriculum_plan`。
 - 如果启用 bearer compatibility ingress 且 token 缺失或错误，`/api/v1/answer` 会返回 `401`。
-- 这个 dev server 只是本地 runtime shell，不代表 Cloudflare Worker ingress 或 Phase 5 actor
-  closure 已冻结；当前冻结的是 shared `apps/app-api` runtime，而不是 execution engine runtime。
+- 这个 dev server 只是本地 runtime shell / compatibility bridge，不代表 forward deploy truth；
+  当前 `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution
+  service。

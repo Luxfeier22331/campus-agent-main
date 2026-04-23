@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-20
-updated: 2026-04-20
+updated: 2026-04-23
 ---
 # Deploy And Eval Readiness
 
@@ -72,6 +72,8 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - 不再把 `*.rag.ayafeed.com` 视为 staging deploy truth
 - `ayafeed.com` 是共享 zone，generic 一级子域不能假定为本 repo 占用
+- `apps/supervisor-api` 的 deploy substrate 已冻结为 Docker-first internal execution
+  service
 - `apps/supervisor-api` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
   `STAGING_SUPERVISOR_API_BASE_URL`
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked

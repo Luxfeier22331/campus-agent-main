@@ -24,7 +24,7 @@ browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
 - 当前 query-enabled surface 是 `regulations/student_rules` 与
   `curriculum/curriculum_plan`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/supervisor-api` 是 internal execution engine，不是产品后端
+- `apps/supervisor-api` 是 Docker-first internal execution engine，不是产品后端
 - online query path 与 offline data plane 持续分层
 
 ## Status

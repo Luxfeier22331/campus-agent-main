@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-23
 ---
 # Runtime Delivery And Release Hardening Architecture
 
@@ -42,8 +42,12 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   release hardening discipline，但仍保持独立 deploy unit
 - staging baseline 当前固定为 `campus-api-staging.ayafeed.com`、`campus-chat-staging.a
   yafeed.com`、`campus-panel-staging.ayafeed.com`
-- `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它通过显式 injected
+- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+  service
+- `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
+- 当前仍在使用的 dev-backed supervisor host 只应被理解为 staging compatibility bridge，
+  不再代表 forward deploy truth
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
 
@@ -103,7 +107,10 @@ release identity 的长期规则固定为：
 ### Upstream Execution Gate
 
 - `app-api` deploy 时必须显式注入真实可达的 `SUPERVISOR_API_BASE_URL`
+- forward deploy truth 应指向 Docker-first `apps/supervisor-api` execution origin
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
+- 在 repo-owned Docker packaging / automation 尚未落地前，runbook 中记录的 dev-backed
+  host 只作为兼容桥接路径存在
 
 ## Protected Access And Operator Admission
 
@@ -174,3 +181,4 @@ post-deploy verification 的长期 closure 固定为：
 - `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
+- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`

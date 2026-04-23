@@ -262,6 +262,10 @@ freeze。
 - transport 留在 `apps/*`
 - orchestration 留在 `packages/supervisor-core`
 - agent behavior 留在 agent package
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
+  framework
+- repo-local `campus-supervisor-api-dev` 继续只是 compatibility / debug entry
 
 ## Prompt And Instruction Ownership
 
@@ -314,6 +318,7 @@ task/evidence packet -> code-side finalization`
 
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0043-supervisor-api-docker-first-runtime.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-cap
   ability-policy.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`

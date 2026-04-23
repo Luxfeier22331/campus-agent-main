@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-19
+updated: 2026-04-23
 ---
 # App API Request Lifecycle
 
@@ -169,6 +169,8 @@ fail-close checks。
 - 不暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
+- forward deploy substrate 已冻结为 Docker-first internal execution service；当前若仍通过
+  repo-local `campus-supervisor-api-dev` 运行，只能视为兼容桥接路径
 
 ### Step 4: Finalize
 

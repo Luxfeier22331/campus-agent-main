@@ -29,6 +29,7 @@ updated: 2026-04-23
 
 - `packages/contracts` 中 specialist payload 的全部字段
 - execution engine runtime 必须采用哪种 Python/HTTP 框架
+- Docker 镜像构建细节、容器编排平台与 repo-level staging hostname
 - public entry Worker 对 `apps/supervisor-api` 的现有 Cloudflare ingress contract
 
 ## 设计原则
@@ -45,6 +46,8 @@ specialist`
   `supervisor-api`
 - `supervisor-api` 继续只是 execution engine，只做 internal caller admission，不重新吸收产品层
   auth/session/conversation
+- `supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+  service；这不改变本文冻结的 request/response 语义
 
 ## Transport Conclusion
 
@@ -311,6 +314,8 @@ shared product path 已收口为：
   actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
+- repo-local `campus-supervisor-api-dev` 仍只是 compatibility / debug ingress，不应被解读为
+  Docker-first deploy truth 仍未生效
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

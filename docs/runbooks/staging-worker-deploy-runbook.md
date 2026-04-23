@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-19
+updated: 2026-04-23
 ---
 # Staging Worker Deploy Runbook
 
@@ -28,9 +28,12 @@ updated: 2026-04-19
 
 当前补充真相：
 
-- 在真正的 production execution substrate 上线前，`staging` 的 execution upstream
-  accepted posture 就是这台开发机上的 dev-backed supervisor
-- 这条主机级运维姿势、计划任务、自愈与日志规则统一记录在 `dev-backed-supervisor-staging-operations.md`
+- `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
+  execution service
+- 当前 repo-owned staging compatibility bridge 仍是这台开发机上的 dev-backed supervisor；
+  在 repo-owned Docker packaging / automation 落地前，runbook 继续记录这条过渡姿势
+- 这条兼容桥接主机的运维姿势、计划任务、自愈与日志规则统一记录在
+  `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
 
@@ -63,7 +66,7 @@ truth，而不是这些旧值的继续合法化。
     worker-staging-app-api`、Cloudflare secret presence、repo-owned staging config
     verification、`db:bootstrap:staging`、`db:migrate:staging` 与
     `db:reconcile-shared-drift:staging`
-  - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 dev-backed supervisor
+  - deploy 时通过 `--var SUPERVISOR_API_BASE_URL:<url>` 注入当前 supervisor execution
     upstream
   - `pnpm deploy:staging` 会在 publish 时自动注入
     `SENTRY_RELEASE=app-api@staging-<sha>`；只有需要固定 release 名时才覆写
@@ -157,18 +160,21 @@ truth，而不是这些旧值的继续合法化。
 
 ### 5. Supervisor upstream
 
-- 当前阶段不冻结 `apps/supervisor-api` 的 repo-level staging hostname
+- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+  service，但当前 repo 仍未落地 repo-owned Docker packaging / automation
+- 当前阶段仍不冻结 `apps/supervisor-api` 的 repo-level staging hostname
 - `apps/app-api` staging deploy 时必须显式注入一个真实可达的 execution upstream
-- 当前 accepted staging posture 不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
+- 在 repo-owned Docker packaging / automation 落地前，当前 accepted staging
+  compatibility posture 不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
   `supervisor-api-staging` 持续承接 `<https://exec-staging.ayafeed.com`>
-- 只要 production execution substrate 还没有接管，staging operator
-  就应优先维护这台开发机上的长期常驻链路，而不是每轮重新发一个随机 quick tunnel
-- 这个 upstream 可以来自：
-  - 本地 `uv run --all-packages campus-supervisor-api-dev` + tunnel
-  - 本地 Docker `supervisor-api` + tunnel
-  - 其他临时 dev-backed execution origin
+- 只要 production execution substrate 还没有接管，且 repo-owned Docker 部署尚未接管这条线，
+  staging operator 就应优先维护这台开发机上的长期常驻链路，而不是每轮重新发一个随机 quick tunnel
+- 当前 repo-owned compatibility upstream 实际来自：
+  - 本地 `uv run --all-packages campus-supervisor-api-dev` + named tunnel
+- 如果 repo 外已有稳定 Docker supervisor origin，可作为显式注入的上游；但它不由当前仓库 runbook
+  直接声明为 repo-owned 现状
 - `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
-- 当前这台开发机的常驻安装、冷启动恢复与 `status --check` health gate，见
+- 当前这台兼容桥接开发机的常驻安装、冷启动恢复与 `status --check` health gate，见
   `docs/runbooks/dev-backed-supervisor-staging-operations.md`
 
 ## Secret Matrix

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-04
-updated: 2026-04-19
+updated: 2026-04-23
 ---
 # Dev-Backed Supervisor Staging Smoke Runbook
 
@@ -12,11 +12,12 @@ updated: 2026-04-19
 
 - `public-chat-web`
 - `app-api`
-- `supervisor-api` 由本地 `dev` / Docker 进程临时承接
+- `supervisor-api` 由当前 repo-owned dev-backed compatibility host 临时承接
 
 它回答的是：
 
-- 当 `supervisor-api` 还没有稳定部署时，如何把 staging chat execution 跑通
+- 在 repo-owned Docker packaging / automation 尚未落地时，如何把 staging chat
+  execution 跑通
 - 每轮 smoke 最少要验证哪些链路
 - 哪些结果可以算这条 dev-backed staging 链路可用
 
@@ -24,8 +25,10 @@ updated: 2026-04-19
 
 当前补充真相：
 
-- 在真正的 production execution substrate 上线前，这台开发机就是 accepted staging execution
-  host
+- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal
+  execution service
+- 在 repo-owned Docker packaging / automation 落地前，这台开发机仍是 accepted staging
+  compatibility host
 - 这条长期运维姿势与计划任务、自愈检查、日志轮转相关的内容，统一看 `dev-backed-supervisor-staging-operations.md`
 
 ## Hostname Constraint
@@ -43,9 +46,9 @@ updated: 2026-04-19
 
 适用于以下模式：
 
-- 本地 `uv run --all-packages campus-supervisor-api-dev`
-- 本地 Docker `supervisor-api`
-- 通过 tunnel 暴露一个临时可达 upstream
+- 当前 repo-owned `uv run --all-packages campus-supervisor-api-dev`
+- 通过 tunnel 暴露当前兼容 host
+- 或验证一个 repo 外已存在的 Docker supervisor upstream
 - `apps/app-api` deploy 时显式注入 `STAGING_SUPERVISOR_API_BASE_URL`
 
 ## 判定标准
@@ -62,7 +65,7 @@ updated: 2026-04-19
 - 当前 upstream 可以长期托管 staging
 - 当前 chat answer 质量已经达到 release 标准
 
-## Step 1. 启动本地 supervisor-api
+## Step 1. 启动当前兼容 supervisor host
 
 使用 `trusted-worker` 模式启动：
 
@@ -110,6 +113,13 @@ infra/local/staging/install-dev-backed-supervisor-staging-task.sh
 
 后续安装校验、冷启动恢复、日志轮转与故障分流都不再写在这份 smoke runbook，统一进入
 `dev-backed-supervisor-staging-operations.md`。
+
+说明：
+
+- 上述 `campus-supervisor-api-dev` 仍只是当前 repo-owned compatibility bridge
+- forward deploy truth 已冻结为 Docker-first `apps/supervisor-api`
+- 在 repo-owned Docker packaging / automation 落地前，这份 runbook 继续描述当前可重复执行的
+  smoke 路径
 
 ## Step 2. 暴露临时 upstream
 
@@ -212,7 +222,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 至少记录：
 
 - 本轮 `STAGING_SUPERVISOR_API_BASE_URL`
-- 本地 `supervisor-api` 启动方式：`dev` 或 `docker`
+- 当前 `supervisor-api` 启动方式：`compat-dev` 或外部 Docker
 - 一条真实 `POST /api/chat/requests`
 - 当次 `conversationId`
 - 当次 `requestId`

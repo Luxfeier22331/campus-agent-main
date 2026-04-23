@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-23
 ---
 # Dev-Backed Supervisor Staging Operations
 
@@ -10,14 +10,16 @@ updated: 2026-04-19
 
 这份 runbook 只回答当前 staging execution upstream 的长期运维真相：
 
-- 这台开发机是当前 accepted staging host
+- 这台开发机是当前 accepted staging compatibility host
 - `exec-staging.ayafeed.com` 通过 named tunnel 指回这台主机上的本地 `supervisor-api`
-- 这条姿势保持到真正的 production execution substrate 接管为止
+- 这条姿势只作为 Docker-first deploy truth 落地前的兼容桥接路径存在
 
 它不覆盖 browser smoke 证据采集；那部分继续看 `dev-backed-supervisor-staging-smoke-runbook.md`。
 
 ## 当前真相
 
+- `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
+  service
 - 本地 `supervisor-api`
   - `uv run --all-packages campus-supervisor-api-dev`
   - `trusted-worker`
@@ -34,6 +36,7 @@ updated: 2026-04-19
 
 重要限制：
 
+- 当前 runbook 描述的是 compatibility host，不是 forward Docker deployment truth
 - 当前计划任务使用 Windows 当前登录用户的 `Interactive` principal
 - 这意味着该 Windows 账号必须保持登录，或由 repo 外部机制保证 auto-login
 - 本仓库当前不实现“未登录也自启”的第二套 headless 任务模型

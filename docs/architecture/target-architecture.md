@@ -73,7 +73,10 @@ raw/source-truth/projection/document/chunk/index`
 - shared `apps/app-api` 长期同时拥有 surface capability policy 与最小 typed context
   projection
 - `apps/supervisor-api` 持续只是 internal execution engine
-- `apps/app-api` 已冻结为 Worker；这不反推 `apps/supervisor-api` 必须是同一 runtime
+- `apps/app-api` 已冻结为 Worker
+- `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
+  staging hostname，或 browser-facing exposure model
 
 ## 长期 execution / agent 形态
 
