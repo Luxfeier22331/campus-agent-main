@@ -23,6 +23,15 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    rebuild_internal_notice_consumption_projection,
+    select_ready_target_document_ids,
+)
 from campus_ingestion_core.internal_notice_regulation_projection import (
     _HEADING_RE,
     InternalNoticeRegulationProjectionContext,
@@ -40,15 +49,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
     build_internal_notice_regulation_candidate_artifact_manifest,
     build_internal_notice_regulation_promotion_manifest,
-)
-from campus_ingestion_core.internal_notice_consumption_projection import (
-    NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
-    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
-    InMemoryNoticeConsumptionProjectionStore,
-    NoticeConsumptionProjectionStore,
-    build_notice_consumption_projection_store_from_env,
-    rebuild_internal_notice_consumption_projection,
-    select_ready_target_document_ids,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_raw_asset_key

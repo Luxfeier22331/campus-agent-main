@@ -22,6 +22,16 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     load_metadata_from_bytes,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+    NOTICE_TARGET_SURFACE_SCOPED_RULES,
+    InMemoryNoticeConsumptionProjectionStore,
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    rebuild_internal_notice_consumption_projection,
+    select_ready_target_document_ids,
+)
 from campus_ingestion_core.internal_notice_regulation_materialization import (
     _index_latest_scope_records,
     _load_source_page_bounds,
@@ -39,16 +49,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
 )
 from campus_ingestion_core.internal_notice_regulation_promotion_artifacts import (
     _extract_candidate_promotion_body,
-)
-from campus_ingestion_core.internal_notice_consumption_projection import (
-    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
-    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
-    NOTICE_TARGET_SURFACE_SCOPED_RULES,
-    InMemoryNoticeConsumptionProjectionStore,
-    NoticeConsumptionProjectionStore,
-    build_notice_consumption_projection_store_from_env,
-    rebuild_internal_notice_consumption_projection,
-    select_ready_target_document_ids,
 )
 from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared import (
     _SOURCE_URL_PREFIX,
