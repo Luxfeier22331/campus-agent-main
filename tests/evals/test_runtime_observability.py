@@ -23,19 +23,22 @@ class RuntimeObservabilityTest(unittest.TestCase):
             path = Path(tmpdir) / "events.jsonl"
             writer = RuntimeEventWriter(path=path, session_id="session-1")
 
-            with bind_runtime_event_sink(writer):
-                with bind_runtime_event_context(run_number=1, case_id="case-1", adapter_id="ragas"):
-                    emit_runtime_event(
-                        "supplemental_request_failed",
-                        endpoint="/responses",
-                        provider_origin="https://provider.example",
-                        model="gpt-5.4",
-                        attempt=1,
-                        max_attempts=2,
-                        http_status=503,
-                        failure_reasons=["http_5xx"],
-                        failure_disposition="transient_retryable",
-                    )
+            with bind_runtime_event_sink(writer), bind_runtime_event_context(
+                run_number=1,
+                case_id="case-1",
+                adapter_id="ragas",
+            ):
+                emit_runtime_event(
+                    "supplemental_request_failed",
+                    endpoint="/responses",
+                    provider_origin="https://provider.example",
+                    model="gpt-5.4",
+                    attempt=1,
+                    max_attempts=2,
+                    http_status=503,
+                    failure_reasons=["http_5xx"],
+                    failure_disposition="transient_retryable",
+                )
 
             records = load_runtime_events(path, session_id="session-1")
 
@@ -117,35 +120,37 @@ class RuntimeObservabilityTest(unittest.TestCase):
             writer = RuntimeEventWriter(path=path, session_id="session-1", verbose=True)
             stream = io.StringIO()
 
-            with redirect_stdout(stream):
-                with bind_runtime_event_sink(writer):
-                    with bind_runtime_event_context(
-                        run_number=1,
-                        case_id="case-1",
-                        adapter_id="ragas",
-                        metric_name="faithfulness",
-                    ):
-                        emit_runtime_event(
-                            "supplemental_request_failed",
-                            endpoint="/responses",
-                            provider_origin="https://provider.example",
-                            model="gpt-5.4",
-                            attempt=1,
-                            max_attempts=2,
-                            final_attempt=False,
-                            http_status=503,
-                            failure_reasons=["http_5xx"],
-                            failure_disposition="transient_retryable",
-                        )
-                        emit_runtime_event(
-                            "supplemental_request_succeeded",
-                            endpoint="/responses",
-                            provider_origin="https://provider.example",
-                            model="gpt-5.4",
-                            attempt=2,
-                            max_attempts=2,
-                            http_status=200,
-                        )
+            with (
+                redirect_stdout(stream),
+                bind_runtime_event_sink(writer),
+                bind_runtime_event_context(
+                    run_number=1,
+                    case_id="case-1",
+                    adapter_id="ragas",
+                    metric_name="faithfulness",
+                ),
+            ):
+                emit_runtime_event(
+                    "supplemental_request_failed",
+                    endpoint="/responses",
+                    provider_origin="https://provider.example",
+                    model="gpt-5.4",
+                    attempt=1,
+                    max_attempts=2,
+                    final_attempt=False,
+                    http_status=503,
+                    failure_reasons=["http_5xx"],
+                    failure_disposition="transient_retryable",
+                )
+                emit_runtime_event(
+                    "supplemental_request_succeeded",
+                    endpoint="/responses",
+                    provider_origin="https://provider.example",
+                    model="gpt-5.4",
+                    attempt=2,
+                    max_attempts=2,
+                    http_status=200,
+                )
 
         output = stream.getvalue()
         self.assertIn("retrying attempt=1/2", output)
@@ -159,21 +164,23 @@ class RuntimeObservabilityTest(unittest.TestCase):
             writer = RuntimeEventWriter(path=path, session_id="session-1", verbose=True)
             stream = io.StringIO()
 
-            with redirect_stdout(stream):
-                with bind_runtime_event_sink(writer):
-                    with bind_runtime_event_context(
-                        run_number=1,
-                        case_id="case-1",
-                        adapter_id="ragas",
-                        metric_name="faithfulness",
-                    ):
-                        emit_runtime_event(
-                            "faithfulness_checkpoint_hit",
-                            faithfulness_stage="nli_verdicts",
-                            checkpoint_path="/tmp/repair/run-01/case-1/ragas.faithfulness.json",
-                            source_checkpoint_path="/tmp/original/run-01/case-1/ragas.faithfulness.json",
-                            batch_index=2,
-                        )
+            with (
+                redirect_stdout(stream),
+                bind_runtime_event_sink(writer),
+                bind_runtime_event_context(
+                    run_number=1,
+                    case_id="case-1",
+                    adapter_id="ragas",
+                    metric_name="faithfulness",
+                ),
+            ):
+                emit_runtime_event(
+                    "faithfulness_checkpoint_hit",
+                    faithfulness_stage="nli_verdicts",
+                    checkpoint_path="/tmp/repair/run-01/case-1/ragas.faithfulness.json",
+                    source_checkpoint_path="/tmp/original/run-01/case-1/ragas.faithfulness.json",
+                    batch_index=2,
+                )
 
         output = stream.getvalue()
         self.assertIn("checkpoint", output)

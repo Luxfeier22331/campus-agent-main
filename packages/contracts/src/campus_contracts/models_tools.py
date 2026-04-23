@@ -11,6 +11,10 @@ from campus_contracts.models_shared import (
     TemporalQueryMode,
     ToolBusinessOutcome,
     ToolFailCloseReason,
+    TransportDaypart,
+    TransportScheduleClarificationReason,
+    TransportScheduleIntent,
+    TransportServiceDateMode,
     TransportServiceStatusValue,
     _validate_historical_downgrade_reason,
     _validate_notice_source_family,
@@ -18,6 +22,10 @@ from campus_contracts.models_shared import (
     _validate_temporal_query_mode,
     _validate_tool_business_outcome,
     _validate_tool_fail_close_reason,
+    _validate_transport_daypart,
+    _validate_transport_schedule_clarification_reason,
+    _validate_transport_schedule_intent,
+    _validate_transport_service_date_mode,
     _validate_transport_service_status_value,
 )
 
@@ -188,10 +196,6 @@ class ServiceStatusLookupResult:
                 raise ValueError("resolved_subject must not be empty for resolved service status")
             if not self.observed_status:
                 raise ValueError("observed_status must not be empty for resolved service status")
-        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
-            raise ValueError(
-                "historical_downgrade_reason must not be empty for historical service status results"
-            )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed service status results"
@@ -211,53 +215,191 @@ class TransportStopRef:
 
 
 @dataclass(frozen=True, slots=True)
-class TransportScheduleLookupPayload:
-    route_query: str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+class TransportRouteSelector:
+    route_id: str = ""
+    service_family: str = ""
+    route_variant_query: str = ""
+    origin_campus: str = ""
+    destination_campus: str = ""
     origin_stop_query: str = ""
     destination_stop_query: str = ""
 
+
+@dataclass(frozen=True, slots=True)
+class TransportServiceTimeQuery:
+    date_mode: TransportServiceDateMode | str = "today"
+    service_date: str = ""
+    daypart: TransportDaypart | str = "all_day"
+    departure_not_before: str = ""
+    departure_not_after: str = ""
+
     def __post_init__(self) -> None:
-        if not self.route_query.strip():
-            raise ValueError("route_query must not be empty")
+        _validate_transport_service_date_mode(self.date_mode)
+        _validate_transport_daypart(self.daypart)
+        normalized_service_date = self.service_date.strip()
+        normalized_departure_not_before = self.departure_not_before.strip()
+        normalized_departure_not_after = self.departure_not_after.strip()
+        if normalized_service_date != self.service_date:
+            object.__setattr__(self, "service_date", normalized_service_date)
+        if normalized_departure_not_before != self.departure_not_before:
+            object.__setattr__(self, "departure_not_before", normalized_departure_not_before)
+        if normalized_departure_not_after != self.departure_not_after:
+            object.__setattr__(self, "departure_not_after", normalized_departure_not_after)
+        if self.date_mode == "date":
+            if not normalized_service_date:
+                raise ValueError("service_date is required when date_mode is date")
+        elif normalized_service_date:
+            raise ValueError("service_date is only allowed when date_mode is date")
+        if (
+            normalized_departure_not_before
+            and normalized_departure_not_after
+            and normalized_departure_not_before > normalized_departure_not_after
+        ):
+            raise ValueError("departure_not_before must not be later than departure_not_after")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportRouteRef:
+    route_id: str
+    display_name: str
+    service_family: str
+
+    def __post_init__(self) -> None:
+        if not self.route_id.strip():
+            raise ValueError("route_id must not be empty")
+        if not self.display_name.strip():
+            raise ValueError("display_name must not be empty")
+        if not self.service_family.strip():
+            raise ValueError("service_family must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledDeparture:
+    departure_at: str
+    arrival_at: str = ""
+    origin_stop_ref: TransportStopRef | None = None
+    destination_stop_ref: TransportStopRef | None = None
+
+    def __post_init__(self) -> None:
+        if not self.departure_at.strip():
+            raise ValueError("departure_at must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportServiceWindow:
+    first_departure_at: str = ""
+    last_departure_at: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class TransportScheduleSnapshotRef:
+    snapshot_id: str
+    published_at: str
+    effective_from: str = ""
+    effective_until: str = ""
+    source_ref: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.snapshot_id.strip():
+            raise ValueError("snapshot_id must not be empty")
+        if not self.published_at.strip():
+            raise ValueError("published_at must not be empty")
+        if not self.source_ref.strip():
+            raise ValueError("source_ref must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class TransportRouteCandidate:
+    route: TransportRouteRef
+    clarification_hint: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class TransportScheduleLookupPayload:
+    query_text: str
+    intent: TransportScheduleIntent | str
+    route_selector: TransportRouteSelector | None = None
+    snapshot_query: TemporalQuery = field(default_factory=TemporalQuery)
+    service_time_query: TransportServiceTimeQuery | None = None
+    result_limit: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_transport_schedule_intent(self.intent)
+        if self.result_limit is not None and self.result_limit <= 0:
+            raise ValueError("result_limit must be positive")
+        if self.intent == "schedule_snapshot_metadata" and self.service_time_query is not None:
+            raise ValueError(
+                "service_time_query is not allowed for schedule_snapshot_metadata intent"
+            )
 
 
 @dataclass(frozen=True, slots=True)
 class TransportScheduleLookupResult:
-    route_query: str
+    query_text: str
+    intent: TransportScheduleIntent | str
     outcome: ToolBusinessOutcome
-    resolved_route: str = ""
+    resolved_route: TransportRouteRef | None = None
     service_status: TransportServiceStatusValue | str = field(default="", compare=False)
     queried_time_anchor: str = ""
-    window_start: str = ""
-    window_end: str = ""
+    requested_service_date: str = ""
+    selected_departure: ScheduledDeparture | None = None
+    departure_options: tuple[ScheduledDeparture, ...] = field(default_factory=tuple)
+    service_window: TransportServiceWindow | None = None
+    schedule_snapshot: TransportScheduleSnapshotRef | None = None
+    timetable_entries: tuple[ScheduledDeparture, ...] = field(default_factory=tuple)
+    candidate_routes: tuple[TransportRouteCandidate, ...] = field(default_factory=tuple)
+    clarification_reason: TransportScheduleClarificationReason | str = field(
+        default="", compare=False
+    )
     stop_refs: tuple[TransportStopRef, ...] = field(default_factory=tuple)
     related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
     historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
 
     def __post_init__(self) -> None:
-        if not self.route_query.strip():
-            raise ValueError("route_query must not be empty")
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_transport_schedule_intent(self.intent)
         _validate_tool_business_outcome(self.outcome)
         if self.service_status:
             _validate_transport_service_status_value(self.service_status)
+        if self.clarification_reason:
+            _validate_transport_schedule_clarification_reason(self.clarification_reason)
         if self.historical_downgrade_reason:
             _validate_historical_downgrade_reason(self.historical_downgrade_reason)
         if self.fail_close_reason:
             _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome == "resolved_current":
-            if not self.resolved_route.strip():
-                raise ValueError("resolved_route must not be empty for resolved transport schedule")
-            if not self.service_status:
-                raise ValueError("service_status must not be empty for resolved transport schedule")
-        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
+        if (
+            self.outcome == "resolved_current"
+            and self.intent != "schedule_snapshot_metadata"
+            and self.resolved_route is None
+        ):
+            raise ValueError("resolved_route must not be empty for resolved transport schedule")
+        if self.outcome == "clarification_required" and not self.clarification_reason:
             raise ValueError(
-                "historical_downgrade_reason must not be empty for historical transport schedule results"
+                "clarification_reason must not be empty for clarification-required transport schedule results"
             )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed transport schedule results"
+            )
+        if (
+            self.selected_departure is not None
+            and (self.departure_options or self.timetable_entries or self.service_window is not None)
+        ):
+            raise ValueError(
+                "selected_departure must not be combined with departure_options, timetable_entries, or service_window"
+            )
+        if self.outcome == "temporarily_unverifiable" and (
+            self.selected_departure is not None
+            or self.departure_options
+            or self.timetable_entries
+            or self.service_window is not None
+        ):
+            raise ValueError(
+                "fail-closed transport schedule results must not carry resolved schedule payload fields"
             )
 
 
@@ -304,10 +446,6 @@ class CampusNoticeDiscoverResult:
             and not self.notice_cards
         ):
             raise ValueError("notice_cards must not be empty for resolved notice discovery results")
-        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
-            raise ValueError(
-                "historical_downgrade_reason must not be empty for historical notice discovery"
-            )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed notice discovery results"
@@ -361,10 +499,6 @@ class CampusNoticeGetResult:
                 raise ValueError("source_url must not be empty for resolved notice results")
             if not self.normalized_body.strip():
                 raise ValueError("normalized_body must not be empty for resolved notice results")
-        if self.outcome == "resolved_historical_reference" and not self.historical_downgrade_reason:
-            raise ValueError(
-                "historical_downgrade_reason must not be empty for historical notice get results"
-            )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed notice get results"

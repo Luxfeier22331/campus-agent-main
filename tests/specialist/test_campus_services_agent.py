@@ -6,13 +6,17 @@ from campus_contracts import (
     ActorContext,
     AuthorizationProjection,
     ContextProjection,
+    ScheduledDeparture,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
     SpecialistRequest,
+    TransportRouteRef,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
+    TransportScheduleSnapshotRef,
     TransportStopRef,
 )
+from campus_services_agent import tool_adapter as campus_services_tool_adapter
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
     ServiceStatusQuery,
@@ -44,13 +48,33 @@ class _FakeCampusServicesQueryService:
     ) -> TransportScheduleLookupResult:
         self.last_transport_schedule_query = query
         return TransportScheduleLookupResult(
-            route_query=query.payload.route_query,
+            query_text=query.payload.query_text,
+            intent=query.payload.intent,
             outcome="resolved_current",
-            resolved_route="海淀校区摆渡线",
+            resolved_route=TransportRouteRef(
+                route_id="route:haidian-shuttle",
+                display_name="海淀校区摆渡线",
+                service_family="campus_shuttle",
+            ),
             service_status="running",
             queried_time_anchor="2026-04-21T10:30:00+08:00",
-            window_start="2026-04-21T08:00:00+08:00",
-            window_end="2026-04-21T20:00:00+08:00",
+            requested_service_date="2026-04-21",
+            selected_departure=ScheduledDeparture(
+                departure_at="2026-04-21T11:00:00+08:00",
+                origin_stop_ref=TransportStopRef(
+                    stop_id="haidian-library",
+                    display_name="图书馆站",
+                ),
+                destination_stop_ref=TransportStopRef(
+                    stop_id="haidian-dorm",
+                    display_name="学生公寓站",
+                ),
+            ),
+            schedule_snapshot=TransportScheduleSnapshotRef(
+                snapshot_id="snapshot:2026-04-20",
+                published_at="2026-04-20T18:00:00+08:00",
+                source_ref="notice:bus-schedule-2026-04-20",
+            ),
             stop_refs=(TransportStopRef(stop_id="haidian-library", display_name="图书馆站"),),
         )
 
@@ -100,7 +124,10 @@ class CampusServicesAgentTest(unittest.TestCase):
             SpecialistRequest(
                 target="campus-services-agent",
                 user_goal="校车什么时候发车",
-                payload=TransportScheduleLookupPayload(route_query="校车"),
+                payload=TransportScheduleLookupPayload(
+                    query_text="校车什么时候发车",
+                    intent="next_departure",
+                ),
                 allowed_tools=("service_status_lookup",),
             ),
             query_service=_FakeCampusServicesQueryService(),
@@ -121,6 +148,38 @@ class CampusServicesAgentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "internal_query_service_unavailable")
+
+    def test_transport_schedule_response_uses_selected_departure_wording(self) -> None:
+        response = campus_services_tool_adapter._transport_schedule_response(
+            TransportScheduleLookupResult(
+                query_text="明天最早一班去丰台的校车是几点",
+                intent="first_departure",
+                outcome="resolved_current",
+                resolved_route=TransportRouteRef(
+                    route_id="route:haidian-to-fengtai",
+                    display_name="海淀到丰台通勤车",
+                    service_family="intercampus_commute",
+                ),
+                service_status="running",
+                queried_time_anchor="2026-04-21T20:30:00+08:00",
+                requested_service_date="2026-04-22",
+                selected_departure=ScheduledDeparture(
+                    departure_at="2026-04-22T07:10:00+08:00",
+                    origin_stop_ref=TransportStopRef(
+                        stop_id="stop:haidian-east-gate",
+                        display_name="海淀东门",
+                    ),
+                    destination_stop_ref=TransportStopRef(
+                        stop_id="stop:fengtai-main-gate",
+                        display_name="丰台南门",
+                    ),
+                ),
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("海淀到丰台通勤车", response.answer_text)
+        self.assertIn("2026-04-22T07:10:00+08:00", response.answer_text)
 
 
 if __name__ == "__main__":

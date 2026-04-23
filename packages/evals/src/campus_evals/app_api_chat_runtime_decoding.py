@@ -188,10 +188,7 @@ def _parse_observed_source(value: object, *, field: str) -> EvidenceSource:
     chunk_id = _optional_string(
         record.get("chunk_id") if "chunk_id" in record else record.get("chunkId")
     )
-    collection = _required_string(
-        record.get("collection") if "collection" in record else record.get("collection"),
-        f"{field}.collection",
-    )
+    collection = _required_string(record.get("collection"), f"{field}.collection")
     return EvidenceSource(
         doc_id=doc_id,
         revision_track="source-faithful",
@@ -342,6 +339,40 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
         fail_closed=_optional_bool(
             record.get("failClosed") if "failClosed" in record else record.get("fail_closed")
         ),
+        selected_tool=_optional_string(
+            record.get("selectedTool") if "selectedTool" in record else record.get("selected_tool")
+        )
+        or "",
+        tool_business_outcome=_optional_string(
+            record.get("toolBusinessOutcome")
+            if "toolBusinessOutcome" in record
+            else record.get("tool_business_outcome")
+        )
+        or "",
+        tool_fail_close_reason=_optional_string(
+            record.get("toolFailCloseReason")
+            if "toolFailCloseReason" in record
+            else record.get("tool_fail_close_reason")
+        )
+        or "",
+        tool_historical_downgrade_reason=_optional_string(
+            record.get("toolHistoricalDowngradeReason")
+            if "toolHistoricalDowngradeReason" in record
+            else record.get("tool_historical_downgrade_reason")
+        )
+        or "",
+        notice_source_family_summary=_optional_string(
+            record.get("noticeSourceFamilySummary")
+            if "noticeSourceFamilySummary" in record
+            else record.get("notice_source_family_summary")
+        )
+        or "",
+        temporal_posture=_optional_string(
+            record.get("temporalPosture")
+            if "temporalPosture" in record
+            else record.get("temporal_posture")
+        )
+        or "",
         model_provider=_optional_string(
             record.get("modelProvider")
             if "modelProvider" in record

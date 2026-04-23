@@ -13,6 +13,8 @@ from campus_contracts.models_shared import (
     ConfidenceLevel,
     MemorySourceType,
     MemoryVisibility,
+    NoticeSourceFamily,
+    _validate_notice_source_family,
 )
 
 
@@ -73,6 +75,19 @@ class CurriculumFollowUpSlots:
 
 
 @dataclass(frozen=True, slots=True)
+class SelectedNoticeRef:
+    notice_id: str
+    source_family: NoticeSourceFamily | str = ""
+    title: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.notice_id.strip():
+            raise ValueError("notice_id must not be empty")
+        if self.source_family:
+            _validate_notice_source_family(self.source_family)
+
+
+@dataclass(frozen=True, slots=True)
 class SessionSlot:
     name: str
     value: str
@@ -113,6 +128,7 @@ def resolve_curriculum_follow_up_slots(
 @dataclass(frozen=True, slots=True)
 class SessionSummary:
     confirmed_slots: tuple[SessionSlot, ...] = field(default_factory=tuple)
+    selected_notice_ref: SelectedNoticeRef | None = None
     turn_count: int = 0
 
     def __post_init__(self) -> None:

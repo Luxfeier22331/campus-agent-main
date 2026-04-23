@@ -125,15 +125,41 @@ def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistRes
 
 def _transport_schedule_response(result: TransportScheduleLookupResult) -> SpecialistResponse:
     if result.outcome == "resolved_current":
+        route_name = result.resolved_route.display_name if result.resolved_route is not None else ""
+        if result.selected_departure is not None:
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text=(
+                    f"{route_name}下一班发车时间：{result.selected_departure.departure_at}。"
+                    if route_name
+                    else f"下一班发车时间：{result.selected_departure.departure_at}。"
+                ),
+                confidence="high",
+                result=result,
+            )
+        if result.schedule_snapshot is not None and result.intent == "schedule_snapshot_metadata":
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text=(
+                    "当前有效时刻表版本："
+                    f"{result.schedule_snapshot.snapshot_id}，发布时间：{result.schedule_snapshot.published_at}。"
+                ),
+                confidence="high",
+                result=result,
+            )
         return SpecialistResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{result.resolved_route}当前状态：{result.service_status}。",
+            answer_text=f"{route_name}当前状态：{result.service_status}。" if route_name else f"当前状态：{result.service_status}。",
             confidence="high",
             result=result,
         )
     if result.outcome == "resolved_historical_reference":
-        route_name = result.resolved_route or result.route_query
+        route_name = (
+            result.resolved_route.display_name if result.resolved_route is not None else result.query_text
+        )
         return SpecialistResponse(
             target="campus-services-agent",
             status="completed",
@@ -142,7 +168,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
             result=result,
         )
     if result.outcome == "clarification_required":
-        follow_up = "请明确你要查询的班车线路。"
+        follow_up = "请明确你要查询的班车类型、方向或线路。"
         return SpecialistResponse(
             target="campus-services-agent",
             status="needs_clarification",

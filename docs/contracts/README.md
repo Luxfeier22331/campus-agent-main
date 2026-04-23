@@ -30,7 +30,12 @@ updated: 2026-04-23
 
 ## Campus services contract
 
+- `service-status-lookup-contract.md`
 - `transport-schedule-lookup-contract.md`
+
+## Notice runtime contract
+
+- `campus-notice-runtime-contract.md`
 
 ## Retrieval internal contract
 

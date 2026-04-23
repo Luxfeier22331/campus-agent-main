@@ -17,6 +17,7 @@ updated: 2026-04-21
 ## 长期边界与决策
 
 - `../architecture/domains/authenticated-notice/architecture.md`
+- `../contracts/campus-notice-runtime-contract.md`
 - `../data/authenticated-notice-source-truth-schema.md`
 - `../decisions/adr-0024-authenticated-notice-source-channel.md`
 - `../decisions/adr-0025-authenticated-notice-async-staged-closeout.md`

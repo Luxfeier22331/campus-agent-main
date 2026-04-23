@@ -68,6 +68,25 @@ TransportServiceStatusValue = Literal[
     "limited_service",
     "unknown",
 ]
+TransportScheduleIntent = Literal[
+    "next_departure",
+    "first_departure",
+    "last_departure",
+    "departure_list",
+    "service_window",
+    "timetable",
+    "schedule_snapshot_metadata",
+]
+TransportScheduleClarificationReason = Literal[
+    "route_family_required",
+    "route_direction_required",
+    "route_variant_ambiguous",
+    "origin_stop_ambiguous",
+    "destination_stop_ambiguous",
+    "service_date_required",
+]
+TransportServiceDateMode = Literal["today", "tomorrow", "date"]
+TransportDaypart = Literal["morning", "afternoon", "evening", "all_day"]
 
 ALLOWED_REVISION_TRACKS = ("source-faithful", "current-effective", "editorial")
 ALLOWED_SOURCE_CHANNELS = (
@@ -148,6 +167,25 @@ ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "limited_service",
     "unknown",
 )
+ALLOWED_TRANSPORT_SCHEDULE_INTENTS = (
+    "next_departure",
+    "first_departure",
+    "last_departure",
+    "departure_list",
+    "service_window",
+    "timetable",
+    "schedule_snapshot_metadata",
+)
+ALLOWED_TRANSPORT_SCHEDULE_CLARIFICATION_REASONS = (
+    "route_family_required",
+    "route_direction_required",
+    "route_variant_ambiguous",
+    "origin_stop_ambiguous",
+    "destination_stop_ambiguous",
+    "service_date_required",
+)
+ALLOWED_TRANSPORT_SERVICE_DATE_MODES = ("today", "tomorrow", "date")
+ALLOWED_TRANSPORT_DAYPARTS = ("morning", "afternoon", "evening", "all_day")
 DEFAULT_POLICY_PROJECTION_VERSION = "phase1-authorization-projection-v1"
 CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family"
 CURRICULUM_PROGRAM_SLOT_NAME = "curriculum_program"
@@ -225,6 +263,26 @@ def _validate_service_status_value(status: str) -> None:
 def _validate_transport_service_status_value(status: str) -> None:
     if status not in ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES:
         raise ValueError(f"unsupported transport service status value: {status}")
+
+
+def _validate_transport_schedule_intent(intent: str) -> None:
+    if intent not in ALLOWED_TRANSPORT_SCHEDULE_INTENTS:
+        raise ValueError(f"unsupported transport schedule intent: {intent}")
+
+
+def _validate_transport_schedule_clarification_reason(reason: str) -> None:
+    if reason not in ALLOWED_TRANSPORT_SCHEDULE_CLARIFICATION_REASONS:
+        raise ValueError(f"unsupported transport clarification reason: {reason}")
+
+
+def _validate_transport_service_date_mode(mode: str) -> None:
+    if mode not in ALLOWED_TRANSPORT_SERVICE_DATE_MODES:
+        raise ValueError(f"unsupported transport service date mode: {mode}")
+
+
+def _validate_transport_daypart(daypart: str) -> None:
+    if daypart not in ALLOWED_TRANSPORT_DAYPARTS:
+        raise ValueError(f"unsupported transport daypart: {daypart}")
 
 
 def _validate_remote_content_suspicion_label(remote_content_suspicion_label: str) -> None:

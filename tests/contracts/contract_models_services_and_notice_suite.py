@@ -4,6 +4,22 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
+    def test_session_summary_exposes_selected_notice_ref_field(self) -> None:
+        summary = SessionSummary(
+            selected_notice_ref=SelectedNoticeRef(
+                notice_id="notice:muc-spring-break-2026",
+                source_family="official_web_public_notice",
+                title="2026年春假安排通知",
+            ),
+            turn_count=2,
+        )
+
+        self.assertIn("selected_notice_ref", {field.name for field in fields(SessionSummary)})
+        self.assertEqual(
+            asdict(summary)["selected_notice_ref"]["notice_id"],
+            "notice:muc-spring-break-2026",
+        )
+
     def test_specialist_request_serializes_forward_agent_allowed_tools(self) -> None:
         request = SpecialistRequest(
             target="campus-services-agent",
@@ -28,8 +44,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 target="campus-services-agent",
                 user_goal="校车现在开吗",
                 payload=TransportScheduleLookupPayload(
-                    route_query="校车",
-                    temporal_query=TemporalQuery(mode="current"),
+                    query_text="校车现在开吗",
+                    intent="service_window",
                 ),
                 allowed_tools=("transport_notice_latest",),  # type: ignore[arg-type]
             )
@@ -81,19 +97,52 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ("notice:muc-library-holiday-adjustment-2026",),
         )
 
-    def test_transport_schedule_payload_requires_non_empty_route_query(self) -> None:
-        with self.assertRaisesRegex(ValueError, "route_query must not be empty"):
-            TransportScheduleLookupPayload(route_query=" ")
+    def test_transport_schedule_payload_requires_non_empty_query_text(self) -> None:
+        with self.assertRaisesRegex(ValueError, "query_text must not be empty"):
+            TransportScheduleLookupPayload(query_text=" ", intent="next_departure")
+
+    def test_transport_schedule_payload_uses_intent_first_shape(self) -> None:
+        self.assertEqual(
+            {field.name for field in fields(TransportScheduleLookupPayload)},
+            {
+                "query_text",
+                "intent",
+                "route_selector",
+                "snapshot_query",
+                "service_time_query",
+                "result_limit",
+            },
+        )
+
+    def test_transport_schedule_result_exposes_departure_and_snapshot_fields(self) -> None:
+        self.assertTrue(
+            {
+                "intent",
+                "selected_departure",
+                "departure_options",
+                "service_window",
+                "schedule_snapshot",
+                "candidate_routes",
+            }.issubset({field.name for field in fields(TransportScheduleLookupResult)})
+        )
 
     def test_transport_schedule_result_serializes_stop_refs(self) -> None:
         result = TransportScheduleLookupResult(
-            route_query="今天校车还有吗",
+            query_text="今天校车还有吗",
+            intent="service_window",
             outcome="resolved_current",
-            resolved_route="海淀校区往返丰台校区班车",
+            resolved_route=TransportRouteRef(
+                route_id="route:haidian-fengtai",
+                display_name="海淀校区往返丰台校区班车",
+                service_family="intercampus_commute",
+            ),
             service_status="running",
             queried_time_anchor="2026-04-21T18:10:00+08:00",
-            window_start="2026-04-21T18:30:00+08:00",
-            window_end="2026-04-21T19:00:00+08:00",
+            requested_service_date="2026-04-21",
+            service_window=TransportServiceWindow(
+                first_departure_at="2026-04-21T18:30:00+08:00",
+                last_departure_at="2026-04-21T19:00:00+08:00",
+            ),
             stop_refs=(
                 TransportStopRef(
                     stop_id="stop:haidian-main-gate",
@@ -109,7 +158,9 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
 
         payload = asdict(result)
 
+        self.assertEqual(payload["intent"], "service_window")
         self.assertEqual(payload["service_status"], "running")
+        self.assertEqual(payload["resolved_route"]["display_name"], "海淀校区往返丰台校区班车")
         self.assertEqual(payload["stop_refs"][0]["display_name"], "海淀校区南门")
         self.assertEqual(
             tuple(payload["related_notice_refs"]),
@@ -145,6 +196,47 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             payload["notice_cards"][0]["source_family"],
             "official_web_public_notice",
         )
+
+    def test_service_status_historical_result_allows_missing_downgrade_reason(self) -> None:
+        result = ServiceStatusLookupResult(
+            subject_query="2024年图书馆开放状态",
+            outcome="resolved_historical_reference",
+            resolved_subject="海淀校区图书馆",
+            observed_status="closed",
+        )
+
+        self.assertEqual(result.outcome, "resolved_historical_reference")
+        self.assertEqual(result.historical_downgrade_reason, "")
+
+    def test_notice_discover_historical_result_allows_missing_downgrade_reason(self) -> None:
+        result = CampusNoticeDiscoverResult(
+            query_text="2024年春假通知",
+            outcome="resolved_historical_reference",
+            notice_cards=(
+                NoticeCard(
+                    notice_id="notice:muc-spring-break-2024",
+                    title="2024年春假安排通知",
+                    source_family="official_web_public_notice",
+                    source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+                ),
+            ),
+        )
+
+        self.assertEqual(result.outcome, "resolved_historical_reference")
+        self.assertEqual(result.historical_downgrade_reason, "")
+
+    def test_notice_get_historical_result_allows_missing_downgrade_reason(self) -> None:
+        result = CampusNoticeGetResult(
+            notice_id="notice:muc-spring-break-2024",
+            outcome="resolved_historical_reference",
+            title="2024年春假安排通知",
+            source_family="official_web_public_notice",
+            source_url="https://www.muc.edu.cn/info/2024-spring-break.htm",
+            normalized_body="历史通知正文。",
+        )
+
+        self.assertEqual(result.outcome, "resolved_historical_reference")
+        self.assertEqual(result.historical_downgrade_reason, "")
 
     def test_notice_get_result_requires_normalized_body_for_resolved_notice(self) -> None:
         with self.assertRaisesRegex(

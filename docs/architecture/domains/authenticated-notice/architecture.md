@@ -121,6 +121,7 @@ owner-recovery readiness 与 operator 排障。
 ## Contract Split
 
 - source-channel 运行边界：本文
+- notice discover/get runtime seam：`docs/contracts/campus-notice-runtime-contract.md`
 - source-truth
   schema：`docs/data/authenticated-notice-source-truth-schema.md`
 - shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
@@ -202,6 +203,13 @@ seam：
   converter 反向提升成 source channel truth
 - source-truth replay、attachment materialization 与 legacy Office normalization
   必须继续复用 repo-owned shared contract，而不是在 collector/import seam 各自复制一套规则
+
+补充约束：
+
+- `context.session.selected_notice_ref` 只属于 query-time runtime carrier，不改变 source-truth
+  owner
+- `notice-agent` 的 structured-runtime observability summary 只回传 compact execution
+  summary，不回传 raw source bundle 或 raw specialist dump
 
 ## Runtime Connectivity Posture
 

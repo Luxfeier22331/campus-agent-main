@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    CampusNoticeDiscoverResult,
+    CampusNoticeGetResult,
     RagResultDiagnostics,
     RagResultPayload,
+    ServiceStatusLookupResult,
     SpecialistResponse,
     SupervisorObservability,
     SupervisorResponse,
+    TransportScheduleLookupResult,
 )
 
 
@@ -44,17 +48,7 @@ def build_supervisor_observability_from_specialist_response(
     response: SpecialistResponse,
 ) -> SupervisorObservability | None:
     if response.target != "rag-agent":
-        return SupervisorObservability(
-            retrieval_attempted=False,
-            candidate_count=0,
-            retrieved_source_count=0,
-            retrieved_sources=(),
-            citation_expected=False,
-            citation_count=0,
-            citation_missing=False,
-            acl_decision="allowed",
-            fail_closed=False,
-        )
+        return _build_structured_runtime_observability(response)
 
     result = response.result if isinstance(response.result, RagResultPayload) else None
     diagnostics = result.diagnostics if result is not None else None
@@ -101,7 +95,7 @@ def build_supervisor_observability_from_specialist_response(
         ),
         scope_class=_scope_class_from_specialist_response(response.target),
         acl_decision="denied" if denied else "allowed",
-        fail_closed=True if denied or _is_freshness_fail_closed(diagnostics) else False,
+        fail_closed=bool(denied or _is_freshness_fail_closed(diagnostics)),
         prompt_runtime_state=diagnostics.prompt_runtime_state if diagnostics is not None else "",
         prompt_runtime_detail=diagnostics.prompt_runtime_detail if diagnostics is not None else "",
         resolved_scope_corpus=diagnostics.resolved_scope_corpus
@@ -141,6 +135,103 @@ def _semantic_outcome_from_specialist_response(
 
 
 def _scope_class_from_specialist_response(target: str) -> str:
-    if target in {"rag-agent", "navigation-agent"}:
+    if target in {
+        "rag-agent",
+        "navigation-agent",
+        "campus-services-agent",
+        "notice-agent",
+    }:
         return "in_scope"
     return ""
+
+
+def _build_structured_runtime_observability(
+    response: SpecialistResponse,
+) -> SupervisorObservability:
+    result = response.result
+    tool_business_outcome = getattr(result, "outcome", "") if result is not None else ""
+    tool_fail_close_reason = getattr(result, "fail_close_reason", "") if result is not None else ""
+    tool_historical_downgrade_reason = (
+        getattr(result, "historical_downgrade_reason", "") if result is not None else ""
+    )
+    candidate_count = _candidate_count_from_tool_result(result)
+    return SupervisorObservability(
+        retrieval_attempted=False,
+        candidate_count=candidate_count,
+        retrieved_source_count=0,
+        retrieved_sources=(),
+        citation_expected=False,
+        citation_count=0,
+        citation_missing=False,
+        refusal_class=(
+            response.status if response.status in {"needs_clarification", "no_answer"} else ""
+        ),
+        semantic_outcome=_structured_runtime_semantic_outcome(response),
+        scope_class=_scope_class_from_specialist_response(response.target),
+        acl_decision="allowed",
+        fail_closed=bool(tool_fail_close_reason),
+        selected_tool=_selected_tool_from_result(result),
+        tool_business_outcome=tool_business_outcome,
+        tool_fail_close_reason=tool_fail_close_reason,
+        tool_historical_downgrade_reason=tool_historical_downgrade_reason,
+        notice_source_family_summary=_notice_source_family_summary(result),
+        temporal_posture=_temporal_posture_from_tool_result(result),
+    )
+
+
+def _candidate_count_from_tool_result(
+    result: object,
+) -> int:
+    if isinstance(result, CampusNoticeDiscoverResult):
+        return len(result.notice_cards)
+    if isinstance(result, TransportScheduleLookupResult):
+        return len(result.candidate_routes)
+    return 0
+
+
+def _structured_runtime_semantic_outcome(response: SpecialistResponse) -> str:
+    if response.result is not None and hasattr(response.result, "outcome"):
+        return getattr(response.result, "outcome")
+    if response.status == "needs_clarification":
+        return "needs_clarification"
+    if response.status == "no_answer":
+        return "temporarily_unverifiable"
+    return ""
+
+
+def _selected_tool_from_result(result: object) -> str:
+    if isinstance(result, ServiceStatusLookupResult):
+        return "service_status_lookup"
+    if isinstance(result, TransportScheduleLookupResult):
+        return "transport_schedule_lookup"
+    if isinstance(result, CampusNoticeDiscoverResult):
+        return "campus_notice_discover"
+    if isinstance(result, CampusNoticeGetResult):
+        return "campus_notice_get"
+    return ""
+
+
+def _notice_source_family_summary(result: object) -> str:
+    if isinstance(result, CampusNoticeGetResult):
+        return result.source_family
+    if isinstance(result, CampusNoticeDiscoverResult):
+        source_families = tuple(
+            dict.fromkeys(
+                family
+                for family in (
+                    tuple(result.source_families)
+                    or tuple(card.source_family for card in result.notice_cards)
+                )
+                if family
+            )
+        )
+        return ",".join(source_families)
+    return ""
+
+
+def _temporal_posture_from_tool_result(result: object) -> str:
+    if result is None:
+        return ""
+    if hasattr(result, "outcome") and getattr(result, "outcome") == "resolved_historical_reference":
+        return "historical_reference"
+    return "current"

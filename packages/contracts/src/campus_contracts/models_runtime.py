@@ -68,6 +68,12 @@ class SupervisorObservability:
     acl_decision: str = ""
     acl_anomaly_code: str = ""
     fail_closed: bool | None = None
+    selected_tool: str = ""
+    tool_business_outcome: str = ""
+    tool_fail_close_reason: str = ""
+    tool_historical_downgrade_reason: str = ""
+    notice_source_family_summary: str = ""
+    temporal_posture: str = ""
     model_provider: str = ""
     model_name: str = ""
     input_tokens: int | None = None

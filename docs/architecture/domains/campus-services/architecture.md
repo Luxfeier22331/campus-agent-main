@@ -128,6 +128,10 @@ runtime lane 已开放。
 
 - opening gate 默认保持 closed，直到 backing query implementation、release-gate
   regression / eval evidence 与 app-owned typed observability summary 同时满足
+- 当前 repo 已补齐 gate-closed prework：
+  - `service_status_lookup` / `transport_schedule_lookup` shared contract
+  - structured-runtime pre-routing helper
+  - structured-runtime observability summary
 - gate 未打开时，产品主路径只能保持当前 routing truth 或 deterministic fail-close
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 
@@ -141,6 +145,7 @@ runtime lane 已开放。
 
 ## 相关稳定文档
 
+- `docs/contracts/service-status-lookup-contract.md`
 - `docs/contracts/transport-schedule-lookup-contract.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`

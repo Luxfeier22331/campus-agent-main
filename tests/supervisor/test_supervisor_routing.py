@@ -4,18 +4,95 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    CampusNoticeDiscoverPayload,
     KnowledgeScope,
+    ServiceStatusLookupPayload,
     SupervisorRequest,
     TraceContext,
+    VersionQuery,
 )
+from campus_supervisor_core import routing as supervisor_routing
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import (
-    DisallowedKnowledgeScopeError,
-)
+from campus_supervisor_core.errors import DisallowedKnowledgeScopeError
 from campus_supervisor_core.routing import route_request
 
 
 class SupervisorRoutingTest(unittest.TestCase):
+    def test_structured_runtime_classifier_identifies_service_status_candidate(self) -> None:
+        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
+        self.assertIsNotNone(classifier)
+
+        decision = classifier(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="图书馆今天开门吗",
+                    requested_capability="knowledge",
+                )
+            )
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.target, "campus-services-agent")
+        self.assertEqual(decision.allowed_tools, ("service_status_lookup",))
+        self.assertEqual(
+            decision.specialist_payload,
+            ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
+        )
+
+    def test_structured_runtime_classifier_identifies_notice_discover_candidate(self) -> None:
+        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
+        self.assertIsNotNone(classifier)
+
+        decision = classifier(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="找一下春假通知",
+                    requested_capability="knowledge",
+                )
+            )
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.target, "notice-agent")
+        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
+        self.assertEqual(
+            decision.specialist_payload,
+            CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
+        )
+
+    def test_structured_runtime_classifier_keeps_compare_version_query_outside_tool_lane(self) -> None:
+        classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
+        self.assertIsNotNone(classifier)
+
+        decision = classifier(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="比较新旧春假通知差异",
+                    requested_capability="knowledge",
+                    version_query=VersionQuery(
+                        mode="compare",
+                        version_id="v1:notice-2024",
+                        compare_to_version_id="v2:notice-2025",
+                    ),
+                )
+            )
+        )
+
+        self.assertIsNone(decision)
+
+    def test_route_request_keeps_structured_runtime_candidates_gate_closed(self) -> None:
+        request = SupervisorRequest(
+            user_goal="校车什么时候发车",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertIsNone(decision.specialist_payload)
+
     def test_route_request_selects_rag_specialist_for_regulations_student_handbook(self) -> None:
         request = SupervisorRequest(
             user_goal="library hours",

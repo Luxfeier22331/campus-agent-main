@@ -120,6 +120,7 @@ JSON 命名保持 `snake_case`，原因如下：
     },
     "session": {
       "confirmed_slots": [],
+      "selected_notice_ref": null,
       "turn_count": 0
     }
   },
@@ -134,7 +135,7 @@ JSON 命名保持 `snake_case`，原因如下：
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
   `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与
-  `session.confirmed_slots`，以及 turn count 摘要
+  `session.confirmed_slots`、可选的 `session.selected_notice_ref`，以及 turn count 摘要
 - `requested_capability` 当前允许 `knowledge` 或 `place_lookup`
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
@@ -258,6 +259,13 @@ JSON 命名保持 `snake_case`，原因如下：
   `snake_case`
 - `observability.retrieved_sources` 表示 execution side 原始 retrieval candidate
   trace；它与最终 `result.evidence.sources` 不是同一层 truth
+- 对 structured runtime lane，`observability` 还会回传 compact summary：
+  - `selected_tool`
+  - `tool_business_outcome`
+  - `tool_fail_close_reason`
+  - `tool_historical_downgrade_reason`
+  - `notice_source_family_summary`
+  - `temporal_posture`
 - 当 execution side 解析了最终 serving surface 时，`observability.resolved_scope_*`
   必须显式回传给 `app-api`
 - `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw
