@@ -39,6 +39,14 @@ class SupervisorAuditRecord:
     evidence_source_count: int
     follow_up_emitted: bool
     fail_closed: bool
+    intent_capability: str = ""
+    intent_task_kind: str = ""
+    intent_launch_state: str = ""
+    intent_next_action: str = ""
+    intent_scope_class: str = ""
+    intent_scope_reason: str = ""
+    intent_policy_reason: str = ""
+    intent_classifier_version: str = ""
 
 
 def build_audit_record(
@@ -66,6 +74,14 @@ def build_audit_record(
         evidence_source_count=_evidence_source_count_from_response(response),
         follow_up_emitted=bool(response.follow_up_question.strip()),
         fail_closed=_is_fail_closed_status(response.status),
+        intent_capability=_intent_capability_from_response(response),
+        intent_task_kind=_intent_task_kind_from_response(response),
+        intent_launch_state=_intent_launch_state_from_response(response),
+        intent_next_action=_intent_next_action_from_response(response),
+        intent_scope_class=_intent_scope_class_from_response(response),
+        intent_scope_reason=_intent_scope_reason_from_response(response),
+        intent_policy_reason=_intent_policy_reason_from_response(response),
+        intent_classifier_version=_intent_classifier_version_from_response(response),
     )
 
 
@@ -96,6 +112,56 @@ def build_error_audit_record(
         follow_up_emitted=False,
         fail_closed=True,
     )
+
+
+def _observability_from_response(
+    response: SpecialistResponse | SupervisorResponse,
+):
+    if isinstance(response, SupervisorResponse):
+        return response.observability
+    return None
+
+
+def _intent_capability_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_capability
+
+
+def _intent_task_kind_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_task_kind
+
+
+def _intent_launch_state_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_launch_state
+
+
+def _intent_next_action_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_next_action
+
+
+def _intent_scope_class_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_scope_class
+
+
+def _intent_scope_reason_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_scope_reason
+
+
+def _intent_policy_reason_from_response(response: SpecialistResponse | SupervisorResponse) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_policy_reason
+
+
+def _intent_classifier_version_from_response(
+    response: SpecialistResponse | SupervisorResponse,
+) -> str:
+    observability = _observability_from_response(response)
+    return "" if observability is None else observability.intent_classifier_version
 
 
 def _requested_capability_from_request(

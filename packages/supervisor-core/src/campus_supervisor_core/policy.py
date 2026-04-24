@@ -19,7 +19,10 @@ from campus_supervisor_core.prompt_packets import (
     build_supervisor_out_of_scope_prompt_packet,
     build_supervisor_reject_prompt_packet,
 )
-from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
+from campus_supervisor_core.response import (
+    attach_intent_observability,
+    build_supervisor_observability_from_specialist_response,
+)
 from campus_supervisor_core.routing import RoutingDecision
 
 
@@ -48,7 +51,7 @@ def finalize_routing_decision(
             if execution is not None:
                 follow_up_question = execution.output.follow_up_question
                 prompt_trace = execution.prompt_trace
-        return SupervisorResponse(
+        response = SupervisorResponse(
             selected_target=None,
             status="needs_clarification",
             follow_up_question=follow_up_question,
@@ -73,6 +76,7 @@ def finalize_routing_decision(
                 else None
             ),
         )
+        return attach_intent_observability(response, decision)
     if decision.intent_frame.suggested_next_action == "approval_required":
         answer_text = "该请求涉及需要人工确认的操作，必须先经过审批。"
         prompt_trace = None
@@ -89,7 +93,7 @@ def finalize_routing_decision(
             if execution is not None:
                 answer_text = execution.output.answer_text
                 prompt_trace = execution.prompt_trace
-        return SupervisorResponse(
+        response = SupervisorResponse(
             selected_target=None,
             status="approval_required",
             answer_text=answer_text,
@@ -111,6 +115,7 @@ def finalize_routing_decision(
                 prompt_trace=prompt_trace,
             ),
         )
+        return attach_intent_observability(response, decision)
     if decision.intent_frame.suggested_next_action == "out_of_scope":
         answer_text = _out_of_scope_answer_text(decision.intent_frame.policy_reason)
         prompt_trace = None
@@ -127,7 +132,7 @@ def finalize_routing_decision(
             if execution is not None:
                 answer_text = execution.output.answer_text
                 prompt_trace = execution.prompt_trace
-        return SupervisorResponse(
+        response = SupervisorResponse(
             selected_target=None,
             status="no_answer",
             answer_text=answer_text,
@@ -150,6 +155,7 @@ def finalize_routing_decision(
                 prompt_trace=prompt_trace,
             ),
         )
+        return attach_intent_observability(response, decision)
     answer_text = "这个请求不在当前可执行范围内。"
     prompt_trace = None
     prompt_runtime_state = ""
@@ -165,7 +171,7 @@ def finalize_routing_decision(
         if execution is not None:
             answer_text = execution.output.answer_text
             prompt_trace = execution.prompt_trace
-    return SupervisorResponse(
+    response = SupervisorResponse(
         selected_target=None,
         status="rejected",
         answer_text=answer_text,
@@ -190,6 +196,7 @@ def finalize_routing_decision(
             prompt_trace=prompt_trace,
         ),
     )
+    return attach_intent_observability(response, decision)
 
 
 def _out_of_scope_answer_text(policy_reason: str) -> str:

@@ -71,6 +71,14 @@ class SupervisorStructuredRuntimeObservabilityTest(unittest.TestCase):
                 "toolHistoricalDowngradeReason": "",
                 "noticeSourceFamilySummary": "",
                 "temporalPosture": "as_of",
+                "intentCapability": "knowledge",
+                "intentTaskKind": "knowledge_lookup",
+                "intentLaunchState": "candidate_only",
+                "intentNextAction": "delegate",
+                "intentScopeClass": "in_scope",
+                "intentScopeReason": "structured_runtime_candidate_signal",
+                "intentPolicyReason": "",
+                "intentClassifierVersion": "deterministic-intent-v1",
             }
         )
 
@@ -79,6 +87,16 @@ class SupervisorStructuredRuntimeObservabilityTest(unittest.TestCase):
         self.assertEqual(observability.selected_tool, "transport_schedule_lookup")
         self.assertEqual(observability.tool_business_outcome, "clarification_required")
         self.assertEqual(observability.temporal_posture, "as_of")
+        self.assertEqual(observability.intent_capability, "knowledge")
+        self.assertEqual(observability.intent_task_kind, "knowledge_lookup")
+        self.assertEqual(observability.intent_launch_state, "candidate_only")
+        self.assertEqual(observability.intent_next_action, "delegate")
+        self.assertEqual(observability.intent_scope_class, "in_scope")
+        self.assertEqual(
+            observability.intent_scope_reason,
+            "structured_runtime_candidate_signal",
+        )
+        self.assertEqual(observability.intent_classifier_version, "deterministic-intent-v1")
 
 
 if __name__ == "__main__":

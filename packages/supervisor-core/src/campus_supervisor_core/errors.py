@@ -33,6 +33,11 @@ class UnsupportedCapabilityError(InvalidSupervisorRequestError):
     error_code = "unsupported_capability"
 
 
+class ExecutionCancelledError(SupervisorError):
+    error_code = "execution_cancelled"
+    http_status_code = 499
+
+
 class DisallowedKnowledgeScopeError(SupervisorError):
     error_code = "disallowed_knowledge_scope"
     http_status_code = 403

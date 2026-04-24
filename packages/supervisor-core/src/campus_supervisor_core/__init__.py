@@ -19,6 +19,7 @@ from campus_supervisor_core.audit import (
 )
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
+    ExecutionCancelledError,
     InvalidSpecialistToolPolicyError,
     InvalidSupervisorRequestError,
     MissingRoutingInputError,
@@ -29,6 +30,7 @@ from campus_supervisor_core.errors import (
 from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 
 AuditSink = Callable[[SupervisorAuditRecord], None]
+CancellationChecker = Callable[[], bool]
 
 
 def handle_request(
@@ -38,10 +40,12 @@ def handle_request(
     audit_sink: AuditSink | None = None,
     supervisor_prompt_executor: SupervisorPromptExecutor | None = None,
     rag_prompt_executor: RagPromptExecutor | None = None,
+    cancellation_checker: CancellationChecker | None = None,
 ) -> SupervisorResponse:
     agent = SupervisorAgent(
         supervisor_prompt_executor=supervisor_prompt_executor,
         rag_prompt_executor=rag_prompt_executor,
+        cancellation_checker=cancellation_checker,
     )
     if specialist_delegates is not None:
         agent.specialist_delegates = dict(specialist_delegates)
@@ -65,6 +69,7 @@ def handle_specialist_request(
 
 __all__ = [
     "DisallowedKnowledgeScopeError",
+    "ExecutionCancelledError",
     "InvalidSpecialistToolPolicyError",
     "InvalidSupervisorRequestError",
     "MissingRoutingInputError",

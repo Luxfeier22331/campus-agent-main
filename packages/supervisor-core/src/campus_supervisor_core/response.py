@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from campus_contracts import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetResult,
@@ -34,6 +36,28 @@ def assemble_response(response: SupervisorResponse) -> SupervisorResponse:
         error=response.error,
         observability=response.observability,
     )
+
+
+def attach_intent_observability(
+    response: SupervisorResponse,
+    decision: object,
+) -> SupervisorResponse:
+    observability = response.observability or SupervisorObservability()
+    intent_frame = getattr(decision, "intent_frame", None)
+    if intent_frame is None:
+        return response
+    updated_observability = replace(
+        observability,
+        intent_capability=getattr(intent_frame, "capability", "") or "",
+        intent_task_kind=getattr(intent_frame, "task_kind", "") or "",
+        intent_launch_state=getattr(intent_frame, "launch_state", "") or "",
+        intent_next_action=getattr(intent_frame, "suggested_next_action", "") or "",
+        intent_scope_class=getattr(intent_frame, "scope_class", "") or "",
+        intent_scope_reason=getattr(intent_frame, "scope_reason", "") or "",
+        intent_policy_reason=getattr(intent_frame, "policy_reason", "") or "",
+        intent_classifier_version=getattr(intent_frame, "classifier_version", "") or "",
+    )
+    return replace(response, observability=updated_observability)
 
 
 def source_doc_ids_from_response(
@@ -191,7 +215,7 @@ def _candidate_count_from_tool_result(
 
 def _structured_runtime_semantic_outcome(response: SpecialistResponse) -> str:
     if response.result is not None and hasattr(response.result, "outcome"):
-        return getattr(response.result, "outcome")
+        return response.result.outcome
     if response.status == "needs_clarification":
         return "needs_clarification"
     if response.status == "no_answer":
@@ -232,6 +256,6 @@ def _notice_source_family_summary(result: object) -> str:
 def _temporal_posture_from_tool_result(result: object) -> str:
     if result is None:
         return ""
-    if hasattr(result, "outcome") and getattr(result, "outcome") == "resolved_historical_reference":
+    if hasattr(result, "outcome") and result.outcome == "resolved_historical_reference":
         return "historical_reference"
     return "current"

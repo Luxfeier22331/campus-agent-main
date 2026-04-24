@@ -37,6 +37,38 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "place_lookup")
 
+    def test_resolve_requested_capability_treats_knowledge_as_hint_for_place_lookup(
+        self,
+    ) -> None:
+        cases = ("图书馆在哪里", "图书馆位置", "图书馆地址")
+
+        for user_goal in cases:
+            with self.subTest(user_goal=user_goal):
+                capability = resolve_requested_capability(
+                    SupervisorRequestContext.from_request(
+                        SupervisorRequest(
+                            user_goal=user_goal,
+                            requested_capability="knowledge",
+                        )
+                    )
+                )
+
+                self.assertEqual(capability, "place_lookup")
+
+    def test_resolve_requested_capability_does_not_treat_non_spatial_where_as_place_lookup(
+        self,
+    ) -> None:
+        capability = resolve_requested_capability(
+            SupervisorRequestContext.from_request(
+                SupervisorRequest(
+                    user_goal="奖学金在哪里申请",
+                    requested_capability="knowledge",
+                )
+            )
+        )
+
+        self.assertEqual(capability, "knowledge")
+
     def test_resolve_requested_capability_allows_missing_scope_for_knowledge(self) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(

@@ -24,7 +24,7 @@ from campus_contracts import (
     TraceContext,
     VersionQuery,
 )
-from campus_supervisor_core import SupervisorAgent, handle_request
+from campus_supervisor_core import ExecutionCancelledError, SupervisorAgent, handle_request
 from campus_supervisor_core.audit import (
     SupervisorAuditRecord,
 )
@@ -112,6 +112,34 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
 
 
 class SupervisorCoreRoutingTest(unittest.TestCase):
+    def test_handle_request_stops_before_specialist_delegate_when_cancelled(self) -> None:
+        delegate_called = False
+
+        def fake_rag_specialist(request: SpecialistRequest) -> SpecialistResponse:
+            nonlocal delegate_called
+            delegate_called = True
+            return _make_rag_completed_response()
+
+        request = SupervisorRequest(
+            user_goal="library hours",
+            request_id="req-cancel-before-delegate",
+            trace=TraceContext(trace_id="trace-cancel-before-delegate"),
+            actor=ActorContext(user_id="student-001"),
+            requested_scope=KnowledgeScope(
+                corpus="regulations",
+                collection="student_rules",
+            ),
+        )
+
+        with self.assertRaises(ExecutionCancelledError):
+            handle_request(
+                request,
+                specialist_delegates={"rag-agent": fake_rag_specialist},
+                cancellation_checker=lambda: True,
+            )
+
+        self.assertFalse(delegate_called)
+
     def test_handle_request_routes_rag_request_and_emits_audit_record(self) -> None:
         captured_requests: list[SpecialistRequest] = []
         audit_records: list[SupervisorAuditRecord] = []
@@ -139,6 +167,17 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
 
         self.assertEqual(response.selected_target, "rag-agent")
         self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.observability)
+        assert response.observability is not None
+        self.assertEqual(response.observability.intent_capability, "knowledge")
+        self.assertEqual(response.observability.intent_task_kind, "knowledge_lookup")
+        self.assertEqual(response.observability.intent_launch_state, "open")
+        self.assertEqual(response.observability.intent_next_action, "delegate")
+        self.assertEqual(response.observability.intent_scope_class, "in_scope")
+        self.assertEqual(response.observability.intent_scope_reason, "explicit_requested_scope")
+        self.assertEqual(
+            response.observability.intent_classifier_version, "deterministic-intent-v1"
+        )
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "rag-agent")
         self.assertEqual(
@@ -172,6 +211,14 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 "evidence_source_count": 1,
                 "follow_up_emitted": False,
                 "fail_closed": False,
+                "intent_capability": "knowledge",
+                "intent_task_kind": "knowledge_lookup",
+                "intent_launch_state": "open",
+                "intent_next_action": "delegate",
+                "intent_scope_class": "in_scope",
+                "intent_scope_reason": "explicit_requested_scope",
+                "intent_policy_reason": "",
+                "intent_classifier_version": "deterministic-intent-v1",
             },
         )
 
@@ -485,6 +532,13 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     refusal_class="approval_required",
                     semantic_outcome="approval_required",
                     policy_reason="approval_required",
+                    intent_capability="knowledge",
+                    intent_task_kind="knowledge_lookup",
+                    intent_launch_state="closed",
+                    intent_next_action="approval_required",
+                    intent_scope_class="in_scope",
+                    intent_scope_reason="transaction_guardrail",
+                    intent_classifier_version="deterministic-intent-v1",
                     acl_decision="approval_required",
                     fail_closed=True,
                 ),
@@ -521,9 +575,15 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
         self.assertEqual(response.observability.scope_class, "out_of_scope")
         self.assertEqual(response.observability.policy_reason, "product_scope_boundary")
+        self.assertEqual(response.observability.intent_capability, "knowledge")
+        self.assertEqual(response.observability.intent_launch_state, "closed")
+        self.assertEqual(response.observability.intent_next_action, "out_of_scope")
+        self.assertEqual(response.observability.intent_policy_reason, "product_scope_boundary")
         self.assertEqual(len(audit_records), 1)
         self.assertEqual(audit_records[0].status, "no_answer")
         self.assertIsNone(audit_records[0].selected_target)
+        self.assertEqual(audit_records[0].intent_launch_state, "closed")
+        self.assertEqual(audit_records[0].intent_next_action, "out_of_scope")
 
     def test_handle_request_fail_closes_navigation_queries_before_delegate(self) -> None:
         delegate_called = False
@@ -552,6 +612,14 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         )
         self.assertEqual(response.observability.semantic_outcome, "out_of_scope")
         self.assertEqual(response.observability.policy_reason, "navigation_temporarily_unsupported")
+        self.assertEqual(response.observability.intent_capability, "place_lookup")
+        self.assertEqual(response.observability.intent_task_kind, "place_lookup")
+        self.assertEqual(response.observability.intent_launch_state, "closed")
+        self.assertEqual(response.observability.intent_next_action, "out_of_scope")
         self.assertEqual(len(audit_records), 1)
         self.assertEqual(audit_records[0].status, "no_answer")
         self.assertIsNone(audit_records[0].selected_target)
+        self.assertEqual(audit_records[0].intent_capability, "place_lookup")
+        self.assertEqual(
+            audit_records[0].intent_policy_reason, "navigation_temporarily_unsupported"
+        )

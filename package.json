@@ -18,6 +18,7 @@
 		"web:test:integration": "turbo run test:shared-db-integration --filter=app-api",
 		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
 		"web:typecheck": "turbo run typecheck",
+		"eval:intent": "uv run --all-packages python -m scripts.intent_gate",
 		"docs:lint": "uv run --all-packages python -m scripts.check_markdown_tracked",
 		"public-docs:lint": "pnpm --filter public-docs lint:generated",
 		"coverage:lint": "uv run --all-packages python -m scripts.check_lint_coverage_tracked",

@@ -18,6 +18,7 @@ from campus_contracts import (
     SessionSlot,
     SessionSummary,
     SpecialistResponse,
+    SupervisorObservability,
     SupervisorRequest,
     SupervisorResponse,
     TraceContext,
@@ -154,6 +155,14 @@ class SupervisorCoreAuditRecordTest(unittest.TestCase):
                 "evidence_source_count": 2,
                 "follow_up_emitted": False,
                 "fail_closed": False,
+                "intent_capability": "",
+                "intent_task_kind": "",
+                "intent_launch_state": "",
+                "intent_next_action": "",
+                "intent_scope_class": "",
+                "intent_scope_reason": "",
+                "intent_policy_reason": "",
+                "intent_classifier_version": "",
             },
         )
         self.assertEqual(
@@ -177,6 +186,14 @@ class SupervisorCoreAuditRecordTest(unittest.TestCase):
                 "evidence_source_count",
                 "follow_up_emitted",
                 "fail_closed",
+                "intent_capability",
+                "intent_task_kind",
+                "intent_launch_state",
+                "intent_next_action",
+                "intent_scope_class",
+                "intent_scope_reason",
+                "intent_policy_reason",
+                "intent_classifier_version",
             ),
         )
 
@@ -265,6 +282,14 @@ class SupervisorCoreAuditRecordTest(unittest.TestCase):
                 "evidence_source_count": 0,
                 "follow_up_emitted": False,
                 "fail_closed": False,
+                "intent_capability": "",
+                "intent_task_kind": "",
+                "intent_launch_state": "",
+                "intent_next_action": "",
+                "intent_scope_class": "",
+                "intent_scope_reason": "",
+                "intent_policy_reason": "",
+                "intent_classifier_version": "",
             },
         )
         for forbidden_key in (
@@ -350,8 +375,54 @@ class SupervisorCoreAuditRecordTest(unittest.TestCase):
                 "evidence_source_count": 0,
                 "follow_up_emitted": False,
                 "fail_closed": True,
+                "intent_capability": "",
+                "intent_task_kind": "",
+                "intent_launch_state": "",
+                "intent_next_action": "",
+                "intent_scope_class": "",
+                "intent_scope_reason": "",
+                "intent_policy_reason": "",
+                "intent_classifier_version": "",
             },
         )
+
+    def test_build_audit_record_preserves_intent_observability_fields(self) -> None:
+        request = SupervisorRequest(
+            user_goal="图书馆在哪里",
+            request_id="req-intent-audit-001",
+            trace=TraceContext(trace_id="trace-intent-audit-001"),
+            actor=ActorContext(user_id="student-001"),
+        )
+
+        record = build_audit_record(
+            request,
+            SupervisorResponse(
+                selected_target=None,
+                status="no_answer",
+                answer_text="当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
+                confidence="low",
+                observability=SupervisorObservability(
+                    semantic_outcome="out_of_scope",
+                    intent_capability="place_lookup",
+                    intent_task_kind="place_lookup",
+                    intent_launch_state="closed",
+                    intent_next_action="out_of_scope",
+                    intent_scope_class="out_of_scope",
+                    intent_scope_reason="navigation_temporarily_unsupported",
+                    intent_policy_reason="navigation_temporarily_unsupported",
+                    intent_classifier_version="deterministic-intent-v1",
+                ),
+            ),
+        )
+
+        self.assertEqual(record.intent_capability, "place_lookup")
+        self.assertEqual(record.intent_task_kind, "place_lookup")
+        self.assertEqual(record.intent_launch_state, "closed")
+        self.assertEqual(record.intent_next_action, "out_of_scope")
+        self.assertEqual(record.intent_scope_class, "out_of_scope")
+        self.assertEqual(record.intent_scope_reason, "navigation_temporarily_unsupported")
+        self.assertEqual(record.intent_policy_reason, "navigation_temporarily_unsupported")
+        self.assertEqual(record.intent_classifier_version, "deterministic-intent-v1")
 
     def test_build_audit_record_marks_clarification_follow_up(self) -> None:
         request = SupervisorRequest(

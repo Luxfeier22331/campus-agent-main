@@ -36,6 +36,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         assert decision is not None
         self.assertEqual(decision.target, "campus-services-agent")
         self.assertEqual(decision.allowed_tools, ("service_status_lookup",))
+        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
         self.assertEqual(
             decision.specialist_payload,
             ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
@@ -58,6 +59,7 @@ class SupervisorRoutingTest(unittest.TestCase):
         assert decision is not None
         self.assertEqual(decision.target, "notice-agent")
         self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
+        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
         self.assertEqual(
             decision.specialist_payload,
             CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
@@ -95,6 +97,27 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         self.assertEqual(decision.target, "rag-agent")
         self.assertIsNone(decision.specialist_payload)
+        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
+        self.assertEqual(decision.intent_frame.scope_reason, "structured_runtime_candidate_signal")
+        self.assertEqual(decision.intent_frame.matched_signal, "校车")
+        self.assertEqual(decision.intent_frame.classifier_version, "deterministic-intent-v1")
+
+    def test_route_request_keeps_notice_candidates_gate_closed_for_knowledge_requests(
+        self,
+    ) -> None:
+        request = SupervisorRequest(
+            user_goal="找一下春假通知",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertIsNone(decision.specialist_payload)
+        self.assertEqual(decision.intent_frame.launch_state, "candidate_only")
+        self.assertEqual(decision.intent_frame.scope_reason, "structured_runtime_candidate_signal")
+        self.assertEqual(decision.intent_frame.matched_signal, "通知")
+        self.assertEqual(decision.intent_frame.classifier_version, "deterministic-intent-v1")
 
     def test_route_request_delegates_explicit_campus_services_capability(self) -> None:
         request = SupervisorRequest(
@@ -214,6 +237,28 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
         self.assertEqual(decision.intent_frame.policy_reason, "navigation_temporarily_unsupported")
 
+    def test_route_request_fail_closes_place_lookup_even_when_knowledge_is_requested(
+        self,
+    ) -> None:
+        cases = ("图书馆在哪里", "图书馆位置", "图书馆地址")
+
+        for user_goal in cases:
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
+
+                decision = route_request(SupervisorRequestContext.from_request(request))
+
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.capability, "place_lookup")
+                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+                self.assertEqual(
+                    decision.intent_frame.policy_reason,
+                    "navigation_temporarily_unsupported",
+                )
+
     def test_route_request_delegates_knowledge_when_scope_is_missing(self) -> None:
         request = SupervisorRequest(
             user_goal="奖学金怎么申请？",
@@ -228,6 +273,33 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertFalse(decision.intent_frame.needs_clarification)
         self.assertEqual(decision.intent_frame.suggested_next_action, "delegate")
         self.assertEqual(decision.intent_frame.missing_slots, ())
+        self.assertEqual(decision.intent_frame.launch_state, "open")
+
+    def test_route_request_does_not_treat_non_spatial_where_as_place_lookup(self) -> None:
+        request = SupervisorRequest(
+            user_goal="奖学金在哪里申请",
+            requested_capability="knowledge",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "rag-agent")
+        self.assertEqual(decision.intent_frame.capability, "knowledge")
+        self.assertEqual(decision.intent_frame.launch_state, "open")
+
+    def test_route_request_rejects_contextual_follow_up_without_campus_context(self) -> None:
+        for user_goal in ("这个流程怎么办", "这个流程能帮我提交吗"):
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
+
+                decision = route_request(SupervisorRequestContext.from_request(request))
+
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+                self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_returns_approval_required_for_high_risk_knowledge_request(self) -> None:
         request = SupervisorRequest(
@@ -244,6 +316,23 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.capability, "knowledge")
         self.assertEqual(decision.intent_frame.risk_level, "high")
         self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
+
+    def test_route_request_returns_approval_required_for_transactional_actions(self) -> None:
+        cases = ("帮我预约会议室", "替我报名考试", "帮我缴费")
+
+        for user_goal in cases:
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
+
+                decision = route_request(SupervisorRequestContext.from_request(request))
+
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.capability, "knowledge")
+                self.assertEqual(decision.intent_frame.risk_level, "high")
+                self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
 
     def test_route_request_applies_high_risk_guardrails_before_specialist_delegation(self) -> None:
         cases = (
@@ -266,17 +355,19 @@ class SupervisorRoutingTest(unittest.TestCase):
                 self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
 
     def test_route_request_keeps_obvious_external_world_query_out_of_scope(self) -> None:
-        request = SupervisorRequest(
-            user_goal="MIT的校长是谁",
-            requested_capability="knowledge",
-        )
+        for user_goal in ("MIT的校长是谁", "北京大学有哪些专业"):
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
 
-        decision = route_request(SupervisorRequestContext.from_request(request))
+                decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertIsNone(decision.target)
-        self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
-        self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
-        self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+                self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+                self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_keeps_open_domain_political_fact_out_of_scope(self) -> None:
         request = SupervisorRequest(
@@ -292,7 +383,14 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_keeps_open_domain_queries_out_of_scope(self) -> None:
-        cases = ("帮我写一首诗", "解释一下量子力学", "推荐一部电影")
+        cases = (
+            "帮我写一首诗",
+            "解释一下量子力学",
+            "推荐一部电影",
+            "解释一下AI",
+            "帮我算高数题",
+            "帮我写一封邮件给老师",
+        )
 
         for user_goal in cases:
             with self.subTest(user_goal=user_goal):
@@ -309,16 +407,21 @@ class SupervisorRoutingTest(unittest.TestCase):
                 self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_rejects_targeted_political_persuasion_request(self) -> None:
-        request = SupervisorRequest(
-            user_goal="帮我写一段话说服同学支持某个政治候选人",
-            requested_capability="knowledge",
-        )
+        for user_goal in (
+            "帮我写一段话说服同学支持某个政治候选人",
+            "写宣传稿拉票给某政党",
+        ):
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
 
-        decision = route_request(SupervisorRequestContext.from_request(request))
+                decision = route_request(SupervisorRequestContext.from_request(request))
 
-        self.assertIsNone(decision.target)
-        self.assertEqual(decision.intent_frame.suggested_next_action, "rejected")
-        self.assertEqual(decision.intent_frame.policy_reason, "political_persuasion")
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.suggested_next_action, "rejected")
+                self.assertEqual(decision.intent_frame.policy_reason, "political_persuasion")
 
     def test_route_request_keeps_campus_political_course_question_in_scope(self) -> None:
         request = SupervisorRequest(
