@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # App API Operator Observability HTTP Contract
 
@@ -991,7 +991,7 @@ list endpoints 额外支持：
 - `summary` 必须是 governance-safe 文本，不回显 raw auth material 或 raw answer
 - 当前已冻结的第一版 contract 事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.
   completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`
-  request.approval_required`、`request.rejected`
+  request.approval_required`、`request.rejected`、`request.cancelled`
 - execution runtime kernel event 可以通过 `app-api` internal ingest 进入同一 audit
   projection；第一版只允许 `execution.admission_rejected`、`execution.cancel_requested`、
   `execution.cancelled`、`execution.bridge_failed`、`execution.timed_out`

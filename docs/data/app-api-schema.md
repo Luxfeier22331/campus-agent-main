@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # App API Schema
 
@@ -279,6 +279,7 @@ updated: 2026-04-24
 - `error`
 - `approval_required`
 - `rejected`
+- `cancelled`
 
 规则：
 
@@ -310,6 +311,8 @@ updated: 2026-04-24
   - app-api precheck reject，例如 future `Phase I` throttle 命中后的
     `error_code=rate_limit_exceeded`
 - 因此 `rate_limit_exceeded` 不新增新的 request status；它固定表现为 `status=rejected`
+- `cancelled` 表示 execution 已接受 explicit cancel 或 upstream cancel 并停止等待；它不是
+  semantic answer failure
 
 ## `runtime.projection_outbox`
 
@@ -343,6 +346,7 @@ updated: 2026-04-24
 - `request.error`
 - `request.approval_required`
 - `request.rejected`
+- `request.cancelled`
 - `execution.admission_rejected`
 - `execution.cancel_requested`
 - `execution.cancelled`
