@@ -162,7 +162,7 @@ def _get_result_from_dict(
         source_family=_string(body.get("source_family")) or fallback_source_family,
         source_url=_string(body.get("source_url")),
         canonical_url=_string(body.get("canonical_url")),
-        normalized_body=_string(body.get("normalized_body")),
+        normalized_body=_body_string(body.get("normalized_body")),
         published_at=_string(body.get("published_at")),
         effective_at=_string(body.get("effective_at")),
         attachment_refs=_string_tuple(body.get("attachment_refs")),
@@ -202,6 +202,10 @@ def _list(value: object) -> list[object]:
 
 def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _body_string(value: object) -> str:
+    return value if isinstance(value, str) else ""
 
 
 def _string_tuple(value: object) -> tuple[str, ...]:

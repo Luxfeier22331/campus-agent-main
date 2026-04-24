@@ -186,7 +186,7 @@ class NoticeAgentTest(unittest.TestCase):
                 "source_family": "internal_notice_restricted",
                 "source_url": "https://portal.example.edu/notices/355222",
                 "canonical_url": "https://portal.example.edu/notices/355222",
-                "normalized_body": "# 采购公告\n\n供应商应按要求投标。",
+                "normalized_body": "# 采购公告\n\n供应商应按要求投标。\n",
                 "published_at": "2026-04-12",
                 "effective_at": "2026-04-12",
                 "attachment_refs": ["attachment:355222:1"],
@@ -216,7 +216,7 @@ class NoticeAgentTest(unittest.TestCase):
         )
         self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
         self.assertEqual(result.outcome, "resolved_current")
-        self.assertIn("供应商应按要求投标", result.normalized_body)
+        self.assertEqual(result.normalized_body, "# 采购公告\n\n供应商应按要求投标。\n")
         self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
 
 

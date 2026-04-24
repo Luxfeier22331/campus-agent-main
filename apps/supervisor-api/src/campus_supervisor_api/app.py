@@ -5,8 +5,8 @@ from dataclasses import asdict, dataclass, field, replace
 from functools import partial
 
 import httpx
-from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
+from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
 from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
