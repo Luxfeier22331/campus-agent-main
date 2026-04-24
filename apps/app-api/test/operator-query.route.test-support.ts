@@ -79,6 +79,7 @@ export function createOperatorQueryServiceMock(
 		getCostSummary: vi.fn(),
 		getCostTimeseries: vi.fn(),
 		listQualityBadcases: vi.fn(),
+		listQualityEvalCandidates: vi.fn(),
 		listAudit: vi.fn(),
 		list: vi.fn(),
 		...overrides,

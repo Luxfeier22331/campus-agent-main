@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-03
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 # App API Operator Observability HTTP Contract
 
@@ -132,6 +132,7 @@ list endpoints 额外支持：
 - `GET /api/operator/quality/summary`
 - `GET /api/operator/quality/timeseries`
 - `GET /api/operator/quality/badcases`
+- `GET /api/operator/quality/eval-candidates`
 
 ### Safety/Authz
 
@@ -438,6 +439,69 @@ list endpoints 额外支持：
     "issueLink": null,
     "issueFingerprint": null
   },
+  "replay": {
+    "context": {
+      "principalType": "student",
+      "entitlementSnapshotId": "ent_01HQ",
+      "entitlementGroups": ["students"],
+      "visibilityScope": "main",
+      "applicabilityScope": "undergraduate",
+      "policyProjectionVersion": "phase1-authorization-projection-v1"
+    },
+    "routing": {
+      "requestedCapability": "knowledge",
+      "requestedScope": null,
+      "resolvedScope": {
+        "corpus": "curriculum",
+        "collection": "curriculum_plan"
+      },
+      "selectedTarget": "rag-agent"
+    },
+    "execution": {
+      "status": "completed",
+      "errorCode": null,
+      "semanticOutcome": null,
+      "refusalClass": null,
+      "scopeClass": null,
+      "failClosed": false
+    },
+    "retrieval": {
+      "retrievalAttempted": true,
+      "candidateCount": 18,
+      "retrievedSourceCount": 4,
+      "emptyRecall": false,
+      "adequacyVerdict": "sufficient",
+      "adequacyReason": "sufficient",
+      "plan": {
+        "planId": "curriculum:curriculum_plan:current",
+        "queryMode": "current",
+        "replanCount": 0,
+        "terminalState": "completed",
+        "stepActivities": []
+      },
+      "sourceTraceCounts": {
+        "retrieved": 1,
+        "supporting": 1
+      }
+    },
+    "answerQuality": {
+      "citationExpected": true,
+      "citationCount": 2,
+      "citationMissing": false,
+      "claimSupportSummary": null,
+      "groundingVerdict": null,
+      "groundingDowngraded": null,
+      "freshnessFailClosed": null,
+      "policyReason": null
+    },
+    "prompt": {
+      "id": "rag_answer_v1",
+      "version": "v1",
+      "templateSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "runtimeState": null,
+      "runtimeDetail": null
+    }
+  },
   "auditSummary": {
     "auditEventCount": 5,
     "latestTerminalCode": "completed"
@@ -482,6 +546,12 @@ list endpoints 额外支持：
   prompt
 - token / model 字段必须来自 execution-side typed telemetry seam，不从 sink query 反推
 - `links.*` 必须来自 app-owned backlink projection，而不是 route-time sink query
+- `replay` 是 operator-safe answer replay view，只重组 request projection、request
+  observability fact、audit summary 与 trace backlink 中已有的 typed summary；它不是第二套 truth
+- `replay.context` 只返回 principal / entitlement / policy projection 的安全摘要，不返回 raw
+  JWT、cookie 或 memory 原文
+- `replay.retrieval.sourceTraceCounts` 只给出 replay drill-down 的计数线索；需要具体 source identity
+  时继续读取 `observability.sourceTrace.*`
 
 ## Quality Endpoints
 
@@ -637,11 +707,70 @@ list endpoints 额外支持：
 - 当前已冻结的第一版 contract 只支持 `status` / `causeClass` / `detectedBy` 过滤，不按 sink
   backlink 或 grader 结果过滤
 - 当前已冻结的第一版 contract 中，`detectedBy` 固定来自 `runtime_monitor`
-- 当前已冻结的第一版 contract 中，`causeClass` 仅已落地 `citation_missing`、`empty_recall`
+- 当前已冻结的第一版 contract 中，`causeClass` 已落地
+  `citation_missing`、`empty_recall`、`grounding_failed`、
+  `unsupported_by_evidence`、`policy_failed`、`authz_suspected` 与
+  `freshness_fail_close`
 - 当前已冻结的第一版 contract 中，`grade` 与 `links` 允许全部为 `null`
 - forward contract 上，`grade` 的上游固定为
   `operator.quality_grade_projection`，`links.*` 的上游固定为
   `operator.trace_backlink_projection`
+
+### `GET /api/operator/quality/eval-candidates`
+
+查询参数与 `quality/badcases` 相同：
+
+- `limit`
+- `cursor`
+- `status`
+- `causeClass`
+- `detectedBy`
+
+响应：
+
+```json
+{
+  "candidates": [
+    {
+      "candidateId": "eval_candidate:req_01HQ:unsupported_by_evidence",
+      "requestId": "req_01HQ",
+      "traceId": "trace_01HQ",
+      "surface": "public_chat_web",
+      "selectedTarget": "rag-agent",
+      "causeClass": "unsupported_by_evidence",
+      "summary": "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+      "grade": {
+        "result": "fail",
+        "score": 0.25,
+        "graderVersion": "grader@2026-04-03"
+      },
+      "links": {
+        "traceLink": "https://sentry.example/organizations/campus/traces/trace_01HQ",
+        "issueLink": null,
+        "issueFingerprint": "unsupported-by-evidence"
+      },
+      "intake": {
+        "source": "operator_badcase",
+        "status": "pending_review",
+        "suggestedEvalFamily": "grounding",
+        "createdAt": "2026-04-03T00:10:00.000Z"
+      }
+    }
+  ],
+  "page": {
+    "nextCursor": null
+  }
+}
+```
+
+规则：
+
+- 这是 app-api-owned badcase-to-eval intake export seam，不是 eval golden set
+  admission API
+- `candidateId` 稳定派生自 `badcaseId`，便于后续 eval tooling 做幂等 intake
+- `suggestedEvalFamily` 只表达 app-api 基于 `causeClass` 的初始归类；eval review / golden set
+  admission 仍由 eval layer 决定
+- endpoint 不写入 eval truth，不生成 benchmark artifact，不创建 fix task
 
 ## Safety/Authz Endpoints
 

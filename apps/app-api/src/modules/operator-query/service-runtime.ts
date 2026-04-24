@@ -11,6 +11,7 @@ import {
 } from "./service-normalization";
 import type {
 	NormalizedOperatorOverviewFilters,
+	OperatorQualityBadcaseListResult,
 	OperatorQueryService,
 	OperatorQueryServiceDependencies,
 } from "./service-types";
@@ -39,6 +40,58 @@ function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 			status: 403,
 		});
 	}
+}
+
+function inferSuggestedEvalFamily(
+	causeClass: string,
+): "citation" | "grounding" | "policy" | "unknown" {
+	if (causeClass.includes("citation")) {
+		return "citation";
+	}
+	if (
+		causeClass.includes("policy") ||
+		causeClass.includes("acl") ||
+		causeClass.includes("authz") ||
+		causeClass.includes("access") ||
+		causeClass.includes("restricted") ||
+		causeClass.includes("approval")
+	) {
+		return "policy";
+	}
+	if (
+		causeClass.includes("ground") ||
+		causeClass.includes("recall") ||
+		causeClass.includes("retrieval") ||
+		causeClass.includes("evidence") ||
+		causeClass.includes("freshness")
+	) {
+		return "grounding";
+	}
+
+	return "unknown";
+}
+
+function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
+	return {
+		candidates: badcases.badcases.map((badcase) => ({
+			candidateId: `eval_candidate:${badcase.badcaseId}`,
+			causeClass: badcase.causeClass,
+			grade: badcase.grade,
+			intake: {
+				createdAt: badcase.openedAt,
+				source: "operator_badcase" as const,
+				status: "pending_review" as const,
+				suggestedEvalFamily: inferSuggestedEvalFamily(badcase.causeClass),
+			},
+			links: badcase.links,
+			requestId: badcase.requestId,
+			selectedTarget: badcase.selectedTarget,
+			summary: badcase.summary,
+			surface: badcase.surface,
+			traceId: badcase.traceId,
+		})),
+		page: badcases.page,
+	};
 }
 
 export function buildOperatorQueryService(
@@ -176,6 +229,14 @@ export function buildOperatorQueryService(
 			return dependencies.store.listQualityBadcases(
 				normalizeQualityBadcaseListFilters(input.filters),
 			);
+		},
+
+		async listQualityEvalCandidates(input) {
+			ensureOperatorPrincipal(input.principal);
+			const badcases = await dependencies.store.listQualityBadcases(
+				normalizeQualityBadcaseListFilters(input.filters),
+			);
+			return toQualityEvalCandidates(badcases);
 		},
 	};
 }

@@ -456,4 +456,102 @@ describe("operator query service aggregate summaries", () => {
 		});
 		expect(result.page.nextCursor).toBe("cursor_01HQ");
 	});
+
+	it("derives eval candidate intake from the operator badcase queue without mutating eval truth", async () => {
+		const store = {
+			getById: vi.fn(),
+			getObservabilityById: vi.fn(),
+			getOverview: vi.fn(),
+			getQualitySummary: vi.fn(),
+			getQualityTimeseries: vi.fn(),
+			getAuditById: vi.fn(),
+			getSafetySummary: vi.fn(),
+			getCostSummary: vi.fn(),
+			listQualityBadcases: vi.fn().mockResolvedValue({
+				badcases: [
+					{
+						badcaseId: "req_01HQ:unsupported_by_evidence",
+						causeClass: "unsupported_by_evidence",
+						detectedBy: "runtime_monitor",
+						grade: {
+							graderVersion: "grader@2026-04-03",
+							result: "fail",
+							score: 0.25,
+						},
+						links: {
+							issueFingerprint: "unsupported-by-evidence",
+							issueLink: "https://sentry.example/issues/456",
+							traceLink: "https://sentry.example/traces/trace_01HQ",
+						},
+						openedAt: "2026-03-28T08:00:10.000Z",
+						requestId: "req_01HQ",
+						selectedTarget: "rag-agent",
+						status: "open",
+						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+						surface: "public_chat_web",
+						traceId: "trace_01HQ",
+					},
+				],
+				page: {
+					nextCursor: null,
+				},
+			}),
+			listAudit: vi.fn(),
+			list: vi.fn(),
+		};
+		const service = buildOperatorQueryService({
+			store: store as never,
+		});
+
+		const result = await service.listQualityEvalCandidates({
+			filters: {
+				causeClass: " unsupported_by_evidence ",
+				cursor: null,
+				detectedBy: " runtime_monitor ",
+				limit: 10,
+				status: " open ",
+			},
+			principal: createOperatorPrincipal(),
+		});
+
+		expect(store.listQualityBadcases).toHaveBeenCalledWith({
+			causeClass: "unsupported_by_evidence",
+			cursor: null,
+			detectedBy: "runtime_monitor",
+			limit: 10,
+			status: "open",
+		});
+		expect(result).toEqual({
+			candidates: [
+				{
+					candidateId: "eval_candidate:req_01HQ:unsupported_by_evidence",
+					causeClass: "unsupported_by_evidence",
+					grade: {
+						graderVersion: "grader@2026-04-03",
+						result: "fail",
+						score: 0.25,
+					},
+					intake: {
+						createdAt: "2026-03-28T08:00:10.000Z",
+						source: "operator_badcase",
+						status: "pending_review",
+						suggestedEvalFamily: "grounding",
+					},
+					links: {
+						issueFingerprint: "unsupported-by-evidence",
+						issueLink: "https://sentry.example/issues/456",
+						traceLink: "https://sentry.example/traces/trace_01HQ",
+					},
+					requestId: "req_01HQ",
+					selectedTarget: "rag-agent",
+					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+					surface: "public_chat_web",
+					traceId: "trace_01HQ",
+				},
+			],
+			page: {
+				nextCursor: null,
+			},
+		});
+	});
 });

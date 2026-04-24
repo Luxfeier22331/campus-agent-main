@@ -156,6 +156,15 @@ trace / issue backlink。
 
 - `.planning/todos/pending/2026-04-24-add-campus-qa-answer-trace-replay.md`
 
+2026-04-24 app-api execution note:
+
+- `GET /api/operator/requests/:requestId/observability` 已补充
+  operator-safe `replay` view，按 context、routing、execution、
+  retrieval、answerQuality 与 prompt 分段重组现有 projection / fact，不新增第二套
+  truth。
+- 该 view 仍不返回 raw prompt、raw answer transcript、raw retrieval snippet、raw
+  auth material 或 vendor payload。
+
 ### APP-003: Badcase / Grade / Eval Candidate Backflow
 
 当前已有 badcase queue 与 sampled grade projection，但第一版 schema 仍偏
@@ -175,6 +184,16 @@ runtime monitor / sampled grading。后续需要 app-owned seam 支撑：
 后续任务：
 
 - `.planning/todos/pending/2026-04-24-close-product-feedback-eval-harness-loop.md`
+
+2026-04-24 app-api execution note:
+
+- `operator.quality_badcase_projection` 的 runtime monitor 分类已从
+  `citation_missing` / `empty_recall` 扩展到 grounding、unsupported evidence、
+  policy、authz 与 freshness fail-close 归因。
+- `GET /api/operator/quality/eval-candidates` 已提供只读导出 seam，把 badcase、
+  sampled grade 与 trace backlink 组合成 app-safe eval candidate intake。
+- candidate review、golden set admission、release gate 与 fix task creation 仍属于
+  eval / 后续 harness 层，不由 `app-api` 写入。
 
 ### APP-004: Memory And Restricted Authz Projection
 

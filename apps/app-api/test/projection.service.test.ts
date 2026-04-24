@@ -380,6 +380,99 @@ describe("request projection projector", () => {
 		});
 	});
 
+	it("classifies answer-quality badcases from app-owned diagnostics and observability summaries", async () => {
+		const store: RequestProjectionProjectorStore = {
+			getRequestExecution: vi.fn().mockResolvedValue(
+				createExecutionSource({
+					aclAnomalyCode: "fail_open_suspicion",
+					citationExpected: true,
+					citationMissing: true,
+					diagnostics: {
+						claimSupportSummary: {
+							supportedClaims: 1,
+							totalClaims: 3,
+							unsupportedClaimTypes: ["offering_unit"],
+							unsupportedClaims: 2,
+							unsupportedFields: ["offering_unit_claims"],
+						},
+						clarificationReason: null,
+						freshnessFailClosed: true,
+						groundingDowngraded: true,
+						groundingVerdict: "failed",
+						noAnswerReason: null,
+						policyReason: "provider_content_filter",
+						remoteContentSuspicionSummary: null,
+						resolvedEntityType: null,
+						resolvedPolicyDocumentId: null,
+						resolvedPolicyTitle: null,
+						resolvedProgramFamilyTitle: null,
+						retrievalAdequacyReason: "insufficient supporting evidence",
+						retrievalAdequacyVerdict: "insufficient",
+						retrievalPlanSummary: null,
+						retrievedTitleSummary: ["本科人才培养方案"],
+						rewrittenQuery: null,
+						scopeClass: null,
+						semanticOutcome: "unsupported_by_evidence",
+						sessionProgram: null,
+						sessionProgramFamily: null,
+						sessionSemester: null,
+						sourceTrustSummary: {
+							answerBearingTiers: ["restricted_reference"],
+							authorizationClaimBlocked: true,
+							blockedClaimTypes: ["authorization_sensitive"],
+							freshnessClaimBlocked: true,
+							observedTiers: ["restricted_reference"],
+						},
+						unsupportedFields: ["offering_unit_claims"],
+					},
+					emptyRecall: true,
+					failClosed: true,
+					retrievalAttempted: true,
+					status: "no_answer",
+				}),
+			),
+			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
+			markEventFailed: vi.fn(),
+			markEventProcessed: vi.fn(),
+			markObservabilityProjected: vi.fn(),
+			replaceQualityBadcases: vi.fn(),
+			replaceQualityRollups: vi.fn(),
+			upsertAuditProjection: vi.fn(),
+			upsertProjection: vi.fn(),
+		};
+		const projector = buildRequestProjectionProjector({
+			now: () => new Date("2026-03-28T08:00:03.000Z"),
+			store,
+		});
+
+		await projector.drain();
+
+		const call = vi.mocked(store.replaceQualityBadcases).mock.calls[0]?.[0];
+		expect(call?.requestId).toBe("req_01HQ");
+		expect(call?.badcases.map((badcase) => badcase.causeClass).sort()).toEqual([
+			"authz_suspected",
+			"citation_missing",
+			"empty_recall",
+			"freshness_fail_close",
+			"grounding_failed",
+			"policy_failed",
+			"unsupported_by_evidence",
+		]);
+		expect(call?.badcases).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					badcaseId: "req_01HQ:unsupported_by_evidence",
+					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+					traceId: "trace_01HQ",
+				}),
+				expect.objectContaining({
+					badcaseId: "req_01HQ:authz_suspected",
+					summary: "authorization / ACL 观测存在异常或敏感声明被阻断",
+				}),
+			]),
+		);
+	});
+
 	it("records a retryable projector failure when request_execution is missing", async () => {
 		const store: RequestProjectionProjectorStore = {
 			getRequestExecution: vi.fn().mockResolvedValue(null),

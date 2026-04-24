@@ -123,6 +123,24 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 				(retrievalAttempted === true || retrievedSources.length > 0
 					? retrievedSources.length
 					: null);
+			const diagnostics = projection.diagnosticsJson ?? null;
+			const prompt = {
+				id: fact?.promptId ?? null,
+				runtimeDetail: fact?.promptRuntimeDetail ?? null,
+				runtimeState: fact?.promptRuntimeState ?? null,
+				templateSha256: fact?.templateSha256 ?? null,
+				version: fact?.promptVersion ?? null,
+			};
+			const claimSupportSummary =
+				fact?.claimSupportSummaryJson ?? diagnostics?.claimSupportSummary ?? null;
+			const retrievalAdequacyReason =
+				fact?.retrievalAdequacyReason ?? diagnostics?.retrievalAdequacyReason ?? null;
+			const retrievalAdequacyVerdict =
+				fact?.retrievalAdequacyVerdict ?? diagnostics?.retrievalAdequacyVerdict ?? null;
+			const retrievalPlan = diagnostics?.retrievalPlanSummary ?? null;
+			const semanticOutcome = fact?.semanticOutcome ?? diagnostics?.semanticOutcome ?? null;
+			const scopeClass = fact?.scopeClass ?? diagnostics?.scopeClass ?? null;
+			const policyReason = fact?.policyReason ?? diagnostics?.policyReason ?? null;
 
 			return {
 				auditSummary: {
@@ -136,7 +154,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					aclDecision: fact?.aclDecision ?? null,
 					cachedInputTokens: fact?.cachedInputTokens ?? null,
 					candidateCount: fact?.candidateCount ?? null,
-					claimSupportSummary: fact?.claimSupportSummaryJson ?? null,
+					claimSupportSummary,
 					remoteContentSuspicionSummary: fact?.remoteContentSuspicionSummaryJson ?? null,
 					sourceTrustSummary: fact?.sourceTrustSummaryJson ?? null,
 					citationCount: fact?.citationCount ?? supportingSources.length,
@@ -159,20 +177,14 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 						name: fact?.modelName ?? null,
 						provider: fact?.modelProvider ?? null,
 					},
-					prompt: {
-						id: fact?.promptId ?? null,
-						runtimeDetail: fact?.promptRuntimeDetail ?? null,
-						runtimeState: fact?.promptRuntimeState ?? null,
-						templateSha256: fact?.templateSha256 ?? null,
-						version: fact?.promptVersion ?? null,
-					},
+					prompt,
 					outputTokens: fact?.outputTokens ?? null,
 					projectionLagMs: fact?.projectionLagMs ?? null,
 					refusalClass: fact?.refusalClass ?? null,
 					retrievedSourceCount,
-					retrievalAdequacyReason: fact?.retrievalAdequacyReason ?? null,
-					retrievalAdequacyVerdict: fact?.retrievalAdequacyVerdict ?? null,
-					retrievalPlan: projection.diagnosticsJson?.retrievalPlanSummary ?? null,
+					retrievalAdequacyReason,
+					retrievalAdequacyVerdict,
+					retrievalPlan,
 					retrievalAttempted,
 					traceAvailable: fact?.traceAvailable ?? Boolean(projection.traceId),
 					...(fact?.versionQueryMode || fact?.versionQuerySummary
@@ -181,6 +193,56 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 								versionQuerySummary: fact?.versionQuerySummary ?? null,
 							}
 						: {}),
+				},
+				replay: {
+					answerQuality: {
+						citationCount: fact?.citationCount ?? supportingSources.length,
+						citationExpected: fact?.citationExpected ?? null,
+						citationMissing: fact?.citationMissing ?? null,
+						claimSupportSummary,
+						freshnessFailClosed: diagnostics?.freshnessFailClosed ?? null,
+						groundingDowngraded: diagnostics?.groundingDowngraded ?? null,
+						groundingVerdict: diagnostics?.groundingVerdict ?? null,
+						policyReason,
+					},
+					context: {
+						applicabilityScope: projection.applicabilityScope ?? null,
+						entitlementGroups: projection.entitlementGroupsJson ?? [],
+						entitlementSnapshotId:
+							fact?.entitlementSnapshotId ?? projection.entitlementSnapshotId ?? null,
+						policyProjectionVersion: fact?.policyProjectionVersion ?? null,
+						principalType: projection.principalType,
+						visibilityScope: projection.visibilityScope ?? null,
+					},
+					execution: {
+						errorCode: projection.errorCode ?? fact?.errorCode ?? null,
+						failClosed: fact?.failClosed ?? null,
+						refusalClass: fact?.refusalClass ?? null,
+						scopeClass,
+						semanticOutcome,
+						status:
+							projection.status as OperatorRequestObservabilityRecord["replay"]["execution"]["status"],
+					},
+					prompt,
+					retrieval: {
+						adequacyReason: retrievalAdequacyReason,
+						adequacyVerdict: retrievalAdequacyVerdict,
+						candidateCount: fact?.candidateCount ?? null,
+						emptyRecall: fact?.emptyRecall ?? null,
+						plan: retrievalPlan,
+						retrievalAttempted,
+						retrievedSourceCount,
+						sourceTraceCounts: {
+							retrieved: retrievedSources.length,
+							supporting: supportingSources.length,
+						},
+					},
+					routing: {
+						requestedCapability: projection.requestedCapability ?? null,
+						requestedScope: projection.requestedScopeJson ?? null,
+						resolvedScope: projection.resolvedScopeJson ?? null,
+						selectedTarget: projection.selectedTarget ?? null,
+					},
 				},
 				request: {
 					completedAt: toIsoString(projection.completedAt),

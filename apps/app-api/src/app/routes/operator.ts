@@ -103,6 +103,32 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/quality/eval-candidates", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listQualityEvalCandidates({
+				filters: {
+					causeClass: c.req.query("causeClass") ?? null,
+					cursor: c.req.query("cursor") ?? null,
+					detectedBy: c.req.query("detectedBy") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					status: c.req.query("status") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
 	input.app.get("/api/operator/safety/summary", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

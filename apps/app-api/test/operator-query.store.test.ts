@@ -121,6 +121,190 @@ describe("pg operator query store", () => {
 		});
 	});
 
+	it("returns replay-safe observability sections without raw prompt or raw evidence text", async () => {
+		const claimSupportSummary = {
+			supportedClaims: 1,
+			totalClaims: 2,
+			unsupportedClaimTypes: ["offering_unit"],
+			unsupportedClaims: 1,
+			unsupportedFields: ["offering_unit_claims"],
+		};
+		const retrievalPlanSummary = {
+			planId: "curriculum:curriculum_plan:current",
+			queryMode: "current",
+			replanCount: 0,
+			terminalState: "completed",
+			stepActivities: [
+				{
+					candidateCount: 4,
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+					failureKind: null,
+					latencyMs: 18,
+					referenceCount: 4,
+					status: "succeeded",
+					stepId: "indexed-lookup",
+					stepType: "indexed_lookup",
+					topK: 8,
+				},
+			],
+		};
+		const responses = [
+			[
+				{
+					requestId: "req_replay_01HQ",
+					traceId: "trace_replay_01HQ",
+					conversationId: "conv_replay_01HQ",
+					surface: "public_chat_web",
+					principalType: "student",
+					entitlementSnapshotId: "entitlements-2026-03-29",
+					entitlementGroupsJson: ["students"],
+					visibilityScope: "main",
+					applicabilityScope: "undergraduate",
+					status: "no_answer",
+					errorCode: null,
+					requestedCapability: "knowledge",
+					requestedScopeJson: {
+						corpus: "curriculum",
+						collection: "curriculum_plan",
+					},
+					resolvedScopeJson: {
+						corpus: "curriculum",
+						collection: "curriculum_plan",
+					},
+					selectedTarget: "rag-agent",
+					startedAt: new Date("2026-03-28T08:00:00.000Z"),
+					completedAt: new Date("2026-03-28T08:00:01.000Z"),
+					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
+					durationMs: 842,
+					diagnosticsJson: {
+						claimSupportSummary,
+						freshnessFailClosed: true,
+						groundingDowngraded: true,
+						groundingVerdict: "failed",
+						policyReason: "provider_content_filter",
+						retrievalAdequacyReason: "insufficient supporting evidence",
+						retrievalAdequacyVerdict: "insufficient",
+						retrievalPlanSummary,
+						scopeClass: "collection_scope",
+						semanticOutcome: "unsupported_by_evidence",
+					},
+				},
+			],
+			[
+				{
+					requestId: "req_replay_01HQ",
+					aclDecision: "allowed",
+					aclAnomalyCode: "fail_open_suspicion",
+					candidateCount: 4,
+					citationCount: 0,
+					citationExpected: true,
+					citationMissing: true,
+					claimSupportSummaryJson: claimSupportSummary,
+					emptyRecall: false,
+					failClosed: true,
+					measuredAt: new Date("2026-03-28T08:00:03.000Z"),
+					modelName: "gpt-5.2-mini",
+					modelProvider: "openai",
+					policyProjectionVersion: "phase1-authorization-projection-v1",
+					policyReason: "provider_content_filter",
+					promptId: "rag_answer_v1",
+					promptRuntimeDetail: null,
+					promptRuntimeState: "content_filter",
+					promptVersion: "v1",
+					retrievalAdequacyReason: "insufficient supporting evidence",
+					retrievalAdequacyVerdict: "insufficient",
+					retrievalAttempted: true,
+					retrievedSourceCount: 2,
+					retrievedSourcesJson: [],
+					scopeClass: "collection_scope",
+					semanticOutcome: "unsupported_by_evidence",
+					supportingSourcesJson: [],
+					templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+					traceAvailable: true,
+				},
+			],
+			[],
+			[],
+		];
+		const limit = vi.fn().mockImplementation(async () => responses.shift() ?? []);
+		const orderBy = vi.fn().mockImplementation(async () => responses.shift() ?? []);
+		const where = vi.fn(() => ({ limit, orderBy }));
+		const from = vi.fn(() => ({ where }));
+		const select = vi.fn(() => ({ from }));
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgOperatorQueryStore({} as never, {
+			now: () => new Date("2026-03-28T09:00:00.000Z"),
+		});
+
+		const result = await store.getObservabilityById("req_replay_01HQ");
+
+		expect(result?.replay).toEqual({
+			answerQuality: {
+				citationCount: 0,
+				citationExpected: true,
+				citationMissing: true,
+				claimSupportSummary,
+				freshnessFailClosed: true,
+				groundingDowngraded: true,
+				groundingVerdict: "failed",
+				policyReason: "provider_content_filter",
+			},
+			context: {
+				applicabilityScope: "undergraduate",
+				entitlementGroups: ["students"],
+				entitlementSnapshotId: "entitlements-2026-03-29",
+				policyProjectionVersion: "phase1-authorization-projection-v1",
+				principalType: "student",
+				visibilityScope: "main",
+			},
+			execution: {
+				errorCode: null,
+				failClosed: true,
+				refusalClass: null,
+				scopeClass: "collection_scope",
+				semanticOutcome: "unsupported_by_evidence",
+				status: "no_answer",
+			},
+			prompt: {
+				id: "rag_answer_v1",
+				runtimeDetail: null,
+				runtimeState: "content_filter",
+				templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				version: "v1",
+			},
+			retrieval: {
+				adequacyReason: "insufficient supporting evidence",
+				adequacyVerdict: "insufficient",
+				candidateCount: 4,
+				emptyRecall: false,
+				plan: retrievalPlanSummary,
+				retrievalAttempted: true,
+				retrievedSourceCount: 2,
+				sourceTraceCounts: {
+					retrieved: 0,
+					supporting: 0,
+				},
+			},
+			routing: {
+				requestedCapability: "knowledge",
+				requestedScope: {
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+				},
+				resolvedScope: {
+					collection: "curriculum_plan",
+					corpus: "curriculum",
+				},
+				selectedTarget: "rag-agent",
+			},
+		});
+	});
+
 	it("returns raw versionQuery on request detail and safe version summary on observability detail", async () => {
 		const responses = [
 			[

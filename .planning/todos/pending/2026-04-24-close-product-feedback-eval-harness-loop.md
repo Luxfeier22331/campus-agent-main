@@ -37,3 +37,14 @@ slice；eval candidate review 与 golden set admission 保留为后续 backlog�
    tracked planning truth。
 4. 为一次真实 badcase 跑通：operator mark -> eval candidate -> regression
    command -> fix task。
+
+## 2026-04-24 App-API Execution Progress
+
+- `operator.quality_badcase_projection` 的 runtime monitor 分类已覆盖
+  `citation_missing`、`empty_recall`、`grounding_failed`、
+  `unsupported_by_evidence`、`policy_failed`、`authz_suspected` 与
+  `freshness_fail_close`。
+- `GET /api/operator/quality/eval-candidates` 已提供只读导出 seam，稳定派生
+  `candidateId` 并给出 `suggestedEvalFamily`。
+- 本次没有让 `app-api` 写入 golden dataset、release gate 或 fix task；这些仍属于
+  eval / QA harness 后续层。

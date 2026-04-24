@@ -193,6 +193,60 @@ export interface OperatorRequestObservabilityRecord {
 		issueLink: string | null;
 		issueFingerprint: string | null;
 	};
+	replay: {
+		context: {
+			principalType: string;
+			entitlementSnapshotId: string | null;
+			entitlementGroups: string[];
+			visibilityScope: string | null;
+			applicabilityScope: string | null;
+			policyProjectionVersion: string | null;
+		};
+		routing: {
+			requestedCapability: string | null;
+			requestedScope: Record<string, unknown> | null;
+			resolvedScope: Record<string, unknown> | null;
+			selectedTarget: string | null;
+		};
+		execution: {
+			status: RequestExecutionStatus;
+			errorCode: string | null;
+			semanticOutcome: string | null;
+			refusalClass: string | null;
+			scopeClass: string | null;
+			failClosed: boolean | null;
+		};
+		retrieval: {
+			retrievalAttempted: boolean | null;
+			candidateCount: number | null;
+			retrievedSourceCount: number | null;
+			emptyRecall: boolean | null;
+			adequacyVerdict: string | null;
+			adequacyReason: string | null;
+			plan?: RequestRetrievalPlanSummary | null;
+			sourceTraceCounts: {
+				retrieved: number;
+				supporting: number;
+			};
+		};
+		answerQuality: {
+			citationExpected: boolean | null;
+			citationCount: number | null;
+			citationMissing: boolean | null;
+			claimSupportSummary: RequestClaimSupportSummary | null;
+			groundingVerdict: string | null;
+			groundingDowngraded: boolean | null;
+			freshnessFailClosed: boolean | null;
+			policyReason: string | null;
+		};
+		prompt: {
+			id: string | null;
+			version: string | null;
+			templateSha256: string | null;
+			runtimeState: string | null;
+			runtimeDetail: string | null;
+		};
+	};
 	auditSummary: {
 		auditEventCount: number;
 		latestTerminalCode: string | null;
@@ -361,6 +415,37 @@ export interface OperatorQualityBadcaseListResult {
 			traceLink: string | null;
 			issueLink: string | null;
 			issueFingerprint: string | null;
+		};
+	}>;
+	page: {
+		nextCursor: string | null;
+	};
+}
+
+export interface OperatorQualityEvalCandidateListResult {
+	candidates: Array<{
+		candidateId: string;
+		requestId: string;
+		traceId: string;
+		surface: string;
+		selectedTarget: string | null;
+		causeClass: string;
+		summary: string;
+		grade: {
+			result: string;
+			score: number | null;
+			graderVersion: string;
+		} | null;
+		links: {
+			traceLink: string | null;
+			issueLink: string | null;
+			issueFingerprint: string | null;
+		};
+		intake: {
+			source: "operator_badcase";
+			status: "pending_review";
+			suggestedEvalFamily: "citation" | "grounding" | "policy" | "unknown";
+			createdAt: string;
 		};
 	}>;
 	page: {
@@ -551,6 +636,10 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorQualityBadcaseListFilters;
 	}): Promise<OperatorQualityBadcaseListResult>;
+	listQualityEvalCandidates(input: {
+		principal: ResolvedAppPrincipal;
+		filters: OperatorQualityBadcaseListFilters;
+	}): Promise<OperatorQualityEvalCandidateListResult>;
 }
 
 export interface OperatorQueryServiceDependencies {

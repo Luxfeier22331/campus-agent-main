@@ -35,3 +35,12 @@ prompt 层补个性化文案：
 3. 给 restricted rollout 增加 allow/deny leakage cases，覆盖 memory 不提权。
 4. 在 `app-api` request projection 中记录 memory participation summary，
    但不把敏感 memory 原文暴露给 public response。
+
+## 2026-04-24 App-API Execution Progress
+
+- request observability `replay.context` 已返回 principal type、entitlement snapshot、
+  entitlement groups、visibility / applicability scope 与 policy projection version，
+  作为 restricted authz 的 operator-safe replay 摘要。
+- `profileMemory.items` 仍未扩展：当前仓库还没有冻结 profile memory 的 app-owned
+  source、写入语义、过期策略与可见性规则，不能用 actor claims 或 prompt 文案冒充
+  profile memory truth。

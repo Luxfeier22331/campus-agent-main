@@ -18,6 +18,7 @@ export type {
 	OperatorOverviewWindow,
 	OperatorQualityBadcaseListFilters,
 	OperatorQualityBadcaseListResult,
+	OperatorQualityEvalCandidateListResult,
 	OperatorQualitySummaryResult,
 	OperatorQualityTimeseriesResult,
 	OperatorQueryListResult,

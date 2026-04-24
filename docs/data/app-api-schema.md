@@ -626,10 +626,18 @@ updated: 2026-04-19
 - 这是 app-owned curated queue，不是 grader 原始输出表，也不是 sink issue 列表
 - 当前已冻结的第一版 schema 仅由 runtime monitor 生成 badcase，`detected_by` 固定为
   `runtime_monitor`
-- 当前已冻结的第一版 schema 仅开放 `citation_missing` 与 `empty_recall` 两类 `cause_class`
+- 当前已冻结的第一版 schema 已开放以下 app-owned runtime monitor
+  `cause_class`：
+  `citation_missing`、`empty_recall`、`grounding_failed`、
+  `unsupported_by_evidence`、`policy_failed`、`authz_suspected` 与
+  `freshness_fail_close`
 - `badcase_id` 采用 request-scoped stable id，保证 projector 重放时幂等替换
 - `grade_json` 为 sampled grading / 人工复核的后续回流保留；当前已冻结的第一版 schema 允许为 `null`
 - `summary` 必须是 panel-safe 安全摘要，不得回放 raw prompt、raw answer、raw retrieval payload
+- `GET /api/operator/quality/eval-candidates` 不新增独立表；它从
+  `operator.quality_badcase_projection`、`operator.quality_grade_projection` 与
+  `operator.trace_backlink_projection` 派生 operator-safe eval candidate intake，
+  不写入 eval golden truth
 
 ## `operator.quality_grade_projection`
 

@@ -37,3 +37,12 @@ prompt / 敏感 memory / restricted evidence 的前提下推进：
 
 非 app-api 的 route / handoff / retrieval diagnostic 生成逻辑只记录为后续
 backlog；本任务先确认 app-api 如何接收、归一化、持久化和投影 typed summary。
+
+## 2026-04-24 App-API Execution Progress
+
+- `GET /api/operator/requests/:requestId/observability` 已新增 `replay` 分段：
+  context、routing、execution、retrieval、answerQuality、prompt。
+- `replay` 只重组 operator-safe typed summary，不返回 raw prompt、raw answer、
+  raw transcript、raw retrieved snippet、raw auth material 或 raw vendor payload。
+- supervisor / rag-agent / retrieval 侧更细的 route、handoff 与 retrieval diagnostic
+  生成逻辑仍作为非 app-api 后续任务处理。

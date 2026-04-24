@@ -41,3 +41,13 @@ follow-up。
 4. 核对 future structured runtime / agentic retrieval summary 是否保留
    fail-close、business outcome 与 source family。
 5. 只在发现字段缺口时 admission follow-up，不提前设计 QA harness contract。
+
+## 2026-04-24 App-API Execution Progress
+
+- `apps/app-api` 已补齐 operator-safe answer replay read model，来源仍是
+  request projection、request observability fact、audit summary 与 trace backlink。
+- badcase queue 已补齐 grounding / unsupported evidence / policy / authz /
+  freshness fail-close 的 app-owned runtime monitor 分类。
+- sampled grade 与 trace backlink 已能通过
+  `GET /api/operator/quality/eval-candidates` 导出为 eval candidate intake；eval review
+  与 golden admission 仍保留给 eval layer。

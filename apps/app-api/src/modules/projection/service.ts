@@ -395,18 +395,54 @@ function buildQualityBadcases(input: {
 	projectedAt: string;
 }): QualityBadcaseProjectionMaterialization[] {
 	const badcases: Array<{ causeClass: string; summary: string }> = [];
+	const addBadcase = (causeClass: string, summary: string) => {
+		if (badcases.some((badcase) => badcase.causeClass === causeClass)) {
+			return;
+		}
+		badcases.push({ causeClass, summary });
+	};
+	const diagnostics = input.execution.diagnostics;
 
 	if (input.execution.citationExpected === true && input.execution.citationMissing === true) {
-		badcases.push({
-			causeClass: "citation_missing",
-			summary: "citationExpected=true 但 citationCount=0",
-		});
+		addBadcase("citation_missing", "citationExpected=true 但 citationCount=0");
 	}
 	if (input.execution.retrievalAttempted === true && input.execution.emptyRecall === true) {
-		badcases.push({
-			causeClass: "empty_recall",
-			summary: "retrievalAttempted=true 但 retrievedSourceCount=0",
-		});
+		addBadcase("empty_recall", "retrievalAttempted=true 但 retrievedSourceCount=0");
+	}
+	if (diagnostics?.groundingVerdict === "failed" || diagnostics?.groundingDowngraded === true) {
+		addBadcase("grounding_failed", "groundingVerdict=failed 或 groundingDowngraded=true");
+	}
+	if (
+		diagnostics?.semanticOutcome === "unsupported_by_evidence" ||
+		(diagnostics?.claimSupportSummary?.unsupportedClaims ?? 0) > 0
+	) {
+		addBadcase(
+			"unsupported_by_evidence",
+			"semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+		);
+	}
+	if (
+		diagnostics?.policyReason ||
+		diagnostics?.semanticOutcome === "policy_refusal" ||
+		diagnostics?.remoteContentSuspicionSummary?.generationBlocked === true
+	) {
+		addBadcase("policy_failed", "policyReason / provider guardrail 触发回答失败");
+	}
+	if (
+		input.execution.aclAnomalyCode ||
+		input.execution.aclDecision === "denied" ||
+		input.execution.aclDecision === "approval_required" ||
+		diagnostics?.sourceTrustSummary?.authorizationClaimBlocked === true
+	) {
+		addBadcase("authz_suspected", "authorization / ACL 观测存在异常或敏感声明被阻断");
+	}
+	if (
+		input.execution.failClosed === true &&
+		(diagnostics?.freshnessFailClosed === true ||
+			diagnostics?.semanticOutcome === "freshness_fail_close" ||
+			diagnostics?.sourceTrustSummary?.freshnessClaimBlocked === true)
+	) {
+		addBadcase("freshness_fail_close", "freshness guardrail fail-closed");
 	}
 
 	return badcases.map((badcase) => ({

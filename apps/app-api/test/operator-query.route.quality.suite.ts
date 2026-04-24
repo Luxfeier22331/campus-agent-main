@@ -508,4 +508,109 @@ export function registerOperatorQueryQualitySuite(): void {
 			});
 		});
 	});
+
+	describe("GET /api/operator/quality/eval-candidates", () => {
+		it("returns app-safe eval candidate intake derived from quality badcases", async () => {
+			const service = {
+				getById: vi.fn(),
+				getAuditById: vi.fn(),
+				getObservabilityById: vi.fn(),
+				getOverview: vi.fn(),
+				getQualitySummary: vi.fn(),
+				getQualityTimeseries: vi.fn(),
+				getSafetySummary: vi.fn(),
+				getCostSummary: vi.fn(),
+				listQualityBadcases: vi.fn(),
+				listQualityEvalCandidates: vi.fn().mockResolvedValue({
+					candidates: [
+						{
+							candidateId: "eval_candidate:req_01HQ:unsupported_by_evidence",
+							causeClass: "unsupported_by_evidence",
+							grade: {
+								graderVersion: "grader@2026-04-03",
+								result: "fail",
+								score: 0.25,
+							},
+							intake: {
+								createdAt: "2026-03-28T08:00:10.000Z",
+								source: "operator_badcase",
+								status: "pending_review",
+								suggestedEvalFamily: "grounding",
+							},
+							links: {
+								issueFingerprint: "unsupported-by-evidence",
+								issueLink: "https://sentry.example/issues/456",
+								traceLink: "https://sentry.example/traces/trace_01HQ",
+							},
+							requestId: "req_01HQ",
+							selectedTarget: "rag-agent",
+							summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+							surface: "public_chat_web",
+							traceId: "trace_01HQ",
+						},
+					],
+					page: {
+						nextCursor: null,
+					},
+				}),
+				listAudit: vi.fn(),
+				list: vi.fn(),
+			};
+			const principal = createOperatorPrincipal();
+			const app = createApp(env, {
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+				operatorQueryService: service as unknown as OperatorQueryService,
+			});
+
+			const response = await app.fetch(
+				new Request(
+					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
+				),
+			);
+
+			expect(response.status).toBe(200);
+			await expect(response.json()).resolves.toEqual({
+				candidates: [
+					{
+						candidateId: "eval_candidate:req_01HQ:unsupported_by_evidence",
+						causeClass: "unsupported_by_evidence",
+						grade: {
+							graderVersion: "grader@2026-04-03",
+							result: "fail",
+							score: 0.25,
+						},
+						intake: {
+							createdAt: "2026-03-28T08:00:10.000Z",
+							source: "operator_badcase",
+							status: "pending_review",
+							suggestedEvalFamily: "grounding",
+						},
+						links: {
+							issueFingerprint: "unsupported-by-evidence",
+							issueLink: "https://sentry.example/issues/456",
+							traceLink: "https://sentry.example/traces/trace_01HQ",
+						},
+						requestId: "req_01HQ",
+						selectedTarget: "rag-agent",
+						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
+						surface: "public_chat_web",
+						traceId: "trace_01HQ",
+					},
+				],
+				page: {
+					nextCursor: null,
+				},
+			});
+			expect(service.listQualityEvalCandidates).toHaveBeenCalledWith({
+				filters: {
+					causeClass: "unsupported_by_evidence",
+					cursor: null,
+					detectedBy: "runtime_monitor",
+					limit: null,
+					status: "open",
+				},
+				principal,
+			});
+		});
+	});
 }
