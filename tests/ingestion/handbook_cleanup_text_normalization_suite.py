@@ -263,8 +263,12 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         )
 
         self.assertIn("北京市级优秀本科毕业生从校级优秀本科毕业生中择优产生", normalized)
+        self.assertIn("应届毕业生总人数的 10%,北京市级优秀本科毕业生从", normalized)
+        self.assertIn("应届毕业生总人数的 5%。", normalized)
         self.assertIn("申诉学生本人有要求学生申诉处理委员会相关成员回避的权利", normalized)
         self.assertIn("(三) 分级审定\n拟定名单在全校范围内公示5个工作日。", normalized)
+        self.assertNotIn("$10\\%$", normalized)
+        self.assertNotIn("$5\\%$", normalized)
         self.assertNotIn("从\n校级优秀本科毕业生", normalized)
         self.assertNotIn("有要求\n学生申诉处理委员会", normalized)
         self.assertNotIn("分级审定拟定名单", normalized)
@@ -295,11 +299,29 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             normalized,
         )
         self.assertIn("学生参加勤工助学的工作时间原则上每周不超过10小时", normalized)
-        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。", normalized)
+        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。", normalized)
         self.assertIn("做好对参加勤工助学学生的考勤管理,并组织岗位培训。", normalized)
         self.assertNotIn("按以下程序\n进行评选", normalized)
         self.assertNotIn("工作时间\n原则上每周", normalized)
         self.assertNotIn("做好对参加勤工助学\n学生的考勤管理", normalized)
+        self.assertNotIn("$70\\%$", normalized)
+
+    def test_normalize_handbook_article_body_text_normalizes_inline_math_artifacts(self) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "学院(系)学生干部评选比例不超过参评学生总数的 $3.5\\%$ ;校级学生组织学生干部评选比例不超过参评校级学生干部总数的 $20\\%$ 。",
+                    "个人申请 $\\rightarrow$ 班级推荐 $\\rightarrow$ 学院初审。",
+                ]
+            )
+        )
+
+        self.assertIn("学院(系)学生干部评选比例不超过参评学生总数的 3.5%;", normalized)
+        self.assertIn("参评校级学生干部总数的 20%。", normalized)
+        self.assertIn("个人申请 → 班级推荐 → 学院初审。", normalized)
+        self.assertNotIn("$3.5\\%$", normalized)
+        self.assertNotIn("$20\\%$", normalized)
+        self.assertNotIn("$\\rightarrow$", normalized)
 
     def test_normalize_handbook_article_body_text_splits_glued_short_heading_from_body(
         self,

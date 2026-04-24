@@ -51,8 +51,9 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
 
         cleaned = _clean_handbook_markdown(markdown)
 
-        self.assertIn("1.1-3学年所修课程平均成绩", cleaned)
+        self.assertIn("1.1-3学年所修课程平均成绩在本专业排名前 30%", cleaned)
         self.assertNotIn("1\\.1-3学年", cleaned)
+        self.assertNotIn("$30\\%$", cleaned)
 
     def test_clean_handbook_markdown_preserves_complex_form_table_as_html(self) -> None:
         markdown = "\n".join(
@@ -213,8 +214,31 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
 
         cleaned = _clean_handbook_markdown(markdown)
 
-        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。", cleaned)
-        self.assertNotIn("$70\\%$。。。", cleaned)
+        self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。", cleaned)
+        self.assertNotIn("$70\\%$", cleaned)
+        self.assertNotIn("70%。。。", cleaned)
+
+    def test_clean_handbook_markdown_normalizes_inline_math_artifacts(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学本科学生专项奖学金评定办法'",
+                "---",
+                "",
+                "学院(系)学生干部评选比例不超过参评学生总数的 $3.5\\%$ ;校级学生组织学生干部评选比例不超过参评校级学生干部总数的 $20\\%$ 。",
+                "个人申请 $\\rightarrow$ 班级或学生组织评比推荐 $\\rightarrow$ 学院(系)初审。",
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("学院(系)学生干部评选比例不超过参评学生总数的 3.5%;", cleaned)
+        self.assertIn("参评校级学生干部总数的 20%。", cleaned)
+        self.assertIn("个人申请 → 班级或学生组织评比推荐 → 学院(系)初审。", cleaned)
+        self.assertNotIn("$3.5\\%$", cleaned)
+        self.assertNotIn("$20\\%$", cleaned)
+        self.assertNotIn("$\\rightarrow$", cleaned)
 
 
 if __name__ == "__main__":

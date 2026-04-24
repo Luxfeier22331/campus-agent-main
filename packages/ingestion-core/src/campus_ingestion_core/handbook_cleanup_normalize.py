@@ -36,6 +36,11 @@ from campus_ingestion_core.handbook_cleanup_shared import (
     TOP_LEVEL_ENUMERATED_RE,
 )
 
+_INLINE_PERCENT_MATH_RE = re.compile(
+    r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$"
+)
+_INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
+
 
 def build_handbook_doc_id(title: str) -> str:
     return "handbook:" + hashlib.sha1(normalize_handbook_title(title).encode("utf-8")).hexdigest()
@@ -805,7 +810,7 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     )
     normalized = re.sub(
         r"家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 \$70\\%\$[。．…]*",
-        "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。",
+        "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。",
         normalized,
     )
     normalized = re.sub(
@@ -818,7 +823,17 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
         r"\1。",
         normalized,
     )
-    return normalized.replace("争创先十佳大学生", "争创十佳大学生")
+    normalized = normalized.replace("争创先十佳大学生", "争创十佳大学生")
+    return _normalize_inline_math_artifacts(normalized)
+
+
+def _normalize_inline_math_artifacts(text: str) -> str:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return ""
+    normalized = _INLINE_PERCENT_MATH_RE.sub(r"\g<value>%", normalized)
+    normalized = _INLINE_RIGHT_ARROW_MATH_RE.sub("→", normalized)
+    return re.sub(r"(?<=\d%)\s+(?=[,，。；;])", "", normalized)
 
 
 def _strip_inline_ocr_reference_markers(text: str) -> str:

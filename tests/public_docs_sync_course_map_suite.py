@@ -256,8 +256,10 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         jsonl_text = "\n".join(
             [
                 '{"row_type":"heading","clean_text":"少数民族预科教育人才培养方案","heading_level":1}',
-                '{"row_type":"paragraph","clean_text":"通识教育课:铸牢中华民族共同体意识教育专题、信息素养、形势与政策、大学体育、心理健康主干课程:大学语文、实用写作、高等数学、大学英语基础课程:理科班增设普通化学和大学物理"}',
+                '{"row_type":"paragraph","clean_text":"通识教育课:铸牢中华民族共同体意识教育专题、信息素养、形势与政策、大学体育、心理健康主干课程:大学语文、实用写作、高等数学、大学英语"}',
+                '{"row_type":"paragraph","clean_text":"基础课程:理科班增设普通化学和大学物理"}',
                 '{"row_type":"table","html":"<table><tr><td rowspan=\\"2\\" colspan=\\"2\\">类别</td><td rowspan=\\"2\\">学时</td><td colspan=\\"2\\">各学期周学时分配计划</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\\"2\\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\\"2\\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\\"3\\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr><tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>","clean_text":"<table><tr><td rowspan=\\"2\\" colspan=\\"2\\">类别</td><td rowspan=\\"2\\">学时</td><td colspan=\\"2\\">各学期周学时分配计划</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\\"2\\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\\"2\\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\\"3\\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr><tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\\"2\\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>"}',
+                '{"row_type":"table","html":"<table><tr><td rowspan=\\"2\\">课程类别</td><td rowspan=\\"2\\">课程编号</td><td rowspan=\\"2\\">课程名称</td><td rowspan=\\"2\\">学分</td><td colspan=\\"2\\">学时</td><td colspan=\\"2\\">各学期周学时分配</td><td rowspan=\\"2\\">备注</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr><tr><td rowspan=\\"2\\">基础课</td><td>1052030065</td><td>普通化学</td><td></td><td>72</td><td>18</td><td>4</td><td>/</td><td rowspan=\\"2\\">必修(实验18学时)</td></tr><tr><td>1052030066</td><td>大学物理</td><td></td><td>72</td><td>18</td><td>/</td><td>4</td></tr></table>","clean_text":"<table><tr><td rowspan=\\"2\\">课程类别</td><td rowspan=\\"2\\">课程编号</td><td rowspan=\\"2\\">课程名称</td><td rowspan=\\"2\\">学分</td><td colspan=\\"2\\">学时</td><td colspan=\\"2\\">各学期周学时分配</td><td rowspan=\\"2\\">备注</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr><tr><td rowspan=\\"2\\">基础课</td><td>1052030065</td><td>普通化学</td><td></td><td>72</td><td>18</td><td>4</td><td>/</td><td rowspan=\\"2\\">必修(实验18学时)</td></tr><tr><td>1052030066</td><td>大学物理</td><td></td><td>72</td><td>18</td><td>/</td><td>4</td></tr></table>"}',
             ]
         )
 
@@ -266,9 +268,11 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
             jsonl_text=jsonl_text,
         )
 
-        self.assertIn("大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。基础课程:理科班增设普通化学和大学物理。", markdown)
+        self.assertIn("大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。", markdown)
+        self.assertIn("基础课程:理科班增设普通化学和大学物理。", markdown)
         self.assertIn("<td colspan=\"5\">文科班</td>", markdown)
         self.assertIn("<td colspan=\"5\">理科班</td>", markdown)
+        self.assertIn("<td colspan=\"9\">理科班</td>", markdown)
         self.assertNotIn("大学体育、心理健康主干课程", markdown)
         self.assertEqual(markdown.count("<tr><td>第一学期</td><td>第二学期</td></tr>"), 2)
 
@@ -279,7 +283,8 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         jsonl_text = "\n".join(
             [
                 '{"row_type":"heading","clean_text":"民族学本科第二学士学位人才培养方案","heading_level":1}',
-                '{"row_type":"table","html":"<table><tr><td rowspan=\\"13\\">专业教育</td><td rowspan=\\"13\\">专业必修课共30学分</td><td>1026030031</td><td>民族学导论</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr><tr><td>1026030062</td><td>经济人类学(全英文)</td></tr><tr><td rowspan=\\"20\\">专业选修课须修满12学分</td><td>1026040121</td></tr></table>","clean_text":"<table><tr><td rowspan=\\"13\\">专业教育</td><td rowspan=\\"13\\">专业必修课共30学分</td><td>1026030031</td><td>民族学导论</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr><tr><td>1026030062</td><td>经济人类学(全英文)</td></tr><tr><td rowspan=\\"20\\">专业选修课须修满12学分</td><td>1026040121</td></tr></table>"}',
+                '{"row_type":"table","html":"<table><tr><td rowspan=\\"2\\" colspan=\\"2\\">课程类别</td><td rowspan=\\"2\\">课程编号</td><td rowspan=\\"2\\">课程名称</td><td rowspan=\\"2\\">学分</td><td colspan=\\"2\\">学时</td><td colspan=\\"4\\">各学期周学时分配</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr><tr><td rowspan=\\"13\\">专业教育</td><td rowspan=\\"13\\">专业必修课共30学分</td><td>1026030031</td><td>民族学导论</td><td>2</td><td>36</td><td></td><td>2</td><td></td><td></td><td></td></tr></table>","clean_text":"<table><tr><td rowspan=\\"2\\" colspan=\\"2\\">课程类别</td><td rowspan=\\"2\\">课程编号</td><td rowspan=\\"2\\">课程名称</td><td rowspan=\\"2\\">学分</td><td colspan=\\"2\\">学时</td><td colspan=\\"4\\">各学期周学时分配</td></tr><tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr><tr><td rowspan=\\"13\\">专业教育</td><td rowspan=\\"13\\">专业必修课共30学分</td><td>1026030031</td><td>民族学导论</td><td>2</td><td>36</td><td></td><td>2</td><td></td><td></td><td></td></tr></table>","relation_type":null,"owner_row_id":null,"continuation_group_id":"owner-1","row_id":"owner-1"}',
+                '{"row_type":"table","html":"<table><tr><td>1026030062</td><td>经济人类学(全英文)</td><td>2</td><td>36</td><td></td><td></td><td>2</td><td></td><td></td></tr><tr><td rowspan=\\"20\\">专业选修课须修满12学分</td><td>1026040121</td><td>人类与发展研究专题</td><td>2</td><td>36</td><td></td><td></td><td></td><td>2</td><td></td></tr></table>","clean_text":"<table><tr><td>1026030062</td><td>经济人类学(全英文)</td><td>2</td><td>36</td><td></td><td></td><td>2</td><td></td><td></td></tr><tr><td rowspan=\\"20\\">专业选修课须修满12学分</td><td>1026040121</td><td>人类与发展研究专题</td><td>2</td><td>36</td><td></td><td></td><td></td><td>2</td><td></td></tr></table>","relation_type":"table_continuation","owner_row_id":"owner-1","continuation_group_id":"owner-1","row_id":"owner-2"}',
             ]
         )
 
@@ -290,7 +295,8 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
 
         self.assertIn('rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>', markdown)
         self.assertIn("经济人类学(全英文)", markdown)
-        self.assertNotIn("<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>", markdown)
+        self.assertEqual(markdown.count("<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>"), 1)
+        self.assertNotIn("<tr><td rowspan=\"3\">课程类别</td>", markdown)
 
     def test_discover_curriculum_docs_lists_all_document_units_and_preserves_known_slug(
         self,

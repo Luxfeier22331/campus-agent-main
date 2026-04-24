@@ -1108,6 +1108,18 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
             "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
             "<tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>"
         )
+        summary_wenke_fragment_bad = (
+            "<table><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+            "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
+            "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr></table>"
+        )
+        summary_like_fragment_bad = (
+            "<table><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
+            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
+            "<tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr><tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr>"
+            "<tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>"
+        )
         detail_bad = (
             "<table><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>"
             "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr><tr><td rowspan=\"8\">通识教育课</td><td>1037010044</td><td>中华民族共同体概论</td><td>2</td><td>36</td><td>/</td><td>2</td><td>/</td><td rowspan=\"8\">必修</td></tr>"
@@ -1125,14 +1137,26 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
             "<tr><td></td><td>1052040020</td><td>神话导读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052040021</td><td>大学数学导引</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052030054</td><td>英语语音语调</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr>"
             "<tr><td></td><td>1052040013</td><td>英语语法基础与提高</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr><tr><td></td><td>1052040022</td><td>英美原著选读</td><td>2</td><td>36</td><td>/</td><td>/</td><td>/</td><td></td></tr></table>"
         )
+        detail_second_table_bad = (
+            "<table><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td>"
+            "<td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td>"
+            "<td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>"
+            "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td></tr>"
+            "<tr><td rowspan=\"2\">基础课</td><td>1052030065</td><td>普通化学</td><td></td>"
+            "<td>72</td><td>18</td><td>4</td><td>/</td><td rowspan=\"2\">必修(实验18学时)</td></tr>"
+            "<tr><td>1052030066</td><td>大学物理</td><td></td><td>72</td><td>18</td><td>/</td><td>4</td></tr></table>"
+        )
 
         repaired = _repair_minority_preparatory_program_artifacts(
             "\n".join(
                 [
                     "融合课堂教学、自主学习、实践活动、指导帮扶、文化引领为一体、根据教学内容和学生特点",
+                    "大学体育、心理健康主干课程:大学语文、实用写作、高等数学、大学英语",
+                    "基础课程:理科班增设普通化学和大学物理",
                     "大学体育、心理健康主干课程:大学语文、实用写作、高等数学、大学英语基础课程:理科班增设普通化学和大学物理",
                     summary_bad,
                     detail_bad,
+                    detail_second_table_bad,
                 ]
             )
         )
@@ -1142,29 +1166,52 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
             "大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。基础课程:理科班增设普通化学和大学物理。",
             repaired,
         )
+        self.assertIn("大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。", repaired)
+        self.assertIn("基础课程:理科班增设普通化学和大学物理。", repaired)
         self.assertIn("<td colspan=\"5\">文科班</td>", repaired)
         self.assertIn("<td colspan=\"5\">理科班</td>", repaired)
         self.assertIn("<td colspan=\"9\">文科班</td>", repaired)
-        self.assertIn("<td colspan=\"9\">理科班</td>", repaired)
+        self.assertEqual(repaired.count("<td colspan=\"9\">理科班</td>"), 1)
         self.assertNotIn("文化引领为一体、根据教学内容和学生特点", repaired)
         self.assertNotIn("大学体育、心理健康主干课程", repaired)
+
+        split_repaired = _repair_minority_preparatory_program_artifacts(
+            "\n".join([summary_wenke_fragment_bad, summary_like_fragment_bad])
+        )
+        self.assertEqual(split_repaired.count("<td colspan=\"5\">文科班</td>"), 1)
+        self.assertEqual(split_repaired.count("<td colspan=\"5\">理科班</td>"), 1)
 
     def test_repair_ethnology_second_bachelor_table_artifact_fixes_rowspan_and_header_noise(
         self,
     ) -> None:
-        repaired = _repair_ethnology_second_bachelor_table_artifact(
+        owner_repaired = _repair_ethnology_second_bachelor_table_artifact(
             "<table>"
-            "<tr><td rowspan=\"13\">专业教育</td><td rowspan=\"13\">专业必修课共30学分</td><td>民族学理论与方法</td></tr>"
-            "<tr><td>经济人类学(全英文)</td></tr>"
+            "<tr><td rowspan=\"2\" colspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"4\">各学期周学时分配</td></tr>"
             "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>"
-            "<tr><td>专业选修课须修满12学分</td></tr>"
+            "<tr><td rowspan=\"13\">专业教育</td><td rowspan=\"13\">专业必修课共30学分</td><td>民族学理论与方法</td></tr>"
             "</table>"
         )
+        continuation_input = (
+            "<table>"
+            "<tr><td rowspan=\"3\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"4\">各学期周学时分配</td></tr>"
+            "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>"
+            "<tr><td>1026030062</td><td>经济人类学(全英文)</td><td>2</td><td>36</td><td></td><td></td><td>2</td><td></td><td></td></tr>"
+            "<tr><td>专业选修课须修满12学分</td><td>1026040121</td></tr>"
+            "</table>"
+        )
+        continuation_repaired = _repair_ethnology_second_bachelor_table_artifact(
+            continuation_input
+        )
 
-        self.assertIn('rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>', repaired)
-        self.assertIn(">经济人类学(全英文)<", repaired)
-        self.assertNotIn("<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>", repaired)
-        self.assertNotIn('rowspan="13">专业教育</td><td rowspan="13">专业必修课共30学分</td>', repaired)
+        self.assertIn(
+            'rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>',
+            owner_repaired,
+        )
+        self.assertNotIn(
+            'rowspan="13">专业教育</td><td rowspan="13">专业必修课共30学分</td>',
+            owner_repaired,
+        )
+        self.assertEqual(continuation_repaired, continuation_input)
 
     def test_repair_paleography_program_table_artifacts_fixes_bad_label_and_hours(
         self,

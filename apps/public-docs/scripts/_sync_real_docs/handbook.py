@@ -26,6 +26,11 @@ from .shared import (
     _wrap_markdown_text_lines,  # split import to keep lint simple
 )
 
+_INLINE_PERCENT_MATH_RE = re.compile(
+    r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$"
+)
+_INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
+
 
 def _build_handbook_index() -> str:
     return "\n".join(
@@ -172,10 +177,12 @@ def _repair_known_handbook_docs_markdown(markdown: str, *, title: str | None) ->
     if title in {"中央民族大学本(预)科学生勤工助学管理办法", "中央民族大学本-预-科学生勤工助学管理办法"}:
         repaired = re.sub(
             r"家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 \$70\\%\$[。．…]*",
-            "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$。",
+            "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。",
             repaired,
         )
-    return repaired
+    repaired = _INLINE_PERCENT_MATH_RE.sub(r"\g<value>%", repaired)
+    repaired = _INLINE_RIGHT_ARROW_MATH_RE.sub("→", repaired)
+    return re.sub(r"(?<=\d%)\s+(?=[,，。；;])", "", repaired)
 
 
 def _normalize_handbook_frontmatter(frontmatter_lines: list[str]) -> list[str]:

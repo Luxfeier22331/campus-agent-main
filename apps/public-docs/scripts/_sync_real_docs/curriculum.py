@@ -214,6 +214,10 @@ def _repair_known_curriculum_docs_text_artifacts(*, title: str, text: str) -> st
         return text
     repaired = text.replace("大学体育、心理健康主干课程:", "大学体育、心理健康。主干课程:")
     repaired = repaired.replace("大学英语基础课程:", "大学英语。基础课程:")
+    repaired = repaired.replace(
+        "大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语",
+        "大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。",
+    )
     return re.sub(
         r"理科班增设普通化学和大学物理(?![。；])",
         "理科班增设普通化学和大学物理。",
@@ -240,15 +244,14 @@ def _repair_known_curriculum_docs_table_html(*, title: str, html: str) -> str:
             "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
             "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>",
         )
-        return html
+        return html.replace(
+            "<table><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>",
+            "<table><tr><td colspan=\"9\">理科班</td></tr><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>",
+        )
     if title == "民族学本科第二学士学位人才培养方案":
-        html = html.replace(
+        return html.replace(
             '<td rowspan="13">专业教育</td><td rowspan="13">专业必修课共30学分</td>',
             '<td rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>',
-        )
-        return html.replace(
-            "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>",
-            "",
         )
     return html
 
@@ -337,11 +340,17 @@ def _merge_curriculum_table_html(base_html: str, continuation_html: str) -> str:
 
     rows_to_append = continuation_rows
     base_header_signature = _html_row_text_signature(base_rows[0])
+    base_second_signature = _html_row_text_signature(base_rows[1]) if len(base_rows) > 1 else ""
+    continuation_second_signature = (
+        _html_row_text_signature(continuation_rows[1]) if len(continuation_rows) > 1 else ""
+    )
     if (
         base_header_signature
         and _html_row_text_signature(continuation_rows[0]) == base_header_signature
     ):
         rows_to_append = continuation_rows[1:]
+        if base_second_signature and continuation_second_signature == base_second_signature:
+            rows_to_append = continuation_rows[2:]
     return "<table>" + "".join([*base_rows, *rows_to_append]) + "</table>"
 
 
