@@ -10,11 +10,12 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 11 closeout`
+- current phase: `Phase 12 closeout`
 - current slice: Go shell runtime kernel hardening、Python cooperative cancel
   bridge、structured query runtime foundation 与 `transport_schedule_lookup`
   projection-backed deterministic query kernel 已落地；forward capability label /
-  lane alignment 已补齐；产品主路由 gate 仍保持关闭
+  lane alignment 已补齐；`campus_notice_discover` / `campus_notice_get` 的 Go
+  read-model query runtime 已落地；产品主路由 gate 仍保持关闭
 - owner: unassigned
 - active implementation: yes, `apps/go-shell`
 
@@ -51,7 +52,7 @@ updated: 2026-04-24
 
 ## Blockers
 
-- repo-local Phase 8-11 implementation 当前无 blocker。
+- repo-local Phase 8-12 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
@@ -59,6 +60,8 @@ updated: 2026-04-24
   signal。
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需要 eval /
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
+- `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
+  opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
 
 ## Verification
 
@@ -169,6 +172,15 @@ updated: 2026-04-24
   - `pnpm go:check` did not complete because local environment lacks
     `golangci-lint v2.11.4`; its gofmt / go vet stages had already passed before
     the missing linter guard failed
+- Phase 12 notice read-model query runtime focused red/green verification passed
+  on 2026-04-24:
+  - `PATH="$PWD/.tmp/go-toolchain/go/bin:$PWD/.tmp/go-tools/bin:$PATH"`
+    `go test ./internal/structuredquery ./internal/config ./internal/httpapi -count=1`
+    in `apps/go-shell`
+  - `uv run --all-packages python -m unittest`
+    `tests.specialist.test_notice_runtime_wiring`
+    `tests.specialist.test_notice_agent`
+    `tests.api.supervisor_api_bridge_suite`
 
 ## Continuity Notes
 
@@ -317,11 +329,35 @@ updated: 2026-04-24
   still route through the current `rag-agent` path unless a higher-level surface
   explicitly admits a forward capability
 
+## Phase 12 Completed Implementation
+
+- Go shell exposes internal structured query routes:
+  - `POST /internal/query/notices/discover`
+  - `POST /internal/query/notices/get`
+- notice structured query routes require `x-supervisor-query-auth`
+- Go notice runtime consumes `payload + access_context` envelope so restricted
+  internal notice authorization is enforced in Go
+- Go notice runtime reads `ingestion_projection.internal_notice_read_model`
+  through `pgx/v5`
+- Go notice get reads canonical markdown bodies from S3-compatible derived bucket
+  through AWS SDK v2 S3 client with path-style endpoint support
+- `NoticeHTTPQueryService` is now the Python notice-agent thin adapter for the Go
+  internal query seam
+- Python notice-agent no longer defaults to env-built PG/S3 read-model runtime;
+  direct Python PG/S3 notice query code was removed from the active package
+- `supervisor-api` injects notice HTTP query service when
+  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
+  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured
+- product routing remains gate-closed; this implementation does not by itself
+  open `notice` serving
+
 ## Remaining Implementation
 
 - product-layer cancellation UX belongs to
   `chat-capacity-and-cancellation-hardening`
 - provider / prompt executor mid-flight cooperative stop remains future work
 - `transport_schedule_lookup` opening gate / eval evidence remains future work
+- `campus_notice_discover` / `campus_notice_get` opening gate / eval evidence
+  remains future work
 - actual environment cutover / rollback drill execution remains environment-side
   rollout work
