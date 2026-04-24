@@ -144,7 +144,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://go-shell.internal",
+            base_url="http://supervisor-api.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -163,7 +163,7 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://go-shell.internal/internal/query/notices/discover",
+            "http://supervisor-api.internal/internal/query/notices/discover",
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
@@ -194,7 +194,7 @@ class NoticeAgentTest(unittest.TestCase):
             }
         )
         query_service = NoticeHTTPQueryService(
-            base_url="http://go-shell.internal",
+            base_url="http://supervisor-api.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -212,7 +212,7 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://go-shell.internal/internal/query/notices/get",
+            "http://supervisor-api.internal/internal/query/notices/get",
         )
         self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
         self.assertEqual(result.outcome, "resolved_current")

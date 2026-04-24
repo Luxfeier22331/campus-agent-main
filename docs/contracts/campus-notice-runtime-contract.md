@@ -35,10 +35,10 @@ direction。
   - gate-closed structured-runtime pre-routing helper
   - session carrier `context.session.selected_notice_ref`
   - app-owned structured-runtime observability summary
-  - Go shell internal notice read-model backing query service
-  - Go shell derived bucket canonical markdown body adapter
+  - Go `apps/supervisor-api` internal notice read-model backing query service
+  - Go `apps/supervisor-api` derived bucket canonical markdown body adapter
   - Python `notice-agent` HTTP thin adapter
-  - `supervisor-api` configured structured-query wiring to Go shell
+  - `supervisor-api` configured structured-query wiring to Go `apps/supervisor-api`
 
 仍未开放：
 
@@ -67,7 +67,7 @@ CampusNoticeDiscoverPayload
 
 ## Internal Query HTTP Packet
 
-`notice-agent -> Go shell` 使用 private internal query route：
+`notice-agent -> Go apps/supervisor-api` 使用 private internal query route：
 
 - `POST /internal/query/notices/discover`
 - `POST /internal/query/notices/get`
@@ -103,9 +103,10 @@ CampusNoticeDiscoverPayload
 
 固定语义：
 
-- Go shell 是 PG read-model 与 S3-compatible derived bucket query-time runtime owner
+- Go `apps/supervisor-api` 是 PG read-model 与 S3-compatible derived bucket
+  query-time runtime owner
 - Python `notice-agent` 不再从 env 构造 PG/S3 runtime；它只序列化 query envelope、
-  调用 Go shell，并把 result 还原为 shared contract dataclass
+  调用 Go `apps/supervisor-api`，并把 result 还原为 shared contract dataclass
 - restricted `internal_notice_restricted` 必须带 `principal_id`、
   `entitlement_groups` 与 restricted `retrieval_filter`，否则 fail-close 为
   `source_family_unavailable`

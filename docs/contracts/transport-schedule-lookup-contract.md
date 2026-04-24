@@ -32,9 +32,10 @@ updated: 2026-04-23
 - 当前产品主路径尚未开放 `transport_schedule_lookup`
 - `packages/contracts` 已具备 intent-first `TransportScheduleLookupPayload / Result`
   shape
-- Go shell internal query service 已具备 projection-backed deterministic kernel，
-  可覆盖 snapshot metadata、route clarification、departure selection、departure list、
-  service window、timetable 与 temporary suspension summary
+- Go `apps/supervisor-api` internal query service 已具备 projection-backed
+  deterministic kernel，可覆盖 snapshot metadata、route clarification、
+  departure selection、departure list、service window、timetable 与 temporary
+  suspension summary
 - Python `campus-services-agent` 已具备 thin HTTP adapter；只有配置
   `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时才消费该 internal seam
@@ -70,7 +71,7 @@ updated: 2026-04-23
 - builder 离线展开 90 天服务日
 - 临时停运/调整写入 `transport_service_exceptions`
 - 对象存储保存 versioned/current artifact
-- Go shell 只读 mounted current file，不直接读取对象存储
+- Go `apps/supervisor-api` 只读 mounted current file，不直接读取对象存储
 
 projection schema 细节见
 `docs/data/campus-services-transport-schedule-source-truth-schema.md`。

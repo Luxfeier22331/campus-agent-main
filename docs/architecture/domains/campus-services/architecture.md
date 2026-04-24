@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 # Campus Services Runtime Architecture
 
@@ -90,6 +90,8 @@ later-wave 已冻结方向包括：
 - `service_status_lookup`
   - 只读 current-effective status projection
   - 不把 `service_catalog` 文本检索或 generic RAG 当作 runtime query seam
+  - matched record 缺关键字段或 current effective window 已过期时必须
+    fail-close，不得把历史/不完整记录冒充成当前状态
 - `transport_schedule_lookup`
   - 只读 route / service window / stop ref projection
   - 方向、班次类型、当前时间语义必须由 code-owned query policy 解释
@@ -125,7 +127,7 @@ later-wave 已冻结方向包括：
   `campus_services/releases/transport_schedule/{release_id}/...`
 - Docker runtime 通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 读取 mounted
   readonly current file
-- Go shell 不直接读对象存储、不持有对象存储凭据
+- Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
 
@@ -152,7 +154,7 @@ runtime lane 已开放。
   - `service_status_lookup` / `transport_schedule_lookup` shared contract
   - structured-runtime pre-routing helper
   - structured-runtime observability summary
-  - Go shell structured query runtime foundation；当前 `service_status_lookup`
+  - Go `apps/supervisor-api` structured query runtime foundation；当前 `service_status_lookup`
     具备 file projection fixture backed foundation，`transport_schedule_lookup`
     具备 projection-backed schedule query kernel、Python thin-adapter wiring 与
     authenticated-notice-backed offline projection builder，但仍不代表产品 serving

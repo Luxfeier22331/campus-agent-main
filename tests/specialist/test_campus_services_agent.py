@@ -312,7 +312,7 @@ class CampusServicesAgentTest(unittest.TestCase):
             }
         )
         query_service = CampusServicesHTTPQueryService(
-            base_url="http://go-shell.internal",
+            base_url="http://supervisor-api.internal",
             shared_secret="query-secret",
             timeout_seconds=0.75,
             transport=transport,
@@ -329,7 +329,7 @@ class CampusServicesAgentTest(unittest.TestCase):
 
         self.assertEqual(
             transport.calls[0][0],
-            "http://go-shell.internal/internal/query/campus-services/transport-schedule",
+            "http://supervisor-api.internal/internal/query/campus-services/transport-schedule",
         )
         self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
         self.assertEqual(transport.calls[0][2]["intent"], "first_departure")

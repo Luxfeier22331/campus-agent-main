@@ -153,7 +153,7 @@ current artifact：
 - `manual-review-report.json`
 
 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 指向 Docker runtime 内 mounted readonly
-current projection file。Go shell 不直接读对象存储，不持有对象存储凭据。
+current projection file。Go `apps/supervisor-api` 不直接读对象存储，不持有对象存储凭据。
 
 ## Validation
 

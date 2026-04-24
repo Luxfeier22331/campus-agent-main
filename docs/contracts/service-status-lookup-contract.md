@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 # Service Status Lookup Contract
 
@@ -93,4 +93,9 @@ ServiceStatusLookupResult
 - 只读 projection-backed structured truth，不回扫 raw notice HTML 或 generic chunk
 - `current/latest/effective` 由 code-owned temporal policy 解释
 - 当前性不可证或 source truth 缺关键字段时必须 fail-close
+- matched current record 如果缺 `observed_status`、`effective_from` 或必要 provenance，
+  必须返回 `temporarily_unverifiable/current_state_unverifiable`
+- matched record 的 effective window 已过期时，不得继续回答
+  `resolved_current`；应返回 `temporarily_unverifiable`，并用
+  `historical_downgrade_reason=current_effective_miss` 标识当前有效性缺口
 - 需要 canonical notice 正文或公告发现时，应切到 `notice-agent`

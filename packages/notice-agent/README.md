@@ -17,17 +17,17 @@ capability 的 owner package。
 - source-truth / normalized-truth ingestion owner
 
 当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
-seam；internal notice 的 projected read-model 查询 runtime 已迁到 `apps/go-shell`。
+seam；internal notice 的 projected read-model 查询 runtime 已迁到 `apps/supervisor-api`。
 
 当前已实现：
 
-- `NoticeHTTPQueryService`：调用 Go shell internal query routes：
+- `NoticeHTTPQueryService`：调用 Go `apps/supervisor-api` internal query routes：
   `/internal/query/notices/discover` 与 `/internal/query/notices/get`
 - `delegate_to_notice_agent(...)`：必须显式注入 query service；默认不再从 Python
   env 构造 PG/S3 read-model runtime
 - `tool_adapter`：负责 notice discover/get result 到 `SpecialistResponse` 的薄映射
 
-Go shell 现在负责：
+Go `apps/supervisor-api` 现在负责：
 
 - restricted internal notice authorization fail-close gate
 - 只读 `ingestion_projection.internal_notice_read_model`
