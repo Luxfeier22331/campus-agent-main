@@ -6,7 +6,12 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import patch
 
-from campus_contracts import SupervisorRequest, SupervisorResponse, TransportScheduleLookupPayload
+from campus_contracts import (
+    CampusNoticeDiscoverPayload,
+    SupervisorRequest,
+    SupervisorResponse,
+    TransportScheduleLookupPayload,
+)
 from campus_supervisor_api.app import create_bridge_app
 from campus_supervisor_api.settings import ApiSettings
 from campus_supervisor_core import InvalidSupervisorRequestError
@@ -356,3 +361,122 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         )
         self.assertEqual(query_requests[0]["auth"], "query-secret")
         self.assertEqual(query_requests[0]["body"]["intent"], "schedule_snapshot_metadata")
+
+    def test_bridge_answer_wires_configured_notice_query_service(self) -> None:
+        query_requests: list[dict[str, object]] = []
+
+        class QueryHandler(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                content_length = int(self.headers.get("content-length", "0"))
+                query_requests.append(
+                    {
+                        "path": self.path,
+                        "auth": self.headers.get("x-supervisor-query-auth"),
+                        "body": json.loads(self.rfile.read(content_length).decode("utf-8")),
+                    }
+                )
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "query_text": "家具采购",
+                            "outcome": "resolved_current",
+                            "source_families": ["internal_notice_restricted"],
+                            "notice_cards": [
+                                {
+                                    "notice_id": "355222",
+                                    "title": "中央民族大学丰台校区家具采购项目比选公告",
+                                    "source_family": "internal_notice_restricted",
+                                    "source_url": "https://portal.example.edu/notices/355222",
+                                }
+                            ],
+                            "queried_time_anchor": "2026-04-24T10:30:00+08:00",
+                        }
+                    ).encode("utf-8")
+                )
+
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+        query_server = HTTPServer(("127.0.0.1", 0), QueryHandler)
+        thread = threading.Thread(target=query_server.serve_forever, daemon=True)
+        thread.start()
+        app = None
+        try:
+            app = create_bridge_app(
+                settings=ApiSettings(
+                    bridge_shared_secret="bridge-secret",
+                    structured_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
+                    structured_query_shared_secret="query-secret",
+                    structured_query_timeout_seconds=0.75,
+                )
+            )
+            with patch(
+                "campus_supervisor_core.agent.route_request",
+                return_value=RoutingDecision(
+                    target="notice-agent",
+                    primary_corpus=None,
+                    primary_collection=None,
+                    intent_frame=IntentFrame(
+                        capability="notice",
+                        task_kind="notice_lookup",
+                        domain_candidates=("notice",),
+                        missing_slots=(),
+                        risk_level="low",
+                        needs_clarification=False,
+                        suggested_next_action="delegate",
+                        scope_class="in_scope",
+                    ),
+                    specialist_payload=CampusNoticeDiscoverPayload(
+                        query_text="家具采购",
+                        source_families=("internal_notice_restricted",),
+                    ),
+                    allowed_tools=("campus_notice_discover",),
+                ),
+            ):
+                response = app.handle(
+                    "POST",
+                    "/internal/bridge/supervisor/answer",
+                    headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                    json_body={
+                        "user_goal": "找一下家具采购通知",
+                        "trace": {"trace_id": "trace-notice-query"},
+                        "requested_capability": "notice",
+                        "context": {
+                            "actor": {
+                                "user_id": "student@example.edu",
+                            },
+                            "authorization": {
+                                "principal_id": "principal-001",
+                                "entitlement_groups": ["students"],
+                                "retrieval_filter": {
+                                    "entitlement_groups": ["students"],
+                                    "visibility_level": "restricted",
+                                    "policy_projection_version": "phase1-authorization-projection-v1",
+                                },
+                            },
+                        },
+                    },
+                )
+        finally:
+            if app is not None:
+                app.close()
+            query_server.shutdown()
+            query_server.server_close()
+            thread.join(timeout=1.0)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json_body["selected_target"], "notice-agent")
+        self.assertEqual(response.json_body["status"], "completed")
+        self.assertEqual(len(query_requests), 1)
+        self.assertEqual(query_requests[0]["path"], "/internal/query/notices/discover")
+        self.assertEqual(query_requests[0]["auth"], "query-secret")
+        self.assertEqual(query_requests[0]["body"]["payload"]["query_text"], "家具采购")
+        self.assertEqual(
+            query_requests[0]["body"]["access_context"]["authorization"]["retrieval_filter"][
+                "visibility_level"
+            ],
+            "restricted",
+        )

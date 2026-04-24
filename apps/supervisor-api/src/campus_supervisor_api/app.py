@@ -6,6 +6,7 @@ from functools import partial
 
 import httpx
 from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
+from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
 from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
@@ -171,19 +172,26 @@ def _bind_supervisor_handler(
 ):
     if supervisor_handler is not handle_request:
         return supervisor_handler
-    query_service = _build_campus_services_query_service(settings)
-    if query_service is not None:
+    campus_services_query_service = _build_campus_services_query_service(settings)
+    notice_query_service = _build_notice_query_service(settings)
+    if campus_services_query_service is not None or notice_query_service is not None:
         agent = SupervisorAgent(
             supervisor_prompt_executor=supervisor_prompt_executor,
             rag_prompt_executor=rag_prompt_executor,
         )
         assert agent.specialist_delegates is not None
-        agent.specialist_delegates["campus-services-agent"] = lambda request: (
-            delegate_to_campus_services_agent(
-                request,
-                query_service=query_service,
+        if campus_services_query_service is not None:
+            agent.specialist_delegates["campus-services-agent"] = lambda request: (
+                delegate_to_campus_services_agent(
+                    request,
+                    query_service=campus_services_query_service,
+                )
             )
-        )
+        if notice_query_service is not None:
+            agent.specialist_delegates["notice-agent"] = lambda request: delegate_to_notice_agent(
+                request,
+                query_service=notice_query_service,
+            )
         return agent.handle
     if supervisor_prompt_executor is not None and rag_prompt_executor is not None:
         return partial(
@@ -200,6 +208,18 @@ def _build_campus_services_query_service(
     if not settings.structured_query_base_url or not settings.structured_query_shared_secret:
         return None
     return CampusServicesHTTPQueryService(
+        base_url=settings.structured_query_base_url,
+        shared_secret=settings.structured_query_shared_secret,
+        timeout_seconds=settings.structured_query_timeout_seconds,
+    )
+
+
+def _build_notice_query_service(
+    settings: ApiSettings,
+) -> NoticeHTTPQueryService | None:
+    if not settings.structured_query_base_url or not settings.structured_query_shared_secret:
+        return None
+    return NoticeHTTPQueryService(
         base_url=settings.structured_query_base_url,
         shared_secret=settings.structured_query_shared_secret,
         timeout_seconds=settings.structured_query_timeout_seconds,

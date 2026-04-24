@@ -17,20 +17,20 @@ capability 的 owner package。
 - source-truth / normalized-truth ingestion owner
 
 当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
-seam；internal notice 的 projected read-model query service 已落地为 package 内实现。
+seam；internal notice 的 projected read-model 查询 runtime 已迁到 `apps/go-shell`。
 
 当前已实现：
 
-- `NoticeReadModelQueryService`：读取 repo-owned read model repository，执行
-  `campus_notice_discover` / `campus_notice_get` 的 result 映射
-- restricted internal notice fail-close gate：缺少 principal / entitlement /
-  restricted retrieval filter 时返回 `source_family_unavailable`
-- `ObjectStoreNoticeBodyRepository`：按 read model 中的 canonical markdown object key
-  从 derived bucket 读取正文
-- `PostgresNoticeReadModelRepository`：只读
-  `ingestion_projection.internal_notice_read_model`，用于 discover/get backing query
-- `delegate_to_notice_agent(..., env=...)`：未显式注入 query service 时，可从
-  `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` / `CAMPUS_SHARED_POSTGRES_URL` 与对象存储
-  env 构造默认 internal notice query service；配置缺失时继续 fail closed
+- `NoticeHTTPQueryService`：调用 Go shell internal query routes：
+  `/internal/query/notices/discover` 与 `/internal/query/notices/get`
+- `delegate_to_notice_agent(...)`：必须显式注入 query service；默认不再从 Python
+  env 构造 PG/S3 read-model runtime
+- `tool_adapter`：负责 notice discover/get result 到 `SpecialistResponse` 的薄映射
+
+Go shell 现在负责：
+
+- restricted internal notice authorization fail-close gate
+- 只读 `ingestion_projection.internal_notice_read_model`
+- 从 S3-compatible derived bucket 读取 canonical markdown body
 
 它仍不负责打开 browser-facing API、panel/chatbot 入口或 live collector/control-plane。

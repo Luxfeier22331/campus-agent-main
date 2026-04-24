@@ -5,6 +5,7 @@ import unittest
 from campus_contracts import (
     ActorContext,
     AuthorizationProjection,
+    AuthorizedRetrievalFilter,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -14,6 +15,7 @@ from campus_contracts import (
     SpecialistRequest,
     TemporalQuery,
 )
+from campus_notice_agent.http_query_service import NoticeHTTPQueryService
 from campus_notice_agent.query_service import (
     NoticeAccessContext,
     NoticeDiscoverQuery,
@@ -119,6 +121,134 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "disallowed_tool")
+
+    def test_http_query_service_posts_discover_payload_and_authorization_projection(self) -> None:
+        transport = _RecordingNoticeHTTPTransport(
+            {
+                "query_text": "家具采购",
+                "outcome": "resolved_current",
+                "source_families": ["internal_notice_restricted"],
+                "notice_cards": [
+                    {
+                        "notice_id": "355222",
+                        "title": "中央民族大学丰台校区家具采购项目比选公告",
+                        "source_family": "internal_notice_restricted",
+                        "source_url": "https://portal.example.edu/notices/355222",
+                        "canonical_url": "https://portal.example.edu/notices/355222",
+                        "published_at": "2026-04-12",
+                        "effective_at": "2026-04-12",
+                        "is_current": True,
+                    }
+                ],
+                "queried_time_anchor": "2026-04-24T10:30:00+08:00",
+            }
+        )
+        query_service = NoticeHTTPQueryService(
+            base_url="http://go-shell.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.discover_notice(
+            NoticeDiscoverQuery(
+                payload=CampusNoticeDiscoverPayload(
+                    query_text="家具采购",
+                    source_families=("internal_notice_restricted",),
+                    max_results=3,
+                ),
+                access_context=_restricted_access_context(),
+            )
+        )
+
+        self.assertEqual(
+            transport.calls[0][0],
+            "http://go-shell.internal/internal/query/notices/discover",
+        )
+        self.assertEqual(transport.calls[0][1]["x-supervisor-query-auth"], "query-secret")
+        self.assertEqual(transport.calls[0][2]["payload"]["query_text"], "家具采购")
+        self.assertEqual(
+            transport.calls[0][2]["access_context"]["authorization"]["retrieval_filter"][
+                "visibility_level"
+            ],
+            "restricted",
+        )
+        self.assertEqual(transport.calls[0][3], 0.75)
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertEqual(result.notice_cards[0].notice_id, "355222")
+
+    def test_http_query_service_posts_get_payload_and_decodes_body_result(self) -> None:
+        transport = _RecordingNoticeHTTPTransport(
+            {
+                "notice_id": "355222",
+                "outcome": "resolved_current",
+                "title": "中央民族大学丰台校区家具采购项目比选公告",
+                "source_family": "internal_notice_restricted",
+                "source_url": "https://portal.example.edu/notices/355222",
+                "canonical_url": "https://portal.example.edu/notices/355222",
+                "normalized_body": "# 采购公告\n\n供应商应按要求投标。",
+                "published_at": "2026-04-12",
+                "effective_at": "2026-04-12",
+                "attachment_refs": ["attachment:355222:1"],
+                "provenance_refs": ["notice:muc_internal_portal:355222"],
+            }
+        )
+        query_service = NoticeHTTPQueryService(
+            base_url="http://go-shell.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.get_notice(
+            NoticeGetQuery(
+                payload=CampusNoticeGetPayload(
+                    notice_id="355222",
+                    source_family="internal_notice_restricted",
+                ),
+                access_context=_restricted_access_context(),
+            )
+        )
+
+        self.assertEqual(
+            transport.calls[0][0],
+            "http://go-shell.internal/internal/query/notices/get",
+        )
+        self.assertEqual(transport.calls[0][2]["payload"]["notice_id"], "355222")
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertIn("供应商应按要求投标", result.normalized_body)
+        self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
+
+
+def _restricted_access_context() -> NoticeAccessContext:
+    return NoticeAccessContext(
+        actor=ActorContext(user_id="student-001"),
+        authorization=AuthorizationProjection(
+            principal_id="principal-001",
+            entitlement_groups=("students",),
+            retrieval_filter=AuthorizedRetrievalFilter(
+                entitlement_groups=("students",),
+                visibility_level="restricted",
+            ),
+        ),
+    )
+
+
+class _RecordingNoticeHTTPTransport:
+    def __init__(self, response_body: dict[str, object]) -> None:
+        self.response_body = response_body
+        self.calls: list[tuple[str, dict[str, str], dict[str, object], float]] = []
+
+    def __call__(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str],
+        json_body: dict[str, object],
+        timeout_seconds: float,
+    ) -> tuple[int, dict[str, object]]:
+        self.calls.append((url, headers, json_body, timeout_seconds))
+        return 200, self.response_body
 
 
 if __name__ == "__main__":

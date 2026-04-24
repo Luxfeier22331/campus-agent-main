@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Campus Notice Runtime Contract
 
@@ -30,14 +30,15 @@ direction。
 ## 当前 Rollout 状态
 
 - 当前产品主路径尚未开放 `notice-agent`
-- repo 已完成的是 package-level internal implementation：
+- repo 已完成的是 gate-closed internal implementation：
   - notice discover/get shared contract
   - gate-closed structured-runtime pre-routing helper
   - session carrier `context.session.selected_notice_ref`
   - app-owned structured-runtime observability summary
-  - internal notice read-model backing query service
-  - derived bucket canonical markdown body adapter
-  - default `notice-agent` runtime wiring from PG read model + object-store env
+  - Go shell internal notice read-model backing query service
+  - Go shell derived bucket canonical markdown body adapter
+  - Python `notice-agent` HTTP thin adapter
+  - `supervisor-api` configured structured-query wiring to Go shell
 
 仍未开放：
 
@@ -63,6 +64,52 @@ CampusNoticeDiscoverPayload
 - `query_text` 保留用户原问句，不得为空
 - `temporal_query` 继续复用 repo-owned `TemporalQuery`
 - `source_families` 是上游已知约束，不是 query-time source scan 指令
+
+## Internal Query HTTP Packet
+
+`notice-agent -> Go shell` 使用 private internal query route：
+
+- `POST /internal/query/notices/discover`
+- `POST /internal/query/notices/get`
+
+固定 header：
+
+- `x-supervisor-query-auth: <SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET>`
+
+请求体固定为 envelope，不直接裸发 payload：
+
+```json
+{
+  "payload": {
+    "query_text": "家具采购",
+    "source_families": ["internal_notice_restricted"],
+    "max_results": 5
+  },
+  "access_context": {
+    "actor": {
+      "user_id": "student-001"
+    },
+    "authorization": {
+      "principal_id": "principal-001",
+      "entitlement_groups": ["students"],
+      "retrieval_filter": {
+        "entitlement_groups": ["students"],
+        "visibility_level": "restricted"
+      }
+    }
+  }
+}
+```
+
+固定语义：
+
+- Go shell 是 PG read-model 与 S3-compatible derived bucket query-time runtime owner
+- Python `notice-agent` 不再从 env 构造 PG/S3 runtime；它只序列化 query envelope、
+  调用 Go shell，并把 result 还原为 shared contract dataclass
+- restricted `internal_notice_restricted` 必须带
+  `principal_id + entitlement_groups + restricted retrieval_filter`，否则 fail-close 为
+  `source_family_unavailable`
+- query-time 不允许回扫 raw notice/source bundle
 
 ## Get Request
 

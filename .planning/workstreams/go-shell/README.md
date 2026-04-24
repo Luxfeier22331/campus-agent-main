@@ -25,10 +25,10 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 11 closeout`
-- current slice: Go shell 已补齐 forward capability label / lane alignment；
-  `campus_services` 与 `notice` 可作为显式 internal execution capability 进入对应
-  lane，knowledge 路径下的产品 serving gate 仍保持关闭
+- current phase: `Phase 12 closeout`
+- current slice: Go shell 已承接 notice read-model deterministic query runtime；
+  `notice-agent` 保留 HTTP thin adapter，Python 侧不再默认构造 PG/S3 notice runtime，
+  产品 serving gate 仍保持关闭
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -80,12 +80,23 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
     knowledge path
   - explicit forward capability 可进入对应 specialist-owned structured runtime
     handoff；knowledge path gate-closed 行为不变
+- `Phase 12`
+  - Go shell 已提供 `/internal/query/notices/discover` 与
+    `/internal/query/notices/get`
+  - Go shell 读取 `ingestion_projection.internal_notice_read_model` 与
+    S3-compatible derived canonical markdown body
+  - Python `notice-agent` 已切到 HTTP thin adapter；Python 侧 PG/S3 default runtime
+    已从 active package 移除
+  - `supervisor-api` 在 configured structured query base URL / secret 时注入
+    notice HTTP query service
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-11 的剩余必做实现项
+- repo 内当前没有 Phase 8-12 的剩余必做实现项
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /
   regression evidence 与产品路由 admission 决策
+- `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；opening
+  gate 仍需 eval / regression evidence 与产品路由 admission 决策
 - product-layer cancellation UX 继续属于 `chat-capacity-and-cancellation-hardening`
 - 实际环境 cutover / rollback drill 执行属于 environment-side rollout，不阻塞
   repo-local closeout

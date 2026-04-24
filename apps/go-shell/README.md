@@ -25,12 +25,13 @@ Current status:
   cancel signal, while deeper provider / prompt mid-flight stop remains a
   later semantic-runtime task.
 - Hosts the gate-closed structured query runtime foundation for campus services
-  at internal `/internal/query/campus-services/*` routes. `service_status_lookup`
-  can read a configured file projection fixture for deterministic runtime
-  tests; `transport_schedule_lookup` can now resolve projection-backed schedule
-  snapshot metadata, route clarification, departures, service windows,
-  timetables, and temporary suspension summaries. This still does not open
-  `campus_services` product serving.
+  and notice capabilities. `service_status_lookup` can read a configured file
+  projection fixture for deterministic runtime tests; `transport_schedule_lookup`
+  can now resolve projection-backed schedule snapshot metadata, route
+  clarification, departures, service windows, timetables, and temporary
+  suspension summaries; `campus_notice_discover` / `campus_notice_get` read the
+  internal notice PG read model and S3-compatible derived canonical bodies. This
+  still does not open `campus_services` or `notice` product serving.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
   queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
@@ -81,8 +82,17 @@ Current structured query runtime boundary:
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
   for deterministic tests; production should normally omit it.
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
+- `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
+  connection; `CAMPUS_SHARED_POSTGRES_URL` is the fallback.
+- `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
+  `ingestion_projection.internal_notice_read_model`.
+- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY` /
+  `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_DERIVED_SECRET_KEY` /
+  `OBJECT_STORE_SECRET_KEY`, `OBJECT_STORE_REGION`, and
+  `OBJECT_STORE_BUCKET_DERIVED` configure notice canonical body reads from the
+  S3-compatible derived bucket.
 - The runtime is not browser-facing, not an `app-api` product surface, and does
-  not open `campus_services` query-serving.
+  not open `campus_services` or `notice` query-serving.
 - Python orchestration can consume this seam only when
   `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
@@ -153,6 +163,13 @@ export SUPERVISOR_STRUCTURED_QUERY_BASE_URL=http://127.0.0.1:27010
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
+export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=
+export INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model
+export OBJECT_STORE_ENDPOINT=
+export OBJECT_STORE_DERIVED_ACCESS_KEY=
+export OBJECT_STORE_DERIVED_SECRET_KEY=
+export OBJECT_STORE_REGION=us-east-1
+export OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived
 ```
 
 Staging lifecycle derives execution audit URL and shared secret from

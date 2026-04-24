@@ -9,7 +9,7 @@ updated: 2026-04-24
 
 ## Current Progress
 
-- `Phase 0-11` repo-local implementation 已完成。
+- `Phase 0-12` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -18,6 +18,10 @@ updated: 2026-04-24
 - `Phase 11` 已补齐 forward capability label / lane alignment：`campus_services`
   与 `notice` 可作为显式 internal execution capability 进入对应 Go admission lane
   和 specialist-owned structured runtime handoff；knowledge path gate-closed 行为不变。
+- `Phase 12` 已将 `campus_notice_discover` / `campus_notice_get` 的确定性
+  read-model query runtime 迁到 Go shell：Go 读取 PG read model 与
+  S3-compatible derived canonical body，Python `notice-agent` 保留 HTTP thin
+  adapter，产品主路由 gate 仍保持关闭。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -301,3 +305,36 @@ capability family，而不把 knowledge path 下的 structured runtime gate 自�
 - Repo-local implementation is complete. `app-api` surface capability policy
   remains the owner of product opening; public chat is not opened to
   `campus_services` / `notice` by this phase.
+
+## Phase 12: Notice Read-Model Query Runtime Migration
+
+**Goal:** 将 `campus_notice_discover` / `campus_notice_get` 的 deterministic
+query-time read-model runtime 从 Python notice-agent 迁到 Go shell。
+
+**Scope:**
+
+- add internal `POST /internal/query/notices/discover`
+- add internal `POST /internal/query/notices/get`
+- require `x-supervisor-query-auth`
+- carry `payload + access_context` envelope so Go can enforce restricted
+  internal notice authorization
+- read `ingestion_projection.internal_notice_read_model` from PG
+- read canonical markdown bodies from S3-compatible derived bucket
+- convert Python `notice-agent` to HTTP thin adapter and remove Python PG/S3
+  default runtime wiring
+- keep notice product serving gate closed
+
+**Exit Criteria:**
+
+- Go tests prove discover, get, restricted auth fail-close and route auth
+- Python tests prove notice-agent posts payload + authorization projection to Go
+  and decodes typed results
+- supervisor-api bridge tests prove configured structured query base URL / secret
+  inject notice HTTP query service
+- docs clarify Go owns notice PG/S3 query runtime and Python no longer owns
+  direct read-model access
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Product serving admission remains
+  deferred until opening-gate regression / eval evidence exists.

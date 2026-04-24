@@ -91,8 +91,10 @@ Docker-side Go runtime control plane 长期负责：
 - Go shell 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup` 具备 file projection fixture backed foundation，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
-  Python thin-adapter wiring；其 authenticated-notice-backed offline projection
-  builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
+  Python thin-adapter wiring；`campus_notice_discover` / `campus_notice_get`
+  具备 Go-owned PG read-model + S3-compatible canonical body query runtime 与
+  Python notice-agent HTTP thin-adapter wiring；其 authenticated-notice-backed
+  offline projection builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
 
 Python semantic orchestration 长期继续负责：
 
