@@ -84,10 +84,15 @@ Docker-side Go runtime control plane 长期负责：
   admission、metrics、OTel seam 与 execution audit backflow
 - Go shell 已补齐 Go -> Python cooperative cancel signal；Python bridge 记录 active
   request id 的 cancel state，但 provider / prompt executor mid-flight stop 仍未接入
-- Go shell 已落地 gate-closed structured query runtime foundation；当前仅
+- Go shell 的 execution envelope 已接受 `knowledge`、`place_lookup`、
+  `campus_services`、`notice` capability label，并将它们映射到 `rag`、
+  `navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
+  knowledge path 使用
+- Go shell 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup` 具备 file projection fixture backed foundation，
-  `transport_schedule_lookup` 仍是 typed fail-closed seam，等待 schedule contract
-  讨论完成后再实现业务查询
+  `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
+  Python thin-adapter wiring；其 authenticated-notice-backed offline projection
+  builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
 
 Python semantic orchestration 长期继续负责：
 

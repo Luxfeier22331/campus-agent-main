@@ -25,10 +25,10 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 9 closeout`
-- current slice: Go shell 已补齐 Python cooperative cancel bridge 与 gate-closed
-  structured query runtime foundation；`transport_schedule_lookup` 业务查询仍待 schedule
-  contract 讨论后进入后续 phase
+- current phase: `Phase 11 closeout`
+- current slice: Go shell 已补齐 forward capability label / lane alignment；
+  `campus_services` 与 `notice` 可作为显式 internal execution capability 进入对应
+  lane，knowledge 路径下的产品 serving gate 仍保持关闭
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -64,12 +64,28 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 - `Phase 9`
   - Go shell 已提供 gate-closed structured query runtime foundation
   - `service_status_lookup` 可读 file projection fixture
-  - `transport_schedule_lookup` 仅返回 typed fail-closed seam
+  - `transport_schedule_lookup` 初始只返回 typed fail-closed seam，已由
+    `Phase 10` supersede
+- `Phase 10`
+  - `transport_schedule_lookup` 可读 schedule snapshot / route / departure /
+    exception projection
+  - 支持 snapshot metadata、route clarification、first / next / last departure、
+    departure list、service window、timetable 与 temporary suspension summary
+  - Python `campus-services-agent` 已具备 HTTP thin adapter，`supervisor-api`
+    仅在配置 structured query base URL / secret 时注入该 query service
+- `Phase 11`
+  - `requested_capability` wire label 扩展到 `campus_services` / `notice`
+  - Go execution parser 将 forward capability 映射到对应 lane admission
+  - supervisor validation 明确 `requested_scope` / `version_query` 只属于
+    knowledge path
+  - explicit forward capability 可进入对应 specialist-owned structured runtime
+    handoff；knowledge path gate-closed 行为不变
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-9 的剩余必做实现项
-- `transport_schedule_lookup` 的业务查询实现需要先完成 schedule contract 讨论
+- repo 内当前没有 Phase 8-11 的剩余必做实现项
+- `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /
+  regression evidence 与产品路由 admission 决策
 - product-layer cancellation UX 继续属于 `chat-capacity-and-cancellation-hardening`
 - 实际环境 cutover / rollback drill 执行属于 environment-side rollout，不阻塞
   repo-local closeout

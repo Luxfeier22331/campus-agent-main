@@ -164,9 +164,7 @@ func ParseAnswerRequest(
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
-	if requestedCapability != "" &&
-		requestedCapability != "knowledge" &&
-		requestedCapability != "place_lookup" {
+	if requestedCapability != "" && !isAllowedRequestedCapability(requestedCapability) {
 		return AnswerExecutionRequest{}, invalidRequest(
 			fmt.Sprintf("unsupported requested_capability: %s", requestedCapability),
 		)
@@ -178,6 +176,13 @@ func ParseAnswerRequest(
 	}
 	versionQuery, err := parseVersionQuery(payload["version_query"])
 	if err != nil {
+		return AnswerExecutionRequest{}, invalidRequest(err.Error())
+	}
+	if err := validateCapabilityEnvelope(
+		requestedCapability,
+		hasRequestedScope,
+		versionQuery,
+	); err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
 
@@ -240,9 +245,45 @@ func laneForCapability(requestedCapability string) string {
 		return "rag"
 	case "place_lookup":
 		return "navigation"
+	case "campus_services":
+		return "campus_services"
+	case "notice":
+		return "notice"
 	default:
 		return "default"
 	}
+}
+
+func isAllowedRequestedCapability(requestedCapability string) bool {
+	switch requestedCapability {
+	case "knowledge", "place_lookup", "campus_services", "notice":
+		return true
+	default:
+		return false
+	}
+}
+
+func validateCapabilityEnvelope(
+	requestedCapability string,
+	hasRequestedScope bool,
+	versionQuery versionQuery,
+) error {
+	if requestedCapability == "" || requestedCapability == "knowledge" {
+		return nil
+	}
+	if hasRequestedScope {
+		if requestedCapability == "place_lookup" {
+			return fmt.Errorf("requested_scope is not allowed for place_lookup requests")
+		}
+		return fmt.Errorf("requested_scope is only allowed for knowledge requests")
+	}
+	if versionQuery.Mode != "" && versionQuery.Mode != "current" {
+		if requestedCapability == "place_lookup" {
+			return fmt.Errorf("version_query is not allowed for place_lookup requests")
+		}
+		return fmt.Errorf("version_query is only allowed for knowledge requests")
+	}
+	return nil
 }
 
 func authenticate(headers map[string]string, cfg config.Config) (actorContext, *HTTPError) {

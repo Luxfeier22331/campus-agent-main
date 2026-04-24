@@ -10,10 +10,11 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 9 closeout`
+- current phase: `Phase 11 closeout`
 - current slice: Go shell runtime kernel hardening、Python cooperative cancel
-  bridge 与 gate-closed structured query runtime foundation 已落地；`transport_schedule_lookup`
-  业务查询仍等待 schedule contract 讨论后进入后续 phase
+  bridge、structured query runtime foundation 与 `transport_schedule_lookup`
+  projection-backed deterministic query kernel 已落地；forward capability label /
+  lane alignment 已补齐；产品主路由 gate 仍保持关闭
 - owner: unassigned
 - active implementation: yes, `apps/go-shell`
 
@@ -50,14 +51,14 @@ updated: 2026-04-24
 
 ## Blockers
 
-- repo-local Phase 8-9 implementation 当前无 blocker。
+- repo-local Phase 8-11 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
   当前 go-shell 只实现 execution-side cancel 和 Go -> Python cooperative cancel
   signal。
-- `transport_schedule_lookup` 的具体 route / snapshot / service time 查询策略仍待讨论，
-  因此当前只保留 typed fail-closed seam，不进入业务查询实现。
+- `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需要 eval /
+  regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 
 ## Verification
 
@@ -126,6 +127,48 @@ updated: 2026-04-24
     `./internal/httpapi ./internal/structuredquery -count=1`
   - `uv run --all-packages python -m unittest`
     `tests.api.supervisor_api_bridge_suite`
+- Phase 10 transport schedule query kernel verification passed on 2026-04-24:
+  - `PATH="$PATH:$(go env GOPATH)/bin" pnpm go:check`
+  - `uv run --all-packages python -m unittest`
+    `tests.specialist.test_campus_services_agent`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.test_supervisor_api_asgi`
+  - `uv run --all-packages ruff check apps/supervisor-api/src/campus_supervisor_api`
+    `packages/campus-services-agent/src/campus_services_agent`
+    `tests/api/supervisor_api_bridge_suite.py`
+    `tests/specialist/test_campus_services_agent.py`
+  - `uv run --all-packages ruff format apps/supervisor-api/src/campus_supervisor_api`
+    `packages/campus-services-agent/src/campus_services_agent`
+    `tests/api/supervisor_api_bridge_suite.py`
+    `tests/specialist/test_campus_services_agent.py --check`
+  - `pnpm docs:lint`
+  - `pnpm yaml:lint`
+- Phase 11 forward capability lane alignment focused red/green verification
+  passed on 2026-04-24:
+  - `PATH="/home/reptilian/code/campus-agent/.tmp/go-toolchain/go/bin:$PATH"`
+    `go test ./internal/execution -count=1`
+  - `uv run --all-packages python -m unittest`
+    `tests.supervisor.test_supervisor_validation`
+    `tests.supervisor.test_supervisor_routing`
+- Phase 11 broader verification passed on 2026-04-24:
+  - `PATH="/home/reptilian/code/campus-agent/.tmp/go-toolchain/go/bin:$PATH"`
+    `go test ./... -count=1` in `apps/go-shell`
+  - `PATH="/home/reptilian/code/campus-agent/.tmp/go-toolchain/go/bin:$PATH"`
+    `go vet ./...` in `apps/go-shell`
+  - `PATH="/home/reptilian/code/campus-agent/.tmp/go-toolchain/go/bin:$PATH"`
+    `test -z "$(gofmt -l apps/go-shell)"`
+  - `uv run --all-packages python -m unittest`
+    `tests.contracts.contract_models_request_and_retrieval_suite`
+    `tests.supervisor.test_supervisor_validation`
+    `tests.supervisor.test_supervisor_routing`
+    `tests.api.supervisor_api_bridge_suite`
+  - `uv run --all-packages python -m unittest` for the importable supervisor
+    suite modules
+  - focused `ruff check` / `ruff format --check` for touched Python files
+  - `pnpm docs:lint`
+  - `pnpm go:check` did not complete because local environment lacks
+    `golangci-lint v2.11.4`; its gofmt / go vet stages had already passed before
+    the missing linter guard failed
 
 ## Continuity Notes
 
@@ -135,8 +178,10 @@ updated: 2026-04-24
 - Python orchestration bridge 是迁移安全阀，不是长期腐烂兼容层；每个保留边界都要有 owner。
 - Go structured query runtime 是 internal query service seam，不是 product API、
   browser-facing tool endpoint 或 `app-api` control plane。
-- `transport_schedule_lookup` 当前没有业务查询实现；不得把 fail-closed seam 冒充成
-  runtime lane opening。
+- `transport_schedule_lookup` 当前已有 runtime kernel；不得把 runtime kernel readiness
+  冒充成 product serving lane opening。
+- `campus_services` / `notice` 作为 explicit internal execution capability label
+  可进入对应 Go lane；这不等同于 public chat surface 已开放这些 capability。
 
 ## Completed Implementation
 
@@ -219,16 +264,64 @@ updated: 2026-04-24
   - `POST /internal/query/campus-services/transport-schedule`
 - structured query routes require `x-supervisor-query-auth`
 - `service_status_lookup` can resolve a configured file projection fixture
-- `transport_schedule_lookup` returns `temporarily_unverifiable` with
-  `source_family_unavailable` until schedule business rules are finalized
+- `transport_schedule_lookup` initially returned `temporarily_unverifiable` with
+  `source_family_unavailable`; this fail-closed seam was superseded by Phase 10
 - `/readyz` reports `structured_query_runtime`
 - `/metrics` reports `campus_go_shell_structured_query_requests_total`
+
+## Phase 10 Completed Implementation
+
+- `transport_schedule_lookup` reads configured schedule projection records:
+  - `transport_schedule_snapshots`
+  - `transport_routes`
+  - `scheduled_departures`
+  - `transport_service_exceptions`
+- Go query kernel supports:
+  - `schedule_snapshot_metadata`
+  - route clarification for missing / ambiguous selectors
+  - `next_departure`
+  - `first_departure`
+  - `last_departure`
+  - `departure_list`
+  - `service_window`
+  - `timetable`
+  - temporary suspension summaries with `related_notice_refs`
+- service-date semantics use Go shell trusted runtime time in `Asia/Shanghai`
+- `campus-services-agent` now has `CampusServicesHTTPQueryService` as the
+  Python thin adapter for the Go internal query seam
+- `supervisor-api` injects the campus-services query service only when
+  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
+  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured
+- product routing remains gate-closed; this implementation does not by itself
+  open `campus_services` serving
+
+## Phase 11 Completed Implementation
+
+- shared `requested_capability` contract now accepts:
+  - `knowledge`
+  - `place_lookup`
+  - `campus_services`
+  - `notice`
+- Go execution parser maps:
+  - `knowledge` / missing capability -> `rag` lane
+  - `place_lookup` -> `navigation` lane
+  - `campus_services` -> `campus_services` lane
+  - `notice` -> `notice` lane
+- Go execution parser rejects `requested_scope` and non-current `version_query`
+  for non-knowledge capability labels
+- supervisor validation accepts explicit `campus_services` / `notice` while
+  preserving knowledge-only scope/version semantics
+- supervisor routing delegates explicit `campus_services` / `notice` requests to
+  corresponding specialist-owned structured runtime payloads
+- existing knowledge-path structured runtime candidates remain gate-closed and
+  still route through the current `rag-agent` path unless a higher-level surface
+  explicitly admits a forward capability
 
 ## Remaining Implementation
 
 - product-layer cancellation UX belongs to
   `chat-capacity-and-cancellation-hardening`
 - provider / prompt executor mid-flight cooperative stop remains future work
-- `transport_schedule_lookup` business implementation remains future work
+- `transport_schedule_lookup` opening gate / eval evidence remains future work
 - actual environment cutover / rollback drill execution remains environment-side
   rollout work

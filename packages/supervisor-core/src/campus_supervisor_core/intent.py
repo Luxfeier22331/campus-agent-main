@@ -8,7 +8,13 @@ from campus_contracts import RequestedCapability
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.scope_policy import evaluate_knowledge_scope
 
-IntentTaskKind = Literal["knowledge_lookup", "place_lookup", "unknown"]
+IntentTaskKind = Literal[
+    "knowledge_lookup",
+    "place_lookup",
+    "campus_services_lookup",
+    "notice_lookup",
+    "unknown",
+]
 IntentRiskLevel = Literal["low", "medium", "high"]
 IntentNextAction = Literal["delegate", "clarify", "rejected", "approval_required", "out_of_scope"]
 IntentPersonalizationMode = Literal["generic", "cohort_grounded", "user_grounded"]
@@ -106,6 +112,30 @@ def frame_intent(
             personalization_mode=personalization_mode,
             scope_class="out_of_scope",
             policy_reason="navigation_temporarily_unsupported",
+        )
+    if capability == "campus_services":
+        return IntentFrame(
+            capability="campus_services",
+            task_kind="campus_services_lookup",
+            domain_candidates=("campus_services",),
+            missing_slots=(),
+            risk_level="low",
+            needs_clarification=False,
+            suggested_next_action="delegate",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
+        )
+    if capability == "notice":
+        return IntentFrame(
+            capability="notice",
+            task_kind="notice_lookup",
+            domain_candidates=("notice",),
+            missing_slots=(),
+            risk_level="low",
+            needs_clarification=False,
+            suggested_next_action="delegate",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
         )
 
     policy_reason = _evaluate_knowledge_policy_reason(normalized_goal)

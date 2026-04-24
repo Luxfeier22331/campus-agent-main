@@ -9,6 +9,7 @@ from campus_contracts import (
     ServiceStatusLookupPayload,
     SupervisorRequest,
     TraceContext,
+    TransportScheduleLookupPayload,
     VersionQuery,
 )
 from campus_supervisor_core import routing as supervisor_routing
@@ -62,7 +63,9 @@ class SupervisorRoutingTest(unittest.TestCase):
             CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
         )
 
-    def test_structured_runtime_classifier_keeps_compare_version_query_outside_tool_lane(self) -> None:
+    def test_structured_runtime_classifier_keeps_compare_version_query_outside_tool_lane(
+        self,
+    ) -> None:
         classifier = getattr(supervisor_routing, "classify_structured_runtime_candidate", None)
         self.assertIsNotNone(classifier)
 
@@ -92,6 +95,56 @@ class SupervisorRoutingTest(unittest.TestCase):
 
         self.assertEqual(decision.target, "rag-agent")
         self.assertIsNone(decision.specialist_payload)
+
+    def test_route_request_delegates_explicit_campus_services_capability(self) -> None:
+        request = SupervisorRequest(
+            user_goal="最近的校车时刻表是什么",
+            requested_capability="campus_services",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "campus-services-agent")
+        self.assertEqual(decision.allowed_tools, ("transport_schedule_lookup",))
+        self.assertEqual(
+            decision.specialist_payload,
+            TransportScheduleLookupPayload(
+                query_text="最近的校车时刻表是什么",
+                intent="schedule_snapshot_metadata",
+            ),
+        )
+
+    def test_route_request_delegates_explicit_notice_capability(self) -> None:
+        request = SupervisorRequest(
+            user_goal="找一下春假通知",
+            requested_capability="notice",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "notice-agent")
+        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
+        self.assertEqual(
+            decision.specialist_payload,
+            CampusNoticeDiscoverPayload(query_text="找一下春假通知"),
+        )
+
+    def test_route_request_delegates_explicit_notice_capability_without_notice_keyword(
+        self,
+    ) -> None:
+        request = SupervisorRequest(
+            user_goal="春假安排",
+            requested_capability="notice",
+        )
+
+        decision = route_request(SupervisorRequestContext.from_request(request))
+
+        self.assertEqual(decision.target, "notice-agent")
+        self.assertEqual(decision.allowed_tools, ("campus_notice_discover",))
+        self.assertEqual(
+            decision.specialist_payload,
+            CampusNoticeDiscoverPayload(query_text="春假安排"),
+        )
 
     def test_route_request_selects_rag_specialist_for_regulations_student_handbook(self) -> None:
         request = SupervisorRequest(

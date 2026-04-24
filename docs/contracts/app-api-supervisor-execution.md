@@ -147,9 +147,14 @@ product/control-plane endpoint。
 
 - `service_status_lookup` 已具备 file projection fixture backed foundation，用于
   deterministic runtime tests
-- `transport_schedule_lookup` 只提供 typed fail-closed seam，返回
-  `temporarily_unverifiable + source_family_unavailable`
-- 这不打开 `campus_services` 产品 serving surface，也不表示班车查询业务逻辑已完成
+- `transport_schedule_lookup` 已具备 projection-backed deterministic query
+  kernel，可解析 current snapshot metadata、route clarification、first / next /
+  last departure、departure list、service window、timetable 与 temporary
+  suspension summary
+- Python orchestration 仅在配置 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
+  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时消费该 internal query seam
+- 这不打开 `campus_services` 产品 serving surface；产品主路由 opening gate 仍需
+  release-gate regression / eval evidence 与 app-owned observability 证据
 
 ## Execution Audit Backflow
 
@@ -239,13 +244,16 @@ payload 或 provider raw response。
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
   `actor`、`authorization.retrieval_filter`、空的 `profile_memory.items` 与
   `session.confirmed_slots`、可选的 `session.selected_notice_ref`，以及 turn count 摘要
-- `requested_capability` 当前允许 `knowledge` 或 `place_lookup`
+- `requested_capability` 当前 wire 允许 `knowledge`、`place_lookup`、
+  `campus_services`、`notice`。这只是 internal execution capability label，不等于对应
+  browser surface 已开放；当前公开 chat surface 仍由 `app-api` surface capability
+  policy 决定允许子集
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
   specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认
   collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
   `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
-  query-serving surface
+  query-serving surface；`campus_services` 与 `notice` 同样不得携带 `requested_scope`
 - `version_query` 可选；当前只允许与 `requested_capability=knowledge` 一起出现。`app-api` 负责把
   browser/eval 路径上的 `camelCase versionQuery` 归一化成 Python-side `snake_case` 形态后传给
   `supervisor-api`
@@ -254,6 +262,9 @@ payload 或 provider raw response。
 
 - `place_lookup` contract 仍保留在 internal execution seam
 - 但当前产品路径已对校内导航 fail-close，不把它当成已开放 browser capability
+- `campus_services` / `notice` 只有在上游 surface policy 已显式 admission 时才应传入；
+  knowledge path 下的 notice/service-like query 仍保持现有 gate posture，不被这次 wire
+  对齐自动打开
 - `version_query` 缺失时按 `current` 解释；显式 `historical` / `as_of` / `compare` 必须在这条
   seam 上传递，不允许 `app-api` 静默折叠回 current
 
@@ -427,7 +438,7 @@ payload 或 provider raw response。
 
 ## Forward Evolution
 
-- 当前 internal execution wire truth 仍是 `requested_capability + optional
+- 当前 internal execution wire truth 仍是 `requested_capability + knowledge-only optional
   requested_scope`
 - 在明确引入新版本 contract 之前，`app-api` 与 `supervisor-api` 继续按这组字段互操作，不把
   capability-neutral routing 误写成“当前 wire 已经 capability-family-native”

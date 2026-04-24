@@ -54,7 +54,9 @@ specialist-owned execution -> supervisor finalization`
 
 - `public-chat-web -> app-api` 的公开 chat 请求当前只开放 `knowledge`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close
-- `notice-agent`、`campus-services-agent` 是已冻结的前向 capability family，但还不是当前默认公开主路径
+- `notice-agent`、`campus-services-agent` 是已冻结的前向 capability family；internal
+  execution wire 已接受显式 `notice` / `campus_services` capability label 并映射到对应
+  lane，但它们还不是当前默认公开主路径
 
 这些都属于当前 surface posture，而不是长期 routing architecture 的原则。
 

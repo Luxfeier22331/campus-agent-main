@@ -49,6 +49,57 @@ class SupervisorValidationTest(unittest.TestCase):
 
         self.assertEqual(capability, "knowledge")
 
+    def test_resolve_requested_capability_allows_forward_structured_capabilities(self) -> None:
+        for requested_capability in ("campus_services", "notice"):
+            with self.subTest(requested_capability=requested_capability):
+                context = SupervisorRequestContext.from_request(
+                    SupervisorRequest(
+                        user_goal="校车时刻表",
+                        requested_capability=requested_capability,
+                    )
+                )
+
+                capability = resolve_requested_capability(context)
+
+                self.assertEqual(capability, requested_capability)
+
+    def test_resolve_requested_capability_rejects_scope_on_forward_structured_capability(
+        self,
+    ) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="校车时刻表",
+                requested_capability="campus_services",
+                requested_scope=KnowledgeScope(
+                    corpus="campus_services",
+                    collection="service_catalog",
+                ),
+            )
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSupervisorRequestError,
+            "requested_scope is only allowed for knowledge requests",
+        ):
+            resolve_requested_capability(context)
+
+    def test_resolve_requested_capability_rejects_version_query_on_forward_structured_capability(
+        self,
+    ) -> None:
+        context = SupervisorRequestContext.from_request(
+            SupervisorRequest(
+                user_goal="找一下历史通知",
+                requested_capability="notice",
+                version_query=VersionQuery(mode="historical"),
+            )
+        )
+
+        with self.assertRaisesRegex(
+            InvalidSupervisorRequestError,
+            "version_query is only allowed for knowledge requests",
+        ):
+            resolve_requested_capability(context)
+
     def test_resolve_requested_capability_rejects_scope_on_place_lookup_request(self) -> None:
         context = SupervisorRequestContext.from_request(
             SupervisorRequest(

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 from campus_contracts import (
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     PlaceLookupPayload,
     RagRequestPayload,
+    RequestedCapability,
     ServiceStatusLookupPayload,
     SpecialistTarget,
     SpecialistToolName,
@@ -34,7 +35,14 @@ _SERVICE_STATUS_KEYWORDS = (
     "状态",
 )
 _NOTICE_KEYWORDS = ("通知", "公告", "公示")
-_NOTICE_GET_KEYWORDS = ("这条通知", "这则通知", "通知原文", "通知详情", "读取这条通知", "打开这条通知")
+_NOTICE_GET_KEYWORDS = (
+    "这条通知",
+    "这则通知",
+    "通知原文",
+    "通知详情",
+    "读取这条通知",
+    "打开这条通知",
+)
 _YEAR_RE = re.compile(r"(20\d{2})年")
 
 
@@ -66,13 +74,22 @@ def classify_structured_runtime_candidate(
         return None
     if context.version_query.mode in {"historical", "compare"}:
         return None
+    return _classify_structured_runtime_candidate(context, capability=capability)
 
+
+def _classify_structured_runtime_candidate(
+    context: SupervisorRequestContext,
+    *,
+    capability: RequestedCapability,
+) -> RoutingDecision | None:
     intent_frame = frame_intent(context, capability=capability)
     if intent_frame.suggested_next_action != "delegate":
         return None
 
     normalized_goal = context.user_goal.strip()
-    if _looks_like_transport_query(normalized_goal):
+    if capability in {"knowledge", "campus_services"} and _looks_like_transport_query(
+        normalized_goal
+    ):
         return RoutingDecision(
             target="campus-services-agent",
             primary_corpus=None,
@@ -87,7 +104,9 @@ def classify_structured_runtime_candidate(
             ),
             allowed_tools=("transport_schedule_lookup",),
         )
-    if _looks_like_service_status_query(normalized_goal):
+    if capability in {"knowledge", "campus_services"} and _looks_like_service_status_query(
+        normalized_goal
+    ):
         return RoutingDecision(
             target="campus-services-agent",
             primary_corpus=None,
@@ -100,7 +119,9 @@ def classify_structured_runtime_candidate(
             ),
             allowed_tools=("service_status_lookup",),
         )
-    if _looks_like_notice_query(normalized_goal):
+    if capability == "notice" or (
+        capability == "knowledge" and _looks_like_notice_query(normalized_goal)
+    ):
         selected_notice_ref = context.context.session.selected_notice_ref
         if selected_notice_ref is not None and _looks_like_notice_get_query(normalized_goal):
             payload = CampusNoticeGetPayload(
@@ -140,6 +161,19 @@ def route_request(context: SupervisorRequestContext) -> RoutingDecision:
     if capability == "place_lookup":
         return RoutingDecision(
             target="navigation-agent",
+            primary_corpus=None,
+            primary_collection=None,
+            intent_frame=intent_frame,
+        )
+    if capability in {"campus_services", "notice"}:
+        structured_decision = _classify_structured_runtime_candidate(
+            context,
+            capability=capability,
+        )
+        if structured_decision is not None:
+            return structured_decision
+        return RoutingDecision(
+            target=None,
             primary_corpus=None,
             primary_collection=None,
             intent_frame=intent_frame,

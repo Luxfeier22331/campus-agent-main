@@ -254,6 +254,100 @@ func TestParseAnswerRequestRejectsInvalidSafetyIdentifier(t *testing.T) {
 	}
 }
 
+func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T) {
+	tests := []struct {
+		name       string
+		capability string
+		wantLane   string
+	}{
+		{name: "campus services", capability: "campus_services", wantLane: "campus_services"},
+		{name: "notice", capability: "notice", wantLane: "notice"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request, httpErr := ParseAnswerRequest(
+				json.RawMessage(`{
+					"user_goal":"校车时刻表",
+					"request_id":"req-forward-capability",
+					"requested_capability":"`+tt.capability+`"
+				}`),
+				map[string]string{
+					"authorization": "Bearer secret-token",
+				},
+				config.Config{
+					AuthMode:       "bearer",
+					BearerToken:    "secret-token",
+					DefaultActorID: "api-bearer-user",
+				},
+			)
+
+			if httpErr != nil {
+				t.Fatalf("unexpected http error: %#v", httpErr)
+			}
+			if request.Lane != tt.wantLane {
+				t.Fatalf("lane = %q, want %q", request.Lane, tt.wantLane)
+			}
+			payload := decodeExecutionPayload(t, request.Payload)
+			if payload["requested_capability"] != tt.capability {
+				t.Fatalf("requested_capability = %v, want %q", payload["requested_capability"], tt.capability)
+			}
+		})
+	}
+}
+
+func TestParseAnswerRequestRejectsKnowledgeScopeForForwardCapabilities(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"校车时刻表",
+			"request_id":"req-scope-on-campus-services",
+			"requested_capability":"campus_services",
+			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected requested_scope to fail for campus_services")
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	}
+}
+
+func TestParseAnswerRequestRejectsVersionQueryForForwardCapabilities(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"找一下历史通知",
+			"request_id":"req-version-on-notice",
+			"requested_capability":"notice",
+			"version_query":{"mode":"historical","version_id":"v1:notice"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected version_query to fail for notice")
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	}
+}
+
 func decodeExecutionPayload(t *testing.T, payload json.RawMessage) map[string]any {
 	t.Helper()
 

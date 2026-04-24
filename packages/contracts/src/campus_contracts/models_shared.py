@@ -28,7 +28,7 @@ SpecialistToolName = Literal[
     "campus_notice_discover",
     "campus_notice_get",
 ]
-RequestedCapability = Literal["knowledge", "place_lookup"]
+RequestedCapability = Literal["knowledge", "place_lookup", "campus_services", "notice"]
 SupervisorStatus = Literal[
     "completed",
     "needs_clarification",
@@ -119,7 +119,7 @@ ALLOWED_SPECIALIST_TOOL_NAMES = (
     "campus_notice_discover",
     "campus_notice_get",
 )
-ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup")
+ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup", "campus_services", "notice")
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
     "needs_clarification",

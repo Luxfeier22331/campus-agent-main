@@ -41,6 +41,16 @@ def resolve_requested_capability(context: SupervisorRequestContext) -> Requested
                 "version_query is not allowed for place_lookup requests"
             )
         return capability
+    if capability in {"campus_services", "notice"}:
+        if has_scope:
+            raise InvalidSupervisorRequestError(
+                "requested_scope is only allowed for knowledge requests"
+            )
+        if has_non_current_version_query:
+            raise InvalidSupervisorRequestError(
+                "version_query is only allowed for knowledge requests"
+            )
+        return capability
     raise MissingRoutingInputError(f"unsupported requested capability: {capability}")
 
 

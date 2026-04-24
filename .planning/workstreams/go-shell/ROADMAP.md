@@ -9,11 +9,15 @@ updated: 2026-04-24
 
 ## Current Progress
 
-- `Phase 0-9` repo-local implementation 已完成。
+- `Phase 0-11` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
-- `transport_schedule_lookup` 的业务查询实现仍等待 schedule contract 讨论完成后进入
-  后续 phase；当前只保留 typed fail-closed seam。
+- `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
+  kernel 与 Python thin-adapter wiring；产品主路由 gate 仍保持关闭，后续 opening
+  需要 release-gate regression / eval evidence。
+- `Phase 11` 已补齐 forward capability label / lane alignment：`campus_services`
+  与 `notice` 可作为显式 internal execution capability 进入对应 Go admission lane
+  和 specialist-owned structured runtime handoff；knowledge path gate-closed 行为不变。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -218,7 +222,6 @@ foundation，为 campus services tools 后续接入提供 internal query service
 - require `x-supervisor-query-auth`
 - add file projection fixture backed service-status foundation
 - keep `transport_schedule_lookup` as typed fail-closed seam pending contract
-  discussion
 - expose `structured_query_runtime` in `/readyz`
 - expose structured query counters in `/metrics`
 
@@ -233,6 +236,68 @@ foundation，为 campus services tools 后续接入提供 internal query service
 
 **Closeout Note:**
 
-- Repo-local foundation is complete. Actual `transport_schedule_lookup` business
-  implementation is intentionally deferred until schedule contract discussion is
-  complete.
+- Repo-local implementation is complete. The fail-closed transport seam has been
+  superseded by Phase 10's projection-backed schedule query kernel.
+
+## Phase 10: Transport Schedule Query Kernel
+
+**Goal:** 在不打开 `campus_services` 产品 serving gate 的前提下，实现
+`transport_schedule_lookup` 的 projection-backed deterministic query kernel。
+
+**Scope:**
+
+- parse schedule snapshot / route / scheduled departure / service exception
+  projection records from the configured file bundle
+- support `schedule_snapshot_metadata`, route clarification, `next_departure`,
+  `first_departure`, `last_departure`, `departure_list`, `service_window` and
+  `timetable`
+- inject trusted runtime time from Go shell context, never from user payload
+- return fail-closed typed results when projection truth is unavailable
+- add Python thin HTTP adapter and `supervisor-api` conditional wiring without
+  changing product routing gate
+
+**Exit Criteria:**
+
+- Go unit and HTTP seam tests cover snapshot metadata, missing route
+  clarification, tomorrow morning first departure, departure list filtering and
+  temporary suspension
+- Python adapter tests prove request posting, result decoding and answer shaping
+- `supervisor-api` bridge test proves configured campus-services query service
+  wiring
+- Docs and workstream state clarify that runtime kernel readiness is not product
+  serving admission
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Product serving admission remains
+  deferred until opening-gate regression / eval evidence exists.
+
+## Phase 11: Forward Capability Lane Alignment
+
+**Goal:** 让 Go shell、shared contract 与 supervisor validation 对齐已冻结的 forward
+capability family，而不把 knowledge path 下的 structured runtime gate 自动打开。
+
+**Scope:**
+
+- extend `requested_capability` wire label to include `campus_services` and
+  `notice`
+- map `campus_services` and `notice` to their Go admission lanes
+- keep `requested_scope` and non-current `version_query` knowledge-only
+- allow explicit forward capability handoff to the corresponding specialist-owned
+  structured runtime payload
+- preserve existing knowledge-path structured runtime gate-closed behavior
+
+**Exit Criteria:**
+
+- Go execution parser tests prove `campus_services` / `notice` lane mapping
+- supervisor validation tests prove forward capability acceptance and
+  knowledge-only scope/version guards
+- supervisor routing tests prove explicit capability handoff without opening
+  knowledge-path gate
+- docs clarify that internal execution alignment is not browser surface opening
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. `app-api` surface capability policy
+  remains the owner of product opening; public chat is not opened to
+  `campus_services` / `notice` by this phase.
