@@ -339,6 +339,26 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn("|课程名称|学分|", markdown)
         self.assertIn("法学论文写作(初阶)", markdown)
 
+    def test_curriculum_markdown_keeps_total_credits_and_degree_fields_separate(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"法学本科人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"三、学制、总学分和学位授予","heading_level":2}',
+                '{"row_type":"paragraph","clean_text":"学制:4年"}',
+                '{"row_type":"paragraph","clean_text":"总学分:法学班 157 学分,涉外班 171 学分"}',
+                '{"row_type":"paragraph","clean_text":"学位授予:法学学士"}',
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="法学本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("总学分:法学班 157 学分,涉外班 171 学分\n\n学位授予:法学学士", markdown)
+        self.assertNotIn("171 学分学位授予", markdown)
+
     def test_curriculum_markdown_merges_table_continuations_before_rendering(self) -> None:
         module = self.module
         jsonl_text = "\n".join(
@@ -412,10 +432,10 @@ class PublicDocsSyncTest(unittest.TestCase):
                 '{"row_type":"heading","clean_text":"计算机科学与技术（民族实验班）本科人才培养方案","heading_level":1}',
                 (
                     '{"row_type":"table","html":"<table><tr><td rowspan=\\"2\\">毕业要求</td><td colspan=\\"2\\">培养目标</td></tr>'
-                    '<tr><td>培养目标1</td><td>培养目标2</td></tr>'
+                    "<tr><td>培养目标1</td><td>培养目标2</td></tr>"
                     '<tr><td>1.工程知识</td><td>✓</td><td></td></tr></table>",'
                     '"clean_text":"<table><tr><td rowspan=\\"2\\">毕业要求</td><td colspan=\\"2\\">培养目标</td></tr>'
-                    '<tr><td>培养目标1</td><td>培养目标2</td></tr>'
+                    "<tr><td>培养目标1</td><td>培养目标2</td></tr>"
                     '<tr><td>1.工程知识</td><td>✓</td><td></td></tr></table>"}'
                 ),
             ]
@@ -438,13 +458,13 @@ class PublicDocsSyncTest(unittest.TestCase):
                 (
                     '{"row_type":"table","html":"<table><tr><td>培养阶段</td><td>板块名称</td><td>类别</td><td>学分设置</td></tr>'
                     '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td>思政课</td><td>16</td></tr>'
-                    '<tr><td>基本素养课</td><td>19</td></tr>'
-                    '<tr><td>综合素养课</td><td>10</td></tr>'
+                    "<tr><td>基本素养课</td><td>19</td></tr>"
+                    "<tr><td>综合素养课</td><td>10</td></tr>"
                     '<tr><td>学科基础教育</td><td>学科基础课</td><td>21</td></tr></table>",'
                     '"clean_text":"<table><tr><td>培养阶段</td><td>板块名称</td><td>类别</td><td>学分设置</td></tr>'
                     '<tr><td rowspan=\\"4\\">大类培养</td><td rowspan=\\"3\\">通识教育</td><td>思政课</td><td>16</td></tr>'
-                    '<tr><td>基本素养课</td><td>19</td></tr>'
-                    '<tr><td>综合素养课</td><td>10</td></tr>'
+                    "<tr><td>基本素养课</td><td>19</td></tr>"
+                    "<tr><td>综合素养课</td><td>10</td></tr>"
                     '<tr><td>学科基础教育</td><td>学科基础课</td><td>21</td></tr></table>"}'
                 ),
             ]
@@ -459,7 +479,9 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn('rowspan="4">大类培养</td>', markdown)
         self.assertNotIn("|培养阶段|板块名称|类别|学分设置||", markdown)
 
-    def test_curriculum_markdown_escapes_mdx_sensitive_text_inside_preserved_html_table(self) -> None:
+    def test_curriculum_markdown_escapes_mdx_sensitive_text_inside_preserved_html_table(
+        self,
+    ) -> None:
         module = self.module
         jsonl_text = "\n".join(
             [
@@ -509,11 +531,11 @@ class PublicDocsSyncTest(unittest.TestCase):
                 '{"row_type":"heading","clean_text":"日语本科人才培养方案","heading_level":1}',
                 (
                     '{"row_type":"table","html":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程</td>'
                     '<td>建议出国深造学生选修</td></tr></table>",'
                     '"clean_text":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程</td>'
                     '<td>建议出国深造学生选修</td></tr></table>"}'
                 ),
@@ -539,11 +561,11 @@ class PublicDocsSyncTest(unittest.TestCase):
                 '{"row_type":"heading","clean_text":"俄语-俄语-中亚语-本科人才培养方案","heading_level":1}',
                 (
                     '{"row_type":"table","html":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力培养课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程/</td>'
                     '<td>建议出国深造学生选修</td></tr></table>",'
                     '"clean_text":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力培养课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程/</td>'
                     '<td>建议出国深造学生选修</td></tr></table>"}'
                 ),
@@ -558,18 +580,20 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn("  - 课程名称：学校通开的全球胜任力培养课程", markdown)
         self.assertNotIn("学校通开的全球胜任力培养课程/", markdown)
 
-    def test_curriculum_markdown_compacts_global_competence_colspan_row_without_remark(self) -> None:
+    def test_curriculum_markdown_compacts_global_competence_colspan_row_without_remark(
+        self,
+    ) -> None:
         module = self.module
         jsonl_text = "\n".join(
             [
                 '{"row_type":"heading","clean_text":"金融学本科人才培养方案","heading_level":1}',
                 (
                     '{"row_type":"table","html":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力培养课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程</td>'
                     '<td></td></tr></table>",'
                     '"clean_text":"<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td>'
-                    '<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>'
+                    "<td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
                     '<tr><td>全球胜任力培养课程</td><td colspan=\\"6\\">学校通开的全球胜任力培养课程</td>'
                     '<td></td></tr></table>"}'
                 ),
@@ -834,6 +858,7 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertNotIn("\n4\n", markdown)
         self.assertNotIn("\n## 4\n", markdown)
         self.assertIn("|5|12|", markdown)
+
 
 if __name__ == "__main__":
     unittest.main()

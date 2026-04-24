@@ -1541,6 +1541,136 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         self.assertEqual(len(rows), 3)
         self.assertEqual(len({row["row_id"] for row in rows}), 3)
 
+    def test_normalize_curriculum_provider_result_demotes_terminal_motto_footer(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-terminal-motto",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "美美与共 知行合一",
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(rows[0]["row_type"], "footer")
+        self.assertEqual(rows[0]["block_role"], "motto_footer")
+        self.assertEqual(rows[0]["text_normalized"], "美美与共 知行合一")
+
+    def test_normalize_curriculum_provider_result_repairs_curriculum_layout_text_artifacts(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-layout-text-artifacts",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "立足北京，面向全国，着眼国际，主要培养政治素质过硬、人文底蕴\n"
+                                        "秉承“立德启智、知行合一、文化融合、国际视野”的育人理念，深厚、\n"
+                                        "国际视野宽广、教育学理论基础扎实。"
+                                    ),
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "1. 专业能力：应具备基本的经济分析能力，掌握经济学理论发展脉络，\n"
+                                        "具备经济学思维和使用经济学研究现实经济社会问题的能力，熟练使用前\n"
+                                        "沿数字技术开展经济研究点能力。数字经济专业应，具备"
+                                    ),
+                                    "block_id": 2,
+                                    "block_order": 2,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        texts = [
+            str(row.get("text_normalized") or "") for row in self._normalize_rows(provider_payload)
+        ]
+
+        self.assertIn(
+            (
+                "立足北京,面向全国,着眼国际,秉承“立德启智、知行合一、文化融合、国际视野”的"
+                "育人理念,主要培养政治素质过硬、人文底蕴深厚、国际视野宽广、教育学理论基础扎实。"
+            ),
+            texts,
+        )
+        self.assertIn(
+            (
+                "1. 专业能力:应具备基本的经济分析能力,掌握经济学理论发展脉络,具备经济学思维和使用"
+                "经济学研究现实经济社会问题的能力,熟练使用前沿数字技术开展经济研究的能力。"
+            ),
+            texts,
+        )
+
+    def test_normalize_curriculum_provider_result_repairs_split_table_cell_continuation(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-split-table-cell",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>一级指标</td><td>二级指标</td><td>三级指标</td></tr>"
+                                        '<tr><td rowspan="5">2能力目标</td><td rowspan="3">2-2在教育行业'
+                                        "创造性开展教育管理工作的能力</td><td>2-2-3具有建立良好的学习共同体"
+                                        "秩序和活动规则的能力,能够营造良好的同伴关系和师生关系,形成尊</td></tr>"
+                                        '<tr><td rowspan="10"></td><td></td><td>重、平等、积极向上的班级氛围,'
+                                        "能够总结教育教学常规工作的规律和常见问题。</td></tr></table>"
+                                    ),
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+        html = str(rows[0]["text_normalized"])
+
+        self.assertIn("形成尊重、平等、积极向上的班级氛围", html)
+        self.assertNotIn("<td>重、平等、积极向上的班级氛围", html)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -25,6 +25,7 @@ from .storage import _list_object_keys, _read_text_object
 _HTML_TABLE_ROW_RE = re.compile(r"<tr\b[^>]*>.*?</tr>", re.IGNORECASE | re.DOTALL)
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _MARKDOWN_HEADING_BLOCK_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+_CURRICULUM_METADATA_LINE_RE = re.compile(r"^(?:学制|学分|总学分|学位授予|授予学位)[:：].{1,120}$")
 
 
 def _build_curriculum_plan_index() -> str:
@@ -632,7 +633,10 @@ def _should_merge_paragraph(previous: str, current: str) -> bool:
 
 def _looks_like_compact_metadata_line(text: str) -> bool:
     normalized = text.strip()
-    return bool(re.fullmatch(r"[^。；！？!?]{1,24}[：:][^，,。；！？!?]{1,16}", normalized))
+    return bool(
+        _CURRICULUM_METADATA_LINE_RE.fullmatch(normalized)
+        or re.fullmatch(r"[^。；！？!?]{1,24}[：:][^，,。；！？!?]{1,16}", normalized)
+    )
 
 
 def _convert_table_html_to_markdown_blocks(html: str) -> list[tuple[str, str]]:

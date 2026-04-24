@@ -35,6 +35,12 @@ _SPACED_NUMERIC_RANGE_RE = re.compile(r"(?<=\d)-\s+(?=\d)")
 _TABLE_TAG_RE = re.compile(r"<[^>]+>")
 _TABLE_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
 _GLOBAL_COMPETENCE_PLACEHOLDER = "学校通开的全球胜任力培养课程"
+_TERMINAL_MOTTO_FOOTER_RE = re.compile(r"^美美与共\s+知行合一$")
+_SPLIT_EMPTY_LEADER_TABLE_ROW_RE = re.compile(
+    r"<td>(?P<head>[^<]{2,120})</td></tr>"
+    r"<tr>(?P<empty_cells>(?:<td(?:\s+[^>]*)?>\s*</td>){1,3})"
+    r"<td>(?P<tail>[^<]{1,200})</td></tr>"
+)
 
 
 def _normalize_page_payload(
@@ -260,6 +266,8 @@ def _classify_block(
 ) -> tuple[str, str, int | None, float, str]:
     if block_label == "table":
         return "table", "table", None, 0.98, "provider_label:table"
+    if _looks_like_terminal_motto_footer(text):
+        return "footer", "motto_footer", None, 0.9, "text_pattern:motto_footer"
     if block_label == "figure_title":
         return "table_caption", "figure_title", None, 0.92, "provider_label:figure_title"
     if block_label == "vision_footnote":
@@ -365,6 +373,29 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = repaired.replace("建议续深造学生选修", "建议继续深造学生选修")
     repaired = repaired.replace("马克主义", "马克思主义")
     repaired = repaired.replace("具备具有", "具备")
+    repaired = repaired.replace("刑事司法治度", "刑事司法制度")
+    repaired = repaired.replace(
+        (
+            "立足北京,面向全国,着眼国际,主要培养政治素质过硬、人文底蕴"
+            "秉承“立德启智、知行合一、文化融合、国际视野”的育人理念,深厚、国际视野宽广"
+        ),
+        (
+            "立足北京,面向全国,着眼国际,秉承“立德启智、知行合一、文化融合、国际视野”的"
+            "育人理念,主要培养政治素质过硬、人文底蕴深厚、国际视野宽广"
+        ),
+    )
+    repaired = repaired.replace(
+        (
+            "1.专业能力:应具备基本的经济分析能力,掌握经济学理论发展脉络,"
+            "具备经济学思维和使用经济学研究现实经济社会问题的能力,"
+            "熟练使用前沿数字技术开展经济研究点能力。数字经济专业应,具备"
+        ),
+        (
+            "1. 专业能力:应具备基本的经济分析能力,掌握经济学理论发展脉络,"
+            "具备经济学思维和使用经济学研究现实经济社会问题的能力,"
+            "熟练使用前沿数字技术开展经济研究的能力。"
+        ),
+    )
     repaired = repaired.replace(
         "形成跨学科知识结构。\n构,能够进行跨学科思考。",
         "形成跨学科知识结构,能够进行跨学科思考。",
@@ -390,7 +421,36 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = _repair_minority_preparatory_program_artifacts(repaired)
     repaired = _repair_ethnology_second_bachelor_table_artifact(repaired)
     repaired = _repair_paleography_program_table_artifacts(repaired)
+    repaired = _repair_split_table_cell_continuations(repaired)
     return _repair_biology_cross_course_table_artifact(repaired)
+
+
+def _looks_like_terminal_motto_footer(text: str) -> bool:
+    return bool(_TERMINAL_MOTTO_FOOTER_RE.fullmatch(text.strip()))
+
+
+def _repair_split_table_cell_continuations(text: str) -> str:
+    if "<table" not in text:
+        return text
+
+    def replace(match: re.Match[str]) -> str:
+        head = match.group("head").strip()
+        tail = match.group("tail").strip()
+        if not _should_merge_split_table_cell_continuation(head=head, tail=tail):
+            return match.group(0)
+        return f"<td>{head}{_joiner_between(head, tail)}{tail}</td></tr>"
+
+    return _SPLIT_EMPTY_LEADER_TABLE_ROW_RE.sub(replace, text)
+
+
+def _should_merge_split_table_cell_continuation(*, head: str, tail: str) -> bool:
+    if not head or not tail:
+        return False
+    if head.endswith(("。", "！", "？", "；", ":", "：", ".", "!", "?", ";")):
+        return False
+    if re.match(r"^(?:[0-9A-Za-z]+|[一二三四五六七八九十]+[、.]|[（(])", tail):
+        return False
+    return any(char.isalpha() or "\u4e00" <= char <= "\u9fff" for char in tail)
 
 
 def _repair_personalized_study_guidance_intro(text: str) -> str:
