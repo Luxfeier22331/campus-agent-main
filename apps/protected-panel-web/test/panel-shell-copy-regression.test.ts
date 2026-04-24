@@ -97,8 +97,8 @@ describe("protected panel shell chinese copy", () => {
 		expect(overviewPageCardsSource).toContain('name="window"');
 		expect(overviewPageCardsSource).toContain('name="surface"');
 		expect(overviewPageCardsSource).toContain('name="selectedTarget"');
-		expect(overviewPageCardsSource).toContain("htmlFor: undefined");
-		expect(overviewPageCardsSource).toContain('"aria-label"');
+		expect(overviewPageCardsSource).toContain("native: true");
+		expect(overviewPageCardsSource).toContain("<option");
 	});
 
 	it("cuts the quality route and nav over to a real quality domain page", () => {
