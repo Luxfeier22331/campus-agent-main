@@ -7,6 +7,7 @@ import { protectedPanelManualChunks } from "./config/manual-chunks";
 const liveSmokePanelConfigPath = path.resolve(__dirname, "wrangler.local-smoke.toml");
 const liveSmokeAppApiEnvPath = path.resolve(__dirname, "../app-api/.env");
 const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.local-smoke.toml");
+const liveSmokeSupervisorApiBaseUrl = "http://127.0.0.1:18080";
 const useLiveSmokeAuxiliaryWorker = process.env.PANEL_LIVE_SMOKE === "1";
 
 if (useLiveSmokeAuxiliaryWorker) {
@@ -17,6 +18,7 @@ if (useLiveSmokeAuxiliaryWorker) {
 			throw error;
 		}
 	}
+	process.env.SUPERVISOR_API_BASE_URL = liveSmokeSupervisorApiBaseUrl;
 }
 
 export default defineConfig({

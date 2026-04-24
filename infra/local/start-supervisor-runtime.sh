@@ -44,6 +44,8 @@ for (const filePath of [repoEnvPath, appApiDevVarsPath]) {
 
 const keys = [
   "CAMPUS_AGENT_APP_NAME",
+  "GO_SHELL_DOCKER_GOPROXY",
+  "GO_SHELL_DOCKER_GOSUMDB",
   "AGENT_RUNTIME_PROVIDER",
   "PROMPT_RUNTIME_PROVIDER",
   "PROMPT_RUNTIME_TRANSPORT",

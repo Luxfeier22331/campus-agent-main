@@ -220,18 +220,23 @@ function PureMultimodalInput({
   }, [width]);
 
   const [localStorageInput, setLocalStorageInput] = useLocalStorage("input", "");
+  const hasHydratedInput = useRef(false);
 
   useEffect(() => {
-    if (textareaRef.current) {
-      const domValue = textareaRef.current.value;
-      const finalValue = domValue || localStorageInput || "";
-      setInput(finalValue);
+    if (hasHydratedInput.current) {
+      return;
     }
+
+    const finalValue = localStorageInput || "";
+    setInput(finalValue);
+    hasHydratedInput.current = true;
   }, [localStorageInput, setInput]);
 
   useEffect(() => {
-    setLocalStorageInput(input);
-  }, [input, setLocalStorageInput]);
+    if (localStorageInput !== input) {
+      setLocalStorageInput(input);
+    }
+  }, [input, localStorageInput, setLocalStorageInput]);
 
   const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = event.target.value;

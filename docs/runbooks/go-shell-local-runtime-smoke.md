@@ -60,6 +60,8 @@ export API_WORKER_SHARED_SECRET=worker-secret
 推荐本地 smoke 默认值：
 
 ```bash
+export GO_SHELL_DOCKER_GOPROXY=https://goproxy.cn,direct
+export GO_SHELL_DOCKER_GOSUMDB=sum.golang.org
 export API_AUTH_MODE=trusted-worker
 export AGENT_RUNTIME_PROVIDER=mock-runtime
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
@@ -79,6 +81,10 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 说明：
 
 - `mock-runtime` 允许当前 smoke 聚焦 transport / bridge / readiness，而不是 provider 凭据
+- `GO_SHELL_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
+  `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
+- 不要把 `GO_SHELL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验
+  `go.sum`
 - 如果没有配置真实 prompt runtime，`/readyz` 可能返回 `503 degraded`
 - `503 degraded` 不阻塞 transport smoke，但必须在记录中解释原因
 

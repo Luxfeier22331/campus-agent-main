@@ -51,6 +51,9 @@ services:
     build:
       context: ../..
       dockerfile: apps/go-shell/Dockerfile
+      args:
+        GOPROXY: "${GO_SHELL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${GO_SHELL_DOCKER_GOSUMDB:-sum.golang.org}"
     depends_on:
       - supervisor-orchestrator
     environment:

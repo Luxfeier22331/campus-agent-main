@@ -1,8 +1,16 @@
 FROM golang:1.26.2-bookworm AS build
 
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
+
+ENV GOPROXY=${GOPROXY} \
+  GOSUMDB=${GOSUMDB}
+
 WORKDIR /src/apps/go-shell
 
-COPY apps/go-shell/go.mod ./
+COPY apps/go-shell/go.mod apps/go-shell/go.sum ./
+RUN go mod download
+
 COPY apps/go-shell ./
 
 RUN go test ./... \

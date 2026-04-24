@@ -201,6 +201,25 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
 
+	it("keeps local smoke non-secret vars in config so .dev.vars only supplies secrets", () => {
+		expect(localSmokeWranglerConfig).toContain("[secrets]");
+		const localSmokeSecretsBlock = localSmokeWranglerConfig.split("[secrets]")[1] ?? "";
+		expect(localSmokeSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
+		expect(localSmokeSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
+		expect(localSmokeSecretsBlock).toContain('"RESEND_API_KEY"');
+		expect(localSmokeSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
+		expect(localSmokeSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
+		expect(localSmokeSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+		expect(localSmokeSecretsBlock).not.toContain('"SUPERVISOR_API_BASE_URL"');
+		expect(localSmokeWranglerConfig).toContain('APP_API_ENVIRONMENT = "development"');
+		expect(localSmokeWranglerConfig).toContain(
+			'APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"',
+		);
+		expect(localSmokeWranglerConfig).toContain(
+			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"',
+		);
+	});
+
 	it("serves healthz and readyz from the worker shell", async () => {
 		const runtime = createWorkerRuntime(env, {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue(createRuntimeReadinessResult()),

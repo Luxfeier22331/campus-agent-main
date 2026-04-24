@@ -31,6 +31,7 @@ import vendorSchemaSource from "../vendor/vercel-ai-chatbot/lib/db/schema.ts?raw
 import vendorTypesSource from "../vendor/vercel-ai-chatbot/lib/types.ts?raw";
 import vendorUtilsSource from "../vendor/vercel-ai-chatbot/lib/utils.ts?raw";
 import viteConfigSource from "../vite.config.ts?raw";
+import liveSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
 	scripts?: Record<string, string | undefined>;
@@ -83,14 +84,24 @@ describe("chatbot vendor runtime parity", () => {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5173");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--strictPort");
 		expect(viteConfigSource).toContain("PUBLIC_CHAT_LIVE_SMOKE");
+		expect(viteConfigSource).toContain("liveSmokePublicChatConfigPath");
+		expect(viteConfigSource).toContain("configPath: liveSmokePublicChatConfigPath");
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("inspectorPort: false");
+		expect(liveSmokeWranglerConfig).toContain("[secrets]");
+		expect(liveSmokeWranglerConfig).toContain("required = []");
+		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
+		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:5173"');
+		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 
 	it("hydrates app-api local env before booting the live-smoke auxiliary worker", () => {
 		expect(viteConfigSource).toContain("process.loadEnvFile");
 		expect(viteConfigSource).toContain("../app-api/.env");
+		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
+		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
+		expect(viteConfigSource).toContain("http://127.0.0.1:18080");
 	});
 
 	it("keeps runtime vendor imports on donor specifiers and resolves them through exact compat seams", () => {
@@ -234,5 +245,15 @@ describe("chatbot vendor runtime parity", () => {
 		expect(vendorMultimodalInputSource).toContain('name="attachments"');
 		expect(vendorPromptInputSource).toContain('id="prompt-attachment-input"');
 		expect(vendorPromptInputSource).toContain('name="attachments"');
+	});
+
+	it("guards prompt draft persistence against repeat local-storage setter effects", () => {
+		expect(vendorMultimodalInputSource).toContain("hasHydratedInput");
+		expect(vendorMultimodalInputSource).toContain('const finalValue = localStorageInput || "";');
+		expect(vendorMultimodalInputSource).not.toContain(
+			"const finalValue = domValue || localStorageInput",
+		);
+		expect(vendorMultimodalInputSource).toContain("if (localStorageInput !== input)");
+		expect(vendorMultimodalInputSource).toContain("setLocalStorageInput(input)");
 	});
 });
