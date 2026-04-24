@@ -4,7 +4,7 @@ phase: "2"
 phase_name: "Published Reader Assets And App API Docs Control Plane"
 status: planned
 created: 2026-04-21
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Phase 2 Plan
@@ -47,6 +47,11 @@ updated: 2026-04-23
 - 本 phase 的首发覆盖范围默认是：
   - `regulations/student_rules`
   - `curriculum/curriculum_plan`
+- notice-derived/internal regulation 只能作为 conditional public subset 进入 `public-docs`：
+  - 必须逐行显式 `visibility_level=public`
+  - 不得携带 `entitlement_groups`
+  - 当前 `regulations/institutional_rules` / `regulations/scoped_rules` 的 restricted 样本不得进入公开 docs
+  - restricted reader / gated delivery 继续留到后续 restricted phase
 
 ## Decisions To Freeze
 
@@ -87,6 +92,7 @@ updated: 2026-04-23
   - 对应的 asset package key 和 static bundle target path 是什么
 - 产出 deploy sync manifest，作为 `public-docs` 后续构建输入。
 - 禁止 deploy 直接扫描对象存储猜 public 子集。
+- 当前过渡同步脚本也必须 fail-close：扫描到 notice-derived/internal regulation 时，只同步显式 public 且无 entitlement 的文档；restricted 文档必须跳过。
 
 ### Slice 3: App API Docs HTTP Control Plane
 

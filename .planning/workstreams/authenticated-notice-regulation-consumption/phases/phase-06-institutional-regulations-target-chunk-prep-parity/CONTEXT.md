@@ -2,7 +2,7 @@
 phase: "6"
 name: "Institutional Regulations Target Chunk-Prep Parity"
 created: 2026-04-20
-status: pending
+status: completed
 ---
 
 # Phase 6 Context

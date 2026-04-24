@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-19
-updated: 2026-04-22
+updated: 2026-04-24
 ---
 
 # Requirements: Authenticated Notice Regulation Consumption
@@ -32,6 +32,12 @@ updated: 2026-04-22
 2. `institutional_rules` 与 `scoped_rules` 的 bounded target materialization 可持续回放。
 3. target-side metadata、chunk prep 与 quality gate 形成明确 closeout 口径。
 4. 当前 stop point 继续固定在 `offline_preparation`，不越权进入 release / publish。
+
+## Closeout Evidence
+
+- final evidence: `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+- final target split: `institutional_rules=2` / `scoped_rules=9`
+- final stop point: `offline_preparation`
 
 ## Canonical Entry
 

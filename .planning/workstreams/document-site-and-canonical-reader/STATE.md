@@ -1,7 +1,7 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Project State
@@ -15,8 +15,8 @@ updated: 2026-04-23
 **Total Phases:** 6
 **Total Plans in Phase:** 1
 **Progress:** 1/6 phases complete
-**Last Activity:** 2026-04-23
-**Last Activity Description:** Promoted `apps/public-docs` to the formal docs app name, removed legacy docs app names from active runtime/config truth, and started rewriting the live planning truth so the workstream no longer claims the docs app is missing.
+**Last Activity:** 2026-04-24
+**Last Activity Description:** Added a fail-close `public-docs` sync lane for notice-derived/internal regulation documents: only rows explicitly marked `visibility_level=public` and carrying no entitlement groups can appear under the public docs route; current restricted `institutional_rules/scoped_rules` samples remain excluded.
 
 ## Current Slice
 
@@ -48,12 +48,14 @@ updated: 2026-04-23
   - docs search 如何输出 source-card-compatible canonical jump target
   - 哪些样本 collection/version 作为首轮 publish/smoke 子集
   - 当前 `public-docs` shell 如何从“直接同步公开文档产物”的过渡实现，收口到 published reader assets + same-site docs control-plane
+  - notice-derived/internal regulation 如何进入 docs：public-only 子集可进公开 docs，restricted 子集必须等 restricted reader / gated delivery
 
 - 当前 repo 已有的实现真相：
   - `apps/public-docs` 已是正式 docs shell app，当前采用 `Rspress`
   - `packages/ingestion-core/src/campus_ingestion_core/document_reader_assets.py` 已存在 reader asset package builder 与 `public_docs` sync manifest builder
   - `apps/app-api/src/app/routes/docs.ts` 已注册 docs route shell
   - `apps/app-api/src/modules/docs/index.ts` 已冻结 docs browser contract types
+  - `apps/public-docs/scripts/_sync_real_docs/regulations.py` 已新增 public-only regulation 同步入口；当前对象存储没有显式 public 的 notice-derived regulation，因此不会生成 `campus-regulations` 公开目录
 
 - 当前仍未闭环的实现真相：
   - `app-api` 默认 wiring 仍回落到 `buildUnavailableDocsService()`，docs routes 还不是 runtime-backed live service

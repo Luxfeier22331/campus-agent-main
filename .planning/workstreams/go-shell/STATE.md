@@ -10,9 +10,10 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 6 closeout`
-- current slice: repo-owned environment-side hard-cut scripts/runbooks 已落地；
-  剩余仅是实际环境 cutover / rollback drill 执行
+- current phase: `Phase 9 closeout`
+- current slice: Go shell runtime kernel hardening、Python cooperative cancel
+  bridge 与 gate-closed structured query runtime foundation 已落地；`transport_schedule_lookup`
+  业务查询仍等待 schedule contract 讨论后进入后续 phase
 - owner: unassigned
 - active implementation: yes, `apps/go-shell`
 
@@ -49,11 +50,14 @@ updated: 2026-04-24
 
 ## Blockers
 
-- repo-local implementation 当前无 blocker。
+- repo-local Phase 8-9 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
-- `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响
-  product-layer stop/cancel UX、request lifecycle 与可能的 cancel endpoint，
-  但不阻塞当前 go-shell closeout。
+- `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
+  stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
+  当前 go-shell 只实现 execution-side cancel 和 Go -> Python cooperative cancel
+  signal。
+- `transport_schedule_lookup` 的具体 route / snapshot / service time 查询策略仍待讨论，
+  因此当前只保留 typed fail-closed seam，不进入业务查询实现。
 
 ## Verification
 
@@ -101,6 +105,27 @@ updated: 2026-04-24
     passed
   - focused markdown lint passed for changed go-shell staging docs and
     workstream docs
+- Phase 7 runtime-kernel verification passed on 2026-04-24:
+  - `PATH="$PATH:$(go env GOPATH)/bin" pnpm go:check`
+  - `pnpm exec markdownlint-cli2` for touched go-shell docs / contracts /
+    architecture docs / runbooks / workstream docs
+  - `pnpm yaml:lint`
+  - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+    with dummy bridge / worker secrets
+- Full `pnpm docs:lint` remains blocked by unrelated existing tracked markdown
+  baseline errors in generated `apps/public-docs` content and other docs outside
+  this workstream.
+- Execution audit focused verification passed on 2026-04-24:
+  - `pnpm --dir apps/app-api test:node --`
+    `operator-observability-ingest.route.test.ts`
+    `operator-observability-command.service.test.ts`
+    `projection.service.test.ts telemetry.axiom.test.ts`
+  - `go test ./... -count=1` in `apps/go-shell`
+- Phase 8-9 targeted red/green verification passed on 2026-04-24:
+  - `PATH="$PATH:$(go env GOPATH)/bin" go test ./internal/bridge`
+    `./internal/httpapi ./internal/structuredquery -count=1`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_bridge_suite`
 
 ## Continuity Notes
 
@@ -108,6 +133,10 @@ updated: 2026-04-24
 - 不把 product-layer auth/session/rate-limit/request projection 移入 `supervisor-core`。
 - Go shell 应兼容当前 `app-api -> supervisor-api` internal execution contract。
 - Python orchestration bridge 是迁移安全阀，不是长期腐烂兼容层；每个保留边界都要有 owner。
+- Go structured query runtime 是 internal query service seam，不是 product API、
+  browser-facing tool endpoint 或 `app-api` control plane。
+- `transport_schedule_lookup` 当前没有业务查询实现；不得把 fail-closed seam 冒充成
+  runtime lane opening。
 
 ## Completed Implementation
 
@@ -141,23 +170,65 @@ updated: 2026-04-24
 - Added bridge answer success/failure fingerprint fields to `/readyz`.
 - Added cancellation-path behavior that stops waiting on bridge calls after
   client disconnect.
-- Added repo-owned local smoke / cutover / runback runbook at
+- Added repo-owned local smoke / shutdown runbook at
   `docs/runbooks/go-shell-local-runtime-smoke.md`.
-- Confirmed parity against the repo-local Python compatibility entry with the
-  same `trusted-worker` request and fixed `trace_id`.
+- Confirmed Go shell front-door behavior against the private Python
+  orchestration bridge with the same `trusted-worker` request and fixed
+  `trace_id`.
 - Added repo-owned staging hard-cut lifecycle scripts under
   `infra/local/staging/go-shell-staging-*`.
-- Added repo-owned go-shell staging scheduled-task installer that disables the
-  legacy dev-backed task before cutover.
+- Added repo-owned go-shell staging scheduled-task installer.
 - Added canonical staging runbooks:
   - `docs/runbooks/go-shell-staging-operations.md`
   - `docs/runbooks/go-shell-staging-smoke-runbook.md`
-- Demoted `dev-backed-supervisor-staging-*` docs to fallback / rollback truth.
+- Removed active dev-backed Python public ingress scripts and runbooks after
+  the Go shell hardcut.
+
+## Phase 7 Completed Implementation
+
+- non-empty `request_id` is required for answer execution lifecycle
+- Go in-flight lifecycle registry rejects duplicate active `request_id`
+- `POST /internal/execution/cancel` marks active execution as
+  `cancel_requested` and releases the Go wait path
+- admission now supports global + per-lane budgets for `rag`, `navigation`,
+  `campus_services`, `notice` and `default`
+- `/readyz` and `/metrics` expose lane, lifecycle final-state and telemetry
+  runtime state
+- OTel trace exporter seam is disabled by default and fail-open on answer path
+- execution audit emitter is disabled by default, fail-open, bounded, and sends
+  only allowlisted runtime events to `app-api` internal ingest
+- `/readyz` and `/metrics` expose execution audit runtime status without making
+  audit sink health a readiness blocker
+
+## Phase 8 Completed Implementation
+
+- Go bridge client now calls Python private
+  `POST /internal/bridge/execution/cancel`
+- Go cancel endpoint returns `bridge_cancel_status` while preserving
+  `202 cancel_requested` for active executions
+- Python bridge owns an active execution cancel registry
+- Python bridge cancel route returns `202 cancel_requested` for active request ids
+  and `404 execution_not_found` otherwise
+- cooperative cancel metrics are exposed under `/metrics`
+- provider / prompt executor mid-flight cancellation remains out of scope
+
+## Phase 9 Completed Implementation
+
+- Go shell exposes internal structured query routes:
+  - `POST /internal/query/campus-services/service-status`
+  - `POST /internal/query/campus-services/transport-schedule`
+- structured query routes require `x-supervisor-query-auth`
+- `service_status_lookup` can resolve a configured file projection fixture
+- `transport_schedule_lookup` returns `temporarily_unverifiable` with
+  `source_family_unavailable` until schedule business rules are finalized
+- `/readyz` reports `structured_query_runtime`
+- `/metrics` reports `campus_go_shell_structured_query_requests_total`
 
 ## Remaining Implementation
 
-- repo-local implementation is complete for the current scope
-- future work, if reopened, belongs to:
-  - actual environment cutover / rollback drill execution
-  - later OTel collector / sink fan-out integration
-  - product-layer cancellation UX under `chat-capacity-and-cancellation-hardening`
+- product-layer cancellation UX belongs to
+  `chat-capacity-and-cancellation-hardening`
+- provider / prompt executor mid-flight cooperative stop remains future work
+- `transport_schedule_lookup` business implementation remains future work
+- actual environment cutover / rollback drill execution remains environment-side
+  rollout work

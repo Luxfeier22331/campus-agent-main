@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 
 # Workstream: Authenticated Notice Regulation Consumption
@@ -12,9 +12,13 @@ updated: 2026-04-23
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 7`
-- current focus: `11` 条 admitted target acceptance rerun 与 gap closure，随后进入 acceptance evidence freeze
+- status: `completed`
+- current phase: `Phase 8`
+- current focus: 已冻结 `11` 条 admitted target acceptance evidence，并停在 `offline_preparation`
+
+## Closeout Evidence
+
+- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
 
 ## Native Planning Truth
 

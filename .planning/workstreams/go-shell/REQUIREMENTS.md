@@ -41,6 +41,8 @@ Go shell owns:
 - health / readiness / metrics / structured request logs
 - audit/logging non-blocking sink
 - Python orchestration bridge
+- deterministic structured query runtime foundation for projection-backed internal
+  services, while keeping domain-agent semantics outside Go shell
 - Docker image entrypoint and runtime process supervision
 
 Python orchestration owns for now:
@@ -49,7 +51,8 @@ Python orchestration owns for now:
 - specialist agent execution semantics
 - prompt stack assembly
 - provider-backed prompt executor until measured otherwise
-- retrieval / notice / campus-services / navigation query semantics
+- retrieval / notice / navigation query semantics
+- campus-services domain-agent semantics, tool selection and answer shaping
 
 ## Recorded Migration Conclusion
 
@@ -65,6 +68,7 @@ Migrate to Go first:
 - healthz / readyz / metrics
 - runtime structured logs and audit enqueue
 - Python orchestration bridge
+- gate-closed structured query runtime foundation
 
 Do not migrate in the first wave:
 
@@ -74,6 +78,8 @@ Do not migrate in the first wave:
 - provider-backed prompt executor
 - retrieval / Qdrant / Postgres query logic
 - thin tool adapters
+- `transport_schedule_lookup` business query implementation until schedule
+  contract discussion is complete
 
 ## Recorded Technology Stack
 

@@ -25,10 +25,10 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 6 closeout`
-- current slice: repo-owned environment-side hard-cut scripts/runbooks 已落地：
-  canonical staging runtime truth 已切到 `go-shell` lifecycle；剩余仅是实际环境
-  cutover / rollback drill 执行
+- current phase: `Phase 9 closeout`
+- current slice: Go shell 已补齐 Python cooperative cancel bridge 与 gate-closed
+  structured query runtime foundation；`transport_schedule_lookup` 业务查询仍待 schedule
+  contract 讨论后进入后续 phase
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -54,11 +54,25 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   - Python compatibility entry parity rerun 已通过
   - cutover / runback runbook 已落地
   - canonical staging hard-cut lifecycle scripts / task installer / runbooks 已落地
+- `Phase 7`
+  - request lifecycle registry、explicit cancel、per-lane admission、OTel seam 已落地
+  - execution audit events 以 best-effort 方式回流 `app-api` internal
+    ingest，不阻塞 answer path
+- `Phase 8`
+  - Go cancel endpoint 已向 Python private bridge 投递 cooperative cancel signal
+  - Python bridge 已记录 active request id 的 cancel state
+- `Phase 9`
+  - Go shell 已提供 gate-closed structured query runtime foundation
+  - `service_status_lookup` 可读 file projection fixture
+  - `transport_schedule_lookup` 仅返回 typed fail-closed seam
 
 ## Remaining Work
 
-- repo 内当前没有新的必做实现项
-- 剩余动作属于实际环境 cutover / rollback drill 执行，不再阻塞 repo-local closeout
+- repo 内当前没有 Phase 8-9 的剩余必做实现项
+- `transport_schedule_lookup` 的业务查询实现需要先完成 schedule contract 讨论
+- product-layer cancellation UX 继续属于 `chat-capacity-and-cancellation-hardening`
+- 实际环境 cutover / rollback drill 执行属于 environment-side rollout，不阻塞
+  repo-local closeout
 
 ## Native Planning Truth
 
@@ -75,6 +89,8 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 - 不默认 Rust 化 tool；Rust CPU kernel 仍属于更宽的 runtime language split backlog
 - Go shell 首先承接 HTTP transport、auth、admission、backpressure、cancel/stream、
   readiness/metrics、audit/logging 与 Python orchestration bridge
+- Go structured query runtime 只承接 projection-backed deterministic query service
+  seam；domain-agent 语义、tool selection 与 answer shaping 不迁入 Go shell
 
 ## Recorded Conclusion
 

@@ -11,7 +11,8 @@ updated: 2026-04-24
 
 ## Objective
 
-Close the operator/read-model observability gap for internal_notice consumption projection truth.
+Close the operator/read-model observability gap for internal_notice consumption
+projection truth.
 
 ## Scope
 
@@ -30,6 +31,14 @@ Close the operator/read-model observability gap for internal_notice consumption 
 
 ## Completion Notes
 
-- `read_notice_consumption_projection_status` exposes per-notice counts and unit reasons.
-- `show_internal_notice_consumption_projection_status` prints the status read model from the worker shell.
-- selected-notice rebuild now replaces existing units for those notices instead of leaving stale projection rows behind.
+- `read_notice_consumption_projection_status` exposes per-notice counts and unit
+  reasons.
+- `show_internal_notice_consumption_projection_status` prints the status read model
+  from the worker shell.
+- selected-notice rebuild now replaces existing units for those notices, avoiding
+  stale projection rows.
+- `rebuild_internal_notice_read_model` and the worker CLI materialize queryable
+  read-model rows from consumption projection + document registry + canonical
+  markdown.
+- `NoticeReadModelQueryService` maps the read model and canonical body into the
+  notice discover/get contract while keeping restricted access fail-closed.
