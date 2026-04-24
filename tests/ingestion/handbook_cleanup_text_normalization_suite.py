@@ -180,6 +180,11 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "因本人直接责任造成财务被盗、火灾、事故等而产生临时性生活困难的。",
                     "(一)如实陈述和申辩本人本人违法、违规或违纪事实和回答主持人的提问;",
                     "(四)公正地履行主持听证的职责,保证当事人和调查人行使陈述权、申辩权。",
+                    "申请受理申请国家助学贷款学生需在入学后按学校发布的国家助学贷款申请时间要求。",
+                    "申请审查国家助学贷款由学校助学服务中心对院系上报的贷款学生材料逐一进行初审。",
+                    "提交就学信息变更的申请,然由借款学生或共同借款人持身份证办理。",
+                    "(二)注册机构对申请材料进行审核",
+                    "(二)注册机构对申请材料进行审核。。。",
                 ]
             )
         )
@@ -206,6 +211,11 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("本人本人违法", normalized)
         self.assertIn("当事人和调查人员行使陈述权", normalized)
         self.assertNotIn("调查人行使", normalized)
+        self.assertIn("申请受理\n申请国家助学贷款学生需", normalized)
+        self.assertIn("申请审查\n国家助学贷款由学校助学服务中心", normalized)
+        self.assertIn("申请,然后由借款学生或共同借款人", normalized)
+        self.assertIn("(二)注册机构对申请材料进行审核。", normalized)
+        self.assertNotIn("(二)注册机构对申请材料进行审核。。", normalized)
 
     def test_normalize_handbook_article_body_text_merges_fragmented_hearing_subject(
         self,
@@ -293,7 +303,9 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         )
 
         self.assertIn("本科学生专项奖学金按以下程序进行评选:", normalized)
-        self.assertIn("(七)临时困难补助\n学生在校学习期间因本人或家庭出现特殊情况,可申请补助。", normalized)
+        self.assertIn(
+            "(七)临时困难补助\n学生在校学习期间因本人或家庭出现特殊情况,可申请补助。", normalized
+        )
         self.assertIn(
             "(八)绿色通道\n学校在每学年新生入学时为家庭经济特别困难新生办理入学手续。",
             normalized,
@@ -305,6 +317,23 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertNotIn("工作时间\n原则上每周", normalized)
         self.assertNotIn("做好对参加勤工助学\n学生的考勤管理", normalized)
         self.assertNotIn("$70\\%$", normalized)
+
+    def test_normalize_handbook_article_body_text_preserves_loan_application_subheadings(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "申请受理申请国家助学贷款学生需在入学后按学校发布的国家助学贷款申请时间要求。",
+                    "申请审查国家助学贷款由学校助学服务中心对院系上报的贷款学生材料逐一进行初审。",
+                ]
+            )
+        )
+
+        self.assertIn("申请受理\n申请国家助学贷款学生需", normalized)
+        self.assertIn("申请审查\n国家助学贷款由学校助学服务中心", normalized)
+        self.assertNotIn("申请受理申请国家助学贷款", normalized)
+        self.assertNotIn("申请审查国家助学贷款", normalized)
 
     def test_normalize_handbook_article_body_text_normalizes_inline_math_artifacts(self) -> None:
         normalized = normalize_handbook_article_body_text(

@@ -9,8 +9,8 @@ from campus_ingestion_core.handbook_cleanup_normalize import (
 )
 from campus_ingestion_core.handbook_cleanup_policy import (
     _extract_appendix_heading_title,
-    _is_duplicate_attachment_cover_text,
     _is_duplicate_attachment_cover_fragment,
+    _is_duplicate_attachment_cover_text,
     _looks_like_ancillary_note_line,
     _looks_like_appendix_heading,
     _looks_like_appendix_leaf_section_heading,
@@ -586,7 +586,10 @@ def _repair_table_after_intro_event_order(events: list[dict[str, object]]) -> No
                 break
             if candidate.get("kind") != "article":
                 continue
-            if normalize_handbook_body_text(str(candidate.get("text") or "")) != "各专业学分要求如下:":
+            if (
+                normalize_handbook_body_text(str(candidate.get("text") or ""))
+                != "各专业学分要求如下:"
+            ):
                 continue
             table_event = events.pop(table_index)
             events.insert(intro_index, table_event)
@@ -598,7 +601,7 @@ def expand_multiline_paragraph_rows(
 ) -> list[dict[str, object]]:
     expanded_rows: list[dict[str, object]] = []
     for row in content_rows:
-        if str(row.get("row_type") or "") != "paragraph":
+        if str(row.get("row_type") or "") not in {"paragraph", "list_item"}:
             expanded_rows.append(row)
             continue
         text = row_text(row)

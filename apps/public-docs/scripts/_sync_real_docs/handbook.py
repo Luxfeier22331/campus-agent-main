@@ -26,9 +26,7 @@ from .shared import (
     _wrap_markdown_text_lines,  # split import to keep lint simple
 )
 
-_INLINE_PERCENT_MATH_RE = re.compile(
-    r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$"
-)
+_INLINE_PERCENT_MATH_RE = re.compile(r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$")
 _INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
 
 
@@ -170,11 +168,14 @@ def _repair_known_handbook_docs_markdown(markdown: str, *, title: str | None) ->
     repaired = markdown
     if title == "中央民族大学本科学分制实施办法":
         repaired = repaired.replace(
-            "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>",
-            "<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>"
-            "<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>",
+            '<tr><td colspan="2">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>',
+            '<tr><td colspan="2">教育学</td><td>145学分</td><td></td><td></td></tr>'
+            '<tr><td colspan="2">体育类</td><td>145学分</td><td></td><td></td></tr>',
         )
-    if title in {"中央民族大学本(预)科学生勤工助学管理办法", "中央民族大学本-预-科学生勤工助学管理办法"}:
+    if title in {
+        "中央民族大学本(预)科学生勤工助学管理办法",
+        "中央民族大学本-预-科学生勤工助学管理办法",
+    }:
         repaired = re.sub(
             r"家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 \$70\\%\$[。．…]*",
             "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。",
@@ -277,10 +278,7 @@ def _normalize_handbook_body(lines: list[str], *, title: str | None) -> list[str
             and normalized[-1] != ""
             and (
                 _is_markdown_list_item(stripped)
-                or (
-                    _is_markdown_list_item(normalized[-1])
-                    and not _is_markdown_list_item(stripped)
-                )
+                or (_is_markdown_list_item(normalized[-1]) and not _is_markdown_list_item(stripped))
             )
         ):
             normalized.append("")
@@ -306,11 +304,21 @@ def _normalize_handbook_heading(
     text = text.rstrip("：:；;，,。. ")
     if title and text == title:
         return ""
+    if _is_known_handbook_final_numbered_clause_heading(title=title, text=text):
+        return f"## {text}"
     if _HANDBOOK_CHAPTER_HEADING_RE.fullmatch(text):
         return f"## {text}"
     if _HANDBOOK_ARTICLE_HEADING_RE.fullmatch(text):
         return f"{'###' if saw_chapter_heading else '##'} {text}"
     return None if not line.startswith("#") else f"## {text}"
+
+
+def _is_known_handbook_final_numbered_clause_heading(*, title: str | None, text: str) -> bool:
+    if title == "中央民族大学关于加强学生宿舍电器使用管理的规定":
+        return text == "五、本规定自公布之日起实施"
+    if title == "中央民族大学学生课堂行为规范及课堂秩序管理办法":
+        return text == "四、本办法由学生工作部(处)负责解释"
+    return False
 
 
 def _is_markdown_list_item(line: str) -> bool:
@@ -455,12 +463,7 @@ def _parse_table_rows(html: str) -> list[list[_TableCell]]:
 
 
 def _sanitize_preserved_html_for_mdx(html: str) -> str:
-    return (
-        html.strip()
-        .replace("*", "&#42;")
-        .replace("{", "&#123;")
-        .replace("}", "&#125;")
-    )
+    return html.strip().replace("*", "&#42;").replace("{", "&#123;").replace("}", "&#125;")
 
 
 def _escape_handbook_placeholder_underscores(line: str) -> str:

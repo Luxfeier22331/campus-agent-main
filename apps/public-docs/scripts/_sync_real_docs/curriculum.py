@@ -230,23 +230,23 @@ def _repair_known_curriculum_docs_table_html(*, title: str, html: str) -> str:
         return html
     if title == "少数民族预科教育人才培养方案":
         html = html.replace(
-            "<table><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
-            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
-            "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
-            "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr>"
-            "<tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
-            "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
-            "<tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>",
-            "<table><tr><td colspan=\"5\">文科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
-            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"2\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>"
-            "<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr>"
-            "<tr><td colspan=\"2\">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td colspan=\"5\">理科班</td></tr><tr><td rowspan=\"2\" colspan=\"2\">类别</td><td rowspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配计划</td></tr>"
-            "<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan=\"3\">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>"
-            "<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan=\"2\">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>",
+            '<table><tr><td rowspan="2" colspan="2">类别</td><td rowspan="2">学时</td><td colspan="2">各学期周学时分配计划</td></tr>'
+            '<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan="2">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>'
+            '<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr>'
+            '<tr><td colspan="2">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr>'
+            '<tr><td rowspan="3">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>'
+            '<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr>'
+            '<tr><td colspan="2">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>',
+            '<table><tr><td colspan="5">文科班</td></tr><tr><td rowspan="2" colspan="2">类别</td><td rowspan="2">学时</td><td colspan="2">各学期周学时分配计划</td></tr>'
+            '<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan="2">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr>'
+            '<tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr>'
+            '<tr><td colspan="2">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td colspan="5">理科班</td></tr><tr><td rowspan="2" colspan="2">类别</td><td rowspan="2">学时</td><td colspan="2">各学期周学时分配计划</td></tr>'
+            '<tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan="3">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr>'
+            '<tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>',
         )
         return html.replace(
-            "<table><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>",
-            "<table><tr><td colspan=\"9\">理科班</td></tr><tr><td rowspan=\"2\">课程类别</td><td rowspan=\"2\">课程编号</td><td rowspan=\"2\">课程名称</td><td rowspan=\"2\">学分</td><td colspan=\"2\">学时</td><td colspan=\"2\">各学期周学时分配</td><td rowspan=\"2\">备注</td></tr>",
+            '<table><tr><td rowspan="2">课程类别</td><td rowspan="2">课程编号</td><td rowspan="2">课程名称</td><td rowspan="2">学分</td><td colspan="2">学时</td><td colspan="2">各学期周学时分配</td><td rowspan="2">备注</td></tr>',
+            '<table><tr><td colspan="9">理科班</td></tr><tr><td rowspan="2">课程类别</td><td rowspan="2">课程编号</td><td rowspan="2">课程名称</td><td rowspan="2">学分</td><td colspan="2">学时</td><td colspan="2">各学期周学时分配</td><td rowspan="2">备注</td></tr>',
         )
     if title == "民族学本科第二学士学位人才培养方案":
         return html.replace(
@@ -575,7 +575,9 @@ def _looks_like_curriculum_list_lines(lines: list[str]) -> bool:
         sum(
             1
             for line in lines
-            if _MARKDOWN_ORDERED_LIST_RE.match(line) or _MARKDOWN_DECIMAL_LABEL_RE.match(line)
+            if _MARKDOWN_ORDERED_LIST_RE.match(line)
+            or _MARKDOWN_DECIMAL_LABEL_RE.match(line)
+            or _looks_like_curriculum_chinese_parenthesized_heading(line)
         )
         >= 2
     )

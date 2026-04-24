@@ -38,6 +38,9 @@ def build_canonical_body(
                 parts.append(f"### {event['label']}")
             continue
         if kind == "policy_page":
+            if _should_render_policy_page_as_canonical_heading(event):
+                parts.append(f"## {event['text']}")
+                continue
             parts.append(str(event["text"]))
             continue
         if kind == "table":
@@ -45,6 +48,16 @@ def build_canonical_body(
             parts.append(f"[表格]\n{table_text}" if table_text else "[表格]")
             continue
     return "\n\n".join(part for part in parts if part)
+
+
+def _should_render_policy_page_as_canonical_heading(event: dict[str, object]) -> bool:
+    text = str(event.get("text") or "").strip()
+    return bool(
+        text
+        and "\n" not in text
+        and event.get("provision_label") is not None
+        and not tuple(event.get("section_path") or ())
+    )
 
 
 def build_canonical_markdown(

@@ -251,6 +251,32 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         )
         self.assertIn("\n10\\.3 对数字经济领域具备国际化视野,能够进行跨文化交流。\n", markdown)
 
+    def test_curriculum_markdown_preserves_parenthesized_enum_lines(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"纳米材料与技术本科人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"二、毕业要求","heading_level":2}',
+                (
+                    '{"row_type":"paragraph","clean_text":"'
+                    "(一)工程知识:能够解决复杂问题。\\n"
+                    "(二)问题分析:能够识别并表达复杂问题。\\n"
+                    "(三)设计/开发解决方案:能够提出方案。"
+                    '"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="纳米材料与技术本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("\n(一)工程知识:能够解决复杂问题。\n", markdown)
+        self.assertIn("\n(二)问题分析:能够识别并表达复杂问题。\n", markdown)
+        self.assertIn("\n(三)设计/开发解决方案:能够提出方案。\n", markdown)
+        self.assertNotIn("。(二)问题分析", markdown)
+
     def test_curriculum_markdown_repairs_minority_preparatory_summary_artifacts(self) -> None:
         module = self.module
         jsonl_text = "\n".join(
@@ -268,11 +294,13 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
             jsonl_text=jsonl_text,
         )
 
-        self.assertIn("大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。", markdown)
+        self.assertIn(
+            "大学体育、心理健康。主干课程:大学语文、实用写作、高等数学、大学英语。", markdown
+        )
         self.assertIn("基础课程:理科班增设普通化学和大学物理。", markdown)
-        self.assertIn("<td colspan=\"5\">文科班</td>", markdown)
-        self.assertIn("<td colspan=\"5\">理科班</td>", markdown)
-        self.assertIn("<td colspan=\"9\">理科班</td>", markdown)
+        self.assertIn('<td colspan="5">文科班</td>', markdown)
+        self.assertIn('<td colspan="5">理科班</td>', markdown)
+        self.assertIn('<td colspan="9">理科班</td>', markdown)
         self.assertNotIn("大学体育、心理健康主干课程", markdown)
         self.assertEqual(markdown.count("<tr><td>第一学期</td><td>第二学期</td></tr>"), 2)
 
@@ -293,10 +321,17 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
             jsonl_text=jsonl_text,
         )
 
-        self.assertIn('rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>', markdown)
+        self.assertIn(
+            'rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>', markdown
+        )
         self.assertIn("经济人类学(全英文)", markdown)
-        self.assertEqual(markdown.count("<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>"), 1)
-        self.assertNotIn("<tr><td rowspan=\"3\">课程类别</td>", markdown)
+        self.assertEqual(
+            markdown.count(
+                "<tr><td>总计</td><td>其中实践</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>"
+            ),
+            1,
+        )
+        self.assertNotIn('<tr><td rowspan="3">课程类别</td>', markdown)
 
     def test_discover_curriculum_docs_lists_all_document_units_and_preserves_known_slug(
         self,

@@ -302,7 +302,7 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
                 _source_row(188, "paragraph", "三、学士学位授予程序"),
                 _source_row(
                     188,
-                    "paragraph",
+                    "list_item",
                     "\n".join(
                         [
                             "1. 学生本人提出申请,填报学士学位申请表。",
@@ -339,6 +339,56 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
         self.assertEqual(policy_units[2]["anchor"]["provision_label"], "五")
         self.assertEqual(policy_units[3]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[3]["anchor"]["provision_label"], "六")
+        self.assertIn(
+            "## 四、学士学位证书遗失不予补发。如遗失或者损坏,经本人申请,学校核实后出具相应的证明书。证明书与原证书具有同等效力。",
+            result.canonical_markdown,
+        )
+        self.assertIn("## 五、本规定自2009年3月17日起实施。", result.canonical_markdown)
+        self.assertIn("## 六、本规定由教务处负责解释。", result.canonical_markdown)
+
+    def test_cleanup_renders_terminal_top_level_provision_as_canonical_heading(self) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    256,
+                    "heading",
+                    "中央民族大学关于学生宿舍照明的管理规定",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(256, "paragraph", "民大校发〔2007〕299号"),
+                _source_row(
+                    256,
+                    "paragraph",
+                    "为创造良好的学习、生活环境,经学校研究决定,对学生宿舍照明作如下规定:",
+                ),
+                _source_row(256, "heading", "一、时间安排"),
+                _source_row(256, "list_item", "1. 10月至次年5月31日:"),
+                _source_row(256, "paragraph", "亮灯时间:周一至周五每天早晨5:30。"),
+                _source_row(256, "heading", "二、要求:"),
+                _source_row(256, "list_item", "1. 严禁私接电线及违章使用各类电器。"),
+                _source_row(
+                    256,
+                    "list_item",
+                    "三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
+                ),
+            ],
+            manifest_document=_manifest_document(
+                256,
+                256,
+                title="中央民族大学关于学生宿舍照明的管理规定",
+                handbook_section="中央民族大学公寓及公费医疗管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertEqual(policy_units[-1]["anchor"]["section_path"], [])
+        self.assertEqual(policy_units[-1]["anchor"]["provision_label"], "三")
+        self.assertIn(
+            "## 三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
+            result.canonical_markdown,
+        )
 
     def test_cleanup_does_not_emit_policy_page_for_appendix_form_title_only(self) -> None:
         result = cleanup_handbook_document(

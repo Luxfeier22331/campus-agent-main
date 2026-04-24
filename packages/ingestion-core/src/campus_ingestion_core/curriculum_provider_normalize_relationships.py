@@ -35,6 +35,9 @@ _CHINESE_PARENTHESIZED_HEADING_RE = re.compile(
     r"^(?P<open>[（(])(?P<number>[一二三四五六七八九十]+)(?P<close>[)）])(?P<body>.+)$"
 )
 _ORDERED_LIST_LINE_RE = re.compile(r"^(?P<number>[1-9]\d*)(?P<marker>[.．、])\s*(?P<body>.+)$")
+_INLINE_PARENTHESIZED_ENUM_BOUNDARY_RE = re.compile(
+    r"(?<=[。！？；!?;])(?=[（(][一二三四五六七八九十]+[)）])"
+)
 _CHINESE_NUMBER_BY_INT = {
     1: "一",
     2: "二",
@@ -48,11 +51,22 @@ _CHINESE_NUMBER_BY_INT = {
     10: "十",
 }
 _INT_BY_CHINESE_NUMBER = {value: key for key, value in _CHINESE_NUMBER_BY_INT.items()}
+_CROSS_BLOCK_DUPLICATE_TAIL_HEAD = "3. 跨学科知识:具有宽广的人文和社会科学知识,形成跨学科知识结构。"
+_CROSS_BLOCK_DUPLICATE_TAIL_REPAIRED = (
+    "3. 跨学科知识:具有宽广的人文和社会科学知识,形成跨学科知识结构,能够进行跨学科思考。"
+)
+_CROSS_BLOCK_DUPLICATE_TAIL_FRAGMENTS = {
+    "构,能够进行跨学科思考。",
+    "构，能够进行跨学科思考。",
+}
 
 
 def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
     _repair_misnumbered_graduation_requirements_section(rows)
     rows[:] = _repair_missing_teaching_hours_section(rows)
+    rows[:] = _repair_design_personalized_heading_gap(rows)
+    rows[:] = _repair_cross_block_duplicate_tail_wrap(rows)
+    _repair_inline_parenthesized_enum_boundaries(rows)
     _repair_course_settings_parenthesized_heading_sequence(rows)
     _repair_repeated_ordered_list_markers(rows)
     _repair_cross_page_table_continuations(rows)
@@ -84,7 +98,11 @@ def _repair_misnumbered_graduation_requirements_section(rows: list[dict[str, obj
             seen_section_two = True
             pending_graduation_heading = None
             continue
-        if seen_training_goal and not seen_section_two and _SECTION_THREE_GRADUATION_REQUIREMENTS_RE.match(text):
+        if (
+            seen_training_goal
+            and not seen_section_two
+            and _SECTION_THREE_GRADUATION_REQUIREMENTS_RE.match(text)
+        ):
             pending_graduation_heading = row
             continue
         if pending_graduation_heading is not None and _SECTION_THREE_STUDY_PERIOD_RE.match(text):
@@ -198,6 +216,23 @@ def _repair_repeated_ordered_list_markers(rows: list[dict[str, object]]) -> None
             )
 
 
+def _repair_inline_parenthesized_enum_boundaries(rows: list[dict[str, object]]) -> None:
+    for row in rows:
+        if str(row.get("row_type") or "") != "paragraph":
+            continue
+        text = _row_text(row)
+        if "\n" in text:
+            continue
+        repaired = _INLINE_PARENTHESIZED_ENUM_BOUNDARY_RE.sub("\n", text)
+        if repaired == text or repaired.count("\n") < 1:
+            continue
+        _replace_row_text(
+            row,
+            repaired,
+            reason="curriculum_repair:split_inline_parenthesized_enum_boundaries",
+        )
+
+
 def _is_repairable_one_based_sequence(numbers: list[int]) -> bool:
     expected = list(range(1, len(numbers) + 1))
     if numbers == expected:
@@ -292,6 +327,107 @@ def _repair_missing_teaching_hours_section(
         after_study_period_section = False
 
     return repaired_rows
+
+
+def _repair_design_personalized_heading_gap(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    previous_texts: list[str] = []
+
+    for index, row in enumerate(rows):
+        if _looks_like_design_environment_personalized_table(row) and not any(
+            "环境设计专业个性化培养" in text for text in previous_texts[-3:]
+        ):
+            next_text = _next_substantive_row_text(rows, index + 1)
+            if "服装与服饰设计专业个性化培养" in next_text:
+                repaired_rows.append(
+                    _clone_curriculum_text_row(
+                        row,
+                        text="3. 环境设计专业个性化培养至少选择修读13学分,建议课程清单:",
+                        row_id_suffix="environment-design-personalized-heading",
+                        row_type="paragraph",
+                        block_role="inferred_missing_personalized_program_heading",
+                        heading_level=None,
+                        section_hint=None,
+                        classification_reason=(
+                            "curriculum_repair:insert_design_environment_personalized_heading"
+                        ),
+                        preserve_reading_order=False,
+                    )
+                )
+        repaired_rows.append(row)
+        row_text = _row_text(row)
+        if row_text:
+            previous_texts.append(row_text)
+
+    return repaired_rows
+
+
+def _repair_cross_block_duplicate_tail_wrap(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    index = 0
+    while index < len(rows):
+        row = rows[index]
+        row_text = _row_text(row)
+        intervening_rows: list[dict[str, object]] = []
+        next_index = index + 1
+        while next_index < len(rows) and _is_skippable_between_wrapped_text_rows(rows[next_index]):
+            intervening_rows.append(rows[next_index])
+            next_index += 1
+        next_row = rows[next_index] if next_index < len(rows) else None
+        next_text = _row_text(next_row) if next_row is not None else ""
+        if (
+            str(row.get("row_type") or "") == "paragraph"
+            and next_row is not None
+            and str(next_row.get("row_type") or "") == "paragraph"
+            and row_text.endswith(_CROSS_BLOCK_DUPLICATE_TAIL_HEAD)
+            and next_text in _CROSS_BLOCK_DUPLICATE_TAIL_FRAGMENTS
+        ):
+            _replace_row_text(
+                row,
+                row_text[: -len(_CROSS_BLOCK_DUPLICATE_TAIL_HEAD)]
+                + _CROSS_BLOCK_DUPLICATE_TAIL_REPAIRED,
+                reason="curriculum_repair:merge_cross_block_duplicate_tail_wrap",
+            )
+            repaired_rows.append(row)
+            repaired_rows.extend(intervening_rows)
+            index = next_index + 1
+            continue
+        repaired_rows.append(row)
+        index += 1
+    return repaired_rows
+
+
+def _is_skippable_between_wrapped_text_rows(row: dict[str, object]) -> bool:
+    return str(row.get("row_type") or "") == "page_number" or not _row_text(row)
+
+
+def _looks_like_design_environment_personalized_table(row: dict[str, object]) -> bool:
+    if str(row.get("row_type") or "") != "table":
+        return False
+    text = _row_text(row)
+    return all(
+        marker in text
+        for marker in (
+            "课程类",
+            "平面设计",
+            "室内设计快题与预算",
+            "行业协同专题设计(三)",
+        )
+    )
+
+
+def _next_substantive_row_text(rows: list[dict[str, object]], start_index: int) -> str:
+    for candidate in rows[start_index:]:
+        if str(candidate.get("row_type") or "") == "page_number":
+            continue
+        text = _row_text(candidate)
+        if text:
+            return text
+    return ""
 
 
 def _clone_curriculum_text_row(

@@ -88,9 +88,9 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
                 "[表格]",
                 (
                     '<table><tr><td colspan="3">经核查,月,本学院(系)在籍本(预)科学生中存在以下情况者共计人次。'
-                    '填表人:</td></tr><tr><td>类型</td><td>原因</td><td>学生基本信息(姓名、学号、起止时间)</td></tr>'
+                    "填表人:</td></tr><tr><td>类型</td><td>原因</td><td>学生基本信息(姓名、学号、起止时间)</td></tr>"
                     '<tr><td rowspan="4">有无违纪违法学生</td><td>违反法律、法规</td><td></td></tr>'
-                    '<tr><td>其他需报告的重要情况</td><td></td></tr>'
+                    "<tr><td>其他需报告的重要情况</td><td></td></tr>"
                     '<tr><td colspan="2">有无心理健康状况异常学生</td><td></td></tr></table>'
                 ),
                 "",
@@ -112,9 +112,9 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
                 "",
                 "[表格]",
                 (
-                    '<table><tr><td>姓名</td><td></td><td>学院(系)领导签字</td><td></td></tr>'
-                    '<tr><td>学号</td><td></td><td>家庭所在地</td><td></td></tr>'
-                    '<tr><td>民族</td><td></td><td>火车到站站名</td><td></td></tr>'
+                    "<table><tr><td>姓名</td><td></td><td>学院(系)领导签字</td><td></td></tr>"
+                    "<tr><td>学号</td><td></td><td>家庭所在地</td><td></td></tr>"
+                    "<tr><td>民族</td><td></td><td>火车到站站名</td><td></td></tr>"
                     '<tr><td>学院(系)</td><td></td><td rowspan="4" colspan="2">照片\n'
                     "(请在照片背面加盖骑缝章)</td></tr>"
                     "<tr><td>专业</td><td></td></tr>"
@@ -186,8 +186,8 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
                 "",
                 "[表格]",
                 (
-                    "<table><tr><td colspan=\"2\">专业类别</td><td>四年制</td><td>五年制</td><td>双学位班专业</td></tr>"
-                    "<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr></table>"
+                    '<table><tr><td colspan="2">专业类别</td><td>四年制</td><td>五年制</td><td>双学位班专业</td></tr>'
+                    '<tr><td colspan="2">教育学</td><td>体育类</td><td>145学分</td><td></td></tr></table>'
                 ),
                 "",
             ]
@@ -195,9 +195,15 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
 
         cleaned = _clean_handbook_markdown(markdown)
 
-        self.assertIn("<tr><td colspan=\"2\">教育学</td><td>145学分</td><td></td><td></td></tr>", cleaned)
-        self.assertIn("<tr><td colspan=\"2\">体育类</td><td>145学分</td><td></td><td></td></tr>", cleaned)
-        self.assertNotIn("<tr><td colspan=\"2\">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>", cleaned)
+        self.assertIn(
+            '<tr><td colspan="2">教育学</td><td>145学分</td><td></td><td></td></tr>', cleaned
+        )
+        self.assertIn(
+            '<tr><td colspan="2">体育类</td><td>145学分</td><td></td><td></td></tr>', cleaned
+        )
+        self.assertNotIn(
+            '<tr><td colspan="2">教育学</td><td>体育类</td><td>145学分</td><td></td></tr>', cleaned
+        )
 
     def test_clean_handbook_markdown_repairs_workstudy_hiring_rate_punctuation(self) -> None:
         markdown = "\n".join(
@@ -239,6 +245,29 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
         self.assertNotIn("$3.5\\%$", cleaned)
         self.assertNotIn("$20\\%$", cleaned)
         self.assertNotIn("$\\rightarrow$", cleaned)
+
+    def test_clean_handbook_markdown_renders_known_final_numbered_clauses_as_headings(
+        self,
+    ) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学学生课堂行为规范及课堂秩序管理办法'",
+                "---",
+                "",
+                "## 一、总则",
+                "",
+                "课堂教学是人才培养的重要环节。",
+                "",
+                "四、本办法由学生工作部(处)负责解释。",
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("## 四、本办法由学生工作部(处)负责解释", cleaned)
+        self.assertNotIn("\n四、本办法由学生工作部(处)负责解释。\n", cleaned)
 
 
 if __name__ == "__main__":

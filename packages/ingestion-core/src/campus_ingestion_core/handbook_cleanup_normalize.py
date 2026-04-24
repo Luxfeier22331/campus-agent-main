@@ -36,9 +36,7 @@ from campus_ingestion_core.handbook_cleanup_shared import (
     TOP_LEVEL_ENUMERATED_RE,
 )
 
-_INLINE_PERCENT_MATH_RE = re.compile(
-    r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$"
-)
+_INLINE_PERCENT_MATH_RE = re.compile(r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$")
 _INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
 
 
@@ -216,9 +214,7 @@ def _looks_like_intended_structural_split(previous: str, current: str) -> bool:
     normalized_current = _normalize_body_fragment(current)
     if not normalized_previous or not normalized_current:
         return False
-    if _looks_like_confirmed_handbook_inline_heading_split(
-        normalized_previous, normalized_current
-    ):
+    if _looks_like_confirmed_handbook_inline_heading_split(normalized_previous, normalized_current):
         return True
     if len(normalized_current) < 8:
         return False
@@ -335,6 +331,8 @@ def _looks_like_confirmed_handbook_inline_heading_split(previous: str, current: 
     confirmed_pairs = (
         ("临时困难补助", "学生在校学习期间"),
         ("绿色通道", "学校在每学年新生入学时"),
+        ("申请受理", "申请国家助学贷款学生需"),
+        ("申请审查", "国家助学贷款由"),
     )
     return any(
         normalized_previous.endswith(previous_tail) and normalized_current.startswith(current_head)
@@ -634,13 +632,13 @@ def _looks_like_enumerated_clause_false_heading_split(heading: str, remainder: s
         "学生申诉处理委员会"
     ):
         return True
-    if normalized_heading.endswith("本科学生专项奖学金按以下程序") and normalized_remainder.startswith(
-        "进行评选"
-    ):
+    if normalized_heading.endswith(
+        "本科学生专项奖学金按以下程序"
+    ) and normalized_remainder.startswith("进行评选"):
         return True
-    if normalized_heading.endswith("学生参加勤工助学的工作时间") and normalized_remainder.startswith(
-        "原则上每周"
-    ):
+    if normalized_heading.endswith(
+        "学生参加勤工助学的工作时间"
+    ) and normalized_remainder.startswith("原则上每周"):
         return True
     if normalized_heading.endswith("做好对参加勤工助学") and normalized_remainder.startswith(
         "学生的考勤管理"
@@ -800,6 +798,20 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = normalized.replace("境外等级 成绩", "境外等级成绩")
     normalized = normalized.replace("校内百分 制成绩", "校内百分制成绩")
     normalized = normalized.replace("境外 5 分制", "境外5分制")
+    normalized = normalized.replace(
+        "申请受理申请国家助学贷款学生需",
+        "申请受理\n申请国家助学贷款学生需",
+    )
+    normalized = normalized.replace(
+        "申请审查国家助学贷款由",
+        "申请审查\n国家助学贷款由",
+    )
+    normalized = normalized.replace("然由借款学生", "然后由借款学生")
+    normalized = re.sub(
+        r"\(二\)注册机构对申请材料进行审核[。．.]*",
+        "(二)注册机构对申请材料进行审核。",
+        normalized,
+    )
     normalized = normalized.replace(
         "(七)临时困难补助学生在校学习期间",
         "(七)临时困难补助\n学生在校学习期间",
