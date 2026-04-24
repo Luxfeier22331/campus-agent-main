@@ -2,15 +2,17 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildNodeKey, buildNodeOccurrenceKey } from "../docs/.components/course-map-types";
 import {
 	buildCurriculumMetaEntries,
+	buildGroupMetaEntries,
 	buildHandbookMetaEntries,
 	buildTopLevelMetaEntries,
 } from "../scripts/sync-real-docs";
 import {
 	buildCourseMapDataImportName,
+	buildCourseMapDocEmbedForRoute,
 	inferCourseMapRouteGroup,
+	syncCurriculumCourseMapArtifacts,
 } from "../scripts/sync-real-docs/course-map";
 import {
 	buildCurriculumMarkdown,
@@ -22,6 +24,7 @@ import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-tabl
 import { buildHomePage } from "../scripts/sync-real-docs/pages";
 import { formatJsonContent } from "../scripts/sync-real-docs/shared";
 import type { ObjectStoreClient } from "../scripts/sync-real-docs/storage";
+import { buildNodeKey, buildNodeOccurrenceKey } from "../src/components/course-map-types";
 
 class FakeObjectStore implements ObjectStoreClient {
 	private readonly objects: ReadonlyMap<string, Uint8Array | string>;
@@ -55,6 +58,14 @@ class FakeObjectStore implements ObjectStoreClient {
 		return [...this.objects.keys()].filter((key) => key.startsWith(prefix)).sort();
 	}
 }
+
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+	for (const directory of temporaryDirectories.splice(0)) {
+		rmSync(directory, { force: true, recursive: true });
+	}
+});
 
 describe("course-map rendering keys", () => {
 	it("keeps duplicate course labels renderable with occurrence keys", () => {
@@ -95,6 +106,15 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 			"\n\n1\\.2 应用数学、自然科学和工程科学基本原理识别复杂工程问题。\n",
 		);
 		expect(markdown).not.toContain("复杂工程问题。1\\.1");
+	});
+
+	it("disables framework footer navigation on generated curriculum detail pages", () => {
+		const markdown = buildCurriculumMarkdown({
+			title: "计算机类本科人才培养方案",
+			jsonlText: '{"row_type":"heading","clean_text":"计算机类本科人才培养方案","heading_level":1}',
+		});
+
+		expect(markdown).toMatch(/^---\ntitle: "计算机类本科人才培养方案"\nfooter: false\n---/);
 	});
 
 	it("splits inline curriculum requirement labels inside one paragraph", () => {
@@ -305,6 +325,22 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(cleaned).toContain("(一)奖学金用于奖励品学兼优的学生。");
 	});
 
+	it("disables framework footer navigation on generated handbook detail pages", () => {
+		const markdown = [
+			"---",
+			"title: '中央民族大学学生资助管理工作暂行办法'",
+			"---",
+			"",
+			"正文。",
+		].join("\n");
+
+		const cleaned = cleanHandbookMarkdown(markdown);
+
+		expect(cleaned).toMatch(
+			/^---\ntitle: '中央民族大学学生资助管理工作暂行办法'\nfooter: false\ncorpus:/,
+		);
+	});
+
 	it("splits handbook dense parenthesized enums for readable rendering", () => {
 		const markdown = [
 			"---",
@@ -363,6 +399,8 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 
 		expect(css).toContain(".rspress-doc .docs-table-scroll");
 		expect(css).toContain(".rspress-doc .rp-table-scroll-container");
+		expect(css).toContain(".rspress-doc.docs-reader-wide");
+		expect(css).toContain(".rspress-doc.docs-reader-map");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
 	});
 
@@ -502,22 +540,16 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 				],
 				handbookDocs: [
 					{
-						slug: "student-rules",
-						title: "中央民族大学学生管理规定",
+						slug: "credit-system",
+						title: "中央民族大学本科学分制实施办法",
 						documentId: "handbook:test",
 					},
 				],
 			}),
 		).toEqual([
 			{ type: "file", name: "index", label: "学生手册概览" },
-			{ type: "section-header", label: "办事流程" },
-			{
-				type: "file",
-				name: "central-minzu-student-dormitory-management-workflow",
-				label: "中央民族大学学生公寓管理工作流程",
-			},
-			{ type: "section-header", label: "学生手册目录" },
-			{ type: "file", name: "student-rules", label: "中央民族大学学生管理规定" },
+			{ type: "dir", name: "workflows", label: "办事流程", collapsed: true },
+			{ type: "dir", name: "academic", label: "学籍与教学", collapsed: true },
 		]);
 		expect(
 			buildCurriculumMetaEntries([
@@ -539,21 +571,117 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 			]),
 		).toEqual([
 			{ type: "file", name: "index", label: "培养方案概览" },
-			{ type: "section-header", label: "本科专业与专业类" },
-			{ type: "file", name: "computer-science", label: "计算机类本科人才培养方案" },
-			{ type: "section-header", label: "强基计划" },
+			{ type: "dir", name: "undergraduate", label: "本科专业与专业类", collapsed: true },
+			{ type: "dir", name: "strong-base", label: "强基计划", collapsed: true },
+			{ type: "dir", name: "general-education", label: "通识课程", collapsed: true },
+		]);
+	});
+
+	it("does not create subgroup overview sidebar entries", () => {
+		expect(
+			buildGroupMetaEntries([
+				{
+					slug: "credit-system",
+					title: "中央民族大学本科学分制实施办法",
+				},
+			]),
+		).toEqual([
 			{
 				type: "file",
-				name: "philosophy-strong-base",
-				label: "哲学（强基计划）本科人才培养方案",
-			},
-			{ type: "section-header", label: "通识课程" },
-			{
-				type: "file",
-				name: "general-pe",
-				label: "中央民族大学通识课程 “大学体育”课程教学计划",
+				name: "credit-system",
+				label: "中央民族大学本科学分制实施办法",
 			},
 		]);
+		expect(
+			buildGroupMetaEntries([
+				{
+					slug: "computer-science",
+					title: "计算机类本科人才培养方案",
+				},
+			]).some((entry) => typeof entry !== "string" && "name" in entry && entry.name === "index"),
+		).toBe(false);
+	});
+
+	it("builds grouped course-map MDX imports against app src directories", () => {
+		expect(
+			buildCourseMapDocEmbedForRoute({
+				dataImportName: "computerScienceData",
+				routeDepthFromDocsRoot: 2,
+				slug: "computer-science",
+			}),
+		).toEqual({
+			componentImportPath: "../../../src/components/CourseMapSection",
+			dataImportName: "computerScienceData",
+			dataImportPath: "../../../src/generated/course-maps/computer-science.data",
+		});
+	});
+
+	it("syncs course-map data modules to app src while keeping Rspress-served images under docs public", async () => {
+		const root = mkdtempSync(join(tmpdir(), "public-docs-course-map-"));
+		temporaryDirectories.push(root);
+		const docsRoot = join(root, "apps/public-docs/docs");
+		const surface = {
+			generatedAt: "2026-04-22T00:00:00+00:00",
+			documentTitle: "计算机类本科人才培养方案",
+			documentId: "curriculum:computer-science",
+			rawAssetId: "asset:test",
+			rawVersionId: "sha256:test",
+			blocks: [
+				{
+					blockId: "page-0001-row-1-map-01",
+					title: "课程地图",
+					status: "ready",
+					titleConfidence: "visible",
+					pageNumber: 1,
+					rowId: "page-0001-block-0001",
+					mapIndex: 1,
+					parentHeadingHint: "六、课程地图",
+					displayStageLabels: ["一年级上学期"],
+					extractionNotes: [],
+					imageObjectKey:
+						"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps/map-01.png",
+					nodes: [{ node_label: "程序设计基础", stage_label: "一年级上学期" }],
+					edges: [],
+				},
+			],
+		};
+		const objects = new Map<string, string | Uint8Array>([
+			[
+				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps.json",
+				JSON.stringify(surface),
+			],
+			[
+				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps/map-01.png",
+				new Uint8Array([137, 80, 78, 71]),
+			],
+		]);
+
+		const embeds = await syncCurriculumCourseMapArtifacts({
+			client: new FakeObjectStore(objects),
+			curriculumDocs: [
+				{
+					key: "curriculum/documents/curriculum_plan/computer/source-faithful/2022/document-units.jsonl",
+					slug: "computer-science",
+					title: "计算机类本科人才培养方案",
+				},
+			],
+			docsRoot,
+		});
+
+		expect(
+			readFileSync(
+				join(root, "apps/public-docs/src/generated/course-maps/computer-science.data.ts"),
+				"utf-8",
+			),
+		).toContain('imageSrc: "/course-maps/computer-science/map-01.png"');
+		expect(
+			readFileSync(
+				join(root, "apps/public-docs/docs/public/course-maps/computer-science/map-01.png"),
+			),
+		).toEqual(Buffer.from([137, 80, 78, 71]));
+		expect(embeds.get("computer-science")?.dataImportPath).toBe(
+			"../src/generated/course-maps/computer-science.data",
+		);
 	});
 
 	it("builds public-facing home and curriculum index copy", () => {
@@ -575,25 +703,20 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(home).not.toContain("验证");
 		expect(home).not.toContain("MinIO");
 		expect(home).not.toContain("样本");
+		expect(curriculumIndex).toContain("footer: false");
 		expect(curriculumIndex).toContain("## 本科专业与专业类");
-		expect(curriculumIndex).toContain("- [计算机类本科人才培养方案](./computer-science)");
+		expect(curriculumIndex).toContain(
+			"- [计算机类本科人才培养方案](./undergraduate/computer-science)",
+		);
 		expect(curriculumIndex).toContain("## 通识课程");
 		expect(curriculumIndex).toContain(
-			"- [中央民族大学通识课程 “大学体育”课程教学计划](./general-pe)",
+			"- [中央民族大学通识课程 “大学体育”课程教学计划](./general-education/general-pe)",
 		);
 		expect(curriculumIndex).not.toContain("当前公开");
 	});
 });
 
 describe("public-docs generated-docs checker", () => {
-	const temporaryDirectories: string[] = [];
-
-	afterEach(() => {
-		for (const directory of temporaryDirectories.splice(0)) {
-			rmSync(directory, { force: true, recursive: true });
-		}
-	});
-
 	it("rejects restricted markers in generated markdown", async () => {
 		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
@@ -622,5 +745,106 @@ describe("public-docs generated-docs checker", () => {
 			"contains internal locator marker: campusrag://",
 		);
 		expect(readFileSync(target, "utf-8")).toContain("institutional_rules");
+	});
+
+	it("rejects stale Rspress sample docs directories", async () => {
+		const { validatePublicDocsGeneratedTree } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		mkdirSync(join(root, "apps/public-docs/docs/api"), { recursive: true });
+		writeFileSync(
+			join(root, "apps/public-docs/docs/api/index.md"),
+			["---", "title: API", "---", "", "sample"].join("\n"),
+			"utf-8",
+		);
+
+		const issues = validatePublicDocsGeneratedTree({ root });
+
+		expect(issues.map((issue) => issue.message)).toContain(
+			"contains stale Rspress sample docs directory: apps/public-docs/docs/api",
+		);
+	});
+
+	it("rejects subgroup overview files and stale subgroup index metadata", async () => {
+		const { validatePublicDocsGeneratedTree } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		const groupDir = join(root, "apps/public-docs/docs/student-handbook/workflows");
+		mkdirSync(groupDir, { recursive: true });
+		writeFileSync(
+			join(groupDir, "_meta.json"),
+			JSON.stringify([
+				{ type: "file", name: "index", label: "办事流程概览" },
+				{
+					type: "file",
+					name: "central-minzu-student-dormitory-management-workflow",
+					label: "中央民族大学学生公寓管理工作流程",
+				},
+			]),
+			"utf-8",
+		);
+		writeFileSync(
+			join(groupDir, "index.md"),
+			["---", "title: 办事流程", "---", "", "stale subgroup overview"].join("\n"),
+			"utf-8",
+		);
+
+		const issues = validatePublicDocsGeneratedTree({ root });
+
+		expect(issues.map((issue) => issue.message)).toContain(
+			"contains stale subgroup overview document: apps/public-docs/docs/student-handbook/workflows/index.md",
+		);
+		expect(issues.map((issue) => issue.message)).toContain(
+			"contains stale subgroup overview metadata entry: apps/public-docs/docs/student-handbook/workflows/_meta.json",
+		);
+	});
+
+	it("rejects tracked generated canonical reader content while allowing root scaffold files", async () => {
+		const { validatePublicDocsTrackedPaths } = await import("../scripts/check-generated-docs");
+
+		const issues = validatePublicDocsTrackedPaths([
+			"apps/public-docs/docs/index.md",
+			"apps/public-docs/docs/_meta.json",
+			"apps/public-docs/docs/_nav.json",
+			"apps/public-docs/docs/student-handbook/index.md",
+			"apps/public-docs/docs/student-handbook/academic/credit-system.md",
+			"apps/public-docs/docs/curriculum-plan/undergraduate/computer-science.mdx",
+			"apps/public-docs/docs/public/course-maps/computer-science/map-01.png",
+			"apps/public-docs/src/generated/course-maps/computer-science.data.ts",
+		]);
+
+		expect(issues.map((issue) => issue.message)).toEqual([
+			"generated public-docs content must not be tracked: apps/public-docs/docs/student-handbook/index.md",
+			"generated public-docs content must not be tracked: apps/public-docs/docs/student-handbook/academic/credit-system.md",
+			"generated public-docs content must not be tracked: apps/public-docs/docs/curriculum-plan/undergraduate/computer-science.mdx",
+			"generated public-docs content must not be tracked: apps/public-docs/docs/public/course-maps/computer-science/map-01.png",
+			"generated public-docs content must not be tracked: apps/public-docs/src/generated/course-maps/computer-science.data.ts",
+		]);
+	});
+});
+
+describe("public-docs local scaffold", () => {
+	it("materializes missing ignored collection directories without overwriting existing docs", async () => {
+		const { ensurePublicDocsScaffold } = await import("../scripts/ensure-docs-scaffold");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-scaffold-"));
+		temporaryDirectories.push(root);
+		const docsRoot = join(root, "apps/public-docs/docs");
+		mkdirSync(join(docsRoot, "student-handbook"), { recursive: true });
+		writeFileSync(
+			join(docsRoot, "student-handbook/index.md"),
+			["---", "title: 真实学生手册", "---", "", "existing"].join("\n"),
+			"utf-8",
+		);
+
+		ensurePublicDocsScaffold({ docsRoot });
+
+		expect(readFileSync(join(docsRoot, "student-handbook/index.md"), "utf-8")).toContain(
+			"title: 真实学生手册",
+		);
+		expect(readFileSync(join(docsRoot, "student-handbook/_meta.json"), "utf-8")).toBe("[]\n");
+		expect(readFileSync(join(docsRoot, "curriculum-plan/index.md"), "utf-8")).toContain(
+			"title: 培养方案",
+		);
+		expect(readFileSync(join(docsRoot, "curriculum-plan/_meta.json"), "utf-8")).toBe("[]\n");
 	});
 });

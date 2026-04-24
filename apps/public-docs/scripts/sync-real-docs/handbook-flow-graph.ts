@@ -4,6 +4,7 @@ import { buildCourseMapDataImportName, buildCourseMapDataModule } from "./course
 import {
 	asArray,
 	asRecord,
+	buildAppSrcImportPath,
 	HANDBOOK_SOURCE_PROJECTIONS_PATH,
 	HANDBOOK_YEAR,
 	type HandbookFlowGraphDoc,
@@ -16,7 +17,6 @@ import type { ObjectStoreClient } from "./storage";
 
 const FLOW_GRAPH_FILENAME = "flow-graph.json";
 const FLOW_GRAPH_SCHEMA_VERSION = "handbook_service_navigation_projection_v1";
-const FLOW_GRAPH_DOC_COMPONENT_IMPORT_PATH = "../.components/HandbookFlowGraphSection";
 const HANDBOOK_FLOW_GRAPH_DOC_SLUG_OVERRIDES = new Map<string, string>([
 	["handbook_navigation_service_catalog", "central-minzu-student-dormitory-management-workflow"],
 ]);
@@ -24,9 +24,10 @@ const HANDBOOK_FLOW_GRAPH_DOC_SLUG_OVERRIDES = new Map<string, string>([
 export async function syncHandbookFlowGraphArtifacts(input: {
 	client: ObjectStoreClient;
 	docsRoot: string;
+	routeDepthFromDocsRoot: number;
+	targetDir: string;
 }): Promise<HandbookFlowGraphDoc[]> {
-	const generatedDir = resolve(input.docsRoot, ".generated/handbook-flow-graphs");
-	const targetDir = resolve(input.docsRoot, "student-handbook");
+	const generatedDir = resolve(input.docsRoot, "../src/generated/handbook-flow-graphs");
 	const generatedDocs: HandbookFlowGraphDoc[] = [];
 	const expectedDataFiles = new Set<string>();
 
@@ -49,16 +50,27 @@ export async function syncHandbookFlowGraphArtifacts(input: {
 		const slug = buildHandbookFlowGraphDocSlug(projection);
 		const dataModuleName = `${slug}.data.ts`;
 		const dataImportName = buildCourseMapDataImportName(slug);
-		const dataImportPath = `../.generated/handbook-flow-graphs/${slug}.data`;
+		const dataImportPath = buildAppSrcImportPath({
+			routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+			srcPath: `generated/handbook-flow-graphs/${slug}.data`,
+		});
 		writeText(
 			resolve(generatedDir, dataModuleName),
 			buildCourseMapDataModule(buildHandbookFlowGraphDataPayload(payload), {
-				biomeFilePath: `apps/public-docs/docs/.generated/handbook-flow-graphs/${dataModuleName}`,
+				biomeFilePath: `apps/public-docs/src/generated/handbook-flow-graphs/${dataModuleName}`,
 			}),
 		);
 		writeText(
-			resolve(targetDir, `${slug}.mdx`),
-			buildHandbookFlowGraphMarkdown({ dataImportName, dataImportPath, title }),
+			resolve(input.targetDir, `${slug}.mdx`),
+			buildHandbookFlowGraphMarkdown({
+				componentImportPath: buildAppSrcImportPath({
+					routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+					srcPath: "components/HandbookFlowGraphSection",
+				}),
+				dataImportName,
+				dataImportPath,
+				title,
+			}),
 		);
 		expectedDataFiles.add(dataModuleName);
 		generatedDocs.push({ filename: `${slug}.mdx`, slug, title });
@@ -212,6 +224,7 @@ function buildHandbookFlowStepPayloads(flow: Record<string, unknown>): Record<st
 }
 
 function buildHandbookFlowGraphMarkdown(input: {
+	componentImportPath: string;
 	title: string;
 	dataImportName: string;
 	dataImportPath: string;
@@ -223,7 +236,7 @@ function buildHandbookFlowGraphMarkdown(input: {
 		"footer: false",
 		"---",
 		"",
-		`import HandbookFlowGraphSection from "${FLOW_GRAPH_DOC_COMPONENT_IMPORT_PATH}";`,
+		`import HandbookFlowGraphSection from "${input.componentImportPath}";`,
 		`import ${input.dataImportName} from "${input.dataImportPath}";`,
 		"",
 		`<HandbookFlowGraphSection data={${input.dataImportName}} />`,

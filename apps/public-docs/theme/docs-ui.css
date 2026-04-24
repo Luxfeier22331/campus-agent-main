@@ -3,12 +3,31 @@
 	text-wrap: balance;
 }
 
+.rspress-doc.docs-reader-normal {
+	max-width: 52rem;
+}
+
+.rspress-doc.docs-reader-wide {
+	max-width: min(100%, 74rem);
+}
+
+.rspress-doc.docs-reader-map {
+	max-width: min(100%, 86rem);
+}
+
 .rp-sidebar-menu__right:disabled {
 	display: none;
 }
 
 .rp-sidebar-menu__right .rp-progress-circle {
 	display: none;
+}
+
+@media (min-width: 769px) {
+	.rp-doc-layout__container .rp-doc-layout__sidebar {
+		padding-right: 0.75rem;
+		padding-left: 0;
+	}
 }
 
 .rspress-doc .docs-lead-in {

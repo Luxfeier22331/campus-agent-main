@@ -21,7 +21,7 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true
 	},
-	"include": ["docs", "theme", "scripts", "test", "rspress.config.ts", "vitest.config.mts"],
+	"include": ["docs", "src", "theme", "scripts", "test", "rspress.config.ts", "vitest.config.mts"],
 	"mdx": {
 		"checkMdx": true
 	}

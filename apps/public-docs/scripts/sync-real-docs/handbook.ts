@@ -68,6 +68,7 @@ export function buildHandbookIndex(): string {
 		"---",
 		"title: 学生手册",
 		"description: 中央民族大学学生手册公开阅读目录。",
+		"footer: false",
 		"---",
 		"",
 		"这里汇总学生在校学习、生活、资助、纪律、住宿和医疗等常用制度文件。",
@@ -250,28 +251,40 @@ function normalizeHandbookFrontmatter(frontmatterLines: string[]): string[] {
 		return frontmatterLines;
 	}
 	const rewritten = [frontmatterLines[0] ?? "---"];
+	const fields: string[] = [];
 	let seenCorpus = false;
 	let seenCollection = false;
+	let seenFooter = false;
 	for (const line of frontmatterLines.slice(1, -1)) {
 		const stripped = line.trim();
 		if (stripped.startsWith("corpus:")) {
-			rewritten.push(`corpus: ${HANDBOOK_CORPUS}`);
+			fields.push(`corpus: ${HANDBOOK_CORPUS}`);
 			seenCorpus = true;
 			continue;
 		}
 		if (stripped.startsWith("collection:")) {
-			rewritten.push(`collection: ${HANDBOOK_COLLECTION}`);
+			fields.push(`collection: ${HANDBOOK_COLLECTION}`);
 			seenCollection = true;
 			continue;
 		}
-		rewritten.push(line);
+		if (stripped.startsWith("footer:")) {
+			fields.push("footer: false");
+			seenFooter = true;
+			continue;
+		}
+		fields.push(line);
+	}
+	if (!seenFooter) {
+		const titleIndex = fields.findIndex((line) => line.trim().startsWith("title:"));
+		fields.splice(titleIndex === -1 ? 0 : titleIndex + 1, 0, "footer: false");
 	}
 	if (!seenCorpus) {
-		rewritten.push(`corpus: ${HANDBOOK_CORPUS}`);
+		fields.push(`corpus: ${HANDBOOK_CORPUS}`);
 	}
 	if (!seenCollection) {
-		rewritten.push(`collection: ${HANDBOOK_COLLECTION}`);
+		fields.push(`collection: ${HANDBOOK_COLLECTION}`);
 	}
+	rewritten.push(...fields);
 	rewritten.push(frontmatterLines.at(-1) ?? "---");
 	return rewritten;
 }

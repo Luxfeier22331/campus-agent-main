@@ -9,8 +9,10 @@ updated: 2026-04-25
 
 ## Goal
 
-为 `campus-agent` 建立独立的 docs-first 文档站、published reader assets 与 canonical document reader lane，
-冻结 browser surface、reader model、docs/search/citation control-plane seam，以及 public/restricted/historical reader 的长期边界。
+为 `campus-agent` 建立独立的 docs-first 文档站、published reader assets
+与 canonical document reader lane，冻结 browser surface、reader model、
+docs/search/citation control-plane seam，以及 public/restricted/historical
+reader 的长期边界。
 
 ## In Scope
 
@@ -55,6 +57,9 @@ consumption 层的结构化要求，不应通过手改 `apps/public-docs/docs/**
    作为生成产物不得作为长期手工修复面。
 10. Rspress 锚点 `#` 进入 `innerText` 但不进入视觉标题或可访问标题名时，不计为当前缺陷；只有视觉或
     accessibility tree 出现真实噪声时才新增需求。
+11. `public-docs` 开发环境同步出来的真实 canonical 文档、课程地图数据与流程图数据必须进入
+    `.gitignore` 治理；repo 只追踪文档站壳、主题、生成器、测试、必要 public asset 约定与少量
+    bootstrap scaffold，不把本地生成的 reader 内容当作人工源文件提交。
 
 ## Success Criteria
 
@@ -62,14 +67,19 @@ consumption 层的结构化要求，不应通过手改 `apps/public-docs/docs/**
 2. `public-docs` 被正式定义为独立 browser surface，而不是 `public-chat-web` 的页面模式。
 3. public published reader content 被正式定义为静态 reader assets，而不是由 API 每次返回正文。
 4. canonical reader model 明确以 `anchor` 和 `rootUnitId` 为用户态定位单位，不暴露 `chunkId`。
-5. `app-api` docs HTTP seams 被正式写成独立 control-plane contract，覆盖 navigation、resolve、version list 与 docs search。
+5. `app-api` docs HTTP seams 被正式写成独立 control-plane contract，覆盖
+   navigation、resolve、version list 与 docs search。
 6. restricted / gated reader 的 delivery mode 被显式收口，不因静态化而绕过 authz。
-7. published reader assets 的长期真相被正式固定在对象存储；deploy 只复制公开子集到 Worker static assets，不把 repo `assets/` 目录当真相。
+7. published reader assets 的长期真相被正式固定在对象存储；deploy 只复制公开子集到
+   Worker static assets，不把 repo `assets/` 目录当真相。
 8. chat 来源展示被正式定义为 source-card jump 到 canonical reader，而不是把 raw locator 写回正文。
 9. public / restricted / historical reader 的前向路线被写清，后续实现不需要重新争论“是否做两套 reader”。
-10. 当前 repo 中已经存在的 `public-docs` shell 不再被 planning 文档误写成“尚未创建”；后续收口只围绕 contract convergence，而不是重复创建 docs app。
+10. 当前 repo 中已经存在的 `public-docs` shell 不再被 planning 文档误写成“尚未创建”；
+    后续收口只围绕 contract convergence，而不是重复创建 docs app。
 11. 真实 canonical 文档进入 `public-docs` 后，章节、条款、列表、表格标题、短标签与宽表交互必须满足
     `Public Docs Rendering Requirements`，并通过抽样 smoke 证明不是只修单页样本。
+12. `public-docs` 的 dev 生成内容不得作为 tracked truth 留在 git 中；清理 tracked 生成产物后，
+    `sync:real-docs`、`lint:generated`、`typecheck` 与 `build` 仍必须可重复恢复同等可浏览文档站。
 
 ## Canonical Entry
 

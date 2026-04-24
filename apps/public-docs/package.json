@@ -4,8 +4,11 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "rspress build",
-		"dev": "rspress dev --host 127.0.0.1 --port 5177",
+		"build": "pnpm run ensure:docs-scaffold && rspress build",
+		"build:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run build",
+		"dev": "pnpm run ensure:docs-scaffold && rspress dev --host 127.0.0.1 --port 5177",
+		"dev:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run dev",
+		"ensure:docs-scaffold": "tsx scripts/ensure-docs-scaffold.ts",
 		"preview": "rspress preview --host 127.0.0.1 --port 4177",
 		"sync:real-docs": "tsx scripts/sync-real-docs.ts",
 		"lint:generated": "tsx scripts/check-generated-docs.ts",

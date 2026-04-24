@@ -138,6 +138,15 @@ export function removeLegacySectionDirs(docsRoot: string): void {
 	}
 }
 
+export function buildAppSrcImportPath(input: {
+	routeDepthFromDocsRoot: number;
+	srcPath: string;
+}): string {
+	const normalizedSrcPath = input.srcPath.replace(/^\/+/, "");
+	const appRootPrefix = "../".repeat(input.routeDepthFromDocsRoot + 1);
+	return `${appRootPrefix}src/${normalizedSrcPath}`;
+}
+
 export function wrapMarkdownPlainText(text: string): string {
 	return wrapMarkdownTextLines(text).join("\n");
 }

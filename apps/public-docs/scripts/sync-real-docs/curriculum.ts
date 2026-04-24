@@ -6,6 +6,12 @@ import {
 	normalizeTableBodyHeaderCells,
 } from "./html-table";
 import {
+	CURRICULUM_GROUPS,
+	type CurriculumDocGroupId,
+	classifyCurriculumDocGroupId,
+	groupCurriculumDocsByIa,
+} from "./ia";
+import {
 	type CourseMapDocEmbed,
 	CURRICULUM_DOC_SLUG_OVERRIDES,
 	type CurriculumDoc,
@@ -44,6 +50,7 @@ export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): 
 		"---",
 		"title: 培养方案目录",
 		"description: 中央民族大学公开培养方案目录。",
+		"footer: false",
 		"---",
 		"",
 		"这里汇总可公开阅读的培养方案、通识课程教学计划与专项培养文件。你可以使用顶部搜索按专业名称、课程类别或关键词快速定位内容。",
@@ -55,7 +62,7 @@ export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): 
 		}
 		lines.push(`## ${group.label}`, "");
 		for (const doc of group.docs) {
-			lines.push(`- [${doc.title}](./${doc.slug})`);
+			lines.push(`- [${doc.title}](./${group.id}/${doc.slug})`);
 		}
 		lines.push("");
 	}
@@ -63,16 +70,7 @@ export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): 
 }
 
 export function groupCurriculumDocs(curriculumDocs: CurriculumDoc[]): CurriculumDocGroup[] {
-	const docsByGroup = new Map<CurriculumDocGroupLabel, CurriculumDoc[]>(
-		CURRICULUM_DOC_GROUP_ORDER.map((label) => [label, []]),
-	);
-	for (const doc of curriculumDocs) {
-		docsByGroup.get(classifyCurriculumDocGroup(doc.title))?.push(doc);
-	}
-	return CURRICULUM_DOC_GROUP_ORDER.map((label) => ({
-		label,
-		docs: docsByGroup.get(label) ?? [],
-	}));
+	return groupCurriculumDocsByIa(curriculumDocs) as CurriculumDocGroup[];
 }
 
 export type CurriculumDocGroupLabel =
@@ -84,41 +82,15 @@ export type CurriculumDocGroupLabel =
 	| "其他培养方案";
 
 export interface CurriculumDocGroup {
+	id: CurriculumDocGroupId;
 	label: CurriculumDocGroupLabel;
 	docs: CurriculumDoc[];
 }
 
-const CURRICULUM_DOC_GROUP_ORDER: CurriculumDocGroupLabel[] = [
-	"本科专业与专业类",
-	"实验班与专项培养",
-	"强基计划",
-	"第二学士学位",
-	"通识课程",
-	"其他培养方案",
-];
-
 export function classifyCurriculumDocGroup(title: string): CurriculumDocGroupLabel {
-	if (title.includes("通识课程")) {
-		return "通识课程";
-	}
-	if (title.includes("强基计划")) {
-		return "强基计划";
-	}
-	if (title.includes("第二学士学位")) {
-		return "第二学士学位";
-	}
-	if (
-		title.includes("实验班") ||
-		title.includes("拔尖") ||
-		title.includes("孝通") ||
-		title.includes("专项")
-	) {
-		return "实验班与专项培养";
-	}
-	if (title.includes("本科人才培养方案")) {
-		return "本科专业与专业类";
-	}
-	return "其他培养方案";
+	const groupId = classifyCurriculumDocGroupId(title);
+	const group = CURRICULUM_GROUPS.find((candidate) => candidate.id === groupId);
+	return (group?.label ?? "其他培养方案") as CurriculumDocGroupLabel;
 }
 
 export async function discoverCurriculumDocs(client: ObjectStoreClient): Promise<CurriculumDoc[]> {
@@ -183,7 +155,7 @@ export function buildCurriculumMarkdown(input: {
 	slug?: string;
 	courseMapEmbed?: CourseMapDocEmbed;
 }): string {
-	const lines = ["---", `title: ${jsonString(input.title)}`, "---", ""];
+	const lines = ["---", `title: ${jsonString(input.title)}`, "footer: false", "---", ""];
 	if (input.courseMapEmbed) {
 		lines.push(
 			`import CourseMapSection from "${input.courseMapEmbed.componentImportPath}";`,

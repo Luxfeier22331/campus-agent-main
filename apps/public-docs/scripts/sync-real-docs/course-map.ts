@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import {
+	buildAppSrcImportPath,
 	COURSE_MAP_EXTENSION_KEYWORDS,
 	COURSE_MAP_FOUNDATION_KEYWORDS,
 	COURSE_MAP_PRACTICE_KEYWORDS,
@@ -56,7 +57,7 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 	curriculumDocs: CurriculumDoc[];
 	docsRoot: string;
 }): Promise<Map<string, CourseMapDocEmbed>> {
-	const generatedDir = resolve(input.docsRoot, ".generated/course-maps");
+	const generatedDir = resolve(input.docsRoot, "../src/generated/course-maps");
 	const publicRoot = resolve(input.docsRoot, "public/course-maps");
 	mkdirSync(generatedDir, { recursive: true });
 	mkdirSync(publicRoot, { recursive: true });
@@ -90,16 +91,19 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 		writeText(
 			resolve(generatedDir, dataModuleName),
 			buildCourseMapDataModule(dataPayload, {
-				biomeFilePath: `apps/public-docs/docs/.generated/course-maps/${dataModuleName}`,
+				biomeFilePath: `apps/public-docs/src/generated/course-maps/${dataModuleName}`,
 			}),
 		);
 		expectedDataFiles.add(dataModuleName);
 		expectedPublicDirs.add(doc.slug);
-		embeds.set(doc.slug, {
-			componentImportPath: "../.components/CourseMapSection",
-			dataImportName: buildCourseMapDataImportName(doc.slug),
-			dataImportPath: `../.generated/course-maps/${doc.slug}.data`,
-		});
+		embeds.set(
+			doc.slug,
+			buildCourseMapDocEmbedForRoute({
+				dataImportName: buildCourseMapDataImportName(doc.slug),
+				routeDepthFromDocsRoot: 0,
+				slug: doc.slug,
+			}),
+		);
 	}
 	removeStaleGeneratedFiles(generatedDir, expectedDataFiles);
 	for (const name of readdirSync(publicRoot)) {
@@ -108,6 +112,24 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 		}
 	}
 	return embeds;
+}
+
+export function buildCourseMapDocEmbedForRoute(input: {
+	dataImportName: string;
+	routeDepthFromDocsRoot: number;
+	slug: string;
+}): CourseMapDocEmbed {
+	return {
+		componentImportPath: buildAppSrcImportPath({
+			routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+			srcPath: "components/CourseMapSection",
+		}),
+		dataImportName: input.dataImportName,
+		dataImportPath: buildAppSrcImportPath({
+			routeDepthFromDocsRoot: input.routeDepthFromDocsRoot,
+			srcPath: `generated/course-maps/${input.slug}.data`,
+		}),
+	};
 }
 
 export function buildCourseMapSectionBlock(courseMapEmbed: CourseMapDocEmbed): string {

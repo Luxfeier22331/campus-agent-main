@@ -1,6 +1,9 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { syncCurriculumCourseMapArtifacts } from "./sync-real-docs/course-map";
+import {
+	buildCourseMapDocEmbedForRoute,
+	syncCurriculumCourseMapArtifacts,
+} from "./sync-real-docs/course-map";
 import {
 	buildCurriculumMarkdown,
 	buildCurriculumPlanIndex,
@@ -15,6 +18,7 @@ import {
 	loadHandbookDocs,
 } from "./sync-real-docs/handbook";
 import { syncHandbookFlowGraphArtifacts } from "./sync-real-docs/handbook-flow-graph";
+import { groupHandbookDocs } from "./sync-real-docs/ia";
 import { buildHomePage } from "./sync-real-docs/pages";
 import {
 	discoverPublicRegulationDocs,
@@ -35,8 +39,10 @@ import { createS3ObjectStore, type ObjectStoreClient } from "./sync-real-docs/st
 type SidebarMetaEntry =
 	| string
 	| { type: "file"; name: string; label: string }
-	| { type: "dir"; name: string; label: string }
+	| { type: "dir"; name: string; label: string; collapsed?: boolean; collapsible?: boolean }
 	| { type: "section-header"; label: string };
+
+const GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT = 2;
 
 export async function syncRealDocs(): Promise<void> {
 	loadPublicDocsEnv();
@@ -70,11 +76,16 @@ export function buildTopLevelMetaEntries(input: {
 }): SidebarMetaEntry[] {
 	const entries: SidebarMetaEntry[] = [
 		{ type: "file", name: "index", label: "文档首页" },
-		{ type: "dir", name: "student-handbook", label: "学生手册" },
-		{ type: "dir", name: "curriculum-plan", label: "培养方案" },
+		{ type: "dir", name: "student-handbook", label: "学生手册", collapsed: true },
+		{ type: "dir", name: "curriculum-plan", label: "培养方案", collapsed: true },
 	];
 	if (input.includePublicRegulations) {
-		entries.push({ type: "dir", name: "campus-regulations", label: "校内规章" });
+		entries.push({
+			type: "dir",
+			name: "campus-regulations",
+			label: "校内规章",
+			collapsed: true,
+		});
 	}
 	return entries;
 }
@@ -84,24 +95,12 @@ export function buildHandbookMetaEntries(input: {
 	handbookDocs: HandbookDoc[];
 }): SidebarMetaEntry[] {
 	const entries: SidebarMetaEntry[] = [{ type: "file", name: "index", label: "学生手册概览" }];
-	if (input.flowGraphDocs.length > 0) {
-		entries.push(
-			{ type: "section-header", label: "办事流程" },
-			...input.flowGraphDocs.map((doc) => ({
-				type: "file" as const,
-				name: doc.slug,
-				label: doc.title,
-			})),
-		);
+	for (const group of groupHandbookDocs(input)) {
+		if (group.docs.length === 0) {
+			continue;
+		}
+		entries.push({ type: "dir", name: group.id, label: group.label, collapsed: true });
 	}
-	entries.push(
-		{ type: "section-header", label: "学生手册目录" },
-		...input.handbookDocs.map((doc) => ({
-			type: "file" as const,
-			name: doc.slug,
-			label: doc.title,
-		})),
-	);
 	return entries;
 }
 
@@ -111,16 +110,19 @@ export function buildCurriculumMetaEntries(curriculumDocs: CurriculumDoc[]): Sid
 		if (group.docs.length === 0) {
 			continue;
 		}
-		entries.push(
-			{ type: "section-header", label: group.label },
-			...group.docs.map((doc) => ({
-				type: "file" as const,
-				name: doc.slug,
-				label: doc.title,
-			})),
-		);
+		entries.push({ type: "dir", name: group.id, label: group.label, collapsed: true });
 	}
 	return entries;
+}
+
+export function buildGroupMetaEntries<TDoc extends { slug: string; title: string }>(
+	docs: TDoc[],
+): SidebarMetaEntry[] {
+	return docs.map((doc) => ({
+		type: "file" as const,
+		name: doc.slug,
+		label: doc.title,
+	}));
 }
 
 async function syncHandbookDocs(
@@ -129,25 +131,54 @@ async function syncHandbookDocs(
 ): Promise<void> {
 	const targetDir = resolve(DOCS_ROOT, "student-handbook");
 	mkdirSync(targetDir, { recursive: true });
-	const flowGraphDocs = await syncHandbookFlowGraphArtifacts({ client, docsRoot: DOCS_ROOT });
+	const workflowsDir = resolve(targetDir, "workflows");
+	mkdirSync(workflowsDir, { recursive: true });
+	const flowGraphDocs = await syncHandbookFlowGraphArtifacts({
+		client,
+		docsRoot: DOCS_ROOT,
+		routeDepthFromDocsRoot: GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT,
+		targetDir: workflowsDir,
+	});
+	const groups = groupHandbookDocs({ flowGraphDocs, handbookDocs });
 	writeText(
 		resolve(targetDir, "_meta.json"),
 		formatJsonContent(buildHandbookMetaEntries({ flowGraphDocs, handbookDocs })),
 	);
 	writeText(resolve(targetDir, "index.md"), buildHandbookIndex());
-	for (const doc of handbookDocs) {
-		const markdown = cleanHandbookMarkdown(
-			await client.readTextObject({ key: buildHandbookDocKey(doc) }),
+
+	for (const group of groups) {
+		if (group.docs.length === 0) {
+			continue;
+		}
+		const groupDir = resolve(targetDir, group.id);
+		mkdirSync(groupDir, { recursive: true });
+		writeText(
+			resolve(groupDir, "_meta.json"),
+			formatJsonContent(buildGroupMetaEntries(group.docs)),
 		);
-		writeText(resolve(targetDir, `${doc.slug}.md`), markdown);
+		for (const doc of group.docs) {
+			if (!isHandbookDoc(doc)) {
+				continue;
+			}
+			const markdown = cleanHandbookMarkdown(
+				await client.readTextObject({ key: buildHandbookDocKey(doc) }),
+			);
+			writeText(resolve(groupDir, `${doc.slug}.md`), markdown);
+		}
+		removeStaleGeneratedFiles(
+			groupDir,
+			new Set([
+				"_meta.json",
+				...group.docs.map((doc) => ("filename" in doc ? doc.filename : `${doc.slug}.md`)),
+			]),
+		);
 	}
 	removeStaleGeneratedFiles(
 		targetDir,
 		new Set([
 			"_meta.json",
 			"index.md",
-			...handbookDocs.map((doc) => `${doc.slug}.md`),
-			...flowGraphDocs.map((doc) => doc.filename),
+			...groups.filter((group) => group.docs.length > 0).map((group) => group.id),
 		]),
 	);
 }
@@ -163,25 +194,56 @@ async function syncCurriculumDocs(
 		curriculumDocs,
 		docsRoot: DOCS_ROOT,
 	});
+	const groups = groupCurriculumDocs(curriculumDocs);
 	writeText(
 		resolve(targetDir, "_meta.json"),
 		formatJsonContent(buildCurriculumMetaEntries(curriculumDocs)),
 	);
 	writeText(resolve(targetDir, "index.md"), buildCurriculumPlanIndex(curriculumDocs));
-	for (const doc of curriculumDocs) {
-		const jsonlText = await client.readTextObject({ key: doc.key });
-		const markdown = buildCurriculumMarkdown({
-			courseMapEmbed: courseMapEmbeds.get(doc.slug),
-			jsonlText,
-			slug: doc.slug,
-			title: doc.title,
-		});
-		writeText(resolve(targetDir, `${doc.slug}.mdx`), markdown);
+	for (const group of groups) {
+		if (group.docs.length === 0) {
+			continue;
+		}
+		const groupDir = resolve(targetDir, group.id);
+		mkdirSync(groupDir, { recursive: true });
+		writeText(
+			resolve(groupDir, "_meta.json"),
+			formatJsonContent(buildGroupMetaEntries(group.docs)),
+		);
+		for (const doc of group.docs) {
+			const jsonlText = await client.readTextObject({ key: doc.key });
+			const courseMapEmbed = courseMapEmbeds.get(doc.slug);
+			const markdown = buildCurriculumMarkdown({
+				courseMapEmbed: courseMapEmbed
+					? buildCourseMapDocEmbedForRoute({
+							dataImportName: courseMapEmbed.dataImportName,
+							routeDepthFromDocsRoot: GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT,
+							slug: doc.slug,
+						})
+					: undefined,
+				jsonlText,
+				slug: doc.slug,
+				title: doc.title,
+			});
+			writeText(resolve(groupDir, `${doc.slug}.mdx`), markdown);
+		}
+		removeStaleGeneratedFiles(
+			groupDir,
+			new Set(["_meta.json", ...group.docs.map((doc) => `${doc.slug}.mdx`)]),
+		);
 	}
 	removeStaleGeneratedFiles(
 		targetDir,
-		new Set(["_meta.json", "index.md", ...curriculumDocs.map((doc) => `${doc.slug}.mdx`)]),
+		new Set([
+			"_meta.json",
+			"index.md",
+			...groups.filter((group) => group.docs.length > 0).map((group) => group.id),
+		]),
 	);
+}
+
+function isHandbookDoc(doc: HandbookDoc | HandbookFlowGraphDoc): doc is HandbookDoc {
+	return !("filename" in doc);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
