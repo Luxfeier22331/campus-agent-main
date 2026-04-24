@@ -28,13 +28,14 @@ function createScopedDbGetter(
 	input: RequestRuntimeScopeDependencies,
 	consistency: RuntimeDatabaseConsistency,
 ): RuntimeDbGetter {
-	if (!input.createRuntimeDatabase) {
+	const createRuntimeDatabase = input.createRuntimeDatabase;
+	if (!createRuntimeDatabase) {
 		return createScopedRuntimeDbGetter(env, { consistency });
 	}
 
 	let dbPromise: Promise<RuntimeDatabase> | null = null;
 	return () => {
-		dbPromise ??= input.createRuntimeDatabase?.(env, { consistency });
+		dbPromise ??= createRuntimeDatabase(env, { consistency });
 		return dbPromise;
 	};
 }

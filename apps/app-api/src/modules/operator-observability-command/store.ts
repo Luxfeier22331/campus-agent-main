@@ -35,11 +35,12 @@ export interface QualityGradeProjectionWrite {
 	collection: string | null;
 	modelName: string | null;
 	gradeSource: string;
-	gradeDomain: string;
-	verdict: string;
+	gradeDomain: "grounding" | "citation" | "policy";
+	verdict: "pass" | "fail" | "needs_review";
 	scoreMilli: number | null;
 	graderVersion: string;
 	rationaleSummary: string | null;
+	requestedScopeSummary: string | null;
 	sampledAt: string;
 	projectedAt: string;
 }

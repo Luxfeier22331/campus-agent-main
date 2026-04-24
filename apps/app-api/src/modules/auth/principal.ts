@@ -546,10 +546,10 @@ function parseCampusIdentityClaims(
 			claims.visibilityScope ||
 			claims.applicabilityScope ||
 			claims.visibilityLevel ||
-			claims.actorRoles?.length > 0 ||
-			claims.departments?.length > 0 ||
-			claims.entitlementGroups?.length > 0 ||
-			claims.ownershipScopes?.length > 0,
+			(claims.actorRoles?.length ?? 0) > 0 ||
+			(claims.departments?.length ?? 0) > 0 ||
+			(claims.entitlementGroups?.length ?? 0) > 0 ||
+			(claims.ownershipScopes?.length ?? 0) > 0,
 	);
 
 	return hasMaterialClaims ? claims : undefined;
