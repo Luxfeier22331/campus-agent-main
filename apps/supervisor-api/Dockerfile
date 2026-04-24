@@ -1,59 +1,29 @@
-FROM ghcr.io/astral-sh/uv:0.8.22-python3.12-bookworm-slim AS build
+FROM golang:1.26.2-bookworm AS build
 
-WORKDIR /app
-ENV UV_LINK_MODE=copy
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
 
-COPY apps/supervisor-api ./apps/supervisor-api
-COPY configs/ingestion ./configs/ingestion
-COPY packages/campus-services-agent ./packages/campus-services-agent
-COPY packages/contracts ./packages/contracts
-COPY packages/ingestion-core ./packages/ingestion-core
-COPY packages/navigation-agent ./packages/navigation-agent
-COPY packages/notice-agent ./packages/notice-agent
-COPY packages/rag-agent ./packages/rag-agent
-COPY packages/retrieval-core ./packages/retrieval-core
-COPY packages/shared ./packages/shared
-COPY packages/supervisor-core ./packages/supervisor-core
+ENV GOPROXY=${GOPROXY} \
+  GOSUMDB=${GOSUMDB}
 
-RUN <<'EOF'
-cat > /app/pyproject.toml <<'PYPROJECT'
-[project]
-name = "campus-supervisor-runtime"
-version = "0.1.0"
-requires-python = ">=3.12"
-dependencies = []
+WORKDIR /src/apps/supervisor-api
 
-[tool.uv]
-package = false
+COPY apps/supervisor-api/go.mod apps/supervisor-api/go.sum ./
+RUN go mod download
 
-[tool.uv.workspace]
-members = [
-  "apps/supervisor-api",
-  "packages/campus-services-agent",
-  "packages/contracts",
-  "packages/ingestion-core",
-  "packages/navigation-agent",
-  "packages/notice-agent",
-  "packages/rag-agent",
-  "packages/retrieval-core",
-  "packages/shared",
-  "packages/supervisor-core",
-]
-PYPROJECT
+COPY apps/supervisor-api ./
 
-uv sync --project /app --package campus-supervisor-api --no-dev
-EOF
+RUN go test ./... \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/supervisor-api ./cmd/supervisor-api
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM debian:bookworm-slim
 
-WORKDIR /app
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/apps/supervisor-api/src:/app/packages/campus-services-agent/src:/app/packages/contracts/src:/app/packages/ingestion-core/src:/app/packages/navigation-agent/src:/app/packages/notice-agent/src:/app/packages/rag-agent/src:/app/packages/retrieval-core/src:/app/packages/shared/src:/app/packages/supervisor-core/src"
-ENV SUPERVISOR_PY_BRIDGE_HOST=0.0.0.0
-ENV SUPERVISOR_PY_BRIDGE_PORT=18081
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser
 
-COPY --from=build /app /app
+COPY --from=build /out/supervisor-api /usr/local/bin/supervisor-api
 
-EXPOSE 18081
+USER appuser
+EXPOSE 8000
+ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0
 
-ENTRYPOINT ["campus-supervisor-orchestrator-dev"]
+ENTRYPOINT ["/usr/local/bin/supervisor-api"]

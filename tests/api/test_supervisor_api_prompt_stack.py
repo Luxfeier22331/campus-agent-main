@@ -14,16 +14,16 @@ from campus_contracts import (
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_supervisor_api.app import create_bridge_app
-from campus_supervisor_api.prompt_stack import (
-    build_rag_prompt_stack,
-    build_supervisor_prompt_stack,
-)
-from campus_supervisor_api.settings import ApiSettings
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.prompt_packets import build_supervisor_clarify_prompt_packet
 from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core_worker.app import create_bridge_app
+from campus_supervisor_core_worker.prompt_stack import (
+    build_rag_prompt_stack,
+    build_supervisor_prompt_stack,
+)
+from campus_supervisor_core_worker.settings import ApiSettings
 
 
 class SupervisorApiPromptStackTest(unittest.TestCase):

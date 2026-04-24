@@ -4,8 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from campus_supervisor_api.app import create_bridge_app
-from campus_supervisor_api.settings import ApiSettings
+from campus_supervisor_core_worker.app import create_bridge_app
+from campus_supervisor_core_worker.settings import ApiSettings
 
 
 class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
@@ -91,8 +91,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "19",
             "AUDIT_LOG_PATH": "./var/log/custom-audit.log",
             "AUDIT_QUEUE_CAPACITY": "64",
-            "SUPERVISOR_PY_BRIDGE_SHARED_SECRET": "bridge-secret",
-            "SUPERVISOR_PY_BRIDGE_WORKER_THREADS": "7",
+            "SUPERVISOR_CORE_WORKER_SHARED_SECRET": "bridge-secret",
+            "SUPERVISOR_CORE_WORKER_THREADS": "7",
         }
 
         with patch.dict(os.environ, env, clear=True):

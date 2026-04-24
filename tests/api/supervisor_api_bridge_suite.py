@@ -12,11 +12,11 @@ from campus_contracts import (
     SupervisorResponse,
     TransportScheduleLookupPayload,
 )
-from campus_supervisor_api.app import create_bridge_app
-from campus_supervisor_api.settings import ApiSettings
 from campus_supervisor_core import InvalidSupervisorRequestError
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core_worker.app import create_bridge_app
+from campus_supervisor_core_worker.settings import ApiSettings
 
 
 class SupervisorApiBridgeTest(unittest.TestCase):
@@ -250,7 +250,8 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json_body["status"], "cancel_requested")
         self.assertEqual(response.json_body["request_id"], "req-active-cancel")
-        self.assertEqual(answer_responses[0].status_code, 200)
+        self.assertEqual(answer_responses[0].status_code, 499)
+        self.assertEqual(answer_responses[0].json_body["error"]["code"], "execution_cancelled")
 
     def test_bridge_answer_wires_configured_campus_services_query_service(self) -> None:
         query_requests: list[dict[str, object]] = []

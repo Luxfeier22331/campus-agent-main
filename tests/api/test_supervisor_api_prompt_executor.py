@@ -21,14 +21,14 @@ from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
 )
-from campus_supervisor_api.prompt_executor import (
-    ProviderBackedRagPromptExecutor,
-    ProviderBackedSupervisorPromptExecutor,
-)
 from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.prompt_packets import build_supervisor_clarify_prompt_packet
 from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core_worker.prompt_executor import (
+    ProviderBackedRagPromptExecutor,
+    ProviderBackedSupervisorPromptExecutor,
+)
 
 
 def _provider_config() -> PromptRuntimeProviderConfig:

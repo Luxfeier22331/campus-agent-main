@@ -129,7 +129,7 @@ members = [
   "apps/official-web-collector",
   "apps/protected-panel-web",
   "apps/public-chat-web",
-  "apps/supervisor-api",
+  "apps/supervisor-core-worker",
   "packages/*",
 ]
 

@@ -69,7 +69,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("sql:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("infra/local/staging/install-go-shell-staging-task.ps1"),
+            lint_families_for_path("infra/local/staging/install-supervisor-api-staging-task.ps1"),
             (),
         )
 

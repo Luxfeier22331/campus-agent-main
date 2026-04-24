@@ -1,9 +1,9 @@
 *
 !README.md
-!apps/go-shell/
-!apps/go-shell/**
 !apps/supervisor-api/
 !apps/supervisor-api/**
+!apps/supervisor-core-worker/
+!apps/supervisor-core-worker/**
 !configs/ingestion/
 !configs/ingestion/**
 !packages/campus-services-agent/

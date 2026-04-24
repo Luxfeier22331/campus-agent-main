@@ -14,6 +14,7 @@ EXPECTED_WORKSPACES = {
     "apps/protected-panel-web",
     "apps/public-chat-web",
     "apps/supervisor-api",
+    "apps/supervisor-core-worker",
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
@@ -53,13 +54,13 @@ class WorkspaceLayoutTest(unittest.TestCase):
             ),
         )
 
-    def test_supervisor_api_exposes_stable_runtime_routes(self) -> None:
-        supervisor_api = import_module("campus_supervisor_api")
+    def test_supervisor_core_worker_exposes_private_bridge_routes(self) -> None:
+        supervisor_core_worker = import_module("campus_supervisor_core_worker")
 
-        self.assertFalse(hasattr(supervisor_api, "create_app"))
-        self.assertTrue(hasattr(supervisor_api, "create_bridge_app"))
+        self.assertFalse(hasattr(supervisor_core_worker, "create_app"))
+        self.assertTrue(hasattr(supervisor_core_worker, "create_bridge_app"))
 
-        app = supervisor_api.create_bridge_app()
+        app = supervisor_core_worker.create_bridge_app()
 
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(

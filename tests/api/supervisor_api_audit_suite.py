@@ -7,9 +7,9 @@ import unittest
 from pathlib import Path
 
 from campus_contracts import EvidenceBundle, RagResultPayload, SupervisorResponse
-from campus_supervisor_api.app import create_bridge_app
-from campus_supervisor_api.settings import ApiSettings
 from campus_supervisor_core import DisallowedKnowledgeScopeError
+from campus_supervisor_core_worker.app import create_bridge_app
+from campus_supervisor_core_worker.settings import ApiSettings
 
 
 def _bridge_request_payload(
