@@ -25,6 +25,10 @@ const snapshotLatest = migrationContext.latestSnapshot;
 const snapshot0000Specs = buildExpectedTableSpecs(snapshot0000);
 const latestSpecs = buildExpectedTableSpecs(snapshotLatest);
 
+function normalizeSqlStatement(statement: string): string {
+	return statement.replace(/\s+/g, " ").trim();
+}
+
 function buildTableFromSnapshot(
 	specs: ReturnType<typeof buildExpectedTableSpecs>,
 	qualifiedName: string,
@@ -65,6 +69,13 @@ describe("shared database adoption", () => {
 			kind: "column",
 		});
 		expect(
+			parseMigrationStatement(`ALTER TABLE "official_web"."crawl_runs"
+ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
+		).toMatchObject({
+			existsKey: "official_web.crawl_runs:run_intent",
+			kind: "column",
+		});
+		expect(
 			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" ADD COLUMN "diagnostics_json" jsonb;',
 			),
@@ -89,11 +100,29 @@ describe("shared database adoption", () => {
 			kind: "constraint",
 		});
 		expect(
+			parseMigrationStatement(`ALTER TABLE "official_web"."run_artifacts"
+ADD CONSTRAINT "run_artifacts_run_id_crawl_runs_run_id_fk" FOREIGN KEY (
+    "run_id"
+) REFERENCES "official_web"."crawl_runs" ("run_id") ON DELETE CASCADE ON UPDATE NO ACTION;`),
+		).toMatchObject({
+			existsKey: "official_web.run_artifacts#run_artifacts_run_id_crawl_runs_run_id_fk",
+			kind: "constraint",
+		});
+		expect(
 			parseMigrationStatement(
 				'CREATE UNIQUE INDEX "runtime_request_execution_actor_idempotency_idx" ON "runtime"."request_execution" USING btree ("actor_user_id","idempotency_key");',
 			),
 		).toMatchObject({
 			existsKey: "runtime.request_execution@runtime_request_execution_actor_idempotency_idx",
+			kind: "index",
+		});
+		expect(
+			parseMigrationStatement(`CREATE UNIQUE INDEX "official_web_crawl_runs_site_scheduler_idx"
+ON "official_web"."crawl_runs" USING btree (
+    "site_id", "scheduler_run_key"
+);`),
+		).toMatchObject({
+			existsKey: "official_web.crawl_runs@official_web_crawl_runs_site_scheduler_idx",
 			kind: "index",
 		});
 		expect(
@@ -108,6 +137,13 @@ describe("shared database adoption", () => {
 			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" DROP COLUMN "actor_groups_json";',
 			),
+		).toMatchObject({
+			existsKey: "runtime.request_execution:actor_groups_json",
+			kind: "drop_column",
+		});
+		expect(
+			parseMigrationStatement(`ALTER TABLE "runtime"."request_execution"
+DROP COLUMN "actor_groups_json";`),
 		).toMatchObject({
 			existsKey: "runtime.request_execution:actor_groups_json",
 			kind: "drop_column",
@@ -265,37 +301,37 @@ describe("shared database adoption", () => {
 			(migration) =>
 				migration.statements.some(
 					(statement) =>
-						statement.includes(crawlRunsRunIntentStatement) &&
+						normalizeSqlStatement(statement).includes(crawlRunsRunIntentStatement) &&
 						statement.includes("DEFAULT 'baseline'"),
 				) &&
 				migration.statements.some(
 					(statement) =>
-						statement.includes(runProjectionRunIntentStatement) &&
+						normalizeSqlStatement(statement).includes(runProjectionRunIntentStatement) &&
 						statement.includes("DEFAULT 'baseline'"),
 				),
 		);
 
 		expect(
 			runIntentBackfillMigration?.statements.some((statement) =>
-				statement.includes(crawlRunsRunIntentStatement),
+				normalizeSqlStatement(statement).includes(crawlRunsRunIntentStatement),
 			),
 		).toBe(true);
 		expect(
 			runIntentBackfillMigration?.statements.some((statement) =>
-				statement.includes(runProjectionRunIntentStatement),
+				normalizeSqlStatement(statement).includes(runProjectionRunIntentStatement),
 			),
 		).toBe(true);
 		expect(
 			runIntentBackfillMigration?.statements.some(
 				(statement) =>
-					statement.includes(crawlRunsRunIntentStatement) &&
+					normalizeSqlStatement(statement).includes(crawlRunsRunIntentStatement) &&
 					statement.includes("DEFAULT 'baseline'"),
 			),
 		).toBe(true);
 		expect(
 			runIntentBackfillMigration?.statements.some(
 				(statement) =>
-					statement.includes(runProjectionRunIntentStatement) &&
+					normalizeSqlStatement(statement).includes(runProjectionRunIntentStatement) &&
 					statement.includes("DEFAULT 'baseline'"),
 			),
 		).toBe(true);

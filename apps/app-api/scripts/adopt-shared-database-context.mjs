@@ -48,6 +48,15 @@ export function loadSnapshot(entryOrTag) {
 	return JSON.parse(fs.readFileSync(resolveSnapshotPath(entryOrTag), "utf8"));
 }
 
+function splitMigrationStatements(statement) {
+	return statement
+		.trim()
+		.split(/;\s*(?=(?:ALTER|CREATE|DROP)\b|$)/i)
+		.map((item) => item.trim())
+		.filter(Boolean)
+		.map((item) => (item.endsWith(";") ? item : `${item};`));
+}
+
 export function loadMigrationContext() {
 	const journal = loadMigrationJournal();
 	const migrationFiles = readMigrationFiles({ migrationsFolder: drizzleRoot });
@@ -58,7 +67,7 @@ export function loadMigrationContext() {
 	}
 	const migrations = migrationFiles.map((migration, index) => ({
 		...migration,
-		statements: migration.sql.map((statement) => statement.trim()).filter(Boolean),
+		statements: migration.sql.flatMap(splitMigrationStatements),
 		tag: journal.entries[index].tag,
 	}));
 	const snapshots = new Map(journal.entries.map((entry) => [entry.tag, loadSnapshot(entry)]));

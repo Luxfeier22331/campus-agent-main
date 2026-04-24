@@ -7,12 +7,13 @@ export const APP_API_KNOWN_SCHEMAS = ["runtime", "operator", "official_web"];
 
 export const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 export const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;
-export const ALTER_TABLE_ADD_COLUMN_RE = /^ALTER TABLE "([^"]+)"\."([^"]+)" ADD COLUMN "([^"]+)"/i;
+export const ALTER_TABLE_ADD_COLUMN_RE =
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+COLUMN "([^"]+)"/i;
 export const ALTER_TABLE_DROP_COLUMN_RE =
-	/^ALTER TABLE "([^"]+)"\."([^"]+)" DROP COLUMN(?: IF EXISTS)? "([^"]+)"/i;
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
 export const ALTER_TABLE_CONSTRAINT_RE =
-	/^ALTER TABLE "([^"]+)"\."([^"]+)" ADD CONSTRAINT "([^"]+)"/i;
-export const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)" ON "([^"]+)"\."([^"]+)"/i;
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+CONSTRAINT "([^"]+)"/i;
+export const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)"\s+ON\s+"([^"]+)"\."([^"]+)"/i;
 export const DROP_INDEX_RE = /^DROP INDEX "([^"]+)"\."([^"]+)";?$/i;
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
