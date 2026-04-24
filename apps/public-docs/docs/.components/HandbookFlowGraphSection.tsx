@@ -107,7 +107,7 @@ function HandbookFlowCard({
 				<h3 className="rp-toc-include" id={headingId}>
 					{flow.flowHeading}
 				</h3>
-				<div className="handbook-flow-card-meta" aria-label="流程信息">
+				<div className="handbook-flow-card-meta">
 					{flow.audienceScope ? <span>{flow.audienceScope}</span> : null}
 					<span>{flow.steps.length} 步</span>
 					<span>原文第 {sourcePage} 页</span>
@@ -164,7 +164,7 @@ export default function HandbookFlowGraphSection({ data }: Props) {
 					<p className="handbook-flow-lede">
 						新生入住、毕业离校、不住宿申请和退宿流程分开呈现。先找到与你身份相符的事项，再按顺序准备材料、完成签字盖章和后续办理。
 					</p>
-					<div className="handbook-flow-source-list" aria-label="来源信息">
+					<div className="handbook-flow-source-list">
 						<span>{data.sourceHandbookSection}</span>
 						<span>学生手册 {getSourcePageRange(data)}</span>
 					</div>

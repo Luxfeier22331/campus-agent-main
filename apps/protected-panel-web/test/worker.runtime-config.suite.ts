@@ -86,9 +86,7 @@ export function registerWorkerRuntimeConfigSuite() {
 	});
 
 	it("provides an access-compatible local issuer for authenticated live smoke", () => {
-		expect(wranglerLocalSmokeConfig).toContain(
-			'ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"',
-		);
+		expect(wranglerLocalSmokeConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"');
 		expect(wranglerLocalSmokeConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
 		expect(localAccessSmokeServerSource).toContain("generateKeyPair");
 		expect(localAccessSmokeServerSource).toContain("SignJWT");
