@@ -12,7 +12,16 @@ DOCS_ROOT = APP_ROOT / "docs"
 HANDBOOK_SPLIT_MANIFEST_PATH = (
     REPO_ROOT / "configs" / "ingestion" / "regulations" / "student_rules" / "split-manifest.v1.json"
 )
+HANDBOOK_SOURCE_PROJECTIONS_PATH = (
+    REPO_ROOT
+    / "configs"
+    / "ingestion"
+    / "regulations"
+    / "student_rules"
+    / "source-projections.v1.json"
+)
 DERIVED_BUCKET = "campus-rag-derived"
+SOURCE_BUCKET = "campus-rag-source"
 HANDBOOK_NOISE_LINES = {"学生手册"}
 HANDBOOK_CORPUS = "regulations"
 HANDBOOK_COLLECTION = "student_rules"
@@ -93,6 +102,13 @@ class CourseMapDocEmbed:
     component_import_path: str
     data_import_path: str
     data_import_name: str
+
+
+@dataclass(frozen=True)
+class HandbookFlowGraphDoc:
+    slug: str
+    title: str
+    filename: str
 
 
 HANDBOOK_DOC_SLUG_OVERRIDES: dict[str, str] = {

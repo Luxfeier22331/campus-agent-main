@@ -1,0 +1,29 @@
+.rspress-doc > h1:first-child {
+	margin-bottom: 1rem;
+	text-wrap: balance;
+}
+
+.rp-sidebar-menu__right:disabled {
+	display: none;
+}
+
+.rp-sidebar-menu__right .rp-progress-circle {
+	display: none;
+}
+
+@media (max-width: 720px) {
+	main.rp-doc-layout__doc-container {
+		padding-top: 2rem;
+	}
+
+	.rspress-doc > h1:first-child {
+		margin-top: 1rem;
+		margin-bottom: 0.75rem;
+		font-size: 1.75rem;
+		line-height: 1.18;
+	}
+
+	.rp-sidebar-menu {
+		min-height: 42px;
+	}
+}

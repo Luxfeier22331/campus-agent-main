@@ -12,6 +12,7 @@ def _load_sync_exports() -> None:
     global CourseMapDocEmbed
     global DOCS_ROOT
     global REPO_ROOT
+    global HandbookFlowGraphDoc
     global HandbookDoc
     global _build_course_map_data_import_name
     global _build_course_map_data_module
@@ -36,6 +37,7 @@ def _load_sync_exports() -> None:
     global _remove_stale_generated_files
     global _resolve_curriculum_doc_title
     global _sync_curriculum_course_map_artifacts
+    global _sync_handbook_flow_graph_artifacts
     global _sync_public_regulation_docs
     global _write_text
 
@@ -44,6 +46,7 @@ def _load_sync_exports() -> None:
         REPO_ROOT,
         CourseMapDocEmbed,
         HandbookDoc,
+        HandbookFlowGraphDoc,
         _build_course_map_data_import_name,
         _build_course_map_data_module,
         _build_course_map_data_payload,
@@ -65,6 +68,7 @@ def _load_sync_exports() -> None:
         _remove_stale_generated_files,
         _resolve_curriculum_doc_title,
         _sync_curriculum_course_map_artifacts,
+        _sync_handbook_flow_graph_artifacts,
         _sync_public_regulation_docs,
         _write_text,
     )
@@ -115,10 +119,31 @@ def _sync_handbook_docs(client, *, handbook_docs: tuple[HandbookDoc, ...] | None
     target_dir = DOCS_ROOT / "student-handbook"
     target_dir.mkdir(parents=True, exist_ok=True)
     handbook_docs = handbook_docs or _load_handbook_docs()
+    flow_graph_docs = _sync_handbook_flow_graph_artifacts(client, docs_root=DOCS_ROOT)
 
     _write_text(
         target_dir / "_meta.json",
-        _format_json_content(["index", *[doc.slug for doc in handbook_docs]]),
+        _format_json_content(
+            [
+                "index",
+                *(
+                    [
+                        {
+                            "type": "section-header",
+                            "label": "办事流程",
+                        },
+                        *[doc.slug for doc in flow_graph_docs],
+                    ]
+                    if flow_graph_docs
+                    else []
+                ),
+                {
+                    "type": "section-header",
+                    "label": "规章制度",
+                },
+                *[doc.slug for doc in handbook_docs],
+            ]
+        ),
     )
     _write_text(target_dir / "index.md", _build_handbook_index())
 
@@ -129,7 +154,12 @@ def _sync_handbook_docs(client, *, handbook_docs: tuple[HandbookDoc, ...] | None
         _write_text(target_dir / f"{doc.slug}.md", markdown)
     _remove_stale_generated_files(
         target_dir,
-        expected_names={"_meta.json", "index.md", *[f"{doc.slug}.md" for doc in handbook_docs]},
+        expected_names={
+            "_meta.json",
+            "index.md",
+            *[f"{doc.slug}.md" for doc in handbook_docs],
+            *[doc.filename for doc in flow_graph_docs],
+        },
     )
 
 

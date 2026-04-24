@@ -16,6 +16,7 @@ from .handbook import (
     _clean_handbook_markdown,
     _load_handbook_docs,
 )
+from .handbook_flow_graph import _sync_handbook_flow_graph_artifacts
 from .pages import _build_home_page
 from .regulations import (
     _build_public_regulation_index,
@@ -35,12 +36,15 @@ from .shared import (
     HANDBOOK_FILENAME,
     HANDBOOK_NOISE_LINES,
     HANDBOOK_REVISION_TRACK,
+    HANDBOOK_SOURCE_PROJECTIONS_PATH,
     HANDBOOK_SPLIT_MANIFEST_PATH,
     HANDBOOK_YEAR,
     REPO_ROOT,
+    SOURCE_BUCKET,
     CourseMapDocEmbed,
     CurriculumDoc,
     HandbookDoc,
+    HandbookFlowGraphDoc,
     PublicRegulationDoc,
     _format_json_content,
     _remove_legacy_section_dirs,
@@ -60,12 +64,15 @@ __all__ = [
     "HANDBOOK_FILENAME",
     "HANDBOOK_NOISE_LINES",
     "HANDBOOK_REVISION_TRACK",
+    "HANDBOOK_SOURCE_PROJECTIONS_PATH",
     "HANDBOOK_SPLIT_MANIFEST_PATH",
     "HANDBOOK_YEAR",
     "REPO_ROOT",
+    "SOURCE_BUCKET",
     "CourseMapDocEmbed",
     "CurriculumDoc",
     "HandbookDoc",
+    "HandbookFlowGraphDoc",
     "PublicRegulationDoc",
     "_build_course_map_data_import_name",
     "_build_course_map_data_module",
@@ -90,6 +97,7 @@ __all__ = [
     "_remove_stale_generated_files",
     "_resolve_curriculum_doc_title",
     "_sync_curriculum_course_map_artifacts",
+    "_sync_handbook_flow_graph_artifacts",
     "_sync_public_regulation_docs",
     "_write_text",
 ]

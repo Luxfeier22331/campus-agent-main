@@ -16,13 +16,13 @@ def _create_s3_client():
     )
 
 
-def _read_text_object(*, client, key: str) -> str:
-    return client.get_object(Bucket=DERIVED_BUCKET, Key=key)["Body"].read().decode("utf-8")
+def _read_text_object(*, client, key: str, bucket: str = DERIVED_BUCKET) -> str:
+    return client.get_object(Bucket=bucket, Key=key)["Body"].read().decode("utf-8")
 
 
-def _read_optional_bytes_object(*, client, key: str) -> bytes | None:
+def _read_optional_bytes_object(*, client, key: str, bucket: str = DERIVED_BUCKET) -> bytes | None:
     try:
-        return client.get_object(Bucket=DERIVED_BUCKET, Key=key)["Body"].read()
+        return client.get_object(Bucket=bucket, Key=key)["Body"].read()
     except KeyError:
         return None
     except Exception as exc:  # pragma: no cover - boto3 path
@@ -34,11 +34,16 @@ def _read_optional_bytes_object(*, client, key: str) -> bytes | None:
         raise
 
 
-def _list_object_keys(client, *, prefix: str) -> tuple[str, ...]:
+def _list_object_keys(
+    client,
+    *,
+    prefix: str,
+    bucket: str = DERIVED_BUCKET,
+) -> tuple[str, ...]:
     continuation_token: str | None = None
     keys: list[str] = []
     while True:
-        kwargs = {"Bucket": DERIVED_BUCKET, "Prefix": prefix}
+        kwargs = {"Bucket": bucket, "Prefix": prefix}
         if continuation_token:
             kwargs["ContinuationToken"] = continuation_token
         response = client.list_objects_v2(**kwargs)

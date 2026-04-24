@@ -55,6 +55,33 @@ class _FakeS3Client:
         }
 
 
+class _BucketAwareFakeS3Client:
+    def __init__(self, objects: dict[tuple[str, str], str]) -> None:
+        self._objects = objects
+
+    def get_object(self, *, Bucket: str, Key: str) -> dict[str, io.BytesIO]:
+        object_key = (Bucket, Key)
+        if object_key not in self._objects:
+            raise KeyError(object_key)
+        return {"Body": io.BytesIO(self._objects[object_key].encode("utf-8"))}
+
+    def list_objects_v2(
+        self,
+        *,
+        Bucket: str,
+        Prefix: str,
+        ContinuationToken: str | None = None,
+    ) -> dict[str, object]:
+        del ContinuationToken
+        keys = sorted(
+            key for bucket, key in self._objects if bucket == Bucket and key.startswith(Prefix)
+        )
+        return {
+            "Contents": [{"Key": key} for key in keys],
+            "IsTruncated": False,
+        }
+
+
 @dataclass(frozen=True)
 class _FakeCourseMapNode:
     node_label: str
@@ -200,6 +227,136 @@ class PublicDocsSyncTest(unittest.TestCase):
 
         self.assertIn("中央民族大学学生考勤管理办法", generated)
         self.assertIn("\ncollection: student_rules\n", generated)
+
+    def test_sync_handbook_docs_publishes_known_flow_graph_slice(self) -> None:
+        module = self.module
+        fake_doc = module.HandbookDoc(
+            slug="mock-handbook",
+            title="中央民族大学学生公寓管理规定",
+            document_id="handbook:test-dormitory-doc",
+        )
+        source_markdown = "\n".join(
+            [
+                "---",
+                "title: 中央民族大学学生公寓管理规定",
+                "---",
+                "",
+                "## 公寓管理正文",
+                "正文。",
+                "",
+            ]
+        )
+        flow_graph = {
+            "schema_version": "handbook_service_navigation_projection_v1",
+            "projection_name": "handbook_navigation_service_catalog",
+            "raw_asset_id": "asset:student-handbook-pdf",
+            "raw_version_id": "sha256:test-raw-version",
+            "source_document_id": "handbook:test-dormitory-doc",
+            "source_uri": "campusrag://source/regulations/student-handbook",
+            "source_handbook_section": "中央民族大学公寓及公费医疗管理规定",
+            "source_page_start": 252,
+            "source_page_end": 255,
+            "target_document_id": "campus_services:service_catalog:test-dormitory-workflow",
+            "target_title": "中央民族大学学生公寓管理工作流程",
+            "extractor_runtime": {"kind": "test"},
+            "flow_graph": {
+                "document_title": "中央民族大学学生公寓管理工作流程",
+                "global_manual_review_required": False,
+                "page_findings": [
+                    {
+                        "source_page": 253,
+                        "page_heading": "住宿手续办理流程",
+                        "flows": [
+                            {
+                                "flow_heading": "新生入住流程",
+                                "audience_scope": "新生",
+                                "steps": [
+                                    {
+                                        "step_id": "s1",
+                                        "step_text": "持录取通知书到公寓楼值班室核验身份。",
+                                        "next_step_ids": ["s2"],
+                                    },
+                                    {
+                                        "step_id": "s2",
+                                        "step_text": "领取钥匙并确认宿舍设施。",
+                                        "next_step_ids": [],
+                                    },
+                                ],
+                                "manual_review_notes": [],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            docs_root = Path(temp_dir)
+            handbook_key = (
+                "regulations/documents/student_rules/"
+                "中央民族大学学生公寓管理规定--test-dormitory-doc/source-faithful/2018/canonical.md"
+            )
+            flow_graph_key = (
+                "official_pdf/student-handbook/2018/sha256/test-raw-version/"
+                "projection/handbook_navigation_service_catalog/flow-graph.json"
+            )
+            client = _BucketAwareFakeS3Client(
+                {
+                    ("campus-rag-derived", handbook_key): source_markdown,
+                    ("campus-rag-source", flow_graph_key): json.dumps(
+                        flow_graph,
+                        ensure_ascii=False,
+                    ),
+                }
+            )
+            with patch.object(module, "DOCS_ROOT", docs_root):
+                module._sync_handbook_docs(client, handbook_docs=(fake_doc,))
+
+            meta = json.loads((docs_root / "student-handbook" / "_meta.json").read_text())
+            flow_page = (
+                docs_root
+                / "student-handbook"
+                / "central-minzu-student-dormitory-management-workflow.mdx"
+            )
+            self.assertTrue(flow_page.exists())
+            flow_page_text = flow_page.read_text(encoding="utf-8")
+            data_module_path = (
+                docs_root
+                / ".generated"
+                / "handbook-flow-graphs"
+                / "central-minzu-student-dormitory-management-workflow.data.ts"
+            )
+            self.assertTrue(data_module_path.exists())
+            data_module = data_module_path.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            meta[:5],
+            [
+                "index",
+                {"type": "section-header", "label": "办事流程"},
+                "central-minzu-student-dormitory-management-workflow",
+                {"type": "section-header", "label": "规章制度"},
+                "mock-handbook",
+            ],
+        )
+        self.assertIn(
+            'import HandbookFlowGraphSection from "../.components/HandbookFlowGraphSection";',
+            flow_page_text,
+        )
+        self.assertIn("\nfooter: false\n", flow_page_text)
+        self.assertIn(
+            'import centralMinzuStudentDormitoryManagementWorkflowData from "../.generated/handbook-flow-graphs/central-minzu-student-dormitory-management-workflow.data";',
+            flow_page_text,
+        )
+        self.assertIn(
+            "<HandbookFlowGraphSection data={centralMinzuStudentDormitoryManagementWorkflowData} />",
+            flow_page_text,
+        )
+        self.assertNotIn("campusrag://source/regulations/student-handbook", flow_page_text)
+        self.assertIn("新生入住流程", data_module)
+        self.assertIn("持录取通知书到公寓楼值班室核验身份。", data_module)
+        self.assertIn("sourcePageStart: 252", data_module)
+        self.assertIn("sourcePageEnd: 255", data_module)
 
     def test_discover_public_regulation_docs_skips_restricted_internal_notice_targets(
         self,

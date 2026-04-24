@@ -7,6 +7,7 @@ export default defineConfig({
 	description: "Campus Agent 正式公开文档站，接入当前公开文档样本。",
 	lang: "zh",
 	themeConfig: {
+		darkMode: false,
 		enableContentAnimation: false,
 		socialLinks: [
 			{
