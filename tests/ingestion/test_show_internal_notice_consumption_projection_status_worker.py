@@ -7,12 +7,12 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.notice_consumption_projection import (
-    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
     NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
-    NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
 )
@@ -30,9 +30,9 @@ class ShowInternalNoticeConsumptionProjectionStatusWorkerCliTest(unittest.TestCa
                     notice_id="351907",
                     unit_id="notice_unit:351907:notice_window",
                     primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
-                    target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
-                    consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
-                    reasons=("notice_runtime_holding",),
+                    target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+                    reasons=("notice_query_retained",),
                 ),
                 _entry(
                     notice_id="351907",

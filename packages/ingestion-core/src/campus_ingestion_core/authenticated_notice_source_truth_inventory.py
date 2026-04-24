@@ -22,6 +22,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory_shared im
     DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
+    DEFAULT_SOURCE_TRUTH_INVENTORY_SCAN_PAGE_SIZE,
     DEFAULT_SOURCE_TRUTH_INVENTORY_SCHEMA,
     DEFAULT_SOURCE_TRUTH_INVENTORY_TABLE,
     HIGH_RISK_NOTICE_LABELS,
@@ -49,6 +50,7 @@ from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
+    _postgres_connection,
 )
 
 
@@ -101,6 +103,9 @@ def build_authenticated_notice_source_truth_inventory_store_from_env(
 
 __all__ = [
     "DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY",
+    "DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY",
+    "DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY",
+    "DEFAULT_SOURCE_TRUTH_INVENTORY_SCAN_PAGE_SIZE",
     "DEFAULT_SOURCE_TRUTH_INVENTORY_SCHEMA",
     "DEFAULT_SOURCE_TRUTH_INVENTORY_TABLE",
     "HIGH_RISK_NOTICE_LABELS",
@@ -118,6 +123,7 @@ __all__ = [
     "_derive_notice_risk_label",
     "_list_document_registry_scope_records_for_inventory",
     "_list_raw_asset_registry_scope_records_for_inventory",
+    "_postgres_connection",
     "build_authenticated_notice_source_truth_inventory_entries",
     "build_authenticated_notice_source_truth_inventory_store_from_env",
     "build_authenticated_notice_source_truth_parent_snapshot",

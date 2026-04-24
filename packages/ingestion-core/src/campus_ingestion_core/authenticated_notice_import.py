@@ -50,6 +50,14 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     build_notice_consumption_projection_store_from_env,
     rebuild_internal_notice_consumption_projection,
 )
+from campus_ingestion_core.internal_notice_read_model import (
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
+    DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
+    InternalNoticeReadModelStore,
+    build_internal_notice_read_model_store_from_env,
+    rebuild_internal_notice_read_model,
+)
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
@@ -190,6 +198,7 @@ def import_authenticated_notice_export(
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
+    read_model_store: InternalNoticeReadModelStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
     object_store_settings = ObjectStoreSettings.from_env(source)
@@ -326,6 +335,26 @@ def import_authenticated_notice_export(
             object_store=writer,
             projection_store=projection_store,
         )
+    runtime_read_model_store = read_model_store
+    if projection_store is not None and runtime_read_model_store is None:
+        runtime_read_model_store = _build_read_model_store_from_env_if_configured(source)
+    read_model_entries = ()
+    if (
+        inventory_store is not None
+        and projection_store is not None
+        and runtime_read_model_store is not None
+    ):
+        read_model_entries = rebuild_internal_notice_read_model(
+            source_corpus=request.corpus,
+            source_collection=request.collection,
+            notice_ids=tuple(notice_import.notice_id for notice_import in prepared.notice_imports),
+            env=source,
+            projection_store=projection_store,
+            read_model_store=runtime_read_model_store,
+            registry=registry,
+            object_store=writer,
+            bucket_derived=object_store_settings.bucket_derived,
+        )
     result = {
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
@@ -337,6 +366,8 @@ def import_authenticated_notice_export(
     }
     if projection_store is not None:
         result["consumption_projection_entry_count"] = len(projection_entries)
+    if runtime_read_model_store is not None:
+        result["internal_notice_read_model_entry_count"] = len(read_model_entries)
     if attachment_object_backfill_summary is not None:
         result["attachment_object_backfill"] = attachment_object_backfill_summary
     return result
@@ -391,6 +422,21 @@ def _build_consumption_projection_store_from_env_if_configured(
             )
         ),
     )
+
+
+def _build_read_model_store_from_env_if_configured(
+    env: dict[str, str],
+) -> InternalNoticeReadModelStore | None:
+    read_model_operator_env_keys = (
+        DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
+        DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
+    )
+    if any(env.get(key) for key in read_model_operator_env_keys):
+        return build_internal_notice_read_model_store_from_env(env, prefer_operator=True)
+    read_model_runtime_env_keys = (DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,)
+    if any(env.get(key) for key in read_model_runtime_env_keys):
+        return build_internal_notice_read_model_store_from_env(env)
+    return None
 
 
 def _should_preserve_authenticated_notice_scope_record(

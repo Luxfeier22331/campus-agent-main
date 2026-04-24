@@ -15,6 +15,9 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
+from campus_ingestion_core.notice_consumption_projection import (
+    is_notice_query_retained_consumption_status,
+)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -50,6 +53,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[str, Any]:
     primary_role_counts = Counter(entry.primary_role for entry in entries)
     consumption_status_counts = Counter(entry.consumption_status for entry in entries)
+    retained_for_notice_query_count = sum(
+        1
+        for entry in entries
+        if is_notice_query_retained_consumption_status(entry.consumption_status)
+    )
     return {
         "projection_entry_count": len(entries),
         "notice_count": len({entry.source_notice_id for entry in entries}),
@@ -57,10 +65,8 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
             "ready_for_target_materialization",
             0,
         ),
-        "held_in_notice_runtime_count": consumption_status_counts.get(
-            "held_in_notice_runtime",
-            0,
-        ),
+        "retained_for_notice_query_count": retained_for_notice_query_count,
+        "held_in_notice_runtime_count": retained_for_notice_query_count,
         "manual_review_required_count": consumption_status_counts.get(
             "manual_review_required",
             0,

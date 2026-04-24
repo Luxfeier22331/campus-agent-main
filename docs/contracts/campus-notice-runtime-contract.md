@@ -11,11 +11,15 @@ updated: 2026-04-23
 本文冻结 `campus_notice_discover` 与 `campus_notice_get` 的 stable runtime contract
 direction。
 
+这里的 `runtime` 只指 query-time tool execution seam，不指 internal_notice
+留档、consumption projection 或 PG read-model 本身。
+
 它覆盖：
 
 - `packages/contracts` 内 notice runtime shared types
 - `packages/supervisor-core -> packages/notice-agent` 的 handoff seam
-- `notice-agent -> thin tool adapter -> internal query service` 的 request/result seam
+- `notice-agent -> thin tool adapter -> internal query service` 的
+  request/result seam
 
 它不覆盖：
 
@@ -26,11 +30,13 @@ direction。
 ## 当前 Rollout 状态
 
 - 当前产品主路径尚未开放 `notice-agent`
-- repo 已完成的是 implementation-ready prework：
+- repo 已完成的是 package-level internal implementation：
   - notice discover/get shared contract
   - gate-closed structured-runtime pre-routing helper
   - session carrier `context.session.selected_notice_ref`
   - app-owned structured-runtime observability summary
+  - internal notice read-model backing query service
+  - derived bucket canonical markdown body adapter
 
 ## Discover Request
 
@@ -65,7 +71,8 @@ CampusNoticeGetPayload
 - `campus_notice_get` 不新增 top-level public request field
 - 如果用户在 discover/select 之后继续问“这条通知”“通知原文”，supervisor 应优先消费
   `context.session.selected_notice_ref`
-- `selected_notice_ref` 是 query-time internal carrier，不是 source-truth identity owner
+- `selected_notice_ref` 是 query-time internal carrier，不是 source-truth identity
+  owner
 
 ## Result Contract
 
@@ -108,7 +115,8 @@ CampusNoticeGetResult
 
 固定语义：
 
-- `resolved_current` / `resolved_historical_reference` 时必须返回 notice cards 或 canonical body
+- `resolved_current` / `resolved_historical_reference` 时必须返回 notice cards
+  或 canonical body
 - `temporarily_unverifiable` 时必须返回 `fail_close_reason`
 - `resolved_historical_reference` 不强制要求 `historical_downgrade_reason`
   - 只有 current/current-year/current-effective miss 的历史降级才填写
@@ -116,7 +124,8 @@ CampusNoticeGetResult
 
 ## Observability Summary
 
-当 `notice-agent` 返回 structured result 时，execution-side observability summary 应补齐：
+当 `notice-agent` 返回 structured result 时，execution-side observability summary
+应补齐：
 
 - `selected_tool`
 - `tool_business_outcome`

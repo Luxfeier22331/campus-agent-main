@@ -41,8 +41,8 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
     NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
-    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
@@ -60,9 +60,11 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_SEMANTIC_OWNER_WRAPPER_NOTICE,
     NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
-    NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
-    NOTICE_TARGET_SURFACE_SERVICE_STATUS_RUNTIME,
+    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
     NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
     NOTICE_TEMPORAL_POLICY_EXPLICIT_YEAR_ONLY,
@@ -73,6 +75,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
+    is_notice_query_retained_consumption_status,
 )
 from campus_ingestion_core.registry import (
     DocumentRegistry,
@@ -247,7 +250,7 @@ def read_notice_consumption_projection_status(
     held_count = sum(
         1
         for entry in entries
-        if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME
+        if is_notice_query_retained_consumption_status(entry.consumption_status)
     )
     manual_count = sum(
         1
@@ -278,6 +281,7 @@ def _build_unit_status(
     for key in (
         "owner_source_missing_reason",
         "no_adoption_reason",
+        "notice_query_reason",
         "notice_runtime_reason",
         "archive_reason",
     ):
@@ -325,11 +329,11 @@ def _build_notice_window_entry(
         primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
         default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+        target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
         temporal_policy=NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW,
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         source_notice_document_id=inventory_entry.document_id,
         source_document_id=inventory_entry.document_id,
         source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
@@ -362,18 +366,18 @@ def _build_procurement_notice_entry(
         primary_role=NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
         default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+        target_surface=NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
         temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         source_notice_document_id=inventory_entry.document_id,
         source_document_id=inventory_entry.document_id,
         source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
         role_metadata={
             "notice_title": notice_title,
             "notice_category": NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE,
-            "archive_reason": "internal_procurement_notice",
+            "notice_query_reason": "internal_procurement_notice_history",
         },
     )
 
@@ -394,7 +398,7 @@ def _build_no_adoption_notice_entry(
         primary_role=primary_role,
         semantic_owner=NOTICE_SEMANTIC_OWNER_WRAPPER_NOTICE,
         default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+        target_surface=NOTICE_TARGET_SURFACE_UNSUPPORTED,
         temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
         completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
         answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
@@ -424,18 +428,18 @@ def _build_service_status_override_entry(
         primary_role=NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
         semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
         default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-        target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_RUNTIME,
+        target_surface=NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
         temporal_policy=NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE,
         completeness_status=NOTICE_COMPLETENESS_COMPLETE,
         answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
-        consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         source_notice_document_id=inventory_entry.document_id,
         source_document_id=inventory_entry.document_id,
         source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "") or None,
         role_metadata={
             "notice_title": notice_title,
             "notice_category": NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
-            "notice_runtime_reason": "service_status_runtime_not_admitted",
+            "notice_query_reason": "service_status_not_admitted",
         },
     )
 
@@ -477,11 +481,11 @@ def _build_attachment_form_template_entries(
                 primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
                 semantic_owner=NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
                 default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-                target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+                target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
                 temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
                 completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
                 answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-                consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+                consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
                 source_notice_document_id=inventory_entry.document_id,
                 source_document_id=attachment_document_id or inventory_entry.document_id,
                 source_attachment_ref_ids=(attachment_ref_id,),
@@ -494,9 +498,7 @@ def _build_attachment_form_template_entries(
                     "attachment_ref_id": attachment_ref_id,
                     "attachment_document_id": attachment_document_id or None,
                     "attachment_filename": filename or None,
-                    "notice_runtime_reason": (
-                        "attachment_form_template_document_center_not_admitted"
-                    ),
+                    "notice_query_reason": "attachment_form_template_query_hint_only",
                 },
             )
         )
@@ -517,11 +519,11 @@ def _build_attachment_form_template_entries(
             primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
             semantic_owner=NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
             default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-            target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
             temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
             completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
             answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-            consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             source_notice_document_id=inventory_entry.document_id,
             source_document_id=attachment_document_id or inventory_entry.document_id,
             source_attachment_ref_ids=(attachment_ref_id,) if attachment_ref_id else (),
@@ -531,7 +533,7 @@ def _build_attachment_form_template_entries(
                 "notice_title": notice_title,
                 "attachment_ref_id": attachment_ref_id or None,
                 "attachment_document_id": attachment_document_id or None,
-                "notice_runtime_reason": "attachment_form_template_document_center_not_admitted",
+                "notice_query_reason": "attachment_form_template_query_hint_only",
                 "template_signal": "notice_title_with_text_attachment",
             },
         )
@@ -697,7 +699,7 @@ def _resolve_default_agent(
     answerability: str,
 ) -> str:
     if (
-        target_surface != NOTICE_TARGET_SURFACE_NOTICE_RUNTIME
+        target_surface != NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
         and completeness_status == NOTICE_COMPLETENESS_COMPLETE
         and answerability == NOTICE_ANSWERABILITY_ANSWERABLE
     ):
@@ -712,14 +714,14 @@ def _resolve_consumption_status(
     answerability: str,
 ) -> str:
     if (
-        target_surface != NOTICE_TARGET_SURFACE_NOTICE_RUNTIME
+        target_surface != NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
         and completeness_status == NOTICE_COMPLETENESS_COMPLETE
         and answerability == NOTICE_ANSWERABILITY_ANSWERABLE
     ):
         return NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
     if completeness_status == NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED:
         return NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED
-    return NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME
+    return NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY
 
 
 def _load_promotion_body(

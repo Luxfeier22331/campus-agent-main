@@ -121,10 +121,12 @@ owner-recovery readiness 与 operator 排障。
 ## Contract Split
 
 - source-channel 运行边界：本文
-- notice discover/get runtime seam：`docs/contracts/campus-notice-runtime-contract.md`
+- notice discover/get runtime
+  seam：`docs/contracts/campus-notice-runtime-contract.md`
 - source-truth
   schema：`docs/data/authenticated-notice-source-truth-schema.md`
-- shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
+- shared file asset
+  loader：`docs/architecture/system/file-asset-loader-architecture.md`
 - `file_release` collector-owned export
   contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared data-plane 不变量：`docs/architecture/system/data-plane-architecture.md`
@@ -134,8 +136,31 @@ owner-recovery readiness 与 operator 排障。
   contract：`docs/reference/restricted-document-center-artifact-contract.md`
 - authenticated document center / regulation 分层决策：`docs/decisions/adr-0041-authe
   nticated-document-center-and-regulation-layer-split.md`
-- restricted document
-  authorization：`docs/architecture/system/identity-and-authorization-architecture.md`
+- restricted document authorization：
+  `docs/architecture/system/identity-and-authorization-architecture.md`
+
+## Internal Notice Consumption Semantics
+
+`campus_notices/internal_notice` 的 source holding collection、consumption
+projection、查询 read model 与 notice tool runtime 是四个不同语义：
+
+- archive / document registry / object storage：保存 source notice、canonical
+  markdown 与附件 truth
+- `notice_consumption_projection`：保存离线分类、authority / completeness /
+  answerability、target surface 与 consumption status
+- notice read model：notice tool 查询使用的 PG 查询视图 / 索引，不重新分类、不拥有
+  source truth
+- notice query runtime：执行 `campus_notice_discover` / `campus_notice_get`，只读取
+  projection/read-model 与 canonical body，不承担留档；当前 repo 仅落成 package-level
+  backing query service，不等于打开 panel/chatbot serving
+
+新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、
+read-model 与 runtime execution。notice-level 查询候选使用
+`target_surface=notice_level_query` 与
+`consumption_status=retained_for_notice_query`；采购/招标通知使用
+`target_surface=procurement_notice_history`；service status 相关通知只作为
+`campus_services/service_status_candidate` 候选；internal restricted no-adoption 使用
+`target_surface=unsupported`。
 
 ## Collector Runtime Ownership
 
@@ -206,10 +231,10 @@ seam：
 
 补充约束：
 
-- `context.session.selected_notice_ref` 只属于 query-time runtime carrier，不改变 source-truth
-  owner
-- `notice-agent` 的 structured-runtime observability summary 只回传 compact execution
-  summary，不回传 raw source bundle 或 raw specialist dump
+- `context.session.selected_notice_ref` 只属于 query-time runtime carrier，不改变
+  source-truth owner
+- `notice-agent` 的 structured-runtime observability summary 只回传 compact
+  execution summary，不回传 raw source bundle 或 raw specialist dump
 
 ## Runtime Connectivity Posture
 

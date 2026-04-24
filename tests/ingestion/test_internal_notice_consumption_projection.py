@@ -12,8 +12,8 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
     NOTICE_COMPLETENESS_COMPLETE,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
-    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
@@ -25,9 +25,11 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION,
     NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
-    NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+    NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
-    NOTICE_TARGET_SURFACE_SERVICE_STATUS_RUNTIME,
+    NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE,
+    NOTICE_TARGET_SURFACE_UNSUPPORTED,
     NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
     InMemoryNoticeConsumptionProjectionStore,
     build_internal_notice_consumption_projection_entries,
@@ -110,7 +112,99 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         )
         self.assertEqual(
             pending_scoped.consumption_status,
-            NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+
+    def test_notice_level_units_use_query_and_archive_semantics_without_runtime_terms(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355222",
+                    title_slug="procurement-bid",
+                    title="中央民族大学丰台校区家具采购项目比选公告",
+                ),
+                _notice_runtime_record(
+                    notice_id="355326",
+                    title_slug="student-roster",
+                    title="关于2026年优秀学生干部拟推荐名单公示",
+                ),
+                _notice_runtime_record(
+                    notice_id="355111",
+                    title_slug="summer-service-hours",
+                    title="关于暑假期间办理就业相关事务的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="355222",
+                    notice_title="中央民族大学丰台校区家具采购项目比选公告",
+                    published_date="2026-04-12 10:00",
+                ),
+                _inventory_entry(
+                    notice_id="355326",
+                    notice_title="关于2026年优秀学生干部拟推荐名单公示",
+                    published_date="2026-04-18 10:00",
+                ),
+                _inventory_entry(
+                    notice_id="355111",
+                    notice_title="关于暑假期间办理就业相关事务的通知",
+                    published_date="2026-07-01 10:00",
+                ),
+            )
+        )
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        notice_window = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355222"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
+        )
+        procurement_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355222"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+        )
+        roster_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355326"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
+        )
+        service_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355111"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE
+        )
+
+        self.assertEqual(notice_window.target_surface, NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY)
+        self.assertEqual(
+            notice_window.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+        self.assertEqual(
+            procurement_unit.target_surface,
+            NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY,
+        )
+        self.assertEqual(
+            procurement_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+        self.assertEqual(roster_unit.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
+        self.assertEqual(
+            service_unit.role_metadata["notice_query_reason"], "service_status_not_admitted"
         )
 
     def test_rebuild_projection_store_persists_entries_and_exposes_ready_document_ids(self) -> None:
@@ -196,7 +290,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         )
         self.assertTrue(
             all(
-                entry.target_surface == NOTICE_TARGET_SURFACE_NOTICE_RUNTIME
+                entry.target_surface == NOTICE_TARGET_SURFACE_PROCUREMENT_NOTICE_HISTORY
                 for entry in procurement_units
             )
         )
@@ -325,17 +419,19 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             and entry.primary_role == NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE
         )
         self.assertEqual(service_unit.default_agent, NOTICE_DEFAULT_AGENT_NOTICE)
-        self.assertEqual(service_unit.target_surface, NOTICE_TARGET_SURFACE_SERVICE_STATUS_RUNTIME)
+        self.assertEqual(
+            service_unit.target_surface, NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE
+        )
         self.assertEqual(
             service_unit.consumption_status,
-            NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         )
         self.assertEqual(
-            service_unit.role_metadata["notice_runtime_reason"],
-            "service_status_runtime_not_admitted",
+            service_unit.role_metadata["notice_query_reason"],
+            "service_status_not_admitted",
         )
 
-    def test_build_entries_marks_attachment_form_template_as_notice_runtime_unit(
+    def test_build_entries_marks_attachment_form_template_as_notice_query_hint(
         self,
     ) -> None:
         registry, inventory_store, object_store = _build_runtime(
@@ -380,10 +476,10 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             if entry.source_notice_id == "355119"
             and entry.primary_role == NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE
         )
-        self.assertEqual(template_unit.target_surface, NOTICE_TARGET_SURFACE_NOTICE_RUNTIME)
+        self.assertEqual(template_unit.target_surface, NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY)
         self.assertEqual(
             template_unit.consumption_status,
-            NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
         )
         self.assertEqual(template_unit.source_attachment_ref_ids, ("attachment-0001",))
         self.assertEqual(
@@ -391,8 +487,8 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             "notice_attachment:muc_internal_portal:355119:attachment-0001",
         )
         self.assertEqual(
-            template_unit.role_metadata["notice_runtime_reason"],
-            "attachment_form_template_document_center_not_admitted",
+            template_unit.role_metadata["notice_query_reason"],
+            "attachment_form_template_query_hint_only",
         )
 
     def test_partial_rebuild_replaces_existing_units_for_selected_notice_ids(self) -> None:
@@ -482,6 +578,27 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         self.assertEqual(pending_status.held_unit_count, 2)
         pending_reasons = {reason for unit in pending_status.units for reason in unit.reasons}
         self.assertIn("attachment_backed_regulation_body_missing", pending_reasons)
+
+    def test_read_notice_consumption_projection_status_counts_legacy_runtime_hold_status(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                replace(
+                    _projection_entry("355000"),
+                    consumption_status="held_in_notice_runtime",
+                ),
+            )
+        )
+
+        status = read_notice_consumption_projection_status(
+            projection_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="355000",
+        )
+
+        self.assertEqual(status.held_unit_count, 1)
 
 
 class NoticeConsumptionProjectionPostgresStoreTest(unittest.TestCase):

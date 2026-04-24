@@ -17,4 +17,15 @@ capability 的 owner package。
 - source-truth / normalized-truth ingestion owner
 
 当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
-seam；真正的 projected notice query implementation 仍可在后续 phase 内补齐。
+seam；internal notice 的 projected read-model query service 已落地为 package 内实现。
+
+当前已实现：
+
+- `NoticeReadModelQueryService`：读取 repo-owned read model repository，执行
+  `campus_notice_discover` / `campus_notice_get` 的 result 映射
+- restricted internal notice fail-close gate：缺少 principal / entitlement /
+  restricted retrieval filter 时返回 `source_family_unavailable`
+- `ObjectStoreNoticeBodyRepository`：按 read model 中的 canonical markdown object key
+  从 derived bucket 读取正文
+
+它仍不负责打开 browser-facing API、panel/chatbot 入口或 live collector/control-plane。

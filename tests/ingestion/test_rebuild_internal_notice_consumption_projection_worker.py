@@ -7,12 +7,12 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.notice_consumption_projection import (
-    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
     NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
-    NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
+    NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
     NoticeConsumptionProjectionEntry,
 )
 
@@ -28,8 +28,8 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 notice_id="351907",
                 unit_id="notice_unit:351907:notice_window",
                 primary_role=NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
-                target_surface=NOTICE_TARGET_SURFACE_NOTICE_RUNTIME,
-                consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+                target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
+                consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             ),
             _entry(
                 notice_id="351907",
@@ -66,8 +66,13 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["projection_entry_count"], 2)
         self.assertEqual(payload["ready_for_target_count"], 1)
+        self.assertEqual(payload["retained_for_notice_query_count"], 1)
         self.assertEqual(payload["held_in_notice_runtime_count"], 1)
         self.assertEqual(payload["primary_role_counts"][NOTICE_PRIMARY_ROLE_NOTICE_WINDOW], 1)
+        self.assertIn(
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+            payload["consumption_status_counts"],
+        )
 
 
 def _entry(
