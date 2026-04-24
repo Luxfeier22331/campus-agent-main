@@ -10,23 +10,33 @@ updated: 2026-04-24
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 12 closeout`
-- current slice: Go shell runtime kernel hardening、Python cooperative cancel
-  bridge、structured query runtime foundation 与 `transport_schedule_lookup`
-  projection-backed deterministic query kernel 已落地；forward capability label /
-  lane alignment 已补齐；`campus_notice_discover` / `campus_notice_get` 的 Go
-  read-model query runtime 已落地；产品主路由 gate 仍保持关闭
+- current phase: `Phase 19 closeout`
+- current slice: Go `supervisor-api` runtime kernel hardening、Python cooperative cancel
+  bridge、structured query runtime foundation、`transport_schedule_lookup`
+  projection-backed deterministic query kernel、notice read-model query runtime、
+  bridge circuit breaker、runtime accounting、service-status fail-close hardening、
+  execution audit batching/retry/spool、OTel sample accounting 与 lifecycle SSE
+  endpoint 已落地；产品主路由 gate 仍保持关闭
 - owner: unassigned
-- active implementation: yes, `apps/go-shell`
+- active implementation: yes, Go `apps/supervisor-api` plus Python
+  `apps/supervisor-core-worker`
 
 ## Captured Context
+
+2026-04-24 hardcut 结论：
+
+- Go implementation path 已从 `apps/go-shell` hardcut 到 `apps/supervisor-api`。
+- Python private bridge worker 已从 `apps/supervisor-api` hardcut 到
+  `apps/supervisor-core-worker`。
+- active runtime pair 是 `supervisor-api + supervisor-core-worker`；`go-shell` 仅保留为
+  这条迁移 workstream 的短名。
 
 2026-04-23 讨论结论：
 
 - 用户希望创建短名持久化 workstream，名称确定为 `go-shell`。
 - 范围是 Docker 部署侧，不涉及 Worker 侧选型。
 - Python 性能和服务器预算是主要驱动，但迁移必须保持边界正确。
-- 第一刀不是 Go 重写 `supervisor-core`，而是迁移 execution shell：
+- 第一刀不是 Go 重写 `supervisor-core`，而是迁移 execution runtime control plane：
   - HTTP transport / dispatch
   - internal caller auth
   - admission / backpressure / lane budgets
@@ -39,32 +49,71 @@ updated: 2026-04-24
 
 2026-04-23 技术栈结论：
 
-- 第一轮迁 runtime shell，不迁业务 agent。
+- 第一轮迁 runtime control plane，不迁业务 agent。
 - Go 侧使用标准库 `net/http` / `http.ServeMux`、`context.Context`、
-  `log/slog`、`testing` / `httptest`；当前 slice 以 shell-owned `/metrics` 与
+  `log/slog`、`testing` / `httptest`；当前 slice 以 `supervisor-api`-owned `/metrics` 与
   structured logs 承接 observability，OTel collector / sink fan-out 留待后续重开。
 - 第一版 bridge 使用 private loopback HTTP/JSON 调用长驻 Python orchestration
   worker，不默认引入 UDS 或 gRPC。
-- `app-api` 继续拥有产品层限流；Go shell 只拥有 execution admission /
+- `app-api` 继续拥有产品层限流；Go `supervisor-api` 只拥有 execution admission /
   backpressure。
 - provider-backed prompt executor 和 prompt stack assembly 暂不迁，除非后续
-  profiling 证明它们是 Go shell 稳定后的下一条瓶颈线。
+  profiling 证明 Go `apps/supervisor-api` 稳定后它们是下一条瓶颈线。
 
 ## Blockers
 
-- repo-local Phase 8-12 implementation 当前无 blocker。
+- repo-local Phase 8-15 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
-  当前 go-shell 只实现 execution-side cancel 和 Go -> Python cooperative cancel
-  signal。
+  当前 Go `supervisor-api` 只实现 execution-side cancel、Go -> Python cooperative cancel
+  signal，以及 Python semantic orchestration checkpoint-level cancellation。
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需要 eval /
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
+- `Phase 16-19` 已完成 repo-local implementation；剩余 opening gate 不在
+  `go-shell` execution runtime control-plane 范围内。
 
 ## Verification
 
+- Hardcut closeout verification passed on 2026-04-24:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH" pnpm go:check`
+  - `uv run --all-packages python -m unittest` for supervisor API bridge,
+    ASGI, prompt executor/stack, workspace layout, supervisor-api runtime
+    smoke tests, shell/lint coverage tests, campus-services / notice
+    specialist wiring, and supervisor validation / routing / scope policy
+  - `pnpm --dir apps/app-api test:node --`
+    `operator-observability-ingest.route.test.ts`
+    `operator-observability-command.service.test.ts`
+    `projection.service.test.ts worker.test.ts`
+  - `pnpm docs:lint`, `pnpm yaml:lint`, `pnpm shell:lint`,
+    `pnpm docker:lint`, `pnpm toml:lint`, `pnpm web:lint`,
+    `pnpm lock:lint`, `pnpm coverage:lint`, `pnpm env:lint`,
+    `pnpm jsonl:lint`, `pnpm sql:lint`, `pnpm editorconfig:lint`,
+    `pnpm html:lint`, `pnpm xml:lint`, and `pnpm public-docs:lint`
+  - `API_WORKER_SHARED_SECRET=worker-secret`
+    `SUPERVISOR_CORE_WORKER_SHARED_SECRET=core-secret`
+    `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
+  - `docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .`
+  - `docker build -f apps/supervisor-core-worker/Dockerfile`
+    `-t campus-supervisor-core-worker:local .`
+  - stale runtime naming scan returned no active matches for old
+    `apps/go-shell`, `campus_supervisor_api`, `go_shell`, or
+    `SUPERVISOR_PY_BRIDGE` surfaces outside the historical workstream slug /
+    history namespace
+  - `git diff --check`
+- Full repo-wide `ruff check .`, `ruff format . --check`, and Python unittest
+  discovery are not clean in the current dirty worktree because of unrelated
+  baseline failures in contracts / ingestion import ordering, historical
+  formatting drift, ingestion fixture imports, MinerU OCR test env assumptions,
+  decomposition baseline, and a docs-structure assertion for removed PowerShell
+  lane wording. These are not blockers for the supervisor-api hardcut closeout.
+- Historical pre-hardcut verification entries below preserve migration evidence
+  from before the runtime path was renamed to `apps/supervisor-api`. Paths such
+  as `apps/go-shell`, artifacts named `go-shell-*`, and images named
+  `campus-go-shell` / `campus-supervisor-orchestrator` are historical evidence,
+  not current runtime truth.
 - Go check passed on 2026-04-23:
   Later rerun also passed on 2026-04-24.
 
@@ -79,9 +128,9 @@ updated: 2026-04-24
   2026-04-23.
 - `docker build -f apps/supervisor-api/Dockerfile`
   `-t campus-supervisor-orchestrator:local .` passed on 2026-04-23.
-- Container smoke passed on 2026-04-23:
-  - `GET /healthz` on Go shell returns `200`.
-  - `GET /readyz` on Go shell returns aggregated `503 degraded`
+- Historical container smoke passed on 2026-04-23:
+  - `GET /healthz` on the pre-hardcut Go prototype returns `200`.
+  - `GET /readyz` on the pre-hardcut Go prototype returns aggregated `503 degraded`
     when Python worker prompt runtime is not admitted.
   - `POST /api/v1/answer` through the two-container harness returns `200`
     with current Python orchestration semantics
@@ -101,24 +150,23 @@ updated: 2026-04-24
   - `docs/runbooks/go-shell-local-runtime-smoke.md`
   - `docs/runbooks/README.md`
 - Environment-side hard-cut support validation passed on 2026-04-24:
-  - `bash -n` passed for `infra/local/staging/go-shell-staging-common.sh` and all
-    `go-shell-staging*.sh` lifecycle scripts
+  - `bash -n` passed for `infra/local/staging/supervisor-api-staging-common.sh` and all
+    `supervisor-api-staging*.sh` lifecycle scripts
   - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
     passed with dummy bridge / worker secrets
   - `uv run --all-packages python -m scripts.doctor_env supervisor-api --json`
     passed
-  - focused markdown lint passed for changed go-shell staging docs and
+  - focused markdown lint passed for changed pre-hardcut staging docs and
     workstream docs
 - Phase 7 runtime-kernel verification passed on 2026-04-24:
   - `PATH="$PATH:$(go env GOPATH)/bin" pnpm go:check`
-  - `pnpm exec markdownlint-cli2` for touched go-shell docs / contracts /
+  - `pnpm exec markdownlint-cli2` for touched pre-hardcut docs / contracts /
     architecture docs / runbooks / workstream docs
   - `pnpm yaml:lint`
   - `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
     with dummy bridge / worker secrets
-- Full `pnpm docs:lint` remains blocked by unrelated existing tracked markdown
-  baseline errors in generated `apps/public-docs` content and other docs outside
-  this workstream.
+- Full `pnpm docs:lint` passed during the 2026-04-24 hardcut closeout
+  verification.
 - Execution audit focused verification passed on 2026-04-24:
   - `pnpm --dir apps/app-api test:node --`
     `operator-observability-ingest.route.test.ts`
@@ -181,12 +229,65 @@ updated: 2026-04-24
     `tests.specialist.test_notice_runtime_wiring`
     `tests.specialist.test_notice_agent`
     `tests.api.supervisor_api_bridge_suite`
+- Phase 13-15 bridge hardening focused verification passed on 2026-04-24:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `go test ./...` in `apps/supervisor-api`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.supervisor_api_settings_and_health_suite`
+    `tests.api.test_supervisor_api_prompt_stack`
+    `tests.supervisor.supervisor_core_routing_suite`
+  - `pnpm docs:lint`
+  - local two-container Docker smoke artifacts:
+    `.tmp/supervisor-api-local-smoke/20260424T163455Z/summary.json`
+- Fresh closeout verification rerun passed on 2026-04-24:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.supervisor_api_settings_and_health_suite`
+    `tests.api.test_supervisor_api_prompt_stack`
+    `tests.supervisor.supervisor_core_routing_suite`
+  - focused `ruff check` / `ruff format --check` for touched Python bridge,
+    supervisor-core and targeted test files
+  - `pnpm docs:lint`
+  - `git diff --check`
+  - local two-container Docker smoke artifact:
+    `.tmp/supervisor-api-local-smoke/20260424T164328Z/summary.json`
+  - `docs/runbooks/supervisor-api-local-runtime-smoke.md` now records that
+    answer smoke must wait for `bridge_runtime.reachable=true` and
+    `bridge_runtime.circuit_state=closed`, not only `/healthz`
+- Phase 16-19 focused red/green verification passed on 2026-04-25:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `PATH="$PWD/../../.tmp/go-tools/bin:$PWD/../../.tmp/go-toolchain/go/bin:$PATH"`
+    `go test ./internal/config ./internal/structuredquery ./internal/executionaudit`
+    `./internal/telemetry ./internal/observability ./internal/httpapi -count=1`
+    in `apps/supervisor-api`
+  - `uv run --all-packages python -m unittest`
+    `tests.specialist.test_campus_services_agent`
+    `tests.api.supervisor_api_bridge_suite`
+  - `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts`
+    `test/supervisor-adapter.test.ts`
+  - `pnpm --dir apps/app-api typecheck`
+  - `pnpm docs:lint`
+  - `pnpm exec biome check apps/app-api/src/modules/integration/supervisor.ts`
+    `apps/app-api/test/supervisor-adapter.test.ts`
+  - `git diff --check`
+  - Note: `pnpm --dir apps/app-api test:node -- supervisor-adapter.test.ts`
+    incorrectly ran the full app-api node lane and hit an unrelated
+    `auth-and-db.test.ts` timeout; the targeted Vitest command above passed.
+  - Note: full `pnpm web:lint` still fails on unrelated public-docs formatting /
+    `!important` baseline in `apps/public-docs/scripts/sync-real-docs/curriculum.ts`,
+    `apps/public-docs/test/sync-real-docs.test.ts`, and
+    `apps/public-docs/theme/docs-ui.css`; the two touched app-api files pass
+    targeted Biome check.
 
 ## Continuity Notes
 
 - 不把 Go runtime 类型泄漏进 `packages/contracts`。
 - 不把 product-layer auth/session/rate-limit/request projection 移入 `supervisor-core`。
-- Go shell 应兼容当前 `app-api -> supervisor-api` internal execution contract。
+- Go `apps/supervisor-api` 应兼容当前 `app-api -> supervisor-api` internal execution contract。
 - Python orchestration bridge 是迁移安全阀，不是长期腐烂兼容层；每个保留边界都要有 owner。
 - Go structured query runtime 是 internal query service seam，不是 product API、
   browser-facing tool endpoint 或 `app-api` control plane。
@@ -194,6 +295,8 @@ updated: 2026-04-24
   冒充成 product serving lane opening。
 - `campus_services` / `notice` 作为 explicit internal execution capability label
   可进入对应 Go lane；这不等同于 public chat surface 已开放这些 capability。
+- Bridge circuit breaker 属于 Go `supervisor-api` transport / protocol hardening；
+  不替代 `app-api` product-layer user limit、热点合并或 duplicate-submit UX。
 
 ## Completed Implementation
 
@@ -207,7 +310,7 @@ updated: 2026-04-24
 - Added global admission limiter with transport saturation status.
 - Added Dockerfile with container listener configured via
   `CAMPUS_AGENT_HTTP_HOST=0.0.0.0`.
-- Added root `pnpm go:check` lane and GitHub Actions `go-shell` job.
+- Added root `pnpm go:check` lane and GitHub Actions Go runtime job.
 - Added Go-side external request projection with `bearer` / `trusted-worker`
   auth parity and stable `SupervisorRequest` bridge payload encoding.
 - Added private HTTP bridge client for `/internal/bridge/supervisor/answer` and
@@ -218,9 +321,9 @@ updated: 2026-04-24
   harness at `infra/local/docker-compose.supervisor-runtime.yml`.
 - Added Go unit coverage for execution projection, bridge client and bridge
   response handling.
-- Confirmed live two-container smoke with Go shell fronting Python orchestration.
-- Added shell-owned Prometheus-style `/metrics` endpoint.
-- Added shell-owned request metrics for request total, duration, inflight,
+- Confirmed live two-container smoke with the Go runtime fronting Python orchestration.
+- Added `supervisor-api`-owned Prometheus-style `/metrics` endpoint.
+- Added `supervisor-api`-owned request metrics for request total, duration, inflight,
   transport saturation and bridge failure classes.
 - Added answer-path structured logs with `trace_id`, `status_code`, `outcome`
   and `duration_ms`.
@@ -229,17 +332,17 @@ updated: 2026-04-24
   client disconnect.
 - Added repo-owned local smoke / shutdown runbook at
   `docs/runbooks/go-shell-local-runtime-smoke.md`.
-- Confirmed Go shell front-door behavior against the private Python
+- Confirmed Go runtime front-door behavior against the private Python
   orchestration bridge with the same `trusted-worker` request and fixed
   `trace_id`.
 - Added repo-owned staging hard-cut lifecycle scripts under
-  `infra/local/staging/go-shell-staging-*`.
-- Added repo-owned go-shell staging scheduled-task installer.
+  `infra/local/staging/supervisor-api-staging-*`.
+- Added repo-owned supervisor-api staging scheduled-task installer.
 - Added canonical staging runbooks:
-  - `docs/runbooks/go-shell-staging-operations.md`
-  - `docs/runbooks/go-shell-staging-smoke-runbook.md`
+  - `docs/runbooks/supervisor-api-staging-operations.md`
+  - `docs/runbooks/supervisor-api-staging-smoke-runbook.md`
 - Removed active dev-backed Python public ingress scripts and runbooks after
-  the Go shell hardcut.
+  the Go `apps/supervisor-api` hardcut.
 
 ## Phase 7 Completed Implementation
 
@@ -271,7 +374,7 @@ updated: 2026-04-24
 
 ## Phase 9 Completed Implementation
 
-- Go shell exposes internal structured query routes:
+- Go `apps/supervisor-api` exposes internal structured query routes:
   - `POST /internal/query/campus-services/service-status`
   - `POST /internal/query/campus-services/transport-schedule`
 - structured query routes require `x-supervisor-query-auth`
@@ -279,7 +382,7 @@ updated: 2026-04-24
 - `transport_schedule_lookup` initially returned `temporarily_unverifiable` with
   `source_family_unavailable`; this fail-closed seam was superseded by Phase 10
 - `/readyz` reports `structured_query_runtime`
-- `/metrics` reports `campus_go_shell_structured_query_requests_total`
+- `/metrics` reports `campus_supervisor_api_structured_query_requests_total`
 
 ## Phase 10 Completed Implementation
 
@@ -298,7 +401,7 @@ updated: 2026-04-24
   - `service_window`
   - `timetable`
   - temporary suspension summaries with `related_notice_refs`
-- service-date semantics use Go shell trusted runtime time in `Asia/Shanghai`
+- service-date semantics use Go `apps/supervisor-api` trusted runtime time in `Asia/Shanghai`
 - `campus-services-agent` now has `CampusServicesHTTPQueryService` as the
   Python thin adapter for the Go internal query seam
 - `supervisor-api` injects the campus-services query service only when
@@ -331,7 +434,7 @@ updated: 2026-04-24
 
 ## Phase 12 Completed Implementation
 
-- Go shell exposes internal structured query routes:
+- Go `apps/supervisor-api` exposes internal structured query routes:
   - `POST /internal/query/notices/discover`
   - `POST /internal/query/notices/get`
 - notice structured query routes require `x-supervisor-query-auth`
@@ -351,11 +454,42 @@ updated: 2026-04-24
 - product routing remains gate-closed; this implementation does not by itself
   open `notice` serving
 
+## Phase 13 Completed Implementation
+
+- Python bridge cancel registry now exposes request-scoped cancel checks
+- worker answer route stops before and after supervisor handling when cancel is observed
+- default `packages/supervisor-core` orchestration checks cancellation around routing,
+  prompt composition, specialist delegation and response finalization
+- Python bridge returns `499 execution_cancelled` as a `supervisor_error` bridge
+  envelope for cancelled executions
+- Go `apps/supervisor-api` maps bridge cancellation terminal responses to lifecycle
+  final state `canceled` instead of generic bridge failure
+
+## Phase 14 Completed Implementation
+
+- Go bridge circuit breaker opens after configured consecutive bridge transport /
+  protocol failures
+- while open, answer path returns `503 supervisor_bridge_circuit_open` without calling
+  the Python bridge
+- `/readyz` reports degraded bridge runtime with `circuit_state=open`
+- `/metrics` exposes circuit state, open count and rejected count
+- valid bridge envelopes reset the breaker; semantic supervisor errors are not treated as
+  bridge transport failure
+
+## Phase 15 Completed Implementation
+
+- execution audit failure / cancellation events now carry measured bridge duration where
+  available
+- admitted request audit events carry queue wait summary where available
+- audit payload remains allowlisted runtime summary only; no raw `user_goal`, prompt,
+  answer, transcript, auth material, retrieval payload or provider raw response is emitted
+
 ## Remaining Implementation
 
 - product-layer cancellation UX belongs to
   `chat-capacity-and-cancellation-hardening`
-- provider / prompt executor mid-flight cooperative stop remains future work
+- provider / prompt executor hard-abort after a blocking HTTP call has started remains
+  future work
 - `transport_schedule_lookup` opening gate / eval evidence remains future work
 - `campus_notice_discover` / `campus_notice_get` opening gate / eval evidence
   remains future work

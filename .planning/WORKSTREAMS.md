@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Workstreams
@@ -44,7 +44,7 @@ updated: 2026-04-24
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | `Phase 4` | `chat_completions + gpt-5.4` 已完成 fixed sample-set `1-run + 3-run` live rerun，当前 admission 为 `bounded_candidate_for_follow_up`；产品面仍 fail-close，等待 follow-up routing 明确 |
-| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 10 closeout` | Go structured query runtime 已补齐 `transport_schedule_lookup` projection-backed kernel 与 Python thin-adapter wiring；产品主路由 gate 仍保持关闭，后续 opening 需要 eval / regression evidence |
+| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 19 closeout` | Go `apps/supervisor-api` runtime 已 hardcut；Python private bridge worker 已 hardcut 到 `apps/supervisor-core-worker`；cancel checkpoints、bridge circuit breaker、runtime accounting、audit batching/retry/spool、OTel sampling 与 lifecycle SSE endpoint 已落地，但产品主路由 gate 仍保持关闭 |
 
 ## Completed
 
@@ -81,7 +81,7 @@ updated: 2026-04-24
 | `wechat official-account public source channel` | `wechat-official-account-public-source-channel` | `no` | `docs/plans/archive/historical/wechat-official-account-public-source-channel.md` | 只有在产品范围显式 admission 校园公众号公开内容采集，且 `notice` / `official_web` downstream consumption 已准备好时才恢复 |
 | `internal-notice procurement notice classification` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围显式 admission 为 restricted notice / publication storage 新增稳定 `procurement_notice` 分类，或基于该分类继续做历史查询时才恢复 |
 | `chat capacity and cancellation hardening` | `chat-capacity-and-cancellation-hardening` | `yes` | `.planning/workstreams/chat-capacity-and-cancellation-hardening/README.md` | 只有在产品范围决定为 public chat 正式收口 100 人同时提问、热点削峰、ChatGPT 式提交/中止体验或 K8s/多实例容量治理时恢复 |
-| `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution shell / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
+| `supervisor Docker runtime language split` | `supervisor-docker-runtime-language-split` | `yes` | `.planning/workstreams/supervisor-docker-runtime-language-split/README.md` | 只有在 Docker 侧性能预算、服务器成本或 profiling 结果显示 Python execution runtime / CPU-heavy kernel 成为正式迁移瓶颈时恢复 |
 
 ## Legacy / Follow-up References
 

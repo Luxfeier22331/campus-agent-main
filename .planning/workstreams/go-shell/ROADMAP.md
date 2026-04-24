@@ -9,7 +9,7 @@ updated: 2026-04-24
 
 ## Current Progress
 
-- `Phase 0-12` repo-local implementation 已完成。
+- `Phase 0-19` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -19,21 +19,30 @@ updated: 2026-04-24
   与 `notice` 可作为显式 internal execution capability 进入对应 Go admission lane
   和 specialist-owned structured runtime handoff；knowledge path gate-closed 行为不变。
 - `Phase 12` 已将 `campus_notice_discover` / `campus_notice_get` 的确定性
-  read-model query runtime 迁到 Go shell：Go 读取 PG read model 与
+  read-model query runtime 迁到 Go `apps/supervisor-api`：Go 读取 PG read model 与
   S3-compatible derived canonical body，Python `notice-agent` 保留 HTTP thin
   adapter，产品主路由 gate 仍保持关闭。
+- `Phase 13-15` 已补齐 cancellation checkpoint、bridge circuit breaker 与 runtime
+  accounting：Go 能把 bridge cancellation terminal response 记为 `canceled`，Python
+  default orchestration 会在 deterministic checkpoints 观测 cancel，bridge transport /
+  protocol failure 有 circuit breaker，audit failure/cancel events 携带 measured bridge
+  duration 与 queue wait summary。
+- `Phase 16-19` 已补齐 service-status 当前性 fail-close、execution audit
+  batching/retry/spool、OTel sample/export/drop/failure accounting，以及
+  `/api/v1/answer/stream` lifecycle SSE seam；`app-api` 已具备 optional stream
+  adapter。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
 
-**Goal:** 冻结 Go shell 与 Python orchestration 的职责边界，并建立当前 Python
-`supervisor-api` 的行为基线。
+**Goal:** 冻结 Go `apps/supervisor-api` 与 Python orchestration 的职责边界，并建立 legacy Python
+`apps/supervisor-api` public entry 的行为基线。
 
 **Scope:**
 
-- inventory current `apps/supervisor-api` routes, auth modes, env vars and
+- inventory legacy Python `apps/supervisor-api` routes, auth modes, env vars and
   error shapes
-- freeze Go shell ownership and Python-owned semantics
+- freeze Go `apps/supervisor-api` ownership and Python-owned semantics
 - capture baseline latency, saturation and resource metrics where available
 - define compatibility tests for `/api/v1/answer`, `/healthz`, `/readyz`
 
@@ -43,13 +52,13 @@ updated: 2026-04-24
 - bridge direction is explicit
 - no phase depends on rewriting `supervisor-core`
 
-## Phase 1: Go Shell Skeleton And Docker Harness
+## Phase 1: Go Runtime Skeleton And Docker Harness
 
 **Goal:** 建立可运行的 Go service skeleton 与 Docker-first 本地运行入口。
 
 **Scope:**
 
-- add Go module/package location for `go-shell`
+- add Go module/package location for the future `apps/supervisor-api` runtime
 - implement minimal HTTP server with `healthz` and static `readyz`
 - add config loading for current supervisor env surface
 - add Dockerfile / compose or repo-owned local harness
@@ -57,13 +66,13 @@ updated: 2026-04-24
 
 **Exit Criteria:**
 
-- Go shell starts locally
+- Go `apps/supervisor-api` starts locally
 - Docker build/run path exists
 - health route is test-covered
 
 ## Phase 2: Python Orchestration Bridge
 
-**Goal:** 让 Go shell 能调用现有 Python orchestration，而不改变业务语义。
+**Goal:** 让 Go `apps/supervisor-api` 能调用现有 Python orchestration，而不改变业务语义。
 
 **Scope:**
 
@@ -75,13 +84,13 @@ updated: 2026-04-24
 
 **Exit Criteria:**
 
-- Go shell can execute a request through Python orchestration
-- response parity is proven against current Python `supervisor-api`
+- Go `apps/supervisor-api` can execute a request through Python orchestration
+- response parity is proven against legacy Python `apps/supervisor-api`
 - bridge failure is observable and typed
 
 ## Phase 3: Auth, Admission And Backpressure
 
-**Goal:** 把 internal caller auth、admission 和 backpressure 从 Python shell 迁到 Go。
+**Goal:** 把 internal caller auth、admission 和 backpressure 从 Python public execution entry 迁到 Go。
 
 **Scope:**
 
@@ -94,7 +103,7 @@ updated: 2026-04-24
 **Exit Criteria:**
 
 - unauthorized, invalid JSON, saturated and success paths match contract expectations
-- admitted requests do not exceed configured Go shell budget
+- admitted requests do not exceed configured Go `apps/supervisor-api` budget
 - lane model is present without forcing agent rewrite
 
 ## Phase 4: Cancellation And Streaming-Ready Lifecycle
@@ -111,13 +120,13 @@ updated: 2026-04-24
 
 **Exit Criteria:**
 
-- Go shell stops waiting on disconnected clients where safe
+- Go `apps/supervisor-api` stops waiting on disconnected clients where safe
 - cancellation path is test-covered
 - lifecycle semantics are explicit for `app-api`
 
 ## Phase 5: Observability, Audit And Readiness
 
-**Goal:** 让 Go shell 成为 Docker 侧 runtime truth 的 observability owner。
+**Goal:** 让 Go `apps/supervisor-api` 成为 Docker 侧 runtime truth 的 observability owner。
 
 **Scope:**
 
@@ -129,13 +138,13 @@ updated: 2026-04-24
 
 **Exit Criteria:**
 
-- readyz reflects Go shell and Python bridge health
+- readyz reflects Go `apps/supervisor-api` and Python bridge health
 - metrics distinguish transport saturation, bridge failure and Python failure
 - audit/logging does not block normal answer path
 
 ## Phase 6: Cutover, Capacity Gate And Runback
 
-**Goal:** 完成从 Python HTTP entry 到 Go shell 的 Docker-first cutover。
+**Goal:** 完成从 Python HTTP entry 到 Go `apps/supervisor-api` 的 Docker-first cutover。
 
 **Scope:**
 
@@ -147,10 +156,10 @@ updated: 2026-04-24
 
 **Exit Criteria:**
 
-- `app-api -> supervisor-api` can target Go shell in staging/dev
-- rollback to Python entry is documented
+- `app-api -> supervisor-api` can target Go `apps/supervisor-api` in staging/dev
+- rollback/runback boundary is documented without reintroducing active Python public entry truth
 - capacity and saturation behavior are measured
-- docs reflect Go shell as Docker execution entry once accepted
+- docs reflect Go `apps/supervisor-api` as Docker execution entry once accepted
 
 **Closeout Note:**
 
@@ -160,7 +169,7 @@ updated: 2026-04-24
 
 ## Phase 7: Runtime Kernel Hardening
 
-**Goal:** 把 Go shell 从 global admission bridge shell 升级为可取消、可分 lane、可观测的
+**Goal:** 把 Go `apps/supervisor-api` 从 global admission bridge 升级为可取消、可分 lane、可观测的
 Docker-side execution runtime kernel。
 
 **Scope:**
@@ -216,7 +225,7 @@ Docker-side execution runtime kernel。
 
 ## Phase 9: Structured Query Runtime Foundation
 
-**Goal:** 在 Go shell 中建立 gate-closed projection-backed structured query runtime
+**Goal:** 在 Go `apps/supervisor-api` 中建立 gate-closed projection-backed structured query runtime
 foundation，为 campus services tools 后续接入提供 internal query service seam。
 
 **Scope:**
@@ -255,7 +264,7 @@ foundation，为 campus services tools 后续接入提供 internal query service
 - support `schedule_snapshot_metadata`, route clarification, `next_departure`,
   `first_departure`, `last_departure`, `departure_list`, `service_window` and
   `timetable`
-- inject trusted runtime time from Go shell context, never from user payload
+- inject trusted runtime time from Go `apps/supervisor-api` context, never from user payload
 - return fail-closed typed results when projection truth is unavailable
 - add Python thin HTTP adapter and `supervisor-api` conditional wiring without
   changing product routing gate
@@ -278,7 +287,7 @@ foundation，为 campus services tools 后续接入提供 internal query service
 
 ## Phase 11: Forward Capability Lane Alignment
 
-**Goal:** 让 Go shell、shared contract 与 supervisor validation 对齐已冻结的 forward
+**Goal:** 让 Go `apps/supervisor-api`、shared contract 与 supervisor validation 对齐已冻结的 forward
 capability family，而不把 knowledge path 下的 structured runtime gate 自动打开。
 
 **Scope:**
@@ -309,7 +318,7 @@ capability family，而不把 knowledge path 下的 structured runtime gate 自�
 ## Phase 12: Notice Read-Model Query Runtime Migration
 
 **Goal:** 将 `campus_notice_discover` / `campus_notice_get` 的 deterministic
-query-time read-model runtime 从 Python notice-agent 迁到 Go shell。
+query-time read-model runtime 从 Python notice-agent 迁到 Go `apps/supervisor-api`。
 
 **Scope:**
 
@@ -338,3 +347,169 @@ query-time read-model runtime 从 Python notice-agent 迁到 Go shell。
 
 - Repo-local implementation is complete. Product serving admission remains
   deferred until opening-gate regression / eval evidence exists.
+
+## Phase 13: Python Cancellation Checkpoints
+
+**Goal:** 让 Go explicit cancel 不只停在 Python bridge registry，而能被默认
+supervisor semantic orchestration checkpoints 观测。
+
+**Scope:**
+
+- expose request-scoped cancel checks from Python bridge registry
+- check cancellation before / after supervisor handling in the bridge answer route
+- pass cancellation checker into default `packages/supervisor-core` orchestration
+- check cancellation around routing, prompt composition, specialist delegation and
+  finalization
+- return typed `499 execution_cancelled` bridge terminal response without expanding
+  `SupervisorStatus`
+
+**Exit Criteria:**
+
+- bridge cancel route can turn an active answer response into `499 execution_cancelled`
+- Go maps bridge cancellation terminal response to lifecycle `canceled`
+- targeted Python and Go tests cover both sides of the terminal response
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Provider / prompt HTTP hard-abort after the
+  blocking call has started remains out of scope.
+
+## Phase 14: Bridge Circuit Breaker
+
+**Goal:** 防止 Python bridge transport / protocol failure 持续占用 execution slots。
+
+**Scope:**
+
+- add Go bridge circuit breaker with consecutive failure threshold and open window
+- fail fast with `503 supervisor_bridge_circuit_open` while open
+- expose circuit state in `/readyz` and `/metrics`
+- reset breaker on valid bridge envelopes
+- keep semantic supervisor errors out of transport-health failure accounting
+
+**Exit Criteria:**
+
+- repeated bridge failure opens the circuit
+- open circuit rejects answer execution without calling Python bridge
+- readiness degrades and metrics expose state / open / reject counters
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. This does not replace `app-api` product-layer
+  rate limit, duplicate-click UX or hotspot coalescing.
+
+## Phase 15: Runtime Accounting Completion
+
+**Goal:** 补齐 Go-owned runtime failure accounting 的 safe audit summary。
+
+**Scope:**
+
+- include measured bridge duration on bridge protocol / transport failure and cancel audit
+  events
+- include queue wait summary where an admitted request had to wait
+- keep audit payload allowlisted and raw-content-free
+
+**Exit Criteria:**
+
+- execution audit failure events include bridge duration when measured
+- payload remains compatible with `app-api` internal execution audit ingest
+- targeted Go test covers bridge protocol failure duration accounting
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Token / cost accounting remains tied to upstream
+  prompt runtime metadata and is not synthesized in Go.
+
+## Phase 16: Service Status Runtime Hardening
+
+**Goal:** 让 Go `service_status_lookup` 对 current-effective 查询保持 fail-close，不把过期或不完整
+projection record 冒充成当前服务状态。
+
+**Scope:**
+
+- reject matched current records whose effective window is expired
+- reject matched current records missing required status / effective / provenance fields
+- return `temporarily_unverifiable/current_state_unverifiable` with
+  `historical_downgrade_reason=current_effective_miss` when current effective truth
+  cannot be proven
+- keep source/raw scan out of query-time runtime
+
+**Exit Criteria:**
+
+- Go structured query tests cover expired effective window and incomplete matched
+  record fail-close
+- existing configured projection success path remains green
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. This does not open `campus_services` product
+  serving.
+
+## Phase 17: Execution Audit Writer Hardening
+
+**Goal:** 把 Go execution audit writer 从单次 best-effort post 升级为 batch / retry /
+optional spool 的 fail-open writer。
+
+**Scope:**
+
+- add batch size and flush interval config
+- retry failed batch delivery with bounded attempts and base delay
+- optionally write exhausted batches to local spool under configured max bytes
+- drain spool on startup
+- expose retry/spool status in readiness and metrics
+
+**Exit Criteria:**
+
+- Go execution audit tests cover batching, retry-before-success and spool-after-retry
+- audit payload allowlist remains raw-content-free
+- answer path remains fail-open when audit delivery fails
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. `app-api` remains the audit projection owner.
+
+## Phase 18: OTel Sampling And Runtime Counters
+
+**Goal:** 让 Go OTel exporter seam 可控采样、只发送 allowlisted attributes，并对 operator 暴露
+export/drop/failure 状态。
+
+**Scope:**
+
+- add `SUPERVISOR_API_OTEL_SAMPLE_RATIO`
+- keep span attributes allowlisted and raw-content-free
+- expose exported / dropped / failed / sample ratio status through `/readyz` and
+  `/metrics`
+
+**Exit Criteria:**
+
+- Go telemetry tests cover sample-out and attribute allowlist
+- metrics include telemetry exported / dropped / failed / sample-ratio values
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Sentry/Axiom remain sinks, not panel truth.
+
+## Phase 19: Lifecycle SSE Endpoint
+
+**Goal:** 为 ChatGPT-like loading/stop UX 提供 internal lifecycle event stream，而不把 browser
+直接接到 supervisor-api，也不承诺 token delta。
+
+**Scope:**
+
+- add `POST /api/v1/answer/stream`
+- emit `execution.started`, `execution.queued`, `execution.running` and terminal
+  completed / failed / cancelled SSE events
+- map bridge circuit-open, timeout, invalid response, supervisor error and cancel into
+  terminal event payloads
+- add optional `app-api` supervisor adapter stream method that passes through the
+  SSE response body
+
+**Exit Criteria:**
+
+- Go HTTP tests cover lifecycle success stream and circuit-open failure stream
+- app-api adapter test proves `/api/v1/answer/stream` is called with canonical
+  headers/body and response stream is not parsed
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Product route and browser stop UX remain
+  owned by app-api/web workstreams.

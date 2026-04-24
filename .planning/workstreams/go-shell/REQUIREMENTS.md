@@ -9,7 +9,7 @@ updated: 2026-04-24
 
 ## Goal
 
-把 Docker 部署侧 `supervisor-api` 的 execution shell 迁移到 Go，使高并发 transport、
+把 Docker 部署侧 `supervisor-api` 的 execution runtime control plane 迁移到 Go，使高并发 transport、
 admission、backpressure、cancel/stream、metrics 与 audit/logging 不再受当前 Python
 同步线程壳限制，同时保持 supervisor-led multi-agent 业务语义不变。
 
@@ -31,7 +31,7 @@ admission、backpressure、cancel/stream、metrics 与 audit/logging 不再受�
 
 ## Target Boundary
 
-Go shell owns:
+Go `apps/supervisor-api` owns:
 
 - HTTP transport and request dispatch
 - internal caller auth
@@ -42,7 +42,7 @@ Go shell owns:
 - audit/logging non-blocking sink
 - Python orchestration bridge
 - deterministic structured query runtime foundation for projection-backed internal
-  services, while keeping domain-agent semantics outside Go shell
+  services, while keeping domain-agent semantics outside the Go runtime
 - Docker image entrypoint and runtime process supervision
 
 Python orchestration owns for now:
@@ -89,20 +89,20 @@ Do not migrate in the first wave:
 - Middleware: compose plain `http.Handler` middleware.
 - Cancellation: use standard library `context.Context` from `http.Request`.
 - Admission: start with channel semaphore or `golang.org/x/sync/semaphore`.
-- Product rate limit: keep user/product-layer rate limiting in `app-api`; Go shell
+- Product rate limit: keep user/product-layer rate limiting in `app-api`; Go `apps/supervisor-api`
   only owns execution admission and backpressure.
 - Logging: use standard library `log/slog` with JSON output.
-- Metrics / observability for the current slice: expose shell-owned
+- Metrics / observability for the current slice: expose `supervisor-api`-owned
   Prometheus-style `/metrics` plus structured request logs; OTel collector or
   sink fan-out stays deferred until a later reopen.
 - Bridge: first version uses private loopback HTTP/JSON to a long-running Python
   orchestration worker.
 - Tests: use standard library `testing` and `httptest` first.
 - Docker base: prefer Debian slim while Python orchestration remains in the same
-  deploy shape; revisit distroless only after Go shell can run independently.
+  deploy shape; revisit distroless only after Go `apps/supervisor-api` can run independently.
 
 The first-wave bridge is not gRPC. The current repo contract is JSON/dataclass
-oriented, so gRPC/protobuf should only be reconsidered after shell cutover if
+oriented, so gRPC/protobuf should only be reconsidered after runtime cutover if
 there is a measured cross-process contract or streaming need.
 
 ## External References
@@ -115,7 +115,7 @@ there is a measured cross-process contract or streaming need.
 
 ## In Scope
 
-- Go module / service skeleton for Docker-side `supervisor-api` execution shell
+- Go module / service skeleton for Docker-side `supervisor-api` execution runtime
 - Stable Go-to-Python orchestration bridge contract
 - Compatibility with current `POST /api/v1/answer`, `GET /healthz`, `GET /readyz`
 - Trusted internal caller auth parity with current `bearer` / `trusted-worker` modes
@@ -136,17 +136,18 @@ there is a measured cross-process contract or streaming need.
 
 ## Success Criteria
 
-1. Go shell can serve the existing internal execution HTTP contract without changing
+1. Go `apps/supervisor-api` can serve the existing internal execution HTTP contract without changing
    `app-api` product semantics.
 2. Python orchestration can be invoked through a stable bridge with trace_id,
    actor/context, requested capability/scope and version query preserved.
-3. Go shell owns admission/backpressure and returns typed saturation errors before
+3. Go `apps/supervisor-api` owns admission/backpressure and returns typed saturation errors before
    invoking Python.
 4. Cancellation and client disconnect semantics are explicit, even when Python
    can only cooperate at defined boundaries in the first release.
 5. `healthz` / `readyz` / metrics plus structured request logs expose transport,
    admission, bridge, prompt runtime and audit status clearly.
 6. Docker packaging can run locally and in the intended internal deployment substrate.
-7. Existing Python tests remain valid for orchestration semantics, and new Go tests
-   cover shell behavior.
-8. Cutover has a rollback path to the current Python `supervisor-api` entry.
+7. Existing Python tests remain valid for orchestration semantics, and Go tests
+   cover `apps/supervisor-api` runtime behavior.
+8. Hardcut removes the active Python public `supervisor-api` entry; rollback/runback,
+   if needed, is environment-side and must not reintroduce active repo truth for the old entry.
