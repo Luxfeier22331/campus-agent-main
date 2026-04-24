@@ -460,6 +460,63 @@ describe("public chat web worker shell", () => {
 		);
 	});
 
+	it("proxies app-api lifecycle SSE responses without buffering or rewriting the stream", async () => {
+		let forwardedAccept: string | null = null;
+		let forwardedUrl: string | null = null;
+
+		const response = await worker.fetch(
+			new Request("https://chat.example.com/api/chat/requests/stream", {
+				body: JSON.stringify({
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				}),
+				headers: {
+					accept: "text/event-stream",
+					"content-type": "application/json",
+					cookie: "better-auth.session_token=test",
+					"idempotency-key": "idem-stream-001",
+				},
+				method: "POST",
+			}),
+			{
+				APP_API: {
+					fetch: async (request: Request) => {
+						forwardedAccept = request.headers.get("accept");
+						forwardedUrl = request.url;
+
+						return new Response(
+							[
+								'event: request.accepted\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"accepted"}',
+								'event: request.completed\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"completed"}',
+							].join("\n\n"),
+							{
+								headers: {
+									"content-type": "text/event-stream; charset=utf-8",
+									"x-request-id": "req_stream_01HQ",
+								},
+								status: 200,
+							},
+						);
+					},
+				},
+				APP_API_BASE_URL: "https://app-api.internal",
+			},
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("text/event-stream");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("x-request-id")).toBe("req_stream_01HQ");
+		await expect(response.text()).resolves.toBe(
+			[
+				'event: request.accepted\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"accepted"}',
+				'event: request.completed\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"completed"}',
+			].join("\n\n"),
+		);
+		expect(forwardedAccept).toBe("text/event-stream");
+		expect(forwardedUrl).toBe("https://app-api.internal/api/chat/requests/stream");
+	});
+
 	it("returns a contract-shaped dependency error when the app-api binding throws", async () => {
 		const response = await worker.fetch(
 			new Request("https://chat.example.com/api/chat/requests", {

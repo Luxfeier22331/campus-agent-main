@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+	type ChatRequestStreamEvent,
 	createDraftConversation,
 	deleteTrailingMessages,
 	getConversationDetail,
 	getSessionPrincipal,
 	listConversations,
 	submitChatRequest,
+	submitChatRequestStream,
 	UnauthorizedError,
 } from "../src/platform/chat/api";
 
@@ -56,6 +58,58 @@ describe("public chat app-api client", () => {
 					prompt: "图书馆开放到几点？",
 				}),
 				headers: expect.objectContaining({
+					"content-type": "application/json",
+					"idempotency-key": expect.any(String),
+				}),
+				method: "POST",
+			}),
+		);
+	});
+
+	it("submits a lifecycle stream request and yields product SSE events", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				[
+					'event: request.accepted\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"accepted","occurredAt":"2026-03-28T08:00:00.000Z"}',
+					'event: execution.running\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"running","occurredAt":"2026-03-28T08:00:01.000Z"}',
+					'event: request.completed\ndata: {"requestId":"req_stream_01HQ","traceId":"trace_stream_01HQ","status":"completed","occurredAt":"2026-03-28T08:00:02.000Z","answer":{"conversation":{"createdAt":"2026-03-28T08:00:00.000Z","id":"conv_01HQ","messages":[],"title":"图书馆开放时间","updatedAt":"2026-03-28T08:00:02.000Z"},"result":{"kind":"answer","requestId":"req_stream_01HQ","text":"图书馆开放到 22:00。","traceId":"trace_stream_01HQ"}}}',
+				].join("\n\n"),
+				{
+					headers: {
+						"content-type": "text/event-stream; charset=utf-8",
+					},
+					status: 200,
+				},
+			),
+		);
+
+		const events: ChatRequestStreamEvent[] = [];
+		for await (const event of submitChatRequestStream({
+			conversationId: "conv_01HQ",
+			prompt: "图书馆开放到几点？",
+		})) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toEqual([
+			"request.accepted",
+			"execution.running",
+			"request.completed",
+		]);
+		expect(events.at(-1)?.data.answer?.result).toMatchObject({
+			kind: "answer",
+			requestId: "req_stream_01HQ",
+			text: "图书馆开放到 22:00。",
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/chat/requests/stream",
+			expect.objectContaining({
+				body: JSON.stringify({
+					conversationId: "conv_01HQ",
+					prompt: "图书馆开放到几点？",
+				}),
+				headers: expect.objectContaining({
+					accept: "text/event-stream",
 					"content-type": "application/json",
 					"idempotency-key": expect.any(String),
 				}),

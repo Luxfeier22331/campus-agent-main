@@ -44,14 +44,41 @@ export interface ChatCommandResponse {
 	traceId: string;
 }
 
+export type ChatCommandStreamEventName =
+	| "request.accepted"
+	| "execution.queued"
+	| "execution.running"
+	| "request.completed"
+	| "request.failed"
+	| "request.cancelled";
+
+export interface ChatCommandStreamEvent {
+	data: {
+		answer?: ChatCommandResponse["answer"];
+		error?: {
+			code: string;
+			message: string;
+			retryable?: boolean;
+		};
+		occurredAt: string;
+		requestId: string;
+		status: string;
+		traceId: string;
+	};
+	event: ChatCommandStreamEventName;
+}
+
+export interface ChatCommandSubmitInput {
+	idempotencyKey?: string | null;
+	payload: ChatCommandPayload;
+	principal: ResolvedAppPrincipal;
+	surface?: string;
+	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+}
+
 export interface ChatCommandService {
-	submit(input: {
-		idempotencyKey?: string | null;
-		payload: ChatCommandPayload;
-		principal: ResolvedAppPrincipal;
-		surface?: string;
-		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
-	}): Promise<ChatCommandResponse>;
+	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
+	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
 
 export interface ChatCommandServiceDependencies {

@@ -6,6 +6,7 @@ import type {
 	SessionPrincipal,
 } from "./api-types";
 import type {
+	ShellChatStreamEvent,
 	ShellConversationDetail,
 	ShellConversationListItem,
 	ShellMessage,
@@ -62,5 +63,19 @@ export function mapChatAnswerPayload(payload: ChatAnswerPayload): ShellRequestOu
 		requestId: payload.result.requestId,
 		resultKind: payload.result.kind,
 		traceId: payload.result.traceId,
+	};
+}
+
+export function mapChatStreamEvent(
+	event: import("./api").ChatRequestStreamEvent,
+): ShellChatStreamEvent {
+	return {
+		error: event.data.error,
+		event: event.event,
+		occurredAt: event.data.occurredAt,
+		outcome: event.data.answer ? mapChatAnswerPayload(event.data.answer) : undefined,
+		requestId: event.data.requestId,
+		status: event.data.status,
+		traceId: event.data.traceId,
 	};
 }

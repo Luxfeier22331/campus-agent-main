@@ -88,7 +88,8 @@ export interface AppTelemetry {
 				| "needs_clarification"
 				| "no_answer"
 				| "approval_required"
-				| "rejected";
+				| "rejected"
+				| "cancelled";
 		},
 	): Promise<void>;
 	recordRequestTransportError(

@@ -18,7 +18,8 @@ export type RequestExecutionStatus =
 	| "no_answer"
 	| "error"
 	| "approval_required"
-	| "rejected";
+	| "rejected"
+	| "cancelled";
 
 export interface RequestExecutionWrite {
 	requestId: string;

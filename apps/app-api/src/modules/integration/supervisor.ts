@@ -128,7 +128,8 @@ export interface SupervisorExecutionResponse {
 		| "no_answer"
 		| "error"
 		| "approval_required"
-		| "rejected";
+		| "rejected"
+		| "cancelled";
 	traceId: string;
 }
 
@@ -433,6 +434,66 @@ function toSupervisorRequestBody(payload: SupervisorExecutionInput): Record<stri
 	};
 }
 
+export function parseSupervisorExecutionResponsePayload(
+	parsed: Record<string, unknown> | null | undefined,
+	fallbackTraceId: string,
+): SupervisorExecutionResponse {
+	return {
+		answerText:
+			typeof parsed?.answer_text === "string"
+				? parsed.answer_text
+				: typeof parsed?.answerText === "string"
+					? parsed.answerText
+					: "",
+		error:
+			parsed?.error && typeof parsed.error === "object"
+				? {
+						code:
+							typeof (parsed.error as { code?: unknown }).code === "string"
+								? ((parsed.error as { code: string }).code as string)
+								: "unknown_error",
+						message:
+							typeof (parsed.error as { message?: unknown }).message === "string"
+								? ((parsed.error as { message: string }).message as string)
+								: "Supervisor returned an unknown error.",
+						retryable:
+							typeof (parsed.error as { retryable?: unknown }).retryable === "boolean"
+								? ((parsed.error as { retryable: boolean }).retryable as boolean)
+								: undefined,
+					}
+				: null,
+		followUpQuestion:
+			typeof parsed?.follow_up_question === "string"
+				? parsed.follow_up_question
+				: typeof parsed?.followUpQuestion === "string"
+					? parsed.followUpQuestion
+					: "",
+		observability: parseExecutionObservability(parsed?.observability),
+		result: parsed?.result ?? null,
+		selectedTarget:
+			typeof parsed?.selected_target === "string"
+				? parsed.selected_target
+				: typeof parsed?.selectedTarget === "string"
+					? parsed.selectedTarget
+					: null,
+		status:
+			parsed?.status === "needs_clarification" ||
+			parsed?.status === "no_answer" ||
+			parsed?.status === "error" ||
+			parsed?.status === "approval_required" ||
+			parsed?.status === "rejected" ||
+			parsed?.status === "cancelled"
+				? parsed.status
+				: "completed",
+		traceId:
+			typeof parsed?.trace_id === "string"
+				? parsed.trace_id
+				: typeof parsed?.traceId === "string"
+					? parsed.traceId
+					: fallbackTraceId,
+	};
+}
+
 function createSupervisorRequestHeaders(input: {
 	payload: SupervisorExecutionInput;
 	sharedSecret: string;
@@ -592,40 +653,7 @@ export function createSupervisorExecutionClient(
 				});
 			}
 
-			return {
-				answerText: typeof parsed?.answer_text === "string" ? parsed.answer_text : "",
-				error:
-					parsed?.error && typeof parsed.error === "object"
-						? {
-								code:
-									typeof (parsed.error as { code?: unknown }).code === "string"
-										? ((parsed.error as { code: string }).code as string)
-										: "unknown_error",
-								message:
-									typeof (parsed.error as { message?: unknown }).message === "string"
-										? ((parsed.error as { message: string }).message as string)
-										: "Supervisor returned an unknown error.",
-								retryable:
-									typeof (parsed.error as { retryable?: unknown }).retryable === "boolean"
-										? ((parsed.error as { retryable: boolean }).retryable as boolean)
-										: undefined,
-							}
-						: null,
-				followUpQuestion:
-					typeof parsed?.follow_up_question === "string" ? parsed.follow_up_question : "",
-				observability: parseExecutionObservability(parsed?.observability),
-				result: parsed?.result ?? null,
-				selectedTarget: typeof parsed?.selected_target === "string" ? parsed.selected_target : null,
-				status:
-					parsed?.status === "needs_clarification" ||
-					parsed?.status === "no_answer" ||
-					parsed?.status === "error" ||
-					parsed?.status === "approval_required" ||
-					parsed?.status === "rejected"
-						? parsed.status
-						: "completed",
-				traceId: typeof parsed?.trace_id === "string" ? parsed.trace_id : payload.traceId,
-			};
+			return parseSupervisorExecutionResponsePayload(parsed, payload.traceId);
 		},
 		async executeStream(payload: SupervisorExecutionInput): Promise<Response> {
 			const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();

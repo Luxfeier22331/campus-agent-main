@@ -22,7 +22,8 @@ import { getShellConversationDetail } from "./conversations";
 import { getSerializedChatHistoryKey } from "./history-cache";
 import { mapShellConversationMessages } from "./message-parts";
 import { useChatbotShellRuntime } from "./runtime";
-import { submitShellChatRequest } from "./transport";
+import { submitShellChatRequestStream } from "./transport";
+import type { ShellRequestOutcome } from "./types";
 
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
 
@@ -84,6 +85,10 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 	const tempChatIdRef = useRef(generateUUID());
 	const draftConversationIdRef = useRef<string | null>(null);
 	const previousConversationIdRef = useRef<string | undefined>(conversationId);
+	const activeRequestRef = useRef<{
+		controller: AbortController;
+		requestId: string | null;
+	} | null>(null);
 	const { mutate } = useSWRConfig();
 	const { setSessionUnauthenticated } = useChatbotShellRuntime();
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -176,16 +181,39 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				role: "user",
 			};
 			const previousMessages = messages;
+			const controller = new AbortController();
 
 			setStatus("submitted");
 			setThreadError(null);
 			setMessages((current) => [...current, optimisticMessage]);
+			activeRequestRef.current = {
+				controller,
+				requestId: null,
+			};
 
 			try {
-				const outcome = await submitShellChatRequest({
+				let terminalOutcome: ShellRequestOutcome | null = null;
+				for await (const event of submitShellChatRequestStream({
 					conversationId: activeConversationId,
 					prompt: trimmedPrompt,
-				});
+					signal: controller.signal,
+				})) {
+					activeRequestRef.current = {
+						controller,
+						requestId: event.requestId,
+					};
+					if (event.event === "execution.running") {
+						setStatus("streaming");
+					}
+					if (event.outcome) {
+						terminalOutcome = event.outcome;
+					}
+				}
+
+				if (!terminalOutcome) {
+					throw new Error("请求没有返回最终结果，请稍后重试。");
+				}
+				const outcome = terminalOutcome;
 				if (outcome.conversation.id !== activeConversationId) {
 					throw new Error("对话状态已变化，请刷新后重试。");
 				}
@@ -197,6 +225,11 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				setInput("");
 				mutate(getSerializedChatHistoryKey());
 			} catch (error) {
+				if (error instanceof Error && error.name === "AbortError") {
+					setStatus("ready");
+					return;
+				}
+
 				if (error instanceof UnauthorizedError) {
 					setSessionUnauthenticated();
 					await router.replace("/login");
@@ -211,6 +244,10 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 					description: message,
 					type: "error",
 				});
+			} finally {
+				if (activeRequestRef.current?.controller === controller) {
+					activeRequestRef.current = null;
+				}
 			}
 		},
 		[conversationId, messages, mutate, router, setSessionUnauthenticated],
@@ -270,6 +307,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 			setShowCreditCardAlert,
 			status,
 			async stop() {
+				activeRequestRef.current?.controller.abort();
 				setStatus("ready");
 			},
 			threadError,

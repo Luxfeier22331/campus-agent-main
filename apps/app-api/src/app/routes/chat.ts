@@ -3,6 +3,7 @@ import type { Hono } from "hono";
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import { hasMatchingInternalSecret, type ResolvedAppPrincipal } from "../../modules/auth";
+import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
 import { requireSessionPrincipal } from "../principal";
 import {
 	buildInternalEvalPrincipalFromRequest,
@@ -22,6 +23,62 @@ function requireConversationId(conversationId: string | null | undefined) {
 	}
 
 	return null;
+}
+
+function encodeSseEvent(event: ChatCommandStreamEvent): Uint8Array {
+	return new TextEncoder().encode(`event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`);
+}
+
+function isTerminalChatStreamEvent(event: ChatCommandStreamEvent): boolean {
+	return (
+		event.event === "request.completed" ||
+		event.event === "request.failed" ||
+		event.event === "request.cancelled"
+	);
+}
+
+function createChatSseResponse(input: {
+	first: ChatCommandStreamEvent;
+	iterator: AsyncIterator<ChatCommandStreamEvent>;
+	onTerminal?: (event: ChatCommandStreamEvent) => void;
+}): Response {
+	const stream = new ReadableStream<Uint8Array>({
+		async cancel() {
+			await input.iterator.return?.();
+		},
+		async start(controller) {
+			async function emit(event: ChatCommandStreamEvent) {
+				if (isTerminalChatStreamEvent(event)) {
+					input.onTerminal?.(event);
+				}
+				controller.enqueue(encodeSseEvent(event));
+			}
+
+			try {
+				await emit(input.first);
+				while (true) {
+					const next = await input.iterator.next();
+					if (next.done) {
+						break;
+					}
+					await emit(next.value);
+				}
+			} finally {
+				controller.close();
+			}
+		},
+	});
+
+	return new Response(stream, {
+		headers: {
+			"cache-control": "no-store",
+			"content-type": "text/event-stream; charset=utf-8",
+			"x-accel-buffering": "no",
+			"x-request-id": input.first.data.requestId,
+			"x-trace-id": input.first.data.traceId,
+		},
+		status: 200,
+	});
 }
 
 export function registerChatRoutes(input: {
@@ -76,6 +133,67 @@ export function registerChatRoutes(input: {
 					status: 200,
 				},
 			);
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+			}
+			throw error;
+		}
+	});
+
+	input.app.post("/api/chat/requests/stream", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireSessionPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		const fallbackCorrelation = createFallbackCorrelation();
+
+		try {
+			const service = scope.resolveChatCommandService();
+			if (!service.submitStream) {
+				throw new AppApiRouteError({
+					code: "dependency_not_ready",
+					message: "Chat lifecycle stream is not configured.",
+					retryable: true,
+					status: 503,
+				});
+			}
+
+			const iterator = service
+				.submitStream({
+					idempotencyKey: c.req.header("idempotency-key") ?? null,
+					payload: await readJsonRequestBody(c.req.raw),
+					principal: resolved.principal,
+					waitUntil: resolveWaitUntil(c),
+				})
+				[Symbol.asyncIterator]();
+			const first = await iterator.next();
+			if (first.done) {
+				throw new AppApiRouteError({
+					code: "empty_lifecycle_stream",
+					message: "Chat lifecycle stream ended before emitting a request event.",
+					retryable: true,
+					status: 502,
+				});
+			}
+
+			return createChatSseResponse({
+				first: first.value,
+				iterator,
+				onTerminal: (event) => {
+					input.scheduleRequestProjectionDrain?.({
+						requestId: event.data.requestId,
+						waitUntil: resolveWaitUntil(c),
+					});
+				},
+			});
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
 				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);

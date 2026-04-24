@@ -16,6 +16,7 @@ export type {
 } from "./supervisor";
 export {
 	createSupervisorExecutionClient,
+	parseSupervisorExecutionResponsePayload,
 	probeSupervisorApiReady,
 	SupervisorTransportError,
 } from "./supervisor";

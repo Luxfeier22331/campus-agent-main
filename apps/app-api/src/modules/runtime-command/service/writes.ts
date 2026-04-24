@@ -251,7 +251,8 @@ export function buildFinalizedWrite(input: {
 	} else if (
 		input.response.status === "error" ||
 		input.response.status === "approval_required" ||
-		input.response.status === "rejected"
+		input.response.status === "rejected" ||
+		input.response.status === "cancelled"
 	) {
 		assistantKind = "error";
 		assistantText =
@@ -261,14 +262,18 @@ export function buildFinalizedWrite(input: {
 				? "The request requires approval before it can continue."
 				: input.response.status === "rejected"
 					? "The request was rejected by supervisor policy."
-					: "The request could not be completed.");
+					: input.response.status === "cancelled"
+						? "The request was cancelled."
+						: "The request could not be completed.");
 		errorCode =
 			input.response.error?.code ??
 			(input.response.status === "approval_required"
 				? "approval_required"
 				: input.response.status === "rejected"
 					? "request_rejected"
-					: "internal_error");
+					: input.response.status === "cancelled"
+						? "execution_cancelled"
+						: "internal_error");
 		retryable = input.response.error?.retryable ?? input.response.status === "error";
 		outboxEventType = `request.${input.response.status}`;
 		result = {

@@ -3,7 +3,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../src/app";
-import { AppApiRouteError, type ChatCommandService } from "../src/modules/runtime-command";
+import {
+	AppApiRouteError,
+	type ChatCommandService,
+	type ChatCommandStreamEvent,
+} from "../src/modules/runtime-command";
 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
@@ -268,6 +272,103 @@ describe("POST /api/chat/requests", () => {
 				retryable: false,
 				traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
 			},
+		});
+	});
+});
+
+describe("POST /api/chat/requests/stream", () => {
+	it("streams product lifecycle events and terminal answer through app-api", async () => {
+		const service: ChatCommandService = {
+			submit: vi.fn(),
+			submitStream: vi.fn(async function* (): AsyncIterable<ChatCommandStreamEvent> {
+				yield {
+					data: {
+						occurredAt: "2026-03-28T08:00:00.000Z",
+						requestId: "req_stream_01HQ",
+						status: "accepted",
+						traceId: "trace_stream_01HQ",
+					},
+					event: "request.accepted",
+				};
+				yield {
+					data: {
+						occurredAt: "2026-03-28T08:00:01.000Z",
+						requestId: "req_stream_01HQ",
+						status: "running",
+						traceId: "trace_stream_01HQ",
+					},
+					event: "execution.running",
+				};
+				yield {
+					data: {
+						answer: {
+							conversation: {
+								createdAt: "2026-03-28T07:59:00.000Z",
+								id: "conv_01HQ",
+								messages: [],
+								title: "图书馆开放时间",
+								updatedAt: "2026-03-28T08:00:02.000Z",
+							},
+							result: {
+								kind: "answer",
+								requestId: "req_stream_01HQ",
+								text: "图书馆开放到 22:00。",
+								traceId: "trace_stream_01HQ",
+							},
+						},
+						occurredAt: "2026-03-28T08:00:02.000Z",
+						requestId: "req_stream_01HQ",
+						status: "completed",
+						traceId: "trace_stream_01HQ",
+					},
+					event: "request.completed",
+				};
+			}),
+		};
+		const scheduleRequestProjectionDrain = vi.fn();
+		const app = createApp(env, {
+			chatCommandService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+			scheduleRequestProjectionDrain,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/requests/stream", {
+				body: JSON.stringify({
+					prompt: "图书馆开放到几点？",
+				}),
+				headers: {
+					accept: "text/event-stream",
+					"content-type": "application/json",
+					"idempotency-key": "idem-stream-001",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("text/event-stream");
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		const body = await response.text();
+		expect(body).toContain("event: request.accepted");
+		expect(body).toContain("event: execution.running");
+		expect(body).toContain("event: request.completed");
+		expect(body).toContain('"text":"图书馆开放到 22:00。"');
+		expect(service.submitStream).toHaveBeenCalledWith({
+			idempotencyKey: "idem-stream-001",
+			payload: {
+				prompt: "图书馆开放到几点？",
+			},
+			principal: expect.objectContaining({
+				principal: expect.objectContaining({
+					principalId: "user_01HQ",
+				}),
+			}),
+			waitUntil: undefined,
+		});
+		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
+			requestId: "req_stream_01HQ",
+			waitUntil: undefined,
 		});
 	});
 });

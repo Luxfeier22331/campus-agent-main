@@ -11,6 +11,7 @@ export {
 	type ChatCommandResult,
 	type ChatCommandService,
 	type ChatCommandServiceDependencies,
+	type ChatCommandStreamEvent,
 	deriveSafetyIdentifier,
 } from "./service";
 export {

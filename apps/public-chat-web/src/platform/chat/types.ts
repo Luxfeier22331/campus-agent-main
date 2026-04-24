@@ -41,3 +41,23 @@ export interface ShellRequestOutcome {
 	resultKind: "answer" | "clarification" | "error" | "no_answer";
 	traceId: string;
 }
+
+export interface ShellChatStreamEvent {
+	error?: {
+		code: string;
+		message: string;
+		retryable?: boolean;
+	};
+	event:
+		| "request.accepted"
+		| "execution.queued"
+		| "execution.running"
+		| "request.completed"
+		| "request.failed"
+		| "request.cancelled";
+	occurredAt: string;
+	requestId: string;
+	status: string;
+	traceId: string;
+	outcome?: ShellRequestOutcome;
+}

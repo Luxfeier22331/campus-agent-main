@@ -53,7 +53,8 @@ export type ReplayEventType =
 	| "request.no_answer"
 	| "request.error"
 	| "request.approval_required"
-	| "request.rejected";
+	| "request.rejected"
+	| "request.cancelled";
 
 export interface CollectionRenameBackfillPlanInput {
 	gradeCollection: string | null;
