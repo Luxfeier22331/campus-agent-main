@@ -373,6 +373,38 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
             normalized,
         )
 
+    def test_normalize_handbook_article_body_text_splits_inline_chapter_headings_after_sentence(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "\n".join(
+                [
+                    "学校为学生参与创新教育活动设立专项经费、提供必要的条件。 二、管理",
+                    "各院系负责日常的与创新教育有关的教学活动和实践活动的管理。 三、项目",
+                ]
+            )
+        )
+
+        self.assertIn("提供必要的条件。\n二、管理", normalized)
+        self.assertIn("实践活动的管理。\n三、项目", normalized)
+        self.assertNotIn("条件。 二、管理", normalized)
+        self.assertNotIn("管理。 三、项目", normalized)
+
+    def test_normalize_handbook_article_body_text_splits_dense_parenthesized_enums(
+        self,
+    ) -> None:
+        normalized = normalize_handbook_article_body_text(
+            "所评学年有下列情况之一者,不得参评本科学生专项奖学金: "
+            "(一)所评学年所修课程有不及格的; (二)违反校规校纪受到处分的; "
+            "(三)其他不符合评选条件的。"
+        )
+
+        self.assertIn("专项奖学金:\n(一)所评学年所修课程有不及格的;", normalized)
+        self.assertIn("\n(二)违反校规校纪受到处分的;", normalized)
+        self.assertIn("\n(三)其他不符合评选条件的。", normalized)
+        self.assertNotIn("专项奖学金: (一)", normalized)
+        self.assertNotIn("; (二)", normalized)
+
     def test_normalize_handbook_article_body_text_splits_and_deduplicates_repeated_list_heading_from_body(
         self,
     ) -> None:

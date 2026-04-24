@@ -441,6 +441,10 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = repaired.replace("全球胜任力培养客户", "全球胜任力培养课程")
     repaired = repaired.replace(">全球胜<", ">全球胜任力培养课程<")
     repaired = repaired.replace(">任力培养课程<", ">全球胜任力培养课程<")
+    repaired = repaired.replace(
+        f"{_GLOBAL_COMPETENCE_PLACEHOLDER}/",
+        _GLOBAL_COMPETENCE_PLACEHOLDER,
+    )
     repaired = repaired.replace(">建议拟出国学<", ">建议拟出国学生选修<")
     repaired = repaired.replace(">生选修<", ">建议拟出国学生选修<")
     repaired = repaired.replace("高光谱成像级应用", "高光谱成像及应用")
@@ -582,6 +586,8 @@ def _merge_category_rowspan_continuation_text(
 ) -> str | None:
     if not previous_text or not current_text:
         return None
+    if previous_text == "跨学科" and current_text == "交叉课程":
+        return "跨学科交叉课程"
     if not _has_unclosed_parenthetical(previous_text):
         return None
     if not _has_closing_parenthetical(current_text):
@@ -642,7 +648,9 @@ def _serialize_table_cells_as_td_html(table_cells: list[dict[str, object]]) -> s
     html_rows: list[str] = []
     for row_number in range(1, row_count + 1):
         rendered_cells: list[str] = []
-        for cell in sorted(cells_by_row.get(row_number, ()), key=lambda item: int(item.get("col") or 0)):
+        for cell in sorted(
+            cells_by_row.get(row_number, ()), key=lambda item: int(item.get("col") or 0)
+        ):
             attrs: list[str] = []
             rowspan = int(cell.get("rowspan") or 1)
             colspan = int(cell.get("colspan") or 1)

@@ -38,6 +38,10 @@ _ORDERED_LIST_LINE_RE = re.compile(r"^(?P<number>[1-9]\d*)(?P<marker>[.．、])\
 _INLINE_COURSE_LIST_INTRO_NUMERIC_HEADING_RE = re.compile(
     r"^(?P<heading>[1-9]\d?[.．、]\s*.+?)\s*[。.;；]\s*(?P<intro>课程清单如下[:：]?)$"
 )
+_TRAILING_COURSE_LIST_INTRO_RE = re.compile(
+    r"^(?P<body>.+?[。.;；])\s*"
+    r"(?P<intro>(?:课程清单如下|建议课程清单|建议课程清单如下)[:：]?)$"
+)
 _INLINE_SECTION_METADATA_VALUE_RE = re.compile(
     r"^(?P<heading>[一二三四五六七八九十]+、\s*"
     r"(?:主干学科|学制|学分|总学分|授予学位|学位授予))"
@@ -45,7 +49,8 @@ _INLINE_SECTION_METADATA_VALUE_RE = re.compile(
     r"(?P<value>[^。；！？!?]{1,40})$"
 )
 _INLINE_PARENTHESIZED_ENUM_BOUNDARY_RE = re.compile(
-    r"(?<=[。！？；!?;])(?=[（(][一二三四五六七八九十]+[)）])"
+    r"(?<=[。！？；!?;])\s*"
+    r"(?=(?:[（(](?:[一二三四五六七八九十]+|[0-9]{1,2})[)）]|[0-9]{1,2}[)）]))"
 )
 _CHINESE_NUMBER_BY_INT = {
     1: "一",
@@ -76,6 +81,7 @@ def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
     rows[:] = _repair_design_personalized_heading_gap(rows)
     rows[:] = _repair_cross_block_duplicate_tail_wrap(rows)
     rows[:] = _repair_inline_course_list_intro_numeric_headings(rows)
+    rows[:] = _repair_trailing_course_list_intro_rows(rows)
     rows[:] = _repair_inline_section_metadata_value_headings(rows)
     _repair_inline_parenthesized_enum_boundaries(rows)
     _repair_course_settings_parenthesized_heading_sequence(rows)
@@ -270,6 +276,56 @@ def _repair_inline_course_list_intro_numeric_headings(
                 heading_level=None,
                 section_hint=None,
                 classification_reason="curriculum_repair:split_inline_course_list_intro",
+                preserve_reading_order=False,
+            )
+        )
+    return repaired_rows
+
+
+def _repair_trailing_course_list_intro_rows(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    for index, row in enumerate(rows):
+        if str(row.get("row_type") or "") != "paragraph":
+            repaired_rows.append(row)
+            continue
+        if _next_substantive_row_type(rows, index + 1) != "table":
+            repaired_rows.append(row)
+            continue
+        text = _row_text(row)
+        match = _TRAILING_COURSE_LIST_INTRO_RE.match(text)
+        if match is None:
+            repaired_rows.append(row)
+            continue
+        body_text = match.group("body").strip()
+        intro_text = match.group("intro").strip()
+        if not body_text or not intro_text:
+            repaired_rows.append(row)
+            continue
+        repaired_rows.append(
+            _clone_curriculum_text_row(
+                row,
+                text=body_text,
+                row_id_suffix=None,
+                row_type="paragraph",
+                block_role="text",
+                heading_level=None,
+                section_hint=None,
+                classification_reason="curriculum_repair:split_trailing_course_list_intro_body",
+                preserve_reading_order=True,
+            )
+        )
+        repaired_rows.append(
+            _clone_curriculum_text_row(
+                row,
+                text=intro_text,
+                row_id_suffix="course-list-intro",
+                row_type="paragraph",
+                block_role="text",
+                heading_level=None,
+                section_hint=None,
+                classification_reason="curriculum_repair:split_trailing_course_list_intro",
                 preserve_reading_order=False,
             )
         )

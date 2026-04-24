@@ -327,9 +327,7 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         texts = [str(row.get("text_normalized") or "") for row in rows]
         self.assertIn("(三)能力要求", texts)
         self.assertIn(
-            "1. 政治素质:具备政治素养。\n"
-            "2. 思想品德:践行核心价值观。\n"
-            "3. 职业素养:坚定文化自信。",
+            "1. 政治素质:具备政治素养。\n2. 思想品德:践行核心价值观。\n3. 职业素养:坚定文化自信。",
             texts,
         )
 
@@ -458,7 +456,9 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
         table_html = rows[0]["html"]
         self.assertIn('rowspan="4">大学数学(三)</td>', table_html)
         self.assertIn('rowspan="4">/</td>', table_html)
-        self.assertIn("<tr><td>概率论与数理统计</td><td>3</td><td>54</td><td>3</td></tr>", table_html)
+        self.assertIn(
+            "<tr><td>概率论与数理统计</td><td>3</td><td>54</td><td>3</td></tr>", table_html
+        )
         self.assertNotIn("<tr><td></td><td>概率论与数理统计", table_html)
 
     def test_normalize_curriculum_provider_result_repairs_chinese_international_personalized_table(
@@ -621,6 +621,102 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
                     "(一)工程知识:能够解决复杂问题。",
                     "(二)问题分析:能够识别并表达复杂问题。",
                     "(三)设计/开发解决方案:能够提出方案。",
+                ]
+            ),
+        )
+        self.assertIn(
+            "split_inline_parenthesized_enum_boundaries",
+            paragraph["classification_reason"],
+        )
+
+    def test_normalize_curriculum_provider_result_splits_inline_arabic_parenthesized_enum_boundaries(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-inline-arabic-enum",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "(1) 第一层次强调基础课程;"
+                                        "(2) 第二层次强调专业核心课程;"
+                                        "(3) 第三层次强调实践课程。"
+                                    ),
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        paragraph = next(row for row in rows if row["row_type"] == "paragraph")
+        self.assertEqual(
+            paragraph["text_normalized"],
+            "\n".join(
+                [
+                    "(1) 第一层次强调基础课程;",
+                    "(2) 第二层次强调专业核心课程;",
+                    "(3) 第三层次强调实践课程。",
+                ]
+            ),
+        )
+        self.assertIn(
+            "split_inline_parenthesized_enum_boundaries",
+            paragraph["classification_reason"],
+        )
+
+    def test_normalize_curriculum_provider_result_splits_inline_bare_arabic_enum_boundaries(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-inline-bare-arabic-enum",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "1)文献资料的查阅与分析应用;"
+                                        "2)学习新技术、新方法;"
+                                        "3)实验方案确定,实验装置的设计与建立。"
+                                    ),
+                                    "block_id": 1,
+                                    "block_order": 1,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        paragraph = next(row for row in rows if row["row_type"] == "paragraph")
+        self.assertEqual(
+            paragraph["text_normalized"],
+            "\n".join(
+                [
+                    "1)文献资料的查阅与分析应用;",
+                    "2)学习新技术、新方法;",
+                    "3)实验方案确定,实验装置的设计与建立。",
                 ]
             ),
         )
@@ -1081,6 +1177,55 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
             paragraph["classification_reason"],
         )
 
+    def test_normalize_curriculum_provider_result_splits_trailing_course_list_intro_before_table(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-trailing-course-list-intro",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "通识教育板块应修52学分。其中必修44学分,包括思政课19学分、"
+                                        "基本素养课23学分,劳动教育2学分;选修8学分。课程清单如下:"
+                                    ),
+                                    "block_id": 21,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程</td><td>学分</td></tr>"
+                                        "<tr><td>马克思主义基本原理</td><td>3</td></tr></table>"
+                                    ),
+                                    "block_id": 22,
+                                    "block_order": 2,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+        texts = [str(row.get("text_normalized") or "") for row in rows]
+
+        self.assertIn(
+            "通识教育板块应修52学分。其中必修44学分,包括思政课19学分、"
+            "基本素养课23学分,劳动教育2学分;选修8学分。",
+            texts,
+        )
+        self.assertIn("课程清单如下:", texts)
+        self.assertNotIn("选修8学分。课程清单如下:", texts)
+
     def test_normalize_curriculum_provider_result_repairs_split_global_competence_table_cells(
         self,
     ) -> None:
@@ -1345,6 +1490,89 @@ class CurriculumProviderNormalizeTest(unittest.TestCase):
             html,
         )
         self.assertEqual(html.count("学校通开的全球胜任力培养课程"), 1)
+
+    def test_normalize_curriculum_provider_result_removes_global_competence_placeholder_slash(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-global-competence-placeholder-slash-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td><td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
+                                        '<tr><td>全球胜任力培养课程</td><td colspan="6">学校通开的全球胜任力培养课程/</td><td>建议出国深造学生选修</td></tr>'
+                                        "</table>"
+                                    ),
+                                    "block_id": 44,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        table = next(row for row in rows if row["row_type"] == "table")
+        html = str(table["html"])
+        self.assertIn(">学校通开的全球胜任力培养课程<", html)
+        self.assertNotIn("学校通开的全球胜任力培养课程/", html)
+
+    def test_normalize_curriculum_provider_result_repairs_cross_discipline_label_split(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-cross-discipline-label-split-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程类</td><td>课程号</td><td>课程名称</td><td>学分</td><td>学时</td><td>实践学时</td><td>开设学期</td><td>备注</td></tr>"
+                                        "<tr><td>跨学科</td><td>新开课</td><td>经济统计分析实践</td><td>2</td><td>36</td><td>9</td><td>7</td><td>/</td></tr>"
+                                        '<tr><td rowspan="2">交叉课程</td><td></td><td>社会心理学</td><td>2</td><td>36</td><td>9</td><td>7</td><td rowspan="2"></td></tr>'
+                                        "<tr><td>1034040253</td><td>区块链技术</td><td>2</td><td>36</td><td>9</td><td>7</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 45,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        table = next(row for row in rows if row["row_type"] == "table")
+        html = str(table["html"])
+        self.assertIn(
+            '<tr><td rowspan="3">跨学科交叉课程</td><td>新开课</td><td>经济统计分析实践</td>',
+            html,
+        )
+        self.assertIn(
+            "<tr><td></td><td>社会心理学</td><td>2</td><td>36</td><td>9</td><td>7</td>", html
+        )
+        self.assertNotIn("<td>跨学科</td>", html)
+        self.assertNotIn(">交叉课程</td>", html)
 
     def test_normalize_curriculum_provider_result_repairs_industry_label_split(
         self,

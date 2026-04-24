@@ -38,6 +38,13 @@ from campus_ingestion_core.handbook_cleanup_shared import (
 
 _INLINE_PERCENT_MATH_RE = re.compile(r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$")
 _INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
+_INLINE_CHAPTER_BOUNDARY_MARKER_RE = re.compile(
+    r"(?P<label>[一二三四五六七八九十百千万〇零两]+、)"
+    r"(?P<title>[\u4e00-\u9fff、与及和\-]{2,16})"
+)
+_INLINE_PARENTHESIZED_ENUM_MARKER_RE = re.compile(
+    r"[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]"
+)
 
 
 def build_handbook_doc_id(title: str) -> str:
@@ -72,13 +79,16 @@ def normalize_handbook_body_text(value: str) -> str:
 
 def normalize_handbook_article_body_text(value: str) -> str:
     normalized = normalize_handbook_body_text(value)
-    lines = [
-        line.strip()
-        for line in normalized.splitlines()
-        if line.strip()
-        and not _is_running_header_line(line)
-        and not _looks_like_handbook_page_marker(line)
-    ]
+    lines: list[str] = []
+    for line in normalized.splitlines():
+        stripped = line.strip()
+        if (
+            not stripped
+            or _is_running_header_line(stripped)
+            or _looks_like_handbook_page_marker(stripped)
+        ):
+            continue
+        lines.extend(_split_inline_article_boundaries(stripped))
     merged_lines = _merge_article_soft_wrapped_lines(lines)
     normalized_article_lines = [_normalize_article_heading_body_glue(line) for line in merged_lines]
     return normalize_article_body_structure("\n".join(normalized_article_lines))
@@ -96,6 +106,105 @@ def _is_running_header_line(text: str) -> bool:
 def _looks_like_handbook_page_marker(text: str) -> bool:
     normalized = _normalize_body_fragment(text).lstrip("#").strip()
     return bool(re.fullmatch(r"/\d{1,4}", normalized))
+
+
+def _split_inline_article_boundaries(text: str) -> list[str]:
+    normalized = _normalize_body_fragment(text)
+    if not normalized:
+        return []
+    lines = _split_inline_chapter_heading_boundaries(normalized)
+    split_lines: list[str] = []
+    for line in lines:
+        split_lines.extend(_split_dense_parenthesized_enum_boundaries(line))
+    return split_lines
+
+
+def _split_inline_chapter_heading_boundaries(text: str) -> list[str]:
+    boundaries: list[int] = []
+    for match in _INLINE_CHAPTER_BOUNDARY_MARKER_RE.finditer(text):
+        marker_start = match.start("label")
+        if marker_start <= 0:
+            continue
+        prefix = text[:marker_start].rstrip()
+        if not prefix.endswith(("。", "！", "？", "；", ";")):
+            continue
+        if not _starts_with_inline_chapter_heading(text[marker_start:]):
+            continue
+        boundaries.append(marker_start)
+    return _split_text_at_boundaries(text, boundaries)
+
+
+def _starts_with_inline_chapter_heading(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    max_heading_length = min(len(normalized), 24)
+    for split_index in range(4, max_heading_length + 1):
+        heading = normalized[:split_index].strip()
+        if not (
+            _looks_like_semantic_short_heading_fragment(heading)
+            or _looks_like_numbered_inline_chapter_heading(heading)
+        ):
+            continue
+        remainder = normalized[split_index:].strip()
+        return not remainder or any(
+            remainder.startswith(starter) for starter in BODY_SENTENCE_STARTERS
+        )
+    return False
+
+
+def _looks_like_numbered_inline_chapter_heading(text: str) -> bool:
+    normalized = _normalize_body_fragment(text)
+    return bool(
+        re.fullmatch(
+            r"[一二三四五六七八九十百千万〇零两]+、[\u4e00-\u9fff、与及和\-]{2,12}",
+            normalized,
+        )
+        and normalized.endswith(
+            (
+                "管理",
+                "项目",
+                "职责",
+                "程序",
+                "计划",
+                "要求",
+                "办法",
+                "说明",
+                "标准",
+                "条件",
+            )
+        )
+    )
+
+
+def _split_dense_parenthesized_enum_boundaries(text: str) -> list[str]:
+    boundaries: list[int] = []
+    for match in _INLINE_PARENTHESIZED_ENUM_MARKER_RE.finditer(text):
+        marker_start = match.start()
+        if marker_start <= 0:
+            continue
+        prefix = text[:marker_start].rstrip()
+        if not prefix:
+            continue
+        if prefix.endswith((":", "：", ";", "；", "。", "！", "？", "!", "?")) or (
+            _INLINE_PARENTHESIZED_ENUM_MARKER_RE.search(prefix) is not None
+        ):
+            boundaries.append(marker_start)
+    return _split_text_at_boundaries(text, boundaries)
+
+
+def _split_text_at_boundaries(text: str, boundaries: list[int]) -> list[str]:
+    if not boundaries:
+        return [text]
+    parts: list[str] = []
+    cursor = 0
+    for boundary in sorted(set(boundaries)):
+        part = text[cursor:boundary].strip()
+        if part:
+            parts.append(part)
+        cursor = boundary
+    tail = text[cursor:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
 
 
 def _merge_broken_body_lines(lines: list[str]) -> list[str]:
