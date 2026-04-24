@@ -109,8 +109,15 @@ func NewServerWithDependencies(
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
-		ProjectionPath:     cfg.StructuredQueryProjectionPath,
-		TrustedTimeRFC3339: cfg.StructuredQueryTrustedTimeRFC3339,
+		ProjectionPath:                 cfg.StructuredQueryProjectionPath,
+		TrustedTimeRFC3339:             cfg.StructuredQueryTrustedTimeRFC3339,
+		NoticeReadModelDatabaseURL:     cfg.NoticeReadModelDatabaseURL,
+		NoticeReadModelTable:           cfg.NoticeReadModelTable,
+		NoticeObjectStoreEndpoint:      cfg.NoticeObjectStoreEndpoint,
+		NoticeObjectStoreAccessKey:     cfg.NoticeObjectStoreAccessKey,
+		NoticeObjectStoreSecretKey:     cfg.NoticeObjectStoreSecretKey,
+		NoticeObjectStoreRegion:        cfg.NoticeObjectStoreRegion,
+		NoticeObjectStoreBucketDerived: cfg.NoticeObjectStoreBucketDerived,
 	})
 
 	return &Server{
@@ -156,6 +163,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if err := s.executionAudit.Shutdown(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
+	}
+	if s.structuredQuery != nil {
+		s.structuredQuery.Close()
 	}
 	return firstErr
 }

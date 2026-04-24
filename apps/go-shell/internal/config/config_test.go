@@ -23,6 +23,16 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "")
+	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "")
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "")
+	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "")
+	t.Setenv("OBJECT_STORE_ENDPOINT", "")
+	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
+	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
+	t.Setenv("OBJECT_STORE_ACCESS_KEY", "")
+	t.Setenv("OBJECT_STORE_SECRET_KEY", "")
+	t.Setenv("OBJECT_STORE_REGION", "")
+	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {
@@ -91,6 +101,15 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.ExecutionAuditQueueCapacity != 128 {
 		t.Fatalf("execution audit queue capacity = %d, want 128", cfg.ExecutionAuditQueueCapacity)
 	}
+	if cfg.NoticeReadModelDatabaseURL != "" {
+		t.Fatalf("notice read model database url = %q, want empty", cfg.NoticeReadModelDatabaseURL)
+	}
+	if cfg.NoticeReadModelTable != "ingestion_projection.internal_notice_read_model" {
+		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
+	}
+	if cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived" {
+		t.Fatalf("notice derived bucket = %q", cfg.NoticeObjectStoreBucketDerived)
+	}
 }
 
 func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
@@ -150,6 +169,57 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ExecutionAuditTimeoutMS != 250 ||
 		cfg.ExecutionAuditQueueCapacity != 16 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
+	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "postgres://notice.example/db")
+	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "custom_schema.custom_notice_read_model")
+	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
+	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
+	t.Setenv("OBJECT_STORE_REGION", "us-east-1")
+	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived-test")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.NoticeReadModelDatabaseURL != "postgresql://notice.example/db" {
+		t.Fatalf("notice read model database url = %q", cfg.NoticeReadModelDatabaseURL)
+	}
+	if cfg.NoticeReadModelTable != "custom_schema.custom_notice_read_model" {
+		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
+	}
+	if cfg.NoticeObjectStoreEndpoint != "http://minio:9000" ||
+		cfg.NoticeObjectStoreAccessKey != "derived-access" ||
+		cfg.NoticeObjectStoreSecretKey != "derived-secret" ||
+		cfg.NoticeObjectStoreRegion != "us-east-1" ||
+		cfg.NoticeObjectStoreBucketDerived != "campus-rag-derived-test" {
+		t.Fatalf("unexpected notice object store config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeRuntime(t *testing.T) {
+	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
+	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
+	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
+	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.NoticeReadModelDatabaseURL != "postgresql://shared.example/db" {
+		t.Fatalf("notice read model database url = %q", cfg.NoticeReadModelDatabaseURL)
+	}
+	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
+		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)
+	}
+	if cfg.NoticeObjectStoreSecretKey != "generic-secret" {
+		t.Fatalf("notice object store secret key = %q", cfg.NoticeObjectStoreSecretKey)
 	}
 }
 

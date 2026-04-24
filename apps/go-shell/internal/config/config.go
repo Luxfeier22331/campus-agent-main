@@ -42,6 +42,13 @@ type Config struct {
 	StructuredQueryProjectionPath     string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
+	NoticeReadModelDatabaseURL        string
+	NoticeReadModelTable              string
+	NoticeObjectStoreEndpoint         string
+	NoticeObjectStoreAccessKey        string
+	NoticeObjectStoreSecretKey        string
+	NoticeObjectStoreRegion           string
+	NoticeObjectStoreBucketDerived    string
 }
 
 type LaneBudget struct {
@@ -95,6 +102,13 @@ func FromEnv() Config {
 		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
 		StructuredQueryTimeoutMS:          readPositiveInt("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", 1_000),
+		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
+		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
+		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
+		NoticeObjectStoreAccessKey:        readFirstString("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"),
+		NoticeObjectStoreSecretKey:        readFirstString("OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"),
+		NoticeObjectStoreRegion:           readString("OBJECT_STORE_REGION", "us-east-1"),
+		NoticeObjectStoreBucketDerived:    readString("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived"),
 	}
 }
 
@@ -202,6 +216,13 @@ func LoadFromEnv() (Config, error) {
 		StructuredQueryProjectionPath:     strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH")),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(os.Getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339")),
 		StructuredQueryTimeoutMS:          structuredQueryTimeout,
+		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
+		NoticeReadModelTable:              readString("INTERNAL_NOTICE_READ_MODEL_TABLE", "ingestion_projection.internal_notice_read_model"),
+		NoticeObjectStoreEndpoint:         strings.TrimSpace(os.Getenv("OBJECT_STORE_ENDPOINT")),
+		NoticeObjectStoreAccessKey:        readFirstString("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"),
+		NoticeObjectStoreSecretKey:        readFirstString("OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"),
+		NoticeObjectStoreRegion:           readString("OBJECT_STORE_REGION", "us-east-1"),
+		NoticeObjectStoreBucketDerived:    readString("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived"),
 	}, nil
 }
 
@@ -211,6 +232,27 @@ func readString(name string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func readFirstString(names ...string) string {
+	for _, name := range names {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func readNoticeReadModelDatabaseURL() string {
+	databaseURL := readFirstString(
+		"INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+		"CAMPUS_SHARED_POSTGRES_URL",
+	)
+	if strings.HasPrefix(databaseURL, "postgres://") {
+		return "postgresql://" + strings.TrimPrefix(databaseURL, "postgres://")
+	}
+	return databaseURL
 }
 
 func readPositiveInt(name string, fallback int) int {

@@ -168,6 +168,26 @@ func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *
 	}
 }
 
+func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
+	runtime := NewRuntime(Options{
+		NoticeReadModelDatabaseURL:     "postgresql://notice.example/db",
+		NoticeReadModelTable:           "ingestion_projection.internal_notice_read_model",
+		NoticeObjectStoreEndpoint:      "http://minio:9000",
+		NoticeObjectStoreAccessKey:     "access",
+		NoticeObjectStoreSecretKey:     "secret",
+		NoticeObjectStoreRegion:        "us-east-1",
+		NoticeObjectStoreBucketDerived: "campus-rag-derived",
+	})
+
+	status := runtime.Status()
+	if !status.NoticeReadModelConfigured {
+		t.Fatal("notice read model should be configured")
+	}
+	if !status.NoticeBodyStoreConfigured {
+		t.Fatal("notice body store should be configured")
+	}
+}
+
 type fakeNoticeReadModelStore struct {
 	searchRows       []noticeReadModelRecord
 	getRow           *noticeReadModelRecord

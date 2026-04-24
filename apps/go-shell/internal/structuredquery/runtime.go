@@ -17,15 +17,22 @@ const (
 )
 
 type Options struct {
-	ProjectionPath     string
-	TrustedTimeRFC3339 string
-	NoticeReadModelStore NoticeReadModelStore
-	NoticeBodyStore      NoticeBodyStore
+	ProjectionPath                 string
+	TrustedTimeRFC3339             string
+	NoticeReadModelStore           NoticeReadModelStore
+	NoticeBodyStore                NoticeBodyStore
+	NoticeReadModelDatabaseURL     string
+	NoticeReadModelTable           string
+	NoticeObjectStoreEndpoint      string
+	NoticeObjectStoreAccessKey     string
+	NoticeObjectStoreSecretKey     string
+	NoticeObjectStoreRegion        string
+	NoticeObjectStoreBucketDerived string
 }
 
 type Runtime struct {
-	projectionPath string
-	trustedTime    time.Time
+	projectionPath       string
+	trustedTime          time.Time
 	noticeReadModelStore NoticeReadModelStore
 	noticeBodyStore      NoticeBodyStore
 }
@@ -183,10 +190,27 @@ type serviceStatusRecord struct {
 }
 
 func NewRuntime(options Options) *Runtime {
+	noticeReadModelStore := options.NoticeReadModelStore
+	if noticeReadModelStore == nil {
+		noticeReadModelStore = NewPostgresNoticeReadModelStore(NoticePostgresOptions{
+			DatabaseURL: strings.TrimSpace(options.NoticeReadModelDatabaseURL),
+			TableName:   strings.TrimSpace(options.NoticeReadModelTable),
+		})
+	}
+	noticeBodyStore := options.NoticeBodyStore
+	if noticeBodyStore == nil {
+		noticeBodyStore = NewS3NoticeBodyStore(NoticeS3Options{
+			Endpoint:      strings.TrimSpace(options.NoticeObjectStoreEndpoint),
+			AccessKey:     strings.TrimSpace(options.NoticeObjectStoreAccessKey),
+			SecretKey:     strings.TrimSpace(options.NoticeObjectStoreSecretKey),
+			Region:        strings.TrimSpace(options.NoticeObjectStoreRegion),
+			BucketDerived: strings.TrimSpace(options.NoticeObjectStoreBucketDerived),
+		})
+	}
 	runtime := &Runtime{
-		projectionPath: strings.TrimSpace(options.ProjectionPath),
-		noticeReadModelStore: options.NoticeReadModelStore,
-		noticeBodyStore:      options.NoticeBodyStore,
+		projectionPath:       strings.TrimSpace(options.ProjectionPath),
+		noticeReadModelStore: noticeReadModelStore,
+		noticeBodyStore:      noticeBodyStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
 		parsed, err := time.Parse(time.RFC3339, trustedTime)
@@ -195,6 +219,12 @@ func NewRuntime(options Options) *Runtime {
 		}
 	}
 	return runtime
+}
+
+func (r *Runtime) Close() {
+	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
 }
 
 func (r *Runtime) Status() Status {

@@ -30,7 +30,7 @@ type NoticeBodyStore interface {
 }
 
 type noticeQueryEnvelope struct {
-	Payload       json.RawMessage      `json:"payload"`
+	Payload       json.RawMessage     `json:"payload"`
 	AccessContext noticeAccessContext `json:"access_context"`
 }
 
@@ -62,18 +62,18 @@ type noticeGetRequest struct {
 }
 
 type noticeReadModelRecord struct {
-	SourceFamily               string
-	SourceNoticeID             string
-	Title                      string
-	SourceURL                  string
-	CanonicalURL               string
-	PublishedAt                string
-	EffectiveAt                string
-	TargetSurface              string
-	PrimaryRole                string
-	CanonicalMarkdownObjectKey string
-	AttachmentRefs             []string
-	ProvenanceRefs             []string
+	SourceFamily               string   `json:"source_family"`
+	SourceNoticeID             string   `json:"source_notice_id"`
+	Title                      string   `json:"title"`
+	SourceURL                  string   `json:"source_url"`
+	CanonicalURL               string   `json:"canonical_url"`
+	PublishedAt                string   `json:"published_at"`
+	EffectiveAt                string   `json:"effective_at"`
+	TargetSurface              string   `json:"target_surface"`
+	PrimaryRole                string   `json:"primary_role"`
+	CanonicalMarkdownObjectKey string   `json:"canonical_markdown_object_key"`
+	AttachmentRefs             []string `json:"attachment_refs"`
+	ProvenanceRefs             []string `json:"provenance_refs"`
 }
 
 type noticeCard struct {
@@ -88,29 +88,29 @@ type noticeCard struct {
 }
 
 type noticeDiscoverResult struct {
-	QueryText                   string       `json:"query_text"`
-	Outcome                     string       `json:"outcome"`
-	SourceFamilies              []string     `json:"source_families,omitempty"`
-	NoticeCards                 []noticeCard `json:"notice_cards,omitempty"`
-	QueriedTimeAnchor           string       `json:"queried_time_anchor,omitempty"`
-	HistoricalDowngradeReason   string       `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason             string       `json:"fail_close_reason,omitempty"`
+	QueryText                 string       `json:"query_text"`
+	Outcome                   string       `json:"outcome"`
+	SourceFamilies            []string     `json:"source_families,omitempty"`
+	NoticeCards               []noticeCard `json:"notice_cards,omitempty"`
+	QueriedTimeAnchor         string       `json:"queried_time_anchor,omitempty"`
+	HistoricalDowngradeReason string       `json:"historical_downgrade_reason,omitempty"`
+	FailCloseReason           string       `json:"fail_close_reason,omitempty"`
 }
 
 type noticeGetResult struct {
-	NoticeID                    string   `json:"notice_id"`
-	Outcome                     string   `json:"outcome"`
-	Title                       string   `json:"title,omitempty"`
-	SourceFamily                string   `json:"source_family,omitempty"`
-	SourceURL                   string   `json:"source_url,omitempty"`
-	CanonicalURL                string   `json:"canonical_url,omitempty"`
-	NormalizedBody              string   `json:"normalized_body,omitempty"`
-	PublishedAt                 string   `json:"published_at,omitempty"`
-	EffectiveAt                 string   `json:"effective_at,omitempty"`
-	AttachmentRefs              []string `json:"attachment_refs,omitempty"`
-	ProvenanceRefs              []string `json:"provenance_refs,omitempty"`
-	HistoricalDowngradeReason   string   `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason             string   `json:"fail_close_reason,omitempty"`
+	NoticeID                  string   `json:"notice_id"`
+	Outcome                   string   `json:"outcome"`
+	Title                     string   `json:"title,omitempty"`
+	SourceFamily              string   `json:"source_family,omitempty"`
+	SourceURL                 string   `json:"source_url,omitempty"`
+	CanonicalURL              string   `json:"canonical_url,omitempty"`
+	NormalizedBody            string   `json:"normalized_body,omitempty"`
+	PublishedAt               string   `json:"published_at,omitempty"`
+	EffectiveAt               string   `json:"effective_at,omitempty"`
+	AttachmentRefs            []string `json:"attachment_refs,omitempty"`
+	ProvenanceRefs            []string `json:"provenance_refs,omitempty"`
+	HistoricalDowngradeReason string   `json:"historical_downgrade_reason,omitempty"`
+	FailCloseReason           string   `json:"fail_close_reason,omitempty"`
 }
 
 func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte) Response {
