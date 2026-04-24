@@ -28,7 +28,19 @@ describe("public chat web worker shell", () => {
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
+		expect(packageManifest.scripts?.build).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
+		expect(packageManifest.scripts?.["build:staging"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
+		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
+		expect(packageManifest.scripts?.preview).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
+		expect(packageManifest.scripts?.["test:worker"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:preflight:staging");

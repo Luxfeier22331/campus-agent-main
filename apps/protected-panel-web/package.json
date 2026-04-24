@@ -20,10 +20,10 @@
 		"react-router-dom": "^7.1.3"
 	},
 	"scripts": {
-		"build": "XDG_CONFIG_HOME=./.wrangler-home vite build",
-		"build:staging": "CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home vite build",
-		"dev": "CLOUDFLARE_ENV=local XDG_CONFIG_HOME=./.wrangler-home vite",
-		"dev:live-smoke": "PANEL_LIVE_SMOKE=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 5174 --strictPort",
+		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",
+		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home vite build",
+		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=local XDG_CONFIG_HOME=./.wrangler-home vite",
+		"dev:live-smoke": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 PANEL_LIVE_SMOKE=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 5174 --strictPort",
 		"dev:live-smoke:access": "node ./scripts/local-access-smoke-server.mjs",
 		"deploy": "pnpm build && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config dist/protected_panel_web/wrangler.json",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/protected-panel-web --env staging",
@@ -31,10 +31,10 @@
 		"deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json APP_API=app-api",
 		"deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
 		"deploy:verify-config:staging": "node ../../scripts/verify-worker-deploy-config.mjs dist/protected_panel_web/wrangler.json SERVICE:APP_API=app-api-staging VAR:PANEL_RUNTIME_API_BASE_URL=https://campus-api-staging.ayafeed.com VAR:SENTRY_ENVIRONMENT=staging VAR_ABSENT:SENTRY_RELEASE ROUTE:campus-panel-staging.ayafeed.com",
-		"preview": "pnpm build && XDG_CONFIG_HOME=./.wrangler-home vite preview",
+		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",
 		"test": "pnpm run test:node && pnpm run test:worker",
 		"test:node": "vitest run -c vitest.node.config.mts",
-		"test:worker": "XDG_CONFIG_HOME=./.wrangler-home vitest run",
+		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {

@@ -41,6 +41,7 @@ export function buildWranglerCommandEnv(baseEnv = process.env) {
 
 	nextEnv.NO_PROXY = mergeNoProxyValue(baseEnv.NO_PROXY);
 	nextEnv.no_proxy = mergeNoProxyValue(baseEnv.no_proxy ?? baseEnv.NO_PROXY);
+	nextEnv.WRANGLER_DISABLE_EXPERIMENTAL_WARNING ??= "1";
 	return nextEnv;
 }
 

@@ -40,11 +40,23 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(deployStagingSource).toContain("SENTRY_RELEASE:");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+		expect(packageManifest.scripts?.build).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["build:staging"]).toContain("CLOUDFLARE_ENV=staging");
+		expect(packageManifest.scripts?.["build:staging"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
 		expect(packageManifest.scripts?.dev).toContain("CLOUDFLARE_ENV=local");
+		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PANEL_LIVE_SMOKE=1");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5174");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).not.toContain("CLOUDFLARE_ENV=local");
+		expect(packageManifest.scripts?.preview).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
+		expect(packageManifest.scripts?.["test:worker"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
 		expect(packageManifest.scripts?.["dev:live-smoke:access"]).toContain(
 			"local-access-smoke-server.mjs",
 		);
@@ -86,6 +98,8 @@ export function registerWorkerRuntimeConfigSuite() {
 	});
 
 	it("provides an access-compatible local issuer for authenticated live smoke", () => {
+		expect(wranglerLocalSmokeConfig).toContain("[secrets]");
+		expect(wranglerLocalSmokeConfig).toContain('required = ["PANEL_APP_API_SHARED_SECRET"]');
 		expect(wranglerLocalSmokeConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"');
 		expect(wranglerLocalSmokeConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
 		expect(localAccessSmokeServerSource).toContain("generateKeyPair");
