@@ -100,6 +100,34 @@ def frame_intent(
     normalized_goal = context.user_goal.strip()
     personalization_hint = context.personalization_hint
     personalization_mode = _personalization_mode(context)
+    policy_reason = _evaluate_policy_reason(normalized_goal)
+    if policy_reason:
+        return IntentFrame(
+            capability=capability,
+            task_kind=_task_kind_for_capability(capability),
+            domain_candidates=("policy_refusal",),
+            missing_slots=(),
+            risk_level="high",
+            needs_clarification=False,
+            suggested_next_action="rejected",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
+            policy_reason=policy_reason,
+        )
+
+    if any(pattern in normalized_goal for pattern in _HIGH_RISK_PATTERNS):
+        return IntentFrame(
+            capability=capability,
+            task_kind=_task_kind_for_capability(capability),
+            domain_candidates=_domain_candidates_for_capability(context, capability),
+            missing_slots=(),
+            risk_level="high",
+            needs_clarification=False,
+            suggested_next_action="approval_required",
+            personalization_mode=personalization_mode,
+            scope_class="in_scope",
+        )
+
     if capability == "place_lookup":
         return IntentFrame(
             capability="place_lookup",
@@ -136,33 +164,6 @@ def frame_intent(
             suggested_next_action="delegate",
             personalization_mode=personalization_mode,
             scope_class="in_scope",
-        )
-
-    policy_reason = _evaluate_knowledge_policy_reason(normalized_goal)
-    if policy_reason:
-        return IntentFrame(
-            capability="knowledge",
-            task_kind="knowledge_lookup",
-            domain_candidates=("policy_refusal",),
-            missing_slots=(),
-            risk_level="high",
-            needs_clarification=False,
-            suggested_next_action="rejected",
-            personalization_mode=personalization_mode,
-            scope_class="in_scope",
-            policy_reason=policy_reason,
-        )
-
-    if any(pattern in normalized_goal for pattern in _HIGH_RISK_PATTERNS):
-        return IntentFrame(
-            capability="knowledge",
-            task_kind="knowledge_lookup",
-            domain_candidates=_knowledge_domains(context),
-            missing_slots=(),
-            risk_level="high",
-            needs_clarification=False,
-            suggested_next_action="approval_required",
-            personalization_mode=personalization_mode,
         )
 
     scope_decision = evaluate_knowledge_scope(context)
@@ -203,6 +204,33 @@ def _knowledge_domains(context: SupervisorRequestContext) -> tuple[str, ...]:
     return ("knowledge",)
 
 
+def _domain_candidates_for_capability(
+    context: SupervisorRequestContext,
+    capability: RequestedCapability,
+) -> tuple[str, ...]:
+    if capability == "knowledge":
+        return _knowledge_domains(context)
+    if capability == "place_lookup":
+        return ("navigation",)
+    if capability == "campus_services":
+        return ("campus_services",)
+    if capability == "notice":
+        return ("notice",)
+    return ("unknown",)
+
+
+def _task_kind_for_capability(capability: RequestedCapability) -> IntentTaskKind:
+    if capability == "place_lookup":
+        return "place_lookup"
+    if capability == "campus_services":
+        return "campus_services_lookup"
+    if capability == "notice":
+        return "notice_lookup"
+    if capability == "knowledge":
+        return "knowledge_lookup"
+    return "unknown"
+
+
 def _personalization_mode(context: SupervisorRequestContext) -> IntentPersonalizationMode:
     personalization_hint = context.personalization_hint
     if personalization_hint.recent_goal or personalization_hint.confirmed_slot_terms:
@@ -225,7 +253,7 @@ def _clarification_subject(
     return subject
 
 
-def _evaluate_knowledge_policy_reason(normalized_goal: str) -> str:
+def _evaluate_policy_reason(normalized_goal: str) -> str:
     if _is_targeted_political_persuasion(normalized_goal):
         return "political_persuasion"
     return ""

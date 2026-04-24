@@ -245,6 +245,26 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.risk_level, "high")
         self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
 
+    def test_route_request_applies_high_risk_guardrails_before_specialist_delegation(self) -> None:
+        cases = (
+            ("帮我办理校车卡申请", "campus_services"),
+            ("帮我提交采购公告", "notice"),
+        )
+
+        for user_goal, requested_capability in cases:
+            with self.subTest(user_goal=user_goal, requested_capability=requested_capability):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability=requested_capability,
+                )
+
+                decision = route_request(SupervisorRequestContext.from_request(request))
+
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.capability, requested_capability)
+                self.assertEqual(decision.intent_frame.risk_level, "high")
+                self.assertEqual(decision.intent_frame.suggested_next_action, "approval_required")
+
     def test_route_request_keeps_obvious_external_world_query_out_of_scope(self) -> None:
         request = SupervisorRequest(
             user_goal="MIT的校长是谁",
@@ -270,6 +290,23 @@ class SupervisorRoutingTest(unittest.TestCase):
         self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
         self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
         self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
+
+    def test_route_request_keeps_open_domain_queries_out_of_scope(self) -> None:
+        cases = ("帮我写一首诗", "解释一下量子力学", "推荐一部电影")
+
+        for user_goal in cases:
+            with self.subTest(user_goal=user_goal):
+                request = SupervisorRequest(
+                    user_goal=user_goal,
+                    requested_capability="knowledge",
+                )
+
+                decision = route_request(SupervisorRequestContext.from_request(request))
+
+                self.assertIsNone(decision.target)
+                self.assertEqual(decision.intent_frame.suggested_next_action, "out_of_scope")
+                self.assertEqual(decision.intent_frame.scope_class, "out_of_scope")
+                self.assertEqual(decision.intent_frame.policy_reason, "product_scope_boundary")
 
     def test_route_request_rejects_targeted_political_persuasion_request(self) -> None:
         request = SupervisorRequest(
