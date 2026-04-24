@@ -162,6 +162,10 @@ export function jsonString(value: string): string {
 	return JSON.stringify(value);
 }
 
+export function escapeHtmlText(value: string): string {
+	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+
 export function formatJsonContent(value: unknown): string {
 	return `${JSON.stringify(value, undefined, "\t")}\n`;
 }

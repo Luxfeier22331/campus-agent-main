@@ -47,7 +47,13 @@ export function shouldPreserveTableAsHtml(html: string): boolean {
 }
 
 export function sanitizePreservedHtmlForMdx(html: string): string {
-	return html.trim().replaceAll("*", "&#42;").replaceAll("{", "&#123;").replaceAll("}", "&#125;");
+	const escapedHtml = html
+		.trim()
+		.replaceAll("*", "&#42;")
+		.replaceAll("{", "&#123;")
+		.replaceAll("}", "&#125;");
+	const tableHtml = wrapBareTableRowsForMdx(normalizeReactTableAttributes(escapedHtml));
+	return `<div className="docs-table-scroll" role="region" aria-label="可横向滚动的文档表格" tabIndex={0}>${tableHtml}</div>`;
 }
 
 export function convertTableHtmlToMarkdownBlocks(html: string): [string, string][] {
@@ -157,6 +163,24 @@ function shouldPreserveHandbookTableAsHtml(rows: TableCell[][]): boolean {
 		}
 	}
 	return emptyCellCount >= 3 && mergedCellCount >= 1 && fieldLikeLabelCount >= 4;
+}
+
+function normalizeReactTableAttributes(html: string): string {
+	return html
+		.replace(/\srowspan=(["']?)(\d+)\1/gi, " rowSpan={$2}")
+		.replace(/\scolspan=(["']?)(\d+)\1/gi, " colSpan={$2}");
+}
+
+function wrapBareTableRowsForMdx(html: string): string {
+	const tableMatch = /^<table(\b[^>]*)>([\s\S]*)<\/table>$/i.exec(html);
+	if (!tableMatch) {
+		return html;
+	}
+	const [, tableAttributes = "", tableBody = ""] = tableMatch;
+	if (/^\s*<(?:tbody|thead|tfoot)\b/i.test(tableBody)) {
+		return html;
+	}
+	return `<table${tableAttributes}><tbody>${tableBody.trim()}</tbody></table>`;
 }
 
 function hasBlankLeadingHeaderCell(rows: TableCell[][]): boolean {

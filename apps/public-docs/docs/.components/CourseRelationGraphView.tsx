@@ -13,7 +13,12 @@ import {
 import dagre from "dagre";
 import { memo, useMemo } from "react";
 import "@xyflow/react/dist/style.css";
-import { buildNodeKey, type CourseMapBlock, type CourseMapNode } from "./course-map-types";
+import {
+	buildNodeKey,
+	buildNodeOccurrenceKey,
+	type CourseMapBlock,
+	type CourseMapNode,
+} from "./course-map-types";
 
 interface Props {
 	data: CourseMapBlock;
@@ -26,6 +31,12 @@ interface GraphNodeData {
 	stage: string;
 	groupLabel: string;
 	related: boolean;
+}
+
+interface IndexedCourseMapNode {
+	node: CourseMapNode;
+	nodeKey: string;
+	index: number;
 }
 
 const NODE_WIDTH = 196;
@@ -66,6 +77,28 @@ function buildRelatedLabelSet(data: CourseMapBlock, activeLabel: string | null):
 		}
 	}
 	return labels;
+}
+
+function buildIndexedNodes(data: CourseMapBlock): IndexedCourseMapNode[] {
+	return data.nodes.map((node, index) => ({
+		node,
+		nodeKey: buildNodeOccurrenceKey(node, index),
+		index,
+	}));
+}
+
+function findIndexedNodeByActiveKey(
+	nodes: IndexedCourseMapNode[],
+	activeNodeKey: string | null,
+): IndexedCourseMapNode | null {
+	if (!activeNodeKey) {
+		return null;
+	}
+	return (
+		nodes.find(
+			({ node, nodeKey }) => nodeKey === activeNodeKey || buildNodeKey(node) === activeNodeKey,
+		) ?? null
+	);
 }
 
 const GraphNodeCard = memo(function GraphNodeCard({
@@ -111,38 +144,40 @@ function buildRelationGraph({
 	});
 
 	const stageLabels = resolveStageLabels(data);
-	const sortedNodes = [...data.nodes].sort((left, right) => {
-		const leftStageIndex = stageLabels.indexOf(left.stage_label);
-		const rightStageIndex = stageLabels.indexOf(right.stage_label);
+	const indexedNodes = buildIndexedNodes(data);
+	const sortedNodes = [...indexedNodes].sort((left, right) => {
+		const leftStageIndex = stageLabels.indexOf(left.node.stage_label);
+		const rightStageIndex = stageLabels.indexOf(right.node.stage_label);
 		if (leftStageIndex !== rightStageIndex) {
 			return leftStageIndex - rightStageIndex;
 		}
-		const groupDiff = routeGroupSortValue(left) - routeGroupSortValue(right);
+		const groupDiff = routeGroupSortValue(left.node) - routeGroupSortValue(right.node);
 		if (groupDiff !== 0) {
 			return groupDiff;
 		}
-		return left.node_label.localeCompare(right.node_label, "zh-Hans-CN");
+		const labelDiff = left.node.node_label.localeCompare(right.node.node_label, "zh-Hans-CN");
+		return labelDiff === 0 ? left.index - right.index : labelDiff;
 	});
 
-	for (const node of sortedNodes) {
-		graph.setNode(buildNodeKey(node), {
+	for (const { nodeKey } of sortedNodes) {
+		graph.setNode(nodeKey, {
 			width: NODE_WIDTH,
 			height: NODE_HEIGHT,
 		});
 	}
 
 	const edges: Edge[] = [];
-	const activeNode = data.nodes.find((node) => buildNodeKey(node) === activeNodeKey) ?? null;
-	const activeLabel = activeNode?.node_label ?? null;
+	const activeNode = findIndexedNodeByActiveKey(indexedNodes, activeNodeKey);
+	const activeLabel = activeNode?.node.node_label ?? null;
 	const relatedLabels = buildRelatedLabelSet(data, activeLabel);
 	for (const [index, edge] of data.edges.entries()) {
-		const sourceNode = data.nodes.find((node) => node.node_label === edge.source_label);
-		const targetNode = data.nodes.find((node) => node.node_label === edge.target_label);
+		const sourceNode = indexedNodes.find(({ node }) => node.node_label === edge.source_label);
+		const targetNode = indexedNodes.find(({ node }) => node.node_label === edge.target_label);
 		if (!(sourceNode && targetNode)) {
 			continue;
 		}
-		const source = buildNodeKey(sourceNode);
-		const target = buildNodeKey(targetNode);
+		const source = sourceNode.nodeKey;
+		const target = targetNode.nodeKey;
 		graph.setEdge(source, target);
 		const highlighted = activeLabel === edge.source_label || activeLabel === edge.target_label;
 		edges.push({
@@ -157,8 +192,8 @@ function buildRelationGraph({
 
 	dagre.layout(graph);
 
-	const nodes: Node<GraphNodeData>[] = sortedNodes.map((node) => {
-		const nodeId = buildNodeKey(node);
+	const nodes: Node<GraphNodeData>[] = sortedNodes.map(({ node, nodeKey }) => {
+		const nodeId = nodeKey;
 		const layoutNode = graph.node(nodeId);
 		return {
 			id: nodeId,

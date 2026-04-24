@@ -1,5 +1,9 @@
 [
-	"index",
+	{
+		"type": "file",
+		"name": "index",
+		"label": "文档首页"
+	},
 	{
 		"type": "dir",
 		"name": "student-handbook",

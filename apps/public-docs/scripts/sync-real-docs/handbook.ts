@@ -7,6 +7,7 @@ import {
 import {
 	asArray,
 	asRecord,
+	escapeHtmlText,
 	HANDBOOK_ARTICLE_HEADING_RE,
 	HANDBOOK_CHAPTER_HEADING_RE,
 	HANDBOOK_COLLECTION,
@@ -29,17 +30,49 @@ import {
 const INLINE_PERCENT_MATH_RE = /\$\s*(?<value>\d+(?:\.\d+)?)\s*\\?%\s*\$/g;
 const INLINE_RIGHT_ARROW_MATH_RE = /\$\s*\\rightarrow\s*\$/g;
 const HANDBOOK_NUMBERED_CLAUSE_HEADING_RE = /^[一二三四五六七八九十]+、/;
+const HANDBOOK_LEAD_IN_RE =
+	/^(?:附[:：]|.{2,120}(?:如下|以下|包括|范围|职责是|负责|程序|计划项目主要包括|方式的资助)[:：])$/;
+const HANDBOOK_INLINE_ENUM_MARKER_RE = /[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]/g;
+const HANDBOOK_INLINE_NUMBERED_HEADING_MARKER_RE =
+	/[一二三四五六七八九十百千万〇零两]+、[\p{Script=Han}、与及和-]{2,16}/gu;
+const HANDBOOK_INLINE_NUMBERED_HEADING_RE =
+	/^[一二三四五六七八九十百千万〇零两]+、[\p{Script=Han}、与及和-]{2,12}$/u;
+const HANDBOOK_INLINE_HEADING_BODY_STARTERS = [
+	"中央民族大学",
+	"党委学生工作部",
+	"本科学生",
+	"各院系",
+	"学院",
+	"学校",
+	"学生",
+	"教务处",
+	"院系",
+	"指导教师",
+];
+const HANDBOOK_INLINE_HEADING_SUFFIXES = [
+	"管理",
+	"项目",
+	"职责",
+	"程序",
+	"计划",
+	"要求",
+	"办法",
+	"说明",
+	"标准",
+	"条件",
+	"实施",
+];
 
 export function buildHandbookIndex(): string {
 	return [
 		"---",
 		"title: 学生手册",
-		"description: 当前公开 student_rules 阅读面的学生手册目录。",
+		"description: 中央民族大学学生手册公开阅读目录。",
 		"---",
 		"",
-		"当前目录展示学生手册公开阅读面使用的文档产物与导航结构。",
+		"这里汇总学生在校学习、生活、资助、纪律、住宿和医疗等常用制度文件。",
 		"",
-		"当前文档站与培养方案共享同一套左侧导航；你可以直接在侧边栏切换到培养方案。",
+		"你可以从左侧目录按文件进入，也可以使用顶部搜索直接查询“转专业”“奖学金”“违纪处分”“公费医疗”等关键词。",
 		"",
 	].join("\n");
 }
@@ -263,7 +296,7 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 	let htmlTableLines: string[] = [];
 	const headingCounts = new Map<string, number>();
 
-	for (const line of iterHandbookSourceLines(lines)) {
+	for (const line of iterHandbookDisplayLines(lines)) {
 		const stripped = line.trim();
 		if (htmlTableLines.length > 0) {
 			htmlTableLines.push(stripped);
@@ -313,11 +346,21 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 			}
 			continue;
 		}
+		if (looksLikeHandbookLeadIn(stripped)) {
+			if (normalized.length > 0 && normalized.at(-1) !== "") {
+				normalized.push("");
+			}
+			normalized.push(renderHandbookLeadIn(stripped), "");
+			continue;
+		}
 		if (
 			normalized.length > 0 &&
 			normalized.at(-1) !== "" &&
 			(isMarkdownListItem(stripped) ||
-				(isMarkdownListItem(normalized.at(-1) ?? "") && !isMarkdownListItem(stripped)))
+				isHandbookParenthesizedEnumItem(stripped) ||
+				((isMarkdownListItem(normalized.at(-1) ?? "") ||
+					isHandbookParenthesizedEnumItem(normalized.at(-1) ?? "")) &&
+					!(isMarkdownListItem(stripped) || isHandbookParenthesizedEnumItem(stripped))))
 		) {
 			normalized.push("");
 		}
@@ -327,6 +370,14 @@ function normalizeHandbookBody(lines: string[], title: string | undefined): stri
 		normalized.pop();
 	}
 	return normalized;
+}
+
+function* iterHandbookDisplayLines(lines: string[]): Generator<string> {
+	for (const line of iterHandbookSourceLines(lines)) {
+		for (const displayLine of splitHandbookInlineDisplayBoundaries(line)) {
+			yield displayLine;
+		}
+	}
 }
 
 function normalizeHandbookHeading(
@@ -347,10 +398,28 @@ function normalizeHandbookHeading(
 	if (HANDBOOK_CHAPTER_HEADING_RE.test(text)) {
 		return `## ${text}`;
 	}
+	if (looksLikeHandbookInlineNumberedHeading(text)) {
+		return `## ${text}`;
+	}
 	if (HANDBOOK_ARTICLE_HEADING_RE.test(text)) {
 		return `${options.sawChapterHeading ? "###" : "##"} ${text}`;
 	}
 	return line.startsWith("#") ? `## ${text}` : undefined;
+}
+
+function looksLikeHandbookLeadIn(line: string): boolean {
+	const normalized = line.trim();
+	if (!normalized || normalized.startsWith("<") || normalized.startsWith("#")) {
+		return false;
+	}
+	if (isMarkdownListItem(normalized) || HANDBOOK_CHAPTER_HEADING_RE.test(normalized)) {
+		return false;
+	}
+	return HANDBOOK_LEAD_IN_RE.test(normalized);
+}
+
+function renderHandbookLeadIn(text: string): string {
+	return `<p class="docs-lead-in">${escapeHtmlText(text.trim())}</p>`;
 }
 
 function looksLikeHandbookNumberedClauseHeading(title: string | undefined, text: string): boolean {
@@ -379,6 +448,10 @@ function isMarkdownListItem(line: string): boolean {
 	return MARKDOWN_ORDERED_LIST_RE.test(line) || MARKDOWN_UNORDERED_LIST_RE.test(line);
 }
 
+function isHandbookParenthesizedEnumItem(line: string): boolean {
+	return /^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）]/.test(line.trim());
+}
+
 function* iterHandbookSourceLines(lines: string[]): Generator<string> {
 	let index = 0;
 	while (index < lines.length) {
@@ -395,6 +468,105 @@ function* iterHandbookSourceLines(lines: string[]): Generator<string> {
 		yield current;
 		index += 1;
 	}
+}
+
+function splitHandbookInlineDisplayBoundaries(line: string): string[] {
+	const stripped = line.trim();
+	if (!stripped || stripped.startsWith("<")) {
+		return [line];
+	}
+	let splitLines = splitTextAtBoundaries(stripped, handbookInlineEnumBoundaries(stripped));
+	splitLines = splitLines.flatMap((candidate) =>
+		splitTextAtBoundaries(candidate, handbookInlineNumberedHeadingBoundaries(candidate)),
+	);
+	splitLines = splitLines.flatMap((candidate) => splitHandbookNumberedHeadingBody(candidate));
+	return splitLines.length > 0 ? splitLines : [line];
+}
+
+function handbookInlineEnumBoundaries(text: string): number[] {
+	const boundaries: number[] = [];
+	for (const match of text.matchAll(HANDBOOK_INLINE_ENUM_MARKER_RE)) {
+		const markerStart = match.index ?? -1;
+		if (markerStart <= 0) {
+			continue;
+		}
+		const prefix = text.slice(0, markerStart).trimEnd();
+		if (
+			prefix.endsWith(":") ||
+			prefix.endsWith("：") ||
+			prefix.endsWith(";") ||
+			prefix.endsWith("；") ||
+			prefix.endsWith("。") ||
+			HANDBOOK_INLINE_ENUM_MARKER_RE.test(prefix)
+		) {
+			boundaries.push(markerStart);
+		}
+		HANDBOOK_INLINE_ENUM_MARKER_RE.lastIndex = 0;
+	}
+	return boundaries;
+}
+
+function handbookInlineNumberedHeadingBoundaries(text: string): number[] {
+	const boundaries: number[] = [];
+	for (const match of text.matchAll(HANDBOOK_INLINE_NUMBERED_HEADING_MARKER_RE)) {
+		const markerStart = match.index ?? -1;
+		if (markerStart <= 0) {
+			continue;
+		}
+		const prefix = text.slice(0, markerStart).trimEnd();
+		if (!(prefix.endsWith("。") || prefix.endsWith("；") || prefix.endsWith(";"))) {
+			continue;
+		}
+		boundaries.push(markerStart);
+	}
+	return boundaries;
+}
+
+function splitTextAtBoundaries(text: string, boundaries: number[]): string[] {
+	if (boundaries.length === 0) {
+		return [text];
+	}
+	const parts: string[] = [];
+	let cursor = 0;
+	for (const boundary of [...new Set(boundaries)].sort((left, right) => left - right)) {
+		const part = text.slice(cursor, boundary).trim();
+		if (part) {
+			parts.push(part);
+		}
+		cursor = boundary;
+	}
+	const tail = text.slice(cursor).trim();
+	if (tail) {
+		parts.push(tail);
+	}
+	return parts;
+}
+
+function splitHandbookNumberedHeadingBody(text: string): string[] {
+	const normalized = text.trim();
+	for (let splitIndex = 4; splitIndex <= Math.min(normalized.length, 24); splitIndex += 1) {
+		const heading = normalized.slice(0, splitIndex).trim();
+		if (!looksLikeHandbookInlineNumberedHeading(heading)) {
+			continue;
+		}
+		const body = normalized.slice(splitIndex).trim();
+		if (
+			body &&
+			!HANDBOOK_INLINE_HEADING_BODY_STARTERS.some((starter) => body.startsWith(starter))
+		) {
+			continue;
+		}
+		return body ? [heading, body] : [heading];
+	}
+	return [text];
+}
+
+function looksLikeHandbookInlineNumberedHeading(text: string): boolean {
+	const normalized = text.trim();
+	return (
+		HANDBOOK_INLINE_NUMBERED_HEADING_RE.test(normalized) &&
+		HANDBOOK_INLINE_HEADING_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
+	);
 }
 
 function renderHandbookBodyLines(line: string): string[] {

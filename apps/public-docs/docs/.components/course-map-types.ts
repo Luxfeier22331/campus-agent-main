@@ -45,3 +45,10 @@ export interface CourseMapDocumentData {
 export function buildNodeKey(node: Pick<CourseMapNode, "stage_label" | "node_label">): string {
 	return `${node.stage_label}::${node.node_label}`;
 }
+
+export function buildNodeOccurrenceKey(
+	node: Pick<CourseMapNode, "stage_label" | "node_label">,
+	index: number,
+): string {
+	return `${buildNodeKey(node)}#${index}`;
+}

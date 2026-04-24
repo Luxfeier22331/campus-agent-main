@@ -4,7 +4,7 @@ pageType: home
 hero:
   name: Campus Agent 文档站
   text: 校园公开文档入口
-  tagline: 当前页面展示公开文档阅读面使用的正式 docs shell，用于验证层级导航、阅读体验与信息架构。
+  tagline: 学生手册、培养方案与公开规章的统一阅读入口。
   actions:
     - theme: brand
       text: 浏览学生手册
@@ -14,14 +14,11 @@ hero:
       link: /curriculum-plan/
 features:
   - title: 真实公开文档
-    details: 当前接入内容来自本地 MinIO 的真实公开文档产物，不再使用手写测试样文。
-    icon: 📚
+    details: 汇总学生手册、培养方案与公开规章，保持与学校公开文件一致的阅读入口。
   - title: 学生手册
-    details: 展示制度类正文阅读、分章定位与长文搜索效果。
-    icon: 📘
+    details: 查询学籍、奖助、纪律、住宿、公费医疗等学生管理制度。
     link: /student-handbook/
   - title: 培养方案
-    details: 展示专业培养方案在长段落、目录层级和表格段落下的阅读效果。
-    icon: 🧭
+    details: 按专业、实验班、强基计划和通识课程查看培养目标、毕业要求和课程安排。
     link: /curriculum-plan/
 ---

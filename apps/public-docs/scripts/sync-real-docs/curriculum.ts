@@ -9,6 +9,7 @@ import {
 	type CourseMapDocEmbed,
 	CURRICULUM_DOC_SLUG_OVERRIDES,
 	type CurriculumDoc,
+	escapeHtmlText,
 	jsonString,
 	MARKDOWN_DECIMAL_LABEL_RE,
 	MARKDOWN_LIST_PREFIX_WITH_BREAK_RE,
@@ -24,22 +25,100 @@ import type { ObjectStoreClient } from "./storage";
 
 const MARKDOWN_HEADING_BLOCK_RE = /^(#{1,6})\s+(.+)$/;
 const CURRICULUM_METADATA_LINE_RE = /^(?:学制|学分|总学分|学位授予|授予学位)[:：].{1,120}$/;
+const CURRICULUM_SPECIALTY_GRADUATION_LABEL_RE =
+	/^[\p{L}\p{N}（）()、\-·]{2,48}专业毕业要求[:：]$/u;
+const CURRICULUM_LEAD_IN_RE =
+	/^(?:课程清单如下|建议课程清单|建议课程清单如下|.{1,140}(?:课程清单如下|建议课程清单|建议课程清单如下|清单如下))[:：]?$/;
+const CURRICULUM_WEAK_SUBSECTION_LABEL_RE =
+	/^(?:[（(]\d{1,2}[)）]\s*)?(?:学年论文要求|综合实践要求|毕业设计要求|论文质量方面|[\p{L}\p{N}（）()、\-·]{2,48}专业拓展培养|毕业五年后应达到的具体目标为|培养目标(?:具体)?细化如下)[:：。]?$/u;
+const CURRICULUM_TRAILING_LEAD_IN_RE =
+	/^(?<body>.+?[。.;；])\s*(?<intro>(?:课程清单如下|建议课程清单|建议课程清单如下)[:：]?)$/;
+const CURRICULUM_INLINE_ARABIC_ENUM_MARKER_RE = /(?:[（(]\d{1,2}[)）]|\d{1,2}[)）])/g;
 
 type CurriculumRow = Record<string, unknown>;
 type MarkdownBlock = ["block" | "paragraph", string];
 
-export function buildCurriculumPlanIndex(): string {
-	return [
+export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): string {
+	const groups = groupCurriculumDocs(curriculumDocs);
+	const lines = [
 		"---",
 		"title: 培养方案目录",
-		"description: 当前公开 curriculum_plan 阅读面的培养方案目录。",
+		"description: 中央民族大学公开培养方案目录。",
 		"---",
 		"",
-		"当前目录展示培养方案公开阅读面使用的文档产物与导航结构。",
+		"这里汇总可公开阅读的培养方案、通识课程教学计划与专项培养文件。你可以使用顶部搜索按专业名称、课程类别或关键词快速定位内容。",
 		"",
-		"当前文档站与学生手册共享同一套左侧导航；你可以直接在侧边栏切换到学生手册。",
-		"",
-	].join("\n");
+	];
+	for (const group of groups) {
+		if (group.docs.length === 0) {
+			continue;
+		}
+		lines.push(`## ${group.label}`, "");
+		for (const doc of group.docs) {
+			lines.push(`- [${doc.title}](./${doc.slug})`);
+		}
+		lines.push("");
+	}
+	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+export function groupCurriculumDocs(curriculumDocs: CurriculumDoc[]): CurriculumDocGroup[] {
+	const docsByGroup = new Map<CurriculumDocGroupLabel, CurriculumDoc[]>(
+		CURRICULUM_DOC_GROUP_ORDER.map((label) => [label, []]),
+	);
+	for (const doc of curriculumDocs) {
+		docsByGroup.get(classifyCurriculumDocGroup(doc.title))?.push(doc);
+	}
+	return CURRICULUM_DOC_GROUP_ORDER.map((label) => ({
+		label,
+		docs: docsByGroup.get(label) ?? [],
+	}));
+}
+
+export type CurriculumDocGroupLabel =
+	| "本科专业与专业类"
+	| "实验班与专项培养"
+	| "强基计划"
+	| "第二学士学位"
+	| "通识课程"
+	| "其他培养方案";
+
+export interface CurriculumDocGroup {
+	label: CurriculumDocGroupLabel;
+	docs: CurriculumDoc[];
+}
+
+const CURRICULUM_DOC_GROUP_ORDER: CurriculumDocGroupLabel[] = [
+	"本科专业与专业类",
+	"实验班与专项培养",
+	"强基计划",
+	"第二学士学位",
+	"通识课程",
+	"其他培养方案",
+];
+
+export function classifyCurriculumDocGroup(title: string): CurriculumDocGroupLabel {
+	if (title.includes("通识课程")) {
+		return "通识课程";
+	}
+	if (title.includes("强基计划")) {
+		return "强基计划";
+	}
+	if (title.includes("第二学士学位")) {
+		return "第二学士学位";
+	}
+	if (
+		title.includes("实验班") ||
+		title.includes("拔尖") ||
+		title.includes("孝通") ||
+		title.includes("专项")
+	) {
+		return "实验班与专项培养";
+	}
+	if (title.includes("本科人才培养方案")) {
+		return "本科专业与专业类";
+	}
+	return "其他培养方案";
 }
 
 export async function discoverCurriculumDocs(client: ObjectStoreClient): Promise<CurriculumDoc[]> {
@@ -210,6 +289,36 @@ export function buildCurriculumMarkdown(input: {
 		if (rowType !== "paragraph" || !text) {
 			continue;
 		}
+		const trailingLeadInSplit = splitCurriculumTrailingLeadIn(text);
+		if (trailingLeadInSplit) {
+			blocks.push(["paragraph", trailingLeadInSplit[0]]);
+			blocks.push(["block", renderCurriculumLeadIn(trailingLeadInSplit[1])]);
+			continue;
+		}
+		if (looksLikeCurriculumFigureOrTableCaption(text)) {
+			blocks.push(["block", renderCurriculumTableCaption(text)]);
+			continue;
+		}
+		if (looksLikeCurriculumSpecialtyGraduationLabel(text)) {
+			lastHeadingLevel = appendCurriculumStructuralHeadingBlock(
+				blocks,
+				normalizeCurriculumHeadingText(text),
+				3,
+				lastHeadingLevel,
+			);
+			continue;
+		}
+		if (looksLikeCurriculumLeadIn(text)) {
+			blocks.push(["block", renderCurriculumLeadIn(text)]);
+			continue;
+		}
+		const enumSegments = splitCurriculumInlineArabicEnums(text);
+		if (enumSegments.length > 1) {
+			for (const segment of enumSegments) {
+				blocks.push(["paragraph", segment]);
+			}
+			continue;
+		}
 		if (
 			blocks.length > 0 &&
 			blocks.at(-1)?.[0] === "paragraph" &&
@@ -275,6 +384,7 @@ function repairKnownCurriculumDocsTableHtml(title: string, rawHtml: string): str
 		return rawHtml;
 	}
 	let html = normalizeTableBodyHeaderCells(rawHtml);
+	html = repairStaleCurriculumTableArtifacts(html);
 	if (title === "少数民族预科教育人才培养方案") {
 		html = html.replace(
 			'<table><tr><td rowspan="2" colspan="2">类别</td><td rowspan="2">学时</td><td colspan="2">各学期周学时分配计划</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan="2">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>468</td><td>14</td><td>12</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">合计</td><td>828</td><td>26</td><td>20</td></tr><tr><td>第一学期</td><td>第二学期</td></tr><tr><td rowspan="3">必修课</td><td>通识教育课</td><td>216</td><td>8</td><td>4</td></tr><tr><td>主干课</td><td>540</td><td>16</td><td>14</td></tr><tr><td>基础课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">限选课</td><td>144</td><td>4</td><td>4</td></tr><tr><td colspan="2">合计</td><td>1044</td><td>32</td><td>26</td></tr></table>',
@@ -291,6 +401,19 @@ function repairKnownCurriculumDocsTableHtml(title: string, rawHtml: string): str
 			'<td rowspan="34">专业教育</td><td rowspan="14">专业必修课共30学分</td>',
 		);
 	}
+	return html;
+}
+
+function repairStaleCurriculumTableArtifacts(rawHtml: string): string {
+	let html = rawHtml.replaceAll("学校通开的全球胜任力培养课程/", "学校通开的全球胜任力培养课程");
+	html = html.replace(
+		/<tr><td>跨学科<\/td>(?<firstRest>(?:<td[^>]*>.*?<\/td>)+)<\/tr><tr><td\s+rowspan="(?<rowspan>\d+)">交叉课程<\/td>(?<secondRest>(?:<td[^>]*>.*?<\/td>)+)<\/tr>/,
+		(_match, firstRest: string, rowspanValue: string, secondRest: string) => {
+			const rowspan = Number.parseInt(rowspanValue, 10);
+			const repairedRowspan = Number.isFinite(rowspan) ? rowspan + 1 : 2;
+			return `<tr><td rowspan="${repairedRowspan}">跨学科交叉课程</td>${firstRest}</tr><tr>${secondRest}</tr>`;
+		},
+	);
 	return html;
 }
 
@@ -419,7 +542,7 @@ function appendCurriculumHeading(
 		return level;
 	}
 	if (headingText.endsWith("如下")) {
-		blocks.push(["block", headingText]);
+		blocks.push(["block", renderCurriculumLeadIn(headingText)]);
 		return lastHeadingLevel;
 	}
 	if (
@@ -498,6 +621,14 @@ function appendCurriculumCaptionBlock(
 	if (!text || looksLikeCurriculumNoiseLabel(text)) {
 		return lastHeadingLevel;
 	}
+	if (looksLikeCurriculumFigureOrTableCaption(text)) {
+		blocks.push(["block", renderCurriculumTableCaption(text)]);
+		return lastHeadingLevel;
+	}
+	if (looksLikeCurriculumLeadIn(text)) {
+		blocks.push(["block", renderCurriculumLeadIn(text)]);
+		return lastHeadingLevel;
+	}
 	if (shouldRenderCurriculumCaptionAsHeading(text)) {
 		let level = inferCurriculumStructuralLabelLevel(text, lastHeadingLevel);
 		const headingText = normalizeCurriculumHeadingText(text);
@@ -558,6 +689,58 @@ function inferCurriculumStructuralLabelLevel(
 
 function looksLikeCurriculumFigureOrTableCaption(text: string): boolean {
 	return /^(表|图|附表|附图)\s*[0-9一二三四五六七八九十]/.test(text.trim());
+}
+
+function looksLikeCurriculumSpecialtyGraduationLabel(text: string): boolean {
+	return CURRICULUM_SPECIALTY_GRADUATION_LABEL_RE.test(text.trim());
+}
+
+function looksLikeCurriculumLeadIn(text: string): boolean {
+	const normalized = text.trim();
+	return Boolean(
+		normalized &&
+			(CURRICULUM_LEAD_IN_RE.test(normalized) ||
+				CURRICULUM_WEAK_SUBSECTION_LABEL_RE.test(normalized)),
+	);
+}
+
+function splitCurriculumTrailingLeadIn(text: string): [string, string] | undefined {
+	const match = CURRICULUM_TRAILING_LEAD_IN_RE.exec(text.trim());
+	const body = match?.groups?.body?.trim();
+	const intro = match?.groups?.intro?.trim();
+	if (!(body && intro)) {
+		return;
+	}
+	return [body, intro];
+}
+
+function splitCurriculumInlineArabicEnums(text: string): string[] {
+	const normalized = text.trim();
+	if (!normalized) {
+		return [];
+	}
+	const matches = [...normalized.matchAll(CURRICULUM_INLINE_ARABIC_ENUM_MARKER_RE)];
+	if (matches.length < 2 || matches[0]?.index !== 0) {
+		return [normalized];
+	}
+	const segments: string[] = [];
+	for (let index = 0; index < matches.length; index += 1) {
+		const start = matches[index]?.index ?? 0;
+		const end = matches[index + 1]?.index ?? normalized.length;
+		const segment = normalized.slice(start, end).trim();
+		if (segment) {
+			segments.push(segment);
+		}
+	}
+	return segments.length > 1 ? segments : [normalized];
+}
+
+function renderCurriculumLeadIn(text: string): string {
+	return `<p className="docs-lead-in">${escapeHtmlText(text.trim())}</p>`;
+}
+
+function renderCurriculumTableCaption(text: string): string {
+	return `<p className="docs-table-caption">${escapeHtmlText(text.trim())}</p>`;
 }
 
 function looksLikeCurriculumNestedModuleLabel(text: string): boolean {
@@ -723,7 +906,9 @@ function renderMarkdownBlockLines(blockText: string): string[] {
 				(line) => MARKDOWN_ORDERED_LIST_RE.test(line) || MARKDOWN_DECIMAL_LABEL_RE.test(line),
 			)
 		) {
-			return strippedLines.flatMap((line) => renderMarkdownBlockLines(line));
+			return strippedLines.flatMap((line, index) =>
+				index === 0 ? renderMarkdownBlockLines(line) : ["", ...renderMarkdownBlockLines(line)],
+			);
 		}
 		return rawLines;
 	}
