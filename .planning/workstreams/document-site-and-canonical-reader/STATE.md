@@ -1,7 +1,7 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Project State
@@ -15,8 +15,8 @@ updated: 2026-04-24
 **Total Phases:** 6
 **Total Plans in Phase:** 1
 **Progress:** 1/6 phases complete
-**Last Activity:** 2026-04-24
-**Last Activity Description:** Added a fail-close `public-docs` sync lane for notice-derived/internal regulation documents: only rows explicitly marked `visibility_level=public` and carrying no entitlement groups can appear under the public docs route; current restricted `institutional_rules/scoped_rules` samples remain excluded.
+**Last Activity:** 2026-04-25
+**Last Activity Description:** Closed the public-docs rendering repair slice for canonical student-handbook and curriculum pages: handbook lead-ins, dense handbook enumerations, inline handbook chapter markers, curriculum specialty graduation headings, weak subsection lead-ins, table captions, dense `(1)` / `1)` enumerations, stale MinerU table artifacts, wide-table scrolling, and course-map duplicate React keys are now covered by generator/normalization tests and live docs smoke.
 
 ## Current Slice
 
@@ -52,6 +52,8 @@ updated: 2026-04-24
 
 - 当前 repo 已有的实现真相：
   - `apps/public-docs` 已是正式 docs shell app，当前采用 `Rspress`
+  - `apps/public-docs` 生成器已覆盖一批 reader-facing rendering repairs：学生手册 lead-in label、密集 `(一)(二)(三)` 枚举分段、行内 `二、管理` 等章节点标题化、培养方案 `...专业毕业要求:` 标题化、弱结构标签 lead-in 化、`表 1 ...` caption 化、`(1)` / `1)` 密集枚举分段与宽表横向滚动
+  - `apps/public-docs` 课程地图组件已使用 occurrence key 处理同名同学期节点和重复边，避免 live smoke 中出现 React duplicate-key 渲染告警
   - `packages/ingestion-core/src/campus_ingestion_core/document_reader_assets.py` 已存在 reader asset package builder 与 `public_docs` sync manifest builder
   - `apps/app-api/src/app/routes/docs.ts` 已注册 docs route shell
   - `apps/app-api/src/modules/docs/index.ts` 已冻结 docs browser contract types
@@ -72,13 +74,15 @@ updated: 2026-04-24
 
 ## Verification
 
-- planning/docs truth rewrite only；本次工作修正 active docs / planning truth，不宣称 runtime convergence 已完成
-- 需要用专门回归测试覆盖：
-  - active workstream 不再出现旧 docs app 名称
-  - repo 当前真相入口已显式记录 `apps/public-docs`
-  - `public-docs` 自身文案不再把本地对象存储路径与底层文件名冒充产品真相
+- `pnpm --filter public-docs test`
+- `pnpm --filter public-docs typecheck`
+- `pnpm --filter public-docs lint:generated`
+- `pnpm --filter public-docs build`
+- `uv run --all-packages python -m unittest tests.ingestion.test_curriculum_provider_normalize`
+- static scans for dense `(1)` / `1)` enumerations, unstyled course-list lead-ins, stale global-competence slash, stale cross-discipline split, and unstyled weak curriculum subsection labels
+- Playwright smoke on `http://127.0.0.1:5177` for home, student-handbook index, curriculum index, computer/economics/russian/electronics curriculum pages, mobile search/wide-table behavior, and course-map route/graph toggles
 
 ## Session Continuity
 
-**Stopped At:** `public-docs` 已提升为正式 docs app 名称，active planning truth 正在改写为与当前 repo 实现一致；下一次恢复应先确认 `Phase 2` 还缺哪些 runtime-backed docs service / shell consumption 收口项，再决定是否继续留在 `Phase 2` 或推进到 `Phase 3`。
+**Stopped At:** `public-docs` canonical rendering repair slice 已收口并通过本地 gate / live smoke；下一次恢复应回到 `Phase 2` 的 runtime-backed docs service、published reader assets、same-site `/api/docs/*` shell consumption 收口项，而不是继续扩展本轮生成器修复。
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/phases/phase-2-published-reader-assets-and-app-api-docs-control-plane/PLAN.md
