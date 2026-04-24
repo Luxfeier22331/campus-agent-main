@@ -37,6 +37,14 @@ direction。
   - app-owned structured-runtime observability summary
   - internal notice read-model backing query service
   - derived bucket canonical markdown body adapter
+  - default `notice-agent` runtime wiring from PG read model + object-store env
+
+仍未开放：
+
+- browser-facing notice API
+- protected panel / chatbot notice entrypoint
+- public notice source family runtime
+- authenticated notice live collector/control-plane
 
 ## Discover Request
 

@@ -389,11 +389,17 @@ name = "campus-notice-agent"
 version = "0.1.0"
 source = { editable = "packages/notice-agent" }
 dependencies = [
+    { name = "boto3" },
     { name = "campus-contracts" },
+    { name = "psycopg", extra = ["binary"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.35.0" },
+    { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
+]
 
 [[package]]
 name = "campus-official-web-collector"

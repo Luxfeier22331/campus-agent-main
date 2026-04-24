@@ -102,6 +102,9 @@ projection / read-model / query-runtime terminology.
   - `packages/notice-agent` 已补 internal notice read-model backing query service，
     使用 PG/read-model repository + derived bucket canonical markdown body adapter，
     并保留 restricted authorization fail-close
+  - `delegate_to_notice_agent(..., env=...)` 已能在未显式注入 fake/query service
+    时，从 runtime env 构造 internal notice discover/get backing query service；
+    配置缺失时继续返回 `internal_query_service_unavailable`
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
@@ -130,6 +133,7 @@ projection / read-model / query-runtime terminology.
   - import read-model rebuild seam 测试
   - internal notice read-model builder/store/worker 测试
   - notice-agent read-model backing query service 测试
+  - notice-agent default runtime wiring 测试
   - `internal_notice` institutional materialization projection ready gate 测试
   - explicit rebuild worker CLI 测试
   - operator status worker CLI 测试

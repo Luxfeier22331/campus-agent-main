@@ -27,5 +27,10 @@ seam；internal notice 的 projected read-model query service 已落地为 packa
   restricted retrieval filter 时返回 `source_family_unavailable`
 - `ObjectStoreNoticeBodyRepository`：按 read model 中的 canonical markdown object key
   从 derived bucket 读取正文
+- `PostgresNoticeReadModelRepository`：只读
+  `ingestion_projection.internal_notice_read_model`，用于 discover/get backing query
+- `delegate_to_notice_agent(..., env=...)`：未显式注入 query service 时，可从
+  `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` / `CAMPUS_SHARED_POSTGRES_URL` 与对象存储
+  env 构造默认 internal notice query service；配置缺失时继续 fail closed
 
 它仍不负责打开 browser-facing API、panel/chatbot 入口或 live collector/control-plane。
