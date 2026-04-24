@@ -1,14 +1,14 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
 import {
-	getAllGatewayModels,
-	getCapabilities,
-	isDemo,
-} from "../vendor/vercel-ai-chatbot/lib/ai/models";
-import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
 	resolveTurnstileRuntimeConfig,
 } from "./platform/auth/turnstile-runtime-config";
+import {
+	getAllGatewayModels,
+	getCapabilities,
+	isDemo,
+} from "./platform/vendor-compat/lib/ai/models";
 
 export interface Env {
 	APP_API?: {

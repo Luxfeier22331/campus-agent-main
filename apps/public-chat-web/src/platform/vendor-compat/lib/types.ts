@@ -117,7 +117,7 @@ export type CustomUIDataTypes = {
 	title: string;
 };
 
-export interface ChatTools {
+interface ChatToolDefinitions {
 	createDocument: {
 		input: { kind: ArtifactKind; title: string };
 		output: DocumentToolError | DocumentToolResultRecord;
@@ -137,6 +137,10 @@ export interface ChatTools {
 		output: DocumentToolError | DocumentToolResultRecord;
 	};
 }
+
+export type ChatTools = {
+	[NAME in keyof ChatToolDefinitions & string]: ChatToolDefinitions[NAME];
+};
 
 type BaseChatMessage = UIMessage<MessageMetadata, CustomUIDataTypes, ChatTools>;
 

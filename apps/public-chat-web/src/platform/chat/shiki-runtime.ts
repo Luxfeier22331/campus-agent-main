@@ -77,7 +77,7 @@ export type CampusShikiLanguage = keyof typeof LANGUAGE_LOADERS;
 export type CampusShikiTheme = keyof typeof THEME_LOADERS;
 export type CampusCodeHighlightResult = Pick<TokensResult, "bg" | "fg" | "rootStyle" | "tokens">;
 
-type CampusLoadedHighlighter = ReturnType<typeof createHighlighterCore>;
+type CampusLoadedHighlighter = Awaited<ReturnType<typeof createHighlighterCore>>;
 
 type HighlightCallback = (result: CampusCodeHighlightResult) => void;
 interface HighlighterOptions {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import packageManifestRaw from "../package.json?raw";
+import workerSource from "../src/index.ts?raw";
+import authTurnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import appShellSource from "../src/platform/chat/app-shell.tsx?raw";
 import compatModelsSource from "../src/platform/vendor-compat/lib/ai/models.ts?raw";
 import compatConstantsSource from "../src/platform/vendor-compat/lib/constants.ts?raw";
@@ -9,6 +11,7 @@ import compatUtilsSource from "../src/platform/vendor-compat/lib/utils.ts?raw";
 import tsconfigSource from "../tsconfig.json?raw";
 import vendorArtifactActionsSource from "../vendor/vercel-ai-chatbot/artifacts/actions.ts?raw";
 import vendorAiMessageSource from "../vendor/vercel-ai-chatbot/components/ai-elements/message.tsx?raw";
+import vendorPromptInputSource from "../vendor/vercel-ai-chatbot/components/ai-elements/prompt-input.tsx?raw";
 import vendorAiReasoningSource from "../vendor/vercel-ai-chatbot/components/ai-elements/reasoning.tsx?raw";
 import vendorAppSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import vendorChatHeaderSource from "../vendor/vercel-ai-chatbot/components/chat/chat-header.tsx?raw";
@@ -203,6 +206,8 @@ describe("chatbot vendor runtime parity", () => {
 	});
 
 	it("moves vendor lib runtime truth behind exact compat seams while restoring donor lib sources", () => {
+		expect(workerSource).toContain("./platform/vendor-compat/lib/ai/models");
+		expect(workerSource).not.toContain("../vendor/vercel-ai-chatbot/lib/ai/models");
 		expect(vendorModelsSource).toContain("next: { revalidate: 86_400 }");
 		expect(compatModelsSource).toContain('cache: "force-cache"');
 
@@ -220,5 +225,14 @@ describe("chatbot vendor runtime parity", () => {
 		expect(vendorUtilsSource).toContain("const response = await fetch(url);");
 		expect(vendorUtilsSource).not.toContain('credentials: "same-origin"');
 		expect(compatUtilsSource).toContain('credentials: "same-origin"');
+	});
+
+	it("keeps hidden form controls nameable and addressable for browser accessibility checks", () => {
+		expect(authTurnstileSource).toContain('id="captchaToken"');
+		expect(authTurnstileSource).toContain('name="captchaToken"');
+		expect(vendorMultimodalInputSource).toContain('id="chat-attachment-input"');
+		expect(vendorMultimodalInputSource).toContain('name="attachments"');
+		expect(vendorPromptInputSource).toContain('id="prompt-attachment-input"');
+		expect(vendorPromptInputSource).toContain('name="attachments"');
 	});
 });

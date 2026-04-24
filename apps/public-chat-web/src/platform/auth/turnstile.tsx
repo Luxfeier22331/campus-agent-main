@@ -216,7 +216,14 @@ export function AuthTurnstileField(props: {
 
 	return (
 		<div className="flex flex-col gap-2">
-			<input name="captchaToken" readOnly ref={tokenInputRef} type="hidden" value={token} />
+			<input
+				id="captchaToken"
+				name="captchaToken"
+				readOnly
+				ref={tokenInputRef}
+				type="hidden"
+				value={token}
+			/>
 			{siteKey ? (
 				<div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
 			) : (

@@ -35,6 +35,8 @@ export function mapConversationSummary(
 }
 
 export function mapChatMessage(message: ChatMessage): ShellMessage {
+	const structuredParts = message.structuredParts ?? [];
+
 	return {
 		createdAt: message.createdAt,
 		id: message.id,
@@ -42,7 +44,7 @@ export function mapChatMessage(message: ChatMessage): ShellMessage {
 		requestId: message.requestId,
 		retryable: Boolean(message.retryable),
 		role: message.role,
-		...(message.structuredParts?.length > 0 ? { structuredParts: message.structuredParts } : {}),
+		...(structuredParts.length > 0 ? { structuredParts } : {}),
 		text: message.text,
 	};
 }

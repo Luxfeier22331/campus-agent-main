@@ -485,7 +485,9 @@ function PureMultimodalInput({
       <input
         aria-hidden="true"
         className="pointer-events-none fixed -top-4 -left-4 size-0.5 opacity-0"
+        id="chat-attachment-input"
         multiple
+        name="attachments"
         onChange={handleFileChange}
         ref={fileInputRef}
         tabIndex={-1}
