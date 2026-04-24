@@ -67,7 +67,8 @@ def _candidate_document() -> InternalNoticeRegulationCandidateArtifactDocument:
         reasons=(),
         promotion_body=(
             "第一条 为规范学生使用人工智能，制定本指导意见。\n\n"
-            "第二条 本指导意见适用于全体在校学生。"
+            "第二条 本指导意见适用于全体在校学生。\n\n"
+            "附件：关于使用AI工具情况的说明"
         ),
         artifact_markdown_path="candidates/中央民族大学关于学生使用人工智能的指导意见--candidate-355282/canonical.md",
         artifact_body_sha256="sha256:body-355282",

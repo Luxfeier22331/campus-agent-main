@@ -156,6 +156,20 @@ class InternalNoticeScopedRuleMaterializationCandidateTest(unittest.TestCase):
 
         self.assertEqual(candidate.school_unit_name, "民族学与社会学学院")
 
+    def test_school_unit_extraction_accepts_single_character_college_names(self) -> None:
+        self.assertEqual(
+            scoped_materialization._extract_school_unit_name(
+                "药学院2021年硕博连读博士研究生招生实施细则"
+            ),
+            "药学院",
+        )
+        self.assertEqual(
+            scoped_materialization._extract_school_unit_name(
+                "中央民族大学药学院2021年硕博连读博士研究生招生实施细则"
+            ),
+            "药学院",
+        )
+
     def test_build_scoped_rule_candidate_prefers_source_title_for_time_bound_rule(self) -> None:
         source_record = _record(
             notice_id="191705",

@@ -12,6 +12,7 @@ from campus_ingestion_core.internal_notice_scoped_rule_materialization_engine im
 from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared import (
     InternalNoticeScopedRuleCandidate,
     InternalNoticeScopedRuleMaterializationReport,
+    _extract_school_unit_name,
 )
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "InternalNoticeScopedRuleMaterializationReport",
     "ScopedRuleMaterializationObjectStore",
     "_build_scoped_rule_candidate",
+    "_extract_school_unit_name",
     "build_scoped_rule_scope_refresh_documents",
     "materialize_scoped_rules_from_internal_notice_scope",
 ]

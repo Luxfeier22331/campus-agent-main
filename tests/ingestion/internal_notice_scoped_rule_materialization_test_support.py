@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+import importlib
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
+
+scoped_materialization = importlib.import_module(
+    "campus_ingestion_core.internal_notice_scoped_rule_materialization"
+)
 
 
 class _FakeObjectStore:

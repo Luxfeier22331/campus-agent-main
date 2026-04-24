@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-14
-updated: 2026-04-21
+updated: 2026-04-24
 ---
 # Institutional Regulations Offline Inventory
 
@@ -43,6 +43,8 @@ regulation，例如：
 - attachment-backed owner body 允许进入当前 target
 - wrapper notice 本身不充当 target owner
 
+当前 frozen target count: `2`
+
 ## Scoped Rules Holding Target
 
 以下 captured items 当前属于 `regulations/scoped_rules`，不再回混到 `institutional_rules`：
@@ -56,6 +58,20 @@ regulation，例如：
 - `新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则`
 - `中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则`
 - `中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则`
+
+当前 frozen target count: `9`
+
+## Acceptance Evidence
+
+当前 bounded `11` 条 target 的 local-only target-side acceptance evidence 冻结在：
+
+- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+
+最终通过口径：
+
+- `institutional_rules` lane: `prepared_document_count=2`，`passed=true`
+- `scoped_rules` lane: `prepared_document_count=9`，`passed=true`
+- 当前 stop point 仍是 `offline_preparation`
 
 ## Hold / Blocked Frontier
 

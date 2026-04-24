@@ -13,7 +13,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
-    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+    NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
     NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
@@ -787,7 +787,7 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
             completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
             answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-            consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             source_notice_document_id=parent.document_id,
             source_document_id=parent.document_id,
             role_metadata={"reasons": ("projection_gate_forced_hold",)},

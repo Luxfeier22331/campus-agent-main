@@ -18,9 +18,9 @@ _SOURCE_URL_PREFIX = "campusrag://promotion/internal_notice_scoped_rules"
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
 _INSTITUTION_PREFIX = "中央民族大学"
 _SCHOOL_UNIT_RE = re.compile(
-    r"(?P<unit>[一-龥]{2,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室))"
+    r"(?P<unit>[一-龥]{1,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室))"
 )
-_SCHOOL_UNIT_FULL_RE = re.compile(r"^[一-龥]{2,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室)$")
+_SCHOOL_UNIT_FULL_RE = re.compile(r"^[一-龥]{1,30}(?:学院|学部|研究院|中心|处|部|办公室|实验室)$")
 _CAMPUS_SITE_RE = re.compile(r"(?P<site>[一-龥A-Za-z0-9]{2,20}校区)")
 _PROVISIONAL_IN_FORCE_RE = re.compile(r"(暂行|试行)")
 

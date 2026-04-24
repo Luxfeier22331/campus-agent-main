@@ -26,7 +26,6 @@ _HIGH_CONFIDENCE_WRAPPER_LEAK_MARKERS = (
     "请遵照执行",
     "学校各单位、各部门",
     "现将有关事项通知如下",
-    "附件：",
 )
 _FRONT_MATTER_LEAK_MARKERS = (
     "schema_version:",

@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-24
 ---
 # Internal Notice Regulation Target Quality Acceptance Runbook
 
@@ -40,6 +40,26 @@ updated: 2026-04-19
 - Qdrant write
 - release
 - alias publish
+
+## Phase 8 Frozen Evidence
+
+当前 bounded `11` 条 target 的 closeout evidence 已冻结在：
+
+- `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+
+冻结范围只包括 local-only acceptance artifact triplet：
+
+- `chunk-prep-manifest.json`
+- `validation-summary.json`
+- `document-reports.jsonl`
+
+最终 target 划分：
+
+- `regulations/institutional_rules`: `2`
+- `regulations/scoped_rules`: `9`
+
+该 evidence 只证明 stop point `offline_preparation` 已通过，不代表 release /
+query-serving 已打开。
 
 ## 前提
 
