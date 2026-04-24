@@ -3,7 +3,9 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from campus_ingestion_core.notice_consumption_projection import (
@@ -22,6 +24,21 @@ worker = importlib.import_module(
 
 
 class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase):
+    def test_main_refuses_implicit_full_scope_rebuild(self) -> None:
+        with (
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection"
+            ) as rebuild,
+            patch("sys.stderr", new_callable=io.StringIO),
+            self.assertRaises(SystemExit),
+        ):
+            worker.main([])
+
+        rebuild.assert_not_called()
+
     def test_main_rebuilds_projection_for_selected_notice_ids(self) -> None:
         entries = (
             _entry(
@@ -73,6 +90,44 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
             payload["consumption_status_counts"],
         )
+
+    def test_main_merges_notice_ids_from_selection_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            selection_path = Path(temp_dir) / "selected-notices.json"
+            selection_path.write_text(
+                json.dumps(
+                    {
+                        "selected_notice_ids": [
+                            "351907",
+                            "355222",
+                            "351907",
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with (
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.rebuild_internal_notice_consumption_projection",
+                    return_value=(),
+                ) as rebuild,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--notice-id",
+                        "355222",
+                        "--selection-path",
+                        str(selection_path),
+                    ]
+                )
+
+        request = rebuild.call_args.kwargs["request"]
+        self.assertEqual(request.notice_ids, ("351907", "355222"))
 
 
 def _entry(

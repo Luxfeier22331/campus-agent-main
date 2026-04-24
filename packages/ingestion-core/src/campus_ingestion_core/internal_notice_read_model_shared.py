@@ -17,6 +17,8 @@ DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY = (
 DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY = (
     "INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_DATABASE_URL"
 )
+DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS = 800
+DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS = 2_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +40,7 @@ class InternalNoticeReadModelEntry:
     canonical_markdown_object_key: str = ""
     attachment_refs: tuple[str, ...] = ()
     provenance_refs: tuple[str, ...] = ()
+    body_excerpt: str = ""
     search_text: str = ""
     projection_updated_at: str = ""
     updated_at: str = field(default_factory=utc_now)

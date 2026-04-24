@@ -36,6 +36,9 @@ from .internal_notice_scoped_rule_materialization_test_support import (
     _record,
 )
 
+EXPECTED_BODY_EXCERPT_MAX_CHARS = 800
+EXPECTED_SEARCH_TEXT_MAX_CHARS = 2_000
+
 
 class InternalNoticeReadModelTest(unittest.TestCase):
     def test_build_entries_materializes_queryable_notice_and_procurement_rows(self) -> None:
@@ -72,12 +75,48 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         )
         self.assertIn("家具采购项目", procurement.search_text)
         self.assertIn("投标", procurement.search_text)
+        self.assertEqual(
+            procurement.body_excerpt,
+            "# 中央民族大学丰台校区家具采购项目比选公告\n\n供应商应按要求投标。",
+        )
 
         roster = next(
             row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION
         )
         self.assertFalse(roster.queryable)
         self.assertEqual(roster.target_surface, NOTICE_TARGET_SURFACE_UNSUPPORTED)
+
+    def test_build_entries_keeps_full_body_out_of_read_model_storage(self) -> None:
+        registry, object_store, projection_entries = _runtime()
+        long_tail = "TAIL_MARKER_SHOULD_NOT_BE_STORED"
+        long_body = "正文" * (EXPECTED_SEARCH_TEXT_MAX_CHARS + 100)
+        object_store.objects[
+            (
+                "campus-rag-derived",
+                "campus_notices/documents/internal_notice/355222/canonical.md",
+            )
+        ] = _canonical_markdown(f"# 采购公告\n\n{long_body}\n\n{long_tail}")
+
+        rows = build_internal_notice_read_model_entries(
+            projection_entries,
+            registry=registry,
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+        )
+        procurement = next(
+            row for row in rows if row.primary_role == NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE
+        )
+
+        self.assertLessEqual(
+            len(procurement.body_excerpt),
+            EXPECTED_BODY_EXCERPT_MAX_CHARS,
+        )
+        self.assertLessEqual(
+            len(procurement.search_text),
+            EXPECTED_SEARCH_TEXT_MAX_CHARS,
+        )
+        self.assertNotIn(long_tail, procurement.body_excerpt)
+        self.assertNotIn(long_tail, procurement.search_text)
 
     def test_rebuild_internal_notice_read_model_replaces_selected_notices(self) -> None:
         registry, object_store, projection_entries = _runtime()
@@ -115,6 +154,27 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             {"355222", "999999"},
         )
 
+    def test_rebuild_internal_notice_read_model_refuses_persistent_full_scope_rebuild(
+        self,
+    ) -> None:
+        registry, object_store, projection_entries = _runtime()
+        projection_store = InMemoryNoticeConsumptionProjectionStore(projection_entries)
+        read_model_store = object.__new__(PostgresInternalNoticeReadModelStore)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "refusing persistent full-scope internal notice read model rebuild",
+        ):
+            rebuild_internal_notice_read_model(
+                projection_store=projection_store,
+                read_model_store=read_model_store,
+                registry=registry,
+                object_store=object_store,
+                bucket_derived="campus-rag-derived",
+                source_corpus="campus_notices",
+                source_collection="internal_notice",
+            )
+
     def test_postgres_store_ensures_search_indexes_and_rehydrates_records(self) -> None:
         store = object.__new__(PostgresInternalNoticeReadModelStore)
         store.database_url = "postgresql://example.test/db"
@@ -137,6 +197,21 @@ class InternalNoticeReadModelTest(unittest.TestCase):
         self.assertIn("queryable = true", query)
         self.assertIn("search_vector", query)
         self.assertEqual(params[0], ["internal_notice_restricted"])
+
+    def test_postgres_store_persists_body_excerpt_and_short_record_payload(self) -> None:
+        row = _read_model_seed("355222", "notice_unit:355222:notice_window")
+        row = row.__class__(
+            **{
+                **asdict(row),
+                "body_excerpt": "短摘要",
+                "search_text": "短搜索文本",
+            }
+        )
+        payload = json.loads(PostgresInternalNoticeReadModelStore._recordset_payload((row,)))
+
+        self.assertEqual(payload[0]["body_excerpt"], "短摘要")
+        self.assertEqual(payload[0]["record"]["body_excerpt"], "短摘要")
+        self.assertEqual(payload[0]["record"]["search_text"], "短搜索文本")
 
 
 def _runtime():
@@ -269,6 +344,7 @@ def _read_model_seed(notice_id: str, unit_id: str):
         canonical_markdown_object_key=(
             f"campus_notices/documents/internal_notice/{notice_id}/canonical.md"
         ),
+        body_excerpt="",
         search_text=f"测试通知 {notice_id}",
         projection_updated_at="2026-04-10T00:00:00+00:00",
     )

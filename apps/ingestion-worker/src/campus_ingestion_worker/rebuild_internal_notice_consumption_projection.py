@@ -8,6 +8,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_legacy_export import (
+    load_authenticated_notice_selection_notice_ids,
+)
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
     rebuild_internal_notice_consumption_projection,
@@ -31,19 +34,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--promotion-routing-path")
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     parser.add_argument("--document-id", action="append", dest="document_ids", default=[])
+    parser.add_argument("--selection-path")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
-    args = build_parser().parse_args(list(argv) if argv is not None else None)
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+    notice_ids = _merge_notice_ids(args.notice_ids, args.selection_path)
+    if not notice_ids and not args.document_ids:
+        parser.error(
+            "refusing implicit full-scope rebuild; pass --notice-id or --document-id "
+            "or --selection-path for notices selected by the consumer layer"
+        )
     request = InternalNoticeRegulationPromotionRequest(
         corpus=args.corpus,
         collection=args.collection,
         promotion_routing_path=(
             Path(args.promotion_routing_path) if args.promotion_routing_path else None
         ),
-        notice_ids=tuple(args.notice_ids),
+        notice_ids=notice_ids,
         document_ids=tuple(args.document_ids),
     )
     entries = rebuild_internal_notice_consumption_projection(request=request)
@@ -76,6 +87,27 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
         "consumption_status_counts": dict(sorted(consumption_status_counts.items())),
         "entries": [asdict(entry) for entry in entries],
     }
+
+
+def _merge_notice_ids(
+    explicit_notice_ids: Sequence[str],
+    selection_path: str | None,
+) -> tuple[str, ...]:
+    selected_notice_ids = (
+        load_authenticated_notice_selection_notice_ids(Path(selection_path))
+        if selection_path
+        else ()
+    )
+    return tuple(
+        dict.fromkeys(
+            notice_id
+            for notice_id in (
+                *(str(item).strip() for item in explicit_notice_ids),
+                *selected_notice_ids,
+            )
+            if notice_id
+        )
+    )
 
 
 __all__ = [

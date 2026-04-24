@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import unittest
-from unittest.mock import patch
 
 import campus_ingestion_core.internal_notice_regulation_materialization as regulation_materialization
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -13,12 +12,14 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
     NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
     NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
     NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+    InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
 )
 
@@ -435,6 +436,22 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             registry=registry,
             raw_asset_registry=raw_asset_registry,
             source_truth_inventory_store=inventory_store,
+            consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
+                (
+                    _ready_institutional_projection_entry(
+                        notice_id="100001",
+                        source_document_id=attachment_1.document_id,
+                    ),
+                    _ready_institutional_projection_entry(
+                        notice_id="100002",
+                        source_document_id=attachment_2.document_id,
+                    ),
+                    _ready_institutional_projection_entry(
+                        notice_id="100003",
+                        source_document_id=parent_3.document_id,
+                    ),
+                )
+            ),
         )
 
         self.assertEqual(report.promotion_candidate_count, 2)
@@ -793,31 +810,70 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             role_metadata={"reasons": ("projection_gate_forced_hold",)},
         )
 
-        with patch.object(
-            regulation_materialization,
-            "rebuild_internal_notice_consumption_projection",
-            return_value=(held_projection_entry,),
-        ):
-            report = materialize(
-                env={
-                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
-                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
-                    "EMBEDDING_PROVIDER": "mock",
-                    "EMBEDDING_MODEL": "mock-embedding-8d",
-                    "SPARSE_PROVIDER": "mock",
-                },
-                object_store=object_store,
-                registry=registry,
-                raw_asset_registry=raw_asset_registry,
-                source_truth_inventory_store=inventory_store,
-            )
+        report = materialize(
+            env={
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "EMBEDDING_PROVIDER": "mock",
+                "EMBEDDING_MODEL": "mock-embedding-8d",
+                "SPARSE_PROVIDER": "mock",
+            },
+            object_store=object_store,
+            registry=registry,
+            raw_asset_registry=raw_asset_registry,
+            source_truth_inventory_store=inventory_store,
+            consumption_projection_store=_ReadOnlyProjectionStore((held_projection_entry,)),
+        )
 
         self.assertEqual(report.promotion_candidate_count, 0)
         self.assertEqual(report.materialized_document_count, 0)
         self.assertEqual(registry.list_by_scope("regulations", "institutional_rules"), ())
+
+
+class _ReadOnlyProjectionStore(InMemoryNoticeConsumptionProjectionStore):
+    def replace_scope(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        records,
+    ) -> None:
+        raise AssertionError("downstream materialization must not rebuild projection")
+
+    def replace_notices(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        notice_ids,
+        records,
+    ) -> None:
+        raise AssertionError("downstream materialization must not rebuild projection")
+
+
+def _ready_institutional_projection_entry(
+    *,
+    notice_id: str,
+    source_document_id: str,
+) -> NoticeConsumptionProjectionEntry:
+    return NoticeConsumptionProjectionEntry(
+        source_family="internal_notice_restricted",
+        source_corpus="campus_notices",
+        source_collection="internal_notice",
+        source_notice_id=notice_id,
+        unit_id=f"notice_unit:{source_document_id}:attachment_rule_body",
+        primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+        default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+        target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+        temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+        completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
+        answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_document_id=source_document_id,
+    )
 
 
 if __name__ == "__main__":

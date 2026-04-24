@@ -5,15 +5,21 @@ import unittest
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
+from campus_ingestion_core.notice_consumption_projection import (
+    InMemoryNoticeConsumptionProjectionStore,
+)
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 from .internal_notice_scoped_rule_materialization_test_support import (
+    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     _canonical_markdown,
     _document_rows,
     _document_units,
     _FakeObjectStore,
     _inventory_entry,
+    _ready_scoped_projection_entry,
     _record,
     scoped_materialization,
 )
@@ -158,6 +164,22 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                 ),
             }
         )
+        consumption_projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _ready_scoped_projection_entry(
+                    notice_id="351907",
+                    primary_role=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+                ),
+                _ready_scoped_projection_entry(
+                    notice_id="191176",
+                    primary_role=NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+                ),
+                _ready_scoped_projection_entry(
+                    notice_id="191177",
+                    primary_role=NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+                ),
+            )
+        )
 
         report = materialize(
             env={
@@ -174,6 +196,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             registry=registry,
             raw_asset_registry=raw_asset_registry,
             source_truth_inventory_store=inventory_store,
+            consumption_projection_store=consumption_projection_store,
         )
 
         self.assertEqual(report.scoped_rule_candidate_count, 3)
@@ -284,6 +307,14 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
                 ),
             }
         )
+        consumption_projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _ready_scoped_projection_entry(
+                    notice_id="191176",
+                    primary_role=NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+                ),
+            )
+        )
         env = {
             "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
             "OBJECT_STORE_ACCESS_KEY": "minioadmin",
@@ -301,6 +332,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             registry=registry,
             raw_asset_registry=raw_asset_registry,
             source_truth_inventory_store=inventory_store,
+            consumption_projection_store=consumption_projection_store,
         )
         self.assertEqual(first_report.materialized_document_count, 1)
         first_target_record = registry.list_by_scope("regulations", "scoped_rules")[0]
@@ -351,6 +383,14 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             ]
         )
         object_store.uploads.clear()
+        consumption_projection_store.upsert_many(
+            (
+                _ready_scoped_projection_entry(
+                    notice_id="191177",
+                    primary_role=NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+                ),
+            )
+        )
 
         second_report = materialize(
             env=env,
@@ -358,6 +398,7 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
             registry=registry,
             raw_asset_registry=raw_asset_registry,
             source_truth_inventory_store=inventory_store,
+            consumption_projection_store=consumption_projection_store,
         )
 
         self.assertEqual(second_report.materialized_document_count, 1)

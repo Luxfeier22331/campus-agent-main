@@ -240,6 +240,21 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             ("notice:muc_internal_portal:187233",),
         )
 
+    def test_rebuild_projection_refuses_persistent_full_scope_without_selected_notice_ids(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+        projection_store = object.__new__(PostgresNoticeConsumptionProjectionStore)
+
+        with self.assertRaisesRegex(ValueError, "notice_ids or document_ids"):
+            rebuild_internal_notice_consumption_projection(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+                projection_store=projection_store,
+            )
+
     def test_build_entries_emits_procurement_notice_unit_without_routing_to_regulation(
         self,
     ) -> None:

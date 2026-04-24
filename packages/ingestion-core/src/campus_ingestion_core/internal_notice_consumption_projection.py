@@ -74,6 +74,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
+    PostgresNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     is_notice_query_retained_consumption_status,
 )
@@ -176,6 +177,15 @@ def rebuild_internal_notice_consumption_projection(
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
     runtime_projection_store = projection_store or _build_projection_store_with_fallback(source)
+    if (
+        not runtime_request.notice_ids
+        and not runtime_request.document_ids
+        and isinstance(runtime_projection_store, PostgresNoticeConsumptionProjectionStore)
+    ):
+        raise ValueError(
+            "refusing persistent full-scope notice consumption projection rebuild without "
+            "explicit notice_ids or document_ids"
+        )
     entries = build_internal_notice_consumption_projection_entries(
         request=runtime_request,
         env=source,
@@ -226,6 +236,29 @@ def select_ready_target_document_ids(
                 and (not allowed_roles or entry.primary_role in allowed_roles)
             }
         )
+    )
+
+
+def list_existing_internal_notice_consumption_projection_entries(
+    store: NoticeConsumptionProjectionStore,
+    *,
+    request: InternalNoticeRegulationPromotionRequest,
+) -> tuple[NoticeConsumptionProjectionEntry, ...]:
+    entries = store.list_by_scope(
+        request.corpus,
+        request.collection,
+        notice_ids=request.notice_ids,
+    )
+    if not request.document_ids:
+        return entries
+    selected_document_ids = {
+        str(item).strip() for item in request.document_ids if str(item).strip()
+    }
+    return tuple(
+        entry
+        for entry in entries
+        if entry.source_document_id in selected_document_ids
+        or entry.source_notice_document_id in selected_document_ids
     )
 
 

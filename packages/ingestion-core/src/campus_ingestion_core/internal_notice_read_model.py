@@ -12,11 +12,13 @@ from campus_ingestion_core.internal_notice_read_model_postgres import (
     PostgresInternalNoticeReadModelStore,
 )
 from campus_ingestion_core.internal_notice_read_model_shared import (
+    DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_SCHEMA,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_TABLE,
+    DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS,
     InternalNoticeReadModelEntry,
     InternalNoticeReadModelStore,
     normalize_notice_ids,
@@ -80,6 +82,7 @@ def build_internal_notice_read_model_entries(
             if canonical_key
             else ""
         )
+        body_excerpt = _build_body_excerpt(body)
         rows.append(
             InternalNoticeReadModelEntry(
                 source_family=entry.source_family,
@@ -99,7 +102,12 @@ def build_internal_notice_read_model_entries(
                 canonical_markdown_object_key=canonical_key,
                 attachment_refs=entry.source_attachment_ref_ids,
                 provenance_refs=_build_provenance_refs(entry, record),
-                search_text=_build_search_text(entry, title=title, body=body),
+                body_excerpt=body_excerpt,
+                search_text=_build_search_text(
+                    entry,
+                    title=title,
+                    body_excerpt=body_excerpt,
+                ),
                 projection_updated_at=entry.updated_at,
             )
         )
@@ -134,6 +142,13 @@ def rebuild_internal_notice_read_model(
         runtime_object_store = object_store
         runtime_bucket_derived = bucket_derived
     normalized_notice_ids = normalize_notice_ids(notice_ids)
+    if not normalized_notice_ids and isinstance(
+        runtime_read_model_store, PostgresInternalNoticeReadModelStore
+    ):
+        raise ValueError(
+            "refusing persistent full-scope internal notice read model rebuild without "
+            "explicit notice_ids"
+        )
     projection_entries = runtime_projection_store.list_by_scope(
         source_corpus,
         source_collection,
@@ -233,7 +248,7 @@ def _build_search_text(
     entry: NoticeConsumptionProjectionEntry,
     *,
     title: str,
-    body: str,
+    body_excerpt: str,
 ) -> str:
     metadata_values = [
         str(value)
@@ -248,10 +263,14 @@ def _build_search_text(
             entry.primary_role,
             entry.target_surface,
             *metadata_values,
-            body,
+            body_excerpt,
         )
         if item and item.strip()
-    )
+    )[:DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS]
+
+
+def _build_body_excerpt(body: str) -> str:
+    return body.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
 
 
 def _build_provenance_refs(
@@ -280,11 +299,13 @@ def _index_current_scope_records(
 
 
 __all__ = [
+    "DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS",
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_SCHEMA",
     "DEFAULT_INTERNAL_NOTICE_READ_MODEL_TABLE",
+    "DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS",
     "InMemoryInternalNoticeReadModelStore",
     "InternalNoticeReadModelEntry",
     "InternalNoticeReadModelObjectStore",

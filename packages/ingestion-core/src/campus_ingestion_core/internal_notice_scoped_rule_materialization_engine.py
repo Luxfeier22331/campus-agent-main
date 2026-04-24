@@ -29,7 +29,7 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
-    rebuild_internal_notice_consumption_projection,
+    list_existing_internal_notice_consumption_projection_entries,
     select_ready_target_document_ids,
 )
 from campus_ingestion_core.internal_notice_regulation_materialization import (
@@ -125,13 +125,9 @@ def materialize_scoped_rules_from_internal_notice_scope(
         except ValueError:
             runtime_consumption_projection_store = InMemoryNoticeConsumptionProjectionStore()
     object_store_settings = ObjectStoreSettings.from_env(source)
-    projection_entries = rebuild_internal_notice_consumption_projection(
+    projection_entries = list_existing_internal_notice_consumption_projection_entries(
+        runtime_consumption_projection_store,
         request=runtime_request,
-        env=source,
-        registry=runtime_registry,
-        source_truth_inventory_store=runtime_inventory,
-        object_store=runtime_object_store,
-        projection_store=runtime_consumption_projection_store,
     )
     ready_document_ids = frozenset(
         select_ready_target_document_ids(

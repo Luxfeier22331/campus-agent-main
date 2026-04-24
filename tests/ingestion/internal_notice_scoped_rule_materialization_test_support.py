@@ -7,6 +7,19 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
+    NOTICE_COMPLETENESS_COMPLETE,
+    NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+    NOTICE_DEFAULT_AGENT_RAG,
+    NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+    NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
+    NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+    NOTICE_TARGET_SURFACE_SCOPED_RULES,
+    NOTICE_TEMPORAL_POLICY_EXPLICIT_YEAR_ONLY,
+    NOTICE_TEMPORAL_POLICY_TIME_WINDOWED,
+    NoticeConsumptionProjectionEntry,
+)
 
 scoped_materialization = importlib.import_module(
     "campus_ingestion_core.internal_notice_scoped_rule_materialization"
@@ -137,3 +150,46 @@ def _document_rows(upload: dict[str, object]) -> list[dict[str, object]]:
     payload = upload["data"]
     assert isinstance(payload, bytes)
     return [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
+
+
+def _ready_scoped_projection_entry(
+    *,
+    notice_id: str,
+    primary_role: str,
+) -> NoticeConsumptionProjectionEntry:
+    temporal_policy = (
+        NOTICE_TEMPORAL_POLICY_EXPLICIT_YEAR_ONLY
+        if primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+        else NOTICE_TEMPORAL_POLICY_TIME_WINDOWED
+    )
+    return NoticeConsumptionProjectionEntry(
+        source_family="internal_notice_restricted",
+        source_corpus="campus_notices",
+        source_collection="internal_notice",
+        source_notice_id=notice_id,
+        unit_id=f"notice_unit:muc_internal_portal:{notice_id}:{primary_role}",
+        primary_role=primary_role,
+        semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+        default_agent=NOTICE_DEFAULT_AGENT_RAG,
+        target_surface=NOTICE_TARGET_SURFACE_SCOPED_RULES,
+        temporal_policy=temporal_policy,
+        completeness_status=NOTICE_COMPLETENESS_COMPLETE,
+        answerability=NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
+        consumption_status=NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
+        source_notice_document_id=f"notice:muc_internal_portal:{notice_id}",
+        source_document_id=f"notice:muc_internal_portal:{notice_id}",
+    )
+
+
+__all__ = [
+    "NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE",
+    "NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE",
+    "_FakeObjectStore",
+    "_canonical_markdown",
+    "_document_rows",
+    "_document_units",
+    "_inventory_entry",
+    "_ready_scoped_projection_entry",
+    "_record",
+    "scoped_materialization",
+]

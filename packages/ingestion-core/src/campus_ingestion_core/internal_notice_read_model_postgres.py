@@ -209,6 +209,7 @@ class PostgresInternalNoticeReadModelStore:
                     published_at text not null,
                     canonical_document_id text not null,
                     canonical_markdown_object_key text not null,
+                    body_excerpt text not null,
                     search_text text not null,
                     search_vector tsvector not null,
                     projection_updated_at timestamptz not null,
@@ -216,6 +217,12 @@ class PostgresInternalNoticeReadModelStore:
                     record jsonb not null,
                     primary key (source_corpus, source_collection, unit_id)
                 )
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists body_excerpt text not null default ''
                 """
             )
             cursor.execute(
@@ -266,6 +273,7 @@ class PostgresInternalNoticeReadModelStore:
                     item.published_at,
                     item.canonical_document_id,
                     item.canonical_markdown_object_key,
+                    item.body_excerpt,
                     item.search_text,
                     to_tsvector('simple', coalesce(item.search_text, '')) as search_vector,
                     item.projection_updated_at,
@@ -285,6 +293,7 @@ class PostgresInternalNoticeReadModelStore:
                     published_at text,
                     canonical_document_id text,
                     canonical_markdown_object_key text,
+                    body_excerpt text,
                     search_text text,
                     projection_updated_at timestamptz,
                     updated_at timestamptz,
@@ -305,6 +314,7 @@ class PostgresInternalNoticeReadModelStore:
                 published_at,
                 canonical_document_id,
                 canonical_markdown_object_key,
+                body_excerpt,
                 search_text,
                 search_vector,
                 projection_updated_at,
@@ -325,6 +335,7 @@ class PostgresInternalNoticeReadModelStore:
                 published_at,
                 canonical_document_id,
                 canonical_markdown_object_key,
+                body_excerpt,
                 search_text,
                 search_vector,
                 projection_updated_at,
@@ -342,6 +353,7 @@ class PostgresInternalNoticeReadModelStore:
                 published_at = excluded.published_at,
                 canonical_document_id = excluded.canonical_document_id,
                 canonical_markdown_object_key = excluded.canonical_markdown_object_key,
+                body_excerpt = excluded.body_excerpt,
                 search_text = excluded.search_text,
                 search_vector = excluded.search_vector,
                 projection_updated_at = excluded.projection_updated_at,
@@ -367,6 +379,7 @@ class PostgresInternalNoticeReadModelStore:
                 "published_at": record.published_at,
                 "canonical_document_id": record.canonical_document_id,
                 "canonical_markdown_object_key": record.canonical_markdown_object_key,
+                "body_excerpt": record.body_excerpt,
                 "search_text": record.search_text,
                 "projection_updated_at": record.projection_updated_at,
                 "updated_at": record.updated_at,
