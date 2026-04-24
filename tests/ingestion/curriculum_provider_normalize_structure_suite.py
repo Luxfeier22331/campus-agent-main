@@ -202,6 +202,376 @@ class CurriculumProviderNormalizeStructureTest(unittest.TestCase):
             ],
         )
 
+    def test_normalize_curriculum_provider_result_repairs_mineru_latex_comparison_symbols(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-004c",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "未修过高等数学(或微积分、数学分析,\\geq 4学分)、"
+                                        "概率论与数理统计(\\leq 3学分)。"
+                                    ),
+                                    "block_id": 31,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(
+            rows[0]["text_normalized"],
+            "未修过高等数学(或微积分、数学分析,≥ 4学分)、概率论与数理统计(≤ 3学分)。",
+        )
+        self.assertNotIn("\\geq", rows[0]["text_normalized"])
+        self.assertNotIn("\\leq", rows[0]["text_normalized"])
+
+    def test_normalize_curriculum_provider_result_demotes_body_th_cells_to_td(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-004d",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><th>培养阶段</th><th>类别</th>"
+                                        "<th>学分</th></tr><tr><td>实践环节</td>"
+                                        "<th>社会实践</th><th>2</th></tr></table>"
+                                    ),
+                                    "block_id": 31,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertIn("<td>社会实践</td><td>2</td>", rows[0]["html"])
+        self.assertNotIn("<th>社会实践</th>", rows[0]["html"])
+        body_cells = [cell for cell in rows[0]["table_cells"] if cell["row"] == 2]
+        self.assertTrue(all(not cell["is_header"] for cell in body_cells))
+
+    def test_normalize_curriculum_provider_result_repairs_translation_workshop_ocr_error(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-translation-workshop-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程号</td><td>课程名称</td></tr>"
+                                        "<tr><td>055121312</td><td>笔试工作坊（一）</td></tr>"
+                                        "<tr><td>050211377</td><td>文化专题口译</td></tr></table>"
+                                    ),
+                                    "block_id": 32,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        html = str(rows[0]["text_normalized"])
+        self.assertIn("笔译工作坊(一)", html)
+        self.assertNotIn("笔试工作坊", html)
+        self.assertIn(
+            {"row": 2, "col": 2, "text": "笔译工作坊(一)", "rowspan": 1, "colspan": 1, "is_header": False},
+            rows[0]["table_cells"],
+        )
+
+    def test_normalize_curriculum_provider_result_repairs_split_course_word_inside_table(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-split-course-word-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程类</td><td>备注</td></tr>"
+                                        "<tr><td>本硕贯通课程</td>"
+                                        "<td>硕士生培养方案一年级课 程</td></tr></table>"
+                                    ),
+                                    "block_id": 33,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        html = str(rows[0]["text_normalized"])
+        self.assertIn("一年级课程", html)
+        self.assertNotIn("课 程", html)
+        self.assertIn(
+            {
+                "row": 2,
+                "col": 2,
+                "text": "硕士生培养方案一年级课程",
+                "rowspan": 1,
+                "colspan": 1,
+                "is_header": False,
+            },
+            rows[0]["table_cells"],
+        )
+
+    def test_normalize_curriculum_provider_result_repairs_repeated_student_direction_phrase(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-repeated-student-direction-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "纳米材料与技术专业学生方向学生参见"
+                                        "纳米材料与技术专业人才培养方案。"
+                                    ),
+                                    "block_id": 34,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(
+            rows[0]["text_normalized"],
+            "纳米材料与技术专业方向学生参见纳米材料与技术专业人才培养方案。",
+        )
+        self.assertNotIn("专业学生方向学生", rows[0]["text_normalized"])
+
+    def test_normalize_curriculum_provider_result_merges_blank_category_rowspan_continuations(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-blank-category-rowspan-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table>"
+                                        "<tr><td>课程类</td><td>模块</td><td>课程号</td></tr>"
+                                        '<tr><td rowspan="2">跨学科交叉课程</td>'
+                                        '<td rowspan="2">模块三</td><td>A</td></tr>'
+                                        "<tr><td>B</td></tr>"
+                                        '<tr><td rowspan="2"></td><td rowspan="2"></td><td>C</td></tr>'
+                                        "<tr><td>D</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 31,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(len(rows), 1)
+        html = str(rows[0]["text_normalized"])
+        self.assertIn('<td rowspan="4">跨学科交叉课程</td>', html)
+        self.assertIn('<td rowspan="4">模块三</td>', html)
+        self.assertNotIn('<td rowspan="2"></td>', html)
+
+    def test_normalize_curriculum_provider_result_merges_duplicate_category_rowspans(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-duplicate-category-rowspan-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table>"
+                                        "<tr><td>课程类</td><td>课程号</td></tr>"
+                                        '<tr><td rowspan="2">跨学科交叉课程</td><td>A</td></tr>'
+                                        "<tr><td>B</td></tr>"
+                                        '<tr><td rowspan="2">跨学科交叉课程</td><td>C</td></tr>'
+                                        "<tr><td>D</td></tr>"
+                                        '<tr><td rowspan="2"></td><td>E</td></tr>'
+                                        "<tr><td>F</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 41,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(len(rows), 1)
+        html = str(rows[0]["text_normalized"])
+        self.assertIn('<td rowspan="6">跨学科交叉课程</td>', html)
+        self.assertEqual(html.count("跨学科交叉课程"), 1)
+        self.assertNotIn('<td rowspan="2"></td>', html)
+
+    def test_normalize_curriculum_provider_result_merges_split_rowspan_category_label(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-split-category-rowspan-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>专业(方向)名称</td><td>课程号</td></tr>"
+                                        '<tr><td rowspan="2">中国少数民族语言文学(蒙古语言</td>'
+                                        "<td>1027030002</td></tr><tr><td>1027030003</td></tr>"
+                                        '<tr><td rowspan="4">文学、藏语言文学、维吾尔语言文学、'
+                                        "哈萨克语言文学、朝鲜语言文学)</td><td>1027030004</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 41,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        html = str(rows[0]["text_normalized"])
+        self.assertIn(
+            '<td rowspan="6">中国少数民族语言文学(蒙古语言文学、藏语言文学、'
+            "维吾尔语言文学、哈萨克语言文学、朝鲜语言文学)</td>",
+            html,
+        )
+        self.assertNotIn('rowspan="2">中国少数民族语言文学(蒙古语言', html)
+        self.assertNotIn('rowspan="4">文学、藏语言文学', html)
+
+    def test_normalize_curriculum_provider_result_merges_blank_colspan_summary_rows(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-blank-colspan-summary-row-repair",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table>"
+                                        "<tr><td>培养阶段</td><td>板块名称</td><td>类别</td></tr>"
+                                        '<tr><td colspan="2">实践环节</td><td>创新创业实践</td></tr>'
+                                        '<tr><td colspan="2" rowspan="2"></td><td>专业实践</td></tr>'
+                                        "<tr><td>社会实践</td></tr>"
+                                        "</table>"
+                                    ),
+                                    "block_id": 51,
+                                    "block_order": 1,
+                                }
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(len(rows), 1)
+        html = str(rows[0]["text_normalized"])
+        self.assertIn('<td rowspan="3" colspan="2">实践环节</td>', html)
+        self.assertNotIn('<td colspan="2" rowspan="2"></td>', html)
+
     def test_normalize_curriculum_provider_result_marks_continued_tables_with_shared_group(
         self,
     ) -> None:
@@ -521,6 +891,185 @@ class CurriculumProviderNormalizeStructureTest(unittest.TestCase):
         self.assertEqual(rows[0]["row_type"], "heading")
         self.assertEqual(rows[0]["heading_level"], 4)
         self.assertEqual(rows[0]["section_hint"], "numeric_heading")
+
+    def test_normalize_curriculum_provider_result_splits_inline_course_list_intro_after_numeric_heading(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-008d",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "五、课程设置和修读建议",
+                                    "block_id": 10,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "(一)专业教育",
+                                    "block_id": 11,
+                                    "block_order": 2,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": (
+                                        "1. 专业必修课共开设 15 门课程, "
+                                        "40 学分。课程清单如下:"
+                                    ),
+                                    "block_id": 12,
+                                    "block_order": 3,
+                                },
+                                {
+                                    "block_label": "table",
+                                    "block_content": (
+                                        "<table><tr><td>课程号</td><td>课程名称</td></tr>"
+                                        "<tr><td>1036030166</td><td>习近平法治思想概论</td></tr></table>"
+                                    ),
+                                    "block_id": 13,
+                                    "block_order": 4,
+                                },
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "2.专业选修课程",
+                                    "block_id": 14,
+                                    "block_order": 5,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual([row["text_normalized"] for row in rows[:5]], [
+            "五、课程设置和修读建议",
+            "(一)专业教育",
+            "1. 专业必修课共开设 15 门课程, 40 学分",
+            "课程清单如下:",
+            "<table><tr><td>课程号</td><td>课程名称</td></tr>"
+            "<tr><td>1036030166</td><td>习近平法治思想概论</td></tr></table>",
+        ])
+        self.assertEqual(rows[2]["row_type"], "heading")
+        self.assertEqual(rows[2]["heading_level"], 4)
+        self.assertEqual(rows[2]["section_hint"], "numeric_heading")
+        self.assertEqual(rows[3]["row_type"], "paragraph")
+        self.assertEqual(rows[3]["heading_level"], None)
+        self.assertEqual(rows[5]["row_type"], "heading")
+        self.assertEqual(rows[5]["section_hint"], "numeric_heading")
+
+    def test_normalize_curriculum_provider_result_splits_inline_section_metadata_value(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-008e",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "民族学本科第二学士学位人才培养方案",
+                                    "block_id": 10,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": "五、学制 两年",
+                                    "block_id": 11,
+                                    "block_order": 2,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": "六、授予学位 法学学士",
+                                    "block_id": 12,
+                                    "block_order": 3,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(
+            [row["text_normalized"] for row in rows],
+            [
+                "民族学本科第二学士学位人才培养方案",
+                "五、学制",
+                "两年",
+                "六、授予学位",
+                "法学学士",
+            ],
+        )
+        self.assertEqual(rows[1]["row_type"], "heading")
+        self.assertEqual(rows[1]["heading_level"], 2)
+        self.assertEqual(rows[1]["section_hint"], "section")
+        self.assertEqual(rows[2]["row_type"], "paragraph")
+        self.assertEqual(rows[2]["heading_level"], None)
+        self.assertEqual(rows[3]["row_type"], "heading")
+        self.assertEqual(rows[4]["row_type"], "paragraph")
+
+    def test_normalize_curriculum_provider_result_splits_inline_discipline_metadata_value(
+        self,
+    ) -> None:
+        provider_payload = {
+            "logId": "log-008f",
+            "errorCode": 0,
+            "errorMsg": "Success",
+            "result": {
+                "layoutParsingResults": [
+                    {
+                        "prunedResult": {
+                            "parsing_res_list": [
+                                {
+                                    "block_label": "paragraph_title",
+                                    "block_content": "文物与博物馆学本科第二学士学位人才培养方案",
+                                    "block_id": 10,
+                                    "block_order": 1,
+                                },
+                                {
+                                    "block_label": "text",
+                                    "block_content": "三、主干学科 考古学、历史学",
+                                    "block_id": 11,
+                                    "block_order": 2,
+                                },
+                            ]
+                        },
+                        "markdown": {"text": "ignored", "images": {}},
+                    }
+                ]
+            },
+        }
+
+        rows = self._normalize_rows(provider_payload)
+
+        self.assertEqual(
+            [row["text_normalized"] for row in rows],
+            [
+                "文物与博物馆学本科第二学士学位人才培养方案",
+                "三、主干学科",
+                "考古学、历史学",
+            ],
+        )
+        self.assertEqual(rows[1]["row_type"], "heading")
+        self.assertEqual(rows[1]["heading_level"], 2)
+        self.assertEqual(rows[2]["row_type"], "paragraph")
+        self.assertEqual(rows[2]["heading_level"], None)
 
     def test_normalize_curriculum_provider_result_demotes_sentence_like_subsection_to_paragraph(
         self,

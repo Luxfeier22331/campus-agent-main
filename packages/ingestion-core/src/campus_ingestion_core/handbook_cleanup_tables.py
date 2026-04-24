@@ -16,7 +16,7 @@ from campus_ingestion_core.handbook_cleanup_shared import (
     DECORATIVE_TABLE_KEYWORDS,
     FORM_COVER_KEYWORDS,
     FORM_TABLE_CAPTION_KEYWORDS,
-    FORM_TABLE_CHECKBOX_MARKERS,
+FORM_TABLE_CHECKBOX_MARKERS,
     FORM_TABLE_FIELD_KEYWORDS,
     FORM_TABLE_SECTION_KEYWORDS,
     FORM_TABLE_SIGNATURE_KEYWORDS,
@@ -30,6 +30,18 @@ from campus_ingestion_core.handbook_cleanup_shared import (
     NormalizedHandbookTable,
 )
 from campus_ingestion_core.handbook_structure import classify_structural_heading
+
+_FORM_PLACEHOLDER_PERCENT_RE = re.compile(
+    r"(?P<label>"
+    r"学生本学年已获资助情况|"
+    r"家庭遭受自然灾害情况|"
+    r"家庭遭受突发意外事件|"
+    r"家庭成员因残疾、年迈而劳动能力弱情况|"
+    r"家庭成员失业情况|"
+    r"家庭欠债情况|"
+    r"其他情况"
+    r")(?:\s*[:：])?\s*0(?:\.00)?%"
+)
 
 
 def _normalize_table_matrix(*, html: object, table_cells: object) -> list[list[str]] | None:
@@ -331,6 +343,30 @@ def _looks_like_form_table(
     if section_row_hits >= 3 and (signature_hits >= 1 or field_hits >= 4):
         return True
     return blank_ratio >= 0.2 and (decorative_hits >= 2 or field_hits >= 3)
+
+
+def _repair_form_table_ocr_artifacts(value: object, *, form_like_table: bool) -> object:
+    if not form_like_table and not _has_form_placeholder_percent_artifacts(value):
+        return value
+    if isinstance(value, str):
+        return _FORM_PLACEHOLDER_PERCENT_RE.sub(r"\g<label>", value)
+    if isinstance(value, list):
+        return [
+            _repair_form_table_ocr_artifacts(item, form_like_table=form_like_table)
+            for item in value
+        ]
+    return value
+
+
+def _has_form_placeholder_percent_artifacts(value: object) -> bool:
+    if isinstance(value, str):
+        return (
+            "影响家庭经济状况有关信息" in value
+            and len(_FORM_PLACEHOLDER_PERCENT_RE.findall(value)) >= 2
+        )
+    if isinstance(value, list):
+        return any(_has_form_placeholder_percent_artifacts(item) for item in value)
+    return False
 
 
 def _contains_form_table_keyword(text: str) -> bool:
@@ -704,6 +740,7 @@ __all__ = [
     "_merge_policy_fragment_into_previous_line",
     "_normalize_table_matrix",
     "_project_phone_table_policy_pages",
+    "_repair_form_table_ocr_artifacts",
     "_should_attach_policy_page_to_following_table",
     "_should_merge_policy_fragment_into_previous_line",
 ]

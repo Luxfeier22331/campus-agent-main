@@ -99,6 +99,73 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         self.assertEqual(inventory[0].document_id, "curriculum:国际经济与贸易本科人才培养方案")
         self.assertEqual(inventory[1].document_title, "经济学拔尖人才创新班人才培养方案")
 
+    def test_build_inventory_infers_course_map_section_when_image_parent_hint_is_stale(
+        self,
+    ) -> None:
+        layout_rows = [
+            {
+                "page_start": 1,
+                "row_id": "page-0001-heading-0001",
+                "row_type": "heading",
+                "text_normalized": "六、课程地图",
+                "section_hint": "section",
+                "bbox": [0, 0, 10, 10],
+                "parent_heading_hint": None,
+            },
+            {
+                "page_start": 1,
+                "row_id": "page-0001-image-0002",
+                "row_type": "image",
+                "bbox": [10, 20, 300, 400],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 2,
+                "row_id": "page-0002-image-0001",
+                "row_type": "image",
+                "bbox": [20, 30, 320, 430],
+                "parent_heading_hint": "3. 创新创业实践",
+            },
+            {
+                "page_start": 3,
+                "row_id": "page-0003-heading-0001",
+                "row_type": "heading",
+                "text_normalized": "七、其他说明",
+                "section_hint": "section",
+                "bbox": [0, 0, 10, 10],
+                "parent_heading_hint": None,
+            },
+        ]
+
+        inventory = build_curriculum_course_map_inventory(
+            split_manifest_bytes=json.dumps(
+                {
+                    "manifest_version": "curriculum_plan_split_manifest_v1",
+                    "documents": [
+                        {
+                            "document_id": "curriculum:计算机类本科人才培养方案",
+                            "title": "计算机类本科人才培养方案",
+                            "page_start": 1,
+                            "page_end": 3,
+                        }
+                    ],
+                },
+                ensure_ascii=False,
+            ).encode("utf-8"),
+            provider_response_bytes=_provider_response_bytes(page_count=3),
+            layout_elements_bytes="\n".join(
+                json.dumps(row, ensure_ascii=False) for row in layout_rows
+            ).encode("utf-8"),
+            source_pdf_key="source.pdf",
+            provider_response_key="provider-response.jsonl",
+            layout_elements_key="layout-elements.jsonl",
+            raw_asset_id="asset:curriculum-plan-2022",
+            raw_version_id="sha256:test",
+        )
+
+        self.assertEqual([item.page_number for item in inventory], [1, 2])
+        self.assertEqual([item.parent_heading_hint for item in inventory], ["六、课程地图"] * 2)
+
     def test_provider_bbox_projection_scales_against_pdf_canvas(self) -> None:
         provider_canvas = derive_provider_canvas(
             pdf_page_width=595,

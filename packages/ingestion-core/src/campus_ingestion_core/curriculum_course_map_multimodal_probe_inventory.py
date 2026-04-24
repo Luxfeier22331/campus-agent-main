@@ -30,19 +30,34 @@ def build_curriculum_course_map_inventory(
     document_ranges = _load_split_manifest_document_ranges(split_manifest_bytes)
     provider_page_heights = load_provider_page_heights(provider_response_bytes)
     inventory: list[CurriculumCourseMapInventoryEntry] = []
+    active_course_map_headings_by_document: dict[str, str] = {}
     for row in _load_jsonl_bytes(layout_elements_bytes):
-        if str(row.get("row_type") or "").strip() != "image":
-            continue
         page_number = int(row.get("page_start") or 0)
         if page_number <= 0:
-            raise ValueError("course-map image row missing page_start")
+            if str(row.get("row_type") or "").strip() == "image":
+                raise ValueError("course-map image row missing page_start")
+            continue
         owner = _resolve_document_for_page(document_ranges=document_ranges, page_number=page_number)
         if owner is None:
             continue
+        owner_document_id, owner_document_title = owner
+        row_type = str(row.get("row_type") or "").strip()
+        row_heading_text = _row_text(row)
+        if row_type == "heading":
+            if _is_curriculum_course_map_candidate(row_heading_text):
+                active_course_map_headings_by_document[owner_document_id] = row_heading_text
+            elif _is_curriculum_section_boundary(row):
+                active_course_map_headings_by_document.pop(owner_document_id, None)
+            continue
+        if row_type != "image":
+            continue
         parent_heading_hint = str(row.get("parent_heading_hint") or "").strip()
         if not _is_curriculum_course_map_candidate(parent_heading_hint):
+            parent_heading_hint = active_course_map_headings_by_document.get(
+                owner_document_id, ""
+            )
+        if not _is_curriculum_course_map_candidate(parent_heading_hint):
             continue
-        owner_document_id, owner_document_title = owner
         provider_page_height = float(provider_page_heights.get(page_number) or 0.0)
         if provider_page_height <= 0:
             raise ValueError(f"missing provider page height for page {page_number}")
@@ -248,6 +263,19 @@ def _resolve_document_for_page(
 
 def _is_curriculum_course_map_candidate(parent_heading_hint: str) -> bool:
     return bool(_COURSE_MAP_HINT_RE.search(parent_heading_hint.strip()))
+
+
+def _is_curriculum_section_boundary(row: dict[str, object]) -> bool:
+    section_hint = str(row.get("section_hint") or "").strip()
+    return section_hint in {"section", "chapter"}
+
+
+def _row_text(row: dict[str, object]) -> str:
+    for key in ("text_normalized", "clean_text", "text_raw", "parent_heading_hint"):
+        value = str(row.get(key) or "").strip()
+        if value:
+            return value
+    return ""
 
 
 def _load_jsonl_bytes(payload: bytes) -> tuple[dict[str, object], ...]:

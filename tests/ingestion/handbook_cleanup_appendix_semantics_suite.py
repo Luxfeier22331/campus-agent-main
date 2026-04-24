@@ -365,6 +365,8 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
                 _source_row(256, "heading", "一、时间安排"),
                 _source_row(256, "list_item", "1. 10月至次年5月31日:"),
                 _source_row(256, "paragraph", "亮灯时间:周一至周五每天早晨5:30。"),
+                _source_row(256, "list_item", "2.6月1日至9月30日,学生宿舍不统一熄灯。"),
+                _source_row(256, "list_item", "1. 国家法定节假日不统一熄灯。"),
                 _source_row(256, "heading", "二、要求:"),
                 _source_row(256, "list_item", "1. 严禁私接电线及违章使用各类电器。"),
                 _source_row(
@@ -385,6 +387,9 @@ class HandbookCleanupAppendixSemanticsTest(unittest.TestCase):
         policy_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
         self.assertEqual(policy_units[-1]["anchor"]["section_path"], [])
         self.assertEqual(policy_units[-1]["anchor"]["provision_label"], "三")
+        self.assertIn("2. 6月1日至9月30日,学生宿舍不统一熄灯。", result.canonical_markdown)
+        self.assertIn("3. 国家法定节假日不统一熄灯。", result.canonical_markdown)
+        self.assertNotIn("2.6月1日至9月30日", result.canonical_markdown)
         self.assertIn(
             "## 三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
             result.canonical_markdown,

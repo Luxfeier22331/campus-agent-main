@@ -316,6 +316,7 @@ def _looks_like_confirmed_handbook_soft_wrap_continuation(previous: str, current
         ("有要求", "学生申诉处理委员会"),
         ("毕业生从", "校级优秀本科毕业生中"),
         ("本科学生专项奖学金按以下程序", "进行评选:"),
+        ("按以下程序", "进行评选:"),
         ("参加勤工助学的工作时间", "原则上每周"),
         ("做好对参加勤工助学", "学生的考勤管理"),
     )
@@ -636,6 +637,8 @@ def _looks_like_enumerated_clause_false_heading_split(heading: str, remainder: s
         "本科学生专项奖学金按以下程序"
     ) and normalized_remainder.startswith("进行评选"):
         return True
+    if normalized_heading.endswith("按以下程序") and normalized_remainder.startswith("进行评选"):
+        return True
     if normalized_heading.endswith(
         "学生参加勤工助学的工作时间"
     ) and normalized_remainder.startswith("原则上每周"):
@@ -786,6 +789,11 @@ def _repair_known_ocr_phrase_errors(text: str) -> str:
     normalized = normalized.replace("允许使用永恒的所有电器", "允许使用的所有电器")
     normalized = normalized.replace("私自将违规电器带入室内着", "私自将违规电器带入室内者")
     normalized = normalized.replace("一法追究法律责任", "依法追究法律责任")
+    normalized = normalized.replace("2.6月1日至9月30日", "2. 6月1日至9月30日")
+    if normalized == "1. 国家法定节假日不统一熄灯。":
+        normalized = "3. 国家法定节假日不统一熄灯。"
+    normalized = normalized.replace("总和测评分", "综合测评分")
+    normalized = normalized.replace("给与相应的处理", "给予相应的处理")
     normalized = normalized.replace("志愿志愿服务", "志愿服务")
     normalized = normalized.replace("教学和生活程序", "教学和生活秩序")
     normalized = normalized.replace("有关规定部分定安置", "有关规定安置")

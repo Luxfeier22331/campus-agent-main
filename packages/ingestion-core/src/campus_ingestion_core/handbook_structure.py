@@ -24,7 +24,7 @@ PAREN_ENUMERATED_HEADING_RE = re.compile(
 )
 SENTENCE_PUNCTUATION_RE = re.compile(r"[。！？；;!?]")
 MAX_ENUMERATED_HEADING_LENGTH = 24
-HEADING_INCOMPLETE_TAIL_CHARS = ("和", "与", "及", "或", "并")
+HEADING_INCOMPLETE_TAIL_CHARS = ("和", "与", "及", "或", "并", "是")
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 from pathlib import Path
 
 from campus_ingestion_core.source_truth_common import (
@@ -31,8 +32,12 @@ _DECIMAL_LIST_MARKER_AFTER_SENTENCE_RE = re.compile(r"(?<=[。！？；!?;])(?=\
 _MISSING_NUMERIC_LIST_DOT_RE = re.compile(
     r"(?m)^(?P<number>[1-9]\d?)(?P<body>[\u4e00-\u9fff][^:\n：]{0,24}[:：])"
 )
+_MISSING_NUMERIC_LIST_DOT_WITH_SPACE_RE = re.compile(
+    r"(?m)^(?P<number>[1-9]\d?)\s+(?P<body>[\u4e00-\u9fff][^:\n：]{0,24}[:：])"
+)
 _SPACED_NUMERIC_RANGE_RE = re.compile(r"(?<=\d)-\s+(?=\d)")
 _TABLE_TAG_RE = re.compile(r"<[^>]+>")
+_TABLE_HTML_RE = re.compile(r"<table\b[^>]*>.*?</table>", re.IGNORECASE | re.DOTALL)
 _TABLE_ROW_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
 _GLOBAL_COMPETENCE_PLACEHOLDER = "学校通开的全球胜任力培养课程"
 _TERMINAL_MOTTO_FOOTER_RE = re.compile(r"^美美与共\s+知行合一$")
@@ -364,16 +369,44 @@ def _normalize_text(text: str) -> str:
 
 def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = _MISSING_NUMERIC_LIST_DOT_RE.sub(r"\g<number>. \g<body>", text)
+    repaired = _MISSING_NUMERIC_LIST_DOT_WITH_SPACE_RE.sub(
+        r"\g<number>. \g<body>",
+        repaired,
+    )
+    repaired = repaired.replace("\\geq", "≥")
+    repaired = repaired.replace("\\leq", "≤")
     repaired = _SPACED_NUMERIC_RANGE_RE.sub("-", repaired)
     repaired = re.sub(
         r"应修学分(?P<credits>\d+(?:\.\d+)?)学分",
         r"应修\g<credits>学分",
         repaired,
     )
+    repaired = re.sub(
+        r"(实践环节合计\d+(?:\.\d+)?学分,为必)$",
+        r"\1修。",
+        repaired,
+    )
     repaired = repaired.replace("建议续深造学生选修", "建议继续深造学生选修")
     repaired = repaired.replace("马克主义", "马克思主义")
     repaired = repaired.replace("具备具有", "具备")
     repaired = repaired.replace("刑事司法治度", "刑事司法制度")
+    repaired = repaired.replace("能能够", "能够")
+    repaired = repaired.replace("笔试工作坊", "笔译工作坊")
+    repaired = repaired.replace("课 程", "课程")
+    repaired = repaired.replace("专业学生方向学生", "专业方向学生")
+    repaired = repaired.replace("文学、博物馆学", "文物学、博物馆学")
+    repaired = repaired.replace("文学学研究", "文物学研究")
+    repaired = repaired.replace("文生物学研究", "文物学研究")
+    repaired = repaired.replace(
+        "<td>0651-2-05-01</td><td>文学研究</td>",
+        "<td>0651-2-05-01</td><td>文物学研究</td>",
+    )
+    repaired = repaired.replace("文物理学概论", "文物学概论")
+    repaired = repaired.replace("(三)要求能力", "(三)能力要求")
+    repaired = repaired.replace(
+        "了解国内外文博界重要动态具有进一步进行文物与博物馆研究的基础。",
+        "了解国内外文博界重要动态,具有进一步进行文物与博物馆研究的基础。",
+    )
     repaired = repaired.replace(
         (
             "立足北京,面向全国,着眼国际,主要培养政治素质过硬、人文底蕴"
@@ -417,13 +450,211 @@ def _repair_mineru_text_artifacts(text: str) -> str:
     repaired = _repair_global_competence_label_split(repaired)
     repaired = _repair_basic_literacy_label_split(repaired)
     repaired = _repair_industry_collaboration_label_split(repaired)
+    repaired = _repair_university_math_table_artifacts(repaired)
+    repaired = _repair_chinese_international_personalized_table_artifacts(repaired)
     repaired = _repair_public_management_table_artifacts(repaired)
     repaired = _repair_public_management_elective_intro(repaired)
     repaired = _repair_minority_preparatory_program_artifacts(repaired)
     repaired = _repair_ethnology_second_bachelor_table_artifact(repaired)
     repaired = _repair_paleography_program_table_artifacts(repaired)
+    repaired = _repair_table_category_rowspan_continuations(repaired)
+    repaired = _normalize_table_body_header_cells(repaired)
     repaired = _repair_split_table_cell_continuations(repaired)
     return _repair_biology_cross_course_table_artifact(repaired)
+
+
+def _repair_table_category_rowspan_continuations(text: str) -> str:
+    if "<table" not in text:
+        return text
+    return _TABLE_HTML_RE.sub(
+        lambda match: _repair_single_table_category_rowspan_continuations(match.group(0)),
+        text,
+    )
+
+
+def _repair_single_table_category_rowspan_continuations(table_html: str) -> str:
+    table_cells = _extract_table_cells(table_html)
+    if not table_cells:
+        return table_html
+
+    repaired_cells = [dict(cell) for cell in table_cells]
+    changed = False
+    while True:
+        repaired_cells.sort(key=lambda cell: (int(cell.get("row") or 0), int(cell.get("col") or 0)))
+        merged_in_pass = False
+        for current in list(repaired_cells):
+            if not _is_category_rowspan_continuation_candidate(current):
+                continue
+            previous = _find_previous_adjacent_category_cell(repaired_cells, current)
+            if previous is None:
+                continue
+            if not _should_merge_category_rowspan_continuation(previous=previous, current=current):
+                continue
+            previous_row = int(previous.get("row") or 0)
+            previous_end = _cell_end_row(previous)
+            current_end = _cell_end_row(current)
+            merged_text = _merge_category_rowspan_continuation_text(
+                previous_text=normalize_text(str(previous.get("text") or "")),
+                current_text=normalize_text(str(current.get("text") or "")),
+            )
+            if merged_text is not None:
+                previous["text"] = merged_text
+            previous["rowspan"] = max(previous_end, current_end) - previous_row + 1
+            repaired_cells.remove(current)
+            changed = True
+            merged_in_pass = True
+            break
+        if not merged_in_pass:
+            break
+
+    if not changed:
+        return table_html
+    return _serialize_table_cells_as_td_html(repaired_cells)
+
+
+def _is_category_rowspan_continuation_candidate(cell: dict[str, object]) -> bool:
+    row = int(cell.get("row") or 0)
+    col = int(cell.get("col") or 0)
+    if row <= 1 or col not in {1, 2} or bool(cell.get("is_header")):
+        return False
+    text = normalize_text(str(cell.get("text") or ""))
+    rowspan = int(cell.get("rowspan") or 1)
+    colspan = int(cell.get("colspan") or 1)
+    if not text:
+        return rowspan > 1 or colspan > 1
+    return True
+
+
+def _find_previous_adjacent_category_cell(
+    cells: list[dict[str, object]], current: dict[str, object]
+) -> dict[str, object] | None:
+    current_row = int(current.get("row") or 0)
+    current_col = int(current.get("col") or 0)
+    current_colspan = int(current.get("colspan") or 1)
+    candidates = [
+        cell
+        for cell in cells
+        if cell is not current
+        and int(cell.get("col") or 0) == current_col
+        and int(cell.get("colspan") or 1) == current_colspan
+        and _cell_end_row(cell) == current_row - 1
+        and normalize_text(str(cell.get("text") or ""))
+        and not bool(cell.get("is_header"))
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda cell: int(cell.get("row") or 0))
+
+
+def _should_merge_category_rowspan_continuation(
+    *, previous: dict[str, object], current: dict[str, object]
+) -> bool:
+    previous_text = normalize_text(str(previous.get("text") or ""))
+    current_text = normalize_text(str(current.get("text") or ""))
+    if not previous_text:
+        return False
+    if int(current.get("col") or 0) == 2 and not previous_text.startswith("模块"):
+        return False
+    if not current_text:
+        return True
+    if (
+        _merge_category_rowspan_continuation_text(
+            previous_text=previous_text,
+            current_text=current_text,
+        )
+        is not None
+    ):
+        return True
+    if current_text != previous_text:
+        return False
+    return (
+        int(previous.get("rowspan") or 1) > 1
+        or int(current.get("rowspan") or 1) > 1
+        or int(previous.get("colspan") or 1) > 1
+        or int(current.get("colspan") or 1) > 1
+    )
+
+
+def _merge_category_rowspan_continuation_text(
+    *,
+    previous_text: str,
+    current_text: str,
+) -> str | None:
+    if not previous_text or not current_text:
+        return None
+    if not _has_unclosed_parenthetical(previous_text):
+        return None
+    if not _has_closing_parenthetical(current_text):
+        return None
+    return f"{previous_text}{_joiner_between(previous_text, current_text)}{current_text}"
+
+
+def _has_unclosed_parenthetical(text: str) -> bool:
+    return text.count("(") > text.count(")") or text.count("（") > text.count("）")
+
+
+def _has_closing_parenthetical(text: str) -> bool:
+    return ")" in text or "）" in text
+
+
+def _cell_end_row(cell: dict[str, object]) -> int:
+    return int(cell.get("row") or 0) + int(cell.get("rowspan") or 1) - 1
+
+
+def _normalize_table_body_header_cells(text: str) -> str:
+    if "<th" not in text.lower() or "<table" not in text.lower():
+        return text
+    return _TABLE_HTML_RE.sub(
+        lambda match: _normalize_single_table_body_header_cells(match.group(0)),
+        text,
+    )
+
+
+def _normalize_single_table_body_header_cells(table_html: str) -> str:
+    row_matches = list(_TABLE_ROW_RE.finditer(table_html))
+    if len(row_matches) <= 1:
+        return table_html
+    chunks: list[str] = []
+    cursor = 0
+    for row_index, row_match in enumerate(row_matches):
+        chunks.append(table_html[cursor : row_match.start()])
+        row_html = row_match.group(0)
+        if row_index > 0:
+            row_html = re.sub(r"<th(\b[^>]*)>", r"<td\1>", row_html, flags=re.IGNORECASE)
+            row_html = re.sub(r"</th>", "</td>", row_html, flags=re.IGNORECASE)
+        chunks.append(row_html)
+        cursor = row_match.end()
+    chunks.append(table_html[cursor:])
+    return "".join(chunks)
+
+
+def _serialize_table_cells_as_td_html(table_cells: list[dict[str, object]]) -> str:
+    row_count = infer_table_row_count(table_cells) or 0
+    if row_count <= 0:
+        return "<table></table>"
+    cells_by_row: dict[int, list[dict[str, object]]] = {}
+    for cell in table_cells:
+        row_number = int(cell.get("row") or 0)
+        if row_number <= 0:
+            continue
+        cells_by_row.setdefault(row_number, []).append(cell)
+
+    html_rows: list[str] = []
+    for row_number in range(1, row_count + 1):
+        rendered_cells: list[str] = []
+        for cell in sorted(cells_by_row.get(row_number, ()), key=lambda item: int(item.get("col") or 0)):
+            attrs: list[str] = []
+            rowspan = int(cell.get("rowspan") or 1)
+            colspan = int(cell.get("colspan") or 1)
+            if rowspan > 1:
+                attrs.append(f' rowspan="{rowspan}"')
+            if colspan > 1:
+                attrs.append(f' colspan="{colspan}"')
+            rendered_cells.append(
+                f"<td{''.join(attrs)}>{escape(str(cell.get('text') or ''), quote=False)}</td>"
+            )
+        html_rows.append(f"<tr>{''.join(rendered_cells)}</tr>")
+    return f"<table>{''.join(html_rows)}</table>"
 
 
 def _looks_like_terminal_motto_footer(text: str) -> bool:
@@ -545,8 +776,26 @@ def _repair_biology_cross_course_table_artifact(text: str) -> str:
 
 
 def _repair_global_competence_label_split(text: str) -> str:
-    if "全球胜任力培" not in text or "养课程" not in text or "<table" not in text:
+    if "<table" not in text:
         return text
+    repaired = text
+    split_cell_pattern = re.compile(
+        r"<tr><td>全球胜任</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+        r"<tr><td\s+rowspan=\"(?P<rowspan>\d+)\">力培养课\s*程</td>"
+        r"(?P<second_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
+    )
+
+    def replace_split_cell(match: re.Match[str]) -> str:
+        rowspan = int(match.group("rowspan")) + 1
+        return (
+            f'<tr><td rowspan="{rowspan}">全球胜任力培养课程</td>'
+            f"{match.group('first_rest')}</tr>"
+            f"<tr>{match.group('second_rest')}</tr>"
+        )
+
+    repaired = split_cell_pattern.sub(replace_split_cell, repaired)
+    if "全球胜任力培" not in repaired or "养课程" not in repaired:
+        return repaired
 
     pattern = re.compile(
         r"<tr><td rowspan=\"2\">全球胜任力培</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
@@ -564,12 +813,13 @@ def _repair_global_competence_label_split(text: str) -> str:
             f"<tr>{match.group('fourth_rest')}</tr>"
         )
 
-    return pattern.sub(replace, text)
+    return pattern.sub(replace, repaired)
 
 
 def _repair_industry_collaboration_label_split(text: str) -> str:
     if "行业领域" not in text or "协同" not in text or "<table" not in text:
         return text
+    text = re.sub(r">行业领域\s+协同育人\s+课程<", ">行业领域协同育人课程<", text)
 
     pattern = re.compile(
         r"<tr><td>行业领域</td>(?P<first_rest>(?:<td[^>]*>.*?</td>)+)</tr>"
@@ -610,11 +860,50 @@ def _repair_basic_literacy_label_split(text: str) -> str:
     return pattern.sub(replace, text)
 
 
+def _repair_university_math_table_artifacts(text: str) -> str:
+    if "大学数学(三)" not in text or "概率论与数理统计" not in text or "<table" not in text:
+        return text
+    repaired = text.replace(
+        '<td rowspan="3">大学数学(三)</td>',
+        '<td rowspan="4">大学数学(三)</td>',
+    )
+    repaired = repaired.replace(
+        '<td rowspan="3">/</td></tr><tr><td>高等数学(三)下</td>',
+        '<td rowspan="4">/</td></tr><tr><td>高等数学(三)下</td>',
+    )
+    return repaired.replace(
+        "<tr><td></td><td>概率论与数理统计</td><td>3</td><td>54</td><td>3</td><td></td></tr>",
+        "<tr><td>概率论与数理统计</td><td>3</td><td>54</td><td>3</td></tr>",
+    )
+
+
+def _repair_chinese_international_personalized_table_artifacts(text: str) -> str:
+    if "0453-2-24-50" not in text or "本硕贯通课程" not in text or "<table" not in text:
+        return text
+    repaired = text.replace(
+        '<tr><td rowspan="2">本硕贯通课程</td>',
+        '<tr><td rowspan="11">本硕贯通课程</td>',
+    )
+    repaired = repaired.replace(
+        '<td rowspan="2">模块一:\n文化传播类课程语</td>',
+        '<td rowspan="2">模块一:文化传播类课程</td>',
+    )
+    return repaired.replace(
+        '<tr><td rowspan="9"></td><td rowspan="6">模块二:汉语教学类课程</td>',
+        '<tr><td rowspan="6">模块二:汉语教学类课程</td>',
+    )
+
+
 def _repair_public_management_table_artifacts(text: str) -> str:
-    if "2-4沟通与合作能够力" not in text and "3-3-1热忱对待公共管理事业" not in text:
+    if (
+        "2-4沟通与合作能够力" not in text
+        and "3-3-1热忱对待公共管理事业" not in text
+        and "2-4 沟通与合作能够力" not in text
+    ):
         return text
 
     repaired = text.replace("2-4沟通与合作能够力", "2-4沟通与合作能力")
+    repaired = repaired.replace("2-4 沟通与合作能够力", "2-4 沟通与合作能力")
     repaired = repaired.replace(
         "2-4-3能够初步地进行专业领域的国际交流",
         "2-4-3 能够初步地进行专业领域的国际交流",

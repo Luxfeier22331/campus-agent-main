@@ -35,6 +35,15 @@ _CHINESE_PARENTHESIZED_HEADING_RE = re.compile(
     r"^(?P<open>[（(])(?P<number>[一二三四五六七八九十]+)(?P<close>[)）])(?P<body>.+)$"
 )
 _ORDERED_LIST_LINE_RE = re.compile(r"^(?P<number>[1-9]\d*)(?P<marker>[.．、])\s*(?P<body>.+)$")
+_INLINE_COURSE_LIST_INTRO_NUMERIC_HEADING_RE = re.compile(
+    r"^(?P<heading>[1-9]\d?[.．、]\s*.+?)\s*[。.;；]\s*(?P<intro>课程清单如下[:：]?)$"
+)
+_INLINE_SECTION_METADATA_VALUE_RE = re.compile(
+    r"^(?P<heading>[一二三四五六七八九十]+、\s*"
+    r"(?:主干学科|学制|学分|总学分|授予学位|学位授予))"
+    r"(?:(?:\s*[:：]\s*)|\s+)"
+    r"(?P<value>[^。；！？!?]{1,40})$"
+)
 _INLINE_PARENTHESIZED_ENUM_BOUNDARY_RE = re.compile(
     r"(?<=[。！？；!?;])(?=[（(][一二三四五六七八九十]+[)）])"
 )
@@ -66,6 +75,8 @@ def _enrich_source_truth_rows(rows: list[dict[str, object]]) -> None:
     rows[:] = _repair_missing_teaching_hours_section(rows)
     rows[:] = _repair_design_personalized_heading_gap(rows)
     rows[:] = _repair_cross_block_duplicate_tail_wrap(rows)
+    rows[:] = _repair_inline_course_list_intro_numeric_headings(rows)
+    rows[:] = _repair_inline_section_metadata_value_headings(rows)
     _repair_inline_parenthesized_enum_boundaries(rows)
     _repair_course_settings_parenthesized_heading_sequence(rows)
     _repair_repeated_ordered_list_markers(rows)
@@ -214,6 +225,104 @@ def _repair_repeated_ordered_list_markers(rows: list[dict[str, object]]) -> None
                 "\n".join(repaired_lines),
                 reason="curriculum_repair:renumber_repeated_ordered_list_markers",
             )
+
+
+def _repair_inline_course_list_intro_numeric_headings(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    for index, row in enumerate(rows):
+        if str(row.get("row_type") or "") != "paragraph":
+            repaired_rows.append(row)
+            continue
+        if _next_substantive_row_type(rows, index + 1) != "table":
+            repaired_rows.append(row)
+            continue
+        text = _row_text(row)
+        match = _INLINE_COURSE_LIST_INTRO_NUMERIC_HEADING_RE.match(text)
+        if match is None:
+            repaired_rows.append(row)
+            continue
+        heading_text = match.group("heading").strip()
+        intro_text = match.group("intro").strip()
+        repaired_rows.append(
+            _clone_curriculum_text_row(
+                row,
+                text=heading_text,
+                row_id_suffix=None,
+                row_type="heading",
+                block_role="inferred_numeric_heading",
+                heading_level=4,
+                section_hint="numeric_heading",
+                classification_reason=(
+                    "curriculum_repair:split_inline_course_list_intro_numeric_heading"
+                ),
+                preserve_reading_order=True,
+            )
+        )
+        repaired_rows.append(
+            _clone_curriculum_text_row(
+                row,
+                text=intro_text,
+                row_id_suffix="course-list-intro",
+                row_type="paragraph",
+                block_role="text",
+                heading_level=None,
+                section_hint=None,
+                classification_reason="curriculum_repair:split_inline_course_list_intro",
+                preserve_reading_order=False,
+            )
+        )
+    return repaired_rows
+
+
+def _repair_inline_section_metadata_value_headings(
+    rows: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    repaired_rows: list[dict[str, object]] = []
+    for row in rows:
+        if str(row.get("row_type") or "") != "heading":
+            repaired_rows.append(row)
+            continue
+        text = _row_text(row)
+        match = _INLINE_SECTION_METADATA_VALUE_RE.match(text)
+        if match is None:
+            repaired_rows.append(row)
+            continue
+        heading_text = match.group("heading").strip()
+        value_text = match.group("value").strip()
+        if not heading_text or not value_text:
+            repaired_rows.append(row)
+            continue
+        _replace_row_text(
+            row,
+            heading_text,
+            reason="curriculum_repair:split_inline_section_metadata_heading",
+        )
+        repaired_rows.append(row)
+        repaired_rows.append(
+            _clone_curriculum_text_row(
+                row,
+                text=value_text,
+                row_id_suffix="section-metadata-value",
+                row_type="paragraph",
+                block_role="text",
+                heading_level=None,
+                section_hint=None,
+                classification_reason="curriculum_repair:split_inline_section_metadata_value",
+                preserve_reading_order=False,
+            )
+        )
+    return repaired_rows
+
+
+def _next_substantive_row_type(rows: list[dict[str, object]], start_index: int) -> str | None:
+    for candidate in rows[start_index:]:
+        row_type = str(candidate.get("row_type") or "")
+        if row_type in {"page_number", "footer"}:
+            continue
+        return row_type or None
+    return None
 
 
 def _repair_inline_parenthesized_enum_boundaries(rows: list[dict[str, object]]) -> None:

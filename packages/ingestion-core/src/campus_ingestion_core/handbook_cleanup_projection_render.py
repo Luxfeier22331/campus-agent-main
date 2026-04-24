@@ -32,6 +32,10 @@ def build_canonical_body(
             continue
         if kind == "article":
             article_text = str(event.get("text") or "")
+            if event.get("render_heading") is False:
+                if article_text:
+                    parts.append(article_text)
+                continue
             if article_text:
                 parts.append(f"### {event['label']}\n{article_text}")
             else:
@@ -54,6 +58,7 @@ def _should_render_policy_page_as_canonical_heading(event: dict[str, object]) ->
     text = str(event.get("text") or "").strip()
     return bool(
         text
+        and event.get("render_heading") is not False
         and "\n" not in text
         and event.get("provision_label") is not None
         and not tuple(event.get("section_path") or ())

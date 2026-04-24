@@ -291,6 +291,8 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                 [
                     "第十二条 本科学生专项奖学金按以下程序",
                     "进行评选:",
+                    "第十一条 本科学生国家励志奖学金按以下程序",
+                    "进行评选:",
                     "(七)临时困难补助学生在校学习期间因本人或家庭出现特殊情况,可申请补助。",
                     "(八)绿色通道学校在每学年新生入学时为家庭经济特别困难新生办理入学手续。",
                     "(二) 学生参加勤工助学的工作时间",
@@ -298,11 +300,14 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
                     "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 $70\\%$",
                     "做好对参加勤工助学",
                     "学生的考勤管理,并组织岗位培训。",
+                    "补考成绩只作为结业标准,不计入学分和总和测评分。",
+                    "视其情节按照规定给与相应的处理。",
                 ]
             )
         )
 
         self.assertIn("本科学生专项奖学金按以下程序进行评选:", normalized)
+        self.assertIn("本科学生国家励志奖学金按以下程序进行评选:", normalized)
         self.assertIn(
             "(七)临时困难补助\n学生在校学习期间因本人或家庭出现特殊情况,可申请补助。", normalized
         )
@@ -313,7 +318,11 @@ class HandbookCleanupTextNormalizationTest(unittest.TestCase):
         self.assertIn("学生参加勤工助学的工作时间原则上每周不超过10小时", normalized)
         self.assertIn("家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。", normalized)
         self.assertIn("做好对参加勤工助学学生的考勤管理,并组织岗位培训。", normalized)
+        self.assertIn("不计入学分和综合测评分。", normalized)
+        self.assertIn("视其情节按照规定给予相应的处理。", normalized)
         self.assertNotIn("按以下程序\n进行评选", normalized)
+        self.assertNotIn("总和测评分", normalized)
+        self.assertNotIn("给与相应的处理", normalized)
         self.assertNotIn("工作时间\n原则上每周", normalized)
         self.assertNotIn("做好对参加勤工助学\n学生的考勤管理", normalized)
         self.assertNotIn("$70\\%$", normalized)
