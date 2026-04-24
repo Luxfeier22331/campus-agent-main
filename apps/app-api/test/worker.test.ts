@@ -181,6 +181,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(stagingSecretsBlock).toContain('"SUPERVISOR_API_SHARED_SECRET"');
 		expect(stagingSecretsBlock).toContain('"APP_API_INTERNAL_SHARED_SECRET"');
+		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
 		expect(stagingSecretsBlock).toContain('"AXIOM_TOKEN"');

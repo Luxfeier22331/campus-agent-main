@@ -51,6 +51,7 @@ Current runtime scope:
 - `GET /api/operator/official-web/sites/:siteId`
 - `GET /api/operator/official-web/runs`
 - `GET /api/operator/official-web/runs/:runId`
+- `POST /api/internal/staging-smoke/auth/session` (`staging` only)
 - scheduled request-projection projector
 - scheduled `official_web` projection + handoff dispatcher
 
@@ -188,6 +189,7 @@ Environment:
 - `SUPERVISOR_API_EVAL_TIMEOUT_MS`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
 - `APP_API_INTERNAL_SHARED_SECRET`
+- `APP_API_STAGING_SMOKE_AUTH_SECRET`
 - `APP_API_OPERATOR_DATABASE_URL`
 - `APP_API_MANAGEMENT_DATABASE_URL` (legacy alias)
 - `APP_API_DATABASE_SSLMODE`
@@ -245,6 +247,10 @@ Deployment minimum gate:
   optional for explicit exceptions
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match
   `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` is required only for staging authenticated
+  chat smoke automation; it gates
+  `POST /api/internal/staging-smoke/auth/session` and must be distinct from the
+  public auth and internal service secrets
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
   expected to use the protected panel bridge
 - `SUPERVISOR_API_BASE_URL` and `SUPERVISOR_API_SHARED_SECRET` must be present
@@ -263,6 +269,8 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
+APP_API_STAGING_SMOKE_AUTH_SECRET='<same as Worker secret>' pnpm \
+  chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
 pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
@@ -286,6 +294,8 @@ APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
+APP_API_STAGING_SMOKE_AUTH_SECRET='<same as Worker secret>' pnpm \
+  chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm dev
 ```
 

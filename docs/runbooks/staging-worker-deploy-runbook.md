@@ -198,6 +198,7 @@ wrangler secret put RESEND_API_KEY --env staging
 wrangler secret put AUTH_RESET_EMAIL_FROM --env staging
 wrangler secret put SUPERVISOR_API_SHARED_SECRET --env staging
 wrangler secret put APP_API_INTERNAL_SHARED_SECRET --env staging
+wrangler secret put APP_API_STAGING_SMOKE_AUTH_SECRET --env staging
 wrangler secret put SENTRY_DSN --env staging
 wrangler secret put AXIOM_TOKEN --env staging
 ```
@@ -229,7 +230,9 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 - `STAGING_APP_API_OPERATOR_DATABASE_URL`
 - `STAGING_APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
-- staging smoke identity reset 时，shell 还需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:smoke:staging`
+- 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
 
 要求：
 
@@ -242,9 +245,10 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
   mail contract 不能视为 ready
 - `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm deploy:staging` 会在 publish
   时自动注入 `app-api@staging-<sha>`，只有需要固定 release 名时才用 `STAGING_SENTRY_RELEASE`
-- `APP_API_SMOKE_IDENTITY_PASSWORD` 只作为 shell / secret store 输入供 `pnpm --dir
-  apps/app-api smoke-identity:provision:staging` 使用；不要把它写入 repo、runbook
-  产物或浏览器抓包摘要
+- `APP_API_SMOKE_IDENTITY_PASSWORD` 只属于低层手工 reset 命令的 shell / secret
+  store 输入；不要把它写入 repo、runbook 产物或浏览器抓包摘要
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` 只属于 staging automation admission；它必须和
+  Worker secret store 中的同名 secret 一致，不进入浏览器、supervisor 或 retrieval path
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging chat/panel/app-api
   闭环的必填项；它只在你准备同时验收 official-web live control-plane 时才应视为当前环境 gate
 
@@ -349,7 +353,20 @@ pnpm --dir apps/protected-panel-web exec wrangler login
   repo-owned 脚本重置密码和清理旧聊天数据
 - 当前 repo-tracked staging explicit end-user allowlist 仍固定包含
   `help_bot@outlook.com`；在 deploy env 未扩面前，它仍是 canonical chat smoke identity
-- 重置命令：
+- 当前 canonical automation 命令：
+
+```bash
+pnpm --dir apps/app-api chat:smoke:staging
+```
+
+- 这条命令会在 shell 内生成临时随机密码、本地 provision staging smoke identity、
+- 通过部署态 `app-api-staging` `POST /api/internal/staging-smoke/auth/session`
+  铸造真实 staging session cookie，然后真实请求 `campus-chat-staging`
+  `api/chat/requests`
+- 它要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`
+- 它不要求预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`，也不要求 agent 通过真实 Turnstile challenge
+- 低层手动重置命令仍保留：
 
 ```bash
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \

@@ -139,7 +139,7 @@ export function createRequestScopeFactory(input: {
 			}
 
 			return {
-				getAppAuth: runtime.getAppAuth,
+				getAppAuth: input.dependencies.getAppAuth ?? runtime.getAppAuth,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDocsService,

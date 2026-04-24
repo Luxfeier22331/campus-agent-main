@@ -4,11 +4,7 @@ import { Client } from "pg";
 
 import { createApp } from "../src/app";
 import { createPgChatConversationStore } from "../src/modules/chat";
-import type {
-	RequestedScope,
-	SupervisorExecutionClient,
-	SupervisorExecutionResponse,
-} from "../src/modules/integration";
+import type { RequestedScope, SupervisorExecutionClient } from "../src/modules/integration";
 import {
 	buildRequestProjectionProjector,
 	createPgProjectionStore,
@@ -21,6 +17,7 @@ import {
 } from "./provision-smoke-identity-lib.mjs";
 import type { RequestSmokeSeedScenario } from "./seed-request-smoke.args";
 import { buildRequestSmokeSeedScenarios } from "./seed-request-smoke.scenarios";
+import { expectJsonResponse, signInSmokeIdentity } from "./smoke-auth-runtime";
 
 function resolveSslConfig(databaseSslMode: string) {
 	return databaseSslMode === "disable"
@@ -50,56 +47,6 @@ function readDatabaseSslMode(env: NodeJS.ProcessEnv): string {
 		: env.APP_API_DATABASE_SSLMODE?.trim() === "prefer"
 			? "prefer"
 			: "require";
-}
-
-async function readJsonResponse(response: Response): Promise<unknown> {
-	const text = await response.text();
-	if (!text) {
-		return null;
-	}
-
-	try {
-		return JSON.parse(text);
-	} catch {
-		return text;
-	}
-}
-
-async function expectJsonResponse<T>(response: Response, expectedStatus: number): Promise<T> {
-	const payload = await readJsonResponse(response);
-	if (response.status !== expectedStatus) {
-		throw new Error(
-			`Expected ${expectedStatus}, received ${response.status}: ${JSON.stringify(payload)}`,
-		);
-	}
-
-	return payload as T;
-}
-
-function splitSetCookieHeader(value: string): string[] {
-	return value
-		.split(/,(?=\s*[^;,=\s]+=[^;]+)/)
-		.map((item) => item.trim())
-		.filter(Boolean);
-}
-
-function buildCookieHeader(response: Response): string {
-	const headersWithGetSetCookie = response.headers as Headers & {
-		getSetCookie?: () => string[];
-	};
-	const setCookies =
-		typeof headersWithGetSetCookie.getSetCookie === "function"
-			? headersWithGetSetCookie.getSetCookie()
-			: splitSetCookieHeader(response.headers.get("set-cookie") ?? "");
-
-	if (setCookies.length === 0) {
-		throw new Error("Expected auth response to include a session cookie.");
-	}
-
-	return setCookies
-		.map((cookie) => cookie.split(";", 1)[0])
-		.filter((cookie): cookie is string => typeof cookie === "string" && cookie.length > 0)
-		.join("; ");
 }
 
 function createOperatorHeaders(input: {
@@ -209,38 +156,6 @@ async function cleanupPreviousSmokeRequestArtifacts(
 	};
 }
 
-async function signInSmokeIdentity(input: {
-	appFetch: (request: Request) => Promise<Response> | Response;
-	captchaToken: string;
-	email: string;
-	password: string;
-	publicChatOrigin: string;
-}): Promise<string> {
-	const response = await input.appFetch(
-		new Request("https://app-api.internal/api/auth/sign-in/email", {
-			body: JSON.stringify({
-				email: input.email,
-				password: input.password,
-			}),
-			headers: {
-				"content-type": "application/json",
-				origin: input.publicChatOrigin,
-				referer: `${input.publicChatOrigin.replace(/\/$/, "")}/login`,
-				"x-captcha-response": input.captchaToken,
-			},
-			method: "POST",
-		}),
-	);
-	const payload = await readJsonResponse(response);
-	if (!response.ok) {
-		throw new Error(
-			`Smoke identity sign-in failed (${response.status}): ${JSON.stringify(payload)}`,
-		);
-	}
-
-	return buildCookieHeader(response);
-}
-
 function buildScriptedSupervisor(scenarios: RequestSmokeSeedScenario[]): SupervisorExecutionClient {
 	let currentIndex = 0;
 
@@ -262,7 +177,7 @@ function buildScriptedSupervisor(scenarios: RequestSmokeSeedScenario[]): Supervi
 			}
 
 			currentIndex += 1;
-			return scenario.response as SupervisorExecutionResponse;
+			return scenario.response;
 		},
 	};
 }

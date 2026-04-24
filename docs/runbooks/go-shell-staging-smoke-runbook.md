@@ -116,25 +116,34 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/readyz
 ```
 
-## Step 4. Browser chat smoke
+## Step 4. Authenticated Chat Smoke
 
-在真实 `campus-chat-staging` 页面执行：
-
-1. 打开 `/login`
-1. 使用固定 smoke identity 登录；如果密码漂移或历史数据需要重置，先在 shell 执行：
+优先使用 repo-owned automation：
 
 ```bash
-APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
-  help_bot@outlook.com --name "Help Bot"
+pnpm --dir apps/app-api chat:smoke:staging
 ```
 
-1. 不要在浏览器现场创建临时 end-user 账号；repo-tracked staging identity 仍以
-   `help_bot@outlook.com` 为准
-1. 进入 `/chat`
-1. 发起一条首轮问题
-1. 确认首轮成功后 sidebar/history 无需手动 reload 就能看到新会话
+这条命令会：
+
+1. 用固定 smoke identity `help_bot@outlook.com` 重建 staging 账号并清理旧聊天数据
+1. 通过部署态 `app-api-staging`
+   `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
+1. 带着拿到的 session cookie 真实请求
+   `https://campus-chat-staging.ayafeed.com/api/chat/requests`
+1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
+
+它要求当前 shell 有：
+
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` 或 `STAGING_APP_API_SMOKE_AUTH_SECRET`
+
+它不要求：
+
+- 预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`
+- agent 在真实浏览器里通过 Turnstile challenge
+
+如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `campus-chat-staging` 的
+`/chat` 做 donor-shell 浏览器观察，但这不是 agent automation 的前置。
 
 推荐问题：
 
@@ -143,12 +152,11 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 
 通过标准：
 
-- 页面请求 `POST /api/chat/requests` 返回 `200`
-- 页面得到 typed outcome，并以显式结果态渲染 `answer` / `clarification` / `no_answer` /
-  `error`
-- outcome 可以是 `answer` / `clarification` / `no_answer`
-- 不能是 transport error、Worker proxy error、upstream unreachable
-- 首轮成功后不允许依赖手动刷新才能在左侧 history 看到新会话
+- `chat:smoke:staging` 返回 `0`
+- 它输出的 `request.resultKind` 是 typed outcome
+- `POST /api/chat/requests` 返回 `200`
+- `api/chat/conversations` 在请求后包含新 `conversationId`
+- 不能出现 transport error、Worker proxy error、upstream unreachable
 
 ## Step 5. 记录链路证据
 
@@ -157,7 +165,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 - `infra/local/staging/status-go-shell-staging.sh --check`
 - `https://exec-staging.ayafeed.com/readyz`
 - `https://campus-api-staging.ayafeed.com/readyz`
-- 一条 chat request 的成功截图或 typed result 摘要
+- `pnpm --dir apps/app-api chat:smoke:staging` 的 JSON 摘要
 - 当前 execution origin 是否复用了既有 `exec-staging.ayafeed.com`
 
 ## Rollback

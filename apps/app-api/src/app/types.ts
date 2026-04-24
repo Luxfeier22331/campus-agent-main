@@ -20,6 +20,7 @@ export interface AppDependencies {
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	docsService?: DocsService;
+	getAppAuth?: AppAuthGetter;
 	getPrincipal?: (
 		request: Request,
 		env: Env,

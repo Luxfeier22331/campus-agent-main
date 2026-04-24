@@ -1,4 +1,4 @@
-import type { RequestedScope } from "../src/modules/integration";
+import type { RequestedScope, SupervisorExecutionResponse } from "../src/modules/integration";
 
 export const DEFAULT_SMOKE_EMAIL = "help_bot@outlook.com";
 export const DEFAULT_SMOKE_NAME = "Campus Agent Smoke";
@@ -8,24 +8,13 @@ export interface RequestSmokeSeedArgs {
 	name: string;
 }
 
-export interface RequestSmokeSeedScenarioResponse {
-	answerText: string;
-	error: unknown;
-	followUpQuestion: string;
-	observability: Record<string, unknown>;
-	result: Record<string, unknown>;
-	selectedTarget: string | null;
-	status: string;
-	traceId: string;
-}
-
 export interface RequestSmokeSeedScenario {
 	conversationKey: string;
 	key: string;
 	prompt: string;
 	requestedScope: RequestedScope | null;
-	response: RequestSmokeSeedScenarioResponse;
-	status: RequestSmokeSeedScenarioResponse["status"];
+	response: SupervisorExecutionResponse;
+	status: SupervisorExecutionResponse["status"];
 }
 
 function normalizeOptionalValue(value: string | undefined): string | null {

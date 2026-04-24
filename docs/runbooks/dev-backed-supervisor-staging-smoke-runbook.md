@@ -181,27 +181,29 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/healthz
 curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 ```
 
-## Step 5. Browser chat smoke
+## Step 5. Authenticated Chat Smoke
 
-在真实 `campus-chat-staging` 页面执行：
-
-1. 打开 `/login`
-1. 使用固定 smoke identity 登录；如果密码漂移或历史数据需要重置，先在 shell 执行：
+优先使用 repo-owned automation：
 
 ```bash
-APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
-  help_bot@outlook.com --name "Help Bot"
+pnpm --dir apps/app-api chat:smoke:staging
 ```
 
-1. 不要在浏览器现场创建临时 end-user 账号；repo-tracked staging identity 仍以
-   `help_bot@outlook.com` 为准
-1. 进入 `/chat`（当前默认 donor-derived shell）
-1. 发起一条首轮问题
-1. 确认首轮成功后 sidebar/history 无需手动 reload 就能看到新会话
-1. 直访旧 `/chat/replatform-preview*` 前缀，确认它会 canonicalize 回 `/chat`，而不是被当成
-   `conversationId`
+这条命令会本地重建 `help_bot@outlook.com`，然后通过部署态 `app-api-staging`
+`POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie，再真实请求
+`campus-chat-staging` 的 `api/chat/requests` 和 `api/chat/conversations`。
+
+它要求当前 shell 有：
+
+- `APP_API_STAGING_SMOKE_AUTH_SECRET` 或 `STAGING_APP_API_SMOKE_AUTH_SECRET`
+
+它不要求：
+
+- 预先准备 `APP_API_SMOKE_IDENTITY_PASSWORD`
+- agent 在真实浏览器里通过 Turnstile challenge
+
+如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `/chat`，确认 donor-derived
+shell 与 `/chat/replatform-preview* -> /chat` canonicalization 表现。
 
 推荐问题：
 
@@ -210,12 +212,11 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 
 通过标准：
 
-- 页面请求 `POST /api/chat/requests` 返回 `200`
-- 页面得到 typed outcome，并以显式结果态渲染 `answer` / `clarification` / `no_answer` /
-  `error`
-- outcome 可以是 `answer` / `clarification` / `no_answer`
-- 不能是 transport error、Worker proxy error、upstream unreachable
-- 首轮成功后不允许依赖手动刷新才能在左侧 history 看到新会话
+- `chat:smoke:staging` 返回 `0`
+- `POST /api/chat/requests` 返回 `200`
+- `api/chat/conversations` 在请求后包含新 `conversationId`
+- outcome 仍是 typed `answer` / `clarification` / `no_answer`
+- 不能出现 transport error、Worker proxy error、upstream unreachable
 
 ## Step 6. 记录链路证据
 
