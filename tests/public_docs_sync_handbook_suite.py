@@ -18,7 +18,7 @@ _FORM_TABLE_HTML = """<table><tr><td rowspan="6">本人情况</td><td>姓名</td
 
 
 class PublicDocsSyncHandbookTest(unittest.TestCase):
-    def test_clean_handbook_markdown_does_not_escape_list_item_with_missing_space(self) -> None:
+    def test_clean_handbook_markdown_preserves_list_item_number_with_missing_space(self) -> None:
         markdown = "\n".join(
             [
                 "---",
@@ -33,8 +33,32 @@ class PublicDocsSyncHandbookTest(unittest.TestCase):
 
         cleaned = _clean_handbook_markdown(markdown)
 
-        self.assertIn("2.6月1日至9月30日,学生宿舍不统一熄灯。", cleaned)
+        self.assertIn("2. 6月1日至9月30日,学生宿舍不统一熄灯。", cleaned)
         self.assertNotIn("2\\.6月", cleaned)
+
+    def test_clean_handbook_markdown_preserves_explicit_ordered_list_numbers(self) -> None:
+        markdown = "\n".join(
+            [
+                "---",
+                "title: '中央民族大学关于学生宿舍照明的管理规定'",
+                "---",
+                "",
+                "## 一、时间安排",
+                "1. 10月至次年5月31日:",
+                "亮灯时间:周一至周五每天早晨5:30。",
+                "",
+                "2. 6月1日至9月30日,学生宿舍不统一熄灯。",
+                "",
+                "3. 国家法定节假日不统一熄灯。",
+                "",
+            ]
+        )
+
+        cleaned = _clean_handbook_markdown(markdown)
+
+        self.assertIn("1. 10月至次年5月31日:", cleaned)
+        self.assertIn("2. 6月1日至9月30日,学生宿舍不统一熄灯。", cleaned)
+        self.assertIn("3. 国家法定节假日不统一熄灯。", cleaned)
 
     def test_clean_handbook_markdown_does_not_escape_grade_range_as_decimal_label(self) -> None:
         markdown = "\n".join(

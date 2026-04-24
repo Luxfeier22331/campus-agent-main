@@ -189,6 +189,30 @@ class PublicDocsSyncCourseMapTest(unittest.TestCase):
         self.assertNotIn("#### 1. 公共事业管理", markdown)
         self.assertNotIn("#### 2. 行政管理", markdown)
 
+    def test_curriculum_markdown_preserves_table_course_map_without_published_surface(
+        self,
+    ) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"体育教育本科人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"六、课程地图","heading_level":2,"section_hint":"section"}',
+                '{"row_type":"table","html":"<table><tr><td>类别</td><td>课程模块</td><td>大一上</td></tr><tr><td>学科平台课程</td><td>学科平台理论课</td><td>学校体育学</td></tr></table>","clean_text":"<table><tr><td>类别</td><td>课程模块</td><td>大一上</td></tr><tr><td>学科平台课程</td><td>学科平台理论课</td><td>学校体育学</td></tr></table>"}',
+                '{"row_type":"heading","clean_text":"七、其他说明","heading_level":2,"section_hint":"section"}',
+                '{"row_type":"paragraph","clean_text":"允许国际学分转换。"}',
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="体育教育本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("\n## 六、课程地图\n", markdown)
+        self.assertIn("|类别|课程模块|大一上|", markdown)
+        self.assertIn("|学科平台课程|学科平台理论课|学校体育学|", markdown)
+        self.assertIn("\n## 七、其他说明\n", markdown)
+
     def test_curriculum_markdown_keeps_long_paragraphs_unbroken_for_rendered_accuracy(
         self,
     ) -> None:

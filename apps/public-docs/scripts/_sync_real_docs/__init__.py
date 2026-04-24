@@ -17,6 +17,13 @@ from .handbook import (
     _load_handbook_docs,
 )
 from .pages import _build_home_page
+from .regulations import (
+    _build_public_regulation_index,
+    _build_public_regulation_markdown,
+    _discover_public_regulation_docs,
+    _is_explicit_public_regulation_doc,
+    _sync_public_regulation_docs,
+)
 from .shared import (
     APP_ROOT,
     CURRICULUM_DOC_SLUG_OVERRIDES,
@@ -34,6 +41,7 @@ from .shared import (
     CourseMapDocEmbed,
     CurriculumDoc,
     HandbookDoc,
+    PublicRegulationDoc,
     _format_json_content,
     _remove_legacy_section_dirs,
     _remove_stale_generated_files,
@@ -58,6 +66,7 @@ __all__ = [
     "CourseMapDocEmbed",
     "CurriculumDoc",
     "HandbookDoc",
+    "PublicRegulationDoc",
     "_build_course_map_data_import_name",
     "_build_course_map_data_module",
     "_build_course_map_data_payload",
@@ -65,11 +74,15 @@ __all__ = [
     "_build_curriculum_plan_index",
     "_build_handbook_index",
     "_build_home_page",
+    "_build_public_regulation_index",
+    "_build_public_regulation_markdown",
     "_clean_handbook_markdown",
     "_create_s3_client",
     "_discover_curriculum_docs",
+    "_discover_public_regulation_docs",
     "_format_json_content",
     "_infer_course_map_route_group",
+    "_is_explicit_public_regulation_doc",
     "_load_handbook_docs",
     "_read_optional_bytes_object",
     "_read_text_object",
@@ -77,5 +90,6 @@ __all__ = [
     "_remove_stale_generated_files",
     "_resolve_curriculum_doc_title",
     "_sync_curriculum_course_map_artifacts",
+    "_sync_public_regulation_docs",
     "_write_text",
 ]

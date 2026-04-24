@@ -50,9 +50,7 @@ _COURSE_MAP_FOUNDATION_KEYWORDS = (
 )
 _MARKDOWN_ORDERED_LIST_RE = re.compile(r"^\d+\.\s+")
 _MARKDOWN_UNORDERED_LIST_RE = re.compile(r"^[-*+]\s+")
-_MARKDOWN_DECIMAL_LABEL_RE = re.compile(
-    r"^(?P<label>\d+\.\d+(?:\.\d+)*)(?P<rest>(?:\s+|$).*)$"
-)
+_MARKDOWN_DECIMAL_LABEL_RE = re.compile(r"^(?P<label>\d+\.\d+(?:\.\d+)*)(?P<rest>(?:\s+|$).*)$")
 _MARKDOWN_LIST_PREFIX_WITH_BREAK_RE = re.compile(r"(?m)^((?:\d+(?:\.\d+)*\.?)|[-*+])\s*\n+\s*")
 _MARKDOWN_LIST_PREFIX_WITHOUT_SPACE_RE = re.compile(r"(?m)^(?P<marker>\d+\.(?!\d))(?P<rest>\S)")
 _HANDBOOK_CHAPTER_HEADING_RE = re.compile(r"^第[0-9一二三四五六七八九十百千零〇]+章(?:\s+.+)?$")
@@ -72,6 +70,15 @@ class CurriculumDoc:
     slug: str
     title: str
     key: str
+
+
+@dataclass(frozen=True)
+class PublicRegulationDoc:
+    slug: str
+    title: str
+    key: str
+    collection: str
+    collection_label: str
 
 
 @dataclass(frozen=True)

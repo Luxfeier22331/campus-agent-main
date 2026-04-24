@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -65,6 +66,48 @@ class _FakeCourseMapNode:
 class _FakeCourseMapEdge:
     source_label: str
     target_label: str
+
+
+def _regulation_units_jsonl(
+    *,
+    doc_id: str,
+    title: str,
+    visibility_level: str,
+    entitlement_groups: list[str],
+    body: str = "正文。",
+) -> str:
+    base = {
+        "doc_id": doc_id,
+        "version_id": "sha256:test",
+        "visibility_level": visibility_level,
+        "entitlement_groups": entitlement_groups,
+        "metadata": {"title": title},
+        "root_unit_id": f"{doc_id}:root",
+    }
+    return "\n".join(
+        [
+            json.dumps(
+                {
+                    **base,
+                    "row_id": f"{doc_id}:row-0001",
+                    "row_type": "heading",
+                    "clean_text": title,
+                    "unit_type": "institutional_regulation_heading",
+                },
+                ensure_ascii=False,
+            ),
+            json.dumps(
+                {
+                    **base,
+                    "row_id": f"{doc_id}:row-0002",
+                    "row_type": "paragraph",
+                    "clean_text": body,
+                    "unit_type": "institutional_regulation_block",
+                },
+                ensure_ascii=False,
+            ),
+        ]
+    )
 
 
 class PublicDocsSyncTest(unittest.TestCase):
@@ -158,6 +201,100 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn("中央民族大学学生考勤管理办法", generated)
         self.assertIn("\ncollection: student_rules\n", generated)
 
+    def test_discover_public_regulation_docs_skips_restricted_internal_notice_targets(
+        self,
+    ) -> None:
+        module = self.module
+        restricted_key = (
+            "regulations/documents/institutional_rules/"
+            "中央民族大学采购工作管理办法--219ecb63/source-faithful/2021/document-units.jsonl"
+        )
+        public_key = (
+            "regulations/documents/institutional_rules/"
+            "中央民族大学公开规章--public001/source-faithful/2026/document-units.jsonl"
+        )
+        client = _FakeS3Client(
+            {
+                restricted_key: _regulation_units_jsonl(
+                    doc_id="institutional_regulation:muc:restricted",
+                    title="中央民族大学采购工作管理办法",
+                    visibility_level="restricted",
+                    entitlement_groups=["campus_members"],
+                ),
+                public_key: _regulation_units_jsonl(
+                    doc_id="institutional_regulation:muc:public",
+                    title="中央民族大学公开规章",
+                    visibility_level="public",
+                    entitlement_groups=[],
+                ),
+            }
+        )
+
+        docs = module._discover_public_regulation_docs(client)
+
+        self.assertEqual([doc.title for doc in docs], ["中央民族大学公开规章"])
+        self.assertEqual(docs[0].collection, "institutional_rules")
+
+    def test_sync_public_regulation_docs_writes_only_explicit_public_docs(self) -> None:
+        module = self.module
+        public_key = (
+            "regulations/documents/scoped_rules/"
+            "学院公开规则--public002/source-faithful/2026/document-units.jsonl"
+        )
+        restricted_key = (
+            "regulations/documents/scoped_rules/"
+            "学院受限规则--restricted002/source-faithful/2026/document-units.jsonl"
+        )
+        client = _FakeS3Client(
+            {
+                public_key: _regulation_units_jsonl(
+                    doc_id="institutional_regulation:muc:scoped-public",
+                    title="学院公开规则",
+                    visibility_level="public",
+                    entitlement_groups=[],
+                    body="公开规则正文。",
+                ),
+                restricted_key: _regulation_units_jsonl(
+                    doc_id="institutional_regulation:muc:scoped-restricted",
+                    title="学院受限规则",
+                    visibility_level="restricted",
+                    entitlement_groups=["campus_members"],
+                    body="受限规则正文。",
+                ),
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            docs_root = Path(temp_dir)
+            docs = module._discover_public_regulation_docs(client)
+            module._sync_public_regulation_docs(
+                client,
+                docs_root=docs_root,
+                regulation_docs=docs,
+            )
+            generated_files = sorted(
+                path.name for path in (docs_root / "campus-regulations").iterdir()
+            )
+            generated_markdown = next(
+                path
+                for path in (docs_root / "campus-regulations").iterdir()
+                if path.suffix == ".md" and path.name != "index.md"
+            ).read_text(encoding="utf-8")
+
+        self.assertIn("_meta.json", generated_files)
+        self.assertIn("index.md", generated_files)
+        self.assertIn("公开规则正文。", generated_markdown)
+        self.assertNotIn("受限规则正文。", generated_markdown)
+        self.assertNotIn("campusrag://promotion/internal_notice", generated_markdown)
+
+    def test_home_page_optionally_links_public_regulations(self) -> None:
+        module = self.module
+
+        home_page = module._build_home_page(include_public_regulations=True)
+
+        self.assertIn("link: /campus-regulations/", home_page)
+        self.assertIn("浏览校内规章", home_page)
+
     def test_clean_handbook_markdown_normalizes_duplicate_title_heading_and_spacing(self) -> None:
         module = self.module
 
@@ -208,7 +345,79 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn(
             "### 第九条\n\n参评本科学生国家奖学金还须具备以下条件之一:\n\n1. 第一项", cleaned
         )
-        self.assertIn("1. 第二项\n\n后续说明。", cleaned)
+        self.assertIn("2. 第二项\n\n后续说明。", cleaned)
+
+    def test_clean_handbook_markdown_promotes_numbered_clause_headings(self) -> None:
+        module = self.module
+
+        cleaned = module._clean_handbook_markdown(
+            "\n".join(
+                [
+                    "---",
+                    "title: '中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法'",
+                    "---",
+                    "",
+                    "## 第一条",
+                    "基本内容。",
+                    "二、学费和国家助学贷款代偿资助的申请和评审",
+                    "## 第六条",
+                    "申请条件。",
+                    "三、学费和国家助学贷款代偿资助发放程序",
+                    "",
+                ]
+            )
+        )
+
+        self.assertIn(
+            "\n## 二、学费和国家助学贷款代偿资助的申请和评审\n\n## 第六条\n",
+            cleaned,
+        )
+        self.assertIn(
+            "\n## 三、学费和国家助学贷款代偿资助发放程序\n",
+            cleaned,
+        )
+
+    def test_clean_handbook_markdown_does_not_promote_body_numbered_clauses(self) -> None:
+        module = self.module
+
+        cleaned = module._clean_handbook_markdown(
+            "\n".join(
+                [
+                    "---",
+                    "title: '中央民族大学学生志愿服务管理办法'",
+                    "---",
+                    "",
+                    "## 第一章 总 则",
+                    "一、为进一步规范中央民族大学学生志愿服务管理工作,特制定本办法",
+                    "二、志愿者(Volunteer),是指自愿为社会和他人提供服务和帮助的人。",
+                    "## 五、考核内容",
+                    "## 5.其他相关工作情况",
+                    "## 三、参评基本条件",
+                    "(一)参评个人为注册志愿者。",
+                    "## (二)参评集体为注册志愿服务组织",
+                    "(三)参评项目为注册志愿者或志愿服务组织策划实施的公益项目。",
+                    "## 第三章 附 则",
+                    "一、本办法由共青团中央民族大学委员会负责解释",
+                    "二、本办法自发布之日起实施",
+                    "",
+                ]
+            )
+        )
+
+        self.assertIn(
+            "\n## 第一章 总 则\n\n一、为进一步规范中央民族大学学生志愿服务管理工作,特制定本办法\n",
+            cleaned,
+        )
+        self.assertIn("\n二、志愿者(Volunteer),是指自愿为社会和他人提供服务和帮助的人。\n", cleaned)
+        self.assertIn("\n5. 其他相关工作情况\n", cleaned)
+        self.assertIn("\n(二)参评集体为注册志愿服务组织\n", cleaned)
+        self.assertIn(
+            "\n## 第三章 附 则\n\n一、本办法由共青团中央民族大学委员会负责解释\n",
+            cleaned,
+        )
+        self.assertNotIn("## 一、为进一步规范中央民族大学学生志愿服务管理工作", cleaned)
+        self.assertNotIn("## 5.其他相关工作情况", cleaned)
+        self.assertNotIn("## (二)参评集体为注册志愿服务组织", cleaned)
 
     def test_clean_handbook_markdown_normalizes_broken_list_prefixes(self) -> None:
         module = self.module
@@ -229,11 +438,11 @@ class PublicDocsSyncTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "\n1. 学生患慢性病不能利用假期在外地治疗,只能在京治疗并需经过校医院转诊、转院。\n",
+            "\n10. 学生患慢性病不能利用假期在外地治疗,只能在京治疗并需经过校医院转诊、转院。\n",
             cleaned,
         )
         self.assertIn(
-            "\n1. 凡住院者必须在出院结算后二周内持出院手续到校医院报销。\n",
+            "\n11. 凡住院者必须在出院结算后二周内持出院手续到校医院报销。\n",
             cleaned,
         )
 
@@ -735,6 +944,31 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn("(4)舞蹈编导专业必修的专业核心课程54学分", markdown)
         self.assertNotIn("#### (4)舞蹈编导专业必修的专业核心课程54学分", markdown)
 
+    def test_curriculum_markdown_splits_numbered_heading_with_inline_course_list_intro(
+        self,
+    ) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"法学本科第二学士学位人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"五、课程设置和修读建议","heading_level":2}',
+                '{"row_type":"heading","clean_text":"(一)专业教育","heading_level":3}',
+                '{"row_type":"heading","clean_text":"1. 专业必修课共开设 15 门课程, 40 学分。课程清单如下:","heading_level":4}',
+                '{"row_type":"table","html":"<table><tr><td>课程号</td><td>课程名称</td></tr><tr><td>1036030166</td><td>习近平法治思想概论</td></tr></table>","clean_text":"<table><tr><td>课程号</td><td>课程名称</td></tr><tr><td>1036030166</td><td>习近平法治思想概论</td></tr></table>"}',
+                '{"row_type":"heading","clean_text":"2. 专业选修课程","heading_level":4}',
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="法学本科第二学士学位人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("\n#### 1. 专业必修课共开设 15 门课程, 40 学分\n", markdown)
+        self.assertIn("\n课程清单如下\n\n|课程号|课程名称|", markdown)
+        self.assertIn("\n#### 2. 专业选修课程\n", markdown)
+        self.assertNotIn("1. 专业必修课共开设 15 门课程, 40 学分。课程清单如下", markdown)
+
     def test_curriculum_markdown_preserves_ordered_list_lines_from_units(self) -> None:
         module = self.module
         jsonl_text = "\n".join(
@@ -757,6 +991,28 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertIn("\n2\\.3 掌握文献检索。\n", markdown)
         self.assertIn("\n2\\.4 提出有效解决方法。\n", markdown)
         self.assertNotIn("。2.", markdown)
+
+    def test_curriculum_markdown_renders_latex_comparison_symbols_as_readable_text(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"环境工程本科第二学士学位人才培养方案","heading_level":1}',
+                (
+                    '{"row_type":"paragraph","clean_text":"未修过高等数学'
+                    '(或微积分、数学分析,\\\\geq 4学分)、概率论与数理统计(\\\\leq 3学分)。"}'
+                ),
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="环境工程本科第二学士学位人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("数学分析,≥ 4学分", markdown)
+        self.assertIn("概率论与数理统计(≤ 3学分)", markdown)
+        self.assertNotIn("\\geq", markdown)
+        self.assertNotIn("\\leq", markdown)
 
     def test_curriculum_markdown_demotes_version_note_heading(self) -> None:
         module = self.module
@@ -820,6 +1076,42 @@ class PublicDocsSyncTest(unittest.TestCase):
         self.assertNotIn("### 课程清单如下", markdown)
         self.assertNotIn("**学术型课程群**", markdown)
         self.assertNotIn("**表1 大学英语课程列表**", markdown)
+
+    def test_curriculum_markdown_nests_practice_requirement_headings(self) -> None:
+        module = self.module
+        jsonl_text = "\n".join(
+            [
+                '{"row_type":"heading","clean_text":"计算机科学与技术（民族实验班）本科人才培养方案","heading_level":1}',
+                '{"row_type":"heading","clean_text":"五、课程设置和修读建议","heading_level":2}',
+                '{"row_type":"heading","clean_text":"(四) 实践环节","heading_level":3}',
+                '{"row_type":"heading","clean_text":"1. 专业实践","heading_level":4}',
+                '{"row_type":"heading","clean_text":"学年论文要求","heading_level":2}',
+                '{"row_type":"paragraph","clean_text":"论文要求正文。"}',
+                '{"row_type":"heading","clean_text":"综合实践要求","heading_level":2}',
+                '{"row_type":"paragraph","clean_text":"综合实践正文。"}',
+                '{"row_type":"heading","clean_text":"毕业设计要求","heading_level":2}',
+                '{"row_type":"paragraph","clean_text":"毕业设计正文。"}',
+                '{"row_type":"heading","clean_text":"(2) 论文质量方面","heading_level":3}',
+                '{"row_type":"paragraph","clean_text":"论文质量正文。"}',
+                '{"row_type":"heading","clean_text":"2. 社会实践","heading_level":4}',
+                '{"row_type":"paragraph","clean_text":"社会实践正文。"}',
+            ]
+        )
+
+        markdown = module._build_curriculum_markdown(
+            title="计算机科学与技术（民族实验班）本科人才培养方案",
+            jsonl_text=jsonl_text,
+        )
+
+        self.assertIn("\n##### 学年论文要求\n", markdown)
+        self.assertIn("\n##### 综合实践要求\n", markdown)
+        self.assertIn("\n##### 毕业设计要求\n", markdown)
+        self.assertIn("\n###### (2) 论文质量方面\n", markdown)
+        self.assertIn("\n#### 2. 社会实践\n", markdown)
+        self.assertNotIn("\n## 学年论文要求\n", markdown)
+        self.assertNotIn("\n## 综合实践要求\n", markdown)
+        self.assertNotIn("\n## 毕业设计要求\n", markdown)
+        self.assertNotIn("\n#### (2) 论文质量方面\n", markdown)
 
     def test_curriculum_markdown_keeps_repeated_heading_labels_visible_text(self) -> None:
         module = self.module

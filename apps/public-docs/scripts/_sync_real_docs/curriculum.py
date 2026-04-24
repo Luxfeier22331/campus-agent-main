@@ -123,6 +123,7 @@ def _build_curriculum_markdown(
     blocks: list[tuple[str, str]] = []
     in_course_map_section = False
     inserted_course_map_section = False
+    pending_course_map_heading_text: str | None = None
     last_heading_level: int | None = None
 
     for row in _coalesce_curriculum_table_continuations(tuple(_iter_rows(jsonl_text))):
@@ -143,7 +144,28 @@ def _build_curriculum_markdown(
                 row=row,
             ):
                 in_course_map_section = False
+                pending_course_map_heading_text = None
             else:
+                if course_map_embed is None and row_type == "table":
+                    if pending_course_map_heading_text is not None:
+                        blocks.append(("block", f"## {pending_course_map_heading_text}"))
+                        pending_course_map_heading_text = None
+                    html = _repair_known_curriculum_docs_table_html(
+                        title=title,
+                        html=_normalize_text(row.get("html")) or text,
+                    )
+                    if html:
+                        for block_type, block_text in _convert_table_html_to_markdown_blocks(
+                            html
+                        ):
+                            if block_type == "section_label":
+                                last_heading_level = _append_curriculum_caption_block(
+                                    blocks,
+                                    text=block_text,
+                                    last_heading_level=last_heading_level,
+                                )
+                                continue
+                            blocks.append(("block", block_text))
                 continue
         if row_type == "heading":
             if _is_curriculum_course_map_heading(text):
@@ -153,6 +175,8 @@ def _build_curriculum_markdown(
                     blocks.append(("block", f"## {heading_text}"))
                     blocks.append(("block", _build_course_map_section_block(course_map_embed)))
                     inserted_course_map_section = True
+                else:
+                    pending_course_map_heading_text = _normalize_curriculum_heading_text(text)
                 in_course_map_section = course_map_embed is not None or section_hint in {
                     "section",
                     "chapter",
@@ -229,6 +253,7 @@ def _repair_known_curriculum_docs_text_artifacts(*, title: str, text: str) -> st
 def _repair_known_curriculum_docs_table_html(*, title: str, html: str) -> str:
     if not html:
         return html
+    html = _normalize_curriculum_table_body_header_cells(html)
     if title == "少数民族预科教育人才培养方案":
         html = html.replace(
             '<table><tr><td rowspan="2" colspan="2">类别</td><td rowspan="2">学时</td><td colspan="2">各学期周学时分配计划</td></tr>'
@@ -337,7 +362,7 @@ def _merge_curriculum_table_html(base_html: str, continuation_html: str) -> str:
     base_rows = _extract_curriculum_html_table_rows(base_html)
     continuation_rows = _extract_curriculum_html_table_rows(continuation_html)
     if not base_rows or not continuation_rows:
-        return f"{base_html}\n{continuation_html}"
+        return _normalize_curriculum_table_body_header_cells(f"{base_html}\n{continuation_html}")
 
     rows_to_append = continuation_rows
     base_header_signature = _html_row_text_signature(base_rows[0])
@@ -352,7 +377,9 @@ def _merge_curriculum_table_html(base_html: str, continuation_html: str) -> str:
         rows_to_append = continuation_rows[1:]
         if base_second_signature and continuation_second_signature == base_second_signature:
             rows_to_append = continuation_rows[2:]
-    return "<table>" + "".join([*base_rows, *rows_to_append]) + "</table>"
+    return _normalize_curriculum_table_body_header_cells(
+        "<table>" + "".join([*base_rows, *rows_to_append]) + "</table>"
+    )
 
 
 def _extract_curriculum_html_table_rows(html: str) -> tuple[str, ...]:
@@ -378,6 +405,17 @@ def _append_curriculum_heading(
     heading_text = _normalize_curriculum_heading_text(text)
     if not heading_text:
         return last_heading_level
+    split_heading = _split_curriculum_numbered_heading_with_inline_list_intro(heading_text)
+    if split_heading is not None:
+        heading_text, intro_text = split_heading
+        level = _append_curriculum_structural_heading_block(
+            blocks,
+            heading_text=heading_text,
+            source_level=source_level,
+            last_heading_level=last_heading_level,
+        )
+        blocks.append(("block", intro_text))
+        return level
     if heading_text.endswith("如下"):
         blocks.append(("block", heading_text))
         return last_heading_level
@@ -387,6 +425,21 @@ def _append_curriculum_heading(
     if _looks_like_curriculum_course_requirement_sentence(heading_text):
         blocks.append(("paragraph", heading_text))
         return last_heading_level
+    return _append_curriculum_structural_heading_block(
+        blocks,
+        heading_text=heading_text,
+        source_level=source_level,
+        last_heading_level=last_heading_level,
+    )
+
+
+def _append_curriculum_structural_heading_block(
+    blocks: list[tuple[str, str]],
+    *,
+    heading_text: str,
+    source_level: object,
+    last_heading_level: int | None,
+) -> int:
     level = _normalize_curriculum_heading_level(
         source_level=source_level,
         last_heading_level=last_heading_level,
@@ -403,6 +456,20 @@ def _append_curriculum_heading(
             level = min(last_heading_level + 1, 6)
     blocks.append(("block", f"{'#' * level} {heading_text}"))
     return level
+
+
+def _split_curriculum_numbered_heading_with_inline_list_intro(text: str) -> tuple[str, str] | None:
+    match = re.match(
+        r"^(?P<heading>(?:[（(]?\d+[)）.、]|[0-9]+[.．])\s*.+?)\s*[。.;；]\s*"
+        r"(?P<intro>课程清单如下)$",
+        text.strip(),
+    )
+    if match is None:
+        return None
+    heading_text = _normalize_curriculum_heading_text(match.group("heading"))
+    if not heading_text or not _looks_like_curriculum_numbered_heading(heading_text):
+        return None
+    return (heading_text, match.group("intro"))
 
 
 def _find_last_curriculum_heading_block(
@@ -513,6 +580,10 @@ def _looks_like_curriculum_nested_module_label(text: str) -> bool:
     return bool(re.match(r"^模块[一二三四五六七八九十0-9]+[：:]", text.strip()))
 
 
+def _looks_like_curriculum_parenthesized_arabic_heading(text: str) -> bool:
+    return bool(re.match(r"^[（(]\d+[)）]", text.strip()))
+
+
 def _looks_like_curriculum_numbered_heading(text: str) -> bool:
     return bool(re.match(r"^(?:[（(]?\d+[)）.、]|[0-9]+[.．])", text.strip()))
 
@@ -525,11 +596,19 @@ def _looks_like_curriculum_course_requirement_sentence(text: str) -> bool:
     return bool(re.match(r"^[（(]\d+[)）]\s*.+课程.+\d+\s*学分[。.]?$", text.strip()))
 
 
+def _looks_like_curriculum_practice_requirement_heading(text: str) -> bool:
+    return bool(re.fullmatch(r"(?:学年论文|综合实践|毕业设计)要求", text.strip()))
+
+
 def _looks_like_curriculum_version_note(text: str) -> bool:
     return bool(re.fullmatch(r"[（(]?\d{4}\s*版[)）]?", text.strip()))
 
 
 def _curriculum_same_level_heading_family(text: str) -> str | None:
+    if _looks_like_curriculum_practice_requirement_heading(text):
+        return "practice_requirement"
+    if _looks_like_curriculum_parenthesized_arabic_heading(text):
+        return "parenthesized_arabic"
     if _looks_like_curriculum_numbered_heading(text):
         return "numbered"
     if _looks_like_curriculum_chinese_parenthesized_heading(text):
@@ -559,6 +638,8 @@ def _normalize_curriculum_body_text(value: object) -> str:
     normalized = str(value or "").strip()
     if not normalized:
         return ""
+    normalized = normalized.replace("\\geq", "≥")
+    normalized = normalized.replace("\\leq", "≤")
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
     normalized = _MARKDOWN_LIST_PREFIX_WITH_BREAK_RE.sub(r"\1 ", normalized)
     normalized = _MARKDOWN_LIST_PREFIX_WITHOUT_SPACE_RE.sub(r"\g<marker> \g<rest>", normalized)
@@ -569,6 +650,26 @@ def _normalize_curriculum_body_text(value: object) -> str:
     normalized = re.sub(r"\s*\n\s*", "", normalized)
     normalized = re.sub(r"[ \t]+", " ", normalized)
     return normalized.strip()
+
+
+def _normalize_curriculum_table_body_header_cells(html: str) -> str:
+    if "<th" not in html.lower() or "<table" not in html.lower():
+        return html
+    row_matches = list(_HTML_TABLE_ROW_RE.finditer(html))
+    if len(row_matches) <= 1:
+        return html
+    chunks: list[str] = []
+    cursor = 0
+    for row_index, row_match in enumerate(row_matches):
+        chunks.append(html[cursor : row_match.start()])
+        row_html = row_match.group(0)
+        if row_index > 0:
+            row_html = re.sub(r"<th(\b[^>]*)>", r"<td\1>", row_html, flags=re.IGNORECASE)
+            row_html = re.sub(r"</th>", "</td>", row_html, flags=re.IGNORECASE)
+        chunks.append(row_html)
+        cursor = row_match.end()
+    chunks.append(html[cursor:])
+    return "".join(chunks)
 
 
 def _looks_like_curriculum_list_lines(lines: list[str]) -> bool:

@@ -28,6 +28,7 @@ from .shared import (
 
 _INLINE_PERCENT_MATH_RE = re.compile(r"\$\s*(?P<value>\d+(?:\.\d+)?)\s*\\?%\s*\$")
 _INLINE_RIGHT_ARROW_MATH_RE = re.compile(r"\$\s*\\rightarrow\s*\$")
+_HANDBOOK_NUMBERED_CLAUSE_HEADING_RE = re.compile(r"^[一二三四五六七八九十]+、")
 
 
 def _build_handbook_index() -> str:
@@ -181,6 +182,27 @@ def _repair_known_handbook_docs_markdown(markdown: str, *, title: str | None) ->
             "家庭经济困难学生的勤工助学岗位聘用率,原则上应不低于 70%。",
             repaired,
         )
+    if title == "中央民族大学学生志愿服务管理办法":
+        repaired = repaired.replace(
+            "## 一、为进一步规范中央民族大学学生志愿服务管理工作,特制定本办法",
+            "一、为进一步规范中央民族大学学生志愿服务管理工作,特制定本办法",
+        )
+        repaired = repaired.replace(
+            "## 5.其他相关工作情况",
+            "5.其他相关工作情况",
+        )
+        repaired = repaired.replace(
+            "## (二)参评集体为注册志愿服务组织",
+            "(二)参评集体为注册志愿服务组织",
+        )
+        repaired = repaired.replace(
+            "## 一、本办法由共青团中央民族大学委员会负责解释",
+            "一、本办法由共青团中央民族大学委员会负责解释",
+        )
+        repaired = repaired.replace(
+            "## 二、本办法自发布之日起实施",
+            "二、本办法自发布之日起实施",
+        )
     repaired = _INLINE_PERCENT_MATH_RE.sub(r"\g<value>%", repaired)
     repaired = _INLINE_RIGHT_ARROW_MATH_RE.sub("→", repaired)
     return re.sub(r"(?<=\d%)\s+(?=[,，。；;])", "", repaired)
@@ -306,11 +328,23 @@ def _normalize_handbook_heading(
         return ""
     if _is_known_handbook_final_numbered_clause_heading(title=title, text=text):
         return f"## {text}"
+    if _looks_like_handbook_numbered_clause_heading(title=title, text=text):
+        return f"## {text}"
     if _HANDBOOK_CHAPTER_HEADING_RE.fullmatch(text):
         return f"## {text}"
     if _HANDBOOK_ARTICLE_HEADING_RE.fullmatch(text):
         return f"{'###' if saw_chapter_heading else '##'} {text}"
     return None if not line.startswith("#") else f"## {text}"
+
+
+def _looks_like_handbook_numbered_clause_heading(*, title: str | None, text: str) -> bool:
+    if title != "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法":
+        return False
+    if not _HANDBOOK_NUMBERED_CLAUSE_HEADING_RE.match(text):
+        return False
+    if len(text) > 72:
+        return False
+    return not bool(re.search(r"[。！？!?；;]", text))
 
 
 def _is_known_handbook_final_numbered_clause_heading(*, title: str | None, text: str) -> bool:
@@ -342,6 +376,7 @@ def _iter_handbook_source_lines(lines: list[str]):
 
 def _render_handbook_body_lines(line: str) -> list[str]:
     escaped_line = _escape_handbook_placeholder_underscores(line)
+    escaped_line = re.sub(r"^(?P<marker>\d+\.)(?=\d+月)", r"\g<marker> ", escaped_line)
     escaped_line = _MARKDOWN_LIST_PREFIX_WITHOUT_SPACE_RE.sub(
         r"\g<marker> \g<rest>",
         escaped_line,
@@ -351,11 +386,11 @@ def _render_handbook_body_lines(line: str) -> list[str]:
         escaped_label = decimal_label_match.group("label").replace(".", r"\.", 1)
         return _wrap_markdown_text_lines(f"{escaped_label}{decimal_label_match.group('rest')}")
     if _MARKDOWN_ORDERED_LIST_RE.match(escaped_line):
-        _, _, content = escaped_line.partition(" ")
+        marker, _, content = escaped_line.partition(" ")
         return _wrap_markdown_text_lines(
             content,
-            initial_prefix="1. ",
-            subsequent_prefix="   ",
+            initial_prefix=f"{marker} ",
+            subsequent_prefix=" " * (len(marker) + 1),
         )
     if _MARKDOWN_UNORDERED_LIST_RE.match(escaped_line):
         marker, _, content = escaped_line.partition(" ")

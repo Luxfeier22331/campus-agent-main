@@ -21,17 +21,22 @@ def _load_sync_exports() -> None:
     global _build_handbook_doc_key
     global _build_handbook_index
     global _build_home_page
+    global _build_public_regulation_index
+    global _build_public_regulation_markdown
     global _clean_handbook_markdown
     global _create_s3_client
     global _discover_curriculum_docs
+    global _discover_public_regulation_docs
     global _format_json_content
     global _infer_course_map_route_group
+    global _is_explicit_public_regulation_doc
     global _load_handbook_docs
     global _read_text_object
     global _remove_legacy_section_dirs_impl
     global _remove_stale_generated_files
     global _resolve_curriculum_doc_title
     global _sync_curriculum_course_map_artifacts
+    global _sync_public_regulation_docs
     global _write_text
 
     from _sync_real_docs import (
@@ -46,16 +51,21 @@ def _load_sync_exports() -> None:
         _build_curriculum_plan_index,
         _build_handbook_index,
         _build_home_page,
+        _build_public_regulation_index,
+        _build_public_regulation_markdown,
         _clean_handbook_markdown,
         _create_s3_client,
         _discover_curriculum_docs,
+        _discover_public_regulation_docs,
         _format_json_content,
         _infer_course_map_route_group,
+        _is_explicit_public_regulation_doc,
         _load_handbook_docs,
         _read_text_object,
         _remove_stale_generated_files,
         _resolve_curriculum_doc_title,
         _sync_curriculum_course_map_artifacts,
+        _sync_public_regulation_docs,
         _write_text,
     )
     from _sync_real_docs import (
@@ -74,21 +84,31 @@ def main() -> None:
     client = _create_s3_client()
     handbook_docs = _load_handbook_docs()
     curriculum_docs = _discover_curriculum_docs(client)
+    public_regulation_docs = _discover_public_regulation_docs(client)
 
     _remove_legacy_section_dirs()
+    top_level_docs = [
+        "index",
+        {"type": "dir", "name": "student-handbook", "label": "学生手册"},
+        {"type": "dir", "name": "curriculum-plan", "label": "培养方案"},
+    ]
+    if public_regulation_docs:
+        top_level_docs.append({"type": "dir", "name": "campus-regulations", "label": "校内规章"})
     _write_text(
         DOCS_ROOT / "_meta.json",
-        _format_json_content(
-            [
-                "index",
-                {"type": "dir", "name": "student-handbook", "label": "学生手册"},
-                {"type": "dir", "name": "curriculum-plan", "label": "培养方案"},
-            ]
-        ),
+        _format_json_content(top_level_docs),
     )
-    _write_text(DOCS_ROOT / "index.md", _build_home_page())
+    _write_text(
+        DOCS_ROOT / "index.md",
+        _build_home_page(include_public_regulations=bool(public_regulation_docs)),
+    )
     _sync_handbook_docs(client, handbook_docs=handbook_docs)
     _sync_curriculum_docs(client, curriculum_docs=curriculum_docs)
+    _sync_public_regulation_docs(
+        client,
+        docs_root=DOCS_ROOT,
+        regulation_docs=public_regulation_docs,
+    )
 
 
 def _sync_handbook_docs(client, *, handbook_docs: tuple[HandbookDoc, ...] | None = None) -> None:
