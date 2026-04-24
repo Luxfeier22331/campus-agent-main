@@ -106,8 +106,8 @@ CampusNoticeDiscoverPayload
 - Go shell 是 PG read-model 与 S3-compatible derived bucket query-time runtime owner
 - Python `notice-agent` 不再从 env 构造 PG/S3 runtime；它只序列化 query envelope、
   调用 Go shell，并把 result 还原为 shared contract dataclass
-- restricted `internal_notice_restricted` 必须带
-  `principal_id + entitlement_groups + restricted retrieval_filter`，否则 fail-close 为
+- restricted `internal_notice_restricted` 必须带 `principal_id`、
+  `entitlement_groups` 与 restricted `retrieval_filter`，否则 fail-close 为
   `source_family_unavailable`
 - query-time 不允许回扫 raw notice/source bundle
 
