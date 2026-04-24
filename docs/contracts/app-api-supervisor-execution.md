@@ -129,8 +129,10 @@ Go shell 当前承载 gate-closed structured query runtime foundation：
 
 - `POST /internal/query/campus-services/service-status`
 - `POST /internal/query/campus-services/transport-schedule`
+- `POST /internal/query/notices/discover`
+- `POST /internal/query/notices/get`
 
-这组 endpoint 是 `campus-services-agent -> thin adapter -> internal query
+这组 endpoint 是 `domain-agent -> thin adapter -> internal query
 service` 的 Docker-local seam，不是 browser-facing API，也不是 `app-api`
 product/control-plane endpoint。
 
@@ -151,9 +153,13 @@ product/control-plane endpoint。
   kernel，可解析 current snapshot metadata、route clarification、first / next /
   last departure、departure list、service window、timetable 与 temporary
   suspension summary
+- `campus_notice_discover` / `campus_notice_get` 已具备 Go-owned PG read-model
+  + S3-compatible canonical body query runtime；notice 请求使用
+  `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
+  authorization
 - Python orchestration 仅在配置 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时消费该 internal query seam
-- 这不打开 `campus_services` 产品 serving surface；产品主路由 opening gate 仍需
+- 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
   release-gate regression / eval evidence 与 app-owned observability 证据
 
 ## Execution Audit Backflow
