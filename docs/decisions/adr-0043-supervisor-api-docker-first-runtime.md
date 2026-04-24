@@ -37,10 +37,12 @@ Accepted on 2026-04-23.
    `apps/supervisor-api` 改写成 Worker。
 1. `app-api` 继续通过显式 `SUPERVISOR_API_BASE_URL` 调用一个真实可达的 execution origin；
    这项 ADR 不单独冻结 repo-level staging hostname。
-1. Go shell packaging / automation 落地后，repo-local Python public compatibility
-   entry 已移除；Python 侧只保留 private bridge worker。
-1. Docker-first execution service 的长期 runtime control plane 可以由 Go 承担；
-   Python bridge worker 继续保留 semantic orchestration 与 agent reasoning 边界。
+1. Go `supervisor-api` packaging / automation 落地后，repo-local Python public
+   compatibility entry 已移除；Python 侧只保留 `supervisor-core-worker` private
+   bridge worker。
+1. Docker-first execution service 的 runtime control plane 由 Go `apps/supervisor-api`
+   承担；Python `apps/supervisor-core-worker` 继续保留 semantic orchestration 与
+   agent reasoning 边界。
 
 ## 边界约束
 
@@ -61,17 +63,17 @@ Accepted on 2026-04-23.
 
 - repo 入口文档与 architecture docs 必须把 `apps/supervisor-api = Docker-first internal
   execution service` 作为 accepted truth
-- runbook 必须把 `go-shell + supervisor-orchestrator` 双容器作为当前 execution
+- runbook 必须把 `supervisor-api + supervisor-core-worker` 双容器作为当前 execution
   runtime truth
 - dev-backed staging 兼容路径已退出 active runbook / script surface
-- `apps/go-shell` 是当前 Docker execution ingress，拥有 execution transport、
+- Go `apps/supervisor-api` 是当前 Docker execution ingress，拥有 execution transport、
   admission、queue、timeout、readiness、metrics 与 graceful drain
 - 后续 Go 迁移优先吸收 deterministic supervisor runtime kernel：request
   lifecycle、cancel、per-lane budget、audit writer、runtime observability、
   fail-close envelope 与 projection-backed structured query dispatch
 - Go runtime 扩张不得把 product-layer auth/session/conversation、browser-facing
   capability policy、ingestion/OCR/indexing、RAG retrieval planning 或 agent semantic
-  reasoning 拉进 `apps/go-shell`
+  reasoning 拉进 Go `apps/supervisor-api`
 
 ## Complements
 

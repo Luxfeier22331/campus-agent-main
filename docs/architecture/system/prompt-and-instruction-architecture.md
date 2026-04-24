@@ -43,11 +43,12 @@ code-owned runtime seam。当前接受的实现基线是：
 - `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但
   prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path
   wording，不再把 `rag-agent` 当默认对外标签
-- `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py` 负责把 developer
-  invariants、role prompt、trusted task packet、untrusted user/evidence packet 组装成
-  runtime stack
-- `apps/supervisor-api/src/campus_supervisor_api/prompt_executor.py` 负责
-  provider-backed strict structured outputs，并在产品主链路生成 validated `PromptTrace`
+- `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_stack.py`
+  负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
+  packet 组装成 runtime stack
+- `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_executor.py`
+  负责 provider-backed strict structured outputs，并在产品主链路生成 validated
+  `PromptTrace`
 - provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作
   schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_

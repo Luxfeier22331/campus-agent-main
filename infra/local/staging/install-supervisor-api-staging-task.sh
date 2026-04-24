@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/../../.." && pwd)"
-task_name="${GO_SHELL_STAGING_TASK_NAME:-CampusAgent-GoShellStaging}"
+task_name="${SUPERVISOR_API_STAGING_TASK_NAME:-CampusAgent-SupervisorApiStaging}"
 wsl_distro_name="${WSL_DISTRO_NAME:-}"
 linux_user="$(id -un)"
 
@@ -18,7 +18,7 @@ if ! command -v powershell.exe >/dev/null 2>&1; then
   exit 1
 fi
 
-ps_script_windows_path="$(wslpath -w "${script_dir}/install-go-shell-staging-task.ps1")"
+ps_script_windows_path="$(wslpath -w "${script_dir}/install-supervisor-api-staging-task.ps1")"
 
 powershell.exe \
   -NoProfile \

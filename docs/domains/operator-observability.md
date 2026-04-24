@@ -47,8 +47,8 @@ updated: 2026-04-21
 
 ## Runbooks / smoke
 
-- `../runbooks/go-shell-staging-operations.md`
-- `../runbooks/go-shell-staging-smoke-runbook.md`
+- `../runbooks/supervisor-api-staging-operations.md`
+- `../runbooks/supervisor-api-staging-smoke-runbook.md`
 - `../runbooks/worker-observability-smoke-runbook.md`
 - `../runbooks/templates/worker-observability-smoke-artifact-template.md`
 

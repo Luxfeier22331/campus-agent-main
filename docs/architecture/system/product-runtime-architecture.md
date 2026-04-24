@@ -22,8 +22,8 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
-`browser -> public-chat-web -> app-api -> go-shell -> supervisor-api private
-bridge`
+`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core-worker
+private bridge`
 
 `browser -> public-docs`
 
@@ -127,22 +127,24 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - internal execution admission
 - typed execution transport
 - forward deploy substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go shell 承担 execution-level backpressure、timeout、readiness、
-  metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
-  capability policy
+- Docker-side Go `supervisor-api` 承担 execution-level backpressure、timeout、readiness、
+  bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
+  browser-facing capability policy
 - 不承担 browser-facing product backend 责任
 
 ### Docker Execution Runtime Boundary
 
 当前 Docker execution runtime 拆成：
 
-- `apps/go-shell`
+- `apps/supervisor-api`
   - 当前 execution ingress
   - 拥有 execution-level lifecycle、explicit cancel、global / per-lane admission、
-    queue、timeout、readiness、metrics、OTel telemetry seam 与 graceful drain
-- Python `apps/supervisor-api`
+    queue、timeout、bridge circuit breaker、readiness、metrics、OTel telemetry seam 与
+    graceful drain
+- Python `apps/supervisor-core-worker`
   - private orchestration bridge worker
   - 负责把 Go 已投影的 `SupervisorRequest` 交给 `packages/supervisor-core`
+  - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
   - 不再拥有 public execution ingress、caller auth 或 transport admission
 
 长期边界固定为：
@@ -236,7 +238,8 @@ contract 或 auth family route/endpoint truth。
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
-- execution public ingress 已 hardcut 到 `apps/go-shell`；Python `apps/supervisor-api`
+- execution public ingress 已 hardcut 到 Go `apps/supervisor-api`；Python
+  `apps/supervisor-core-worker`
   只保留 private orchestration bridge
 
 ## Forbidden Shapes

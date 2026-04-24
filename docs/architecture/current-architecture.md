@@ -28,8 +28,8 @@ updated: 2026-04-24
 
 当前接受的主拓扑固定为：
 
-`browser -> public-chat-web -> app-api -> go-shell -> supervisor-api private
-bridge -> supervisor-core -> agent`
+`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core-worker
+private bridge -> supervisor-core -> agent`
 
 `browser -> public-docs`
 
@@ -43,10 +43,10 @@ model`
 - browser 不直打 `apps/supervisor-api`
 - panel 不绕过 `apps/app-api`
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
-- `apps/supervisor-api` 是 internal execution engine，不是产品后端
+- `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
-- `apps/go-shell` 是当前 Docker execution ingress，负责 public execution HTTP surface
-  与 runtime hardening；Python `apps/supervisor-api` 只保留 private bridge worker
+- `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
+  与 runtime hardening；Python `apps/supervisor-core-worker` 只保留 private bridge worker
 - online query path 与 offline data plane 持续分层
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
@@ -119,7 +119,7 @@ model`
   hardening
 - 承接 `official_web` control plane
 
-### `apps/go-shell`
+### `apps/supervisor-api`
 
 - Docker-side internal execution ingress
 - 暴露 `GET /healthz`、`GET /readyz`、`GET /metrics` 与
@@ -127,17 +127,17 @@ model`
 - 拥有 request body limit、caller auth、request projection、in-flight lifecycle、
   explicit cancel、global / per-lane execution admission、bounded queue、timeout、
   readiness、metrics、OTel telemetry seam 与 graceful drain
-- 通过 private bridge 调用 Python `apps/supervisor-api`
+- 通过 private bridge 调用 Python `apps/supervisor-core-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
 
-### `apps/supervisor-api`
+### `apps/supervisor-core-worker`
 
 - Docker-first internal execution service 的 Python orchestration worker
-- 只接收 Go shell 已投影的 private `SupervisorRequest`
+- 只接收 Go `supervisor-api` 已投影的 private `SupervisorRequest`
 - 进入 `packages/supervisor-core -> agent`
 - 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
-  metrics 与 published `transport_runtime` 由 `apps/go-shell` 拥有
+  metrics 与 published `transport_runtime` 由 `apps/supervisor-api` 拥有
 
 ### `apps/ingestion-worker`
 

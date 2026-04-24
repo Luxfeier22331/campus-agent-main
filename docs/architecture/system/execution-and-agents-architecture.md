@@ -20,13 +20,13 @@ updated: 2026-04-24
 
 当前与长期都遵循：
 
-`app-api -> go-shell -> supervisor-api private bridge -> supervisor-core ->
-agent -> retrieval-core -> evidence -> supervisor response`
+`app-api -> supervisor-api -> supervisor-core-worker private bridge ->
+supervisor-core -> agent -> retrieval-core -> evidence -> supervisor response`
 
 边界固定如下：
 
-- `apps/go-shell` 负责 Docker-side execution runtime control plane
-- Python `apps/supervisor-api` 负责 private bridge worker 与 semantic orchestration
+- Go `apps/supervisor-api` 负责 Docker-side execution runtime control plane
+- Python `apps/supervisor-core-worker` 负责 private bridge worker 与 semantic orchestration
   runtime assembly
 - `packages/supervisor-core` 负责 policy-driven orchestration、admission / routing
   与 finalization
@@ -80,15 +80,17 @@ Docker-side Go runtime control plane 长期负责：
 
 当前 repo-local runtime progress：
 
-- Go shell 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
-  admission、metrics、OTel seam 与 execution audit backflow
-- Go shell 已补齐 Go -> Python cooperative cancel signal；Python bridge 记录 active
-  request id 的 cancel state，但 provider / prompt executor mid-flight stop 仍未接入
-- Go shell 的 execution envelope 已接受 `knowledge`、`place_lookup`、
+- Go `supervisor-api` 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
+  admission、bridge circuit breaker、metrics、OTel seam 与 execution audit backflow
+- Go `supervisor-api` 已补齐 Go -> Python cooperative cancel signal；Python bridge
+  记录 active request id 的 cancel state，默认 supervisor orchestration 已在路由、
+  prompt composition、specialist delegation 和 finalization checkpoints 观测取消；
+  provider / prompt executor 已进入阻塞 HTTP 调用时仍不承诺 hard-abort
+- Go `supervisor-api` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
   `campus_services`、`notice` capability label，并将它们映射到 `rag`、
   `navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
   knowledge path 使用
-- Go shell 已落地 gate-closed structured query runtime foundation；当前
+- Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup` 具备 file projection fixture backed foundation，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
   Python thin-adapter wiring；`campus_notice_discover` / `campus_notice_get`
@@ -321,13 +323,13 @@ adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
 - orchestration 留在 `packages/supervisor-core`
 - agent behavior 留在 agent package
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go shell owns runtime hardening: request limits, caller admission,
-  in-flight lifecycle, explicit cancel, global / per-lane execution queue /
-  backpressure, timeout propagation, readiness, metrics, OTel telemetry seam and
-  graceful drain
+- Docker-side Go `supervisor-api` owns runtime hardening: request limits, caller
+  admission, in-flight lifecycle, explicit cancel, global / per-lane execution
+  queue / backpressure, bridge circuit breaker, timeout propagation, readiness,
+  metrics, OTel telemetry seam and graceful drain
 - 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
   framework
-- Python `apps/supervisor-api` 只保留 private bridge worker，不再保留 repo-local
+- Python `apps/supervisor-core-worker` 只保留 private bridge worker，不再保留 repo-local
   public compatibility entry
 
 ## Prompt And Instruction Ownership
@@ -340,8 +342,8 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
   families
 - `packages/retrieval-core` 不拥有 top-level task prompt；只拥有 evidence retrieval 与
   serialization helper
-- `apps/supervisor-api` 不拥有长期 prompt truth；只负责 request packaging 与 execution
-  admission
+- `apps/supervisor-core-worker` 不拥有长期 prompt truth；只负责 semantic runtime
+  assembly 与 provider-backed execution adapter
 
 prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal
 semantics。
@@ -353,11 +355,11 @@ task/evidence packet -> code-side finalization`
 
 补充约束：
 
-- `apps/supervisor-api` 与后续 product runtime 只负责装配与执行，不拥有新的 monolithic mega
-  system prompt
+- `apps/supervisor-core-worker` 与后续 product runtime 只负责装配与执行，不拥有新的
+  monolithic mega system prompt
 - 当前 repo-default runtime assembly seam 已收口到
-  `apps/supervisor-api/src/campus_supervisor_api/prompt_stack.py`；它必须把 trusted
-  developer/task layers 与 untrusted user/evidence layers 分开表达
+  `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_stack.py`；它必须把
+  trusted developer/task layers 与 untrusted user/evidence layers 分开表达
 - `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level
   prompt truth
 - `system prompt` 这个词在 repo 里只保留为沟通简称；真正运行时应以 developer prompt + typed packets

@@ -4,15 +4,15 @@ status: active
 created: 2026-04-24
 updated: 2026-04-24
 ---
-# Go-Shell Local Runtime Smoke
+# Supervisor API Local Runtime Smoke
 
 ## 文档边界
 
-这份 runbook 只覆盖本地 Docker-first `go-shell` supervisor runtime smoke。
+这份 runbook 只覆盖本地 Docker-first `supervisor-api` supervisor runtime smoke。
 
 它回答的是：
 
-- 如何在本机启动 `go-shell + Python orchestration` 双容器 runtime
+- 如何在本机启动 `supervisor-api + Python orchestration` 双容器 runtime
 - 最小 health / ready / metrics / answer smoke 要怎么做
 - 当前 accepted runback 路径是什么
 
@@ -26,13 +26,13 @@ updated: 2026-04-24
 
 当前 local runtime 形态固定为：
 
-- `supervisor-shell`
-  - Go execution shell
+- `supervisor-api`
+  - Go-owned execution runtime
   - `GET /healthz`
   - `GET /readyz`
   - `GET /metrics`
   - `POST /api/v1/answer`
-- `supervisor-orchestrator`
+- `supervisor-core-worker`
   - Python orchestration worker
   - `POST /internal/bridge/supervisor/answer`
   - `GET /internal/bridge/healthz`
@@ -40,8 +40,8 @@ updated: 2026-04-24
 
 compose entry：
 
-- [`infra/local/docker-compose.supervisor-runtime.yml`](/home/reptilian/code/campus-agent/infra/local/docker-compose.supervisor-runtime.yml)
-- [`infra/local/start-supervisor-runtime.sh`](/home/reptilian/code/campus-agent/infra/local/start-supervisor-runtime.sh)
+- [`infra/local/docker-compose.supervisor-runtime.yml`](../../infra/local/docker-compose.supervisor-runtime.yml)
+- [`infra/local/start-supervisor-runtime.sh`](../../infra/local/start-supervisor-runtime.sh)
 
 ## Required Env
 
@@ -53,15 +53,15 @@ compose entry：
 手动绕过启动脚本时，最小必填：
 
 ```bash
-export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
+export SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret
 export API_WORKER_SHARED_SECRET=worker-secret
 ```
 
 推荐本地 smoke 默认值：
 
 ```bash
-export GO_SHELL_DOCKER_GOPROXY=https://goproxy.cn,direct
-export GO_SHELL_DOCKER_GOSUMDB=sum.golang.org
+export SUPERVISOR_API_DOCKER_GOPROXY=https://goproxy.cn,direct
+export SUPERVISOR_API_DOCKER_GOSUMDB=sum.golang.org
 export API_AUTH_MODE=trusted-worker
 export AGENT_RUNTIME_PROVIDER=mock-runtime
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
@@ -81,9 +81,9 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 说明：
 
 - `mock-runtime` 允许当前 smoke 聚焦 transport / bridge / readiness，而不是 provider 凭据
-- `GO_SHELL_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
+- `SUPERVISOR_API_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
   `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
-- 不要把 `GO_SHELL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验
+- 不要把 `SUPERVISOR_API_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验
   `go.sum`
 - 如果没有配置真实 prompt runtime，`/readyz` 可能返回 `503 degraded`
 - `503 degraded` 不阻塞 transport smoke，但必须在记录中解释原因
@@ -96,7 +96,7 @@ infra/local/start-supervisor-runtime.sh
 
 默认公开端口：
 
-- `supervisor-shell` -> `http://127.0.0.1:18080`
+- `supervisor-api` -> `http://127.0.0.1:18080`
 
 ## Step 2. Probe Health And Readiness
 
@@ -105,6 +105,17 @@ curl -sS http://127.0.0.1:18080/healthz
 curl -sS http://127.0.0.1:18080/readyz
 curl -sS http://127.0.0.1:18080/metrics
 ```
+
+启动后不要只等待 `/healthz`。`supervisor-api` 可能已经开始监听，但
+`supervisor-core-worker` 仍在导入 Python package、尚未开放 bridge 端口；这时立即打
+answer path 会得到 bridge `connection refused` 的假阴性。
+
+正式发起 answer smoke 前，至少等待 `/readyz` 中：
+
+- `bridge_runtime.reachable = true`
+- `bridge_runtime.circuit_state = "closed"`
+
+`/readyz` 返回 `503 degraded` 时仍可继续轮询；只有 bridge reachable 后才进入 Step 3。
 
 最小通过标准：
 
@@ -120,26 +131,33 @@ curl -sS http://127.0.0.1:18080/metrics
 - `last_answer_failure_code`
 - `last_answer_failure_at`
 - `last_answer_success_at`
+- `circuit_state`
+- `circuit_open_until`
+- `circuit_open_count`
+- `circuit_rejected_count`
 
 当前 `/metrics` 最小关注项：
 
-- `campus_go_shell_requests_total`
-- `campus_go_shell_request_duration_ms`
-- `campus_go_shell_inflight_requests`
-- `campus_go_shell_admission_decisions_total`
-- `campus_go_shell_admission_lane_decisions_total`
-- `campus_go_shell_admission_queue_depth`
-- `campus_go_shell_admission_queue_wait_ms`
-- `campus_go_shell_lifecycle_active_executions`
-- `campus_go_shell_lifecycle_completed_total`
-- `campus_go_shell_execution_audit_enabled`
-- `campus_go_shell_execution_audit_configured`
-- `campus_go_shell_execution_audit_emitted_total`
-- `campus_go_shell_execution_audit_dropped_total`
-- `campus_go_shell_execution_audit_failed_total`
-- `campus_go_shell_telemetry_enabled`
-- `campus_go_shell_bridge_duration_ms`
-- `campus_go_shell_bridge_failures_total`
+- `campus_supervisor_api_requests_total`
+- `campus_supervisor_api_request_duration_ms`
+- `campus_supervisor_api_inflight_requests`
+- `campus_supervisor_api_admission_decisions_total`
+- `campus_supervisor_api_admission_lane_decisions_total`
+- `campus_supervisor_api_admission_queue_depth`
+- `campus_supervisor_api_admission_queue_wait_ms`
+- `campus_supervisor_api_lifecycle_active_executions`
+- `campus_supervisor_api_lifecycle_completed_total`
+- `campus_supervisor_api_execution_audit_enabled`
+- `campus_supervisor_api_execution_audit_configured`
+- `campus_supervisor_api_execution_audit_emitted_total`
+- `campus_supervisor_api_execution_audit_dropped_total`
+- `campus_supervisor_api_execution_audit_failed_total`
+- `campus_supervisor_api_telemetry_enabled`
+- `campus_supervisor_api_bridge_duration_ms`
+- `campus_supervisor_api_bridge_failures_total`
+- `campus_supervisor_api_bridge_circuit_state`
+- `campus_supervisor_api_bridge_circuit_open_total`
+- `campus_supervisor_api_bridge_circuit_rejected_total`
 
 如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，拉取 `/metrics` 时必须带
 `authorization: Bearer <token>`。本地默认不设置该 token。
@@ -188,7 +206,7 @@ JSON
 - `needs_clarification`
 - `error`
 
-这里只验证 execution shell / bridge / response contract，不把答案质量当成这份 smoke 的通过条件。
+这里只验证 execution runtime / bridge / response contract，不把答案质量当成这份 smoke 的通过条件。
 
 ## Step 4. Inspect Metrics And Logs
 
@@ -200,13 +218,13 @@ curl -sS http://127.0.0.1:18080/metrics
 
 确认至少出现：
 
-- `campus_go_shell_requests_total{route="/api/v1/answer",...}`
-- `campus_go_shell_request_duration_ms_count{route="/api/v1/answer"}`
-- `campus_go_shell_admission_lane_active{lane="rag"}`
-- `campus_go_shell_lifecycle_active_executions`
-- `campus_go_shell_telemetry_enabled`
+- `campus_supervisor_api_requests_total{route="/api/v1/answer",...}`
+- `campus_supervisor_api_request_duration_ms_count{route="/api/v1/answer"}`
+- `campus_supervisor_api_admission_lane_active{lane="rag"}`
+- `campus_supervisor_api_lifecycle_active_executions`
+- `campus_supervisor_api_telemetry_enabled`
 
-Go shell 当前结构化日志最小字段：
+Go `apps/supervisor-api` 当前结构化日志最小字段：
 
 - `route`
 - `trace_id`
@@ -222,7 +240,7 @@ Go shell 当前结构化日志最小字段：
 
 ## Step 5. Shutdown
 
-关闭 Go shell 双容器 runtime：
+关闭 `supervisor-api + supervisor-core-worker` 双容器 runtime：
 
 ```bash
 infra/local/start-supervisor-runtime.sh down
@@ -240,7 +258,7 @@ infra/local/start-supervisor-runtime.sh down
 
 建议落盘：
 
-- `.tmp/go-shell-local-smoke/<timestamp>/healthz.json`
-- `.tmp/go-shell-local-smoke/<timestamp>/readyz.json`
-- `.tmp/go-shell-local-smoke/<timestamp>/metrics.txt`
-- `.tmp/go-shell-local-smoke/<timestamp>/answer.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>/healthz.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>/readyz.json`
+- `.tmp/supervisor-api-local-smoke/<timestamp>/metrics.txt`
+- `.tmp/supervisor-api-local-smoke/<timestamp>/answer.json`

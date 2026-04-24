@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # Operator Observability Architecture
 
@@ -98,7 +98,7 @@ debugging / analysis / grading`
 
 - 继续只是 execution engine
 - 不承担 operator observability query backend
-- Docker-side Go execution shell 可以产生 execution audit events，但只能通过
+- Docker-side Go `apps/supervisor-api` runtime 可以产生 execution audit events，但只能通过
   `app-api` internal ingest 写入 app-owned outbox / projection，不直接服务 panel
 
 ### Telemetry / Evaluation Sinks
@@ -108,10 +108,11 @@ debugging / analysis / grading`
 
 ## Execution Audit Backflow
 
-Go execution shell 负责 admission、queue/backpressure、timeout、cancel 与 bridge
-failure 等 runtime kernel 事实。它产生的 execution audit events 只能按以下路径进入 panel：
+Go `apps/supervisor-api` runtime 负责 admission、queue/backpressure、timeout、
+cancel 与 bridge failure 等 runtime kernel 事实。它产生的 execution audit
+events 只能按以下路径进入 panel：
 
-`go-shell execution event` -> `app-api internal ingest` ->
+`supervisor-api execution event` -> `app-api internal ingest` ->
 `runtime.projection_outbox` -> `operator.request_audit_projection` ->
 `protected-panel-web`
 
@@ -125,7 +126,7 @@ failure 等 runtime kernel 事实。它产生的 execution audit events 只能�
 
 规则：
 
-- `app-api` 继续是 audit projection owner；`go-shell` 不写 Postgres、不提供
+- `app-api` 继续是 audit projection owner；`supervisor-api` 不写 Postgres、不提供
   operator query backend
 - `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
   scheduled drain 只是兜底，避免 operator 在 panel 中等待下一轮 cron
@@ -138,6 +139,10 @@ failure 等 runtime kernel 事实。它产生的 execution audit events 只能�
 - `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
   `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
   route-time sink query
+- Go `supervisor-api` 的 execution audit writer 可以批量发送、失败重试并写本地 spool；
+  `/readyz` / `/metrics` 必须暴露 emitted、dropped、failed、retried、spooled、
+  spool-drained、spool-dropped 与 batch size，便于 operator 区分“runtime 事件已产生”和
+  “projection ingest 暂时不可达”
 
 ## Read-Model Families
 

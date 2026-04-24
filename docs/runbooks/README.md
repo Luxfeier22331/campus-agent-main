@@ -25,8 +25,8 @@ updated: 2026-04-20
 
 ## Environment-Specific Smoke / Evidence
 
-- `go-shell-staging-operations.md`
-- `go-shell-staging-smoke-runbook.md`
+- `supervisor-api-staging-operations.md`
+- `supervisor-api-staging-smoke-runbook.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`
@@ -34,7 +34,7 @@ updated: 2026-04-20
 ## Local Infra / Recovery
 
 - `local-postgres-dev-recovery-runbook.md`
-- `go-shell-local-runtime-smoke.md`
+- `supervisor-api-local-runtime-smoke.md`
 - `qdrant-cloud-backup-and-restore-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`

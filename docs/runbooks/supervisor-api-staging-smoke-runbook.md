@@ -4,7 +4,7 @@ status: active
 created: 2026-04-24
 updated: 2026-04-24
 ---
-# Go-Shell Staging Smoke Runbook
+# Supervisor API Staging Smoke Runbook
 
 ## 文档边界
 
@@ -12,22 +12,23 @@ updated: 2026-04-24
 
 - `public-chat-web`
 - `app-api`
-- `supervisor-api` 由 repo-owned `go-shell` staging runtime 承接
+- `supervisor-api` 由 repo-owned `supervisor-api` staging runtime 承接
 
 它回答的是：
 
-- 如何把 `chat-staging -> app-api-staging -> go-shell execution origin` 跑通
+- 如何把 `chat-staging -> app-api-staging -> supervisor-api execution origin` 跑通
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
 
-它不保留 legacy dev-backed upstream；当前 staging smoke 只以 Go shell execution origin 为准。
+它不保留 legacy dev-backed upstream；当前 staging smoke 只以 Go `apps/supervisor-api`
+execution origin 为准。
 
 ## 当前补充真相
 
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime 是
-  `go-shell + supervisor-orchestrator + named tunnel`
+  `supervisor-api + supervisor-core-worker + named tunnel`
 - 如果继续复用 `<https://exec-staging.ayafeed.com`> 作为 execution origin，就不需要为了
   runtime hard cut 重新 deploy `app-api-staging`
 - 只有当 execution upstream URL 本身变化时，才需要重新设置
@@ -37,7 +38,7 @@ updated: 2026-04-24
 
 这条 smoke 通过，表示：
 
-- `chat-staging -> app-api-staging -> current go-shell upstream` 真实可用
+- `chat-staging -> app-api-staging -> current supervisor-api upstream` 真实可用
 - browser 真实请求不再卡在 transport failure
 - typed execution outcome 可以成功回到 chat surface
 
@@ -46,27 +47,27 @@ updated: 2026-04-24
 - 当前 chat answer 质量已经达到 release 标准
 - production execution substrate 已经启用
 
-## Step 1. 启动 canonical go-shell staging runtime
+## Step 1. 启动 canonical supervisor-api staging runtime
 
 使用 repo-owned lifecycle 脚本：
 
 ```bash
-infra/local/staging/start-go-shell-staging.sh
-infra/local/staging/status-go-shell-staging.sh --check
+infra/local/staging/start-supervisor-api-staging.sh
+infra/local/staging/status-supervisor-api-staging.sh --check
 ```
 
 最小通过标准：
 
-- `infra/local/staging/status-go-shell-staging.sh --check` 返回 `0`
+- `infra/local/staging/status-supervisor-api-staging.sh --check` 返回 `0`
 
 如果当前 host 是 WSL 且需要长期常驻，安装 Windows 计划任务：
 
 ```bash
-infra/local/staging/install-go-shell-staging-task.sh
+infra/local/staging/install-supervisor-api-staging-task.sh
 ```
 
 后续安装校验、冷启动恢复、日志轮转与故障分流统一进入
-`go-shell-staging-operations.md`。
+`supervisor-api-staging-operations.md`。
 
 ## Step 2. 判断是否需要重新 deploy app-api staging
 
@@ -161,7 +162,7 @@ pnpm --dir apps/app-api chat:smoke:staging
 
 至少记录：
 
-- `infra/local/staging/status-go-shell-staging.sh --check`
+- `infra/local/staging/status-supervisor-api-staging.sh --check`
 - `https://exec-staging.ayafeed.com/readyz`
 - `https://campus-api-staging.ayafeed.com/readyz`
 - `pnpm --dir apps/app-api chat:smoke:staging` 的 JSON 摘要
@@ -174,7 +175,7 @@ pnpm --dir apps/app-api chat:smoke:staging
 1. 停掉 canonical runtime：
 
 ```bash
-infra/local/staging/stop-go-shell-staging.sh
+infra/local/staging/stop-supervisor-api-staging.sh
 ```
 
 1. 按 fallback runbook 恢复 legacy dev-backed runtime

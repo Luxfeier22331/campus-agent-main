@@ -31,9 +31,9 @@ updated: 2026-04-24
 - `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
 - 当前 repo-owned staging execution runtime 已收敛到这台开发机上的
-  `go-shell + supervisor-orchestrator` 双容器
+  `supervisor-api + supervisor-core-worker` 双容器
 - 这条 canonical execution runtime 的运维姿势、计划任务、自愈与日志规则统一记录在
-  `go-shell-staging-operations.md`
+  `supervisor-api-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path
 
 ## Hostname Constraint
@@ -169,18 +169,18 @@ truth，而不是这些旧值的继续合法化。
   `<https://exec-staging.ayafeed.com`>，但它背后承接的是
   `infra/local/docker-compose.supervisor-runtime.yml`
 - canonical 常驻方式不是 ad-hoc quick tunnel；而是这台开发机通过 named tunnel
-  `supervisor-api-staging` 持续承接 go-shell runtime
+  `supervisor-api-staging` 持续承接 supervisor-api runtime
 - 只要 production execution substrate 还没有接管，staging operator 就应优先维护这台主机上的
-  canonical go-shell 常驻链路，而不是每轮重新发一个随机 quick tunnel
+  canonical supervisor-api 常驻链路，而不是每轮重新发一个随机 quick tunnel
 - 当前 repo-owned execution upstream 实际来自：
-  - 本地 `infra/local/staging/start-go-shell-staging.sh`
-  - strict health gate `infra/local/staging/status-go-shell-staging.sh --check`
+  - 本地 `infra/local/staging/start-supervisor-api-staging.sh`
+  - strict health gate `infra/local/staging/status-supervisor-api-staging.sh --check`
 - 如果 execution upstream URL 保持不变，就不需要为了这次 hard cut 重新 deploy `app-api`
 - 如果 repo 外已有稳定 Docker supervisor origin，可作为显式注入的上游；但它不由当前仓库 runbook
   直接声明为 repo-owned canonical 现状
 - `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
 - 当前这台 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
-  health gate，见 `docs/runbooks/go-shell-staging-operations.md`
+  health gate，见 `docs/runbooks/supervisor-api-staging-operations.md`
 
 ## Secret Matrix
 

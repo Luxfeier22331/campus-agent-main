@@ -5,7 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 compose_file="${SUPERVISOR_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
 compose_project_name="${SUPERVISOR_RUNTIME_COMPOSE_PROJECT_NAME:-campus-supervisor-runtime-local}"
-shell_host_port="${SUPERVISOR_SHELL_HOST_PORT:-18080}"
+api_host_port="${SUPERVISOR_API_HOST_PORT:-18080}"
 
 require_command() {
   local command_name="$1"
@@ -44,8 +44,8 @@ for (const filePath of [repoEnvPath, appApiDevVarsPath]) {
 
 const keys = [
   "CAMPUS_AGENT_APP_NAME",
-  "GO_SHELL_DOCKER_GOPROXY",
-  "GO_SHELL_DOCKER_GOSUMDB",
+  "SUPERVISOR_API_DOCKER_GOPROXY",
+  "SUPERVISOR_API_DOCKER_GOSUMDB",
   "AGENT_RUNTIME_PROVIDER",
   "PROMPT_RUNTIME_PROVIDER",
   "PROMPT_RUNTIME_TRANSPORT",
@@ -80,9 +80,23 @@ const keys = [
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
   "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
   "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
-  "SUPERVISOR_PY_BRIDGE_WORKER_THREADS",
+  "SUPERVISOR_CORE_WORKER_THREADS",
   "SUPERVISOR_API_SHARED_SECRET",
-  "SUPERVISOR_PY_BRIDGE_TIMEOUT_MS",
+  "SUPERVISOR_CORE_WORKER_TIMEOUT_MS",
+  "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+  "SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH",
+  "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
+  "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
+  "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+  "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+  "INTERNAL_NOTICE_READ_MODEL_TABLE",
+  "OBJECT_STORE_ENDPOINT",
+  "OBJECT_STORE_DERIVED_ACCESS_KEY",
+  "OBJECT_STORE_DERIVED_SECRET_KEY",
+  "OBJECT_STORE_ACCESS_KEY",
+  "OBJECT_STORE_SECRET_KEY",
+  "OBJECT_STORE_REGION",
+  "OBJECT_STORE_BUCKET_DERIVED",
   "QDRANT_URL",
   "QDRANT_API_KEY",
   "QDRANT_TIMEOUT_SECONDS",
@@ -126,21 +140,22 @@ for (const key of keys) {
 const workerSharedSecret =
   process.env.API_WORKER_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
-  "go-shell-local-placeholder";
+  "supervisor-api-local-placeholder";
 const bridgeSharedSecret =
-  process.env.SUPERVISOR_PY_BRIDGE_SHARED_SECRET?.trim() ||
-  process.env.GO_SHELL_LOCAL_BRIDGE_SHARED_SECRET?.trim() ||
+  process.env.SUPERVISOR_CORE_WORKER_SHARED_SECRET?.trim() ||
+  process.env.SUPERVISOR_CORE_WORKER_LOCAL_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
-  "go-shell-local-placeholder";
+  "supervisor-core-worker-local-placeholder";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
-resolved.set("SUPERVISOR_PY_BRIDGE_SHARED_SECRET", bridgeSharedSecret);
+resolved.set("SUPERVISOR_CORE_WORKER_SHARED_SECRET", bridgeSharedSecret);
 
 for (const [key, value] of resolved.entries()) {
   const outputValue =
     key === "DOCUMENT_REGISTRY_DATABASE_URL" ||
     key === "CAMPUS_SHARED_POSTGRES_URL" ||
-    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL"
+    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL" ||
+    key === "OBJECT_STORE_ENDPOINT"
       ? rewriteLocalhostForDocker(value)
       : value;
   process.stdout.write(`${key}\0${outputValue}\0`);
@@ -162,7 +177,7 @@ main() {
   (
     cd "${repo_root}" || exit
     COMPOSE_PROJECT_NAME="${compose_project_name}" \
-    SUPERVISOR_SHELL_HOST_PORT="${shell_host_port}" \
+    SUPERVISOR_API_HOST_PORT="${api_host_port}" \
     API_AUTH_MODE="${API_AUTH_MODE:-trusted-worker}" \
     "${docker_bin}" compose -f "${compose_file}" "$@"
   )
