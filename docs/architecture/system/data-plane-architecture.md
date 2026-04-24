@@ -230,6 +230,7 @@ registry / control-plane database 与对象存储长期分层。
 - curriculum-specific chunking / serving nuances
 - official web page-level source-truth schema 细节
 - authenticated notice notice-level source-truth schema 细节
+- campus services transport schedule projection schema 细节
 - shared file asset family matrix、normalization / extraction / terminal outcome
   细节
 
@@ -239,6 +240,7 @@ registry / control-plane database 与对象存储长期分层。
 - `configs/ingestion/*`
 - `docs/data/official-web-source-truth-schema.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/reference/internal-notice-offline-preparation-strategy.md`
 
@@ -253,6 +255,7 @@ registry / control-plane database 与对象存储长期分层。
 - `curriculum/course_facts`
 - `curriculum/program_family_facts`
 - `curriculum/program_semester_facts`
+- `campus_services/transport_schedule`
 - `official_web` source channel 的 control-plane / source-truth path
 
 这表示 repo 已为这些 scope 建立了 canonical data-plane 语义，并不表示它们都已开放 query-serving 或已完成当前

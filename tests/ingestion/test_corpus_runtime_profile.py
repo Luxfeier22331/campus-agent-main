@@ -213,6 +213,21 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
         self.assertEqual(profile.runtime_defaults.strategy_name, "contact_directory_structure_v1")
 
+    def test_load_transport_schedule_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "transport_schedule")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "transport_schedule")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertEqual(profile.cleaning_policy_version, "transport_schedule_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "transport_schedule_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "transport_schedule")
+
     def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(
         self,
     ) -> None:
