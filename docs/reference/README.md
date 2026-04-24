@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-20
+updated: 2026-04-24
 ---
 
 # Reference
@@ -16,6 +16,7 @@ updated: 2026-04-20
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `workstream-agent-harness-contract.md`
+- `qa-assistant-and-harness-gap-review.md`
 - `testing-and-verification-lanes.md`
 - `eval-gold-truth-model.md`
 - `eval-benchmark-artifact-contract.md`
