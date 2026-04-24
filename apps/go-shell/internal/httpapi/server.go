@@ -190,6 +190,10 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolTransportScheduleLookup)
+	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
+	case request.Method == http.MethodPost && path == "/internal/query/notices/get":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeGet)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(
@@ -334,6 +338,10 @@ func (s *Server) handleStructuredQuery(
 		result = s.structuredQuery.LookupServiceStatus(ctx, body)
 	case structuredquery.ToolTransportScheduleLookup:
 		result = s.structuredQuery.LookupTransportSchedule(ctx, body)
+	case structuredquery.ToolCampusNoticeDiscover:
+		result = s.structuredQuery.LookupCampusNoticeDiscover(ctx, body)
+	case structuredquery.ToolCampusNoticeGet:
+		result = s.structuredQuery.LookupCampusNoticeGet(ctx, body)
 	default:
 		result = structuredquery.Response{
 			StatusCode: http.StatusNotFound,
