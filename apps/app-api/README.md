@@ -110,6 +110,12 @@ Observability data policy:
   `campus-agent-runtime-dev`
 - when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must
   be an Axiom API token rather than a PAT
+- panel trace / issue links are app-owned projections, not route-time sink
+  queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
+  `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when the operator panel should show
+  Sentry / Axiom deep links for request diagnostics. Supported placeholders are
+  `{requestId}`, `{traceId}`, `{errorCode}`, `{selectedTarget}`, `{surface}`,
+  and `{status}`; values are URL-encoded before rendering.
 
 Canonical references:
 
@@ -188,6 +194,8 @@ Environment:
 - `SUPERVISOR_API_TIMEOUT_MS`
 - `SUPERVISOR_API_EVAL_TIMEOUT_MS`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST`
+- `APP_API_OPERATOR_TRACE_LINK_TEMPLATE`
+- `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET`
 - `APP_API_OPERATOR_DATABASE_URL`

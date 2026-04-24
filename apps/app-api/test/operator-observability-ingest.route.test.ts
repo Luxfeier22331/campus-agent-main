@@ -20,6 +20,7 @@ const env = {
 describe("operator observability internal ingest routes", () => {
 	it("accepts sampled grades through the internal ingest seam", async () => {
 		const service = {
+			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn().mockResolvedValue({ accepted: 1 }),
 			ingestTraceBacklinks: vi.fn(),
 		};
@@ -75,6 +76,7 @@ describe("operator observability internal ingest routes", () => {
 
 	it("accepts trace backlinks through the internal ingest seam", async () => {
 		const service = {
+			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
 		};
@@ -120,8 +122,81 @@ describe("operator observability internal ingest routes", () => {
 		});
 	});
 
+	it("accepts execution audit events through the internal ingest seam", async () => {
+		const service = {
+			ingestExecutionAuditEvents: vi.fn().mockResolvedValue({ accepted: 1 }),
+			ingestGrades: vi.fn(),
+			ingestTraceBacklinks: vi.fn(),
+		};
+		const scheduleRequestProjectionDrain = vi.fn();
+		const app = createApp(env as never, {
+			operatorObservabilityCommandService: service as never,
+			scheduleRequestProjectionDrain,
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/internal/execution/audit-events", {
+				body: JSON.stringify({
+					events: [
+						{
+							bridge_duration_ms: 35000,
+							decision: null,
+							duration_ms: 35012,
+							event_id: "go-shell:req_01HQ:execution.bridge_failed",
+							event_type: "execution.bridge_failed",
+							failure_kind: "timeout",
+							http_status: 504,
+							lane: "rag",
+							occurred_at: "2026-04-24T10:00:00.000Z",
+							queue_wait_ms: 12,
+							request_id: "req_01HQ",
+							requested_capability: "knowledge",
+							retryable: true,
+							trace_id: "trace_01HQ",
+						},
+					],
+				}),
+				headers: {
+					"content-type": "application/json",
+					"x-app-internal-auth": "trusted-secret",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ accepted: 1 });
+		expect(service.ingestExecutionAuditEvents).toHaveBeenCalledWith({
+			payload: {
+				events: [
+					{
+						bridge_duration_ms: 35000,
+						decision: null,
+						duration_ms: 35012,
+						event_id: "go-shell:req_01HQ:execution.bridge_failed",
+						event_type: "execution.bridge_failed",
+						failure_kind: "timeout",
+						http_status: 504,
+						lane: "rag",
+						occurred_at: "2026-04-24T10:00:00.000Z",
+						queue_wait_ms: 12,
+						request_id: "req_01HQ",
+						requested_capability: "knowledge",
+						retryable: true,
+						trace_id: "trace_01HQ",
+					},
+				],
+			},
+		});
+		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
+			requestId: "req_01HQ",
+			waitUntil: undefined,
+		});
+	});
+
 	it("fails closed when the internal shared secret is missing", async () => {
 		const service = {
+			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTraceBacklinks: vi.fn(),
 		};

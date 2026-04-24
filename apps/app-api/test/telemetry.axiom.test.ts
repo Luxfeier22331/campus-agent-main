@@ -50,6 +50,50 @@ describe("axiom runtime event sink", () => {
 		).toBeNull();
 	});
 
+	it("allows only safe execution audit event fields", () => {
+		expect(
+			sanitizeAxiomEventPayload({
+				answer: "raw answer must not pass",
+				bridge_duration_ms: 35000,
+				decision: "queue_full",
+				duration_ms: 35012,
+				environment: "staging",
+				event_type: "execution.bridge_failed",
+				failure_kind: "timeout",
+				http_status: 504,
+				lane: "rag",
+				occurred_at: "2026-04-24T10:00:00.000Z",
+				prompt: "raw prompt must not pass",
+				queue_wait_ms: 12,
+				release: "app-api@2026.04.24",
+				request_id: "req_01HQ",
+				requested_capability: "knowledge",
+				retryable: true,
+				status: "error",
+				surface: "public_chat_web",
+				trace_id: "trace_01HQ",
+			}),
+		).toEqual({
+			bridge_duration_ms: 35000,
+			decision: "queue_full",
+			duration_ms: 35012,
+			environment: "staging",
+			event_type: "execution.bridge_failed",
+			failure_kind: "timeout",
+			http_status: 504,
+			lane: "rag",
+			occurred_at: "2026-04-24T10:00:00.000Z",
+			queue_wait_ms: 12,
+			release: "app-api@2026.04.24",
+			request_id: "req_01HQ",
+			requested_capability: "knowledge",
+			retryable: true,
+			status: "error",
+			surface: "public_chat_web",
+			trace_id: "trace_01HQ",
+		});
+	});
+
 	it("no-ops when the Axiom runtime config is incomplete", async () => {
 		const fetchImplementation = vi.fn();
 		const sink = createAxiomRuntimeEventSink(

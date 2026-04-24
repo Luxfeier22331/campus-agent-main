@@ -36,6 +36,10 @@ APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local
+# Optional panel deep-link templates. Placeholders are URL-encoded before use.
+# Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedTarget}, {surface}, {status}.
+APP_API_OPERATOR_TRACE_LINK_TEMPLATE=
+APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 # Copy the base domain of your Axiom org edge deployment, for example:
 # https://us-east-1.aws.edge.axiom.co or https://eu-central-1.aws.edge.axiom.co
 AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co

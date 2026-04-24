@@ -108,6 +108,30 @@ export function createAppTelemetry(
 			});
 		},
 
+		async recordExecutionAuditEvent(input) {
+			await axiomSink.emit({
+				bridge_duration_ms: input.bridgeDurationMs,
+				decision: input.decision,
+				duration_ms: input.durationMs,
+				failure_kind: input.failureKind,
+				http_status: input.httpStatus,
+				lane: input.lane,
+				queue_wait_ms: input.queueWaitMs,
+				retryable: input.retryable,
+				...buildAxiomEnvelope(
+					{
+						eventType: input.eventType,
+						requestId: input.requestId,
+						requestedCapability: input.requestedCapability,
+						status: input.status,
+						surface: input.surface,
+						traceId: input.traceId,
+					},
+					telemetryMetadata,
+				),
+			});
+		},
+
 		async recordProjectionDrain(input) {
 			await axiomSink.emit({
 				abandoned_count: input.abandoned ?? 0,

@@ -60,6 +60,7 @@ export function registerAppRoutes(input: {
 		createRequestScope: input.createRequestScope,
 		env: input.env,
 		officialWebExecutionStatusService: input.officialWebExecutionStatusService,
+		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 	registerOperatorRoutes({
 		app: input.app,

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
+	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
 	traceBacklinkProjection,
@@ -54,8 +55,18 @@ export interface TraceBacklinkProjectionWrite {
 	projectedAt: string;
 }
 
+export interface ExecutionAuditEventWrite {
+	eventId: string;
+	requestId: string;
+	eventType: string;
+	payload: Record<string, unknown>;
+	occurredAt: string;
+	availableAt: string;
+}
+
 export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
+	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
 	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
 }
@@ -86,6 +97,32 @@ export function createPgOperatorObservabilityCommandStore(
 	const getDb = input.getDb ?? createRuntimeDbGetter(env);
 
 	return {
+		async enqueueExecutionAuditEvents(input) {
+			if (input.events.length === 0) {
+				return;
+			}
+
+			const db = await getDb();
+			await db.transaction(async (tx) => {
+				for (const event of input.events) {
+					await tx
+						.insert(projectionOutbox)
+						.values({
+							attemptCount: 0,
+							availableAt: new Date(event.availableAt),
+							eventId: event.eventId,
+							eventType: event.eventType,
+							lastError: null,
+							occurredAt: new Date(event.occurredAt),
+							payloadJson: event.payload,
+							processedAt: null,
+							requestId: event.requestId,
+						})
+						.onConflictDoNothing();
+				}
+			});
+		},
+
 		async getRequestObservabilitySeed(requestId) {
 			const db = await getDb();
 			const rows = await db

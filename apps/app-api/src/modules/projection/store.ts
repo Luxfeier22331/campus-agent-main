@@ -30,6 +30,7 @@ function toProjectionEvent(row: typeof projectionOutbox.$inferSelect): Projectio
 		eventId: row.eventId,
 		eventType: row.eventType,
 		occurredAt: row.occurredAt.toISOString(),
+		payload: row.payloadJson,
 		processedAt: toIsoString(row.processedAt),
 		requestId: row.requestId,
 	};

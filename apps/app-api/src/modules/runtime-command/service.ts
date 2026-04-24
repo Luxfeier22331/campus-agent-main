@@ -46,6 +46,34 @@ export function buildChatCommandService(
 	const now = dependencies.now ?? (() => new Date());
 	const telemetry = dependencies.telemetry;
 
+	async function recordTraceBacklink(input: {
+		errorCode?: string | null;
+		requestId: string;
+		selectedTarget?: string | null;
+		status?: string | null;
+		surface: string;
+		traceId: string;
+		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+	}) {
+		if (!dependencies.traceBacklinkRecorder) {
+			return;
+		}
+
+		const { waitUntil, ...recordInput } = input;
+		const recordPromise = dependencies.traceBacklinkRecorder.record(recordInput).catch((error) => {
+			telemetry?.captureException(error, {
+				route: "/api/chat/requests",
+				surface: input.surface,
+				traceId: input.traceId,
+			});
+		});
+		if (waitUntil) {
+			waitUntil(recordPromise);
+			return;
+		}
+		await recordPromise;
+	}
+
 	return {
 		async submit(input) {
 			if (!input.principal.permissions.chat) {
@@ -325,6 +353,15 @@ export function buildChatCommandService(
 			finalized.write.requestExecution.versionQuery = validatedPayload.versionQuery;
 
 			const finalizedConversation = await dependencies.store.finalizeRequest(finalized.write);
+			await recordTraceBacklink({
+				errorCode: finalized.write.requestExecution.errorCode,
+				requestId,
+				selectedTarget: finalized.write.requestExecution.selectedTarget,
+				status: finalized.write.requestExecution.status,
+				surface,
+				traceId: finalized.write.requestExecution.traceId,
+				waitUntil: input.waitUntil,
+			});
 			await telemetry?.recordProjectionEnqueued({
 				conversationId: conversation.id,
 				principalType: input.principal.principal.type,

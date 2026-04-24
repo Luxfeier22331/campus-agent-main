@@ -18,6 +18,7 @@ import {
 } from "../modules/official-web-query";
 import {
 	buildOperatorObservabilityCommandService,
+	buildOperatorTraceBacklinkRecorder,
 	createPgOperatorObservabilityCommandStore,
 } from "../modules/operator-observability-command";
 import { buildOperatorQueryService, createPgOperatorQueryStore } from "../modules/operator-query";
@@ -78,6 +79,10 @@ export function createRequestScopeFactory(input: {
 					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
 					supervisor: createSupervisorExecutionClient(input.env),
 					telemetry: input.telemetry,
+					traceBacklinkRecorder: buildOperatorTraceBacklinkRecorder({
+						env: input.env,
+						resolveCommandService: resolveOperatorObservabilityCommandService,
+					}),
 				});
 				return chatCommandService;
 			}

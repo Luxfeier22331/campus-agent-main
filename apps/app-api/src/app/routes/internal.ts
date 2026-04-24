@@ -12,7 +12,7 @@ import {
 } from "../../http";
 import { hasMatchingInternalSecret, hasTrustedInternalRequest } from "../../modules/auth";
 import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
-import { readJsonRequestBody } from "../request-utils";
+import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
 
@@ -45,11 +45,30 @@ function readStringField(payload: Record<string, unknown>, fieldName: string): s
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function collectExecutionAuditRequestIds(payload: Record<string, unknown>): string[] {
+	const events = Array.isArray(payload.events) ? payload.events : [];
+	const requestIds = new Set<string>();
+	for (const event of events) {
+		if (!event || typeof event !== "object" || Array.isArray(event)) {
+			continue;
+		}
+		const requestId = readStringField(event as Record<string, unknown>, "request_id");
+		if (requestId) {
+			requestIds.add(requestId);
+		}
+	}
+	return [...requestIds];
+}
+
 export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
 	env: Env;
 	officialWebExecutionStatusService: OfficialWebExecutionStatusService;
+	scheduleRequestProjectionDrain?: (value: {
+		requestId: string;
+		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+	}) => void;
 }) {
 	input.app.post("/api/internal/operator/quality/grades", async (c) => {
 		const scope = input.createRequestScope();
@@ -62,6 +81,29 @@ export function registerInternalRoutes(input: {
 				payload: await readJsonRequestBody(c.req.raw),
 			}),
 		);
+	});
+
+	input.app.post("/api/internal/execution/audit-events", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		const result = await scope
+			.resolveOperatorObservabilityCommandService()
+			.ingestExecutionAuditEvents({
+				payload,
+			});
+		const waitUntil = resolveWaitUntil(c);
+		for (const requestId of collectExecutionAuditRequestIds(payload)) {
+			input.scheduleRequestProjectionDrain?.({
+				requestId,
+				waitUntil,
+			});
+		}
+
+		return jsonResponse(result);
 	});
 
 	input.app.post("/api/internal/staging-smoke/auth/session", async (c) => {

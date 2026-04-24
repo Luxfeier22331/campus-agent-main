@@ -10,7 +10,7 @@ crons = ["*/1 * * * *"]
 
 [vars]
 PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
-SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8081"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"
 SUPERVISOR_API_TIMEOUT_MS = "15000"
 
 [[hyperdrive]]

@@ -4,6 +4,7 @@ import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
 import { createWorkerRuntime } from "../src/index";
+import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -191,6 +192,13 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[env.local]");
 		expect(wranglerConfig).toContain("[[env.local.hyperdrive]]");
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
+	});
+
+	it("points the local smoke supervisor upstream at the docker-first go-shell port", () => {
+		expect(localSmokeWranglerConfig).toContain(
+			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"',
+		);
+		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
 
 	it("serves healthz and readyz from the worker shell", async () => {

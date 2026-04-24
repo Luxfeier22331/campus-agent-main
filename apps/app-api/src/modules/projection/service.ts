@@ -7,6 +7,7 @@ export interface ProjectionOutboxEvent {
 	eventId: string;
 	requestId: string;
 	eventType: string;
+	payload: Record<string, unknown>;
 	occurredAt: string;
 	availableAt: string;
 	processedAt: string | null;
@@ -99,6 +100,14 @@ export interface RequestAuditProjectionMaterialization {
 		failClosed: boolean | null;
 		aclAnomalyCode: string | null;
 		sourceDocIds: string[];
+		bridgeDurationMs?: number | null;
+		decision?: string | null;
+		durationMs?: number | null;
+		failureKind?: string | null;
+		httpStatus?: number | null;
+		lane?: string | null;
+		queueWaitMs?: number | null;
+		retryable?: boolean | null;
 	};
 	projectedAt: string;
 }
@@ -241,12 +250,29 @@ function toAuditCapabilityLabel(requestedCapability: string | null): string {
 function buildAuditSummary(input: {
 	eventType: string;
 	execution: RequestExecutionProjectionSource;
+	payload: Record<string, unknown>;
 	status: RequestExecutionStatus;
 }): string {
 	const capabilityLabel = toAuditCapabilityLabel(input.execution.requestedCapability);
 	const targetSuffix = input.execution.selectedTarget
 		? ` via ${formatOperatorTargetSummaryLabel(input.execution.selectedTarget)}`
 		: "";
+
+	if (input.eventType === "execution.admission_rejected") {
+		return `Execution admission rejected: ${readNullableString(input.payload.decision) ?? "unknown"}.`;
+	}
+	if (input.eventType === "execution.cancel_requested") {
+		return "Execution cancellation requested.";
+	}
+	if (input.eventType === "execution.cancelled") {
+		return "Execution cancelled.";
+	}
+	if (input.eventType === "execution.bridge_failed") {
+		return `Execution bridge failed: ${readNullableString(input.payload.failureKind) ?? "unknown"}.`;
+	}
+	if (input.eventType === "execution.timed_out") {
+		return "Execution timed out.";
+	}
 
 	switch (input.status) {
 		case "accepted":
@@ -266,6 +292,40 @@ function buildAuditSummary(input: {
 		default:
 			return `${capabilityLabel} recorded audit event ${input.eventType}.`;
 	}
+}
+
+function readNullableString(value: unknown): string | null {
+	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNullableNumber(value: unknown): number | null {
+	return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readNullableBoolean(value: unknown): boolean | null {
+	return typeof value === "boolean" ? value : null;
+}
+
+function buildAuditDiagnostics(input: {
+	event: ProjectionOutboxEvent;
+	execution: RequestExecutionProjectionSource;
+}): RequestAuditProjectionMaterialization["diagnostics"] {
+	const diagnostics: RequestAuditProjectionMaterialization["diagnostics"] = {
+		aclAnomalyCode: input.execution.aclAnomalyCode,
+		failClosed: input.execution.failClosed,
+		sourceDocIds: input.execution.sourceDocIds,
+	};
+	if (input.event.eventType.startsWith("execution.")) {
+		diagnostics.bridgeDurationMs = readNullableNumber(input.event.payload.bridgeDurationMs);
+		diagnostics.decision = readNullableString(input.event.payload.decision);
+		diagnostics.durationMs = readNullableNumber(input.event.payload.durationMs);
+		diagnostics.failureKind = readNullableString(input.event.payload.failureKind);
+		diagnostics.httpStatus = readNullableNumber(input.event.payload.httpStatus);
+		diagnostics.lane = readNullableString(input.event.payload.lane);
+		diagnostics.queueWaitMs = readNullableNumber(input.event.payload.queueWaitMs);
+		diagnostics.retryable = readNullableBoolean(input.event.payload.retryable);
+	}
+	return diagnostics;
 }
 
 function parseScopeCollection(scope: Record<string, unknown> | null): string | null {
@@ -504,11 +564,7 @@ export function toRequestAuditProjectionMaterialization(input: {
 
 	return {
 		auditEventId: input.event.eventId,
-		diagnostics: {
-			aclAnomalyCode: input.execution.aclAnomalyCode,
-			failClosed: input.execution.failClosed,
-			sourceDocIds: input.execution.sourceDocIds,
-		},
+		diagnostics: buildAuditDiagnostics(input),
 		entitlementSnapshotId: input.execution.entitlementSnapshotId,
 		eventType: input.event.eventType,
 		occurredAt: input.event.occurredAt,
@@ -522,6 +578,7 @@ export function toRequestAuditProjectionMaterialization(input: {
 		summary: buildAuditSummary({
 			eventType: input.event.eventType,
 			execution: input.execution,
+			payload: input.event.payload,
 			status,
 		}),
 		surface: input.execution.surface,

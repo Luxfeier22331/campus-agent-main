@@ -330,6 +330,14 @@ export interface OperatorAuditEventDetail {
 		diagnostics: {
 			failClosed: boolean | null;
 			aclAnomalyCode: string | null;
+			bridgeDurationMs?: number | null;
+			decision?: string | null;
+			durationMs?: number | null;
+			failureKind?: string | null;
+			httpStatus?: number | null;
+			lane?: string | null;
+			queueWaitMs?: number | null;
+			retryable?: boolean | null;
 			sourceDocIds: string[];
 		};
 	};

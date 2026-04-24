@@ -1,5 +1,6 @@
 export {
 	buildOperatorObservabilityCommandService,
+	type OperatorExecutionAuditEventsPayload,
 	type OperatorObservabilityCommandService,
 	type OperatorObservabilityCommandServiceDependencies,
 	type OperatorQualityGradesPayload,
@@ -7,8 +8,14 @@ export {
 } from "./service";
 export {
 	createPgOperatorObservabilityCommandStore,
+	type ExecutionAuditEventWrite,
 	type OperatorObservabilityCommandStore,
 	type QualityGradeProjectionWrite,
 	type StoredRequestObservabilitySeed,
 	type TraceBacklinkProjectionWrite,
 } from "./store";
+export {
+	buildOperatorTraceBacklinkRecorder,
+	type OperatorTraceBacklinkRecorder,
+	type OperatorTraceBacklinkRecordInput,
+} from "./trace-backlink-recorder";

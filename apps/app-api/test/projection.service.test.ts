@@ -65,6 +65,7 @@ function createPendingEvent(overrides: Partial<ProjectionOutboxEvent> = {}): Pro
 		eventId: "evt_accepted",
 		eventType: "request.completed",
 		occurredAt: "2026-03-28T08:00:02.000Z",
+		payload: {},
 		processedAt: null,
 		requestId: "req_01HQ",
 		...overrides,
@@ -625,6 +626,71 @@ describe("request projection projector", () => {
 				eventType: "request.accepted",
 				status: "accepted",
 				terminalCode: "completed",
+			}),
+		);
+	});
+
+	it("materializes execution audit payload into operator audit diagnostics and summary", async () => {
+		const store: RequestProjectionProjectorStore = {
+			getRequestExecution: vi.fn().mockResolvedValue(
+				createExecutionSource({
+					errorCode: "supervisor_bridge_timeout",
+					status: "error",
+				}),
+			),
+			listPendingEvents: vi.fn().mockResolvedValue([
+				createPendingEvent({
+					eventId: "go-shell:req_01HQ:execution.bridge_failed",
+					eventType: "execution.bridge_failed",
+					payload: {
+						bridgeDurationMs: 35000,
+						decision: null,
+						durationMs: 35012,
+						failureKind: "timeout",
+						httpStatus: 504,
+						lane: "rag",
+						queueWaitMs: 12,
+						requestedCapability: "knowledge",
+						retryable: true,
+						traceId: "trace_01HQ",
+					},
+				}),
+			]),
+			markEventFailed: vi.fn(),
+			markEventProcessed: vi.fn(),
+			markObservabilityProjected: vi.fn(),
+			replaceQualityBadcases: vi.fn(),
+			replaceQualityRollups: vi.fn(),
+			upsertAuditProjection: vi.fn(),
+			upsertProjection: vi.fn(),
+		};
+		const projector = buildRequestProjectionProjector({
+			now: () => new Date("2026-03-28T08:00:03.000Z"),
+			store,
+		});
+
+		await projector.drain();
+
+		expect(store.upsertAuditProjection).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auditEventId: "go-shell:req_01HQ:execution.bridge_failed",
+				diagnostics: {
+					aclAnomalyCode: null,
+					bridgeDurationMs: 35000,
+					decision: null,
+					durationMs: 35012,
+					failClosed: false,
+					failureKind: "timeout",
+					httpStatus: 504,
+					lane: "rag",
+					queueWaitMs: 12,
+					retryable: true,
+					sourceDocIds: ["handbook:library-hours"],
+				},
+				eventType: "execution.bridge_failed",
+				status: "error",
+				summary: "Execution bridge failed: timeout.",
+				terminalCode: "error",
 			}),
 		);
 	});

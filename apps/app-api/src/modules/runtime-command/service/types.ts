@@ -50,6 +50,7 @@ export interface ChatCommandService {
 		payload: ChatCommandPayload;
 		principal: ResolvedAppPrincipal;
 		surface?: string;
+		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 	}): Promise<ChatCommandResponse>;
 }
 
@@ -69,6 +70,16 @@ export interface ChatCommandServiceDependencies {
 	store: import("../store").ChatCommandStore;
 	supervisor: SupervisorExecutionClient;
 	telemetry?: AppTelemetry;
+	traceBacklinkRecorder?: {
+		record(input: {
+			errorCode?: string | null;
+			requestId: string;
+			selectedTarget?: string | null;
+			status?: string | null;
+			surface?: string | null;
+			traceId: string;
+		}): Promise<void>;
+	};
 }
 
 export interface ValidatedChatCommandPayload {

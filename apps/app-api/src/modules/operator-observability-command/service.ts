@@ -1,5 +1,6 @@
 import { AppApiRouteError } from "../../http";
 import type {
+	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
 	QualityGradeProjectionWrite,
 	TraceBacklinkProjectionWrite,
@@ -7,6 +8,28 @@ import type {
 
 const ALLOWED_GRADE_DOMAINS = new Set(["grounding", "citation", "policy"]);
 const ALLOWED_GRADE_VERDICTS = new Set(["pass", "fail", "needs_review"]);
+const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
+	"execution.admission_rejected",
+	"execution.cancel_requested",
+	"execution.cancelled",
+	"execution.bridge_failed",
+	"execution.timed_out",
+]);
+const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
+	"answer",
+	"auth_header",
+	"authorization",
+	"cookie",
+	"jwt",
+	"prompt",
+	"raw_answer",
+	"raw_jwt",
+	"raw_prompt",
+	"retrieval_payload",
+	"token",
+	"transcript",
+	"user_goal",
+]);
 
 export interface OperatorQualityGradePayloadItem {
 	requestId?: unknown;
@@ -28,8 +51,30 @@ export interface OperatorTraceBacklinkPayloadItem {
 	issueFingerprint?: unknown;
 }
 
+export interface OperatorExecutionAuditEventPayloadItem {
+	bridge_duration_ms?: unknown;
+	decision?: unknown;
+	duration_ms?: unknown;
+	event_id?: unknown;
+	event_type?: unknown;
+	failure_kind?: unknown;
+	http_status?: unknown;
+	lane?: unknown;
+	occurred_at?: unknown;
+	queue_wait_ms?: unknown;
+	request_id?: unknown;
+	requested_capability?: unknown;
+	retryable?: unknown;
+	trace_id?: unknown;
+	[key: string]: unknown;
+}
+
 export interface OperatorQualityGradesPayload {
 	grades?: unknown;
+}
+
+export interface OperatorExecutionAuditEventsPayload {
+	events?: unknown;
 }
 
 export interface OperatorTraceBacklinksPayload {
@@ -37,6 +82,9 @@ export interface OperatorTraceBacklinksPayload {
 }
 
 export interface OperatorObservabilityCommandService {
+	ingestExecutionAuditEvents(input: {
+		payload: OperatorExecutionAuditEventsPayload;
+	}): Promise<{ accepted: number }>;
 	ingestGrades(input: { payload: OperatorQualityGradesPayload }): Promise<{ accepted: number }>;
 	ingestTraceBacklinks(input: {
 		payload: OperatorTraceBacklinksPayload;
@@ -47,6 +95,22 @@ export interface OperatorObservabilityCommandServiceDependencies {
 	now?: () => Date;
 	store: OperatorObservabilityCommandStore;
 	telemetry?: {
+		recordExecutionAuditEvent?(input: {
+			bridgeDurationMs: number | null;
+			decision: string | null;
+			durationMs: number | null;
+			eventType: string;
+			failureKind: string | null;
+			httpStatus: number | null;
+			lane: string | null;
+			queueWaitMs: number | null;
+			requestId: string;
+			requestedCapability: string | null;
+			retryable: boolean | null;
+			status: string;
+			surface: string;
+			traceId: string;
+		}): Promise<void>;
 		recordQualitySampledGrade(input: {
 			collection: string | null;
 			gradeDomain: "grounding" | "citation" | "policy";
@@ -77,6 +141,43 @@ function normalizeString(value: unknown): string {
 function normalizeNullableString(value: unknown): string | null {
 	const normalized = normalizeString(value);
 	return normalized || null;
+}
+
+function normalizeNullableBoolean(value: unknown, field: string): boolean | null {
+	if (value === null || value === undefined || value === "") {
+		return null;
+	}
+	if (typeof value !== "boolean") {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} must be a boolean.`,
+			retryable: false,
+			status: 422,
+		});
+	}
+	return value;
+}
+
+function normalizeNullableNonNegativeInteger(value: unknown, field: string): number | null {
+	if (value === null || value === undefined || value === "") {
+		return null;
+	}
+	if (
+		typeof value !== "number" ||
+		!Number.isInteger(value) ||
+		!Number.isFinite(value) ||
+		value < 0
+	) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} must be a non-negative integer.`,
+			retryable: false,
+			status: 422,
+		});
+	}
+	return value;
 }
 
 function normalizeIsoTimestamp(value: unknown, field: string): string {
@@ -198,12 +299,153 @@ function buildGradeId(input: {
 	return `${input.requestId}:${input.gradeSource}:${input.gradeDomain}`;
 }
 
+function normalizeExecutionAuditEventType(value: unknown, field: string): string {
+	const normalized = normalizeRequiredString(value, field);
+	if (!ALLOWED_EXECUTION_AUDIT_EVENT_TYPES.has(normalized)) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} must be an allowed execution audit event type.`,
+			retryable: false,
+			status: 422,
+		});
+	}
+	return normalized;
+}
+
+function assertNoForbiddenExecutionAuditFields(
+	item: OperatorExecutionAuditEventPayloadItem,
+	prefix: string,
+) {
+	for (const key of Object.keys(item)) {
+		if (FORBIDDEN_EXECUTION_AUDIT_FIELDS.has(key.toLowerCase())) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				details: { field: `${prefix}.${key}` },
+				message: `${prefix}.${key} is forbidden in execution audit events.`,
+				retryable: false,
+				status: 422,
+			});
+		}
+	}
+}
+
 export function buildOperatorObservabilityCommandService(
 	dependencies: OperatorObservabilityCommandServiceDependencies,
 ): OperatorObservabilityCommandService {
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
+		async ingestExecutionAuditEvents(input) {
+			const events = ensureArray<OperatorExecutionAuditEventPayloadItem>(
+				input.payload.events,
+				"events",
+			);
+			const writes: ExecutionAuditEventWrite[] = [];
+			const telemetryEvents: Array<{
+				bridgeDurationMs: number | null;
+				decision: string | null;
+				durationMs: number | null;
+				eventType: string;
+				failureKind: string | null;
+				httpStatus: number | null;
+				lane: string | null;
+				queueWaitMs: number | null;
+				requestId: string;
+				requestedCapability: string | null;
+				retryable: boolean | null;
+				status: string;
+				surface: string;
+				traceId: string;
+			}> = [];
+
+			for (let index = 0; index < events.length; index += 1) {
+				const item = events[index] ?? {};
+				const prefix = `events[${index}]`;
+				assertNoForbiddenExecutionAuditFields(item, prefix);
+				const eventId = normalizeRequiredString(item.event_id, `${prefix}.event_id`);
+				const requestId = normalizeRequiredString(item.request_id, `${prefix}.request_id`);
+				const traceId = normalizeRequiredString(item.trace_id, `${prefix}.trace_id`);
+				const eventType = normalizeExecutionAuditEventType(item.event_type, `${prefix}.event_type`);
+				const occurredAt = normalizeIsoTimestamp(item.occurred_at, `${prefix}.occurred_at`);
+				const bridgeDurationMs = normalizeNullableNonNegativeInteger(
+					item.bridge_duration_ms,
+					`${prefix}.bridge_duration_ms`,
+				);
+				const durationMs = normalizeNullableNonNegativeInteger(
+					item.duration_ms,
+					`${prefix}.duration_ms`,
+				);
+				const httpStatus = normalizeNullableNonNegativeInteger(
+					item.http_status,
+					`${prefix}.http_status`,
+				);
+				const queueWaitMs = normalizeNullableNonNegativeInteger(
+					item.queue_wait_ms,
+					`${prefix}.queue_wait_ms`,
+				);
+				const retryable = normalizeNullableBoolean(item.retryable, `${prefix}.retryable`);
+				const decision = normalizeNullableString(item.decision);
+				const failureKind = normalizeNullableString(item.failure_kind);
+				const lane = normalizeNullableString(item.lane);
+				const requestedCapability = normalizeNullableString(item.requested_capability);
+
+				const seed = await dependencies.store.getRequestObservabilitySeed(requestId);
+				if (!seed) {
+					throw new AppApiRouteError({
+						code: "request_not_found",
+						details: { requestId },
+						message: "Request observability seed not found.",
+						retryable: false,
+						status: 404,
+					});
+				}
+				if (seed.traceId !== traceId) {
+					throw new AppApiRouteError({
+						code: "validation_failed",
+						details: { field: `${prefix}.trace_id`, requestId },
+						message: `${prefix}.trace_id must match the request-scoped traceId.`,
+						retryable: false,
+						status: 422,
+					});
+				}
+
+				const payload = {
+					bridgeDurationMs,
+					decision,
+					durationMs,
+					failureKind,
+					httpStatus,
+					lane,
+					queueWaitMs,
+					requestedCapability,
+					retryable,
+					traceId,
+				};
+				writes.push({
+					availableAt: occurredAt,
+					eventId,
+					eventType,
+					occurredAt,
+					payload,
+					requestId,
+				});
+				telemetryEvents.push({
+					...payload,
+					eventType,
+					requestId,
+					status: eventType === "execution.admission_rejected" ? "rejected" : "error",
+					surface: seed.surface,
+				});
+			}
+
+			await dependencies.store.enqueueExecutionAuditEvents({ events: writes });
+			for (const event of telemetryEvents) {
+				await dependencies.telemetry?.recordExecutionAuditEvent?.(event);
+			}
+			return { accepted: writes.length };
+		},
+
 		async ingestGrades(input) {
 			const grades = ensureArray<OperatorQualityGradePayloadItem>(input.payload.grades, "grades");
 			const writes: QualityGradeProjectionWrite[] = [];

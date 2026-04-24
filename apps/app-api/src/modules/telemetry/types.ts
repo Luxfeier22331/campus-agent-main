@@ -40,6 +40,22 @@ export interface AppTelemetry {
 	}): void;
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
+	recordExecutionAuditEvent(input: {
+		bridgeDurationMs: number | null;
+		decision: string | null;
+		durationMs: number | null;
+		eventType: string;
+		failureKind: string | null;
+		httpStatus: number | null;
+		lane: string | null;
+		queueWaitMs: number | null;
+		requestId: string;
+		requestedCapability: string | null;
+		retryable: boolean | null;
+		status: string;
+		surface: string;
+		traceId: string;
+	}): Promise<void>;
 	recordProjectionDrain(input: {
 		abandoned?: number;
 		failed: number;

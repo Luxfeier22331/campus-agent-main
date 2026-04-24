@@ -98,6 +98,54 @@ const AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<string>>(
 			"verdict",
 		]),
 	],
+	[
+		"execution.admission_rejected",
+		new Set([
+			...AXIOM_BASE_ALLOWED_FIELDS,
+			"decision",
+			"duration_ms",
+			"http_status",
+			"lane",
+			"queue_wait_ms",
+			"retryable",
+		]),
+	],
+	[
+		"execution.cancel_requested",
+		new Set([...AXIOM_BASE_ALLOWED_FIELDS, "duration_ms", "http_status", "lane", "retryable"]),
+	],
+	[
+		"execution.cancelled",
+		new Set([...AXIOM_BASE_ALLOWED_FIELDS, "duration_ms", "http_status", "lane", "retryable"]),
+	],
+	[
+		"execution.bridge_failed",
+		new Set([
+			...AXIOM_BASE_ALLOWED_FIELDS,
+			"bridge_duration_ms",
+			"decision",
+			"duration_ms",
+			"failure_kind",
+			"http_status",
+			"lane",
+			"queue_wait_ms",
+			"retryable",
+		]),
+	],
+	[
+		"execution.timed_out",
+		new Set([
+			...AXIOM_BASE_ALLOWED_FIELDS,
+			"bridge_duration_ms",
+			"decision",
+			"duration_ms",
+			"failure_kind",
+			"http_status",
+			"lane",
+			"queue_wait_ms",
+			"retryable",
+		]),
+	],
 ]);
 
 type AxiomScalar = boolean | number | string | null;

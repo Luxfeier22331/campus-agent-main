@@ -143,17 +143,22 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - Provider / system: Sentry
   作用: runtime error / trace / release evidence
   主要 env keys: `SENTRY_DSN` `SENTRY_ENVIRONMENT` `SENTRY_RELEASE`
+  `APP_API_OPERATOR_TRACE_LINK_TEMPLATE`
   放置位置: 各 app `.dev.vars` 或 Cloudflare secret store
   何时必需: staging / prod observability，local smoke 可选
   获取方式: 在 Sentry 创建项目后，从 Client Keys (DSN) 复制 DSN；需要 repo-local API lookup 时再建
-  auth token
+  auth token；如果要在 panel 中打开 trace viewer，则把
+  `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` 配置为只含 safe placeholder 的 trace URL 模板
 
 - Provider / system: Axiom
   作用: `app-api` runtime logs / metrics ingest
   主要 env keys: `AXIOM_ENDPOINT` `AXIOM_DATASET` `AXIOM_TOKEN`
+  `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
   放置位置: `apps/app-api/.dev.vars` 或 Cloudflare secret store
   何时必需: `app-api` observability
-  获取方式: 在 Axiom 确认 edge deployment、创建 dataset、生成 API token
+  获取方式: 在 Axiom 确认 edge deployment、创建 dataset、生成 API token；如果要在 panel
+  中打开 request/error query，则把 `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` 配置为 safe
+  query URL 模板，panel 不直接查询 Axiom API
 
 - Provider / system: Cloudflare Workers / Wrangler
   作用: `app-api`、`public-chat-web`、`protected-panel-web` deploy 与 secret store
@@ -180,15 +185,6 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   `GO_SHELL_STAGING_BRIDGE_SHARED_SECRET`
   放置位置: operator shell / Windows scheduled task action
   何时必需: 当前 canonical staging execution runtime 需要
-  获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
-
-- Provider / system: Dev-backed staging operator shell
-  作用: fallback `campus-supervisor-api-dev` runtime、自愈任务与 rollback health check
-  主要 env keys: `DEV_BACKED_SUPERVISOR_TUNNEL_NAME`
-  `DEV_BACKED_SUPERVISOR_PUBLIC_BASE_URL`
-  `DEV_BACKED_SUPERVISOR_APP_API_BASE_URL`
-  放置位置: operator shell / Windows scheduled task action
-  何时必需: 只有 rollback / fallback 时才需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写
 
 ## Provider 详情

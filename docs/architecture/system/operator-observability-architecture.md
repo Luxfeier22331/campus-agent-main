@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-21
+updated: 2026-04-24
 ---
 # Operator Observability Architecture
 
@@ -98,11 +98,46 @@ debugging / analysis / grading`
 
 - 继续只是 execution engine
 - 不承担 operator observability query backend
+- Docker-side Go execution shell 可以产生 execution audit events，但只能通过
+  `app-api` internal ingest 写入 app-owned outbox / projection，不直接服务 panel
 
 ### Telemetry / Evaluation Sinks
 
 - 负责 debugging、high-volume analysis、sampled grading、release evidence
 - 不承担 panel canonical read model
+
+## Execution Audit Backflow
+
+Go execution shell 负责 admission、queue/backpressure、timeout、cancel 与 bridge
+failure 等 runtime kernel 事实。它产生的 execution audit events 只能按以下路径进入 panel：
+
+`go-shell execution event` -> `app-api internal ingest` ->
+`runtime.projection_outbox` -> `operator.request_audit_projection` ->
+`protected-panel-web`
+
+第一版允许进入 audit timeline 的 execution event type 固定为：
+
+- `execution.admission_rejected`
+- `execution.cancel_requested`
+- `execution.cancelled`
+- `execution.bridge_failed`
+- `execution.timed_out`
+
+规则：
+
+- `app-api` 继续是 audit projection owner；`go-shell` 不写 Postgres、不提供
+  operator query backend
+- `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
+  scheduled drain 只是兜底，避免 operator 在 panel 中等待下一轮 cron
+- ingest payload 只允许 `request_id`、`trace_id`、lane、decision、failure kind、
+  duration、queue wait、bridge duration、HTTP status、retryable 等 safe fields
+- payload 禁止 raw prompt、raw answer、raw transcript、auth material、retrieval
+  payload、provider raw response
+- `Sentry` 与 `Axiom` 可以接收同类 sanitized event 用于 trace / analysis / alert，
+  但 panel 不得直接查询这些 sink
+- `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
+  `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
+  route-time sink query
 
 ## Read-Model Families
 
@@ -424,6 +459,10 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - high-cardinality operator aggregate truth
 - raw full prompt / answer / transcript archive
 
+`app-api` 允许使用 `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` 把 Sentry trace viewer 之类的
+safe deep link 投影进 panel backlink。该模板只用 app-owned `requestId` / `traceId`
+等 correlation field 渲染 URL，不从 Sentry 查询 raw event。
+
 ### `Axiom`
 
 长期职责：
@@ -447,6 +486,10 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - panel canonical request list/detail source
 - 唯一错误调试面
 - raw operator PII / auth material / transcript store
+
+如果需要从 panel 跳转到 Axiom 查询页，只能通过
+`APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` 或 external internal producer 写入 safe deep
+link；panel 不直接向 Axiom 发查询请求。
 
 ### OpenAI Trace / Eval Tooling
 

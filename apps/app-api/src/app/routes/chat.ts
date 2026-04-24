@@ -57,6 +57,7 @@ export function registerChatRoutes(input: {
 				idempotencyKey: c.req.header("idempotency-key") ?? null,
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: resolved.principal,
+				waitUntil: resolveWaitUntil(c),
 			});
 			input.scheduleRequestProjectionDrain?.({
 				requestId: response.requestId,
@@ -96,6 +97,7 @@ export function registerChatRoutes(input: {
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
 				surface: "eval_benchmark",
+				waitUntil: resolveWaitUntil(c),
 			});
 
 			return jsonResponse(

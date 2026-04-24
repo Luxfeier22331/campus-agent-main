@@ -195,6 +195,7 @@ export function createTelemetryMock(): AppTelemetry {
 			sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
 		}),
 		markHttpResponseStatus: vi.fn(),
+		recordExecutionAuditEvent: vi.fn(),
 		recordProjectionDrain: vi.fn(),
 		recordProjectionEnqueued: vi.fn(),
 		recordQualitySampledGrade: vi.fn(),

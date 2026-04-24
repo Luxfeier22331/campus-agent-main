@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-19
+updated: 2026-04-24
 ---
 # App API Schema
 
@@ -341,11 +341,22 @@ updated: 2026-04-19
 - `request.needs_clarification`
 - `request.no_answer`
 - `request.error`
+- `request.approval_required`
+- `request.rejected`
+- `execution.admission_rejected`
+- `execution.cancel_requested`
+- `execution.cancelled`
+- `execution.bridge_failed`
+- `execution.timed_out`
 
 规则：
 
 - projector 必须按 `event_id` 做幂等消费
 - outbox payload 只携带 projection 所需字段，不承担 raw audit dump 角色
+- `execution.*` payload 只允许 Go execution shell 的 safe runtime summary，例如
+  lane、decision、failure kind、HTTP status、retryable、duration、queue wait、
+  bridge duration；禁止 raw prompt、raw answer、raw transcript、auth material、
+  retrieval payload 或 provider raw response
 
 ## `runtime.request_observability_fact`
 
@@ -546,7 +557,9 @@ updated: 2026-04-19
 - `status` 表示该 audit event 自身的阶段语义；`terminal_code` 表示当前请求最终 terminal
   outcome，二者不得混写
 - `diagnostics_json` 只保存受控最小摘要，例如
-  `fail_closed`、`acl_anomaly_code`、`source_doc_ids`
+  `fail_closed`、`acl_anomaly_code`、`source_doc_ids`；当 event type 为
+  `execution.*` 时，可以额外保存 lane、decision、failure kind、HTTP status、
+  retryable、duration、queue wait 与 bridge duration
 - 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor
   sink blob
 

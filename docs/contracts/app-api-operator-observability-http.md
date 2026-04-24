@@ -184,6 +184,10 @@ list endpoints 额外支持：
 - 没有关联对象时允许返回 `null`
 - 不返回 sink 原始 payload 或 query 语句
 - 当前 forward contract 接受这些字段最终由 `operator.trace_backlink_projection` 提供
+- `app-api` 可以在 request lifecycle 中按
+  `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` / `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
+  自动写入 trace / issue backlink；模板只渲染 deep link，不查询 sink，不改变
+  panel truth owner
 
 ### Metric Ratio
 
@@ -711,7 +715,8 @@ list endpoints 额外支持：
   `citation_missing`、`empty_recall`、`grounding_failed`、
   `unsupported_by_evidence`、`policy_failed`、`authz_suspected` 与
   `freshness_fail_close`
-- 当前已冻结的第一版 contract 中，`grade` 与 `links` 允许全部为 `null`
+- `grade` 与 `links` 允许全部为 `null`；当 request lifecycle 或 internal producer
+  已写入 app-owned projection 时，panel 返回对应的 safe backlink
 - forward contract 上，`grade` 的上游固定为
   `operator.quality_grade_projection`，`links.*` 的上游固定为
   `operator.trace_backlink_projection`
@@ -987,6 +992,9 @@ list endpoints 额外支持：
 - 当前已冻结的第一版 contract 事件类型先以 request lifecycle 为主，例如 `request.accepted`、`request.
   completed`、`request.no_answer`、`request.needs_clarification`、`request.error`、`
   request.approval_required`、`request.rejected`
+- execution runtime kernel event 可以通过 `app-api` internal ingest 进入同一 audit
+  projection；第一版只允许 `execution.admission_rejected`、`execution.cancel_requested`、
+  `execution.cancelled`、`execution.bridge_failed`、`execution.timed_out`
 - 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner
   模型的前提下追加，但不能回退成 raw log query
 
@@ -1030,8 +1038,9 @@ list endpoints 额外支持：
 - detail 允许比 list 多出
   `entitlementSnapshotId`、`policyProjectionVersion`、`diagnostics`
 - 仍不返回 raw JWT、raw cookies、raw prompt、raw answer、raw retrieval payload
-- 第一版 `links` 允许全部为 `null`；后续再把 `Sentry`/sink backlink 稳定接入 detail 面
-- `links.*` 稳定接入后也必须继续经过 app-owned projection，不允许 detail route 直接查询 sink
+- `links` 允许全部为 `null`；配置了 app-owned backlink recorder 或 external internal
+  producer 后才返回 safe deep link / fingerprint
+- `links.*` 必须继续经过 app-owned projection，不允许 detail route 直接查询 sink
 
 ## Internal Ingest Endpoints
 
@@ -1039,6 +1048,7 @@ list endpoints 额外支持：
 
 - `POST /api/internal/operator/quality/grades`
 - `POST /api/internal/operator/trace-backlinks`
+- `POST /api/internal/execution/audit-events`
 
 适用前提：
 
@@ -1046,6 +1056,47 @@ list endpoints 额外支持：
 - 这是 internal producer（grader worker / sink reconciliation worker）写入 projection
   的入口
 - 这些 endpoint 不向 panel 暴露，不支持 ad-hoc query
+- 对于 app-api 自己掌握的 request lifecycle，runtime 内置 recorder 可以直接写入同一
+  `operator.trace_backlink_projection`；internal endpoint 仍保留给 external sink
+  reconciliation worker / grader worker
+
+### `POST /api/internal/execution/audit-events`
+
+请求体：
+
+```json
+{
+  "events": [
+    {
+      "event_id": "go-shell:req_01HQ:execution.bridge_failed",
+      "request_id": "req_01HQ",
+      "trace_id": "trace_01HQ",
+      "event_type": "execution.bridge_failed",
+      "occurred_at": "2026-04-24T10:00:00.000Z",
+      "lane": "rag",
+      "requested_capability": "knowledge",
+      "decision": null,
+      "failure_kind": "timeout",
+      "http_status": 504,
+      "retryable": true,
+      "duration_ms": 35012,
+      "queue_wait_ms": 12,
+      "bridge_duration_ms": 35000
+    }
+  ]
+}
+```
+
+规则：
+
+- `request_id` 必须已存在于 app-owned request truth，`trace_id` 必须匹配该请求
+- `event_id` 由 producer 按 `go-shell:<request_id>:<event_type>` 生成，重复 ingest
+  必须幂等
+- 只接受 allowlist execution event type；不接受 raw prompt、raw answer、raw
+  transcript、auth material、retrieval payload 或 provider raw response
+- ingest 写入 app-owned outbox 后会调度 request-scoped projection drain，让 panel
+  尽快看到 curated audit timeline；cron drain 仍是兜底
+- panel 仍只读取投影后的 audit endpoint，不直接读取 outbox 或 telemetry sink
 
 ### `POST /api/internal/operator/quality/grades`
 
@@ -1099,6 +1150,10 @@ list endpoints 额外支持：
 - payload 只允许 panel-safe deep link / fingerprint
 - 不接受 raw issue body、raw trace body、sink query 语句
 - `requestId` 与 `traceId` 必须保持 request-scoped correlation
+- app-api 内置 recorder 支持用
+  `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` / `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
+  生成同等 payload；支持的 placeholder 为 `{requestId}`、`{traceId}`、
+  `{errorCode}`、`{selectedTarget}`、`{surface}`、`{status}`
 
 ## Explicit Non-Goals
 
