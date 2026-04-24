@@ -57,6 +57,10 @@ export API_WORKER_SHARED_SECRET=worker-secret
 export API_AUTH_MODE=trusted-worker
 export AGENT_RUNTIME_PROVIDER=mock-runtime
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
+export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
+export SUPERVISOR_API_QUEUE_CAPACITY=24
+export SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 ```
 
 说明：
@@ -103,8 +107,18 @@ curl -sS http://127.0.0.1:18080/metrics
 - `campus_go_shell_requests_total`
 - `campus_go_shell_request_duration_ms`
 - `campus_go_shell_inflight_requests`
-- `campus_go_shell_transport_saturated_total`
+- `campus_go_shell_admission_decisions_total`
+- `campus_go_shell_admission_queue_depth`
+- `campus_go_shell_admission_queue_wait_ms`
+- `campus_go_shell_bridge_duration_ms`
 - `campus_go_shell_bridge_failures_total`
+
+如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，拉取 `/metrics` 时必须带
+`authorization: Bearer <token>`。本地默认不设置该 token。
+
+`transport_runtime` 中的 `active_answers == max_concurrent_answers` 不单独代表
+runtime 不健康；只要未 draining 且 admission queue 仍能接收短突发，`/readyz` 可以继续
+返回 `200 ready`。队列满、draining 或 bridge 不健康才会让 readiness degraded。
 
 ## Step 3. Probe Answer Path
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,11 +19,11 @@ import (
 )
 
 type Server struct {
-	config  config.Config
-	bridge  bridge.Client
-	limiter *admission.Limiter
-	logger  *slog.Logger
-	metrics *observability.Metrics
+	config    config.Config
+	bridge    bridge.Client
+	admission *admission.Controller
+	logger    *slog.Logger
+	metrics   *observability.Metrics
 }
 
 type errorInfo struct {
@@ -35,24 +36,24 @@ func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
 	return NewServerWithDependencies(
 		cfg,
 		bridgeClient,
-		admission.NewLimiter(cfg.MaxConcurrentAnswers),
+		nil,
 		nil,
 		nil,
 	)
 }
 
-func NewServerWithLimiter(
+func NewServerWithAdmission(
 	cfg config.Config,
 	bridgeClient bridge.Client,
-	limiter *admission.Limiter,
+	admissionController *admission.Controller,
 ) *Server {
-	return NewServerWithDependencies(cfg, bridgeClient, limiter, nil, nil)
+	return NewServerWithDependencies(cfg, bridgeClient, admissionController, nil, nil)
 }
 
 func NewServerWithDependencies(
 	cfg config.Config,
 	bridgeClient bridge.Client,
-	limiter *admission.Limiter,
+	admissionController *admission.Controller,
 	logger *slog.Logger,
 	metrics *observability.Metrics,
 ) *Server {
@@ -65,8 +66,14 @@ func NewServerWithDependencies(
 	if cfg.BridgeTimeoutMS <= 0 {
 		cfg.BridgeTimeoutMS = 35_000
 	}
-	if limiter == nil {
-		limiter = admission.NewLimiter(cfg.MaxConcurrentAnswers)
+	if cfg.QueueTimeoutMS <= 0 {
+		cfg.QueueTimeoutMS = 3_000
+	}
+	if cfg.RequestTimeoutMS <= 0 {
+		cfg.RequestTimeoutMS = 45_000
+	}
+	if admissionController == nil {
+		admissionController = newAdmissionController(cfg)
 	}
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -76,12 +83,24 @@ func NewServerWithDependencies(
 	}
 
 	return &Server{
-		config:  cfg,
-		bridge:  bridgeClient,
-		limiter: limiter,
-		logger:  logger,
-		metrics: metrics,
+		config:    cfg,
+		bridge:    bridgeClient,
+		admission: admissionController,
+		logger:    logger,
+		metrics:   metrics,
 	}
+}
+
+func newAdmissionController(cfg config.Config) *admission.Controller {
+	return admission.NewController(admission.Config{
+		MaxConcurrent: cfg.MaxConcurrentAnswers,
+		QueueCapacity: cfg.QueueCapacity,
+		QueueTimeout:  time.Duration(cfg.QueueTimeoutMS) * time.Millisecond,
+	})
+}
+
+func (s *Server) StartDraining() {
+	s.admission.StartDraining()
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
@@ -105,7 +124,7 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleReadyz(writer, request)
 	case request.Method == http.MethodGet && path == "/metrics":
 		setOutcome(writer, "ok")
-		s.handleMetrics(writer)
+		s.handleMetrics(writer, request)
 	case request.Method == http.MethodPost && path == "/api/v1/answer":
 		s.handleAnswer(writer, request)
 	default:
@@ -170,7 +189,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		}
 	}
 
-	transportStatus := s.limiter.Status()
+	transportStatus := s.admission.Status()
 	ready := bridgeHealthy && transportStatus.Healthy
 	statusCode := http.StatusOK
 	statusText := "ready"
@@ -220,10 +239,21 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	writeJSON(response, statusCode, responseBody)
 }
 
-func (s *Server) handleMetrics(response http.ResponseWriter) {
+func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Request) {
+	if !s.metricsAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid metrics bearer token.", false)
+		return
+	}
 	response.Header().Set("content-type", "text/plain; version=0.0.4")
 	response.WriteHeader(http.StatusOK)
-	_, _ = response.Write(s.metrics.Prometheus())
+	status := s.admission.Status()
+	_, _ = response.Write(s.metrics.Prometheus(observability.AdmissionSnapshot{
+		Active:        status.Active,
+		Queued:        status.Queued,
+		QueueCapacity: status.QueueCapacity,
+		Draining:      status.Draining,
+	}))
 }
 
 func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Request) {
@@ -243,21 +273,6 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	}
 	setTraceID(response, executionRequest.TraceID)
 
-	release, admitted := s.limiter.TryAcquire()
-	if !admitted {
-		s.metrics.RecordTransportSaturated()
-		setOutcome(response, "transport_saturated")
-		writeError(
-			response,
-			http.StatusServiceUnavailable,
-			"transport_saturated",
-			"Supervisor execution admission is saturated.",
-			true,
-		)
-		return
-	}
-	defer release()
-
 	if s.bridge == nil || !s.bridge.Configured() {
 		setOutcome(response, "bridge_not_configured")
 		writeError(
@@ -270,13 +285,37 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(request.Context(), time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond)
-	defer cancel()
-	bridgeResponse, err := s.bridge.Execute(ctx, bridge.Request{
+	requestCtx, requestCancel := context.WithTimeout(
+		request.Context(),
+		time.Duration(s.config.RequestTimeoutMS)*time.Millisecond,
+	)
+	defer requestCancel()
+
+	lease, decision := s.admission.Acquire(requestCtx)
+	if lease != nil {
+		defer lease.Release()
+		s.metrics.RecordAdmissionDecision(string(decision), lease.WaitDuration())
+	} else {
+		s.metrics.RecordAdmissionDecision(string(decision), 0)
+		if s.writeAdmissionRejection(response, decision) {
+			return
+		}
+		return
+	}
+
+	bridgeCtx, bridgeCancel := context.WithTimeout(
+		requestCtx,
+		time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond,
+	)
+	defer bridgeCancel()
+
+	bridgeStartedAt := time.Now()
+	bridgeResponse, err := s.bridge.Execute(bridgeCtx, bridge.Request{
 		Payload: executionRequest.Payload,
 	})
+	s.metrics.RecordBridgeDuration(time.Since(bridgeStartedAt))
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+		if errors.Is(err, context.Canceled) || errors.Is(requestCtx.Err(), context.Canceled) {
 			setOutcome(response, "client_canceled")
 			return
 		}
@@ -284,7 +323,13 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		message := err.Error()
 		status := http.StatusBadGateway
 		failureKind := "unavailable"
-		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		if errors.Is(requestCtx.Err(), context.DeadlineExceeded) {
+			code = "transport_request_timeout"
+			message = "Supervisor execution request timed out."
+			status = http.StatusGatewayTimeout
+			failureKind = "request_timeout"
+		} else if errors.Is(err, context.DeadlineExceeded) ||
+			errors.Is(bridgeCtx.Err(), context.DeadlineExceeded) {
 			code = "supervisor_bridge_timeout"
 			message = "Supervisor Python bridge timed out."
 			status = http.StatusGatewayTimeout
@@ -297,6 +342,50 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	}
 
 	s.writeBridgeResponse(response, bridgeResponse, executionRequest.TraceID)
+}
+
+func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision admission.Decision) bool {
+	switch decision {
+	case admission.DecisionQueueFull:
+		setOutcome(response, "transport_queue_full")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_queue_full",
+			"Supervisor execution admission queue is full.",
+		)
+		return true
+	case admission.DecisionQueueTimeout:
+		setOutcome(response, "transport_queue_timeout")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_queue_timeout",
+			"Supervisor execution admission queue wait timed out.",
+		)
+		return true
+	case admission.DecisionDraining:
+		setOutcome(response, "transport_draining")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_draining",
+			"Supervisor execution runtime is draining.",
+		)
+		return true
+	case admission.DecisionClientCanceled:
+		setOutcome(response, "client_canceled")
+		return true
+	default:
+		setOutcome(response, "transport_admission_rejected")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_admission_rejected",
+			"Supervisor execution admission rejected the request.",
+		)
+		return true
+	}
 }
 
 func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Request) (json.RawMessage, bool) {
@@ -362,6 +451,27 @@ func writeError(
 	})
 }
 
+func writeRetryableAdmissionError(
+	response http.ResponseWriter,
+	queueTimeoutMS int,
+	code string,
+	message string,
+) {
+	response.Header().Set("retry-after", retryAfterSeconds(queueTimeoutMS))
+	writeError(response, http.StatusServiceUnavailable, code, message, true)
+}
+
+func retryAfterSeconds(timeoutMS int) string {
+	if timeoutMS <= 0 {
+		return "1"
+	}
+	seconds := (timeoutMS + 999) / 1000
+	if seconds <= 0 {
+		seconds = 1
+	}
+	return strconv.Itoa(seconds)
+}
+
 func writeJSON(response http.ResponseWriter, status int, body any) {
 	response.Header().Set("content-type", "application/json")
 	response.WriteHeader(status)
@@ -387,6 +497,22 @@ func lowerHeaders(headers http.Header) map[string]string {
 		}
 	}
 	return normalized
+}
+
+func (s *Server) metricsAuthorized(request *http.Request) bool {
+	token := strings.TrimSpace(s.config.MetricsBearerToken)
+	if token == "" {
+		return true
+	}
+	return extractBearerToken(request.Header.Get("authorization")) == token
+}
+
+func extractBearerToken(headerValue string) string {
+	const prefix = "Bearer "
+	if !strings.HasPrefix(headerValue, prefix) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(headerValue, prefix))
 }
 
 func (s *Server) writeBridgeResponse(
@@ -534,7 +660,13 @@ func (s *Server) logAnswerRequest(
 ) {
 	level := slog.LevelInfo
 	switch {
-	case outcome == "transport_saturated":
+	case outcome == "transport_queue_full":
+		level = slog.LevelWarn
+	case outcome == "transport_queue_timeout":
+		level = slog.LevelWarn
+	case outcome == "transport_draining":
+		level = slog.LevelWarn
+	case outcome == "transport_request_timeout":
 		level = slog.LevelWarn
 	case outcome == "supervisor_bridge_timeout":
 		level = slog.LevelWarn

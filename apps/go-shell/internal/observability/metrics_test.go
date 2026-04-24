@@ -11,7 +11,9 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 
 	finish := metrics.BeginRequest("/api/v1/answer")
 	finish(200, "supervisor_response", 120*time.Millisecond)
-	metrics.RecordTransportSaturated()
+	metrics.RecordAdmissionDecision("queue_full", 0)
+	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
+	metrics.RecordBridgeDuration(90 * time.Millisecond)
 	metrics.RecordBridgeFailure("timeout")
 	metrics.RecordBridgeSuccess()
 
@@ -22,7 +24,9 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_go_shell_request_duration_ms_bucket{route="/api/v1/answer",le="250.000"} 1`,
 		`campus_go_shell_request_duration_ms_count{route="/api/v1/answer"} 1`,
 		`campus_go_shell_inflight_requests{route="/api/v1/answer"} 0`,
-		`campus_go_shell_transport_saturated_total 1`,
+		`campus_go_shell_admission_decisions_total{decision="queue_full"} 1`,
+		`campus_go_shell_admission_queue_wait_ms_count 1`,
+		`campus_go_shell_bridge_duration_ms_count 1`,
 		`campus_go_shell_bridge_failures_total{kind="timeout"} 1`,
 	}
 	for _, snippet := range expectedSnippets {

@@ -126,6 +126,9 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - internal execution admission
 - typed execution transport
 - forward deploy substrate 已冻结为 Docker-first internal execution service
+- Docker-side Go shell 承担 execution-level backpressure、timeout、readiness、
+  metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
+  capability policy
 - 不承担 browser-facing product backend 责任
 
 ## Request Projection And Read Model

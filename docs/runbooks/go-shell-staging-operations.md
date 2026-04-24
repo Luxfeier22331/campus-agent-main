@@ -29,6 +29,7 @@ updated: 2026-04-24
     - `trusted-worker`
     - `127.0.0.1:27010`
     - `/healthz` `/readyz` `/metrics` `/api/v1/answer`
+    - bounded in-process admission queue / backpressure / graceful drain
   - `supervisor-orchestrator`
     - private `/internal/bridge/*`
 - named tunnel：
@@ -99,6 +100,25 @@ infra/local/staging/status-go-shell-staging.sh --check
 - `<https://exec-staging.ayafeed.com/readyz`> 返回 `200`
 - `<https://campus-api-staging.ayafeed.com/readyz`> 返回 `200`
 - `campus-api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
+
+补充约束：
+
+- `supervisor-shell` 默认 admission 参数为 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8`、
+  `SUPERVISOR_API_QUEUE_CAPACITY=24`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000`、
+  `SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000` 与
+  `SUPERVISOR_PY_BRIDGE_TIMEOUT_MS=35000`
+- 如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，`status-go-shell-staging.sh`
+  会用该 token 拉取本地 `/metrics`；不应把 raw token 写入日志
+- `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
+  admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
+  runtime 不 ready
+- `supervisor-orchestrator` 必须同时拿到 query runtime env，包括 `QDRANT_URL`、
+  `QDRANT_API_KEY`、`QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL` 或
+  `CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*` 与 `SPARSE_*`
+- `infra/local/staging/start-go-shell-staging.sh` 会从 repo env 与 `apps/app-api/.dev.vars`
+  导入这些变量，再通过 `infra/local/docker-compose.supervisor-runtime.yml` 注入容器
+- 如果 registry Postgres URL 指向 `127.0.0.1` 或 `localhost`，启动脚本会为 Docker
+  orchestrator 改写成 `host.docker.internal`；compose 通过 `host-gateway` 解析回宿主机
 
 计划任务层状态：
 
@@ -178,6 +198,26 @@ uv run --all-packages python -m scripts.doctor_env supervisor-api --json
 ```
 
 - 再看 `supervisor-orchestrator.log` 中缺的是 prompt/runtime 还是 audit/runtime
+
+真实 chat smoke 返回 `supervisor_unavailable`，且 `supervisor-orchestrator.log` 中出现
+`QDRANT_URL is required`
+
+- 说明 transport ready，但 query runtime env 没有进入 Docker orchestrator
+- 先确认容器里变量存在：
+
+```bash
+docker exec campus-go-shell-staging-supervisor-orchestrator-1 \
+  sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
+  EMBEDDING_MODEL; do \
+  eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
+```
+
+- 如果变量缺失，重新执行：
+
+```bash
+infra/local/staging/stop-go-shell-staging.sh
+infra/local/staging/start-go-shell-staging.sh
+```
 
 `status --check` 报 `public readyz returned HTTP ...`
 

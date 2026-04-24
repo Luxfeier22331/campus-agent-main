@@ -34,6 +34,13 @@ type routeHistogram struct {
 	SumMS   float64
 }
 
+type AdmissionSnapshot struct {
+	Active        int
+	Queued        int
+	QueueCapacity int
+	Draining      bool
+}
+
 type BridgeRuntimeSnapshot struct {
 	LastAnswerFailureCode string
 	LastAnswerFailureAt   string
@@ -46,7 +53,9 @@ type Metrics struct {
 	inflight                map[string]int64
 	requestTotals           map[requestKey]uint64
 	requestDurations        map[string]*routeHistogram
-	transportSaturatedTotal uint64
+	admissionDecisionTotals map[string]uint64
+	admissionWaitDurations  *routeHistogram
+	bridgeDurations         *routeHistogram
 	bridgeFailureTotals     map[string]uint64
 	lastAnswerFailureCode   string
 	lastAnswerFailureAt     time.Time
@@ -58,6 +67,16 @@ func NewMetrics() *Metrics {
 		inflight:         make(map[string]int64),
 		requestTotals:    make(map[requestKey]uint64),
 		requestDurations: make(map[string]*routeHistogram),
+		admissionDecisionTotals: map[string]uint64{
+			"admitted_immediate": 0,
+			"admitted_queued":    0,
+			"queue_full":         0,
+			"queue_timeout":      0,
+			"client_canceled":    0,
+			"draining":           0,
+		},
+		admissionWaitDurations: newHistogram(),
+		bridgeDurations:        newHistogram(),
 		bridgeFailureTotals: map[string]uint64{
 			"timeout":          0,
 			"unavailable":      0,
@@ -104,10 +123,14 @@ func (m *Metrics) BeginRequest(route string) func(statusCode int, outcome string
 	}
 }
 
-func (m *Metrics) RecordTransportSaturated() {
+func (m *Metrics) RecordAdmissionDecision(decision string, waitDuration time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.transportSaturatedTotal++
+
+	m.admissionDecisionTotals[decision]++
+	if decision == "admitted_queued" {
+		recordHistogramDuration(m.admissionWaitDurations, waitDuration)
+	}
 }
 
 func (m *Metrics) RecordBridgeFailure(kind string) {
@@ -126,6 +149,12 @@ func (m *Metrics) RecordBridgeSuccess() {
 	m.lastAnswerSuccessAt = time.Now().UTC()
 }
 
+func (m *Metrics) RecordBridgeDuration(duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	recordHistogramDuration(m.bridgeDurations, duration)
+}
+
 func (m *Metrics) BridgeRuntimeSnapshot() BridgeRuntimeSnapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -137,7 +166,7 @@ func (m *Metrics) BridgeRuntimeSnapshot() BridgeRuntimeSnapshot {
 	}
 }
 
-func (m *Metrics) Prometheus() []byte {
+func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -200,12 +229,49 @@ func (m *Metrics) Prometheus() []byte {
 		)
 	}
 
-	builder.WriteString("# HELP campus_go_shell_transport_saturated_total Total requests rejected by transport admission saturation.\n")
-	builder.WriteString("# TYPE campus_go_shell_transport_saturated_total counter\n")
-	fmt.Fprintf(
+	builder.WriteString("# HELP campus_go_shell_admission_decisions_total Total admission decisions by decision.\n")
+	builder.WriteString("# TYPE campus_go_shell_admission_decisions_total counter\n")
+	for _, decision := range sortedStringKeys(m.admissionDecisionTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_admission_decisions_total{decision=%q} %d\n",
+			decision,
+			m.admissionDecisionTotals[decision],
+		)
+	}
+
+	snapshot := AdmissionSnapshot{}
+	if len(admissionSnapshots) > 0 {
+		snapshot = admissionSnapshots[0]
+	}
+	builder.WriteString("# HELP campus_go_shell_admission_active Current active admitted answer executions.\n")
+	builder.WriteString("# TYPE campus_go_shell_admission_active gauge\n")
+	fmt.Fprintf(&builder, "campus_go_shell_admission_active %d\n", snapshot.Active)
+	builder.WriteString("# HELP campus_go_shell_admission_queue_depth Current queued answer executions.\n")
+	builder.WriteString("# TYPE campus_go_shell_admission_queue_depth gauge\n")
+	fmt.Fprintf(&builder, "campus_go_shell_admission_queue_depth %d\n", snapshot.Queued)
+	builder.WriteString("# HELP campus_go_shell_admission_queue_capacity Configured queued answer execution capacity.\n")
+	builder.WriteString("# TYPE campus_go_shell_admission_queue_capacity gauge\n")
+	fmt.Fprintf(&builder, "campus_go_shell_admission_queue_capacity %d\n", snapshot.QueueCapacity)
+	builder.WriteString("# HELP campus_go_shell_shutdown_draining Whether go-shell is draining and rejecting new executions.\n")
+	builder.WriteString("# TYPE campus_go_shell_shutdown_draining gauge\n")
+	if snapshot.Draining {
+		builder.WriteString("campus_go_shell_shutdown_draining 1\n")
+	} else {
+		builder.WriteString("campus_go_shell_shutdown_draining 0\n")
+	}
+
+	writeHistogram(
 		&builder,
-		"campus_go_shell_transport_saturated_total %d\n",
-		m.transportSaturatedTotal,
+		"campus_go_shell_admission_queue_wait_ms",
+		"Admission queue wait duration in milliseconds.",
+		m.admissionWaitDurations,
+	)
+	writeHistogram(
+		&builder,
+		"campus_go_shell_bridge_duration_ms",
+		"Supervisor Python bridge duration in milliseconds.",
+		m.bridgeDurations,
 	)
 
 	builder.WriteString("# HELP campus_go_shell_bridge_failures_total Total bridge failures by kind.\n")
@@ -220,6 +286,45 @@ func (m *Metrics) Prometheus() []byte {
 	}
 
 	return []byte(builder.String())
+}
+
+func newHistogram() *routeHistogram {
+	return &routeHistogram{
+		Buckets: make([]uint64, len(durationBucketsMS)),
+	}
+}
+
+func recordHistogramDuration(histogram *routeHistogram, duration time.Duration) {
+	durationMS := float64(duration) / float64(time.Millisecond)
+	histogram.Count++
+	histogram.SumMS += durationMS
+	for index, bound := range durationBucketsMS {
+		if durationMS <= bound {
+			histogram.Buckets[index]++
+		}
+	}
+}
+
+func writeHistogram(
+	builder *strings.Builder,
+	name string,
+	help string,
+	histogram *routeHistogram,
+) {
+	builder.WriteString("# HELP " + name + " " + help + "\n")
+	builder.WriteString("# TYPE " + name + " histogram\n")
+	for index, bound := range durationBucketsMS {
+		fmt.Fprintf(
+			builder,
+			"%s_bucket{le=%q} %d\n",
+			name,
+			formatFloat(bound),
+			histogram.Buckets[index],
+		)
+	}
+	fmt.Fprintf(builder, "%s_bucket{le=\"+Inf\"} %d\n", name, histogram.Count)
+	fmt.Fprintf(builder, "%s_sum %s\n", name, formatFloat(histogram.SumMS))
+	fmt.Fprintf(builder, "%s_count %d\n", name, histogram.Count)
 }
 
 func formatTime(value time.Time) string {

@@ -24,11 +24,15 @@ probe_http_url() {
   local url="$1"
   local body_file="$2"
   local use_noproxy="${3:-0}"
+  local bearer_token="${4:-}"
   local -a curl_command
 
   curl_command=(curl -sS -o "${body_file}" -w "%{http_code}")
   if [[ "${use_noproxy}" == "1" ]]; then
     curl_command+=(--noproxy '*')
+  fi
+  if [[ -n "${bearer_token}" ]]; then
+    curl_command+=(-H "authorization: Bearer ${bearer_token}")
   fi
   curl_command+=("${url}")
 
@@ -66,7 +70,13 @@ if (( strict_mode == 0 )); then
 
   echo
   echo "local metrics: ${go_shell_staging_local_metrics_url}"
-  curl -sS -i "${go_shell_staging_local_metrics_url}" || true
+  if [[ -n "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" ]]; then
+    curl -sS -i \
+      -H "authorization: Bearer ${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
+      "${go_shell_staging_local_metrics_url}" || true
+  else
+    curl -sS -i "${go_shell_staging_local_metrics_url}" || true
+  fi
 
   if [[ -n "${go_shell_staging_public_readyz_url}" ]]; then
     echo
@@ -119,7 +129,13 @@ if [[ "${local_readyz_status}" != "200" ]]; then
   failures+=("local readyz returned HTTP ${local_readyz_status}")
 fi
 
-local_metrics_status="$(probe_http_url "${go_shell_staging_local_metrics_url}" "${local_metrics_body}")"
+local_metrics_status="$(
+  probe_http_url \
+    "${go_shell_staging_local_metrics_url}" \
+    "${local_metrics_body}" \
+    0 \
+    "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}"
+)"
 if [[ "${local_metrics_status}" != "200" ]]; then
   failures+=("local metrics returned HTTP ${local_metrics_status}")
 fi

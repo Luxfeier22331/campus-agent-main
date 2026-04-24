@@ -51,6 +51,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   upstream 参与 staging execution seam
 - 当前 repo-owned staging execution runtime 已收敛到 `go-shell + supervisor-orchestrator`
   双容器；legacy dev-backed supervisor host 只保留为 rollback / fallback 路径
+- `go-shell` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
+  runtime broken，queue full / draining / bridge unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
   共同决定
 

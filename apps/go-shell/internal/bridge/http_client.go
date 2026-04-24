@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,7 +24,13 @@ func NewHTTPClient(baseURL string, sharedSecret string) *HTTPClient {
 	return &HTTPClient{
 		baseURL:      strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		sharedSecret: strings.TrimSpace(sharedSecret),
-		client:       &http.Client{},
+		client: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 32,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
 	}
 }
 

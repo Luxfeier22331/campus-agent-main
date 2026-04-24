@@ -263,6 +263,9 @@ freeze。
 - orchestration 留在 `packages/supervisor-core`
 - agent behavior 留在 agent package
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- Docker-side Go shell owns transport hardening: request limits, caller admission,
+  bounded execution queue / backpressure, timeout propagation, readiness, metrics
+  and graceful drain
 - 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
   framework
 - repo-local `campus-supervisor-api-dev` 继续只是 compatibility / debug entry

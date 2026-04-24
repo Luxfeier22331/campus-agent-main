@@ -100,6 +100,24 @@ func TestHTTPClientConfiguredRequiresBaseURLAndSecret(t *testing.T) {
 	}
 }
 
+func TestHTTPClientUsesConnectionPoolTransport(t *testing.T) {
+	client := NewHTTPClient("http://bridge.local", "bridge-secret")
+
+	transport, ok := client.client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", client.client.Transport)
+	}
+	if transport.MaxIdleConns < 100 {
+		t.Fatalf("MaxIdleConns = %d, want at least 100", transport.MaxIdleConns)
+	}
+	if transport.MaxIdleConnsPerHost < 32 {
+		t.Fatalf("MaxIdleConnsPerHost = %d, want at least 32", transport.MaxIdleConnsPerHost)
+	}
+	if transport.IdleConnTimeout <= 0 {
+		t.Fatal("IdleConnTimeout should be configured")
+	}
+}
+
 func TestHTTPClientExecuteHonorsContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		t.Fatal("request should not be sent when context is already canceled")

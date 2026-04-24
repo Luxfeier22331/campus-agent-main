@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/bridge"
@@ -182,24 +183,30 @@ func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
 	assertError(t, response, http.StatusServiceUnavailable, "bridge_not_configured")
 }
 
-func TestAnswerReturnsTransportSaturated(t *testing.T) {
-	limiter := admission.NewLimiter(1)
-	release, ok := limiter.TryAcquire()
-	if !ok {
+func TestAnswerReturnsQueueFullWhenAdmissionQueueIsFull(t *testing.T) {
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 0,
+		QueueTimeout:  3 * time.Second,
+	})
+	lease, decision := controller.Acquire(context.Background())
+	if decision != admission.DecisionAdmittedImmediate {
 		t.Fatal("expected setup acquire to succeed")
 	}
-	defer release()
+	defer lease.Release()
 
-	server := NewServerWithLimiter(
+	server := NewServerWithAdmission(
 		config.Config{
 			AuthMode:              "bearer",
 			BearerToken:           "secret-token",
 			DefaultActorID:        "runtime-bearer-user",
 			RequestBodyLimitBytes: 1_048_576,
 			MaxConcurrentAnswers:  1,
+			QueueCapacity:         0,
+			QueueTimeoutMS:        3_000,
 		},
 		&fakeBridge{configured: true},
-		limiter,
+		controller,
 	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
@@ -211,7 +218,48 @@ func TestAnswerReturnsTransportSaturated(t *testing.T) {
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusServiceUnavailable, "transport_saturated")
+	assertError(t, response, http.StatusServiceUnavailable, "transport_queue_full")
+	if response.Header().Get("retry-after") != "3" {
+		t.Fatalf("retry-after = %q, want 3", response.Header().Get("retry-after"))
+	}
+}
+
+func TestAnswerReturnsQueueTimeoutWhenAdmissionWaitExpires(t *testing.T) {
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 1,
+		QueueTimeout:  5 * time.Millisecond,
+	})
+	lease, decision := controller.Acquire(context.Background())
+	if decision != admission.DecisionAdmittedImmediate {
+		t.Fatal("expected setup acquire to succeed")
+	}
+	defer lease.Release()
+
+	server := NewServerWithAdmission(
+		config.Config{
+			AuthMode:              "bearer",
+			BearerToken:           "secret-token",
+			DefaultActorID:        "runtime-bearer-user",
+			RequestBodyLimitBytes: 1_048_576,
+			MaxConcurrentAnswers:  1,
+			QueueCapacity:         1,
+			QueueTimeoutMS:        5,
+		},
+		&fakeBridge{configured: true},
+		controller,
+	)
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "transport_queue_timeout")
 }
 
 func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
@@ -419,7 +467,11 @@ func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
 }
 
 func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing.T) {
-	limiter := admission.NewLimiter(1)
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 0,
+		QueueTimeout:  3 * time.Second,
+	})
 	callCount := 0
 	server := NewServerWithDependencies(
 		config.Config{
@@ -428,6 +480,8 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 			DefaultActorID:        "runtime-bearer-user",
 			RequestBodyLimitBytes: 1_048_576,
 			MaxConcurrentAnswers:  1,
+			QueueCapacity:         0,
+			QueueTimeoutMS:        3_000,
 		},
 		&fakeBridge{
 			configured: true,
@@ -443,7 +497,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 				return bridge.ExecuteResponse{}, context.DeadlineExceeded
 			},
 		},
-		limiter,
+		controller,
 		nil,
 		nil,
 	)
@@ -460,8 +514,8 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 		t.Fatalf("success status = %d, want 200", successResponse.Code)
 	}
 
-	release, ok := limiter.TryAcquire()
-	if !ok {
+	lease, decision := controller.Acquire(context.Background())
+	if decision != admission.DecisionAdmittedImmediate {
 		t.Fatal("expected limiter acquire to succeed for saturation setup")
 	}
 	saturatedRequest := newTestRequest(
@@ -472,8 +526,8 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	saturatedRequest.Header.Set("authorization", "Bearer secret-token")
 	saturatedResponse := httptest.NewRecorder()
 	server.ServeHTTP(saturatedResponse, saturatedRequest)
-	release()
-	assertError(t, saturatedResponse, http.StatusServiceUnavailable, "transport_saturated")
+	lease.Release()
+	assertError(t, saturatedResponse, http.StatusServiceUnavailable, "transport_queue_full")
 
 	timeoutRequest := newTestRequest(
 		http.MethodPost,
@@ -493,9 +547,11 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	metricsBody := metricsResponse.Body.String()
 	expectedSnippets := []string{
 		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="supervisor_response",status_class="2xx"} 1`,
-		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="transport_saturated",status_class="5xx"} 1`,
+		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="transport_queue_full",status_class="5xx"} 1`,
 		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="supervisor_bridge_timeout",status_class="5xx"} 1`,
-		`campus_go_shell_transport_saturated_total 1`,
+		`campus_go_shell_admission_decisions_total{decision="queue_full"} 1`,
+		`campus_go_shell_admission_queue_depth 0`,
+		`campus_go_shell_admission_active 0`,
 		`campus_go_shell_bridge_failures_total{kind="timeout"} 1`,
 		`campus_go_shell_inflight_requests{route="/api/v1/answer"} 0`,
 	}
@@ -503,6 +559,115 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 		if !strings.Contains(metricsBody, snippet) {
 			t.Fatalf("expected metrics body to contain %q, got:\n%s", snippet, metricsBody)
 		}
+	}
+}
+
+func TestReadyzKeepsTransportReadyWhenAllSlotsAreBusyButQueueCanAccept(t *testing.T) {
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 1,
+		QueueTimeout:  time.Second,
+	})
+	lease, decision := controller.Acquire(context.Background())
+	if decision != admission.DecisionAdmittedImmediate {
+		t.Fatal("expected setup acquire to succeed")
+	}
+	defer lease.Release()
+
+	server := NewServerWithDependencies(
+		config.Config{
+			AppName:              "campus-agent",
+			MaxConcurrentAnswers: 1,
+			QueueCapacity:        1,
+			QueueTimeoutMS:       1_000,
+		},
+		&fakeBridge{
+			configured: true,
+			readyz: bridge.ReadyzResponse{
+				StatusCode: http.StatusOK,
+				Body: json.RawMessage(`{
+					"status":"ready",
+					"transport_runtime":{"healthy":true}
+				}`),
+			},
+		},
+		controller,
+		nil,
+		nil,
+	)
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	transportRuntime := expectRecord(t, body["transport_runtime"], "transport_runtime")
+	if transportRuntime["active_answers"] != float64(1) {
+		t.Fatalf("active_answers = %v, want 1", transportRuntime["active_answers"])
+	}
+	if transportRuntime["queue_capacity"] != float64(1) {
+		t.Fatalf("queue_capacity = %v, want 1", transportRuntime["queue_capacity"])
+	}
+	if transportRuntime["accepting"] != true {
+		t.Fatalf("accepting = %v, want true", transportRuntime["accepting"])
+	}
+}
+
+func TestAnswerRejectsWhileAdmissionIsDraining(t *testing.T) {
+	controller := admission.NewController(admission.Config{
+		MaxConcurrent: 1,
+		QueueCapacity: 1,
+		QueueTimeout:  time.Second,
+	})
+	controller.StartDraining()
+
+	server := NewServerWithAdmission(
+		config.Config{
+			AuthMode:              "bearer",
+			BearerToken:           "secret-token",
+			DefaultActorID:        "runtime-bearer-user",
+			RequestBodyLimitBytes: 1_048_576,
+			MaxConcurrentAnswers:  1,
+			QueueCapacity:         1,
+			QueueTimeoutMS:        1_000,
+		},
+		&fakeBridge{configured: true},
+		controller,
+	)
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"hello"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "transport_draining")
+}
+
+func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers: 8,
+		MetricsBearerToken:   "metrics-token",
+	}, nil)
+
+	unauthorized := httptest.NewRecorder()
+	server.ServeHTTP(unauthorized, newTestRequest(http.MethodGet, "/metrics", nil))
+	assertError(t, unauthorized, http.StatusUnauthorized, "unauthorized")
+
+	authorized := httptest.NewRecorder()
+	request := newTestRequest(http.MethodGet, "/metrics", nil)
+	request.Header.Set("authorization", "Bearer metrics-token")
+	server.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized metrics status = %d, want 200", authorized.Code)
+	}
+	if !strings.Contains(authorized.Body.String(), "campus_go_shell_requests_total") {
+		t.Fatalf("metrics body missing request total: %s", authorized.Body.String())
 	}
 }
 

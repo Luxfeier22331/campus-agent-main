@@ -17,9 +17,24 @@ Current status:
 - Exposes shell-owned Prometheus-style runtime counters at `/metrics`.
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
+- Owns bounded FIFO execution admission with queue full / queue timeout /
+  draining outcomes, `Retry-After` hints, and graceful shutdown drain.
 - Repo-local `Phase 1-6` implementation is in place:
   cancellation semantics, shell-owned observability, local compose smoke,
   Python parity rerun, and runback docs are all landed.
+
+Current admission boundary:
+
+- `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS` caps executions that can enter the
+  Python bridge concurrently.
+- `SUPERVISOR_API_QUEUE_CAPACITY` is a short in-process burst buffer, not a
+  durable task queue.
+- `SUPERVISOR_API_QUEUE_TIMEOUT_MS` bounds how long an answer request can wait
+  before returning `503 transport_queue_timeout`.
+- Full queues return `503 transport_queue_full` with `retryable=true` and
+  `Retry-After`.
+- `active_answers == max_concurrent_answers` does not by itself make `/readyz`
+  degraded if the queue can still accept short bursts.
 
 Current cancellation boundary:
 
@@ -32,8 +47,12 @@ Current cancellation boundary:
 Current observability boundary:
 
 - `/metrics` is an internal runtime surface, not part of the `app-api` contract.
-- Current shell-owned counters distinguish transport saturation, bridge timeout,
-  bridge unavailability, and aggregate request outcomes.
+- Current shell-owned counters distinguish admission decisions, queue depth,
+  queue wait, bridge latency, bridge timeout / unavailability, and aggregate
+  request outcomes.
+- `SUPERVISOR_API_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
+  is reachable outside a trusted local network; local development leaves it
+  empty by default.
 - OTel collector / sink fan-out is still deferred; this slice only closes the
   shell-owned metrics and structured logging seam.
 
@@ -55,8 +74,13 @@ Key env:
 ```bash
 export API_AUTH_MODE=trusted-worker
 export API_WORKER_SHARED_SECRET=worker-secret
+export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
+export SUPERVISOR_API_QUEUE_CAPACITY=24
+export SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_PY_BRIDGE_BASE_URL=http://127.0.0.1:18081
 export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
+export SUPERVISOR_PY_BRIDGE_TIMEOUT_MS=35000
 ```
 
 Local verification:

@@ -148,10 +148,45 @@ const keys = [
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
   "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
+  "SUPERVISOR_API_QUEUE_CAPACITY",
+  "SUPERVISOR_API_QUEUE_TIMEOUT_MS",
+  "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
+  "SUPERVISOR_API_SHUTDOWN_GRACE_MS",
+  "SUPERVISOR_API_METRICS_BEARER_TOKEN",
   "SUPERVISOR_API_TRANSPORT_WORKER_THREADS",
   "SUPERVISOR_API_SHARED_SECRET",
   "SUPERVISOR_PY_BRIDGE_TIMEOUT_MS",
+  "QDRANT_URL",
+  "QDRANT_API_KEY",
+  "QDRANT_TIMEOUT_SECONDS",
+  "DOCUMENT_REGISTRY_DATABASE_URL",
+  "CAMPUS_SHARED_POSTGRES_URL",
+  "EMBEDDING_PROVIDER",
+  "EMBEDDING_BASE_URL",
+  "EMBEDDING_API_KEY",
+  "EMBEDDING_MODEL",
+  "EMBEDDING_DIMENSIONS",
+  "SPARSE_PROVIDER",
+  "SPARSE_MODEL",
+  "SPARSE_TOKENIZER",
+  "SPARSE_LANGUAGE",
 ];
+
+function rewriteLocalhostForDocker(value) {
+  if (!value) {
+    return value;
+  }
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
+      parsed.hostname = "host.docker.internal";
+      return parsed.toString();
+    }
+  } catch {
+    return value;
+  }
+  return value;
+}
 
 const resolved = new Map();
 for (const key of keys) {
@@ -169,6 +204,10 @@ const bridgeSharedSecret =
 resolved.set("SUPERVISOR_PY_BRIDGE_SHARED_SECRET", bridgeSharedSecret);
 
 for (const [key, value] of resolved.entries()) {
+  if (key === "DOCUMENT_REGISTRY_DATABASE_URL" || key === "CAMPUS_SHARED_POSTGRES_URL") {
+    process.stdout.write(`export ${key}=${JSON.stringify(rewriteLocalhostForDocker(value))}\n`);
+    continue;
+  }
   process.stdout.write(`export ${key}=${JSON.stringify(value)}\n`);
 }
 NODE
