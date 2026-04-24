@@ -17,7 +17,7 @@ dependencies = [
   "psycopg[binary]>=3.2.0",
   "psycopg-pool>=3.2.0",
   "qdrant-client>=1.17.1",
-  "requests>=2.31.0",
+  "requests>=2.33.1",
   "transformers>=4.51.0",
 ]
 
