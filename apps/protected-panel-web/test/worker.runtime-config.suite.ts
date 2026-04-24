@@ -2,9 +2,11 @@ import { expect, it } from "vitest";
 
 import {
 	deployStagingSource,
+	localAccessSmokeServerSource,
 	packageManifest,
 	viteConfigSource,
 	wranglerConfig,
+	wranglerLocalSmokeConfig,
 } from "./worker.test-support";
 
 export function registerWorkerRuntimeConfigSuite() {
@@ -43,6 +45,9 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PANEL_LIVE_SMOKE=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5174");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).not.toContain("CLOUDFLARE_ENV=local");
+		expect(packageManifest.scripts?.["dev:live-smoke:access"]).toContain(
+			"local-access-smoke-server.mjs",
+		);
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
 		expect(viteConfigSource).toContain("wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
@@ -78,6 +83,21 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"ROUTE:campus-panel-staging.ayafeed.com",
 		);
+	});
+
+	it("provides an access-compatible local issuer for authenticated live smoke", () => {
+		expect(wranglerLocalSmokeConfig).toContain(
+			'ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"',
+		);
+		expect(wranglerLocalSmokeConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
+		expect(localAccessSmokeServerSource).toContain("generateKeyPair");
+		expect(localAccessSmokeServerSource).toContain("SignJWT");
+		expect(localAccessSmokeServerSource).toContain("/cdn-cgi/access/certs");
+		expect(localAccessSmokeServerSource).toContain("CF_Authorization");
+		expect(localAccessSmokeServerSource).toContain("panel-local-smoke");
+		expect(localAccessSmokeServerSource).toContain(".setIssuer(issuer)");
+		expect(localAccessSmokeServerSource).toContain(".setAudience(audience)");
+		expect(localAccessSmokeServerSource).toContain("SameSite=Lax");
 	});
 
 	it("declares required secrets for local and staging worker environments", () => {
