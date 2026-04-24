@@ -2,14 +2,14 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 # App API Request Lifecycle
 
 ## 文档边界
 
-这份文档冻结 `POST /api/chat/requests` 的生命周期、幂等规则、状态流转，以及 request projection 如何进入
-operator read model。
+这份文档冻结 `POST /api/chat/requests` 与 `POST /api/chat/requests/stream`
+的生命周期、幂等规则、状态流转，以及 request projection 如何进入 operator read model。
 
 它补充但不替代以下文档：
 
@@ -54,6 +54,7 @@ operator read model。
 - `error`
 - `approval_required`
 - `rejected`
+- `cancelled`
 
 状态语义：
 
@@ -86,7 +87,12 @@ operator read model。
   precheck fail-close reject
   Chat-visible result: `error`
 
-第一版不强制单独暴露 `running` 状态。
+- Status: `cancelled`
+  Meaning: execution 已接受 explicit cancel 或 upstream cancel 并停止等待
+  Chat-visible result: `error`
+
+`running` / `queued` 不写入 `runtime.request_execution.status`；它们只作为 lifecycle
+stream event 暴露给当前浏览器请求。
 
 ## Command-Side Sequence
 
@@ -162,11 +168,15 @@ fail-close checks。
   - chat-visible result 继续走既有 `error` kind
 - 这类 precheck reject 不调用 `apps/supervisor-api`
 
-`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。
+`app-api` 使用内部 execution contract 调用 `apps/supervisor-api`。同步入口使用
+`/api/v1/answer`；产品级 lifecycle streaming 入口使用
+`/api/v1/answer/stream`，但 browser 只消费 `app-api` 自己的
+`POST /api/chat/requests/stream` contract。
 
 该调用：
 
 - 不暴露给 browser
+- 不把 supervisor-api 的 raw SSE event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
 - forward deploy substrate 已冻结为 Docker-first internal execution service；当前 execution
@@ -191,6 +201,35 @@ fail-close checks。
 - `approval_required` 写审批提示与最终 supervisor 状态，不把它折叠成 command-side `error`
 - `rejected` 写拒绝原因与最终 gate 状态；既可来自 supervisor policy，也可来自 app-api precheck
   fail-close（例如 `rate_limit_exceeded`），但都不折叠成 command-side `error`
+- `cancelled` 写 `execution_cancelled` 或 upstream cancel code；browser chat
+  surface 仍以 `error` kind 展示 safe failure message
+
+### Product Lifecycle Stream
+
+`POST /api/chat/requests/stream` 是 browser-facing product SSE contract。
+
+固定事件：
+
+- `request.accepted`
+- `execution.queued`
+- `execution.running`
+- `request.completed`
+- `request.failed`
+- `request.cancelled`
+
+固定规则：
+
+- `request.accepted` 只能在第一次 durable request commit 完成后发送
+- `execution.queued` / `execution.running` 来自 internal supervisor lifecycle
+  event 的 product-level projection
+- terminal event 只能在 `app-api` 完成第二次 finalize commit 之后发送
+- terminal event 的 `data.answer` 与同步 `POST /api/chat/requests` 成功 body 的
+  `{ answer }` shape 保持一致
+- `execution.completed` 且 semantic result 为 `needs_clarification` /
+  `no_answer` 时，产品 SSE 仍用 `request.completed`，并在 `data.status` 与
+  `data.answer.result.kind` 中表达语义分支
+- browser 不直连 `apps/supervisor-api`，也不消费 raw `execution.started` /
+  `execution.completed` internal event
 
 ### Session Slot Finalize Rule
 
@@ -218,6 +257,7 @@ transcript 恢复、展示 alias 或自由文本总结。
 - `error`
 - `approval_required`
 - `rejected`
+- `cancelled`
 - curriculum completed 但没有 typed follow-up truth
 - curriculum `program_family_membership` completed
 - curriculum `course_family` completed
@@ -267,6 +307,7 @@ operator.request_projection`
 `Idempotency-Key` 只适用于：
 
 - `POST /api/chat/requests`
+- `POST /api/chat/requests/stream`
 
 ### Storage Rule
 

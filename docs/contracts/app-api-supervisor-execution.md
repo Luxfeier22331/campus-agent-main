@@ -100,9 +100,11 @@ lifecycle endpoint。它复用非流式 answer request body、auth header、trac
 - `execution.failed` / `execution.cancelled` 的 `data.error` 承载 stable
   `{ code, message, retryable }`
 - 不承诺 token-level delta、partial answer、tool trace replay 或 browser 直连
-- `app-api` 可以通过 supervisor adapter 的 stream method 透传该 SSE body；产品层
-  auth、session、request projection 与 duplicate-submit UX 仍归 `app-api` / web
-  surface 所有
+- `app-api` 通过 supervisor adapter 的 stream method 消费该 SSE body，并重映射成
+  browser-facing `POST /api/chat/requests/stream` 产品级 SSE；不得把 raw supervisor SSE
+  event 直接暴露给 browser
+- 产品层 auth、session、request projection、terminal answer shape 与 duplicate-submit UX
+  仍归 `app-api` / web surface 所有
 
 ## Required Request Headers
 
@@ -385,6 +387,7 @@ payload 或 provider raw response。
 - `error`
 - `approval_required`
 - `rejected`
+- `cancelled`
 
 `app-api` 依赖的最小字段只有：
 
@@ -465,7 +468,7 @@ payload 或 provider raw response。
 - transport / admission / malformed execution request 使用非 `200`
 - execution 已被受理并得到 typed `SupervisorResponse` 返回 `200`，由 body 内 `status` 区分
   `completed` / `needs_clarification` / `no_answer` / `error` /
-  `approval_required` / `rejected`
+  `approval_required` / `rejected` / `cancelled`
 
 这意味着：
 

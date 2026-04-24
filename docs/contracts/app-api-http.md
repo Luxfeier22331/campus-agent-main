@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 # App API HTTP Contract
 
@@ -32,7 +32,7 @@ browser-facing HTTP contract。
 - browser 直接可见的 hostname、route mounting 方式或 Worker BFF 实现
 - Better Auth 的 provider 细节
 - panel UI layout
-- streaming 或异步回答产品形态
+- token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
 
 ## 适用范围
@@ -56,7 +56,8 @@ browser-facing HTTP contract。
 
 - JSON body 使用 `camelCase`
 - enum / code value 使用小写语义值，例如 `completed`、`no_answer`、`validation_failed`
-- `POST /api/chat/requests` 支持 `Idempotency-Key` header
+- `POST /api/chat/requests` 与 `POST /api/chat/requests/stream` 支持
+  `Idempotency-Key` header
 - `requestId` 是业务级 correlation id；`traceId` 是 runtime trace correlation id
 - `POST /api/chat/requests` 成功时返回 `x-request-id` 与 `x-trace-id`
 - 所有错误响应使用 `docs/contracts/app-api-error-model.md` 中定义的统一 envelope
@@ -80,6 +81,7 @@ browser-facing HTTP contract。
 - `GET /api/chat/conversations/:conversationId`
 - `DELETE /api/chat/conversations/:conversationId/messages/:messageId/trailing`
 - `POST /api/chat/requests`
+- `POST /api/chat/requests/stream`
 
 ### Operator
 
@@ -100,7 +102,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
 
 - operator 写操作 API
 - chat delete / archive API
-- streaming chat API
+- token streaming chat API
 - `official_web` collector command endpoints
 
 ## Response Shapes
@@ -446,10 +448,79 @@ icy.md`。
 
 规则：
 
-- v1 不做 streaming；这个接口默认同步返回最终 chat-visible 结果
+- 这个接口保持 blocking JSON contract，默认同步返回最终 chat-visible 结果
 - 请求一旦被接受并分配 canonical `requestId`，后续执行失败仍通过 `200 + result.kind=error` 返回，以保留
   correlation 与 durable request record
 - pre-accept 拒绝仍走统一 error envelope
+
+### `POST /api/chat/requests/stream`
+
+这是 public chat 的 lifecycle streaming 命令入口。它不提供 token delta，不暴露
+`supervisor-api` raw event；browser 只消费 `app-api` 产品级 SSE contract。
+
+请求 headers 与 body 复用 `POST /api/chat/requests`。
+
+成功响应 headers：
+
+- `Content-Type: text/event-stream; charset=utf-8`
+- `Cache-Control: no-store`
+- `X-Accel-Buffering: no`
+- `X-Request-Id: <request-id>`
+- `X-Trace-Id: <trace-id>`
+
+固定 SSE events：
+
+- `request.accepted`
+- `execution.queued`
+- `execution.running`
+- `request.completed`
+- `request.failed`
+- `request.cancelled`
+
+事件 `data` 基础 shape：
+
+```json
+{
+  "requestId": "req_01HQ...",
+  "traceId": "trace_01HQ...",
+  "status": "running",
+  "occurredAt": "2026-03-28T07:11:00.000Z"
+}
+```
+
+terminal event 额外携带：
+
+```json
+{
+  "answer": {
+    "conversation": {
+      "id": "conv_01HQ...",
+      "title": "图书馆开放时间",
+      "createdAt": "2026-03-28T07:10:00.000Z",
+      "updatedAt": "2026-03-28T07:11:00.000Z",
+      "messages": []
+    },
+    "result": {
+      "kind": "answer",
+      "text": "图书馆开放到 22:00。",
+      "requestId": "req_01HQ...",
+      "traceId": "trace_01HQ..."
+    }
+  }
+}
+```
+
+规则：
+
+- `request.accepted` 在 durable accept commit 后发送
+- terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
+  app-owned DB/projection truth 的产物
+- `request.completed` 覆盖 `answer`、`clarification`、`no_answer` 等已处理完成
+  分支
+- `request.failed` 覆盖 post-accept execution failure / rejected /
+  approval-required browser error 展示分支
+- `request.cancelled` 覆盖 explicit cancel 或 upstream cancel 分支，
+  chat-visible result 仍复用 `error` kind
 
 ## Operator Endpoints
 
