@@ -93,6 +93,14 @@ describe("protected panel shell chinese copy", () => {
 		expect(overviewPageCardsSource).toContain("LineChart");
 	});
 
+	it("keeps overview select controls named for browser autofill and DevTools issue checks", () => {
+		expect(overviewPageCardsSource).toContain('name="window"');
+		expect(overviewPageCardsSource).toContain('name="surface"');
+		expect(overviewPageCardsSource).toContain('name="selectedTarget"');
+		expect(overviewPageCardsSource).toContain("htmlFor: undefined");
+		expect(overviewPageCardsSource).toContain('"aria-label"');
+	});
+
 	it("cuts the quality route and nav over to a real quality domain page", () => {
 		expect(appSource).toContain('path="/observability/quality"');
 		expect(appSource).not.toContain("PANEL_COPY.operatorObservabilityRouteShell.quality.reason");

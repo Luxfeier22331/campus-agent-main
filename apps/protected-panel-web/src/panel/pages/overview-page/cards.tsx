@@ -35,6 +35,23 @@ import {
 	renderDomainStatus,
 } from "./formatters";
 
+function createOverviewSelectSlotProps(label: string) {
+	return {
+		inputLabel: {
+			htmlFor: undefined,
+		},
+		select: {
+			inputProps: {
+				"aria-label": label,
+			},
+		},
+	} as const;
+}
+
+const OVERVIEW_WINDOW_SELECT_LABEL = PANEL_COPY.overviewPage.filters.window;
+const OVERVIEW_SURFACE_SELECT_LABEL = PANEL_COPY.overviewPage.filters.surface;
+const OVERVIEW_TARGET_SELECT_LABEL = PANEL_COPY.overviewPage.filters.selectedTarget;
+
 export function OverviewMetricCard(props: { detail: string; label: string; value: string }) {
 	return (
 		<Card
@@ -290,9 +307,11 @@ export function OverviewHeaderSection(props: {
 					>
 						<TextField
 							label={PANEL_COPY.overviewPage.filters.window}
+							name="window"
 							onChange={(event) => props.onWindowChange(event.target.value)}
 							select
 							size="small"
+							slotProps={createOverviewSelectSlotProps(OVERVIEW_WINDOW_SELECT_LABEL)}
 							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
@@ -304,9 +323,11 @@ export function OverviewHeaderSection(props: {
 						</TextField>
 						<TextField
 							label={PANEL_COPY.overviewPage.filters.surface}
+							name="surface"
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
+							slotProps={createOverviewSelectSlotProps(OVERVIEW_SURFACE_SELECT_LABEL)}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
@@ -318,9 +339,11 @@ export function OverviewHeaderSection(props: {
 						</TextField>
 						<TextField
 							label={PANEL_COPY.overviewPage.filters.selectedTarget}
+							name="selectedTarget"
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
+							slotProps={createOverviewSelectSlotProps(OVERVIEW_TARGET_SELECT_LABEL)}
 							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
