@@ -30,14 +30,18 @@ updated: 2026-04-23
 ## 当前 Rollout 状态
 
 - 当前产品主路径尚未开放 `transport_schedule_lookup`
-- `packages/contracts` 里现有 `TransportScheduleLookupPayload / Result` 仍是 bootstrap
-  阶段的弱 shape
-  - request 只有 `route_query`、`temporal_query`、`origin_stop_query`、`destination_stop_query`
-  - result 只有 `resolved_route`、`service_status`、`window_start`、`window_end` 等最小字段
-- 这组现有 dataclass 只能表达“弱 route query + 粗略窗口”，不能承担 intent-first
-  schedule runtime seam
-- 本文冻结的是前向 stable contract，后续 shared types、tool adapter 与 query service
-  实现必须向这里收敛后，才能进入 opening gate
+- `packages/contracts` 已具备 intent-first `TransportScheduleLookupPayload / Result`
+  shape
+- Go shell internal query service 已具备 projection-backed deterministic kernel，
+  可覆盖 snapshot metadata、route clarification、departure selection、departure list、
+  service window、timetable 与 temporary suspension summary
+- Python `campus-services-agent` 已具备 thin HTTP adapter；只有配置
+  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
+  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时才消费该 internal seam
+- 数据面第一版已冻结 authenticated-notice-only offline projection path；projection
+  artifact 由 `campus_services/transport_schedule` 生成并发布到对象存储
+- 这仍不打开 `campus_services` 产品 serving surface；opening gate 仍取决于
+  release-gate regression / eval evidence 与 app-owned typed observability summary
 
 ## Core Conclusion
 
@@ -53,6 +57,23 @@ updated: 2026-04-23
 - `snapshot_query` 与 `service_time_query` 是两层不同语义
   - `snapshot_query` 决定使用哪一版时刻表 truth
   - `service_time_query` 决定在该 truth 下查询哪个服务日、哪个时间段
+
+## Projection Backing
+
+`transport_schedule_lookup` 的 runtime backing 固定读取
+`campus_services_projection_bundle.v1`。
+
+第一版 data-plane 决策：
+
+- source truth 只来自 `authenticated_notice_portal`
+- route canonical seed 固定为地铁接驳车、海淀到丰台、丰台到海淀三条 route
+- builder 离线展开 90 天服务日
+- 临时停运/调整写入 `transport_service_exceptions`
+- 对象存储保存 versioned/current artifact
+- Go shell 只读 mounted current file，不直接读取对象存储
+
+projection schema 细节见
+`docs/data/campus-services-transport-schedule-source-truth-schema.md`。
 
 ## Intent Taxonomy
 
@@ -342,24 +363,24 @@ TransportRouteCandidate
 ### 1. 最近的校车时刻表是什么
 
 - 归一化 payload
-  - `intent=timetable`
+  - `intent=schedule_snapshot_metadata`
   - `route_selector=null`
   - `snapshot_query.mode=current`
 - 预期 outcome
-  - `clarification_required`
-  - `clarification_reason=route_family_required`
+  - `resolved_current`
 - 必填结果字段
   - `query_text`
   - `intent`
-  - `candidate_routes`
-  - `clarification_reason`
+  - `queried_time_anchor`
+  - `schedule_snapshot`
 - 必须为空
   - `resolved_route`
   - `selected_departure`
   - `departure_options`
   - `service_window`
-  - `schedule_snapshot`
   - `timetable_entries`
+  - `candidate_routes`
+  - `clarification_reason`
   - `historical_downgrade_reason`
   - `fail_close_reason`
 

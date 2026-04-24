@@ -14,6 +14,8 @@ Python worker 只负责：
 - 接收 Go shell 已投影好的 private `SupervisorRequest`
 - 调用 `packages/supervisor-core`
 - 绑定 prompt runtime / provider-backed executors
+- 在配置 structured query internal seam 时，为 `campus-services-agent`
+  注入 Go shell query service client
 - 写入 supervisor audit JSONL
 - 暴露 private bridge health / readiness
 - 接收 Go shell 的 cooperative cancel signal，并在 Python bridge registry
@@ -107,6 +109,9 @@ export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
 export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
 export AUDIT_QUEUE_CAPACITY=1024
 export SUPERVISOR_PY_BRIDGE_WORKER_THREADS=8
+export SUPERVISOR_STRUCTURED_QUERY_BASE_URL=http://go-shell:27010
+export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
+export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 ```
 
 `PROMPT_RUNTIME_MODEL` 是 shared default。未显式提供 `SUPERVISOR_PROMPT_MODEL` /
@@ -118,3 +123,8 @@ export SUPERVISOR_PY_BRIDGE_WORKER_THREADS=8
 
 Audit 写入在 request path 上只 enqueue；后台 writer 负责 JSONL append。audit 写入失败不会把成功回答改写成
 `500`，但会通过 `readyz.audit_runtime.healthy=false` 暴露。
+
+`SUPERVISOR_STRUCTURED_QUERY_BASE_URL` / `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`
+只用于 Python worker 调用 Go shell 的 internal
+`/internal/query/campus-services/*` seam。未配置时，`campus-services-agent`
+继续保持 internal query service unavailable，不会打开产品 serving gate。

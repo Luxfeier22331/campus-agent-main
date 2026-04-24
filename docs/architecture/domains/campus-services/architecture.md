@@ -109,6 +109,26 @@ later-wave 已冻结方向包括：
 - alias ambiguity -> clarification
 - currentness 不可证、projection 缺关键字段或 source 冲突 -> fail-close / unavailable
 
+## Transport Schedule Data Plane
+
+`transport_schedule_lookup` 的第一版真实 backing projection 固定由
+`campus_services/transport_schedule` 拥有。
+
+固定规则：
+
+- 第一版只消费 `authenticated_notice_portal` notice source truth
+- `configs/ingestion/campus_services/transport_schedule/` 是 collection runtime
+  owner，serving stage 保持 `offline_preparation`
+- projection builder 离线生成 `campus_services_projection_bundle.v1`
+- 周期性班次在 builder 侧展开 90 天服务日；Go runtime 不解析 recurrence
+- versioned/current projection artifact 落在
+  `campus_services/releases/transport_schedule/{release_id}/...`
+- Docker runtime 通过 `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` 读取 mounted
+  readonly current file
+- Go shell 不直接读对象存储、不持有对象存储凭据
+
+这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
+
 ## Relation To Retrieval And Notice
 
 - `campus-services-agent` 不并回 `rag-agent`
@@ -133,8 +153,10 @@ runtime lane 已开放。
   - structured-runtime pre-routing helper
   - structured-runtime observability summary
   - Go shell structured query runtime foundation；当前 `service_status_lookup`
-    只具备 file projection fixture backed foundation，`transport_schedule_lookup`
-    只具备 typed fail-closed seam，均不代表产品 serving surface 已打开
+    具备 file projection fixture backed foundation，`transport_schedule_lookup`
+    具备 projection-backed schedule query kernel、Python thin-adapter wiring 与
+    authenticated-notice-backed offline projection builder，但仍不代表产品 serving
+    surface 已打开
 - gate 未打开时，产品主路径只能保持当前 routing truth 或 deterministic fail-close
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 
@@ -150,6 +172,7 @@ runtime lane 已开放。
 
 - `docs/contracts/service-status-lookup-contract.md`
 - `docs/contracts/transport-schedule-lookup-contract.md`
+- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/architecture/system/execution-and-agents-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`

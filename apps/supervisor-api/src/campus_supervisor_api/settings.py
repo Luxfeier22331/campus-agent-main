@@ -79,6 +79,9 @@ class ApiSettings:
     prompt_strict_structured_outputs: bool = True
     audit_queue_capacity: int = 1024
     bridge_worker_threads: int = 8
+    structured_query_base_url: str = ""
+    structured_query_shared_secret: str = ""
+    structured_query_timeout_seconds: float = 1.0
 
     @classmethod
     def from_env(cls) -> ApiSettings:
@@ -151,5 +154,17 @@ class ApiSettings:
             bridge_worker_threads=_read_int(
                 "SUPERVISOR_PY_BRIDGE_WORKER_THREADS",
                 default=8,
+            ),
+            structured_query_base_url=os.getenv(
+                "SUPERVISOR_STRUCTURED_QUERY_BASE_URL",
+                "",
+            ).strip(),
+            structured_query_shared_secret=os.getenv(
+                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+                "",
+            ).strip(),
+            structured_query_timeout_seconds=_read_float(
+                "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
+                default=1.0,
             ),
         )

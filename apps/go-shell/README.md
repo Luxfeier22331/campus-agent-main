@@ -27,17 +27,20 @@ Current status:
 - Hosts the gate-closed structured query runtime foundation for campus services
   at internal `/internal/query/campus-services/*` routes. `service_status_lookup`
   can read a configured file projection fixture for deterministic runtime
-  tests; `transport_schedule_lookup` currently returns a typed fail-closed
-  response until the schedule contract discussion is complete.
+  tests; `transport_schedule_lookup` can now resolve projection-backed schedule
+  snapshot metadata, route clarification, departures, service windows,
+  timetables, and temporary suspension summaries. This still does not open
+  `campus_services` product serving.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
   queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
 - Repo-local `Phase 1-7` implementation is in place:
   cancellation semantics, per-lane admission, shell-owned observability, local
   compose smoke, Python parity rerun, and runback docs are all landed.
-- Repo-local `Phase 8-9` implementation is in place:
-  cooperative Python bridge cancel signaling and the structured query runtime
-  foundation are landed without opening `campus_services` product serving.
+- Repo-local `Phase 8-10` implementation is in place:
+  cooperative Python bridge cancel signaling, the structured query runtime
+  foundation, and the transport schedule query kernel are landed without
+  opening `campus_services` product serving.
 
 Current admission boundary:
 
@@ -80,6 +83,10 @@ Current structured query runtime boundary:
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
 - The runtime is not browser-facing, not an `app-api` product surface, and does
   not open `campus_services` query-serving.
+- Python orchestration can consume this seam only when
+  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
+  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
+  `supervisor-api` worker container.
 
 Current observability boundary:
 
@@ -142,6 +149,7 @@ export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
 export SUPERVISOR_PY_BRIDGE_TIMEOUT_MS=35000
 export SUPERVISOR_PY_BRIDGE_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
+export SUPERVISOR_STRUCTURED_QUERY_BASE_URL=http://127.0.0.1:27010
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000

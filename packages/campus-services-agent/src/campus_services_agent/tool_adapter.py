@@ -149,16 +149,60 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
                 confidence="high",
                 result=result,
             )
+        if result.departure_options:
+            departures = "、".join(departure.departure_at for departure in result.departure_options)
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text=(
+                    f"{route_name}可选班次：{departures}。"
+                    if route_name
+                    else f"可选班次：{departures}。"
+                ),
+                confidence="high",
+                result=result,
+            )
+        if result.service_window is not None:
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text=(
+                    f"{route_name}运营时间：{result.service_window.first_departure_at}"
+                    f" 至 {result.service_window.last_departure_at}。"
+                    if route_name
+                    else (
+                        f"运营时间：{result.service_window.first_departure_at}"
+                        f" 至 {result.service_window.last_departure_at}。"
+                    )
+                ),
+                confidence="high",
+                result=result,
+            )
+        if result.timetable_entries:
+            entries = "、".join(departure.departure_at for departure in result.timetable_entries)
+            return SpecialistResponse(
+                target="campus-services-agent",
+                status="completed",
+                answer_text=(
+                    f"{route_name}时刻表：{entries}。" if route_name else f"时刻表：{entries}。"
+                ),
+                confidence="high",
+                result=result,
+            )
         return SpecialistResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{route_name}当前状态：{result.service_status}。" if route_name else f"当前状态：{result.service_status}。",
+            answer_text=f"{route_name}当前状态：{result.service_status}。"
+            if route_name
+            else f"当前状态：{result.service_status}。",
             confidence="high",
             result=result,
         )
     if result.outcome == "resolved_historical_reference":
         route_name = (
-            result.resolved_route.display_name if result.resolved_route is not None else result.query_text
+            result.resolved_route.display_name
+            if result.resolved_route is not None
+            else result.query_text
         )
         return SpecialistResponse(
             target="campus-services-agent",

@@ -5,12 +5,13 @@ from dataclasses import asdict, dataclass, field, replace
 from functools import partial
 
 import httpx
+from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
 from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
     build_prompt_runtime_http_client,
 )
-from campus_supervisor_core import handle_request
+from campus_supervisor_core import SupervisorAgent, handle_request
 
 from campus_supervisor_api.api import (
     ExecutionCancelRegistry,
@@ -128,17 +129,12 @@ def _create_runtime_app(
         queue_capacity=runtime_settings.audit_queue_capacity,
     )
     cancel_registry = ExecutionCancelRegistry()
-    bound_supervisor_handler = supervisor_handler
-    if (
-        supervisor_handler is handle_request
-        and supervisor_prompt_executor is not None
-        and rag_prompt_executor is not None
-    ):
-        bound_supervisor_handler = partial(
-            handle_request,
-            supervisor_prompt_executor=supervisor_prompt_executor,
-            rag_prompt_executor=rag_prompt_executor,
-        )
+    bound_supervisor_handler = _bind_supervisor_handler(
+        runtime_settings,
+        supervisor_handler=supervisor_handler,
+        supervisor_prompt_executor=supervisor_prompt_executor,
+        rag_prompt_executor=rag_prompt_executor,
+    )
     routes = build_bridge_routes(
         runtime_settings,
         supervisor_handler=bound_supervisor_handler,
@@ -163,6 +159,50 @@ def _create_runtime_app(
         prompt_http_pool=prompt_http_pool,
         audit_runtime=audit_runtime,
         cancel_registry=cancel_registry,
+    )
+
+
+def _bind_supervisor_handler(
+    settings: ApiSettings,
+    *,
+    supervisor_handler,
+    supervisor_prompt_executor: ProviderBackedSupervisorPromptExecutor | None,
+    rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
+):
+    if supervisor_handler is not handle_request:
+        return supervisor_handler
+    query_service = _build_campus_services_query_service(settings)
+    if query_service is not None:
+        agent = SupervisorAgent(
+            supervisor_prompt_executor=supervisor_prompt_executor,
+            rag_prompt_executor=rag_prompt_executor,
+        )
+        assert agent.specialist_delegates is not None
+        agent.specialist_delegates["campus-services-agent"] = lambda request: (
+            delegate_to_campus_services_agent(
+                request,
+                query_service=query_service,
+            )
+        )
+        return agent.handle
+    if supervisor_prompt_executor is not None and rag_prompt_executor is not None:
+        return partial(
+            handle_request,
+            supervisor_prompt_executor=supervisor_prompt_executor,
+            rag_prompt_executor=rag_prompt_executor,
+        )
+    return supervisor_handler
+
+
+def _build_campus_services_query_service(
+    settings: ApiSettings,
+) -> CampusServicesHTTPQueryService | None:
+    if not settings.structured_query_base_url or not settings.structured_query_shared_secret:
+        return None
+    return CampusServicesHTTPQueryService(
+        base_url=settings.structured_query_base_url,
+        shared_secret=settings.structured_query_shared_secret,
+        timeout_seconds=settings.structured_query_timeout_seconds,
     )
 
 

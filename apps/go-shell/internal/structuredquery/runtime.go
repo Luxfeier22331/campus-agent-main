@@ -70,22 +70,96 @@ type serviceStatusResult struct {
 }
 
 type transportScheduleRequest struct {
-	QueryText string `json:"query_text"`
-	Intent    string `json:"intent"`
+	QueryText        string                     `json:"query_text"`
+	Intent           string                     `json:"intent"`
+	RouteSelector    *transportRouteSelector    `json:"route_selector"`
+	SnapshotQuery    temporalQuery              `json:"snapshot_query"`
+	ServiceTimeQuery *transportServiceTimeQuery `json:"service_time_query"`
+	ResultLimit      *int                       `json:"result_limit"`
+}
+
+type transportRouteSelector struct {
+	RouteID              string `json:"route_id"`
+	ServiceFamily        string `json:"service_family"`
+	RouteVariantQuery    string `json:"route_variant_query"`
+	OriginCampus         string `json:"origin_campus"`
+	DestinationCampus    string `json:"destination_campus"`
+	OriginStopQuery      string `json:"origin_stop_query"`
+	DestinationStopQuery string `json:"destination_stop_query"`
+}
+
+type transportServiceTimeQuery struct {
+	DateMode           string `json:"date_mode"`
+	ServiceDate        string `json:"service_date"`
+	Daypart            string `json:"daypart"`
+	DepartureNotBefore string `json:"departure_not_before"`
+	DepartureNotAfter  string `json:"departure_not_after"`
 }
 
 type transportScheduleResult struct {
-	QueryText         string `json:"query_text"`
-	Intent            string `json:"intent"`
-	Outcome           string `json:"outcome"`
-	ServiceStatus     string `json:"service_status"`
-	QueriedTimeAnchor string `json:"queried_time_anchor"`
-	FailCloseReason   string `json:"fail_close_reason"`
+	QueryText                 string                        `json:"query_text"`
+	Intent                    string                        `json:"intent"`
+	Outcome                   string                        `json:"outcome"`
+	ResolvedRoute             *transportRouteRef            `json:"resolved_route,omitempty"`
+	QueriedTimeAnchor         string                        `json:"queried_time_anchor,omitempty"`
+	RequestedServiceDate      string                        `json:"requested_service_date,omitempty"`
+	ServiceStatus             string                        `json:"service_status,omitempty"`
+	SelectedDeparture         *scheduledDeparture           `json:"selected_departure,omitempty"`
+	DepartureOptions          []scheduledDeparture          `json:"departure_options,omitempty"`
+	ServiceWindow             *transportServiceWindow       `json:"service_window,omitempty"`
+	ScheduleSnapshot          *transportScheduleSnapshotRef `json:"schedule_snapshot,omitempty"`
+	TimetableEntries          []scheduledDeparture          `json:"timetable_entries,omitempty"`
+	CandidateRoutes           []transportRouteCandidate     `json:"candidate_routes,omitempty"`
+	ClarificationReason       string                        `json:"clarification_reason,omitempty"`
+	StopRefs                  []transportStopRef            `json:"stop_refs,omitempty"`
+	RelatedNoticeRefs         []string                      `json:"related_notice_refs,omitempty"`
+	HistoricalDowngradeReason string                        `json:"historical_downgrade_reason,omitempty"`
+	FailCloseReason           string                        `json:"fail_close_reason,omitempty"`
+}
+
+type transportRouteRef struct {
+	RouteID       string `json:"route_id"`
+	DisplayName   string `json:"display_name"`
+	ServiceFamily string `json:"service_family"`
+}
+
+type transportStopRef struct {
+	StopID      string `json:"stop_id"`
+	DisplayName string `json:"display_name"`
+}
+
+type scheduledDeparture struct {
+	DepartureAt        string            `json:"departure_at"`
+	ArrivalAt          string            `json:"arrival_at,omitempty"`
+	OriginStopRef      *transportStopRef `json:"origin_stop_ref,omitempty"`
+	DestinationStopRef *transportStopRef `json:"destination_stop_ref,omitempty"`
+}
+
+type transportServiceWindow struct {
+	FirstDepartureAt string `json:"first_departure_at,omitempty"`
+	LastDepartureAt  string `json:"last_departure_at,omitempty"`
+}
+
+type transportScheduleSnapshotRef struct {
+	SnapshotID     string `json:"snapshot_id"`
+	PublishedAt    string `json:"published_at"`
+	EffectiveFrom  string `json:"effective_from,omitempty"`
+	EffectiveUntil string `json:"effective_until,omitempty"`
+	SourceRef      string `json:"source_ref"`
+}
+
+type transportRouteCandidate struct {
+	Route             transportRouteRef `json:"route"`
+	ClarificationHint string            `json:"clarification_hint,omitempty"`
 }
 
 type projectionBundle struct {
-	SchemaVersion        string                `json:"schema_version"`
-	ServiceStatusRecords []serviceStatusRecord `json:"service_status_records"`
+	SchemaVersion              string                            `json:"schema_version"`
+	ServiceStatusRecords       []serviceStatusRecord             `json:"service_status_records"`
+	TransportScheduleSnapshots []transportScheduleSnapshotRecord `json:"transport_schedule_snapshots"`
+	TransportRoutes            []transportRouteRecord            `json:"transport_routes"`
+	ScheduledDepartures        []scheduledDepartureRecord        `json:"scheduled_departures"`
+	TransportServiceExceptions []transportServiceExceptionRecord `json:"transport_service_exceptions"`
 }
 
 type serviceStatusRecord struct {
@@ -115,9 +189,8 @@ func NewRuntime(options Options) *Runtime {
 
 func (r *Runtime) Status() Status {
 	status := Status{
-		Configured:                   r.projectionPath != "",
-		ProjectionSource:             "file",
-		TransportScheduleImplemented: false,
+		Configured:       r.projectionPath != "",
+		ProjectionSource: "file",
 	}
 	if r.projectionPath == "" {
 		status.ProjectionSource = ""
@@ -125,6 +198,7 @@ func (r *Runtime) Status() Status {
 	}
 	bundle, err := r.loadBundle()
 	status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
+	status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
 	return status
 }
 
@@ -176,24 +250,20 @@ func (r *Runtime) LookupTransportSchedule(ctx context.Context, rawBody []byte) R
 	}
 	request.QueryText = strings.TrimSpace(request.QueryText)
 	request.Intent = strings.TrimSpace(request.Intent)
+	normalizeTransportScheduleRequest(&request)
 	if request.QueryText == "" {
 		return invalidRequest("query_text is required.")
 	}
 	if request.Intent == "" {
 		return invalidRequest("intent is required.")
 	}
+	if err := validateTransportScheduleRequest(request); err != nil {
+		return invalidRequest(err.Error())
+	}
 	if err := ctx.Err(); err != nil {
 		return failClosedTransportSchedule(request, r.timeAnchor())
 	}
-	body := transportScheduleResult{
-		QueryText:         request.QueryText,
-		Intent:            request.Intent,
-		Outcome:           "temporarily_unverifiable",
-		ServiceStatus:     "unknown",
-		QueriedTimeAnchor: r.timeAnchor(),
-		FailCloseReason:   "source_family_unavailable",
-	}
-	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+	return r.lookupTransportSchedule(ctx, request)
 }
 
 func (r *Runtime) loadBundle() (projectionBundle, error) {
