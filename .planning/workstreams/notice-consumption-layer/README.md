@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-22
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Workstream: Notice Consumption Layer
@@ -35,6 +35,13 @@ consumption projection / query read model / query runtime 语义拆开。
     body adapter 映射 `campus_notice_discover` / `campus_notice_get`
   - operator/read-model 查询入口已补齐，不重开 query-serving、panel、
     live control-plane 或 authenticated portal runtime
+  - 2026-04-24 本地补全：internal_notice query read model 收口为 lightweight
+    metadata/read projection，PG 只保存 short body excerpt / short search text /
+    object key；完整 canonical markdown 继续由对象存储在 get 路径按需读取
+  - 2026-04-25 correction：PG read/projection 写入不能把 source-truth
+    inventory 或 holding collection 当成已消费 notice；persistent consumer
+    projection rebuild 的 core path 与 CLI 默认拒绝 implicit full-scope
+    rebuild，必须显式传入 `--notice-id` 或 `--document-id`
 
 ## Native Planning Truth
 

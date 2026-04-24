@@ -1,7 +1,7 @@
 ---
 workstream: notice-consumption-layer
 created: 2026-04-21
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 
 # Project State
@@ -15,10 +15,11 @@ updated: 2026-04-24
 **Total Phases:** 8
 **Total Plans in Phase:** 1
 **Progress:** 8/8 phases complete
-**Last Activity:** 2026-04-24
-**Last Activity Description:** Completed Phase 7 non-regulation coverage,
-Phase 8 operator/read-model closeout, and semantic split for archive /
-projection / read-model / query-runtime terminology.
+**Last Activity:** 2026-04-25
+**Last Activity Description:** Completed lightweight internal_notice read-model
+local closeout: full canonical body stays in object storage, PG read model keeps
+bounded excerpt/search text plus object key, and supervisor-api local notice PG
+pooling is explicitly bounded.
 
 ## Current Slice
 
@@ -105,6 +106,20 @@ projection / read-model / query-runtime terminology.
   - `delegate_to_notice_agent(..., env=...)` 已能在未显式注入 fake/query service
     时，从 runtime env 构造 internal notice discover/get backing query service；
     配置缺失时继续返回 `internal_query_service_unavailable`
+  - 2026-04-24 local read-model storage closeout：
+    - read model entry 增加 `body_excerpt`，默认上限 `800` chars
+    - `search_text` 默认上限 `2000` chars，不再承载完整 canonical markdown body
+    - `record jsonb` 只复制 bounded read-model payload，不复制完整正文
+    - rebuild worker report 输出 observed/max excerpt 与 search_text 字符数，用于本地容量检查
+    - `supervisor-api` notice PG store 显式限制本地 pool 为 `min=0 / max=2`
+  - 2026-04-25 correction：
+    - 已纠正 local execution 口径：不能把 source-truth inventory 全量扫入 PG
+      projection/read model，只有显式经过 consumer layer 选择处理的 notice 才能落库
+    - persistent `rebuild_internal_notice_consumption_projection` core path 与
+      CLI 现在拒绝不带 `--notice-id`/`--document-id` 的 implicit full-scope
+      rebuild
+    - 本地误写的 `campus_notices/internal_notice` projection scope 已清空；read
+      model 未写入
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
