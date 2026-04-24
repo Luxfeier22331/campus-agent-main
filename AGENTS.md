@@ -236,7 +236,8 @@
   `docs/architecture` 或 `docs/decisions` 是否需要更新
 - 不要在 repo 级 `AGENTS.md` 里写个人工作习惯、平台专属工具细则或一次性实验说明；这些内容应放到全局 agent 配置
 - 在规则、架构、文档和实现设计层面，同样禁止用“最小改法”替代长期正确的结构性修正
-- plain `codex` 默认用于讨论、review、问答与方案分析；只有真正进入某条 workstream 执行时，才使用 repo-owned harness workflow
+- plain `codex` 默认用于讨论、review、问答与方案分析；只有真正进入某条 workstream
+  执行时，才使用 repo-owned harness workflow
 - 多人并发推进不同 workstream 时，默认使用 repo-owned harness workflow： `uv run --all-packages
   python -m scripts.workstream_harness codex shell <slug>` 或 `codex exec <slug>
   -- "<task>"`； `workstream_claim session shell/start` 只保留为恢复与非-Codex runtime 的

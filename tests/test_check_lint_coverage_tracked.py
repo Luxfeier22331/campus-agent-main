@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts.check_lint_coverage_tracked import (
     audit_lint_coverage,
@@ -44,8 +45,13 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             lint_families_for_path(
                 "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx"
             ),
-            ("docs:lint",),
+            ("public-docs:lint",),
         )
+        self.assertEqual(
+            lint_families_for_path("apps/public-docs/docs/student-handbook/index.md"),
+            ("public-docs:lint",),
+        )
+        self.assertEqual(lint_families_for_path("apps/public-docs/README.md"), ("docs:lint",))
         self.assertEqual(
             lint_families_for_path("tests/test_check_xml_tracked.py"),
             ("py:lint", "py:format:check"),
@@ -61,6 +67,10 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
         self.assertEqual(
             lint_families_for_path(".sqlfluff"),
             ("sql:lint",),
+        )
+        self.assertEqual(
+            lint_families_for_path("infra/local/staging/install-go-shell-staging-task.ps1"),
+            (),
         )
 
     def test_lint_exclusion_reason_covers_known_deferred_surfaces(self) -> None:
@@ -95,7 +105,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
     def test_tracked_lint_candidate_paths_skip_missing_tracked_files(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
 
-        with unittest.mock.patch("scripts.check_lint_coverage_tracked.subprocess.run") as run_mock:
+        with mock.patch("scripts.check_lint_coverage_tracked.subprocess.run") as run_mock:
             run_mock.return_value = unittest.mock.Mock(
                 stdout=(
                     b"package.json\0"

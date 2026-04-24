@@ -72,8 +72,6 @@ _TEXT_LIKE_SUFFIXES = {
     ".mdx",
     ".mjs",
     ".mts",
-    ".ps1",
-    ".psm1",
     ".py",
     ".sh",
     ".sql",
@@ -149,6 +147,8 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
     families: list[str] = []
     if _is_biome_tracked_file(path):
         families.append("web:lint")
+    if _is_public_docs_generated_file(path):
+        families.append("public-docs:lint")
     if _is_markdown_tracked_file(path):
         families.append("docs:lint")
     if _is_python_tracked_file(path):
@@ -173,8 +173,6 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
         families.append("env:lint")
     if _is_editorconfig_tracked_file(path):
         families.append("editorconfig:lint")
-    if path.endswith((".ps1", ".psm1")):
-        families.append("powershell:lint")
     if path in _ROOT_LOCK_FILES or path.endswith("/pnpm-lock.yaml"):
         families.append("lock:lint")
     if path.endswith(".html"):
@@ -208,11 +206,19 @@ def _is_markdown_tracked_file(path: str) -> bool:
         return (
             path.endswith(".md") and "/archive/" not in path and not path.startswith("docs/plans/")
         )
+    if path.startswith("apps/public-docs/docs/"):
+        return False
     if path.startswith(("apps/", "packages/", "configs/")):
-        if path.endswith(".md"):
-            return True
-        return path.startswith("apps/public-docs/docs/") and path.endswith(".mdx")
+        return path.endswith(".md")
     return False
+
+
+def _is_public_docs_generated_file(path: str) -> bool:
+    if not path.startswith("apps/public-docs/docs/"):
+        return False
+    if path.startswith("apps/public-docs/docs/.generated/"):
+        return False
+    return path.endswith((".md", ".mdx"))
 
 
 def _is_python_tracked_file(path: str) -> bool:

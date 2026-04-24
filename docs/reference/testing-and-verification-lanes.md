@@ -24,6 +24,7 @@ updated: 2026-04-23
 ```bash
 pnpm web:lint
 pnpm docs:lint
+pnpm public-docs:lint
 pnpm coverage:lint
 pnpm java:lint
 pnpm editorconfig:lint
@@ -51,9 +52,14 @@ uv run --all-packages ruff format . --check
   unknown file types
 - Markdown 侧通过 repo-owned runner 调用 `markdownlint-cli2`，覆盖当前 worktree 中的 root
   live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth
-  文档、`apps/` / `packages/` / `configs/` live markdown，以及
-  `apps/public-docs/docs/**/*.mdx`；默认排除 archive / historical plan
-  文档、vendor、`node_modules` 与 scratch markdown
+  文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
+  historical plan 文档、vendor、`node_modules`、scratch markdown，以及
+  `apps/public-docs/docs/**` 生成文档
+- public-docs generated 侧通过 repo-owned checker 覆盖
+  `apps/public-docs/docs/**/*.md` 与 `apps/public-docs/docs/**/*.mdx`；该 lane 面向
+  canonical / reader projection 产物，允许为表格保真使用 HTML table 与长行，但 fail-close
+  检查空文档、frontmatter 结构、Git conflict marker、restricted collection marker 与内部
+  locator 泄漏
 - `coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
   都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
@@ -89,23 +95,7 @@ uv run --all-packages ruff format . --check
 - app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json`
   变化，lockfile 必须同步刷新
 - Python 侧使用 Ruff，同时承担 import 排序与格式检查；当前 repo 默认门禁包含 `W` 与 `B904`
-- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm lint`
 - 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
-
-### Supplemental Lint Lanes
-
-命令：
-
-```bash
-pnpm powershell:lint
-```
-
-语义：
-
-- `PowerShell` 侧使用 repo-owned Python checker 调用 `pwsh` parser，对 tracked `*.ps1`
-  做语法校验
-- 该 lane 当前是补充覆盖面，不并入默认 `pnpm lint`
-- CI 通过独立 Windows job 执行；本地缺少 `pwsh` 时，显式运行该命令会失败并提示安装 PowerShell
 
 ### Python Baseline
 

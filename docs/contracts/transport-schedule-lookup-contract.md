@@ -15,7 +15,8 @@ updated: 2026-04-23
 - `packages/contracts` 内 transport schedule shared types 的目标 shape
 - `packages/supervisor-core -> packages/campus-services-agent` 的 transport schedule
   capability 语义
-- `campus-services-agent -> thin tool adapter -> internal query service` 的 request/result seam
+- `campus-services-agent -> thin tool adapter -> internal query service`
+  的 request/result seam
 - route、班次、首末班、运营窗口、停运公告引用与 schedule snapshot metadata 的 typed
   结果边界
 
@@ -29,7 +30,8 @@ updated: 2026-04-23
 ## 当前 Rollout 状态
 
 - 当前产品主路径尚未开放 `transport_schedule_lookup`
-- `packages/contracts` 里现有 `TransportScheduleLookupPayload / Result` 仍是 bootstrap 阶段的弱 shape
+- `packages/contracts` 里现有 `TransportScheduleLookupPayload / Result` 仍是 bootstrap
+  阶段的弱 shape
   - request 只有 `route_query`、`temporal_query`、`origin_stop_query`、`destination_stop_query`
   - result 只有 `resolved_route`、`service_status`、`window_start`、`window_end` 等最小字段
 - 这组现有 dataclass 只能表达“弱 route query + 粗略窗口”，不能承担 intent-first
@@ -83,7 +85,7 @@ updated: 2026-04-23
 
 ## Request Contract
 
-### Frozen Forward Shape
+### Frozen Forward Request Shape
 
 ```text
 TransportScheduleLookupPayload
@@ -167,7 +169,7 @@ TransportServiceTimeQuery
 
 ## Result Contract
 
-### Frozen Forward Shape
+### Frozen Forward Result Shape
 
 ```text
 TransportScheduleLookupResult

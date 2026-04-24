@@ -256,6 +256,9 @@ jobs:
       - name: Run Markdown lint
         run: pnpm docs:lint
 
+      - name: Run generated public docs lint
+        run: pnpm public-docs:lint
+
   lint-coverage:
     runs-on: ubuntu-latest
     steps:
@@ -418,23 +421,3 @@ jobs:
 
       - name: Run lock integrity lint
         run: pnpm lock:lint
-
-  powershell-syntax:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Sync workspace
-        run: uv sync --all-packages --dev
-
-      - name: Run PowerShell syntax check
-        run: uv run --all-packages python -m scripts.check_powershell_tracked

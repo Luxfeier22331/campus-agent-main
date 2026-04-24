@@ -14,7 +14,8 @@ updated: 2026-04-23
 
 - `packages/contracts` 内 `ServiceStatusLookupPayload / Result` 的稳定语义
 - `packages/supervisor-core -> packages/campus-services-agent` 的 handoff seam
-- `campus-services-agent -> thin tool adapter -> internal query service` 的 request/result seam
+- `campus-services-agent -> thin tool adapter -> internal query service`
+  的 request/result seam
 
 它不覆盖：
 

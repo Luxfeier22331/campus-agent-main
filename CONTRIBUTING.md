@@ -44,11 +44,13 @@ uv run --all-packages python -m scripts.workstream_harness codex exec \
 
 补充说明：
 
-- plain `codex` 继续用于普通讨论、代码评审、架构辨析和问答；这类会话不进入 harness terminal-result contract
+- plain `codex` 继续用于普通讨论、代码评审、架构辨析和问答；这类会话不进入
+  harness terminal-result contract
 - harness wrapper 底层仍会执行 `claim -> heartbeat -> child process -> release`
 - interactive / exec run 的 runtime ledger 固定写入 gitignored
   `.planning/runtime/harness/`
-- terminal result 只认 result artifact side channel；assistant message 只保留给人读或审计，不再承担 terminal result transport
+- terminal result 只认 result artifact side channel；assistant message
+  只保留给人读或审计，不再承担 terminal result transport
 - 当前会话上下文可用 `uv run --all-packages python -m scripts.workstream_claim session
   current` 查看
 - 交接、接受交接、强制接管与诊断分别使用 `claim handoff`、`claim accept`、`claim takeover`、`claim

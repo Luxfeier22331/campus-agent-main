@@ -77,7 +77,9 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         relative_paths = {str(path.relative_to(repo_root)) for path in files}
 
         self.assertIn("apps/app-api/README.md", relative_paths)
-        self.assertIn(
+        self.assertIn("apps/public-docs/README.md", relative_paths)
+        self.assertNotIn("apps/public-docs/docs/index.md", relative_paths)
+        self.assertNotIn(
             "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx",
             relative_paths,
         )
@@ -97,8 +99,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             return_value=(
                 repo_root / "README.md",
                 repo_root / "docs/reference/testing-and-verification-lanes.md",
-                repo_root
-                / "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx",
+                repo_root / "apps/public-docs/README.md",
             ),
         ):
             run_mock.return_value = subprocess.CompletedProcess(
@@ -119,7 +120,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 ".markdownlint-cli2.jsonc",
                 "README.md",
                 "docs/reference/testing-and-verification-lanes.md",
-                "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx",
+                "apps/public-docs/README.md",
             ],
         )
 
@@ -153,8 +154,8 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         return path.endswith(".md")
     if path in {"README.md", "AGENTS.md", "CONTRIBUTING.md", ".github/pull_request_template.md"}:
         return True
+    if path.startswith("apps/public-docs/docs/"):
+        return False
     if path.startswith(("apps/", "packages/", "configs/")):
-        if path.endswith(".md"):
-            return True
-        return path.startswith("apps/public-docs/docs/") and path.endswith(".mdx")
+        return path.endswith(".md")
     return False

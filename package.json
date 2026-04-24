@@ -19,6 +19,7 @@
 		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
 		"web:typecheck": "turbo run typecheck",
 		"docs:lint": "uv run --all-packages python -m scripts.check_markdown_tracked",
+		"public-docs:lint": "uv run --all-packages python -m scripts.check_public_docs_generated",
 		"coverage:lint": "uv run --all-packages python -m scripts.check_lint_coverage_tracked",
 		"decomposition:lint": "uv run --all-packages python -m scripts.check_decomposition_tracked",
 		"java:lint": "uv run --all-packages python -m scripts.check_java_tracked",
@@ -29,7 +30,6 @@
 		"jsonl:lint": "uv run --all-packages python -m scripts.check_jsonl_tracked",
 		"lock:lint": "pnpm pnpm-lock:lint && pnpm uv-lock:lint",
 		"pnpm-lock:lint": "uv run --all-packages python -m scripts.check_pnpm_lock_tracked",
-		"powershell:lint": "uv run --all-packages python -m scripts.check_powershell_tracked",
 		"py:lint": "uv run --all-packages ruff check .",
 		"py:lint:fix": "uv run --all-packages ruff check . --fix",
 		"py:format": "uv run --all-packages ruff format .",
@@ -46,7 +46,7 @@
 		"go:static:check": "pnpm go:fmt:check && pnpm go:vet && pnpm go:lint",
 		"go:test": "cd apps/go-shell && go test ./...",
 		"go:check": "pnpm go:static:check && pnpm go:test",
-		"lint": "pnpm web:lint && pnpm docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
+		"lint": "pnpm web:lint && pnpm docs:lint && pnpm public-docs:lint && pnpm coverage:lint && pnpm decomposition:lint && pnpm java:lint && pnpm editorconfig:lint && pnpm env:lint && pnpm html:lint && pnpm yaml:lint && pnpm toml:lint && pnpm shell:lint && pnpm xml:lint && pnpm jsonl:lint && pnpm sql:lint && pnpm docker:lint && pnpm lock:lint && pnpm go:static:check && pnpm py:lint && pnpm py:format:check",
 		"lint:fix": "pnpm web:lint:fix && pnpm py:lint:fix && pnpm py:format"
 	},
 	"devDependencies": {

@@ -16,7 +16,8 @@ blocker 和 verification 语义。
 - 适用于 repo 内通过 harness wrapper 运行的 agent session
 - 运行时状态只写入 gitignored `.planning/runtime/harness/`
 - 不复用产品侧 `approval_required`
-- `SessionStart` / `Stop` 的 harness contract 只在 wrapper 注入的 harness session env 存在时生效
+- `SessionStart` / `Stop` 的 harness contract 只在 wrapper 注入的 harness session env
+  存在时生效
 - 普通 repo 讨论会话不消费 terminal result contract；它们只继续复用 repo-wide 安全 guardrails
 
 ## Terminal Result Schema
@@ -179,6 +180,8 @@ run ledger 会额外记录 `result_source`，用于区分本次终态来自：
   - `CAMPUS_WORKSTREAM_REPO_ROOT`
   - `CAMPUS_WORKSTREAM_RESULT_PATH`
   - `CAMPUS_WORKSTREAM_HARNESS_MODE`
-- adapter 可以额外保存自己的 assistant message / transcript artifact，但不得把它重新提升为 terminal result source
+- adapter 可以额外保存自己的 assistant message / transcript artifact，但不得把它重新提升为
+  terminal result source
 - terminal result 必须写入 canonical result artifact，wrapper / hook 只认这一条通道
-- 非 Codex runtime 如果不能消费 repo-local hook，也必须在 wrapper 退出前完成等价的 result validation 与 run persistence
+- 非 Codex runtime 如果不能消费 repo-local hook，也必须在 wrapper 退出前完成等价的
+  result validation 与 run persistence

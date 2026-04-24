@@ -114,7 +114,8 @@ gitignored runtime 目录：
 2. 运行 `scripts.workstream_harness result write ...` 写入 terminal result artifact。
 3. 正常结束会话；如果 `Stop` hook 未持久化，shell wrapper 也会在退出时用同一 artifact 完成最终收口。
 
-非交互 `codex exec` 也遵循同一 contract；`assistant-message.txt` 只保留为审计 artifact，不再参与 terminal result 解析。
+非交互 `codex exec` 也遵循同一 contract；`assistant-message.txt` 只保留为审计
+artifact，不再参与 terminal result 解析。
 
 ## Escape Hatch
 
