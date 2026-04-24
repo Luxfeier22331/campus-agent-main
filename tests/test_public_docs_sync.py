@@ -335,7 +335,7 @@ class PublicDocsSyncTest(unittest.TestCase):
                 "index",
                 {"type": "section-header", "label": "办事流程"},
                 "central-minzu-student-dormitory-management-workflow",
-                {"type": "section-header", "label": "规章制度"},
+                {"type": "section-header", "label": "学生手册目录"},
                 "mock-handbook",
             ],
         )

@@ -139,7 +139,7 @@ def _sync_handbook_docs(client, *, handbook_docs: tuple[HandbookDoc, ...] | None
                 ),
                 {
                     "type": "section-header",
-                    "label": "规章制度",
+                    "label": "学生手册目录",
                 },
                 *[doc.slug for doc in handbook_docs],
             ]

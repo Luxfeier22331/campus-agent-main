@@ -9,11 +9,6 @@ interface Props {
 	data: HandbookFlowGraphDocumentData;
 }
 
-const STATUS_LABELS = {
-	ready: "内容已可阅读",
-	needs_review: "等待内容复核",
-} as const;
-
 interface FlowListItem {
 	flow: HandbookFlow;
 	flowIndex: number;
@@ -157,12 +152,12 @@ export default function HandbookFlowGraphSection({ data }: Props) {
 		<section className={`handbook-flow-shell status-${data.extractionStatus}`}>
 			<header className="handbook-flow-hero">
 				<div className="handbook-flow-hero-copy">
-					<p className="handbook-flow-eyebrow">学生公寓服务</p>
+					<p className="handbook-flow-eyebrow">学生手册</p>
 					<h2 className="rp-toc-include" id="flow-guide">
-						按住宿场景办理
+						学生公寓办理流程
 					</h2>
 					<p className="handbook-flow-lede">
-						新生入住、毕业离校、不住宿申请和退宿流程分开呈现。先找到与你身份相符的事项，再按顺序准备材料、完成签字盖章和后续办理。
+						本页依据学生手册第 252-255 页，按事项列出公寓入住、离校、不住宿申请和退宿的办理顺序。
 					</p>
 					<div className="handbook-flow-source-list">
 						<span>{data.sourceHandbookSection}</span>
@@ -178,22 +173,17 @@ export default function HandbookFlowGraphSection({ data }: Props) {
 						<dt>步骤</dt>
 						<dd>{stepCount}</dd>
 					</div>
-					<div>
-						<dt>状态</dt>
-						<dd>{STATUS_LABELS[data.extractionStatus]}</dd>
-					</div>
 				</dl>
 			</header>
 
 			<nav aria-label="选择办理事项" className="handbook-flow-chooser">
 				<header className="handbook-flow-chooser-header">
 					<div>
-						<p>办理前先确认</p>
+						<p>流程索引</p>
 						<h3 className="rp-toc-include" id="flow-task-index">
-							你要办理哪一类住宿事项？
+							办理事项
 						</h3>
 					</div>
-					<span>不确定时，优先按身份标签选择。</span>
 				</header>
 				<ol className="handbook-flow-task-list">
 					{flowItems.map(({ flow, flowIndex, sourcePage }) => {
@@ -210,7 +200,7 @@ export default function HandbookFlowGraphSection({ data }: Props) {
 										<strong>{flow.flowHeading}</strong>
 										<small>{taskMeta.join(" / ")}</small>
 									</span>
-									<span className="handbook-flow-task-action">查看步骤</span>
+									<span className="handbook-flow-task-action">查看</span>
 								</a>
 							</li>
 						);
