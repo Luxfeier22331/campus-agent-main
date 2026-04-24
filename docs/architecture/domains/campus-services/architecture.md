@@ -132,6 +132,9 @@ runtime lane 已开放。
   - `service_status_lookup` / `transport_schedule_lookup` shared contract
   - structured-runtime pre-routing helper
   - structured-runtime observability summary
+  - Go shell structured query runtime foundation；当前 `service_status_lookup`
+    只具备 file projection fixture backed foundation，`transport_schedule_lookup`
+    只具备 typed fail-closed seam，均不代表产品 serving surface 已打开
 - gate 未打开时，产品主路径只能保持当前 routing truth 或 deterministic fail-close
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 

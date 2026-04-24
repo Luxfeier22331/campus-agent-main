@@ -27,8 +27,6 @@ updated: 2026-04-20
 
 - `go-shell-staging-operations.md`
 - `go-shell-staging-smoke-runbook.md`
-- `dev-backed-supervisor-staging-operations.md`
-- `dev-backed-supervisor-staging-smoke-runbook.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`

@@ -3,6 +3,7 @@ package bridge
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 const (
 	answerPath = "/internal/bridge/supervisor/answer"
 	readyzPath = "/internal/bridge/readyz"
+	cancelPath = "/internal/bridge/execution/cancel"
 )
 
 type HTTPClient struct {
@@ -56,6 +58,21 @@ func (c *HTTPClient) Readyz(ctx context.Context) (ReadyzResponse, error) {
 		return ReadyzResponse{}, err
 	}
 	return ReadyzResponse{
+		StatusCode: response.StatusCode,
+		Body:       response.Body,
+	}, nil
+}
+
+func (c *HTTPClient) Cancel(ctx context.Context, request CancelRequest) (CancelResponse, error) {
+	body, err := json.Marshal(request)
+	if err != nil {
+		return CancelResponse{}, err
+	}
+	response, err := c.do(ctx, http.MethodPost, cancelPath, body)
+	if err != nil {
+		return CancelResponse{}, err
+	}
+	return CancelResponse{
 		StatusCode: response.StatusCode,
 		Body:       response.Body,
 	}, nil

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import unittest
 
 from campus_contracts import SupervisorRequest, SupervisorResponse
@@ -124,7 +125,9 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
             ),
             supervisor_handler=lambda request: (_ for _ in ()).throw(
-                InvalidSupervisorRequestError("requested_scope is not allowed for place_lookup requests")
+                InvalidSupervisorRequestError(
+                    "requested_scope is not allowed for place_lookup requests"
+                )
             ),
         )
 
@@ -168,3 +171,73 @@ class SupervisorApiBridgeTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json_body["error"]["code"], "unauthorized")
+
+    def test_bridge_cancel_route_marks_active_execution_cancel_requested(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+        answer_responses = []
+
+        def fake_supervisor(request: SupervisorRequest) -> SupervisorResponse:
+            started.set()
+            release.wait(timeout=1.0)
+            return SupervisorResponse(
+                selected_target="rag-agent",
+                status="completed",
+                answer_text="completed after cancel signal",
+                confidence="medium",
+            )
+
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            ),
+            supervisor_handler=fake_supervisor,
+        )
+
+        thread = threading.Thread(
+            target=lambda: answer_responses.append(
+                app.handle(
+                    "POST",
+                    "/internal/bridge/supervisor/answer",
+                    headers={"x-supervisor-bridge-auth": "bridge-secret"},
+                    json_body={
+                        "user_goal": "图书馆开门吗",
+                        "request_id": "req-active-cancel",
+                        "trace": {"trace_id": "trace-active-cancel"},
+                        "context": {
+                            "actor": {
+                                "user_id": "student@example.edu",
+                            },
+                            "authorization": {
+                                "retrieval_filter": {
+                                    "entitlement_groups": [],
+                                    "visibility_level": "public",
+                                    "policy_projection_version": "phase1-authorization-projection-v1",
+                                },
+                            },
+                        },
+                    },
+                )
+            )
+        )
+        thread.start()
+        self.assertTrue(started.wait(timeout=1.0))
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/execution/cancel",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body={
+                "request_id": "req-active-cancel",
+                "reason": "user_requested",
+            },
+        )
+
+        release.set()
+        thread.join(timeout=1.0)
+        app.close()
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json_body["status"], "cancel_requested")
+        self.assertEqual(response.json_body["request_id"], "req-active-cancel")
+        self.assertEqual(answer_responses[0].status_code, 200)

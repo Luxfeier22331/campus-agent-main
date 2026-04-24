@@ -20,8 +20,7 @@ updated: 2026-04-24
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
 
-它不把 legacy dev-backed upstream 写成当前 staging 真相；rollback / fallback 统一看
-`dev-backed-supervisor-staging-smoke-runbook.md`。
+它不保留 legacy dev-backed upstream；当前 staging smoke 只以 Go shell execution origin 为准。
 
 ## 当前补充真相
 

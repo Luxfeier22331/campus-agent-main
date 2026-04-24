@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0043
 status: accepted
 created: 2026-04-23
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # ADR-0043 Supervisor API Docker-First Runtime
 
@@ -24,7 +24,7 @@ Accepted on 2026-04-23.
 
 如果这件事继续悬空，后续实现很容易反复漂移为：
 
-- 把 `campus-supervisor-api-dev` 误当成长期 deploy truth
+- 把 repo-local Python public dev entry 误当成长期 deploy truth
 - staging / production 各自使用不同的 ad-hoc origin，而没有明确前向部署姿势
 - 在“还没定 runtime”的借口下，把 execution engine boundary 再次拖回产品后端或临时脚本模型
 
@@ -37,8 +37,10 @@ Accepted on 2026-04-23.
    `apps/supervisor-api` 改写成 Worker。
 1. `app-api` 继续通过显式 `SUPERVISOR_API_BASE_URL` 调用一个真实可达的 execution origin；
    这项 ADR 不单独冻结 repo-level staging hostname。
-1. `campus-supervisor-api-dev` 继续保留为 repo-local debug / smoke / staging compatibility
-   bridge 入口，直到 repo-owned Docker packaging / automation 落地。
+1. Go shell packaging / automation 落地后，repo-local Python public compatibility
+   entry 已移除；Python 侧只保留 private bridge worker。
+1. Docker-first execution service 的长期 runtime control plane 可以由 Go 承担；
+   Python bridge worker 继续保留 semantic orchestration 与 agent reasoning 边界。
 
 ## 边界约束
 
@@ -59,9 +61,17 @@ Accepted on 2026-04-23.
 
 - repo 入口文档与 architecture docs 必须把 `apps/supervisor-api = Docker-first internal
   execution service` 作为 accepted truth
-- runbook 必须显式区分“forward deploy truth”和“当前仍在使用的 compatibility bridge”
-- 后续实现应补齐 repo-owned Docker packaging / automation，并在落地后收敛现有 dev-backed
-  staging 兼容路径
+- runbook 必须把 `go-shell + supervisor-orchestrator` 双容器作为当前 execution
+  runtime truth
+- dev-backed staging 兼容路径已退出 active runbook / script surface
+- `apps/go-shell` 是当前 Docker execution ingress，拥有 execution transport、
+  admission、queue、timeout、readiness、metrics 与 graceful drain
+- 后续 Go 迁移优先吸收 deterministic supervisor runtime kernel：request
+  lifecycle、cancel、per-lane budget、audit writer、runtime observability、
+  fail-close envelope 与 projection-backed structured query dispatch
+- Go runtime 扩张不得把 product-layer auth/session/conversation、browser-facing
+  capability policy、ingestion/OCR/indexing、RAG retrieval planning 或 agent semantic
+  reasoning 拉进 `apps/go-shell`
 
 ## Complements
 

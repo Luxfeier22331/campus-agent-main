@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
-import time
 
 from campus_supervisor_core import SupervisorAuditRecord
 

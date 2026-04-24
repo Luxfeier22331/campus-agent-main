@@ -41,10 +41,16 @@ updated: 2026-04-24
 compose entry：
 
 - [`infra/local/docker-compose.supervisor-runtime.yml`](/home/reptilian/code/campus-agent/infra/local/docker-compose.supervisor-runtime.yml)
+- [`infra/local/start-supervisor-runtime.sh`](/home/reptilian/code/campus-agent/infra/local/start-supervisor-runtime.sh)
 
 ## Required Env
 
-最小必填：
+本地 smoke 默认使用 `infra/local/start-supervisor-runtime.sh` 启动。它会先加载 repo root
+`.env` 与 `apps/app-api/.dev.vars`，再把传入容器的
+`DOCUMENT_REGISTRY_DATABASE_URL` / `CAMPUS_SHARED_POSTGRES_URL` 中的
+`127.0.0.1` / `localhost` 改写为 `host.docker.internal`。
+
+手动绕过启动脚本时，最小必填：
 
 ```bash
 export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
@@ -60,6 +66,13 @@ export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
 export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
 export SUPERVISOR_API_QUEUE_CAPACITY=24
 export SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT=6
+export SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY=12
+export SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT=2
+export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_CAPACITY=4
+export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
+export SUPERVISOR_API_OTEL_ENABLED=false
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 ```
 
@@ -72,7 +85,7 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 ## Step 1. Start Runtime
 
 ```bash
-docker compose -f infra/local/docker-compose.supervisor-runtime.yml up -d --build
+infra/local/start-supervisor-runtime.sh
 ```
 
 默认公开端口：
@@ -108,8 +121,17 @@ curl -sS http://127.0.0.1:18080/metrics
 - `campus_go_shell_request_duration_ms`
 - `campus_go_shell_inflight_requests`
 - `campus_go_shell_admission_decisions_total`
+- `campus_go_shell_admission_lane_decisions_total`
 - `campus_go_shell_admission_queue_depth`
 - `campus_go_shell_admission_queue_wait_ms`
+- `campus_go_shell_lifecycle_active_executions`
+- `campus_go_shell_lifecycle_completed_total`
+- `campus_go_shell_execution_audit_enabled`
+- `campus_go_shell_execution_audit_configured`
+- `campus_go_shell_execution_audit_emitted_total`
+- `campus_go_shell_execution_audit_dropped_total`
+- `campus_go_shell_execution_audit_failed_total`
+- `campus_go_shell_telemetry_enabled`
 - `campus_go_shell_bridge_duration_ms`
 - `campus_go_shell_bridge_failures_total`
 
@@ -128,6 +150,7 @@ curl -sS -i \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
 {
+  "request_id": "req-local-smoke-001",
   "user_goal": "hello",
   "context": {
     "actor": {
@@ -173,6 +196,9 @@ curl -sS http://127.0.0.1:18080/metrics
 
 - `campus_go_shell_requests_total{route="/api/v1/answer",...}`
 - `campus_go_shell_request_duration_ms_count{route="/api/v1/answer"}`
+- `campus_go_shell_admission_lane_active{lane="rag"}`
+- `campus_go_shell_lifecycle_active_executions`
+- `campus_go_shell_telemetry_enabled`
 
 Go shell 当前结构化日志最小字段：
 
@@ -188,25 +214,13 @@ Go shell 当前结构化日志最小字段：
 - 不记录 raw auth secret
 - 不记录 raw request body
 
-## Step 5. Runback
+## Step 5. Shutdown
 
 关闭 Go shell 双容器 runtime：
 
 ```bash
-docker compose -f infra/local/docker-compose.supervisor-runtime.yml down
+infra/local/start-supervisor-runtime.sh down
 ```
-
-回退到 repo-local Python compatibility entry：
-
-```bash
-uv run --all-packages campus-supervisor-api-dev
-```
-
-runback 解释：
-
-- 这是 local debug / compatibility path
-- 它不是 forward deploy truth
-- forward deploy truth 仍是 Docker-first internal execution service
 
 ## Evidence
 

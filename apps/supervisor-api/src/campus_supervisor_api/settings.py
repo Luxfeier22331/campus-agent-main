@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from campus_shared import APP_NAME
@@ -57,13 +57,8 @@ def _read_float(name: str, *, default: float) -> float:
 @dataclass(frozen=True, slots=True)
 class ApiSettings:
     app_name: str = APP_NAME
-    auth_mode: str = "bearer"
-    bearer_token: str = ""
-    worker_shared_secret: str = ""
     bridge_shared_secret: str = ""
-    default_actor_id: str = ""
     runtime_provider: str = ""
-    default_actor_roles: tuple[str, ...] = field(default_factory=tuple)
     audit_log_path: Path = Path("./var/log/audit.log")
     prompt_runtime_model: str = ""
     supervisor_prompt_model: str = ""
@@ -79,33 +74,19 @@ class ApiSettings:
     prompt_runtime_write_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS
     prompt_runtime_pool_timeout_seconds: float = DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS
     prompt_runtime_max_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_CONNECTIONS
-    prompt_runtime_max_keepalive_connections: int = (
-        DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
-    )
-    prompt_runtime_keepalive_expiry_seconds: float = (
-        DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
-    )
+    prompt_runtime_max_keepalive_connections: int = DEFAULT_PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS
+    prompt_runtime_keepalive_expiry_seconds: float = DEFAULT_PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS
     prompt_strict_structured_outputs: bool = True
     audit_queue_capacity: int = 1024
-    transport_max_concurrent_answers: int = 8
-    transport_worker_threads: int = 8
+    bridge_worker_threads: int = 8
 
     @classmethod
     def from_env(cls) -> ApiSettings:
         prompt_runtime_model = (os.getenv("PROMPT_RUNTIME_MODEL", "")).strip()
         return cls(
             app_name=os.getenv("CAMPUS_AGENT_APP_NAME", APP_NAME),
-            auth_mode=os.getenv("API_AUTH_MODE", "bearer"),
-            bearer_token=os.getenv("API_BEARER_TOKEN", ""),
-            worker_shared_secret=os.getenv("API_WORKER_SHARED_SECRET", ""),
             bridge_shared_secret=os.getenv("SUPERVISOR_PY_BRIDGE_SHARED_SECRET", "").strip(),
-            default_actor_id=os.getenv("API_DEFAULT_ACTOR_ID", "").strip(),
             runtime_provider=os.getenv("AGENT_RUNTIME_PROVIDER", ""),
-            default_actor_roles=tuple(
-                part.strip()
-                for part in os.getenv("API_DEFAULT_ACTOR_ROLES", "").split(",")
-                if part.strip()
-            ),
             audit_log_path=Path(os.getenv("AUDIT_LOG_PATH", "./var/log/audit.log")),
             prompt_runtime_model=prompt_runtime_model,
             supervisor_prompt_model=(
@@ -167,12 +148,8 @@ class ApiSettings:
                 default=True,
             ),
             audit_queue_capacity=_read_int("AUDIT_QUEUE_CAPACITY", default=1024),
-            transport_max_concurrent_answers=_read_int(
-                "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
-                default=8,
-            ),
-            transport_worker_threads=_read_int(
-                "SUPERVISOR_API_TRANSPORT_WORKER_THREADS",
+            bridge_worker_threads=_read_int(
+                "SUPERVISOR_PY_BRIDGE_WORKER_THREADS",
                 default=8,
             ),
         )

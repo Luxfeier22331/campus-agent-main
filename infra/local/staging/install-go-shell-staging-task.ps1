@@ -1,6 +1,5 @@
 param(
   [string]$TaskName = "CampusAgent-GoShellStaging",
-  [string]$LegacyTaskName = "CampusAgent-DevBackedSupervisorStaging",
   [Parameter(Mandatory = $true)]
   [string]$WslDistroName,
   [Parameter(Mandatory = $true)]
@@ -41,19 +40,6 @@ Register-ScheduledTask `
   -Description "Keep the campus-agent go-shell staging execution runtime online from this development host." `
   -Force | Out-Null
 
-if ($LegacyTaskName -and $LegacyTaskName -ne $TaskName) {
-  $legacyTask = Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue
-  if ($null -ne $legacyTask) {
-    try {
-      Stop-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue
-    } catch {
-    }
-    Disable-ScheduledTask -TaskName $LegacyTaskName | Out-Null
-    $stopLegacyCommand = "cd '$RepoPath' && ./infra/local/staging/stop-dev-backed-supervisor-staging.sh"
-    & $wslExecutable -d $WslDistroName -u $LinuxUser -- bash -lc $stopLegacyCommand | Out-Null
-  }
-}
-
 Start-ScheduledTask -TaskName $TaskName
 
 Get-ScheduledTask -TaskName $TaskName | Select-Object `
@@ -62,9 +48,3 @@ Get-ScheduledTask -TaskName $TaskName | Select-Object `
   @{ Name = "User"; Expression = { $_.Principal.UserId } },
   @{ Name = "Execute"; Expression = { $_.Actions.Execute } },
   @{ Name = "Arguments"; Expression = { $_.Actions.Arguments } }
-
-if ($LegacyTaskName -and $LegacyTaskName -ne $TaskName) {
-  Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue | Select-Object `
-    TaskName,
-    State
-}

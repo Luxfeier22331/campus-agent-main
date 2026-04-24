@@ -11,7 +11,6 @@ go_shell_staging_acquire_lock "${go_shell_staging_lock_wait_seconds}"
 go_shell_staging_rotate_logs_if_needed
 go_shell_staging_load_env
 go_shell_staging_require_runtime_env
-go_shell_staging_require_legacy_supervisor_stopped
 go_shell_staging_run_doctor
 
 cloudflared_bin="$(go_shell_staging_require_command cloudflared)"

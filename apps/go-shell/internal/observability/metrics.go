@@ -35,16 +35,61 @@ type routeHistogram struct {
 }
 
 type AdmissionSnapshot struct {
+	Active         int
+	Queued         int
+	QueueCapacity  int
+	Draining       bool
+	Lanes          map[string]AdmissionLaneSnapshot
+	Lifecycle      LifecycleSnapshot
+	Telemetry      TelemetrySnapshot
+	ExecutionAudit ExecutionAuditSnapshot
+}
+
+type AdmissionLaneSnapshot struct {
 	Active        int
 	Queued        int
 	QueueCapacity int
-	Draining      bool
+}
+
+type LifecycleSnapshot struct {
+	ActiveExecutions     int
+	CancelRequestedCount int
+	CompletedRetained    int
+	CompletedByState     map[string]int
+}
+
+type TelemetrySnapshot struct {
+	Enabled            bool
+	ExporterConfigured bool
+	DroppedCount       uint64
+	LastError          string
+}
+
+type ExecutionAuditSnapshot struct {
+	Enabled      bool
+	Configured   bool
+	QueueDepth   int
+	EmittedCount uint64
+	DroppedCount uint64
+	FailedCount  uint64
+	LastError    string
 }
 
 type BridgeRuntimeSnapshot struct {
 	LastAnswerFailureCode string
 	LastAnswerFailureAt   string
 	LastAnswerSuccessAt   string
+}
+
+type laneDecisionKey struct {
+	Lane     string
+	Decision string
+}
+
+type structuredQueryKey struct {
+	Tool        string
+	Outcome     string
+	StatusClass string
 }
 
 type Metrics struct {
@@ -54,9 +99,13 @@ type Metrics struct {
 	requestTotals           map[requestKey]uint64
 	requestDurations        map[string]*routeHistogram
 	admissionDecisionTotals map[string]uint64
+	laneDecisionTotals      map[laneDecisionKey]uint64
 	admissionWaitDurations  *routeHistogram
+	laneWaitDurations       map[string]*routeHistogram
 	bridgeDurations         *routeHistogram
 	bridgeFailureTotals     map[string]uint64
+	bridgeCancelTotals      map[string]uint64
+	structuredQueryTotals   map[structuredQueryKey]uint64
 	lastAnswerFailureCode   string
 	lastAnswerFailureAt     time.Time
 	lastAnswerSuccessAt     time.Time
@@ -72,16 +121,27 @@ func NewMetrics() *Metrics {
 			"admitted_queued":    0,
 			"queue_full":         0,
 			"queue_timeout":      0,
+			"lane_queue_full":    0,
+			"lane_queue_timeout": 0,
 			"client_canceled":    0,
 			"draining":           0,
 		},
+		laneDecisionTotals:     make(map[laneDecisionKey]uint64),
 		admissionWaitDurations: newHistogram(),
+		laneWaitDurations:      make(map[string]*routeHistogram),
 		bridgeDurations:        newHistogram(),
 		bridgeFailureTotals: map[string]uint64{
 			"timeout":          0,
 			"unavailable":      0,
 			"invalid_response": 0,
 		},
+		bridgeCancelTotals: map[string]uint64{
+			"accepted":       0,
+			"not_found":      0,
+			"not_configured": 0,
+			"failed":         0,
+		},
+		structuredQueryTotals: make(map[structuredQueryKey]uint64),
 	}
 }
 
@@ -133,6 +193,27 @@ func (m *Metrics) RecordAdmissionDecision(decision string, waitDuration time.Dur
 	}
 }
 
+func (m *Metrics) RecordAdmissionDecisionForLane(
+	lane string,
+	decision string,
+	waitDuration time.Duration,
+) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.admissionDecisionTotals[decision]++
+	m.laneDecisionTotals[laneDecisionKey{Lane: lane, Decision: decision}]++
+	if decision == "admitted_queued" {
+		recordHistogramDuration(m.admissionWaitDurations, waitDuration)
+		histogram := m.laneWaitDurations[lane]
+		if histogram == nil {
+			histogram = newHistogram()
+			m.laneWaitDurations[lane] = histogram
+		}
+		recordHistogramDuration(histogram, waitDuration)
+	}
+}
+
 func (m *Metrics) RecordBridgeFailure(kind string) {
 	now := time.Now().UTC()
 
@@ -153,6 +234,22 @@ func (m *Metrics) RecordBridgeDuration(duration time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	recordHistogramDuration(m.bridgeDurations, duration)
+}
+
+func (m *Metrics) RecordBridgeCancel(outcome string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bridgeCancelTotals[outcome]++
+}
+
+func (m *Metrics) RecordStructuredQuery(tool string, outcome string, statusCode int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.structuredQueryTotals[structuredQueryKey{
+		Tool:        tool,
+		Outcome:     outcome,
+		StatusClass: statusClass(statusCode),
+	}]++
 }
 
 func (m *Metrics) BridgeRuntimeSnapshot() BridgeRuntimeSnapshot {
@@ -239,6 +336,17 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.admissionDecisionTotals[decision],
 		)
 	}
+	builder.WriteString("# HELP campus_go_shell_admission_lane_decisions_total Total admission decisions by lane and decision.\n")
+	builder.WriteString("# TYPE campus_go_shell_admission_lane_decisions_total counter\n")
+	for _, key := range sortedLaneDecisionKeys(m.laneDecisionTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_admission_lane_decisions_total{lane=%q,decision=%q} %d\n",
+			key.Lane,
+			key.Decision,
+			m.laneDecisionTotals[key],
+		)
+	}
 
 	snapshot := AdmissionSnapshot{}
 	if len(admissionSnapshots) > 0 {
@@ -260,6 +368,38 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	} else {
 		builder.WriteString("campus_go_shell_shutdown_draining 0\n")
 	}
+	if len(snapshot.Lanes) > 0 {
+		builder.WriteString("# HELP campus_go_shell_admission_lane_active Current active admitted answer executions by lane.\n")
+		builder.WriteString("# TYPE campus_go_shell_admission_lane_active gauge\n")
+		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+			fmt.Fprintf(
+				&builder,
+				"campus_go_shell_admission_lane_active{lane=%q} %d\n",
+				lane,
+				snapshot.Lanes[lane].Active,
+			)
+		}
+		builder.WriteString("# HELP campus_go_shell_admission_lane_queue_depth Current queued answer executions by lane.\n")
+		builder.WriteString("# TYPE campus_go_shell_admission_lane_queue_depth gauge\n")
+		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+			fmt.Fprintf(
+				&builder,
+				"campus_go_shell_admission_lane_queue_depth{lane=%q} %d\n",
+				lane,
+				snapshot.Lanes[lane].Queued,
+			)
+		}
+		builder.WriteString("# HELP campus_go_shell_admission_lane_queue_capacity Configured queued answer execution capacity by lane.\n")
+		builder.WriteString("# TYPE campus_go_shell_admission_lane_queue_capacity gauge\n")
+		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+			fmt.Fprintf(
+				&builder,
+				"campus_go_shell_admission_lane_queue_capacity{lane=%q} %d\n",
+				lane,
+				snapshot.Lanes[lane].QueueCapacity,
+			)
+		}
+	}
 
 	writeHistogram(
 		&builder,
@@ -273,6 +413,16 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 		"Supervisor Python bridge duration in milliseconds.",
 		m.bridgeDurations,
 	)
+	for _, lane := range sortedRoutes(m.laneWaitDurations) {
+		writeHistogramWithLabel(
+			&builder,
+			"campus_go_shell_admission_lane_queue_wait_ms",
+			"Admission queue wait duration in milliseconds by lane.",
+			"lane",
+			lane,
+			m.laneWaitDurations[lane],
+		)
+	}
 
 	builder.WriteString("# HELP campus_go_shell_bridge_failures_total Total bridge failures by kind.\n")
 	builder.WriteString("# TYPE campus_go_shell_bridge_failures_total counter\n")
@@ -283,6 +433,90 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			kind,
 			m.bridgeFailureTotals[kind],
 		)
+	}
+	builder.WriteString("# HELP campus_go_shell_bridge_cancel_total Total cooperative cancel bridge attempts by outcome.\n")
+	builder.WriteString("# TYPE campus_go_shell_bridge_cancel_total counter\n")
+	for _, outcome := range sortedStringKeys(m.bridgeCancelTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_bridge_cancel_total{outcome=%q} %d\n",
+			outcome,
+			m.bridgeCancelTotals[outcome],
+		)
+	}
+	builder.WriteString("# HELP campus_go_shell_structured_query_requests_total Total structured query requests by tool and outcome.\n")
+	builder.WriteString("# TYPE campus_go_shell_structured_query_requests_total counter\n")
+	for _, key := range sortedStructuredQueryKeys(m.structuredQueryTotals) {
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_structured_query_requests_total{tool=%q,outcome=%q,status_class=%q} %d\n",
+			key.Tool,
+			key.Outcome,
+			key.StatusClass,
+			m.structuredQueryTotals[key],
+		)
+	}
+	builder.WriteString("# HELP campus_go_shell_lifecycle_active_executions Current registered executions.\n")
+	builder.WriteString("# TYPE campus_go_shell_lifecycle_active_executions gauge\n")
+	fmt.Fprintf(&builder, "campus_go_shell_lifecycle_active_executions %d\n", snapshot.Lifecycle.ActiveExecutions)
+	builder.WriteString("# HELP campus_go_shell_lifecycle_cancel_requested_total Total explicit cancel requests accepted by go-shell.\n")
+	builder.WriteString("# TYPE campus_go_shell_lifecycle_cancel_requested_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_lifecycle_cancel_requested_total %d\n", snapshot.Lifecycle.CancelRequestedCount)
+	builder.WriteString("# HELP campus_go_shell_lifecycle_completed_retained_total Total completed execution lifecycle records.\n")
+	builder.WriteString("# TYPE campus_go_shell_lifecycle_completed_retained_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_lifecycle_completed_retained_total %d\n", snapshot.Lifecycle.CompletedRetained)
+	builder.WriteString("# HELP campus_go_shell_lifecycle_completed_total Total completed execution lifecycle records by final state.\n")
+	builder.WriteString("# TYPE campus_go_shell_lifecycle_completed_total counter\n")
+	for _, state := range sortedStringKeys(snapshot.Lifecycle.CompletedByState) {
+		fmt.Fprintf(
+			&builder,
+			"campus_go_shell_lifecycle_completed_total{state=%q} %d\n",
+			state,
+			snapshot.Lifecycle.CompletedByState[state],
+		)
+	}
+	builder.WriteString("# HELP campus_go_shell_telemetry_dropped_total Total telemetry events dropped by go-shell.\n")
+	builder.WriteString("# TYPE campus_go_shell_telemetry_dropped_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_telemetry_dropped_total %d\n", snapshot.Telemetry.DroppedCount)
+	builder.WriteString("# HELP campus_go_shell_telemetry_enabled Whether OTel telemetry is enabled.\n")
+	builder.WriteString("# TYPE campus_go_shell_telemetry_enabled gauge\n")
+	if snapshot.Telemetry.Enabled {
+		builder.WriteString("campus_go_shell_telemetry_enabled 1\n")
+	} else {
+		builder.WriteString("campus_go_shell_telemetry_enabled 0\n")
+	}
+	builder.WriteString("# HELP campus_go_shell_telemetry_exporter_configured Whether OTel exporter is configured.\n")
+	builder.WriteString("# TYPE campus_go_shell_telemetry_exporter_configured gauge\n")
+	if snapshot.Telemetry.ExporterConfigured {
+		builder.WriteString("campus_go_shell_telemetry_exporter_configured 1\n")
+	} else {
+		builder.WriteString("campus_go_shell_telemetry_exporter_configured 0\n")
+	}
+	builder.WriteString("# HELP campus_go_shell_execution_audit_emitted_total Total execution audit events accepted by go-shell emitter.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_emitted_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_execution_audit_emitted_total %d\n", snapshot.ExecutionAudit.EmittedCount)
+	builder.WriteString("# HELP campus_go_shell_execution_audit_dropped_total Total execution audit events dropped by go-shell emitter.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_dropped_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_execution_audit_dropped_total %d\n", snapshot.ExecutionAudit.DroppedCount)
+	builder.WriteString("# HELP campus_go_shell_execution_audit_failed_total Total execution audit delivery failures.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_failed_total counter\n")
+	fmt.Fprintf(&builder, "campus_go_shell_execution_audit_failed_total %d\n", snapshot.ExecutionAudit.FailedCount)
+	builder.WriteString("# HELP campus_go_shell_execution_audit_queue_depth Current execution audit emitter queue depth.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_queue_depth gauge\n")
+	fmt.Fprintf(&builder, "campus_go_shell_execution_audit_queue_depth %d\n", snapshot.ExecutionAudit.QueueDepth)
+	builder.WriteString("# HELP campus_go_shell_execution_audit_enabled Whether execution audit emission is enabled.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_enabled gauge\n")
+	if snapshot.ExecutionAudit.Enabled {
+		builder.WriteString("campus_go_shell_execution_audit_enabled 1\n")
+	} else {
+		builder.WriteString("campus_go_shell_execution_audit_enabled 0\n")
+	}
+	builder.WriteString("# HELP campus_go_shell_execution_audit_configured Whether execution audit emission is configured.\n")
+	builder.WriteString("# TYPE campus_go_shell_execution_audit_configured gauge\n")
+	if snapshot.ExecutionAudit.Configured {
+		builder.WriteString("campus_go_shell_execution_audit_configured 1\n")
+	} else {
+		builder.WriteString("campus_go_shell_execution_audit_configured 0\n")
 	}
 
 	return []byte(builder.String())
@@ -327,6 +561,53 @@ func writeHistogram(
 	fmt.Fprintf(builder, "%s_count %d\n", name, histogram.Count)
 }
 
+func writeHistogramWithLabel(
+	builder *strings.Builder,
+	name string,
+	help string,
+	labelName string,
+	labelValue string,
+	histogram *routeHistogram,
+) {
+	builder.WriteString("# HELP " + name + " " + help + "\n")
+	builder.WriteString("# TYPE " + name + " histogram\n")
+	for index, bound := range durationBucketsMS {
+		fmt.Fprintf(
+			builder,
+			"%s_bucket{%s=%q,le=%q} %d\n",
+			name,
+			labelName,
+			labelValue,
+			formatFloat(bound),
+			histogram.Buckets[index],
+		)
+	}
+	fmt.Fprintf(
+		builder,
+		"%s_bucket{%s=%q,le=\"+Inf\"} %d\n",
+		name,
+		labelName,
+		labelValue,
+		histogram.Count,
+	)
+	fmt.Fprintf(
+		builder,
+		"%s_sum{%s=%q} %s\n",
+		name,
+		labelName,
+		labelValue,
+		formatFloat(histogram.SumMS),
+	)
+	fmt.Fprintf(
+		builder,
+		"%s_count{%s=%q} %d\n",
+		name,
+		labelName,
+		labelValue,
+		histogram.Count,
+	)
+}
+
 func formatTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
@@ -347,6 +628,46 @@ func sortedRoutesInt64(items map[string]int64) []string {
 }
 
 func sortedStringKeys[V any](items map[string]V) []string {
+	keys := make([]string, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedLaneDecisionKeys(items map[laneDecisionKey]uint64) []laneDecisionKey {
+	keys := make([]laneDecisionKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left int, right int) bool {
+		if keys[left].Lane != keys[right].Lane {
+			return keys[left].Lane < keys[right].Lane
+		}
+		return keys[left].Decision < keys[right].Decision
+	})
+	return keys
+}
+
+func sortedStructuredQueryKeys(items map[structuredQueryKey]uint64) []structuredQueryKey {
+	keys := make([]structuredQueryKey, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left int, right int) bool {
+		if keys[left].Tool != keys[right].Tool {
+			return keys[left].Tool < keys[right].Tool
+		}
+		if keys[left].Outcome != keys[right].Outcome {
+			return keys[left].Outcome < keys[right].Outcome
+		}
+		return keys[left].StatusClass < keys[right].StatusClass
+	})
+	return keys
+}
+
+func sortedAdmissionLaneNames(items map[string]AdmissionLaneSnapshot) []string {
 	keys := make([]string, 0, len(items))
 	for key := range items {
 		keys = append(keys, key)

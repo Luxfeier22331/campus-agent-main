@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Execution And Agents Architecture
 
@@ -20,12 +20,14 @@ updated: 2026-04-23
 
 当前与长期都遵循：
 
-`app-api -> supervisor-api -> supervisor-core -> agent -> retrieval-core ->
-evidence -> supervisor response`
+`app-api -> go-shell -> supervisor-api private bridge -> supervisor-core ->
+agent -> retrieval-core -> evidence -> supervisor response`
 
 边界固定如下：
 
-- `apps/supervisor-api` 负责 internal execution admission 与 transport
+- `apps/go-shell` 负责 Docker-side execution runtime control plane
+- Python `apps/supervisor-api` 负责 private bridge worker 与 semantic orchestration
+  runtime assembly
 - `packages/supervisor-core` 负责 policy-driven orchestration、admission / routing
   与 finalization
 - agent 负责能力边界内的 planning / evidence consumption / answer shaping
@@ -53,6 +55,55 @@ supervisor 不负责：
 
 - supervisor 是 neutral capability router，不是默认的 knowledge / `rag-agent` router
 - `public chat` 当前 knowledge-only 只是 surface posture，不反向定义 supervisor 的长期角色
+
+## Supervisor Runtime Kernel
+
+长期上，supervisor execution engine 拆成两类职责：
+
+- deterministic runtime control plane
+- semantic orchestration and agent reasoning
+
+Docker-side Go runtime control plane 长期负责：
+
+- request lifecycle、in-flight registry、deadline、timeout、cancel 与 graceful drain
+- global / per-capability lane admission、queue、backpressure、retryability 与 circuit
+  breaker
+- execution request envelope validation、trace / actor / context projection 的结构校验
+- deterministic capability routing gate、scope opening gate 与 query-enabled collection
+  gate 中不依赖 LLM 的部分
+- structured runtime dispatch，例如 projection-backed `transport_schedule_lookup`、
+  `service_status_lookup`、`campus_notice_discover`、`campus_notice_get`
+- runtime metrics、structured logs、audit writer、cost / token / latency accounting
+  与 failure fingerprint
+- transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
+  envelope
+
+当前 repo-local runtime progress：
+
+- Go shell 已拥有 execution ingress、lifecycle、explicit cancel、per-lane
+  admission、metrics、OTel seam 与 execution audit backflow
+- Go shell 已补齐 Go -> Python cooperative cancel signal；Python bridge 记录 active
+  request id 的 cancel state，但 provider / prompt executor mid-flight stop 仍未接入
+- Go shell 已落地 gate-closed structured query runtime foundation；当前仅
+  `service_status_lookup` 具备 file projection fixture backed foundation，
+  `transport_schedule_lookup` 仍是 typed fail-closed seam，等待 schedule contract
+  讨论完成后再实现业务查询
+
+Python semantic orchestration 长期继续负责：
+
+- `packages/supervisor-core` 的 handoff shaping、routing policy 与 response finalization
+  语义
+- agent reasoning、prompt-owned clarification / answer synthesis 与 RAG grounding
+- prompt stack semantic assembly 与 provider-backed structured output execution，除非后续
+  profiling 证明它们是 Go runtime 稳定后的下一条瓶颈线
+
+固定边界：
+
+- Go runtime type 不进入 `packages/contracts`
+- Go 不接管 `apps/app-api` 的 product-layer auth/session/conversation truth
+- Go 不接管 ingestion、OCR、chunking、index build 或 retrieval backend 细节
+- structured deterministic query service 可以迁 Go；domain-agent 仍保留 capability owner
+  与 thin adapter 边界
 
 ## Capability-Neutral Routing Model
 
@@ -254,8 +305,8 @@ adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
 
 ## Runtime Posture
 
-`apps/supervisor-api` 表示 execution engine boundary，不代表 repo-wide HTTP/runtime
-freeze。
+`apps/supervisor-api` 表示 logical execution engine boundary，不代表所有 runtime code 都必须继续
+留在 Python。
 
 当前重要的是：
 
@@ -263,12 +314,14 @@ freeze。
 - orchestration 留在 `packages/supervisor-core`
 - agent behavior 留在 agent package
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
-- Docker-side Go shell owns transport hardening: request limits, caller admission,
-  bounded execution queue / backpressure, timeout propagation, readiness, metrics
-  and graceful drain
+- Docker-side Go shell owns runtime hardening: request limits, caller admission,
+  in-flight lifecycle, explicit cancel, global / per-lane execution queue /
+  backpressure, timeout propagation, readiness, metrics, OTel telemetry seam and
+  graceful drain
 - 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
   framework
-- repo-local `campus-supervisor-api-dev` 继续只是 compatibility / debug entry
+- Python `apps/supervisor-api` 只保留 private bridge worker，不再保留 repo-local
+  public compatibility entry
 
 ## Prompt And Instruction Ownership
 

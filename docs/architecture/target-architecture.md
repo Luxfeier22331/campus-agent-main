@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # 目标架构
 
@@ -77,6 +77,9 @@ raw/source-truth/projection/document/chunk/index`
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 的 Docker substrate freeze 不反推单一 Python/HTTP framework、固定
   staging hostname，或 browser-facing exposure model
+- Docker-side supervisor runtime 长期可以拆成 Go execution runtime control plane
+  与 private semantic orchestration worker；Go 负责 deterministic runtime kernel，
+  Python / package-owned agents 继续负责 semantic orchestration 与 reasoning
 
 ## 长期 execution / agent 形态
 
@@ -99,6 +102,11 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor 负责 admission / guardrails、capability routing、handoff、response
   finalization
 - supervisor 长期必须是 neutral capability router，而不是默认把所有请求先压成 `rag-agent`
+- supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
+  execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
+  writer 与 fail-close envelope
+- supervisor semantic orchestration 长期继续由 `packages/supervisor-core` 与 package-owned
+  agent families 承接，不因 Go runtime 扩张而迁入 `apps/*`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - `campus-services-agent` 长期承接 transport schedule、service status、temporary
   override 等结构化校园服务真相
@@ -120,6 +128,8 @@ raw/source-truth/projection/document/chunk/index`
   get` 这类结构化 runtime capability，长期实现形态固定为 `projection-backed internal query
   service + thin tool adapter + domain-agent`，而不是 query-time raw source
   scan、browser/public API 直连，或 execution path 回调 `app-api` loopback HTTP
+- projection-backed internal query service 可优先采用 Go 实现，以降低 Docker-side runtime
+  latency / memory cost；这不改变 domain-agent 的 capability owner 角色
 
 如果未来产品明确接受开放域能力，也必须以独立 capability boundary 或独立 agent 接入，并拥有单独的
 routing、policy、eval 与 observability 约束；它不是当前 campus path 的隐式 fallback。

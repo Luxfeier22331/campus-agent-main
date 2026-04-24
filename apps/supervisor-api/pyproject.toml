@@ -28,7 +28,6 @@ packages = ["src/campus_supervisor_api"]
 include = ["src/campus_supervisor_api", "pyproject.toml", "README.md"]
 
 [project.scripts]
-campus-supervisor-api-dev = "campus_supervisor_api.dev_server:main"
 campus-supervisor-orchestrator-dev = "campus_supervisor_api.bridge_server:main"
 
 [build-system]

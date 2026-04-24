@@ -14,7 +14,6 @@ updated: 2026-04-24
   双容器
 - `exec-staging.ayafeed.com` 继续通过 named tunnel 指回这台主机上的本地
   `go-shell` runtime
-- `campus-supervisor-api-dev` 只保留为 rollback / fallback 路径
 
 它不覆盖 browser smoke 证据采集；那部分统一看
 `go-shell-staging-smoke-runbook.md`。
@@ -69,8 +68,6 @@ powershell.exe -NoProfile -Command \
   - `GO_SHELL_STAGING_TUNNEL_NAME=supervisor-api-staging`
   - `GO_SHELL_STAGING_PUBLIC_BASE_URL=<https://exec-staging.ayafeed.com`>
   - `GO_SHELL_STAGING_APP_API_BASE_URL=<https://campus-api-staging.ayafeed.com`>
-- 如果存在 `CampusAgent-DevBackedSupervisorStaging`，安装器会先停掉并 disable 旧任务，保留它作为
-  fallback，不再让它与 go-shell runtime 并发运行
 - trigger 包含：
   - 登录时执行一次
   - 每 5 分钟重复执行一次
@@ -91,7 +88,6 @@ infra/local/staging/status-go-shell-staging.sh --check
 
 `--check` 通过标准：
 
-- legacy `campus-supervisor-api-dev` 进程不存在
 - `supervisor-shell` 与 `supervisor-orchestrator` 都在当前 compose project 中运行
 - 如果配置了 public execution origin，则 `cloudflared` 进程存在
 - 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
@@ -107,6 +103,12 @@ infra/local/staging/status-go-shell-staging.sh --check
   `SUPERVISOR_API_QUEUE_CAPACITY=24`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000`、
   `SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000` 与
   `SUPERVISOR_PY_BRIDGE_TIMEOUT_MS=35000`
+- 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
+  `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
+  三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
+- `SUPERVISOR_API_OTEL_ENABLED=false` 是本地 staging 默认；开启后必须同时配置
+  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT`，否则 `/readyz` 会标记
+  `telemetry_runtime.exporter_configured=false`
 - 如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，`status-go-shell-staging.sh`
   会用该 token 拉取本地 `/metrics`；不应把 raw token 写入日志
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
@@ -163,17 +165,6 @@ until infra/local/staging/status-go-shell-staging.sh --check; do \
 
 ## 故障分流
 
-`status --check` 报 `legacy campus-supervisor-api-dev process is still running`
-
-- 说明 rollback runtime 还没退出
-- 先执行：
-
-```bash
-infra/local/staging/stop-dev-backed-supervisor-staging.sh
-```
-
-- 然后再重跑 go-shell start / status
-
 `status --check` 报 `go-shell compose project is not fully running`
 
 - 先看：
@@ -212,6 +203,21 @@ docker exec campus-go-shell-staging-supervisor-orchestrator-1 \
   eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
 ```
 
+execution audit 不出现在 panel 审计时间线
+
+- 先看 `supervisor-shell` 的 `/readyz` 中 `execution_audit_runtime`
+- 再看 `/metrics`：
+
+```bash
+curl -sS http://127.0.0.1:27010/metrics | grep execution_audit
+```
+
+- staging lifecycle 会优先读取显式 `SUPERVISOR_API_EXECUTION_AUDIT_*`
+  变量；未显式配置时，会从 `GO_SHELL_STAGING_APP_API_BASE_URL` 与
+  `APP_API_INTERNAL_SHARED_SECRET` 派生 internal ingest URL 和 shared secret
+- 如果 emitted 增加但 panel 未出现，检查 `app-api` scheduled projector drain；
+  internal ingest 成功时也会触发 request-scoped drain，cron 是兜底
+
 - 如果变量缺失，重新执行：
 
 ```bash
@@ -235,11 +241,7 @@ curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
 
 - 如果只有 `supervisorApi` 失败，先回到这份 runbook 的冷启动恢复流程
 
-## Fallback
+## Recovery Boundary
 
-如果当前 canonical go-shell runtime 无法及时恢复，可以临时回退到 legacy compatibility path：
-
-- 运维步骤：`dev-backed-supervisor-staging-operations.md`
-- smoke 步骤：`dev-backed-supervisor-staging-smoke-runbook.md`
-
-但这条路径只用于 rollback / fallback，不再是 staging execution 的默认真相。
+当前 active recovery path 是重启 `go-shell + supervisor-orchestrator` 双容器 runtime。
+仓库不再维护 dev-backed Python public ingress fallback。

@@ -56,6 +56,9 @@ func main() {
 			logger.Error("campus go-shell graceful shutdown failed", "error", err.Error())
 			os.Exit(1)
 		}
+		if err := handler.Shutdown(ctx); err != nil {
+			logger.Error("campus go-shell telemetry shutdown failed", "error", err.Error())
+		}
 	case err := <-serverErrors:
 		if err != nil && err != http.ErrServerClosed {
 			logger.Error("campus go-shell failed", "error", err.Error())

@@ -56,12 +56,20 @@ class WorkspaceLayoutTest(unittest.TestCase):
     def test_supervisor_api_exposes_stable_runtime_routes(self) -> None:
         supervisor_api = import_module("campus_supervisor_api")
 
-        app = supervisor_api.create_app()
+        self.assertFalse(hasattr(supervisor_api, "create_app"))
+        self.assertTrue(hasattr(supervisor_api, "create_bridge_app"))
+
+        app = supervisor_api.create_bridge_app()
 
         self.assertEqual(app.name, "campus-agent-v2")
         self.assertEqual(
             {route.path for route in app.routes},
-            {"/api/v1/answer", "/healthz", "/readyz"},
+            {
+                "/internal/bridge/execution/cancel",
+                "/internal/bridge/supervisor/answer",
+                "/internal/bridge/healthz",
+                "/internal/bridge/readyz",
+            },
         )
         self.assertEqual(app.runtime.provider, "")
 

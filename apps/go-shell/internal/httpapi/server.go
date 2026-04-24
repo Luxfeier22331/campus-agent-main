@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,15 +16,23 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/executionaudit"
+	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/observability"
+	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/go-shell/internal/telemetry"
 )
 
 type Server struct {
-	config    config.Config
-	bridge    bridge.Client
-	admission *admission.Controller
-	logger    *slog.Logger
-	metrics   *observability.Metrics
+	config          config.Config
+	bridge          bridge.Client
+	admission       *admission.Controller
+	lifecycle       *lifecycle.Registry
+	logger          *slog.Logger
+	metrics         *observability.Metrics
+	telemetry       *telemetry.Emitter
+	executionAudit  *executionaudit.Emitter
+	structuredQuery *structuredquery.Runtime
 }
 
 type errorInfo struct {
@@ -31,6 +40,15 @@ type errorInfo struct {
 	Message   string `json:"message"`
 	Retryable bool   `json:"retryable"`
 }
+
+type bridgeWriteOutcome struct {
+	State       lifecycle.State
+	Outcome     string
+	FailureKind string
+	StatusCode  int
+}
+
+const statusClientClosedRequest = 499
 
 func NewServer(cfg config.Config, bridgeClient bridge.Client) *Server {
 	return NewServerWithDependencies(
@@ -66,6 +84,12 @@ func NewServerWithDependencies(
 	if cfg.BridgeTimeoutMS <= 0 {
 		cfg.BridgeTimeoutMS = 35_000
 	}
+	if cfg.BridgeCancelTimeoutMS <= 0 {
+		cfg.BridgeCancelTimeoutMS = 500
+	}
+	if cfg.StructuredQueryTimeoutMS <= 0 {
+		cfg.StructuredQueryTimeoutMS = 1_000
+	}
 	if cfg.QueueTimeoutMS <= 0 {
 		cfg.QueueTimeoutMS = 3_000
 	}
@@ -81,26 +105,59 @@ func NewServerWithDependencies(
 	if metrics == nil {
 		metrics = observability.NewMetrics()
 	}
+	registry := lifecycle.NewRegistry()
+	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
+	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
+	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
+		ProjectionPath:     cfg.StructuredQueryProjectionPath,
+		TrustedTimeRFC3339: cfg.StructuredQueryTrustedTimeRFC3339,
+	})
 
 	return &Server{
-		config:    cfg,
-		bridge:    bridgeClient,
-		admission: admissionController,
-		logger:    logger,
-		metrics:   metrics,
+		config:          cfg,
+		bridge:          bridgeClient,
+		admission:       admissionController,
+		lifecycle:       registry,
+		logger:          logger,
+		metrics:         metrics,
+		telemetry:       telemetryEmitter,
+		executionAudit:  executionAuditEmitter,
+		structuredQuery: structuredQueryRuntime,
 	}
 }
 
 func newAdmissionController(cfg config.Config) *admission.Controller {
+	laneConfigs := make(map[string]admission.LaneConfig, len(cfg.LaneBudgets))
+	for lane, budget := range cfg.LaneBudgets {
+		laneConfigs[lane] = admission.LaneConfig{
+			MaxConcurrent: budget.MaxConcurrent,
+			QueueCapacity: budget.QueueCapacity,
+			QueueTimeout:  time.Duration(budget.QueueTimeoutMS) * time.Millisecond,
+		}
+	}
 	return admission.NewController(admission.Config{
 		MaxConcurrent: cfg.MaxConcurrentAnswers,
 		QueueCapacity: cfg.QueueCapacity,
 		QueueTimeout:  time.Duration(cfg.QueueTimeoutMS) * time.Millisecond,
+		Lanes:         laneConfigs,
 	})
 }
 
 func (s *Server) StartDraining() {
 	s.admission.StartDraining()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	var firstErr error
+	if s.telemetry != nil {
+		firstErr = s.telemetry.Shutdown(ctx)
+	}
+	if s.executionAudit != nil {
+		if err := s.executionAudit.Shutdown(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) {
@@ -127,6 +184,12 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleMetrics(writer, request)
 	case request.Method == http.MethodPost && path == "/api/v1/answer":
 		s.handleAnswer(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/execution/cancel":
+		s.handleCancel(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
+	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolTransportScheduleLookup)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(
@@ -160,7 +223,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	bridgeHealthy := false
 	bridgeStatusCode := 0
 	bridgeStatus := ""
-	bridgeWorkerTransport := map[string]any(nil)
 	bridgeLastError := ""
 	readinessBody := map[string]any{}
 	if bridgeConfigured {
@@ -175,7 +237,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 				bridgeReachable = true
 				bridgeStatusCode = bridgeReadyz.StatusCode
 				bridgeStatus, _ = readinessBody["status"].(string)
-				bridgeWorkerTransport = mapFromAny(readinessBody["transport_runtime"])
 				bridgeHealthy = bridgeReadyz.StatusCode == http.StatusOK && bridgeStatus == "ready"
 			} else {
 				bridgeLastError = "Supervisor Python bridge returned invalid readiness JSON."
@@ -190,7 +251,10 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	transportStatus := s.admission.Status()
-	ready := bridgeHealthy && transportStatus.Healthy
+	telemetryStatus := s.telemetry.Status()
+	executionAuditStatus := s.executionAudit.Status()
+	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
+	ready := bridgeHealthy && transportStatus.Healthy && telemetryHealthy
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -200,8 +264,12 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 
 	bridgeSnapshot := s.metrics.BridgeRuntimeSnapshot()
 	responseBody := map[string]any{
-		"status":            statusText,
-		"transport_runtime": transportStatus,
+		"status":                   statusText,
+		"transport_runtime":        transportStatus,
+		"lifecycle_runtime":        s.lifecycle.Snapshot(),
+		"telemetry_runtime":        telemetryStatus,
+		"execution_audit_runtime":  executionAuditStatus,
+		"structured_query_runtime": s.structuredQuery.Status(),
 		"bridge_runtime": map[string]any{
 			"configured": bridgeConfigured,
 			"reachable":  bridgeReachable,
@@ -216,7 +284,6 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 				}(),
 			),
 			"status_code":              bridgeStatusCode,
-			"worker_transport_runtime": bridgeWorkerTransport,
 			"last_error":               bridgeLastError,
 			"last_answer_failure_code": bridgeSnapshot.LastAnswerFailureCode,
 			"last_answer_failure_at":   bridgeSnapshot.LastAnswerFailureAt,
@@ -239,6 +306,52 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	writeJSON(response, statusCode, responseBody)
 }
 
+func (s *Server) handleStructuredQuery(
+	response http.ResponseWriter,
+	request *http.Request,
+	tool string,
+) {
+	if !s.structuredQueryAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid structured query auth.", false)
+		s.metrics.RecordStructuredQuery(tool, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	body, ok := s.readJSONBody(response, request)
+	if !ok {
+		s.metrics.RecordStructuredQuery(tool, "invalid_request", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(
+		request.Context(),
+		time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond,
+	)
+	defer cancel()
+
+	var result structuredquery.Response
+	switch tool {
+	case structuredquery.ToolServiceStatusLookup:
+		result = s.structuredQuery.LookupServiceStatus(ctx, body)
+	case structuredquery.ToolTransportScheduleLookup:
+		result = s.structuredQuery.LookupTransportSchedule(ctx, body)
+	default:
+		result = structuredquery.Response{
+			StatusCode: http.StatusNotFound,
+			Outcome:    "not_found",
+			Body: map[string]any{
+				"error": map[string]any{
+					"code":      "not_found",
+					"message":   "Structured query tool not found.",
+					"retryable": false,
+				},
+			},
+		}
+	}
+	setOutcome(response, result.Outcome)
+	s.metrics.RecordStructuredQuery(tool, result.Outcome, result.StatusCode)
+	writeJSON(response, result.StatusCode, result.Body)
+}
+
 func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Request) {
 	if !s.metricsAuthorized(request) {
 		setOutcome(response, "unauthorized")
@@ -248,15 +361,49 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 	response.Header().Set("content-type", "text/plain; version=0.0.4")
 	response.WriteHeader(http.StatusOK)
 	status := s.admission.Status()
+	laneSnapshots := make(map[string]observability.AdmissionLaneSnapshot, len(status.Lanes))
+	for lane, laneStatus := range status.Lanes {
+		laneSnapshots[lane] = observability.AdmissionLaneSnapshot{
+			Active:        laneStatus.Active,
+			Queued:        laneStatus.Queued,
+			QueueCapacity: laneStatus.QueueCapacity,
+		}
+	}
+	lifecycleStatus := s.lifecycle.Snapshot()
+	telemetryStatus := s.telemetry.Status()
+	executionAuditStatus := s.executionAudit.Status()
 	_, _ = response.Write(s.metrics.Prometheus(observability.AdmissionSnapshot{
 		Active:        status.Active,
 		Queued:        status.Queued,
 		QueueCapacity: status.QueueCapacity,
 		Draining:      status.Draining,
+		Lanes:         laneSnapshots,
+		Lifecycle: observability.LifecycleSnapshot{
+			ActiveExecutions:     lifecycleStatus.ActiveExecutions,
+			CancelRequestedCount: lifecycleStatus.CancelRequestedCount,
+			CompletedRetained:    lifecycleStatus.CompletedRetained,
+			CompletedByState:     lifecycleStatus.CompletedByState,
+		},
+		Telemetry: observability.TelemetrySnapshot{
+			Enabled:            telemetryStatus.Enabled,
+			ExporterConfigured: telemetryStatus.ExporterConfigured,
+			DroppedCount:       telemetryStatus.DroppedCount,
+			LastError:          telemetryStatus.LastError,
+		},
+		ExecutionAudit: observability.ExecutionAuditSnapshot{
+			Configured:   executionAuditStatus.Configured,
+			DroppedCount: executionAuditStatus.DroppedCount,
+			EmittedCount: executionAuditStatus.EmittedCount,
+			Enabled:      executionAuditStatus.Enabled,
+			FailedCount:  executionAuditStatus.FailedCount,
+			LastError:    executionAuditStatus.LastError,
+			QueueDepth:   executionAuditStatus.QueueDepth,
+		},
 	}))
 }
 
 func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Request) {
+	startedAt := time.Now()
 	body, ok := s.readJSONBody(response, request)
 	if !ok {
 		return
@@ -285,24 +432,91 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		return
 	}
 
-	requestCtx, requestCancel := context.WithTimeout(
+	timeoutCtx, requestCancel := context.WithTimeout(
 		request.Context(),
 		time.Duration(s.config.RequestTimeoutMS)*time.Millisecond,
 	)
 	defer requestCancel()
+	executionHandle, requestCtx, registerErr := s.lifecycle.Register(timeoutCtx, lifecycle.Metadata{
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+	})
+	if registerErr != nil {
+		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
+			setOutcome(response, "execution_already_in_flight")
+			writeError(
+				response,
+				http.StatusConflict,
+				"execution_already_in_flight",
+				"Supervisor execution request_id is already active.",
+				true,
+			)
+			return
+		}
+		setOutcome(response, "execution_lifecycle_unavailable")
+		writeError(
+			response,
+			http.StatusInternalServerError,
+			"execution_lifecycle_unavailable",
+			"Supervisor execution lifecycle could not be registered.",
+			true,
+		)
+		return
+	}
+	finalState := lifecycle.StateFailed
+	defer func() {
+		s.lifecycle.Complete(executionHandle.RequestID(), finalState)
+	}()
+	s.telemetry.Emit(requestCtx, telemetry.Event{
+		Name:                "answer.accepted",
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+	})
 
-	lease, decision := s.admission.Acquire(requestCtx)
+	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateQueued)
+	lease, decision := s.admission.AcquireLane(requestCtx, executionRequest.Lane)
 	if lease != nil {
 		defer lease.Release()
-		s.metrics.RecordAdmissionDecision(string(decision), lease.WaitDuration())
+		s.metrics.RecordAdmissionDecisionForLane(
+			executionRequest.Lane,
+			string(decision),
+			lease.WaitDuration(),
+		)
 	} else {
-		s.metrics.RecordAdmissionDecision(string(decision), 0)
-		if s.writeAdmissionRejection(response, decision) {
+		s.metrics.RecordAdmissionDecisionForLane(executionRequest.Lane, string(decision), 0)
+		finalState = s.lifecycleStateForRejectedAdmission(executionRequest.RequestID, decision, requestCtx)
+		s.telemetry.Emit(requestCtx, telemetry.Event{
+			Name:                "answer.admission_rejected",
+			RequestID:           executionRequest.RequestID,
+			TraceID:             executionRequest.TraceID,
+			Lane:                executionRequest.Lane,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Decision:            string(decision),
+			Outcome:             string(decision),
+			Duration:            time.Since(startedAt),
+		})
+		s.emitExecutionAudit(requestCtx, executionaudit.Event{
+			Decision:            string(decision),
+			Duration:            time.Since(startedAt),
+			EventType:           "execution.admission_rejected",
+			HTTPStatus:          http.StatusServiceUnavailable,
+			Lane:                executionRequest.Lane,
+			RequestID:           executionRequest.RequestID,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Retryable:           true,
+			TraceID:             executionRequest.TraceID,
+		})
+		if s.writeAdmissionRejection(response, decision, executionRequest.RequestID) {
 			return
 		}
 		return
 	}
 
+	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateRunningBridge)
 	bridgeCtx, bridgeCancel := context.WithTimeout(
 		requestCtx,
 		time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond,
@@ -313,9 +527,46 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	bridgeResponse, err := s.bridge.Execute(bridgeCtx, bridge.Request{
 		Payload: executionRequest.Payload,
 	})
-	s.metrics.RecordBridgeDuration(time.Since(bridgeStartedAt))
+	bridgeDuration := time.Since(bridgeStartedAt)
+	s.metrics.RecordBridgeDuration(bridgeDuration)
 	if err != nil {
+		if s.lifecycle.Canceled(executionRequest.RequestID) ||
+			errors.Is(context.Cause(requestCtx), lifecycle.ErrExecutionCanceled) ||
+			errors.Is(context.Cause(bridgeCtx), lifecycle.ErrExecutionCanceled) {
+			finalState = lifecycle.StateCanceled
+			setOutcome(response, "execution_cancelled")
+			s.telemetry.Emit(requestCtx, telemetry.Event{
+				Name:                "answer.cancelled",
+				RequestID:           executionRequest.RequestID,
+				TraceID:             executionRequest.TraceID,
+				Lane:                executionRequest.Lane,
+				RequestedCapability: executionRequest.RequestedCapability,
+				Outcome:             "execution_cancelled",
+				StatusCode:          statusClientClosedRequest,
+				Duration:            time.Since(startedAt),
+			})
+			s.emitExecutionAudit(requestCtx, executionaudit.Event{
+				BridgeDuration:      bridgeDuration,
+				Duration:            time.Since(startedAt),
+				EventType:           "execution.cancelled",
+				HTTPStatus:          statusClientClosedRequest,
+				Lane:                executionRequest.Lane,
+				RequestID:           executionRequest.RequestID,
+				RequestedCapability: executionRequest.RequestedCapability,
+				Retryable:           false,
+				TraceID:             executionRequest.TraceID,
+			})
+			writeError(
+				response,
+				statusClientClosedRequest,
+				"execution_cancelled",
+				"Supervisor execution was cancelled.",
+				false,
+			)
+			return
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(requestCtx.Err(), context.Canceled) {
+			finalState = lifecycle.StateClientCanceled
 			setOutcome(response, "client_canceled")
 			return
 		}
@@ -328,23 +579,87 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 			message = "Supervisor execution request timed out."
 			status = http.StatusGatewayTimeout
 			failureKind = "request_timeout"
+			finalState = lifecycle.StateTimedOut
 		} else if errors.Is(err, context.DeadlineExceeded) ||
 			errors.Is(bridgeCtx.Err(), context.DeadlineExceeded) {
 			code = "supervisor_bridge_timeout"
 			message = "Supervisor Python bridge timed out."
 			status = http.StatusGatewayTimeout
 			failureKind = "timeout"
+			finalState = lifecycle.StateTimedOut
+		} else {
+			finalState = lifecycle.StateFailed
 		}
 		s.metrics.RecordBridgeFailure(failureKind)
 		setOutcome(response, code)
+		s.telemetry.Emit(requestCtx, telemetry.Event{
+			Name:                "answer.failed",
+			RequestID:           executionRequest.RequestID,
+			TraceID:             executionRequest.TraceID,
+			Lane:                executionRequest.Lane,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Outcome:             code,
+			FailureCode:         failureKind,
+			StatusCode:          status,
+			Duration:            time.Since(startedAt),
+		})
+		eventType := "execution.bridge_failed"
+		if finalState == lifecycle.StateTimedOut {
+			eventType = "execution.timed_out"
+		}
+		s.emitExecutionAudit(requestCtx, executionaudit.Event{
+			BridgeDuration:      bridgeDuration,
+			Duration:            time.Since(startedAt),
+			EventType:           eventType,
+			FailureKind:         failureKind,
+			HTTPStatus:          status,
+			Lane:                executionRequest.Lane,
+			RequestID:           executionRequest.RequestID,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Retryable:           true,
+			TraceID:             executionRequest.TraceID,
+		})
 		writeError(response, status, code, message, true)
 		return
 	}
 
-	s.writeBridgeResponse(response, bridgeResponse, executionRequest.TraceID)
+	writeOutcome := s.writeBridgeResponse(response, bridgeResponse, executionRequest.TraceID)
+	finalState = writeOutcome.State
+	eventName := "answer.failed"
+	if writeOutcome.State == lifecycle.StateCompleted {
+		eventName = "answer.completed"
+	}
+	s.telemetry.Emit(requestCtx, telemetry.Event{
+		Name:                eventName,
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Outcome:             writeOutcome.Outcome,
+		FailureCode:         writeOutcome.FailureKind,
+		StatusCode:          writeOutcome.StatusCode,
+		Duration:            time.Since(startedAt),
+	})
+	if writeOutcome.State == lifecycle.StateFailed && writeOutcome.FailureKind != "" {
+		s.emitExecutionAudit(requestCtx, executionaudit.Event{
+			Duration:            time.Since(startedAt),
+			EventType:           "execution.bridge_failed",
+			FailureKind:         writeOutcome.FailureKind,
+			HTTPStatus:          writeOutcome.StatusCode,
+			Lane:                executionRequest.Lane,
+			RequestID:           executionRequest.RequestID,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Retryable:           writeOutcome.StatusCode >= 500,
+			TraceID:             executionRequest.TraceID,
+		})
+	}
 }
 
-func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision admission.Decision) bool {
+func (s *Server) writeAdmissionRejection(
+	response http.ResponseWriter,
+	decision admission.Decision,
+	requestID string,
+) bool {
 	switch decision {
 	case admission.DecisionQueueFull:
 		setOutcome(response, "transport_queue_full")
@@ -355,6 +670,15 @@ func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision 
 			"Supervisor execution admission queue is full.",
 		)
 		return true
+	case admission.DecisionLaneQueueFull:
+		setOutcome(response, "transport_lane_queue_full")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_lane_queue_full",
+			"Supervisor execution admission lane queue is full.",
+		)
+		return true
 	case admission.DecisionQueueTimeout:
 		setOutcome(response, "transport_queue_timeout")
 		writeRetryableAdmissionError(
@@ -362,6 +686,15 @@ func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision 
 			s.config.QueueTimeoutMS,
 			"transport_queue_timeout",
 			"Supervisor execution admission queue wait timed out.",
+		)
+		return true
+	case admission.DecisionLaneQueueTimeout:
+		setOutcome(response, "transport_lane_queue_timeout")
+		writeRetryableAdmissionError(
+			response,
+			s.config.QueueTimeoutMS,
+			"transport_lane_queue_timeout",
+			"Supervisor execution admission lane queue wait timed out.",
 		)
 		return true
 	case admission.DecisionDraining:
@@ -374,6 +707,17 @@ func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision 
 		)
 		return true
 	case admission.DecisionClientCanceled:
+		if s.lifecycle.Canceled(requestID) {
+			setOutcome(response, "execution_cancelled")
+			writeError(
+				response,
+				statusClientClosedRequest,
+				"execution_cancelled",
+				"Supervisor execution was cancelled.",
+				false,
+			)
+			return true
+		}
 		setOutcome(response, "client_canceled")
 		return true
 	default:
@@ -386,6 +730,139 @@ func (s *Server) writeAdmissionRejection(response http.ResponseWriter, decision 
 		)
 		return true
 	}
+}
+
+func (s *Server) lifecycleStateForRejectedAdmission(
+	requestID string,
+	decision admission.Decision,
+	requestCtx context.Context,
+) lifecycle.State {
+	if decision == admission.DecisionClientCanceled {
+		if s.lifecycle.Canceled(requestID) ||
+			errors.Is(context.Cause(requestCtx), lifecycle.ErrExecutionCanceled) {
+			return lifecycle.StateCanceled
+		}
+		return lifecycle.StateClientCanceled
+	}
+	if errors.Is(requestCtx.Err(), context.DeadlineExceeded) {
+		return lifecycle.StateTimedOut
+	}
+	return lifecycle.StateFailed
+}
+
+func (s *Server) handleCancel(response http.ResponseWriter, request *http.Request) {
+	if !s.internalWorkerAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid worker origin auth.", false)
+		return
+	}
+
+	body, ok := s.readJSONBody(response, request)
+	if !ok {
+		return
+	}
+	payload, err := decodeJSONObject(body)
+	if err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", "Cancel request body must be a JSON object.", false)
+		return
+	}
+	requestID, ok := payload["request_id"].(string)
+	requestID = strings.TrimSpace(requestID)
+	if !ok || requestID == "" {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", "request_id is required.", false)
+		return
+	}
+	reason, _ := payload["reason"].(string)
+	result, cancelErr := s.lifecycle.Cancel(requestID, strings.TrimSpace(reason))
+	if cancelErr != nil {
+		setOutcome(response, "execution_not_found")
+		writeError(response, http.StatusNotFound, "execution_not_found", "Execution request_id is not active.", false)
+		return
+	}
+	bridgeCancelStatus := s.propagateBridgeCancel(requestID, strings.TrimSpace(reason))
+	setOutcome(response, "cancel_requested")
+	s.telemetry.Emit(request.Context(), telemetry.Event{
+		Name:      "execution.cancel_requested",
+		RequestID: result.RequestID,
+		TraceID:   result.TraceID,
+		Outcome:   result.Status,
+	})
+	s.emitExecutionAudit(request.Context(), executionaudit.Event{
+		EventType:  "execution.cancel_requested",
+		HTTPStatus: http.StatusAccepted,
+		RequestID:  result.RequestID,
+		Retryable:  false,
+		TraceID:    result.TraceID,
+	})
+	writeJSON(response, http.StatusAccepted, map[string]any{
+		"request_id":           result.RequestID,
+		"trace_id":             result.TraceID,
+		"status":               result.Status,
+		"bridge_cancel_status": bridgeCancelStatus,
+	})
+}
+
+func (s *Server) propagateBridgeCancel(requestID string, reason string) string {
+	if s.bridge == nil || !s.bridge.Configured() {
+		s.metrics.RecordBridgeCancel("not_configured")
+		return "not_configured"
+	}
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(s.config.BridgeCancelTimeoutMS)*time.Millisecond,
+	)
+	defer cancel()
+	response, err := s.bridge.Cancel(ctx, bridge.CancelRequest{
+		RequestID: requestID,
+		Reason:    reason,
+	})
+	if err != nil {
+		s.metrics.RecordBridgeCancel("failed")
+		return "failed"
+	}
+	if response.StatusCode == http.StatusNotFound {
+		s.metrics.RecordBridgeCancel("not_found")
+		return "not_found"
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		s.metrics.RecordBridgeCancel("accepted")
+		return "accepted"
+	}
+	s.metrics.RecordBridgeCancel("failed")
+	return "failed"
+}
+
+func (s *Server) emitExecutionAudit(ctx context.Context, event executionaudit.Event) {
+	if s.executionAudit == nil {
+		return
+	}
+	s.executionAudit.Emit(ctx, event)
+}
+
+func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
+	secret := strings.TrimSpace(s.config.WorkerSharedSecret)
+	if secret == "" {
+		return false
+	}
+	presented := strings.TrimSpace(request.Header.Get("x-worker-origin-auth"))
+	if presented == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(secret)) == 1
+}
+
+func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
+	secret := strings.TrimSpace(s.config.StructuredQuerySharedSecret)
+	if secret == "" {
+		return false
+	}
+	presented := strings.TrimSpace(request.Header.Get("x-supervisor-query-auth"))
+	if presented == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(secret)) == 1
 }
 
 func (s *Server) readJSONBody(response http.ResponseWriter, request *http.Request) (json.RawMessage, bool) {
@@ -519,7 +996,7 @@ func (s *Server) writeBridgeResponse(
 	response http.ResponseWriter,
 	bridgeResponse bridge.ExecuteResponse,
 	traceID string,
-) {
+) bridgeWriteOutcome {
 	switch bridgeResponse.Kind {
 	case "supervisor_response":
 		setOutcome(response, "supervisor_response")
@@ -534,10 +1011,20 @@ func (s *Server) writeBridgeResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 				true,
 			)
-			return
+			return bridgeWriteOutcome{
+				State:       lifecycle.StateFailed,
+				Outcome:     "supervisor_bridge_invalid_response",
+				FailureKind: "invalid_response",
+				StatusCode:  http.StatusBadGateway,
+			}
 		}
 		s.metrics.RecordBridgeSuccess()
 		writeRawJSON(response, bridgeResponse.StatusCode, body)
+		return bridgeWriteOutcome{
+			State:      lifecycle.StateCompleted,
+			Outcome:    "supervisor_response",
+			StatusCode: bridgeResponse.StatusCode,
+		}
 	case "supervisor_error":
 		setOutcome(response, "supervisor_error")
 		body, err := normalizeJSONObjectJSON(bridgeResponse.Body)
@@ -551,9 +1038,20 @@ func (s *Server) writeBridgeResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 				true,
 			)
-			return
+			return bridgeWriteOutcome{
+				State:       lifecycle.StateFailed,
+				Outcome:     "supervisor_bridge_invalid_response",
+				FailureKind: "invalid_response",
+				StatusCode:  http.StatusBadGateway,
+			}
 		}
 		writeRawJSON(response, bridgeResponse.StatusCode, body)
+		return bridgeWriteOutcome{
+			State:       lifecycle.StateFailed,
+			Outcome:     "supervisor_error",
+			FailureKind: "supervisor_error",
+			StatusCode:  bridgeResponse.StatusCode,
+		}
 	case "bridge_invalid_request":
 		setOutcome(response, "supervisor_bridge_invalid_request")
 		writeError(
@@ -563,6 +1061,12 @@ func (s *Server) writeBridgeResponse(
 			"Supervisor Python bridge rejected the projected request payload.",
 			false,
 		)
+		return bridgeWriteOutcome{
+			State:       lifecycle.StateFailed,
+			Outcome:     "supervisor_bridge_invalid_request",
+			FailureKind: "invalid_request",
+			StatusCode:  http.StatusBadGateway,
+		}
 	default:
 		s.metrics.RecordBridgeFailure("invalid_response")
 		setOutcome(response, "supervisor_bridge_invalid_response")
@@ -573,6 +1077,12 @@ func (s *Server) writeBridgeResponse(
 			"Supervisor Python bridge returned an invalid response envelope.",
 			true,
 		)
+		return bridgeWriteOutcome{
+			State:       lifecycle.StateFailed,
+			Outcome:     "supervisor_bridge_invalid_response",
+			FailureKind: "invalid_response",
+			StatusCode:  http.StatusBadGateway,
+		}
 	}
 }
 
@@ -605,14 +1115,6 @@ func decodeJSONObject(rawBody []byte) (map[string]any, error) {
 		return nil, errors.New("invalid JSON object")
 	}
 	return body, nil
-}
-
-func mapFromAny(value any) map[string]any {
-	record, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	return record
 }
 
 func defaultString(value string, fallback string) string {

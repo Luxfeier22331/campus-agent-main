@@ -21,8 +21,11 @@ type HTTPError struct {
 }
 
 type AnswerExecutionRequest struct {
-	Payload json.RawMessage
-	TraceID string
+	Payload             json.RawMessage
+	RequestID           string
+	TraceID             string
+	RequestedCapability string
+	Lane                string
 }
 
 type actorContext struct {
@@ -139,6 +142,14 @@ func ParseAnswerRequest(
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
+	if requestID == "" {
+		return AnswerExecutionRequest{}, &HTTPError{
+			Status:    400,
+			Code:      "missing_request_id",
+			Message:   "request_id is required for supervisor execution lifecycle tracking.",
+			Retryable: false,
+		}
+	}
 	safetyIdentifier, err := parseOptionalString(payload["safety_identifier"])
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
@@ -215,9 +226,23 @@ func ParseAnswerRequest(
 	}
 
 	return AnswerExecutionRequest{
-		Payload: bridgeJSON,
-		TraceID: traceID,
+		Payload:             bridgeJSON,
+		RequestID:           requestID,
+		TraceID:             traceID,
+		RequestedCapability: requestedCapability,
+		Lane:                laneForCapability(requestedCapability),
 	}, nil
+}
+
+func laneForCapability(requestedCapability string) string {
+	switch requestedCapability {
+	case "", "knowledge":
+		return "rag"
+	case "place_lookup":
+		return "navigation"
+	default:
+		return "default"
+	}
 }
 
 func authenticate(headers map[string]string, cfg config.Config) (actorContext, *HTTPError) {

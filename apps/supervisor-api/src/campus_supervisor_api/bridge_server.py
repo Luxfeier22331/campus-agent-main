@@ -7,7 +7,7 @@ from campus_shared import load_repo_env
 from campus_supervisor_core import handle_request
 
 from campus_supervisor_api.app import create_bridge_app
-from campus_supervisor_api.dev_server import SupervisorApiAsgiApp
+from campus_supervisor_api.asgi import SupervisorBridgeAsgiApp
 from campus_supervisor_api.settings import ApiSettings
 
 
@@ -38,10 +38,9 @@ def serve(
     resolved_host = host or server_settings.host
     resolved_port = port or server_settings.port
     app = create_bridge_app(settings=runtime_settings, supervisor_handler=supervisor_handler)
-    asgi_app = SupervisorApiAsgiApp(
+    asgi_app = SupervisorBridgeAsgiApp(
         app,
-        max_workers=runtime_settings.transport_worker_threads,
-        admission_paths=(),
+        max_workers=runtime_settings.bridge_worker_threads,
     )
     print(
         f"campus-supervisor-orchestrator dev server listening on "

@@ -158,6 +158,54 @@ func TestControllerDrainingRejectsNewRequests(t *testing.T) {
 	}
 }
 
+func TestControllerLaneSaturationDoesNotBlockOtherLanes(t *testing.T) {
+	controller := NewController(Config{
+		MaxConcurrent: 2,
+		QueueCapacity: 4,
+		QueueTimeout:  time.Second,
+		Lanes: map[string]LaneConfig{
+			"rag": {
+				MaxConcurrent: 1,
+				QueueCapacity: 0,
+				QueueTimeout:  time.Second,
+			},
+			"navigation": {
+				MaxConcurrent: 1,
+				QueueCapacity: 1,
+				QueueTimeout:  time.Second,
+			},
+		},
+	})
+
+	ragLease, ragDecision := controller.AcquireLane(context.Background(), "rag")
+	if ragDecision != DecisionAdmittedImmediate {
+		t.Fatalf("rag decision = %s, want admitted_immediate", ragDecision)
+	}
+	defer ragLease.Release()
+
+	ragOverflow, ragOverflowDecision := controller.AcquireLane(context.Background(), "rag")
+	if ragOverflow != nil {
+		t.Fatal("rag lane overflow should not return a lease")
+	}
+	if ragOverflowDecision != DecisionLaneQueueFull {
+		t.Fatalf("rag overflow = %s, want lane_queue_full", ragOverflowDecision)
+	}
+
+	navigationLease, navigationDecision := controller.AcquireLane(context.Background(), "navigation")
+	if navigationDecision != DecisionAdmittedImmediate {
+		t.Fatalf("navigation decision = %s, want admitted_immediate", navigationDecision)
+	}
+	navigationLease.Release()
+
+	status := controller.Status()
+	if status.Lanes["rag"].QueueFullCount != 1 {
+		t.Fatalf("rag queue full count = %d, want 1", status.Lanes["rag"].QueueFullCount)
+	}
+	if status.Lanes["navigation"].Active != 0 {
+		t.Fatalf("navigation active after release = %d, want 0", status.Lanes["navigation"].Active)
+	}
+}
+
 func waitForStatus(t *testing.T, controller *Controller, predicate func(Status) bool) {
 	t.Helper()
 

@@ -3,9 +3,9 @@ from __future__ import annotations
 import secrets
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
-from uuid import uuid4
+from threading import Lock
 
-from campus_contracts import ErrorInfo, SupervisorRequest, SupervisorResponse, TraceContext
+from campus_contracts import ErrorInfo, SupervisorRequest, SupervisorResponse
 from campus_supervisor_core import (
     SupervisorError,
     build_audit_record,
@@ -15,16 +15,8 @@ from campus_supervisor_core import (
 
 from campus_supervisor_api.api_request_parsing import (
     _parse_bridge_supervisor_request,
-    _parse_context_projection,
-    _parse_optional_string,
-    _parse_request_actor_projection,
-    _parse_requested_capability,
-    _parse_requested_scope,
-    _parse_version_query,
-    _resolve_request_identity_projection,
 )
 from campus_supervisor_api.audit import AuditSink, AuditSinkError, build_jsonl_audit_sink
-from campus_supervisor_api.auth import ApiAuthError, map_actor_context
 from campus_supervisor_api.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_api.settings import ApiSettings
 
@@ -47,37 +39,56 @@ SupervisorHandler = Callable[[SupervisorRequest], SupervisorResponse]
 RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
 
 
-def build_routes(
-    settings: ApiSettings,
-    *,
-    supervisor_handler: SupervisorHandler = handle_request,
-    audit_sink: AuditSink | None = None,
-    prompt_runtime: PromptRuntimeSettings | None = None,
-    runtime_status_provider: RuntimeStatusProvider | None = None,
-) -> tuple[HttpRoute, ...]:
-    return (
-        HttpRoute(
-            "POST",
-            "/api/v1/answer",
-            lambda headers, body: handle_answer(
-                headers,
-                body,
-                settings,
-                supervisor_handler,
-                audit_sink=audit_sink,
-            ),
-        ),
-        HttpRoute("GET", "/healthz", lambda headers, body: healthz(settings)),
-        HttpRoute(
-            "GET",
-            "/readyz",
-            lambda headers, body: readyz(
-                settings,
-                prompt_runtime=prompt_runtime,
-                runtime_status_provider=runtime_status_provider,
-            ),
-        ),
-    )
+@dataclass(slots=True)
+class CancelRecord:
+    request_id: str
+    trace_id: str = ""
+    reason: str = ""
+    cancel_requested: bool = False
+
+
+class ExecutionCancelRegistry:
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._active: dict[str, CancelRecord] = {}
+        self._cancel_requested_count = 0
+
+    def register(self, request: SupervisorRequest) -> None:
+        if not request.request_id:
+            return
+        with self._lock:
+            self._active[request.request_id] = CancelRecord(
+                request_id=request.request_id,
+                trace_id=request.trace.trace_id,
+            )
+
+    def complete(self, request_id: str) -> None:
+        if not request_id:
+            return
+        with self._lock:
+            self._active.pop(request_id, None)
+
+    def cancel(self, request_id: str, reason: str = "") -> CancelRecord | None:
+        with self._lock:
+            record = self._active.get(request_id)
+            if record is None:
+                return None
+            record.cancel_requested = True
+            record.reason = reason
+            self._cancel_requested_count += 1
+            return CancelRecord(
+                request_id=record.request_id,
+                trace_id=record.trace_id,
+                reason=record.reason,
+                cancel_requested=record.cancel_requested,
+            )
+
+    def status(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "active_executions": len(self._active),
+                "cancel_requested_count": self._cancel_requested_count,
+            }
 
 
 def build_bridge_routes(
@@ -87,7 +98,9 @@ def build_bridge_routes(
     audit_sink: AuditSink | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
+    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> tuple[HttpRoute, ...]:
+    runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
     return (
         HttpRoute(
             "POST",
@@ -98,6 +111,17 @@ def build_bridge_routes(
                 settings,
                 supervisor_handler,
                 audit_sink=audit_sink,
+                cancel_registry=runtime_cancel_registry,
+            ),
+        ),
+        HttpRoute(
+            "POST",
+            "/internal/bridge/execution/cancel",
+            lambda headers, body: handle_bridge_cancel(
+                headers,
+                body,
+                settings,
+                cancel_registry=runtime_cancel_registry,
             ),
         ),
         HttpRoute(
@@ -113,69 +137,10 @@ def build_bridge_routes(
                 settings,
                 prompt_runtime=prompt_runtime,
                 runtime_status_provider=runtime_status_provider,
+                cancel_registry=runtime_cancel_registry,
             ),
         ),
     )
-
-
-def handle_answer(
-    headers: Mapping[str, str],
-    body: dict[str, object] | None,
-    settings: ApiSettings,
-    supervisor_handler: SupervisorHandler,
-    *,
-    audit_sink: AuditSink | None = None,
-) -> HttpResponse:
-    runtime_audit_sink = audit_sink or build_jsonl_audit_sink(settings.audit_log_path)
-    try:
-        authenticated_actor = map_actor_context(headers, settings)
-    except ApiAuthError as exc:
-        return error_response(exc.status_code, ErrorInfo(code=exc.code, message=exc.message))
-
-    payload = body or {}
-    user_goal = str(payload.get("user_goal", ""))
-    trace_id = str(headers.get("x-trace-id") or uuid4())
-    try:
-        body_actor = _parse_request_actor_projection(
-            payload.get("actor"),
-            auth_mode=settings.auth_mode,
-        )
-        body_context = _parse_context_projection(
-            payload.get("context"),
-            auth_mode=settings.auth_mode,
-        )
-        actor, context = _resolve_request_identity_projection(
-            authenticated_actor=authenticated_actor,
-            body_actor=body_actor,
-            body_context=body_context,
-            auth_mode=settings.auth_mode,
-        )
-        request = SupervisorRequest(
-            user_goal=user_goal,
-            conversation_id=str(payload.get("conversation_id", "")),
-            request_id=str(payload.get("request_id", "")),
-            safety_identifier=_parse_optional_string(payload.get("safety_identifier")),
-            trace=TraceContext(trace_id=trace_id),
-            actor=actor,
-            context=context,
-            requested_capability=_parse_requested_capability(payload.get("requested_capability")),
-            requested_scope=_parse_requested_scope(payload.get("requested_scope")),
-            version_query=_parse_version_query(payload.get("version_query")),
-        )
-    except ValueError as exc:
-        return error_response(400, ErrorInfo(code="invalid_request", message=str(exc)))
-    try:
-        response = supervisor_handler(request)
-    except SupervisorError as exc:
-        _emit_audit_best_effort(
-            runtime_audit_sink,
-            build_error_audit_record(request, error_code=exc.error_code),
-        )
-        return error_response(exc.http_status_code, exc.to_error_info())
-    _emit_audit_best_effort(runtime_audit_sink, build_audit_record(request, response))
-    response_payload = asdict(response)
-    response_payload["trace_id"] = trace_id
-    return HttpResponse(status_code=200, json_body=response_payload)
 
 
 def handle_bridge_answer(
@@ -185,6 +150,7 @@ def handle_bridge_answer(
     supervisor_handler: SupervisorHandler,
     *,
     audit_sink: AuditSink | None = None,
+    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
     if bridge_auth_error is not None:
@@ -201,9 +167,12 @@ def handle_bridge_answer(
             kind="bridge_invalid_request",
         )
 
+    runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
+    runtime_cancel_registry.register(request)
     try:
         response = supervisor_handler(request)
     except SupervisorError as exc:
+        runtime_cancel_registry.complete(request.request_id)
         _emit_audit_best_effort(
             runtime_audit_sink,
             build_error_audit_record(request, error_code=exc.error_code),
@@ -213,9 +182,46 @@ def handle_bridge_answer(
             {"error": asdict(exc.to_error_info())},
             kind="supervisor_error",
         )
+    finally:
+        runtime_cancel_registry.complete(request.request_id)
 
     _emit_audit_best_effort(runtime_audit_sink, build_audit_record(request, response))
     return _bridge_response(200, asdict(response), kind="supervisor_response")
+
+
+def handle_bridge_cancel(
+    headers: Mapping[str, str],
+    body: dict[str, object] | None,
+    settings: ApiSettings,
+    *,
+    cancel_registry: ExecutionCancelRegistry,
+) -> HttpResponse:
+    bridge_auth_error = _require_bridge_auth(headers, settings)
+    if bridge_auth_error is not None:
+        return bridge_auth_error
+
+    payload = body or {}
+    request_id = str(payload.get("request_id", "")).strip()
+    if not request_id:
+        return error_response(
+            400,
+            ErrorInfo(code="invalid_request", message="request_id is required."),
+        )
+    reason = str(payload.get("reason", "")).strip()
+    record = cancel_registry.cancel(request_id, reason)
+    if record is None:
+        return error_response(
+            404,
+            ErrorInfo(code="execution_not_found", message="Execution request_id is not active."),
+        )
+    return HttpResponse(
+        status_code=202,
+        json_body={
+            "request_id": record.request_id,
+            "trace_id": record.trace_id,
+            "status": "cancel_requested",
+        },
+    )
 
 
 def healthz(settings: ApiSettings) -> HttpResponse:
@@ -234,6 +240,7 @@ def readyz(
     *,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
+    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
     runtime_prompt = prompt_runtime or _resolve_prompt_runtime_settings(settings)
     runtime_status = dict(runtime_status_provider() if runtime_status_provider else {})
@@ -252,20 +259,10 @@ def readyz(
             "last_error": "",
         }
     )
-    transport_runtime = dict(
-        runtime_status.get("transport_runtime")
-        or {
-            "healthy": True,
-            "max_concurrent_answers": settings.transport_max_concurrent_answers,
-            "active_answers": 0,
-            "saturated_count": 0,
-        }
-    )
     degraded = (
         not runtime_prompt.admitted
         or not bool(prompt_http_pool.get("healthy", True))
         or not bool(audit_runtime.get("healthy", True))
-        or not bool(transport_runtime.get("healthy", True))
     )
     return HttpResponse(
         status_code=503 if degraded else 200,
@@ -287,7 +284,11 @@ def readyz(
             },
             "prompt_http_pool": prompt_http_pool,
             "audit_runtime": audit_runtime,
-            "transport_runtime": transport_runtime,
+            "execution_cancel_runtime": (
+                cancel_registry.status()
+                if cancel_registry is not None
+                else {"active_executions": 0, "cancel_requested_count": 0}
+            ),
         },
     )
 
@@ -298,6 +299,7 @@ def handle_bridge_readyz(
     *,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
+    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
     if bridge_auth_error is not None:
@@ -306,6 +308,7 @@ def handle_bridge_readyz(
         settings,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=runtime_status_provider,
+        cancel_registry=cancel_registry,
     )
 
 

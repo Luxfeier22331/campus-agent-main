@@ -16,58 +16,6 @@ from campus_contracts import (
 )
 
 
-def _resolve_request_identity_projection(
-    *,
-    authenticated_actor: ActorContext,
-    body_actor: ActorContext | None,
-    body_context: ContextProjection | None,
-    auth_mode: str,
-) -> tuple[ActorContext, ContextProjection]:
-    if auth_mode == "trusted-worker":
-        if body_context is None:
-            raise ValueError("trusted-worker requests must provide context")
-        if body_actor is None and body_context.actor == ActorContext():
-            raise ValueError("context.actor is required in trusted-worker mode")
-        if body_actor is not None and body_context.actor == ActorContext():
-            body_context = ContextProjection(
-                actor=body_actor,
-                authorization=body_context.authorization,
-                profile_memory=body_context.profile_memory,
-                session=body_context.session,
-            )
-        if body_actor is not None and body_context.actor != body_actor:
-            raise ValueError("actor and context.actor must match")
-        actor = body_actor or body_context.actor
-        return actor, body_context
-
-    if body_actor is None and body_context is None:
-        return authenticated_actor, ContextProjection(
-            actor=authenticated_actor,
-            authorization=_default_authorization_projection(authenticated_actor),
-        )
-    if body_context is None:
-        assert body_actor is not None
-        return body_actor, ContextProjection(
-            actor=body_actor,
-            authorization=_default_authorization_projection(body_actor),
-        )
-    if body_actor is None:
-        return body_context.actor, body_context
-    if body_context.actor == ActorContext():
-        authorization = body_context.authorization
-        if authorization == AuthorizationProjection():
-            authorization = _default_authorization_projection(body_actor)
-        body_context = ContextProjection(
-            actor=body_actor,
-            authorization=authorization,
-            profile_memory=body_context.profile_memory,
-            session=body_context.session,
-        )
-    if body_context.actor != body_actor:
-        raise ValueError("actor and context.actor must match")
-    return body_actor, body_context
-
-
 def _parse_bridge_supervisor_request(payload: dict[str, object]) -> SupervisorRequest:
     return SupervisorRequest(
         user_goal=str(payload.get("user_goal", "")),
@@ -260,44 +208,6 @@ def _parse_optional_string(raw_value: object) -> str | None:
     return value or None
 
 
-def _parse_request_actor_projection(
-    raw_actor: object,
-    *,
-    auth_mode: str,
-) -> ActorContext | None:
-    if raw_actor is None:
-        return None
-    if auth_mode != "trusted-worker":
-        raise ValueError("actor projection is only accepted in trusted-worker mode")
-    return _parse_actor_context(raw_actor, field_prefix="actor")
-
-
-def _parse_context_projection(
-    raw_context: object,
-    *,
-    auth_mode: str,
-) -> ContextProjection | None:
-    if raw_context is None:
-        return None
-    if auth_mode != "trusted-worker":
-        raise ValueError("context projection is only accepted in trusted-worker mode")
-    if not isinstance(raw_context, dict):
-        raise ValueError("context must be an object")
-
-    projected_actor = _parse_actor_context(raw_context.get("actor"), field_prefix="context.actor")
-    authorization = _parse_authorization_projection(
-        raw_context.get("authorization"),
-        actor=projected_actor,
-        require_explicit_filter=True,
-    )
-    return ContextProjection(
-        actor=projected_actor,
-        authorization=authorization,
-        profile_memory=_parse_profile_memory_summary(raw_context.get("profile_memory")),
-        session=_parse_session_summary(raw_context.get("session")),
-    )
-
-
 def _parse_actor_context(raw_actor: object, *, field_prefix: str) -> ActorContext:
     if raw_actor is None:
         return ActorContext()
@@ -323,12 +233,10 @@ def _parse_authorization_projection(
     raw_authorization: object,
     *,
     actor: ActorContext,
-    require_explicit_filter: bool = False,
+    require_explicit_filter: bool = True,
 ) -> AuthorizationProjection:
     if raw_authorization is None:
-        if require_explicit_filter:
-            raise ValueError("context.authorization is required")
-        return _default_authorization_projection(actor)
+        raise ValueError("context.authorization is required")
     if not isinstance(raw_authorization, dict):
         raise ValueError("context.authorization must be an object")
 
@@ -365,12 +273,10 @@ def _parse_authorization_projection(
 def _parse_authorized_retrieval_filter(
     raw_filter: object,
     *,
-    require_explicit: bool = False,
+    require_explicit: bool = True,
 ) -> AuthorizedRetrievalFilter:
     if raw_filter is None:
-        if require_explicit:
-            raise ValueError("context.authorization.retrieval_filter is required")
-        return AuthorizedRetrievalFilter()
+        raise ValueError("context.authorization.retrieval_filter is required")
     if not isinstance(raw_filter, dict):
         raise ValueError("context.authorization.retrieval_filter must be an object")
     _assert_supported_retrieval_filter_fields(raw_filter)
@@ -386,19 +292,6 @@ def _parse_authorized_retrieval_filter(
             raw_filter.get("policy_projection_version")
         )
         or "",
-    )
-
-
-def _default_authorization_projection(actor: ActorContext) -> AuthorizationProjection:
-    principal_id = actor.principal_id or actor.user_id
-    return AuthorizationProjection(
-        principal_id=principal_id,
-        entitlement_groups=(),
-        visibility_scope=None,
-        retrieval_filter=AuthorizedRetrievalFilter(
-            entitlement_groups=(),
-            visibility_scope=None,
-        ),
     )
 
 

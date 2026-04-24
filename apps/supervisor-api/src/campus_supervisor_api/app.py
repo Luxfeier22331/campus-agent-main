@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
 from functools import partial
-from threading import BoundedSemaphore, Lock
 
 import httpx
 from campus_shared import (
@@ -14,10 +13,10 @@ from campus_shared import (
 from campus_supervisor_core import handle_request
 
 from campus_supervisor_api.api import (
+    ExecutionCancelRegistry,
     HttpResponse,
     HttpRoute,
     build_bridge_routes,
-    build_routes,
 )
 from campus_supervisor_api.audit import AsyncJsonlAuditRuntime
 from campus_supervisor_api.prompt_executor import (
@@ -58,42 +57,6 @@ class PromptHTTPPoolRuntime:
             self.client.close()
 
 
-class TransportAdmissionRuntime:
-    def __init__(self, *, max_concurrent_answers: int) -> None:
-        if max_concurrent_answers <= 0:
-            raise ValueError("max_concurrent_answers must be greater than zero")
-        self.max_concurrent_answers = max_concurrent_answers
-        self._semaphore = BoundedSemaphore(max_concurrent_answers)
-        self._lock = Lock()
-        self._active_answers = 0
-        self._saturated_count = 0
-
-    def try_acquire_answer(self) -> bool:
-        if not self._semaphore.acquire(blocking=False):
-            with self._lock:
-                self._saturated_count += 1
-            return False
-        with self._lock:
-            self._active_answers += 1
-        return True
-
-    def release_answer(self) -> None:
-        with self._lock:
-            self._active_answers = max(0, self._active_answers - 1)
-        self._semaphore.release()
-
-    def status(self) -> dict[str, object]:
-        with self._lock:
-            active_answers = self._active_answers
-            saturated_count = self._saturated_count
-        return {
-            "healthy": active_answers < self.max_concurrent_answers,
-            "max_concurrent_answers": self.max_concurrent_answers,
-            "active_answers": active_answers,
-            "saturated_count": saturated_count,
-        }
-
-
 @dataclass(slots=True)
 class SupervisorApiApp:
     name: str
@@ -101,7 +64,7 @@ class SupervisorApiApp:
     routes: tuple[HttpRoute, ...]
     prompt_http_pool: PromptHTTPPoolRuntime
     audit_runtime: AsyncJsonlAuditRuntime
-    transport_runtime: TransportAdmissionRuntime
+    cancel_registry: ExecutionCancelRegistry
 
     def handle(
         self,
@@ -126,7 +89,7 @@ class SupervisorApiApp:
                 admitted=self.runtime.prompt_runtime.admitted
             ),
             "audit_runtime": asdict(self.audit_runtime.status()),
-            "transport_runtime": self.transport_runtime.status(),
+            "execution_cancel_runtime": self.cancel_registry.status(),
         }
 
     def flush_audit(self, *, timeout_seconds: float = 1.0) -> bool:
@@ -137,18 +100,6 @@ class SupervisorApiApp:
         self.prompt_http_pool.close()
 
 
-def create_app(
-    *,
-    settings: ApiSettings | None = None,
-    supervisor_handler=handle_request,
-) -> SupervisorApiApp:
-    return _create_runtime_app(
-        settings=settings,
-        supervisor_handler=supervisor_handler,
-        route_builder=build_routes,
-    )
-
-
 def create_bridge_app(
     *,
     settings: ApiSettings | None = None,
@@ -157,7 +108,6 @@ def create_bridge_app(
     return _create_runtime_app(
         settings=settings,
         supervisor_handler=supervisor_handler,
-        route_builder=build_bridge_routes,
     )
 
 
@@ -165,7 +115,6 @@ def _create_runtime_app(
     *,
     settings: ApiSettings | None = None,
     supervisor_handler=handle_request,
-    route_builder,
 ) -> SupervisorApiApp:
     runtime_settings = settings or ApiSettings.from_env()
     (
@@ -178,9 +127,7 @@ def _create_runtime_app(
         runtime_settings.audit_log_path,
         queue_capacity=runtime_settings.audit_queue_capacity,
     )
-    transport_runtime = TransportAdmissionRuntime(
-        max_concurrent_answers=runtime_settings.transport_max_concurrent_answers
-    )
+    cancel_registry = ExecutionCancelRegistry()
     bound_supervisor_handler = supervisor_handler
     if (
         supervisor_handler is handle_request
@@ -192,7 +139,7 @@ def _create_runtime_app(
             supervisor_prompt_executor=supervisor_prompt_executor,
             rag_prompt_executor=rag_prompt_executor,
         )
-    routes = route_builder(
+    routes = build_bridge_routes(
         runtime_settings,
         supervisor_handler=bound_supervisor_handler,
         audit_sink=audit_runtime.submit,
@@ -200,8 +147,9 @@ def _create_runtime_app(
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
             "audit_runtime": asdict(audit_runtime.status()),
-            "transport_runtime": transport_runtime.status(),
+            "execution_cancel_runtime": cancel_registry.status(),
         },
+        cancel_registry=cancel_registry,
     )
     return SupervisorApiApp(
         name=runtime_settings.app_name,
@@ -214,7 +162,7 @@ def _create_runtime_app(
         routes=routes,
         prompt_http_pool=prompt_http_pool,
         audit_runtime=audit_runtime,
-        transport_runtime=transport_runtime,
+        cancel_registry=cancel_registry,
     )
 
 

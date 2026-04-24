@@ -34,8 +34,7 @@ updated: 2026-04-24
   `go-shell + supervisor-orchestrator` 双容器
 - 这条 canonical execution runtime 的运维姿势、计划任务、自愈与日志规则统一记录在
   `go-shell-staging-operations.md`
-- `campus-supervisor-api-dev` 只保留为 rollback / fallback 路径，相关步骤统一记录在
-  `dev-backed-supervisor-staging-operations.md`
+- Python public compatibility ingress 已退出 active staging path
 
 ## Hostname Constraint
 
@@ -182,8 +181,6 @@ truth，而不是这些旧值的继续合法化。
 - `127.0.0.1` 只能留在本地 process truth，不能作为 Cloudflare staging deploy truth
 - 当前这台 canonical execution host 的常驻安装、冷启动恢复与 `status --check`
   health gate，见 `docs/runbooks/go-shell-staging-operations.md`
-- legacy dev-backed fallback 仅在 rollback 需要时才使用，见
-  `docs/runbooks/dev-backed-supervisor-staging-operations.md`
 
 ## Secret Matrix
 

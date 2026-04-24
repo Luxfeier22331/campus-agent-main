@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # Product Runtime Architecture
 
@@ -22,7 +22,8 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
-`browser -> public-chat-web -> app-api -> supervisor-api`
+`browser -> public-chat-web -> app-api -> go-shell -> supervisor-api private
+bridge`
 
 `browser -> public-docs`
 
@@ -131,6 +132,28 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   capability policy
 - 不承担 browser-facing product backend 责任
 
+### Docker Execution Runtime Boundary
+
+当前 Docker execution runtime 拆成：
+
+- `apps/go-shell`
+  - 当前 execution ingress
+  - 拥有 execution-level lifecycle、explicit cancel、global / per-lane admission、
+    queue、timeout、readiness、metrics、OTel telemetry seam 与 graceful drain
+- Python `apps/supervisor-api`
+  - private orchestration bridge worker
+  - 负责把 Go 已投影的 `SupervisorRequest` 交给 `packages/supervisor-core`
+  - 不再拥有 public execution ingress、caller auth 或 transport admission
+
+长期边界固定为：
+
+- `apps/app-api` 仍拥有 product-layer auth/session/principal、surface capability
+  policy、conversation、request projection 与 operator read model
+- Go execution runtime 不能反向拥有 browser-facing capability allowlist、用户级限流、
+  duplicate-click UX、conversation truth 或 operator control plane
+- Go runtime 可以继续吸收 deterministic supervisor runtime kernel，但不能因此把
+  semantic orchestration、domain-agent reasoning 或 retrieval planning 塞进 `apps/*`
+
 ## Request Projection And Read Model
 
 request projection 的 canonical durable truth 固定为：
@@ -213,8 +236,8 @@ contract 或 auth family route/endpoint truth。
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
-- repo-local `campus-supervisor-api-dev` 仍是 compatibility / debug 路径，直到 repo-owned
-  Docker packaging / automation 落地
+- execution public ingress 已 hardcut 到 `apps/go-shell`；Python `apps/supervisor-api`
+  只保留 private orchestration bridge
 
 ## Forbidden Shapes
 

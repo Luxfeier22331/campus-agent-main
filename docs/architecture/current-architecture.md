@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # 当前架构
 
@@ -28,8 +28,8 @@ updated: 2026-04-23
 
 当前接受的主拓扑固定为：
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core ->
-agent`
+`browser -> public-chat-web -> app-api -> go-shell -> supervisor-api private
+bridge -> supervisor-core -> agent`
 
 `browser -> public-docs`
 
@@ -45,6 +45,8 @@ model`
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
 - `apps/supervisor-api` 是 internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/go-shell` 是当前 Docker execution ingress，负责 public execution HTTP surface
+  与 runtime hardening；Python `apps/supervisor-api` 只保留 private bridge worker
 - online query path 与 offline data plane 持续分层
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
@@ -117,14 +119,25 @@ model`
   hardening
 - 承接 `official_web` control plane
 
+### `apps/go-shell`
+
+- Docker-side internal execution ingress
+- 暴露 `GET /healthz`、`GET /readyz`、`GET /metrics` 与
+  `POST /api/v1/answer`、`POST /internal/execution/cancel`
+- 拥有 request body limit、caller auth、request projection、in-flight lifecycle、
+  explicit cancel、global / per-lane execution admission、bounded queue、timeout、
+  readiness、metrics、OTel telemetry seam 与 graceful drain
+- 通过 private bridge 调用 Python `apps/supervisor-api`
+- 不拥有 product-layer auth/session/conversation、browser-facing capability
+  policy 或 agent semantic reasoning
+
 ### `apps/supervisor-api`
 
-- internal execution admission 与 execution transport boundary
-- Docker-first internal execution service
-- 接收 typed context / actor 投影
+- Docker-first internal execution service 的 Python orchestration worker
+- 只接收 Go shell 已投影的 private `SupervisorRequest`
 - 进入 `packages/supervisor-core -> agent`
-- repo-local `campus-supervisor-api-dev` 继续只是 compatibility / debug / staging bridge
-  入口，不代表 forward deploy truth 已回退
+- 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
+  metrics 与 published `transport_runtime` 由 `apps/go-shell` 拥有
 
 ### `apps/ingestion-worker`
 

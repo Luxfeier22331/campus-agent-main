@@ -14,7 +14,7 @@ from campus_contracts import (
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_supervisor_api.app import create_app
+from campus_supervisor_api.app import create_bridge_app
 from campus_supervisor_api.prompt_stack import (
     build_rag_prompt_stack,
     build_supervisor_prompt_stack,
@@ -27,8 +27,8 @@ from campus_supervisor_core.routing import RoutingDecision
 
 
 class SupervisorApiPromptStackTest(unittest.TestCase):
-    def test_create_app_exposes_explicit_prompt_runtime_configuration(self) -> None:
-        app = create_app(
+    def test_create_bridge_app_exposes_explicit_prompt_runtime_configuration(self) -> None:
+        app = create_bridge_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
                 supervisor_prompt_model="gpt-5.2",

@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-23
+updated: 2026-04-24
 ---
 # App API Supervisor Execution Contract
 
@@ -54,6 +54,7 @@ specialist`
 第一版固定复用现有 execution endpoint：
 
 - `POST /api/v1/answer`
+- `POST /internal/execution/cancel`
 - `GET /healthz`
 - `GET /readyz`
 
@@ -86,6 +87,104 @@ JSON 命名保持 `snake_case`，原因如下：
   第一版可以直接复用这个名字
 - `cf-access-jwt-assertion` 不是 shared `app-api` 调用 `supervisor-api` 的长期 contract
   一部分
+
+## Cancellation Endpoint
+
+`POST /internal/execution/cancel` 是 execution-side internal endpoint，只允许
+`app-api` 这类 trusted internal caller 使用，不暴露给 browser。
+
+请求头继续复用：
+
+- `content-type: application/json`
+- `x-worker-origin-auth: <shared-secret-or-equivalent>`
+
+请求体固定为：
+
+```json
+{
+  "request_id": "req_01HQ...",
+  "reason": "user_requested"
+}
+```
+
+响应语义：
+
+- active execution 返回 `202`，body 中 `status=cancel_requested`
+- Go shell 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
+  `not_found`、`not_configured` 或 `failed`；该字段只表示 Go -> Python
+  cooperative cancel signal 的投递结果，不改变 `app-api` 对 cancel request 的
+  canonical lifecycle 判断
+- 找不到 active execution 返回 `404 execution_not_found`
+- 鉴权失败返回 `401 unauthorized`
+- malformed request 返回 `400 invalid_request`
+
+当前取消语义只保证 Go execution shell 停止等待、释放 Go admission slot，并把 lifecycle 标记为
+`cancel_requested`。Python bridge 当前已提供 `/internal/bridge/execution/cancel`
+并记录 active request id 的 cooperative cancel state；已经进入 provider / prompt
+executor 的工作仍不承诺 mid-flight stop。
+
+## Structured Query Internal Runtime
+
+Go shell 当前承载 gate-closed structured query runtime foundation：
+
+- `POST /internal/query/campus-services/service-status`
+- `POST /internal/query/campus-services/transport-schedule`
+
+这组 endpoint 是 `campus-services-agent -> thin adapter -> internal query
+service` 的 Docker-local seam，不是 browser-facing API，也不是 `app-api`
+product/control-plane endpoint。
+
+调用规则：
+
+- 仅允许 Python orchestration bridge 这类 trusted internal caller 使用
+- 请求头使用 `x-supervisor-query-auth`
+- JSON 命名保持 `snake_case`
+- response body 对齐对应 tool result contract 的 safe typed summary
+- runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
+  source bundle、notice HTML 或 generic retrieval chunk
+
+当前状态：
+
+- `service_status_lookup` 已具备 file projection fixture backed foundation，用于
+  deterministic runtime tests
+- `transport_schedule_lookup` 只提供 typed fail-closed seam，返回
+  `temporarily_unverifiable + source_family_unavailable`
+- 这不打开 `campus_services` 产品 serving surface，也不表示班车查询业务逻辑已完成
+
+## Execution Audit Backflow
+
+Go execution shell 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
+browser-facing execution response，也不是 panel query backend。
+
+回流 endpoint 固定为：
+
+- `POST /api/internal/execution/audit-events`
+
+调用规则：
+
+- 由 Go shell 使用 `x-app-internal-auth` 调用 `app-api`
+- delivery 是 best-effort / fail-open；audit sink 不可用不得影响 answer request
+- `app-api` 验证 `request_id` 与 `trace_id` 后写入 `runtime.projection_outbox`
+- ingest 成功后 `app-api` 会调度 request-scoped projector drain；cron projector drain
+  作为兜底继续物化到 `operator.request_audit_projection`
+- `Sentry` / `Axiom` 只作为 sanitized telemetry sink 或 backlink 来源，不成为 panel
+  canonical truth
+- request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder 写入
+  `operator.trace_backlink_projection`；Go shell 不直接服务 panel，也不直接写 operator
+  schema
+
+第一版允许的 event type：
+
+- `execution.admission_rejected`
+- `execution.cancel_requested`
+- `execution.cancelled`
+- `execution.bridge_failed`
+- `execution.timed_out`
+
+payload 只允许 safe runtime summary：lane、requested capability、decision、failure
+kind、HTTP status、retryable、duration、queue wait、bridge duration。禁止 raw
+`user_goal`、raw prompt、raw answer、raw transcript、auth material、retrieval
+payload 或 provider raw response。
 
 ## Request Body
 
@@ -133,7 +232,8 @@ JSON 命名保持 `snake_case`，原因如下：
 
 字段说明：
 
-- `request_id` 来自 `app-api` 分配的 canonical request identity
+- `request_id` 来自 `app-api` 分配的 canonical request identity；当前 Go execution
+  shell 要求它非空，用作 in-flight lifecycle 与 cancel key
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
@@ -299,23 +399,29 @@ JSON 命名保持 `snake_case`，原因如下：
 这意味着：
 
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
+- `409 execution_already_in_flight` 表示同一 `request_id` 已在 Go shell in-flight
+  registry 中，不应重试成新的 execution identity
+- `499 execution_cancelled` 表示 Go shell 已接受 explicit cancel 或 upstream cancel
+  后停止等待；它不是 semantic answer failure
+- `503 transport_lane_queue_full` 与 `503 transport_lane_queue_timeout` 表示特定
+  workload lane 饱和，区别于全局 `transport_queue_full` / `transport_queue_timeout`
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
   的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Current Compatibility Note
 
-当前仓库里的 `apps/supervisor-api` 仍保留 `bearer` / `trusted-worker` admission mode，但
-shared product path 已收口为：
+当前仓库里的 public execution ingress 已 hardcut 到 `apps/go-shell`。shared product path
+已收口为：
 
-- internal caller admission 继续由 runtime header 保证
+- internal caller admission 由 Go shell 验证 runtime header
 - `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
-- `trusted-worker` 不再依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务
+- Go shell 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务
   actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- repo-local `campus-supervisor-api-dev` 仍只是 compatibility / debug / fallback ingress，
-  不应被解读为 forward Docker runtime truth
+- Python `apps/supervisor-api` 只保留 private bridge worker，不再暴露 public
+  compatibility ingress
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

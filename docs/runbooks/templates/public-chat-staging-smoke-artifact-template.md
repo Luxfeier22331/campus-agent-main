@@ -8,8 +8,8 @@ updated: 2026-04-20
 
 ## 用途
 
-这份模板用于 `docs/runbooks/dev-backed-supervisor-staging-smoke-runbook.md` 的
-`public-chat` staging 浏览器验收产物。
+这份模板用于 `docs/runbooks/go-shell-staging-smoke-runbook.md` 的 `public-chat`
+staging 浏览器验收产物。
 
 它只记录“链路已打通”的脱敏证据，不记录回答质量判断，也不保存原始鉴权材料。
 

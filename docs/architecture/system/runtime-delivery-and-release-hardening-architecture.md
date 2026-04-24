@@ -29,8 +29,6 @@ updated: 2026-04-24
 - `docs/runbooks/go-shell-staging-operations.md`
 - `docs/runbooks/go-shell-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
-- `docs/runbooks/dev-backed-supervisor-staging-smoke-runbook.md`
-  - 只用于 rollback / fallback
 
 ## 核心结论
 
@@ -49,8 +47,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   service
 - `apps/supervisor-api` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前 repo-owned staging execution runtime 已收敛到 `go-shell + supervisor-orchestrator`
-  双容器；legacy dev-backed supervisor host 只保留为 rollback / fallback 路径
+- 当前 repo-owned staging execution runtime 已 hardcut 到 `go-shell + supervisor-orchestrator`
+  双容器；legacy dev-backed supervisor host 不再是 active runback path
 - `go-shell` readiness 代表 execution runtime 是否适合接收新请求；瞬时并发满载不单独定义为
   runtime broken，queue full / draining / bridge unhealthy 才进入 degraded posture
 - 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
@@ -112,10 +110,25 @@ release identity 的长期规则固定为：
 ### Upstream Execution Gate
 
 - `app-api` deploy 时必须显式注入真实可达的 `SUPERVISOR_API_BASE_URL`
-- forward deploy truth 应指向 Docker-first `apps/supervisor-api` execution origin
+- forward deploy truth 应指向 Docker-first Go execution ingress
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
-- repo-owned staging runbook 现在默认消费 `go-shell` execution origin；只有 rollback / fallback
-  才回到 dev-backed compatibility path
+- repo-owned staging runbook 只消费 `go-shell` execution origin；不再保留
+  dev-backed compatibility path
+
+### Execution Runtime Gate
+
+Docker-side execution runtime 的 release gate 长期至少覆盖：
+
+- `go-shell /healthz`、`/readyz` 与 `/metrics` 可达
+- Python private bridge readiness 已被 `go-shell /readyz` 聚合
+- configured global budget 与 per-lane budget 未漂移
+- queue full、queue timeout、draining、bridge timeout 与 bridge unavailable 都有
+  typed failure fingerprint
+- cancel / client disconnect path 不继续占用 Go request slot
+- audit writer / runtime log sink 不阻塞 answer path，并暴露 dropped / last-error 状态
+
+这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 `app-api`
+产品层 request projection、operator read model 或 browser smoke。
 
 ## Protected Access And Operator Admission
 

@@ -49,12 +49,6 @@ go_shell_staging_adopt_existing_process \
 go_shell_staging_capture_compose_logs
 
 if (( strict_mode == 0 )); then
-  if go_shell_staging_legacy_supervisor_running; then
-    echo "legacy campus-supervisor-api-dev: running"
-  else
-    echo "legacy campus-supervisor-api-dev: stopped"
-  fi
-
   go_shell_staging_print_process_status "cloudflared" "${go_shell_staging_cloudflared_pid_file}" || true
   echo
   echo "docker compose project: ${go_shell_staging_compose_project_name}"
@@ -106,10 +100,6 @@ app_api_readyz_body="$(mktemp)"
 trap 'rm -f "${local_healthz_body}" "${local_readyz_body}" "${local_metrics_body}" "${public_readyz_body}" "${app_api_readyz_body}"' EXIT
 
 failures=()
-
-if go_shell_staging_legacy_supervisor_running; then
-  failures+=("legacy campus-supervisor-api-dev process is still running")
-fi
 
 if ! go_shell_staging_compose_project_running; then
   failures+=("go-shell compose project is not fully running")

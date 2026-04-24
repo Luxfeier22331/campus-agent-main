@@ -34,6 +34,12 @@ func TestParseAnswerRequestProjectsBearerRequestIntoBridgePayload(t *testing.T) 
 	if request.TraceID != "trace-001" {
 		t.Fatalf("trace id = %q, want trace-001", request.TraceID)
 	}
+	if request.RequestID != "req-001" {
+		t.Fatalf("request id = %q, want req-001", request.RequestID)
+	}
+	if request.Lane != "rag" {
+		t.Fatalf("lane = %q, want rag", request.Lane)
+	}
 
 	payload := decodeExecutionPayload(t, request.Payload)
 	if payload["conversation_id"] != "conv-001" {
@@ -52,6 +58,27 @@ func TestParseAnswerRequestProjectsBearerRequestIntoBridgePayload(t *testing.T) 
 	)
 	if retrievalFilter["visibility_level"] != "public" {
 		t.Fatalf("visibility_level = %v, want public", retrievalFilter["visibility_level"])
+	}
+}
+
+func TestParseAnswerRequestRejectsMissingRequestID(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{"user_goal":"library hours"}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected missing request_id to fail")
+	}
+	if httpErr.Status != 400 || httpErr.Code != "missing_request_id" {
+		t.Fatalf("unexpected error = %#v", httpErr)
 	}
 }
 
@@ -136,6 +163,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"保研政策怎么准备？",
+			"request_id":"req-trusted-worker-001",
 			"requested_scope":{"corpus":"regulations","collection":"student_rules"},
 			"context":{
 				"actor":{
@@ -207,7 +235,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 
 func TestParseAnswerRequestRejectsInvalidSafetyIdentifier(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{"user_goal":"library hours","safety_identifier":"not-sha"}`),
+		json.RawMessage(`{"user_goal":"library hours","request_id":"req-invalid-safety","safety_identifier":"not-sha"}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
 		},

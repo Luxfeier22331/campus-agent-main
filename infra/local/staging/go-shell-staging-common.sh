@@ -23,7 +23,6 @@ go_shell_staging_cloudflared_metrics_address="${GO_SHELL_STAGING_CLOUDFLARED_MET
 go_shell_staging_cloudflared_edge_ip_version="${GO_SHELL_STAGING_CLOUDFLARED_EDGE_IP_VERSION:-4}"
 go_shell_staging_lock_wait_seconds="${GO_SHELL_STAGING_LOCK_WAIT_SECONDS:-180}"
 go_shell_staging_cloudflared_match_pattern="${GO_SHELL_STAGING_CLOUDFLARED_MATCH_PATTERN:-cloudflared tunnel( .*)? run ${go_shell_staging_tunnel_name}}"
-go_shell_staging_legacy_supervisor_match_pattern="${GO_SHELL_STAGING_LEGACY_SUPERVISOR_MATCH_PATTERN:-uv run --all-packages( --no-sync)? campus-supervisor-api-dev}"
 go_shell_staging_log_rotate_max_bytes=$((20 * 1024 * 1024))
 go_shell_staging_log_rotate_keep_count=5
 
@@ -61,7 +60,6 @@ go_shell_staging_runtime_globals_declared() {
     "${go_shell_staging_cloudflared_edge_ip_version}" \
     "${go_shell_staging_lock_wait_seconds}" \
     "${go_shell_staging_cloudflared_match_pattern}" \
-    "${go_shell_staging_legacy_supervisor_match_pattern}" \
     "${go_shell_staging_log_rotate_max_bytes}" \
     "${go_shell_staging_log_rotate_keep_count}" \
     "${go_shell_staging_local_healthz_url}" \
@@ -147,13 +145,19 @@ const keys = [
   "LLM_BASE_URL",
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
+  "APP_API_INTERNAL_SHARED_SECRET",
   "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
   "SUPERVISOR_API_QUEUE_CAPACITY",
   "SUPERVISOR_API_QUEUE_TIMEOUT_MS",
   "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
   "SUPERVISOR_API_SHUTDOWN_GRACE_MS",
   "SUPERVISOR_API_METRICS_BEARER_TOKEN",
-  "SUPERVISOR_API_TRANSPORT_WORKER_THREADS",
+  "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",
+  "SUPERVISOR_API_EXECUTION_AUDIT_URL",
+  "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
+  "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
+  "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
+  "SUPERVISOR_PY_BRIDGE_WORKER_THREADS",
   "SUPERVISOR_API_SHARED_SECRET",
   "SUPERVISOR_PY_BRIDGE_TIMEOUT_MS",
   "QDRANT_URL",
@@ -204,7 +208,11 @@ const bridgeSharedSecret =
 resolved.set("SUPERVISOR_PY_BRIDGE_SHARED_SECRET", bridgeSharedSecret);
 
 for (const [key, value] of resolved.entries()) {
-  if (key === "DOCUMENT_REGISTRY_DATABASE_URL" || key === "CAMPUS_SHARED_POSTGRES_URL") {
+  if (
+    key === "DOCUMENT_REGISTRY_DATABASE_URL" ||
+    key === "CAMPUS_SHARED_POSTGRES_URL" ||
+    key === "SUPERVISOR_API_EXECUTION_AUDIT_URL"
+  ) {
     process.stdout.write(`export ${key}=${JSON.stringify(rewriteLocalhostForDocker(value))}\n`);
     continue;
   }
@@ -215,6 +223,21 @@ NODE
   eval "${export_script}"
 
   go_shell_staging_bridge_shared_secret="${SUPERVISOR_PY_BRIDGE_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}}"
+  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${go_shell_staging_app_api_base_url}" ]]; then
+    export SUPERVISOR_API_EXECUTION_AUDIT_URL="${go_shell_staging_app_api_base_url%/}/api/internal/execution/audit-events"
+  fi
+  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+    export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET="${APP_API_INTERNAL_SHARED_SECRET}"
+  fi
+  if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_ENABLED:-}" ]]; then
+    if [[ -n "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET:-}" ]]; then
+      export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true
+    else
+      export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
+    fi
+  fi
+  export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS="${SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
+  export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY="${SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY:-128}"
 }
 
 go_shell_staging_read_pid() {
@@ -394,17 +417,6 @@ go_shell_staging_compose_project_running() {
   local services
   services="$(go_shell_staging_compose_running_services 2>/dev/null || true)"
   [[ "${services}" == *"supervisor-shell"* ]] && [[ "${services}" == *"supervisor-orchestrator"* ]]
-}
-
-go_shell_staging_legacy_supervisor_running() {
-  pgrep -f -- "${go_shell_staging_legacy_supervisor_match_pattern}" >/dev/null 2>&1
-}
-
-go_shell_staging_require_legacy_supervisor_stopped() {
-  if go_shell_staging_legacy_supervisor_running; then
-    echo "Legacy campus-supervisor-api-dev process is still running. Stop it with infra/local/staging/stop-dev-backed-supervisor-staging.sh before starting go-shell staging." >&2
-    return 1
-  fi
 }
 
 go_shell_staging_require_runtime_env() {

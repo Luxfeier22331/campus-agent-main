@@ -5,10 +5,11 @@
 Current status:
 
 - Implements the Docker-side HTTP shell for `GET /healthz`, `GET /readyz`,
-  `GET /metrics`, and `POST /api/v1/answer`.
+  `GET /metrics`, `POST /api/v1/answer`, and
+  `POST /internal/execution/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
-  auth, request projection, fail-closed bridge handling, and global execution
-  admission.
+  auth, request projection, fail-closed bridge handling, lifecycle registry,
+  explicit cancel, and global / per-lane execution admission.
 - Projects the external execution request into private
   `SupervisorRequest -> SupervisorResponse` JSON and calls the Python
   orchestration bridge at `/internal/bridge/*`.
@@ -17,11 +18,26 @@ Current status:
 - Exposes shell-owned Prometheus-style runtime counters at `/metrics`.
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
-- Owns bounded FIFO execution admission with queue full / queue timeout /
-  draining outcomes, `Retry-After` hints, and graceful shutdown drain.
-- Repo-local `Phase 1-6` implementation is in place:
-  cancellation semantics, shell-owned observability, local compose smoke,
-  Python parity rerun, and runback docs are all landed.
+- Emits allowlisted execution audit events to `app-api` internal ingest when
+  configured; this is best-effort and never blocks answer requests.
+- Propagates explicit cancel to the Python private bridge through
+  `/internal/bridge/execution/cancel`; Python currently records the cooperative
+  cancel signal, while deeper provider / prompt mid-flight stop remains a
+  later semantic-runtime task.
+- Hosts the gate-closed structured query runtime foundation for campus services
+  at internal `/internal/query/campus-services/*` routes. `service_status_lookup`
+  can read a configured file projection fixture for deterministic runtime
+  tests; `transport_schedule_lookup` currently returns a typed fail-closed
+  response until the schedule contract discussion is complete.
+- Owns bounded FIFO execution admission with queue full / lane queue full /
+  queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
+  and graceful shutdown drain.
+- Repo-local `Phase 1-7` implementation is in place:
+  cancellation semantics, per-lane admission, shell-owned observability, local
+  compose smoke, Python parity rerun, and runback docs are all landed.
+- Repo-local `Phase 8-9` implementation is in place:
+  cooperative Python bridge cancel signaling and the structured query runtime
+  foundation are landed without opening `campus_services` product serving.
 
 Current admission boundary:
 
@@ -33,6 +49,12 @@ Current admission boundary:
   before returning `503 transport_queue_timeout`.
 - Full queues return `503 transport_queue_full` with `retryable=true` and
   `Retry-After`.
+- Lane budgets are configured with
+  `SUPERVISOR_API_LANE_<LANE>_MAX_CONCURRENT`,
+  `SUPERVISOR_API_LANE_<LANE>_QUEUE_CAPACITY`, and
+  `SUPERVISOR_API_LANE_<LANE>_QUEUE_TIMEOUT_MS`.
+- Current lanes are `rag`, `navigation`, `campus_services`, `notice`, and
+  `default`; unset lane budgets inherit the global budget.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
 
@@ -40,21 +62,45 @@ Current cancellation boundary:
 
 - Go shell stops waiting on the Python bridge when the upstream HTTP client
   disconnects or the shell timeout fires.
-- There is no separate cancel endpoint yet.
-- Once Python orchestration work has been dispatched, the current bridge does
-  not guarantee mid-flight cooperative cancellation inside the Python worker.
+- `POST /internal/execution/cancel` accepts `{ "request_id": "..." }` with
+  `x-worker-origin-auth` and marks the active Go execution as
+  `cancel_requested`.
+- Go shell also sends a best-effort cooperative cancel to the Python bridge.
+  The bridge marks active request ids as `cancel_requested`; this does not yet
+  guarantee provider / prompt executor mid-flight termination.
+
+Current structured query runtime boundary:
+
+- Internal query routes require `x-supervisor-query-auth`.
+- `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
+- `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
+  projection bundle for the current foundation slice.
+- `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
+  for deterministic tests; production should normally omit it.
+- `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
+- The runtime is not browser-facing, not an `app-api` product surface, and does
+  not open `campus_services` query-serving.
 
 Current observability boundary:
 
 - `/metrics` is an internal runtime surface, not part of the `app-api` contract.
 - Current shell-owned counters distinguish admission decisions, queue depth,
-  queue wait, bridge latency, bridge timeout / unavailability, and aggregate
-  request outcomes.
+  queue wait, lifecycle final states, bridge latency, bridge timeout /
+  unavailability, cooperative bridge cancel outcomes, structured query
+  outcomes, and aggregate request outcomes.
 - `SUPERVISOR_API_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
-- OTel collector / sink fan-out is still deferred; this slice only closes the
-  shell-owned metrics and structured logging seam.
+- OTel trace export is disabled by default. When enabled,
+  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured; telemetry
+  export is fail-open for answer requests and surfaces dropped / last-error
+  state in `/readyz` and `/metrics`.
+- Execution audit backflow is disabled by default. When enabled, Go shell sends
+  only safe runtime event summaries for admission rejection, cancel, bridge
+  failure, and timeout to `app-api`; it never includes raw `user_goal`, prompt,
+  answer, transcript, auth material, retrieval payload, or provider response.
+- `/readyz` reports `execution_audit_runtime`, and `/metrics` reports emitted,
+  dropped, failed, queue depth, enabled, and configured counters/gauges.
 
 Requirements:
 
@@ -78,11 +124,33 @@ export API_WORKER_SHARED_SECRET=worker-secret
 export SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8
 export SUPERVISOR_API_QUEUE_CAPACITY=24
 export SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_LANE_RAG_MAX_CONCURRENT=6
+export SUPERVISOR_API_LANE_RAG_QUEUE_CAPACITY=12
+export SUPERVISOR_API_LANE_RAG_QUEUE_TIMEOUT_MS=3000
+export SUPERVISOR_API_LANE_NAVIGATION_MAX_CONCURRENT=2
+export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_CAPACITY=4
+export SUPERVISOR_API_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
+export SUPERVISOR_API_OTEL_ENABLED=false
+export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
+export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:8787/api/internal/execution/audit-events
+export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
+export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS=500
+export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY=128
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_PY_BRIDGE_BASE_URL=http://127.0.0.1:18081
 export SUPERVISOR_PY_BRIDGE_SHARED_SECRET=bridge-secret
 export SUPERVISOR_PY_BRIDGE_TIMEOUT_MS=35000
+export SUPERVISOR_PY_BRIDGE_CANCEL_TIMEOUT_MS=500
+export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
+export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
+export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
+export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
 ```
+
+Staging lifecycle derives execution audit URL and shared secret from
+`GO_SHELL_STAGING_APP_API_BASE_URL` and `APP_API_INTERNAL_SHARED_SECRET` when the
+explicit `SUPERVISOR_API_EXECUTION_AUDIT_*` variables are absent. Generic local
+compose keeps execution audit disabled unless explicitly enabled.
 
 Local verification:
 
@@ -119,6 +187,7 @@ curl -i -H 'content-type: application/json' \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
 {
+  "request_id": "req-local-smoke-001",
   "user_goal": "hello",
   "context": {
     "actor": {

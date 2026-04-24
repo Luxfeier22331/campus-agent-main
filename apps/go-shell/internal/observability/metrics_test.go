@@ -13,11 +13,20 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 	finish(200, "supervisor_response", 120*time.Millisecond)
 	metrics.RecordAdmissionDecision("queue_full", 0)
 	metrics.RecordAdmissionDecision("admitted_queued", 12*time.Millisecond)
+	metrics.RecordAdmissionDecisionForLane("rag", "admitted_queued", 8*time.Millisecond)
 	metrics.RecordBridgeDuration(90 * time.Millisecond)
 	metrics.RecordBridgeFailure("timeout")
 	metrics.RecordBridgeSuccess()
 
-	output := string(metrics.Prometheus())
+	output := string(metrics.Prometheus(AdmissionSnapshot{
+		Lifecycle: LifecycleSnapshot{
+			CompletedRetained: 2,
+			CompletedByState: map[string]int{
+				"completed": 1,
+				"failed":    1,
+			},
+		},
+	}))
 
 	expectedSnippets := []string{
 		`campus_go_shell_requests_total{route="/api/v1/answer",outcome="supervisor_response",status_class="2xx"} 1`,
@@ -25,9 +34,13 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_go_shell_request_duration_ms_count{route="/api/v1/answer"} 1`,
 		`campus_go_shell_inflight_requests{route="/api/v1/answer"} 0`,
 		`campus_go_shell_admission_decisions_total{decision="queue_full"} 1`,
-		`campus_go_shell_admission_queue_wait_ms_count 1`,
+		`campus_go_shell_admission_lane_decisions_total{lane="rag",decision="admitted_queued"} 1`,
+		`campus_go_shell_admission_queue_wait_ms_count 2`,
+		`campus_go_shell_admission_lane_queue_wait_ms_count{lane="rag"} 1`,
 		`campus_go_shell_bridge_duration_ms_count 1`,
 		`campus_go_shell_bridge_failures_total{kind="timeout"} 1`,
+		`campus_go_shell_lifecycle_completed_total{state="completed"} 1`,
+		`campus_go_shell_lifecycle_completed_total{state="failed"} 1`,
 	}
 	for _, snippet := range expectedSnippets {
 		if !strings.Contains(output, snippet) {
