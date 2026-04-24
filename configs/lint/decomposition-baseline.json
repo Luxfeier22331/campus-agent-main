@@ -6,9 +6,6 @@
 		},
 		"tests/ingestion/test_curriculum_provider_normalize.py": {
 			"max_lines": 888
-		},
-		"tests/test_public_docs_sync.py": {
-			"max_lines": 810
 		}
 	}
 }

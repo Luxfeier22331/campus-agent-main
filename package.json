@@ -19,7 +19,7 @@
 		"web:typecheck:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck --affected",
 		"web:typecheck": "turbo run typecheck",
 		"docs:lint": "uv run --all-packages python -m scripts.check_markdown_tracked",
-		"public-docs:lint": "uv run --all-packages python -m scripts.check_public_docs_generated",
+		"public-docs:lint": "pnpm --filter public-docs lint:generated",
 		"coverage:lint": "uv run --all-packages python -m scripts.check_lint_coverage_tracked",
 		"decomposition:lint": "uv run --all-packages python -m scripts.check_decomposition_tracked",
 		"java:lint": "uv run --all-packages python -m scripts.check_java_tracked",
