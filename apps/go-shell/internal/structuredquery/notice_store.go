@@ -209,7 +209,9 @@ func (s *S3NoticeBodyStore) GetNoticeBody(ctx context.Context, objectKey string)
 	if err != nil {
 		return "", errNoticeBodyUnavailable
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", errNoticeBodyUnavailable
