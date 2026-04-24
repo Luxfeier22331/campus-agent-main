@@ -32,6 +32,7 @@ import {
 	formatSelectedTargetLabel,
 	formatSurfaceLabel,
 } from "../requests/request-formatters";
+import type { OperatorAuditEventRecord } from "../types";
 import {
 	buildAuditDiagnosticEntries,
 	formatAuditEventType,
@@ -102,9 +103,8 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 	return (
 		<Card
 			sx={{
-				background:
-					"linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,251,255,0.99) 100%)",
-				borderRadius: 3,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
@@ -269,16 +269,15 @@ export function AuditPage() {
 				<Stack spacing={3}>
 					<Card
 						sx={{
-							background:
-								"linear-gradient(135deg, rgba(247,251,255,1) 0%, rgba(235,244,255,1) 100%)",
-							borderRadius: 4,
+							backgroundColor: "background.paper",
+							borderRadius: 2,
 						}}
 						variant="outlined"
 					>
-						<CardContent>
-							<Stack spacing={2.5}>
+						<CardContent sx={{ p: { md: 2.5, xs: 2 }, "&:last-child": { pb: { md: 2.5, xs: 2 } } }}>
+							<Stack spacing={2}>
 								<Stack spacing={1}>
-									<Typography sx={{ fontWeight: 700 }} variant="h4">
+									<Typography sx={{ fontWeight: 700 }} variant="h5">
 										{PANEL_COPY.auditPage.title}
 									</Typography>
 									<Typography color="text.secondary" variant="body1">
@@ -303,6 +302,7 @@ export function AuditPage() {
 											});
 										}}
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.requestId}
 									/>
 									<TextField
@@ -317,6 +317,7 @@ export function AuditPage() {
 											});
 										}}
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.traceId}
 									/>
 									<TextField
@@ -332,6 +333,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.principalType}
 									>
 										{PRINCIPAL_TYPE_OPTIONS.map((option) => (
@@ -353,6 +355,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.surface ?? ""}
 									>
 										{SURFACE_OPTIONS.map((option) => (
@@ -374,6 +377,7 @@ export function AuditPage() {
 										}}
 										select
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.selectedTarget ?? ""}
 									>
 										{TARGET_OPTIONS.map((option) => (
@@ -394,6 +398,7 @@ export function AuditPage() {
 											});
 										}}
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.eventType}
 									/>
 									<TextField
@@ -408,6 +413,7 @@ export function AuditPage() {
 											});
 										}}
 										size="small"
+										sx={{ width: { md: 180, xs: "100%" } }}
 										value={filters.status}
 									/>
 								</Stack>

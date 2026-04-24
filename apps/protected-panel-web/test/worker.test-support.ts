@@ -38,6 +38,7 @@ export function createOperatorQueryServiceMock(
 		}),
 		listAudit: vi.fn(),
 		listQualityBadcases: vi.fn(),
+		listQualityEvalCandidates: vi.fn(),
 		...overrides,
 	};
 }

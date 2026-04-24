@@ -6,7 +6,7 @@ body,
 }
 
 body {
-	background: #f4f6f8;
+	background: #f6f7f9;
 }
 
 .panel-boot-fallback,
@@ -22,7 +22,7 @@ body {
 }
 
 .panel-boot-fallback {
-	min-height: 100vh;
+	min-height: 100dvh;
 }
 
 .panel-route-fallback {
@@ -41,5 +41,11 @@ body {
 @keyframes panel-spinner {
 	to {
 		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.panel-boot-fallback__spinner {
+		animation: none;
 	}
 }

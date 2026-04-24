@@ -39,9 +39,8 @@ export function OverviewMetricCard(props: { detail: string; label: string; value
 	return (
 		<Card
 			sx={{
-				background:
-					"linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,250,255,0.98) 100%)",
-				borderRadius: 3,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
@@ -70,9 +69,8 @@ export function OverviewChartCard(props: {
 	return (
 		<Card
 			sx={{
-				background:
-					"linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,251,255,0.99) 100%)",
-				borderRadius: 3,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
@@ -269,15 +267,15 @@ export function OverviewHeaderSection(props: {
 	return (
 		<Card
 			sx={{
-				background: "linear-gradient(135deg, rgba(248,251,255,1) 0%, rgba(235,245,255,1) 100%)",
-				borderRadius: 4,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
-			<CardContent>
-				<Stack spacing={2.5}>
+			<CardContent sx={{ p: { md: 2.5, xs: 2 }, "&:last-child": { pb: { md: 2.5, xs: 2 } } }}>
+				<Stack spacing={2}>
 					<Stack spacing={1}>
-						<Typography sx={{ fontWeight: 700 }} variant="h4">
+						<Typography sx={{ fontWeight: 700 }} variant="h5">
 							{PANEL_COPY.overviewPage.title}
 						</Typography>
 						<Typography color="text.secondary" variant="body1">
@@ -295,6 +293,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onWindowChange(event.target.value)}
 							select
 							size="small"
+							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
 							{OVERVIEW_WINDOW_OPTIONS.map((option) => (
@@ -308,6 +307,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
+							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
 							{SURFACE_OPTIONS.map((option) => (
@@ -321,6 +321,7 @@ export function OverviewHeaderSection(props: {
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
+							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
 							{TARGET_OPTIONS.map((option) => (

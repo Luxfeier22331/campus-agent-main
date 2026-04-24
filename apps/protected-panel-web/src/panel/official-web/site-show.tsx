@@ -25,7 +25,11 @@ function SiteFieldRow(props: { label: string; value: ReactNode }) {
 			<Typography color="text.secondary" variant="caption">
 				{props.label}
 			</Typography>
-			<Typography component="div" variant="body2">
+			<Typography
+				component="div"
+				sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+				variant="body2"
+			>
 				{props.value}
 			</Typography>
 		</Stack>
@@ -215,7 +219,10 @@ function OfficialWebSiteShowContent() {
 									<Stack spacing={1.5}>
 										{record.recentRuns.map((run) => (
 											<Stack key={run.runId} spacing={0.5}>
-												<Typography variant="body2">
+												<Typography
+													sx={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
+													variant="body2"
+												>
 													<strong>{run.runId}</strong>
 												</Typography>
 												<Stack

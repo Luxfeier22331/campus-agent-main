@@ -1,3 +1,4 @@
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
@@ -18,21 +19,21 @@ import {
 	ListItemText,
 	MenuItem,
 	AppBar as MuiAppBar,
+	Menu as MuiMenu,
 	type Theme,
 	Toolbar,
 	Tooltip,
 	useMediaQuery,
 } from "@mui/material";
-import type { ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useState } from "react";
 import {
 	Layout,
-	Menu,
+	Menu as RaMenu,
 	TitlePortal,
-	UserMenu,
+	useGetIdentity,
 	useLogout,
 	useRefresh,
 	useSidebarState,
-	useUserMenu,
 } from "react-admin";
 
 import { PANEL_COPY } from "./panel-copy";
@@ -69,12 +70,10 @@ function ProtectedPanelRefreshButton() {
 
 function ProtectedPanelLogoutMenuItem() {
 	const logout = useLogout();
-	const userMenu = useUserMenu();
 
 	return (
 		<MenuItem
 			onClick={() => {
-				userMenu?.onClose?.();
 				void logout();
 			}}
 		>
@@ -87,10 +86,43 @@ function ProtectedPanelLogoutMenuItem() {
 }
 
 export function ProtectedPanelUserMenu() {
+	const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+	const { identity } = useGetIdentity();
+	const open = Boolean(anchorEl);
+	const label = identity?.fullName || PANEL_COPY.appBar.account;
+
+	const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
+		setAnchorEl(event.currentTarget);
+	};
+	const handleClose = () => {
+		setAnchorEl(null);
+	};
+
 	return (
-		<UserMenu label={PANEL_COPY.appBar.account}>
-			<ProtectedPanelLogoutMenuItem />
-		</UserMenu>
+		<>
+			<Tooltip enterDelay={300} title={label}>
+				<IconButton
+					aria-controls={open ? "protected-panel-account-menu" : undefined}
+					aria-expanded={open ? "true" : undefined}
+					aria-haspopup="menu"
+					aria-label={PANEL_COPY.appBar.account}
+					color="inherit"
+					onClick={handleOpen}
+					size="large"
+				>
+					<AccountCircleOutlinedIcon />
+				</IconButton>
+			</Tooltip>
+			<MuiMenu
+				anchorEl={anchorEl}
+				id="protected-panel-account-menu"
+				onClose={handleClose}
+				open={open}
+			>
+				<MenuItem disabled>{label}</MenuItem>
+				<ProtectedPanelLogoutMenuItem />
+			</MuiMenu>
+		</>
 	);
 }
 
@@ -103,7 +135,7 @@ export function ProtectedPanelAppBar(props: ProtectedPanelAppBarProps) {
 	const isXSmall = useMediaQuery<Theme>((theme) => theme.breakpoints.down("sm"));
 
 	return (
-		<MuiAppBar className={props.className} color="primary">
+		<MuiAppBar className={props.className} color="default">
 			<Toolbar disableGutters sx={{ px: 1 }} variant={isXSmall ? "regular" : "dense"}>
 				<ProtectedPanelSidebarToggleButton />
 				<Box sx={{ alignItems: "center", display: "flex", flex: 1, minWidth: 0, px: 1 }}>
@@ -118,58 +150,58 @@ export function ProtectedPanelAppBar(props: ProtectedPanelAppBarProps) {
 
 function ProtectedPanelMenu() {
 	return (
-		<Menu>
-			<Menu.Item
+		<RaMenu>
+			<RaMenu.Item
 				leftIcon={<DashboardOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.overview}
 				to="/observability/overview"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<QueryStatsOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.quality}
 				to="/observability/quality"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<AdminPanelSettingsOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.safety}
 				to="/observability/safety"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<PaidOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.cost}
 				to="/observability/cost"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<FindInPageOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.requests}
 				to="/requests"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<LanguageOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.officialWebSites}
 				to="/officialWebSites"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<TravelExploreOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.officialWebRuns}
 				to="/officialWebRuns"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<RuleFolderOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.jobs}
 				to="/jobs"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<PendingActionsOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.operations}
 				to="/operations"
 			/>
-			<Menu.Item
+			<RaMenu.Item
 				leftIcon={<HistoryOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.audit}
 				to="/observability/audit"
 			/>
-		</Menu>
+		</RaMenu>
 	);
 }
 
@@ -179,8 +211,21 @@ export function ProtectedPanelLayout({ children }: { children: ReactNode }) {
 			appBar={ProtectedPanelAppBar}
 			menu={ProtectedPanelMenu}
 			sx={{
-				"& .skip-nav-button": {
-					display: "none",
+				boxSizing: "border-box",
+				maxWidth: "100%",
+				minWidth: 0,
+				overflowX: "hidden",
+				width: "100%",
+				"& .RaLayout-appFrame, & .RaLayout-contentWithSidebar, & .RaLayout-content": {
+					maxWidth: "100%",
+					minWidth: 0,
+					overflowX: "hidden",
+				},
+				"& .RaList-root, & .RaList-main, & .RaList-actions, & .RaList-content": {
+					minWidth: 0,
+				},
+				"& .RaLayout-content": {
+					minWidth: 0,
 				},
 			}}
 		>

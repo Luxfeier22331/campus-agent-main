@@ -15,6 +15,7 @@ import { PanelDatagridHeader } from "../panel-datagrid-header";
 import { PanelListActions } from "../panel-list-actions";
 import { PanelListErrorState } from "../panel-list-error";
 import { PanelPagination } from "../panel-pagination";
+import { PanelResponsiveDatagrid } from "../panel-responsive-datagrid";
 import type { OfficialWebRunRecord } from "../types";
 import { formatOfficialWebRunIntentLabel } from "./official-web-formatters";
 import {
@@ -65,19 +66,11 @@ const runFilters = [
 	/>,
 ];
 
-function OfficialWebRunsAside() {
+function OfficialWebRunsContractNotice() {
 	return (
-		<Card sx={{ width: { lg: 320, xs: "100%" } }}>
-			<CardContent>
-				<Stack spacing={2}>
-					<Typography variant="h6">读模型说明</Typography>
-					<Alert severity="info">
-						采集运行列表读取 app-api
-						维护的投影视图。游标分页按设计只能顺序前进，不会绕过运行时接缝。
-					</Alert>
-				</Stack>
-			</CardContent>
-		</Card>
+		<Alert severity="info">
+			采集运行列表读取 app-api 维护的投影视图。游标分页按设计只能顺序前进，不会绕过运行时边界。
+		</Alert>
 	);
 }
 
@@ -101,7 +94,6 @@ export function OfficialWebRunsListPage() {
 	return (
 		<List
 			actions={<PanelListActions />}
-			aside={<OfficialWebRunsAside />}
 			empty={<OfficialWebRunsEmpty />}
 			emptyWhileLoading
 			error={
@@ -116,40 +108,47 @@ export function OfficialWebRunsListPage() {
 			sort={{ field: "startedAt", order: "DESC" }}
 			title="官网采集运行"
 		>
-			<Datagrid
-				bulkActionButtons={false}
-				empty={<OfficialWebRunsEmpty />}
-				header={<PanelDatagridHeader />}
-				rowClick="show"
-			>
-				<TextField label="运行 ID" source="runId" />
-				<TextField label="站点" source="siteId" />
-				<FunctionField
-					label="运行意图"
-					render={(record: OfficialWebRunRecord) => (
-						<OfficialWebRunIntentChip runIntent={record.runIntent} />
-					)}
-				/>
-				<FunctionField
-					label="状态"
-					render={(record: OfficialWebRunRecord) => (
-						<OfficialWebRunStatusChip status={record.status} />
-					)}
-				/>
-				<FunctionField
-					label="分发"
-					render={(record: OfficialWebRunRecord) => (
-						<OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />
-					)}
-				/>
-				<FunctionField
-					label="失败数"
-					render={(record: OfficialWebRunRecord) => <OfficialWebFailureSummary record={record} />}
-				/>
-				<DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
-				<DateField label="结束时间" locales="zh-CN" showTime source="finishedAt" />
-				<ShowButton label={PANEL_COPY.view} />
-			</Datagrid>
+			<Stack spacing={2}>
+				<OfficialWebRunsContractNotice />
+				<PanelResponsiveDatagrid minWidth={1080}>
+					<Datagrid
+						bulkActionButtons={false}
+						empty={<OfficialWebRunsEmpty />}
+						header={<PanelDatagridHeader />}
+						rowClick="show"
+					>
+						<TextField label="运行 ID" source="runId" />
+						<TextField label="站点" source="siteId" />
+						<FunctionField
+							label="运行意图"
+							render={(record: OfficialWebRunRecord) => (
+								<OfficialWebRunIntentChip runIntent={record.runIntent} />
+							)}
+						/>
+						<FunctionField
+							label="状态"
+							render={(record: OfficialWebRunRecord) => (
+								<OfficialWebRunStatusChip status={record.status} />
+							)}
+						/>
+						<FunctionField
+							label="分发"
+							render={(record: OfficialWebRunRecord) => (
+								<OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />
+							)}
+						/>
+						<FunctionField
+							label="失败数"
+							render={(record: OfficialWebRunRecord) => (
+								<OfficialWebFailureSummary record={record} />
+							)}
+						/>
+						<DateField label="开始时间" locales="zh-CN" showTime source="startedAt" />
+						<DateField label="结束时间" locales="zh-CN" showTime source="finishedAt" />
+						<ShowButton label={PANEL_COPY.view} />
+					</Datagrid>
+				</PanelResponsiveDatagrid>
+			</Stack>
 		</List>
 	);
 }

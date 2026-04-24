@@ -23,8 +23,15 @@ describe("protected panel shell chinese copy", () => {
 		expect(layoutSource).not.toContain("useTheme(");
 		expect(layoutSource).not.toContain("DarkModeOutlinedIcon");
 		expect(layoutSource).not.toContain("LightModeOutlinedIcon");
-		expect(layoutSource).toContain('display: "none"');
 		expect(layoutSource).toContain("primaryText={PANEL_COPY.menu.requests}");
+	});
+
+	it("keeps protected panel shell accessible and explicitly themed", () => {
+		expect(appSource).toContain("theme={protectedPanelTheme}");
+		expect(layoutSource).toContain("aria-label={PANEL_COPY.appBar.account}");
+		expect(layoutSource).not.toContain("UserMenu label=");
+		expect(layoutSource).not.toContain("\tUserMenu,");
+		expect(layoutSource).not.toContain("skip-nav-button");
 	});
 
 	it("wires requests list through explicit chinese sort and error scaffolding", () => {
@@ -41,6 +48,23 @@ describe("protected panel shell chinese copy", () => {
 		expect(requestListSource).toContain('source="q"');
 		expect(requestListSource).toContain("PANEL_COPY.requestsList.columns.outcome");
 		expect(requestListSource).toContain("omit={[");
+	});
+
+	it("renders request filters and pagination only once in the triage surface", () => {
+		const filterFormOccurrences = requestListSource.match(/filters=\{requestFilters\}/g) ?? [];
+		expect(filterFormOccurrences).toHaveLength(1);
+		expect(requestListSource).not.toContain("pagination={<PanelPagination />}");
+		expect(requestListSource).toContain("RequestListContent");
+		expect(requestListSource).toContain("<PanelPagination />");
+	});
+
+	it("keeps react-admin layout and request actions from clipping mobile content", () => {
+		expect(layoutSource).toContain(
+			'"& .RaList-root, & .RaList-main, & .RaList-actions, & .RaList-content"',
+		);
+		expect(layoutSource).toContain("minWidth: 0");
+		expect(requestListSource).toContain('alignSelf: "stretch"');
+		expect(requestListSource).toContain('whiteSpace: "normal"');
 	});
 
 	it("reserves operator observability domains as explicit custom routes instead of fake resources", () => {

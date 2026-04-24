@@ -309,7 +309,15 @@ export interface RawOperatorAuditEventDetailRecord {
 	auditEventId: string;
 	diagnostics: {
 		aclAnomalyCode: string | null;
+		bridgeDurationMs?: number | null;
+		decision?: string | null;
+		durationMs?: number | null;
 		failClosed: boolean | null;
+		failureKind?: string | null;
+		httpStatus?: number | null;
+		lane?: string | null;
+		queueWaitMs?: number | null;
+		retryable?: boolean | null;
 		sourceDocIds: string[];
 	};
 	entitlementSnapshotId: string | null;

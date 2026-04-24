@@ -19,6 +19,7 @@ import { QualityPage } from "./pages/quality-page";
 import { SafetyPage } from "./pages/safety-page";
 import { PANEL_COPY } from "./panel-copy";
 import { ProtectedPanelLayout } from "./panel-layout";
+import { protectedPanelTheme } from "./panel-theme";
 import { RequestListPage } from "./requests/request-list";
 import { RequestShowPage } from "./requests/request-show";
 
@@ -35,6 +36,7 @@ export function ProtectedPanelAdminApp() {
 			disableTelemetry
 			layout={ProtectedPanelLayout}
 			loginPage={AccessRequiredPage}
+			theme={protectedPanelTheme}
 			title={PANEL_COPY.appTitle}
 		>
 			<Resource

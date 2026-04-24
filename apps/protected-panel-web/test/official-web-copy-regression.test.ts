@@ -59,4 +59,19 @@ describe("protected panel official web chinese copy", () => {
 		expect(panelDatagridHeaderSource).toContain("formatPanelSortLabel");
 		expect(panelListErrorSource).toContain("PANEL_COPY.errorState.listLoadFailed");
 	});
+
+	it("keeps official web list tables inside responsive scroll regions instead of page-level aside overflow", () => {
+		expect(sitesListSource).not.toContain("aside={<OfficialWebSitesAside />}");
+		expect(sitesListSource).toContain("OfficialWebSitesContractNotice");
+		expect(sitesListSource).toContain("PanelResponsiveDatagrid");
+		expect(runsListSource).not.toContain("aside={<OfficialWebRunsAside />}");
+		expect(runsListSource).toContain("OfficialWebRunsContractNotice");
+		expect(runsListSource).toContain("PanelResponsiveDatagrid");
+	});
+
+	it("allows long official web identifiers to wrap inside mobile detail cards", () => {
+		expect(siteShowSource).toContain('overflowWrap: "anywhere"');
+		expect(siteShowSource).toContain('wordBreak: "break-word"');
+		expect(siteShowSource.match(/overflowWrap: "anywhere"/g)).toHaveLength(2);
+	});
 });

@@ -49,9 +49,8 @@ function SummaryCard(props: { detail: string; label: string; value: string }) {
 	return (
 		<Card
 			sx={{
-				background:
-					"linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(246,250,255,0.98) 100%)",
-				borderRadius: 3,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
@@ -76,9 +75,8 @@ function SectionCard(props: { children: ReactNode; description?: string; title: 
 	return (
 		<Card
 			sx={{
-				background:
-					"linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,251,255,0.99) 100%)",
-				borderRadius: 3,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
@@ -113,15 +111,15 @@ export function QualityHeaderSection(props: {
 	return (
 		<Card
 			sx={{
-				background: "linear-gradient(135deg, rgba(247,251,255,1) 0%, rgba(235,244,255,1) 100%)",
-				borderRadius: 4,
+				backgroundColor: "background.paper",
+				borderRadius: 2,
 			}}
 			variant="outlined"
 		>
-			<CardContent>
-				<Stack spacing={2.5}>
+			<CardContent sx={{ p: { md: 2.5, xs: 2 }, "&:last-child": { pb: { md: 2.5, xs: 2 } } }}>
+				<Stack spacing={2}>
 					<Stack spacing={1}>
-						<Typography sx={{ fontWeight: 700 }} variant="h4">
+						<Typography sx={{ fontWeight: 700 }} variant="h5">
 							{PANEL_COPY.qualityPage.title}
 						</Typography>
 						<Typography color="text.secondary" variant="body1">
@@ -141,6 +139,7 @@ export function QualityHeaderSection(props: {
 							}
 							select
 							size="small"
+							sx={{ width: { md: 140, xs: "100%" } }}
 							value={props.filters.window}
 						>
 							{QUALITY_WINDOW_OPTIONS.map((option) => (
@@ -154,6 +153,7 @@ export function QualityHeaderSection(props: {
 							onChange={(event) => props.onSurfaceChange(event.target.value)}
 							select
 							size="small"
+							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.surface ?? ""}
 						>
 							{QUALITY_SURFACE_OPTIONS.map((option) => (
@@ -167,6 +167,7 @@ export function QualityHeaderSection(props: {
 							onChange={(event) => props.onSelectedTargetChange(event.target.value)}
 							select
 							size="small"
+							sx={{ width: { md: 180, xs: "100%" } }}
 							value={props.filters.selectedTarget ?? ""}
 						>
 							{QUALITY_TARGET_OPTIONS.map((option) => (

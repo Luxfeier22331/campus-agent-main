@@ -90,10 +90,15 @@ function RequestListActions() {
 		<TopToolbar
 			sx={{
 				alignItems: "stretch",
+				alignSelf: "stretch",
+				boxSizing: "border-box",
 				display: "flex",
 				flexDirection: "column",
 				gap: 2,
+				maxWidth: "100%",
 				px: 0,
+				whiteSpace: "normal",
+				width: "100%",
 			}}
 		>
 			<Stack
@@ -103,7 +108,7 @@ function RequestListActions() {
 				justifyContent="space-between"
 				sx={{ width: "100%" }}
 			>
-				<Stack spacing={0.25}>
+				<Stack spacing={0.25} sx={{ minWidth: 0 }}>
 					<Typography fontWeight={600} variant="subtitle1">
 						{PANEL_COPY.requestsList.title}
 					</Typography>
@@ -167,90 +172,91 @@ export function RequestListPage() {
 			}
 			emptyWhileLoading
 			empty={<RequestListEmpty />}
-			filters={requestFilters}
-			pagination={<PanelPagination />}
+			pagination={false}
 			perPage={20}
 			sort={{ field: "startedAt", order: "DESC" }}
 			title={PANEL_COPY.menu.requests}
 		>
-			<Stack spacing={2}>
-				<RequestListGuide />
-				<DatagridConfigurable
-					bulkActionButtons={false}
-					empty={<RequestListEmpty />}
-					header={<PanelDatagridHeader />}
-					omit={["requestId", "traceId", "conversationId", "surface", "requestedCapability"]}
-					preferenceKey={REQUEST_LIST_PREFERENCE_KEY}
-					rowClick="show"
-				>
-					<DateField
-						label={PANEL_COPY.requestsList.columns.startedAt}
-						locales="zh-CN"
-						showTime
-						source="startedAt"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.status}
-						render={(record: RequestProjectionRecord) => (
-							<RequestStatusChip status={record.status} />
-						)}
-						source="status"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.question}
-						render={(record: RequestProjectionRecord) => (
-							<RequestPreviewText
-								emptyText="未记录问题预览。"
-								maxLines={2}
-								text={record.questionPreview}
-							/>
-						)}
-						source="questionPreview"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.principal}
-						render={(record: RequestProjectionRecord) => <RequestActorSummary record={record} />}
-						source="principalId"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.scope}
-						render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
-						source="selectedTarget"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.outcome}
-						render={(record: RequestProjectionRecord) => <RequestOutcomeSummary record={record} />}
-						source="answerPreview"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.duration}
-						render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
-						source="durationMs"
-					/>
-					<ShowButton label={PANEL_COPY.view} />
-
-					<TextField label={PANEL_COPY.requestsList.columns.requestId} source="requestId" />
-					<TextField label={PANEL_COPY.requestsList.columns.traceId} source="traceId" />
-					<TextField
-						label={PANEL_COPY.requestsList.columns.conversationId}
-						source="conversationId"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.surface}
-						render={(record: RequestProjectionRecord) => (
-							<RequestSurfaceLabel surface={record.surface} />
-						)}
-						source="surface"
-					/>
-					<FunctionField
-						label={PANEL_COPY.requestsList.columns.capability}
-						render={(record: RequestProjectionRecord) =>
-							formatCapabilityLabel(record.requestedCapability)
-						}
-						source="requestedCapability"
-					/>
-				</DatagridConfigurable>
-			</Stack>
+			<RequestListContent />
 		</List>
+	);
+}
+
+function RequestListContent() {
+	return (
+		<Stack spacing={2}>
+			<RequestListGuide />
+			<DatagridConfigurable
+				bulkActionButtons={false}
+				empty={<RequestListEmpty />}
+				header={<PanelDatagridHeader />}
+				omit={["requestId", "traceId", "conversationId", "surface", "requestedCapability"]}
+				preferenceKey={REQUEST_LIST_PREFERENCE_KEY}
+				rowClick="show"
+			>
+				<DateField
+					label={PANEL_COPY.requestsList.columns.startedAt}
+					locales="zh-CN"
+					showTime
+					source="startedAt"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.status}
+					render={(record: RequestProjectionRecord) => <RequestStatusChip status={record.status} />}
+					source="status"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.question}
+					render={(record: RequestProjectionRecord) => (
+						<RequestPreviewText
+							emptyText="未记录问题预览。"
+							maxLines={2}
+							text={record.questionPreview}
+						/>
+					)}
+					source="questionPreview"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.principal}
+					render={(record: RequestProjectionRecord) => <RequestActorSummary record={record} />}
+					source="principalId"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.scope}
+					render={(record: RequestProjectionRecord) => <RequestScopeSummary record={record} />}
+					source="selectedTarget"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.outcome}
+					render={(record: RequestProjectionRecord) => <RequestOutcomeSummary record={record} />}
+					source="answerPreview"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.duration}
+					render={(record: RequestProjectionRecord) => formatDuration(record.durationMs)}
+					source="durationMs"
+				/>
+				<ShowButton label={PANEL_COPY.view} />
+
+				<TextField label={PANEL_COPY.requestsList.columns.requestId} source="requestId" />
+				<TextField label={PANEL_COPY.requestsList.columns.traceId} source="traceId" />
+				<TextField label={PANEL_COPY.requestsList.columns.conversationId} source="conversationId" />
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.surface}
+					render={(record: RequestProjectionRecord) => (
+						<RequestSurfaceLabel surface={record.surface} />
+					)}
+					source="surface"
+				/>
+				<FunctionField
+					label={PANEL_COPY.requestsList.columns.capability}
+					render={(record: RequestProjectionRecord) =>
+						formatCapabilityLabel(record.requestedCapability)
+					}
+					source="requestedCapability"
+				/>
+			</DatagridConfigurable>
+			<PanelPagination />
+		</Stack>
 	);
 }
