@@ -21,8 +21,27 @@ const CHUNK_GROUPS = [
 		patterns: ["/node_modules/ra-ui-materialui/"],
 	},
 	{
-		name: "mui-vendor",
-		patterns: ["/node_modules/@mui/", "/node_modules/@emotion/"],
+		name: "mui-icons-vendor",
+		patterns: ["/node_modules/@mui/icons-material/"],
+	},
+	{
+		name: "mui-x-vendor",
+		patterns: ["/node_modules/@mui/x-"],
+	},
+	{
+		name: "mui-material-vendor",
+		patterns: ["/node_modules/@mui/material/"],
+	},
+	{
+		name: "mui-system-vendor",
+		patterns: [
+			"/node_modules/@emotion/",
+			"/node_modules/@mui/private-theming/",
+			"/node_modules/@mui/styled-engine/",
+			"/node_modules/@mui/system/",
+			"/node_modules/@mui/utils/",
+			"/node_modules/stylis/",
+		],
 	},
 	{
 		name: "react-vendor",

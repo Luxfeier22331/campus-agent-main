@@ -42,17 +42,27 @@ describe("protected panel web chunk strategy", () => {
 		).toBe("ra-ui-vendor");
 	});
 
-	it("extracts mui and emotion packages into a dedicated ui vendor chunk", () => {
+	it("splits mui, emotion, icons, and charts into bounded ui vendor chunks", () => {
 		expect(
 			protectedPanelManualChunks(
 				"/workspace/apps/protected-panel-web/node_modules/@mui/material/Button/Button.js",
 			),
-		).toBe("mui-vendor");
+		).toBe("mui-material-vendor");
 		expect(
 			protectedPanelManualChunks(
 				"/workspace/apps/protected-panel-web/node_modules/@emotion/react/dist/emotion-react.esm.js",
 			),
-		).toBe("mui-vendor");
+		).toBe("mui-system-vendor");
+		expect(
+			protectedPanelManualChunks(
+				"/workspace/apps/protected-panel-web/node_modules/@mui/icons-material/Menu.js",
+			),
+		).toBe("mui-icons-vendor");
+		expect(
+			protectedPanelManualChunks(
+				"/workspace/apps/protected-panel-web/node_modules/@mui/x-charts/LineChart/index.js",
+			),
+		).toBe("mui-x-vendor");
 	});
 
 	it("extracts react runtime packages into a dedicated react chunk", () => {

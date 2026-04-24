@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildRequestIntentEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
+	formatCapabilityLabel,
+	formatIntentLaunchStateLabel,
+	formatIntentNextActionLabel,
+	formatIntentScopeClassLabel,
+	formatIntentTaskKindLabel,
 	formatSelectedTargetLabel,
 } from "../src/panel/requests/request-formatters";
 
@@ -20,5 +26,66 @@ describe("request target formatters", () => {
 			{ label: "校园服务", value: "campus-services-agent" },
 			{ label: "通知能力", value: "notice-agent" },
 		]);
+	});
+});
+
+describe("request intent formatters", () => {
+	it("maps current intent codes to localized display labels while preserving unknown codes", () => {
+		expect(formatCapabilityLabel("knowledge")).toBe("知识问答");
+		expect(formatCapabilityLabel("place_lookup")).toBe("地点查询");
+		expect(formatCapabilityLabel("campus_services")).toBe("校园服务");
+		expect(formatCapabilityLabel("notice")).toBe("通知公告");
+		expect(formatCapabilityLabel("custom_capability")).toBe("custom_capability");
+
+		expect(formatIntentTaskKindLabel("knowledge_lookup")).toBe("知识检索");
+		expect(formatIntentTaskKindLabel("place_lookup")).toBe("地点查询");
+		expect(formatIntentTaskKindLabel("campus_services_lookup")).toBe("服务查询");
+		expect(formatIntentTaskKindLabel("notice_lookup")).toBe("通知查询");
+		expect(formatIntentTaskKindLabel("unknown")).toBe("未知");
+		expect(formatIntentTaskKindLabel("custom_task")).toBe("custom_task");
+
+		expect(formatIntentLaunchStateLabel("open")).toBe("已开放");
+		expect(formatIntentLaunchStateLabel("candidate_only")).toBe("候选观察");
+		expect(formatIntentLaunchStateLabel("closed")).toBe("已关闭");
+		expect(formatIntentLaunchStateLabel("custom_state")).toBe("custom_state");
+
+		expect(formatIntentNextActionLabel("delegate")).toBe("委派执行");
+		expect(formatIntentNextActionLabel("clarify")).toBe("请求澄清");
+		expect(formatIntentNextActionLabel("approval_required")).toBe("需要审批");
+		expect(formatIntentNextActionLabel("out_of_scope")).toBe("范围外");
+		expect(formatIntentNextActionLabel("rejected")).toBe("拒绝");
+		expect(formatIntentNextActionLabel("custom_action")).toBe("custom_action");
+
+		expect(formatIntentScopeClassLabel("in_scope")).toBe("范围内");
+		expect(formatIntentScopeClassLabel("out_of_scope")).toBe("范围外");
+		expect(formatIntentScopeClassLabel("custom_scope")).toBe("custom_scope");
+	});
+
+	it("builds operator-facing intent rows from request observability intent summaries", () => {
+		expect(
+			buildRequestIntentEntries({
+				capability: "campus_services",
+				classifierVersion: "deterministic-intent-v1",
+				launchState: "open",
+				nextAction: "delegate",
+				policyReason: null,
+				scopeClass: "in_scope",
+				scopeReason: "explicit_requested_capability",
+				taskKind: "campus_services_lookup",
+			}),
+		).toEqual([
+			{ label: "识别能力", value: "校园服务" },
+			{ label: "任务类型", value: "服务查询" },
+			{ label: "开放状态", value: "已开放" },
+			{ label: "下一步动作", value: "委派执行" },
+			{ label: "范围判定", value: "范围内" },
+			{ label: "范围原因", value: "显式请求能力" },
+			{ label: "策略原因", value: "无" },
+			{ label: "分类器版本", value: "deterministic-intent-v1" },
+		]);
+	});
+
+	it("omits intent rows when an old observability record has no intent summary", () => {
+		expect(buildRequestIntentEntries(undefined)).toEqual([]);
 	});
 });

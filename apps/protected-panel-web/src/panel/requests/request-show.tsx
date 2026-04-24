@@ -3,6 +3,7 @@ import {
 	Box,
 	Card,
 	CardContent,
+	Chip,
 	CircularProgress,
 	Divider,
 	Link,
@@ -17,6 +18,7 @@ import { formatPanelBoolean, formatPanelMicrousd, PANEL_COPY } from "../panel-co
 import type { RequestProjectionRecord } from "../types";
 import {
 	buildRequestDiagnosticEntries,
+	buildRequestIntentEntries,
 	formatAclDecisionLabel,
 	formatCapabilityLabel,
 	formatDuration,
@@ -55,6 +57,53 @@ function RequestFieldRow(props: { label: string; value: ReactNode }) {
 			<Typography component="div" variant="body2">
 				{props.value}
 			</Typography>
+		</Stack>
+	);
+}
+
+function RequestIntentEntryValue(props: { label: string; value: string }) {
+	if (props.label === "开放状态" || props.label === "下一步动作") {
+		return <Chip label={props.value} size="small" variant="outlined" />;
+	}
+
+	return props.value;
+}
+
+function RequestIntentSummary(props: {
+	entries: Array<{ label: string; value: string }>;
+	isLoading: boolean;
+}) {
+	if (props.isLoading) {
+		return <RequestFieldRow label="意图识别" value={PANEL_COPY.pending} />;
+	}
+
+	if (props.entries.length === 0) {
+		return <RequestFieldRow label="意图识别" value={PANEL_COPY.notAvailable} />;
+	}
+
+	return (
+		<Stack spacing={1.25}>
+			<Typography color="text.secondary" variant="caption">
+				意图识别
+			</Typography>
+			<Box
+				sx={{
+					display: "grid",
+					gap: 1.5,
+					gridTemplateColumns: {
+						md: "repeat(2, minmax(0, 1fr))",
+						xs: "1fr",
+					},
+				}}
+			>
+				{props.entries.map((entry) => (
+					<RequestFieldRow
+						key={entry.label}
+						label={entry.label}
+						value={<RequestIntentEntryValue label={entry.label} value={entry.value} />}
+					/>
+				))}
+			</Box>
 		</Stack>
 	);
 }
@@ -125,6 +174,7 @@ function RequestShowContent() {
 	const observability = observabilityRecord?.observability ?? null;
 	const links = observabilityRecord?.links ?? null;
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
+	const intentEntries = buildRequestIntentEntries(observability?.intent);
 
 	return (
 		<Box sx={{ p: 3 }}>
@@ -189,6 +239,7 @@ function RequestShowContent() {
 									label="选定目标"
 									value={formatSelectedTargetLabel(record.selectedTarget)}
 								/>
+								<RequestIntentSummary entries={intentEntries} isLoading={isObservabilityLoading} />
 							</Stack>
 						</CardContent>
 					</Card>

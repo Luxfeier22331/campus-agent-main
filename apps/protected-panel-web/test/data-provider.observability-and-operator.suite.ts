@@ -32,6 +32,16 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					},
 					failClosed: false,
 					inputTokens: 812,
+					intent: {
+						capability: "campus_services",
+						classifierVersion: "deterministic-intent-v1",
+						launchState: "open",
+						nextAction: "delegate",
+						policyReason: null,
+						scopeClass: "in_scope",
+						scopeReason: "explicit_requested_capability",
+						taskKind: "campus_services_lookup",
+					},
 					measuredAt: "2026-03-28T08:00:01.000Z",
 					model: {
 						name: "gpt-5.2-mini",
@@ -59,6 +69,43 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 					surface: "public_chat_web",
 					traceId: "trace_01HQ",
 				},
+				replay: {
+					context: {
+						applicabilityScope: "undergraduate",
+						entitlementGroups: ["students"],
+						entitlementSnapshotId: "ent_01HQ",
+						policyProjectionVersion: "phase1-authorization-projection-v1",
+						principalType: "student",
+						visibilityScope: "main",
+					},
+					execution: {
+						errorCode: null,
+						failClosed: false,
+						refusalClass: null,
+						scopeClass: "in_scope",
+						semanticOutcome: null,
+						status: "completed",
+					},
+					routing: {
+						intent: {
+							capability: "campus_services",
+							classifierVersion: "deterministic-intent-v1",
+							launchState: "open",
+							nextAction: "delegate",
+							policyReason: null,
+							scopeClass: "in_scope",
+							scopeReason: "explicit_requested_capability",
+							taskKind: "campus_services_lookup",
+						},
+						requestedCapability: "knowledge",
+						requestedScope: {
+							collection: "student_rules",
+							corpus: "regulations",
+						},
+						resolvedScope: null,
+						selectedTarget: "rag-agent",
+					},
+				},
 			}),
 		);
 
@@ -75,9 +122,22 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 				observability: {
 					candidateCount: 4,
 					durationMs: 842,
+					intent: {
+						capability: "campus_services",
+						nextAction: "delegate",
+						taskKind: "campus_services_lookup",
+					},
 				},
 				request: {
 					requestId: "req_01HQ",
+				},
+				replay: {
+					routing: {
+						intent: {
+							classifierVersion: "deterministic-intent-v1",
+							scopeReason: "explicit_requested_capability",
+						},
+					},
 				},
 			},
 		});

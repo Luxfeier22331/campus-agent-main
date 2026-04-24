@@ -50,6 +50,17 @@ export interface RawRequestDetailResponse {
 	request: RawRequestProjectionRecord;
 }
 
+export interface RequestIntentObservabilitySummary {
+	capability: string | null;
+	taskKind: string | null;
+	launchState: string | null;
+	nextAction: string | null;
+	scopeClass: string | null;
+	scopeReason: string | null;
+	policyReason: string | null;
+	classifierVersion: string | null;
+}
+
 export interface RawRequestObservabilityRecord {
 	request: {
 		completedAt: string | null;
@@ -57,11 +68,13 @@ export interface RawRequestObservabilityRecord {
 		requestId: string;
 		requestedCapability: string | null;
 		requestedScope: Record<string, unknown> | null;
+		resolvedScope?: Record<string, unknown> | null;
 		selectedTarget: string | null;
 		startedAt: string;
 		status: string;
 		surface: string;
 		traceId: string;
+		versionQuery?: Record<string, unknown>;
 	};
 	observability: {
 		aclAnomalyCode: string | null;
@@ -78,6 +91,7 @@ export interface RawRequestObservabilityRecord {
 			microusd: number | null;
 		};
 		failClosed: boolean | null;
+		intent?: RequestIntentObservabilitySummary;
 		inputTokens: number | null;
 		measuredAt: string | null;
 		model: {
@@ -99,6 +113,31 @@ export interface RawRequestObservabilityRecord {
 	auditSummary: {
 		auditEventCount: number;
 		latestTerminalCode: string | null;
+	};
+	replay?: {
+		context?: {
+			applicabilityScope: string | null;
+			entitlementGroups: string[];
+			entitlementSnapshotId: string | null;
+			policyProjectionVersion: string | null;
+			principalType: string;
+			visibilityScope: string | null;
+		};
+		execution?: {
+			errorCode: string | null;
+			failClosed: boolean | null;
+			refusalClass: string | null;
+			scopeClass: string | null;
+			semanticOutcome: string | null;
+			status: string;
+		};
+		routing?: {
+			intent?: RequestIntentObservabilitySummary;
+			requestedCapability: string | null;
+			requestedScope: Record<string, unknown> | null;
+			resolvedScope: Record<string, unknown> | null;
+			selectedTarget: string | null;
+		};
 	};
 }
 
