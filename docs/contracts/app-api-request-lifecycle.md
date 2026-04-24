@@ -170,7 +170,7 @@ fail-close checks。
 - 不回写 panel projection
 - 只返回 typed execution outcome
 - forward deploy substrate 已冻结为 Docker-first internal execution service；当前 execution
-  origin 必须指向 Go shell，而不是 Python private bridge worker
+  origin 必须指向 Go `apps/supervisor-api`，而不是 Python private bridge worker
 
 ### Step 4: Finalize
 

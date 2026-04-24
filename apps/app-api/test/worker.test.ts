@@ -126,6 +126,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
 		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
+		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
@@ -153,6 +154,12 @@ describe("app-api worker foundation", () => {
 		);
 		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
 			"run-with-staging-db-env.mjs",
+		);
+		expect(packageManifest.scripts?.["test:all"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
+		);
+		expect(packageManifest.scripts?.["test:worker"]).toContain(
+			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
 		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
@@ -194,7 +201,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('binding = "APP_API_DB"');
 	});
 
-	it("points the local smoke supervisor upstream at the docker-first go-shell port", () => {
+	it("points the local smoke supervisor upstream at the docker-first supervisor-api port", () => {
 		expect(localSmokeWranglerConfig).toContain(
 			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"',
 		);

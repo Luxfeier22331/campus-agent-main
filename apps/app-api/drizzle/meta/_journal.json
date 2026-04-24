@@ -134,6 +134,13 @@
       "when": 1776888873561,
       "tag": "0018_unique_kat_farrell",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1777044347703,
+      "tag": "0019_chemical_owl",
+      "breakpoints": true
     }
   ]
 }

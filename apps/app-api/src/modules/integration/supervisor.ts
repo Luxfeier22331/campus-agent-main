@@ -86,6 +86,14 @@ export interface SupervisorExecutionObservability {
 	estimatedCostMicrousd: number | null;
 	failClosed: boolean | null;
 	inputTokens: number | null;
+	intentCapability?: string | null;
+	intentClassifierVersion?: string | null;
+	intentLaunchState?: string | null;
+	intentNextAction?: string | null;
+	intentPolicyReason?: string | null;
+	intentScopeClass?: string | null;
+	intentScopeReason?: string | null;
+	intentTaskKind?: string | null;
 	modelName: string | null;
 	modelProvider: string | null;
 	outputTokens: number | null;
@@ -126,6 +134,7 @@ export interface SupervisorExecutionResponse {
 
 export interface SupervisorExecutionClient {
 	execute(input: SupervisorExecutionInput): Promise<SupervisorExecutionResponse>;
+	executeStream?(input: SupervisorExecutionInput): Promise<Response>;
 }
 
 export async function probeSupervisorApiReady(
@@ -312,6 +321,16 @@ function normalizeNullableString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
+function normalizeRecordString(
+	record: Record<string, unknown>,
+	snakeCaseKey: string,
+	camelCaseKey: string,
+): string | null {
+	return normalizeNullableString(
+		snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey],
+	);
+}
+
 function parsePromptTrace(value: unknown): SupervisorPromptTrace | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -363,6 +382,18 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
 		failClosed: normalizeNullableBoolean(record.fail_closed),
 		inputTokens: normalizeNullableNumber(record.input_tokens),
+		intentCapability: normalizeRecordString(record, "intent_capability", "intentCapability"),
+		intentClassifierVersion: normalizeRecordString(
+			record,
+			"intent_classifier_version",
+			"intentClassifierVersion",
+		),
+		intentLaunchState: normalizeRecordString(record, "intent_launch_state", "intentLaunchState"),
+		intentNextAction: normalizeRecordString(record, "intent_next_action", "intentNextAction"),
+		intentPolicyReason: normalizeRecordString(record, "intent_policy_reason", "intentPolicyReason"),
+		intentScopeClass: normalizeRecordString(record, "intent_scope_class", "intentScopeClass"),
+		intentScopeReason: normalizeRecordString(record, "intent_scope_reason", "intentScopeReason"),
+		intentTaskKind: normalizeRecordString(record, "intent_task_kind", "intentTaskKind"),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputTokens: normalizeNullableNumber(record.output_tokens),
@@ -385,6 +416,47 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 	}
 
 	return parsed;
+}
+
+function toSupervisorRequestBody(payload: SupervisorExecutionInput): Record<string, unknown> {
+	return {
+		context: toSupervisorContext(payload.context),
+		conversation_id: payload.conversationId,
+		request_id: payload.requestId,
+		...(payload.requestedCapability ? { requested_capability: payload.requestedCapability } : {}),
+		...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
+		...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
+		...(payload.versionQuery
+			? { version_query: toSupervisorVersionQuery(payload.versionQuery) }
+			: {}),
+		user_goal: payload.userGoal,
+	};
+}
+
+function createSupervisorRequestHeaders(input: {
+	payload: SupervisorExecutionInput;
+	sharedSecret: string;
+	traceDataProvider: () => Record<string, unknown>;
+	accept?: string;
+}): Record<string, string> {
+	const headers = new Headers({
+		"content-type": "application/json",
+		"x-trace-id": input.payload.traceId,
+		"x-worker-origin-auth": input.sharedSecret,
+	});
+	if (input.accept) {
+		headers.set("accept", input.accept);
+	}
+	applyTracePropagationHeaders(
+		headers,
+		resolveTracePropagationHeaders({
+			traceData: input.traceDataProvider(),
+		}),
+	);
+	if (input.payload.traceHeaders) {
+		applyTracePropagationHeaders(headers, input.payload.traceHeaders);
+	}
+	return Object.fromEntries(headers.entries());
 }
 
 export function createSupervisorExecutionClient(
@@ -441,40 +513,14 @@ export function createSupervisorExecutionClient(
 						);
 					}, timeoutMs);
 
-					const headers = new Headers({
-						"content-type": "application/json",
-						"x-trace-id": payload.traceId,
-						"x-worker-origin-auth": sharedSecret,
-					});
-					applyTracePropagationHeaders(
-						headers,
-						resolveTracePropagationHeaders({
-							traceData: traceDataProvider(),
-						}),
-					);
-					if (payload.traceHeaders) {
-						applyTracePropagationHeaders(headers, payload.traceHeaders);
-					}
-
-					const requestBody = {
-						context: toSupervisorContext(payload.context),
-						conversation_id: payload.conversationId,
-						request_id: payload.requestId,
-						...(payload.requestedCapability
-							? { requested_capability: payload.requestedCapability }
-							: {}),
-						...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
-						...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
-						...(payload.versionQuery
-							? { version_query: toSupervisorVersionQuery(payload.versionQuery) }
-							: {}),
-						user_goal: payload.userGoal,
-					};
-
 					fetchImplementation(`${baseUrl}/api/v1/answer`, {
 						method: "POST",
-						headers: Object.fromEntries(headers.entries()),
-						body: JSON.stringify(requestBody),
+						headers: createSupervisorRequestHeaders({
+							payload,
+							sharedSecret,
+							traceDataProvider,
+						}),
+						body: JSON.stringify(toSupervisorRequestBody(payload)),
 						signal: controller.signal,
 					})
 						.then(resolve)
@@ -580,6 +626,117 @@ export function createSupervisorExecutionClient(
 						: "completed",
 				traceId: typeof parsed?.trace_id === "string" ? parsed.trace_id : payload.traceId,
 			};
+		},
+		async executeStream(payload: SupervisorExecutionInput): Promise<Response> {
+			const baseUrl = env.SUPERVISOR_API_BASE_URL?.trim();
+			const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
+			const defaultTimeoutMs = parsePositiveInteger(
+				env.SUPERVISOR_API_TIMEOUT_MS,
+				DEFAULT_SUPERVISOR_API_TIMEOUT_MS,
+			);
+			const evalTimeoutMs = parsePositiveInteger(
+				env.SUPERVISOR_API_EVAL_TIMEOUT_MS,
+				DEFAULT_SUPERVISOR_API_EVAL_TIMEOUT_MS,
+			);
+			const timeoutMs = payload.surface === "eval_benchmark" ? evalTimeoutMs : defaultTimeoutMs;
+			if (!(baseUrl && sharedSecret)) {
+				throw new SupervisorTransportError({
+					code: "dependency_not_ready",
+					message: "Supervisor runtime is not configured.",
+					retryable: true,
+					status: 503,
+				});
+			}
+
+			let response: Response;
+			try {
+				response = await new Promise<Response>((resolve, reject) => {
+					const controller = new AbortController();
+					const timeoutId = setTimeout(() => {
+						controller.abort();
+						reject(
+							new SupervisorTransportError({
+								code: "execution_timeout",
+								message: `Supervisor execution stream exceeded ${timeoutMs}ms timeout.`,
+								retryable: true,
+								status: 504,
+							}),
+						);
+					}, timeoutMs);
+
+					fetchImplementation(`${baseUrl}/api/v1/answer/stream`, {
+						method: "POST",
+						headers: createSupervisorRequestHeaders({
+							accept: "text/event-stream",
+							payload,
+							sharedSecret,
+							traceDataProvider,
+						}),
+						body: JSON.stringify(toSupervisorRequestBody(payload)),
+						signal: controller.signal,
+					})
+						.then(resolve)
+						.catch((error) => {
+							if (error instanceof Error && error.name === "AbortError") {
+								reject(
+									new SupervisorTransportError({
+										code: "execution_timeout",
+										message: `Supervisor execution stream exceeded ${timeoutMs}ms timeout.`,
+										retryable: true,
+										status: 504,
+									}),
+								);
+								return;
+							}
+
+							reject(error);
+						})
+						.finally(() => {
+							clearTimeout(timeoutId);
+						});
+				});
+			} catch (error) {
+				if (error instanceof SupervisorTransportError) {
+					throw error;
+				}
+
+				throw new SupervisorTransportError({
+					code: "supervisor_unavailable",
+					message: error instanceof Error ? error.message : "Supervisor stream request failed.",
+					retryable: true,
+					status: 502,
+				});
+			}
+
+			if (response.status === 200) {
+				return response;
+			}
+
+			let parsed: Record<string, unknown> | null = null;
+			try {
+				parsed = (await response.json()) as Record<string, unknown>;
+			} catch {
+				parsed = null;
+			}
+			const errorBody =
+				parsed && typeof parsed.error === "object" && parsed.error ? parsed.error : null;
+			throw new SupervisorTransportError({
+				code:
+					errorBody && typeof (errorBody as { code?: unknown }).code === "string"
+						? ((errorBody as { code: string }).code ?? mapStatusCodeToErrorCode(response.status))
+						: mapStatusCodeToErrorCode(response.status),
+				message:
+					errorBody && typeof (errorBody as { message?: unknown }).message === "string"
+						? (((errorBody as { message: string }).message as string) ??
+							"Supervisor execution stream failed.")
+						: "Supervisor execution stream failed.",
+				retryable:
+					errorBody && typeof (errorBody as { retryable?: unknown }).retryable === "boolean"
+						? (((errorBody as { retryable: boolean }).retryable as boolean) ??
+							response.status >= 500)
+						: response.status >= 500,
+				status: response.status,
+			});
 		},
 	};
 }

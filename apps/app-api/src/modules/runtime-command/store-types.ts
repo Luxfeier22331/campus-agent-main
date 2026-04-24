@@ -109,6 +109,14 @@ export interface RequestObservabilityFactWrite {
 	failClosed: boolean | null;
 	modelProvider: string | null;
 	modelName: string | null;
+	intentCapability: string | null;
+	intentTaskKind: string | null;
+	intentLaunchState: string | null;
+	intentNextAction: string | null;
+	intentScopeClass: string | null;
+	intentScopeReason: string | null;
+	intentPolicyReason: string | null;
+	intentClassifierVersion: string | null;
 	promptId: string | null;
 	promptVersion: string | null;
 	templateSha256: string | null;

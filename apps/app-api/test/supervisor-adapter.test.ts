@@ -195,6 +195,59 @@ describe("supervisor execution adapter", () => {
 		});
 	}, 15_000);
 
+	it("opens the lifecycle SSE endpoint without parsing the event stream", async () => {
+		const upstreamResponse = new Response(
+			'event: execution.completed\ndata: {"status":"completed"}\n\n',
+			{
+				headers: { "content-type": "text/event-stream; charset=utf-8" },
+				status: 200,
+			},
+		);
+		const fetchImplementation = vi.fn().mockResolvedValue(upstreamResponse);
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{ fetchImplementation },
+		);
+
+		expect(client.executeStream).toBeTypeOf("function");
+		const response = await client.executeStream?.({
+			actor: createActor(),
+			context: createContext(),
+			conversationId: "conv_01HQ",
+			requestId: "req_stream_01HQ",
+			traceHeaders: {
+				baggage: "sentry-environment=test",
+				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+			},
+			traceId: "trace_stream_01HQ",
+			userGoal: "给我流式生命周期",
+		});
+
+		expect(response).toBe(upstreamResponse);
+		expect(fetchImplementation).toHaveBeenCalledWith(
+			"https://supervisor.internal/api/v1/answer/stream",
+			expect.objectContaining({
+				headers: {
+					accept: "text/event-stream",
+					baggage: "sentry-environment=test",
+					"content-type": "application/json",
+					"sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+					"x-trace-id": "trace_stream_01HQ",
+					"x-worker-origin-auth": "shared-secret",
+				},
+				method: "POST",
+			}),
+		);
+		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toMatchObject({
+			conversation_id: "conv_01HQ",
+			request_id: "req_stream_01HQ",
+			user_goal: "给我流式生命周期",
+		});
+	});
+
 	it("ignores legacy target fallback and only trusts selected_target", async () => {
 		const client = createSupervisorExecutionClient(
 			{
@@ -309,6 +362,14 @@ describe("supervisor execution adapter", () => {
 								estimated_cost_microusd: 3810,
 								fail_closed: false,
 								input_tokens: 812,
+								intent_capability: "knowledge",
+								intent_classifier_version: "deterministic-intent-v1",
+								intent_launch_state: "candidate_only",
+								intent_next_action: "delegate",
+								intent_policy_reason: null,
+								intent_scope_class: "in_scope",
+								intent_scope_reason: "structured_runtime_candidate_signal",
+								intent_task_kind: "knowledge_lookup",
 								model_name: "gpt-5.2-mini",
 								model_provider: "openai",
 								output_tokens: 229,
@@ -370,6 +431,14 @@ describe("supervisor execution adapter", () => {
 				estimatedCostMicrousd: 3810,
 				failClosed: false,
 				inputTokens: 812,
+				intentCapability: "knowledge",
+				intentClassifierVersion: "deterministic-intent-v1",
+				intentLaunchState: "candidate_only",
+				intentNextAction: "delegate",
+				intentPolicyReason: null,
+				intentScopeClass: "in_scope",
+				intentScopeReason: "structured_runtime_candidate_signal",
+				intentTaskKind: "knowledge_lookup",
 				modelName: "gpt-5.2-mini",
 				modelProvider: "openai",
 				outputTokens: 229,

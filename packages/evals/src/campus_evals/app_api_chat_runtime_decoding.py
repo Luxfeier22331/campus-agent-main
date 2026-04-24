@@ -326,6 +326,54 @@ def _parse_supervisor_observability(value: object) -> SupervisorObservability | 
             record.get("policyReason") if "policyReason" in record else record.get("policy_reason")
         )
         or "",
+        intent_capability=_optional_string(
+            record.get("intentCapability")
+            if "intentCapability" in record
+            else record.get("intent_capability")
+        )
+        or "",
+        intent_task_kind=_optional_string(
+            record.get("intentTaskKind")
+            if "intentTaskKind" in record
+            else record.get("intent_task_kind")
+        )
+        or "",
+        intent_launch_state=_optional_string(
+            record.get("intentLaunchState")
+            if "intentLaunchState" in record
+            else record.get("intent_launch_state")
+        )
+        or "",
+        intent_next_action=_optional_string(
+            record.get("intentNextAction")
+            if "intentNextAction" in record
+            else record.get("intent_next_action")
+        )
+        or "",
+        intent_scope_class=_optional_string(
+            record.get("intentScopeClass")
+            if "intentScopeClass" in record
+            else record.get("intent_scope_class")
+        )
+        or "",
+        intent_scope_reason=_optional_string(
+            record.get("intentScopeReason")
+            if "intentScopeReason" in record
+            else record.get("intent_scope_reason")
+        )
+        or "",
+        intent_policy_reason=_optional_string(
+            record.get("intentPolicyReason")
+            if "intentPolicyReason" in record
+            else record.get("intent_policy_reason")
+        )
+        or "",
+        intent_classifier_version=_optional_string(
+            record.get("intentClassifierVersion")
+            if "intentClassifierVersion" in record
+            else record.get("intent_classifier_version")
+        )
+        or "",
         acl_decision=_optional_string(
             record.get("aclDecision") if "aclDecision" in record else record.get("acl_decision")
         )

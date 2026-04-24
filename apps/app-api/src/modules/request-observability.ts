@@ -201,6 +201,10 @@ function normalizePolicyReason(input: {
 	return null;
 }
 
+function normalizeIntentString(value: string | null | undefined): string | null {
+	return typeof value === "string" && value.trim() ? value : null;
+}
+
 function normalizeRetrievalAdequacyVerdict(
 	diagnostics: RequestDiagnosticsSummary | null,
 ): string | null {
@@ -269,6 +273,14 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		estimatedCostMicrousd: null,
 		failClosed: null,
 		inputTokens: null,
+		intentCapability: null,
+		intentClassifierVersion: null,
+		intentLaunchState: null,
+		intentNextAction: null,
+		intentPolicyReason: null,
+		intentScopeClass: null,
+		intentScopeReason: null,
+		intentTaskKind: null,
 		measuredAt: input.startedAt,
 		modelName: null,
 		modelProvider: null,
@@ -379,6 +391,14 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			status: input.status,
 		}),
 		inputTokens: observability?.inputTokens ?? null,
+		intentCapability: normalizeIntentString(observability?.intentCapability),
+		intentClassifierVersion: normalizeIntentString(observability?.intentClassifierVersion),
+		intentLaunchState: normalizeIntentString(observability?.intentLaunchState),
+		intentNextAction: normalizeIntentString(observability?.intentNextAction),
+		intentPolicyReason: normalizeIntentString(observability?.intentPolicyReason),
+		intentScopeClass: normalizeIntentString(observability?.intentScopeClass),
+		intentScopeReason: normalizeIntentString(observability?.intentScopeReason),
+		intentTaskKind: normalizeIntentString(observability?.intentTaskKind),
 		measuredAt: input.completedAt,
 		modelName: observability?.promptTrace?.modelName ?? observability?.modelName ?? null,
 		modelProvider:

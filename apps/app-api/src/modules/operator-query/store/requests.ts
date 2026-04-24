@@ -11,6 +11,7 @@ import type {
 	NormalizedOperatorRequestListFilters,
 	OperatorAuditEventDetail,
 	OperatorAuditListResult,
+	OperatorIntentObservabilitySummary,
 	OperatorQueryListResult,
 	OperatorRequestObservabilityRecord,
 } from "../service";
@@ -20,7 +21,7 @@ import {
 	encodeAuditCursor,
 	encodeRequestCursor,
 } from "./cursors";
-import type { OperatorQueryRuntime } from "./runtime";
+import type { OperatorQueryRuntime, RequestObservabilityFactRow } from "./runtime";
 import {
 	escapeLikePattern,
 	toAuditListItem,
@@ -28,6 +29,25 @@ import {
 	toLinks,
 	toRequestProjectionRecord,
 } from "./shared";
+
+function toIntentObservabilitySummary(
+	fact: RequestObservabilityFactRow | null | undefined,
+): OperatorIntentObservabilitySummary | null {
+	if (!fact) {
+		return null;
+	}
+	const summary = {
+		capability: fact.intentCapability ?? null,
+		classifierVersion: fact.intentClassifierVersion ?? null,
+		launchState: fact.intentLaunchState ?? null,
+		nextAction: fact.intentNextAction ?? null,
+		policyReason: fact.intentPolicyReason ?? null,
+		scopeClass: fact.intentScopeClass ?? null,
+		scopeReason: fact.intentScopeReason ?? null,
+		taskKind: fact.intentTaskKind ?? null,
+	};
+	return Object.values(summary).some((value) => value !== null) ? summary : null;
+}
 
 export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 	return {
@@ -141,6 +161,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			const semanticOutcome = fact?.semanticOutcome ?? diagnostics?.semanticOutcome ?? null;
 			const scopeClass = fact?.scopeClass ?? diagnostics?.scopeClass ?? null;
 			const policyReason = fact?.policyReason ?? diagnostics?.policyReason ?? null;
+			const intent = toIntentObservabilitySummary(fact);
 
 			return {
 				auditSummary: {
@@ -171,6 +192,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 						supporting: supportingSources,
 					},
 					failClosed: fact?.failClosed ?? null,
+					...(intent ? { intent } : {}),
 					inputTokens: fact?.inputTokens ?? null,
 					measuredAt: fact ? fact.measuredAt.toISOString() : projection.projectedAt.toISOString(),
 					model: {
@@ -238,6 +260,7 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 						},
 					},
 					routing: {
+						...(intent ? { intent } : {}),
 						requestedCapability: projection.requestedCapability ?? null,
 						requestedScope: projection.requestedScopeJson ?? null,
 						resolvedScope: projection.resolvedScopeJson ?? null,

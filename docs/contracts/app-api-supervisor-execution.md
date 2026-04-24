@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-24
+updated: 2026-04-25
 ---
 # App API Supervisor Execution Contract
 
@@ -54,6 +54,7 @@ specialist`
 第一版固定复用现有 execution endpoint：
 
 - `POST /api/v1/answer`
+- `POST /api/v1/answer/stream`
 - `POST /internal/execution/cancel`
 - `GET /healthz`
 - `GET /readyz`
@@ -69,10 +70,39 @@ request/response 语义。
 
 JSON 命名保持 `snake_case`，原因如下：
 
-- 当前 `apps/supervisor-api` 已以 Python-side `SupervisorRequest` /
-  `SupervisorResponse` 为真相
+- 当前 `apps/supervisor-api` 已以 shared `SupervisorRequest` /
+  `SupervisorResponse` model 为 wire truth
 - 这里是 internal execution seam，不是 browser product API
 - 这样可以减少 `app-api -> supervisor-api` 之间的翻译噪音
+
+## Streaming Lifecycle Endpoint
+
+`POST /api/v1/answer/stream` 是 `app-api -> supervisor-api` 的 internal SSE
+lifecycle endpoint。它复用非流式 answer request body、auth header、trace header 与 timeout
+语义，但 response 是生命周期事件流，不是模型 token delta 流。
+
+固定事件：
+
+- `execution.started`
+- `execution.queued`
+- `execution.running`
+- `execution.completed`
+- `execution.failed`
+- `execution.cancelled`
+
+固定规则：
+
+- HTTP response 一旦进入 SSE stream，status 固定为 `200`；terminal failure /
+  cancel 的真实 `http_status`、`outcome`、`error`、`retryable` 必须放在 event
+  `data` 中
+- `execution.completed` 的 `data.response` 承载原 `SupervisorResponse`
+  safe JSON object，并注入 `trace_id`
+- `execution.failed` / `execution.cancelled` 的 `data.error` 承载 stable
+  `{ code, message, retryable }`
+- 不承诺 token-level delta、partial answer、tool trace replay 或 browser 直连
+- `app-api` 可以通过 supervisor adapter 的 stream method 透传该 SSE body；产品层
+  auth、session、request projection 与 duplicate-submit UX 仍归 `app-api` / web
+  surface 所有
 
 ## Required Request Headers
 
@@ -110,7 +140,7 @@ JSON 命名保持 `snake_case`，原因如下：
 响应语义：
 
 - active execution 返回 `202`，body 中 `status=cancel_requested`
-- Go shell 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
+- Go `apps/supervisor-api` 会在 body 中附带 `bridge_cancel_status`，取值为 `accepted`、
   `not_found`、`not_configured` 或 `failed`；该字段只表示 Go -> Python
   cooperative cancel signal 的投递结果，不改变 `app-api` 对 cancel request 的
   canonical lifecycle 判断
@@ -118,14 +148,36 @@ JSON 命名保持 `snake_case`，原因如下：
 - 鉴权失败返回 `401 unauthorized`
 - malformed request 返回 `400 invalid_request`
 
-当前取消语义只保证 Go execution shell 停止等待、释放 Go admission slot，并把 lifecycle 标记为
-`cancel_requested`。Python bridge 当前已提供 `/internal/bridge/execution/cancel`
-并记录 active request id 的 cooperative cancel state；已经进入 provider / prompt
-executor 的工作仍不承诺 mid-flight stop。
+当前取消语义保证 Go `apps/supervisor-api` 停止等待、释放 execution admission slot，
+并把 lifecycle 标记为 `cancel_requested` / `cancelled`。Python bridge 已提供
+`/internal/bridge/execution/cancel` 并记录 active request id 的 cooperative cancel
+state；默认 supervisor orchestration 会在路由、prompt composition、specialist
+delegation 和 finalization 前后检查该状态，并以 `499 execution_cancelled` 终止。
+已经进入阻塞 provider / prompt executor HTTP 调用的工作仍不承诺 hard-abort。
+
+## Bridge Circuit Breaker
+
+Go `apps/supervisor-api` 拥有 Python bridge transport / protocol health 的 circuit
+breaker。
+
+配置项：
+
+- `SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD`：默认 `5`
+- `SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS`：默认 `10000`
+
+语义：
+
+- 连续 bridge timeout / unavailable / invalid envelope 达到阈值后，circuit 进入 `open`
+- `open` 期间 answer path fail fast，返回 `503 supervisor_bridge_circuit_open`
+- `open` 状态会让 `/readyz` 降级，并在 `/metrics` 暴露 circuit state、open count
+  与 rejected count
+- 语义层 supervisor error 不代表 bridge transport 不健康；有效 bridge envelope 会重置 circuit
+- breaker 只保护 Docker-side execution runtime，不替代 `app-api` 的 product-layer
+  user limit、热点合并或 duplicate-submit UX
 
 ## Structured Query Internal Runtime
 
-Go shell 当前承载 gate-closed structured query runtime foundation：
+Go `apps/supervisor-api` 当前承载 gate-closed structured query runtime foundation：
 
 - `POST /internal/query/campus-services/service-status`
 - `POST /internal/query/campus-services/transport-schedule`
@@ -164,7 +216,7 @@ product/control-plane endpoint。
 
 ## Execution Audit Backflow
 
-Go execution shell 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
+Go `apps/supervisor-api` 可以把 execution runtime kernel 事件回流给 `app-api`，但这条回流不是
 browser-facing execution response，也不是 panel query backend。
 
 回流 endpoint 固定为：
@@ -173,16 +225,18 @@ browser-facing execution response，也不是 panel query backend。
 
 调用规则：
 
-- 由 Go shell 使用 `x-app-internal-auth` 调用 `app-api`
+- 由 Go `apps/supervisor-api` 使用 `x-app-internal-auth` 调用 `app-api`
 - delivery 是 best-effort / fail-open；audit sink 不可用不得影响 answer request
+- Go writer 可以 batch、flush、retry，并在配置 spool dir 时写入 local spool；这些只影响
+  delivery hardening，不改变 `app-api` ingest payload contract
 - `app-api` 验证 `request_id` 与 `trace_id` 后写入 `runtime.projection_outbox`
 - ingest 成功后 `app-api` 会调度 request-scoped projector drain；cron projector drain
   作为兜底继续物化到 `operator.request_audit_projection`
 - `Sentry` / `Axiom` 只作为 sanitized telemetry sink 或 backlink 来源，不成为 panel
   canonical truth
-- request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder 写入
-  `operator.trace_backlink_projection`；Go shell 不直接服务 panel，也不直接写 operator
-  schema
+- request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder
+  写入 `operator.trace_backlink_projection`；Go `apps/supervisor-api` 不直接服务
+  panel，也不直接写 operator schema
 
 第一版允许的 event type：
 
@@ -243,8 +297,8 @@ payload 或 provider raw response。
 
 字段说明：
 
-- `request_id` 来自 `app-api` 分配的 canonical request identity；当前 Go execution
-  shell 要求它非空，用作 in-flight lifecycle 与 cancel key
+- `request_id` 来自 `app-api` 分配的 canonical request identity；当前 Go
+  `apps/supervisor-api` runtime 要求它非空，用作 in-flight lifecycle 与 cancel key
 - `conversation_id` 来自 chat domain truth
 - `user_goal` 来自产品层 prompt
 - `context` 由 `app-api` 显式投影的最小 `ContextProjection`；当前至少包含
@@ -416,28 +470,32 @@ payload 或 provider raw response。
 这意味着：
 
 - `app-api` 应把 `200 + status=error` 视为 execution-level handled outcome
-- `409 execution_already_in_flight` 表示同一 `request_id` 已在 Go shell in-flight
+- `409 execution_already_in_flight` 表示同一 `request_id` 已在 Go `supervisor-api`
+  in-flight
   registry 中，不应重试成新的 execution identity
-- `499 execution_cancelled` 表示 Go shell 已接受 explicit cancel 或 upstream cancel
-  后停止等待；它不是 semantic answer failure
+- `499 execution_cancelled` 表示 Go `supervisor-api` 已接受 explicit cancel 或
+  upstream cancel 后停止等待；它不是 semantic answer failure
 - `503 transport_lane_queue_full` 与 `503 transport_lane_queue_timeout` 表示特定
   workload lane 饱和，区别于全局 `transport_queue_full` / `transport_queue_timeout`
+- `503 supervisor_bridge_circuit_open` 表示 Go execution runtime 已确认 Python bridge
+  transport / protocol health 处于 open circuit，`app-api` 应按 retryable runtime
+  unavailability 处理，而不是生成新的 request identity 绕过 breaker
 - `app-api` 应保留 `approval_required` / `rejected` 作为 runtime / panel projection
   的最终状态，即使 browser chat surface 折叠为 `error`
 - `app-api` 不应把所有非理想执行结果都折叠成 transport error
 
 ## Current Compatibility Note
 
-当前仓库里的 public execution ingress 已 hardcut 到 `apps/go-shell`。shared product path
-已收口为：
+当前仓库里的 public execution ingress 已 hardcut 到 `apps/supervisor-api`。
+shared product path 已收口为：
 
-- internal caller admission 由 Go shell 验证 runtime header
+- internal caller admission 由 Go `supervisor-api` 验证 runtime header
 - `context` 由 `app-api` 显式提供，并携带最终 `actor` 与 `authorization`
-- Go shell 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge identity header 来恢复最终业务
-  actor
+- Go `supervisor-api` 的 `trusted-worker` 不依赖 Cloudflare Access JWT 或 edge
+  identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-api` 只保留 private bridge worker，不再暴露 public
+- Python `apps/supervisor-core-worker` 只保留 private bridge worker，不再暴露 public
   compatibility ingress
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。

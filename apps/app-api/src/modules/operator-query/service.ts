@@ -12,6 +12,7 @@ export type {
 	OperatorAuditListResult,
 	OperatorCostSummaryResult,
 	OperatorCostTimeseriesResult,
+	OperatorIntentObservabilitySummary,
 	OperatorOverviewAlert,
 	OperatorOverviewFilters,
 	OperatorOverviewResult,

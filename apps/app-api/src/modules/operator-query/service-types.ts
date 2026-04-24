@@ -126,6 +126,17 @@ export interface OperatorResultWindow {
 	granularity: "5m" | "15m" | "1h" | "1d";
 }
 
+export interface OperatorIntentObservabilitySummary {
+	capability: string | null;
+	taskKind: string | null;
+	launchState: string | null;
+	nextAction: string | null;
+	scopeClass: string | null;
+	scopeReason: string | null;
+	policyReason: string | null;
+	classifierVersion: string | null;
+}
+
 export interface OperatorRequestObservabilityRecord {
 	request: {
 		requestId: string;
@@ -154,6 +165,7 @@ export interface OperatorRequestObservabilityRecord {
 		aclDecision: string | null;
 		aclAnomalyCode: string | null;
 		failClosed: boolean | null;
+		intent?: OperatorIntentObservabilitySummary;
 		retrievalAdequacyVerdict: string | null;
 		retrievalAdequacyReason: string | null;
 		retrievalPlan?: RequestRetrievalPlanSummary | null;
@@ -207,6 +219,7 @@ export interface OperatorRequestObservabilityRecord {
 			requestedScope: Record<string, unknown> | null;
 			resolvedScope: Record<string, unknown> | null;
 			selectedTarget: string | null;
+			intent?: OperatorIntentObservabilitySummary;
 		};
 		execution: {
 			status: RequestExecutionStatus;

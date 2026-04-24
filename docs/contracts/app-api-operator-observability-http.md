@@ -1068,7 +1068,7 @@ list endpoints 额外支持：
 {
   "events": [
     {
-      "event_id": "go-shell:req_01HQ:execution.bridge_failed",
+      "event_id": "supervisor-api:req_01HQ:execution.bridge_failed",
       "request_id": "req_01HQ",
       "trace_id": "trace_01HQ",
       "event_type": "execution.bridge_failed",
@@ -1090,7 +1090,7 @@ list endpoints 额外支持：
 规则：
 
 - `request_id` 必须已存在于 app-owned request truth，`trace_id` 必须匹配该请求
-- `event_id` 由 producer 按 `go-shell:<request_id>:<event_type>` 生成，重复 ingest
+- `event_id` 由 producer 按 `supervisor-api:<request_id>:<event_type>` 生成，重复 ingest
   必须幂等
 - 只接受 allowlist execution event type；不接受 raw prompt、raw answer、raw
   transcript、auth material、retrieval payload 或 provider raw response

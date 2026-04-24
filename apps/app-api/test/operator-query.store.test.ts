@@ -74,6 +74,14 @@ describe("pg operator query store", () => {
 					requestId: "req_01HQ",
 					retrievalAttempted: true,
 					candidateCount: 4,
+					intentCapability: "knowledge",
+					intentClassifierVersion: "deterministic-intent-v1",
+					intentLaunchState: "candidate_only",
+					intentNextAction: "delegate",
+					intentPolicyReason: null,
+					intentScopeClass: "in_scope",
+					intentScopeReason: "structured_runtime_candidate_signal",
+					intentTaskKind: "knowledge_lookup",
 					retrievedSourcesJson: [],
 					supportingSourcesJson: [],
 					citationCount: 0,
@@ -118,6 +126,26 @@ describe("pg operator query store", () => {
 					failureKind: null,
 				},
 			],
+		});
+		expect(result?.observability.intent).toEqual({
+			capability: "knowledge",
+			classifierVersion: "deterministic-intent-v1",
+			launchState: "candidate_only",
+			nextAction: "delegate",
+			policyReason: null,
+			scopeClass: "in_scope",
+			scopeReason: "structured_runtime_candidate_signal",
+			taskKind: "knowledge_lookup",
+		});
+		expect(result?.replay.routing.intent).toEqual({
+			capability: "knowledge",
+			classifierVersion: "deterministic-intent-v1",
+			launchState: "candidate_only",
+			nextAction: "delegate",
+			policyReason: null,
+			scopeClass: "in_scope",
+			scopeReason: "structured_runtime_candidate_signal",
+			taskKind: "knowledge_lookup",
 		});
 	});
 
