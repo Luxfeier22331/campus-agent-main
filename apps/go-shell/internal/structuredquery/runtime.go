@@ -12,16 +12,22 @@ import (
 const (
 	ToolServiceStatusLookup     = "service_status_lookup"
 	ToolTransportScheduleLookup = "transport_schedule_lookup"
+	ToolCampusNoticeDiscover    = "campus_notice_discover"
+	ToolCampusNoticeGet         = "campus_notice_get"
 )
 
 type Options struct {
 	ProjectionPath     string
 	TrustedTimeRFC3339 string
+	NoticeReadModelStore NoticeReadModelStore
+	NoticeBodyStore      NoticeBodyStore
 }
 
 type Runtime struct {
 	projectionPath string
 	trustedTime    time.Time
+	noticeReadModelStore NoticeReadModelStore
+	noticeBodyStore      NoticeBodyStore
 }
 
 type Status struct {
@@ -29,6 +35,8 @@ type Status struct {
 	ProjectionSource             string `json:"projection_source"`
 	ServiceStatusProjectionReady bool   `json:"service_status_projection_ready"`
 	TransportScheduleImplemented bool   `json:"transport_schedule_implemented"`
+	NoticeReadModelConfigured    bool   `json:"notice_read_model_configured"`
+	NoticeBodyStoreConfigured    bool   `json:"notice_body_store_configured"`
 }
 
 type Response struct {
@@ -177,6 +185,8 @@ type serviceStatusRecord struct {
 func NewRuntime(options Options) *Runtime {
 	runtime := &Runtime{
 		projectionPath: strings.TrimSpace(options.ProjectionPath),
+		noticeReadModelStore: options.NoticeReadModelStore,
+		noticeBodyStore:      options.NoticeBodyStore,
 	}
 	if trustedTime := strings.TrimSpace(options.TrustedTimeRFC3339); trustedTime != "" {
 		parsed, err := time.Parse(time.RFC3339, trustedTime)
@@ -194,11 +204,13 @@ func (r *Runtime) Status() Status {
 	}
 	if r.projectionPath == "" {
 		status.ProjectionSource = ""
-		return status
+	} else {
+		bundle, err := r.loadBundle()
+		status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
+		status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
 	}
-	bundle, err := r.loadBundle()
-	status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
-	status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
+	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
+	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil
 	return status
 }
 

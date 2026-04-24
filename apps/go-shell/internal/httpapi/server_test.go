@@ -989,6 +989,73 @@ func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t 
 	}
 }
 
+func TestStructuredQueryNoticeDiscoverRequiresQueryAuth(t *testing.T) {
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers:        8,
+		RequestBodyLimitBytes:       1_048_576,
+		StructuredQuerySharedSecret: "query-secret",
+	}, nil)
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(
+		response,
+		newTestRequest(
+			http.MethodPost,
+			"/internal/query/notices/discover",
+			strings.NewReader(`{"payload":{"query_text":"家具采购"}}`),
+		),
+	)
+
+	assertError(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestStructuredQueryNoticeDiscoverFailsClosedWhenReadModelUnavailable(t *testing.T) {
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers:              8,
+		RequestBodyLimitBytes:             1_048_576,
+		StructuredQuerySharedSecret:       "query-secret",
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+	}, nil)
+
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/query/notices/discover",
+		strings.NewReader(`{
+			"payload":{
+				"query_text":"家具采购",
+				"source_families":["internal_notice_restricted"]
+			},
+			"access_context":{
+				"authorization":{
+					"principal_id":"principal-001",
+					"entitlement_groups":["students"],
+					"retrieval_filter":{
+						"entitlement_groups":["students"],
+						"visibility_level":"restricted"
+					}
+				}
+			}
+		}`),
+	)
+	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["outcome"] != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %v, want temporarily_unverifiable", body["outcome"])
+	}
+	if body["fail_close_reason"] != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %v, want source_truth_unavailable", body["fail_close_reason"])
+	}
+	if body["queried_time_anchor"] != "2026-04-24T10:30:00+08:00" {
+		t.Fatalf("queried_time_anchor = %v", body["queried_time_anchor"])
+	}
+}
+
 func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing.T) {
 	controller := admission.NewController(admission.Config{
 		MaxConcurrent: 1,
