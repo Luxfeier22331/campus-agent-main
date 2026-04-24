@@ -65,7 +65,8 @@ Requirements:
 Official local install for `golangci-lint`:
 
 ```bash
-curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b "$(go env GOPATH)/bin" v2.11.4
+curl -sSfL https://golangci-lint.run/install.sh | \
+  sh -s -- -b "$(go env GOPATH)/bin" v2.11.4
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
 
