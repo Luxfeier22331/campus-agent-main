@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_PRIMARY_ROLE_NOTICE_WINDOW,
+    InMemoryNoticeConsumptionProjectionStore,
+)
+
 from .authenticated_notice_import_test_support import *
 
 
@@ -60,6 +65,55 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         self.assertTrue(entry.content_blocks_key.endswith("/source-truth/content-blocks.jsonl"))
         self.assertTrue(entry.attachment_refs_key.endswith("/source-truth/attachment-refs.jsonl"))
         self.assertEqual(entry.parent_snapshot["notice_release_time"], "2026-04-02 18:49")
+
+    def test_import_authenticated_notice_export_can_rebuild_consumption_projection_for_imported_notices(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, _sample_notice_bundle())
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            projection_store = InMemoryNoticeConsumptionProjectionStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+                consumption_projection_store=projection_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        self.assertGreaterEqual(report["consumption_projection_entry_count"], 1)
+        entries = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("355119",),
+        )
+        self.assertIn(NOTICE_PRIMARY_ROLE_NOTICE_WINDOW, {entry.primary_role for entry in entries})
 
     def test_import_authenticated_notice_export_preserves_existing_attachment_scope_records(
         self,

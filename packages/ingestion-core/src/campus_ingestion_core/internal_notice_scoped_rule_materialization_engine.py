@@ -119,8 +119,8 @@ def materialize_scoped_rules_from_internal_notice_scope(
         runtime_consumption_projection_store = consumption_projection_store
     else:
         try:
-            runtime_consumption_projection_store = build_notice_consumption_projection_store_from_env(
-                source
+            runtime_consumption_projection_store = (
+                build_notice_consumption_projection_store_from_env(source)
             )
         except ValueError:
             runtime_consumption_projection_store = InMemoryNoticeConsumptionProjectionStore()

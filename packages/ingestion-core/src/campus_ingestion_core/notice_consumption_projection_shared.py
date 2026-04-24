@@ -24,6 +24,11 @@ NOTICE_PRIMARY_ROLE_NOTICE_WINDOW = "notice_window"
 NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY = "attachment_rule_body"
 NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE = "annual_cycle_rule"
 NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE = "time_bound_operational_rule"
+NOTICE_PRIMARY_ROLE_PROCUREMENT_NOTICE = "procurement_notice"
+NOTICE_PRIMARY_ROLE_ROSTER_PUBLICATION = "roster_publication"
+NOTICE_PRIMARY_ROLE_LECTURE_ACTIVITY = "lecture_activity"
+NOTICE_PRIMARY_ROLE_SERVICE_STATUS_OVERRIDE = "service_status_override"
+NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE = "attachment_form_template"
 
 NOTICE_SEMANTIC_OWNER_NOTICE_BODY = "notice_body"
 NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT = "attachment_document"
@@ -32,15 +37,20 @@ NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING = "authority_pending"
 
 NOTICE_DEFAULT_AGENT_NOTICE = "notice-agent"
 NOTICE_DEFAULT_AGENT_RAG = "rag-agent"
+NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES = "campus-services-agent"
 
 NOTICE_TARGET_SURFACE_NOTICE_RUNTIME = "notice_runtime"
 NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES = "regulations/institutional_rules"
 NOTICE_TARGET_SURFACE_SCOPED_RULES = "regulations/scoped_rules"
+NOTICE_TARGET_SURFACE_SERVICE_STATUS_RUNTIME = "service_status_runtime"
+NOTICE_TARGET_SURFACE_PUBLICATION_CANDIDATE = "publication_surface_candidate"
 
 NOTICE_TEMPORAL_POLICY_ANNOUNCEMENT_WINDOW = "announcement_window"
 NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED = "standing_until_replaced"
 NOTICE_TEMPORAL_POLICY_EXPLICIT_YEAR_ONLY = "explicit_year_only"
 NOTICE_TEMPORAL_POLICY_TIME_WINDOWED = "time_windowed"
+NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION = "point_in_time_publication"
+NOTICE_TEMPORAL_POLICY_CURRENT_OVERRIDE = "current_override"
 
 NOTICE_COMPLETENESS_COMPLETE = "complete"
 NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING = "authoritative_attachment_missing"
@@ -100,6 +110,14 @@ class NoticeConsumptionProjectionStore(Protocol):
         self,
         source_corpus: str,
         source_collection: str,
+        records: Sequence[NoticeConsumptionProjectionEntry],
+    ) -> None: ...
+
+    def replace_notices(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        notice_ids: Sequence[str],
         records: Sequence[NoticeConsumptionProjectionEntry],
     ) -> None: ...
 

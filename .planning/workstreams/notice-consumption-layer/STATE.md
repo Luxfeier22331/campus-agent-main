@@ -7,15 +7,15 @@ updated: 2026-04-24
 # Project State
 
 ## Current Position
-**Status:** Active
-**Current Phase:** Phase 6
-**Current Phase Name:** Projection And Consumer Foundation
-**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`
+**Status:** Completed
+**Current Phase:** Closeout
+**Current Phase Name:** Operator Query And Closeout
+**Current Plan:** `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md`
 **Total Phases:** 8
 **Total Plans in Phase:** 1
-**Progress:** 5/8 phases complete
+**Progress:** 8/8 phases complete
 **Last Activity:** 2026-04-24
-**Last Activity Description:** Reopened the workstream after confirming that `notice-consumption-layer` had only closed semantic modeling, while repo code still lacked a persistent consumption projection between `source_notice` and downstream consumers.
+**Last Activity Description:** Completed Phase 7 non-regulation coverage and Phase 8 operator/read-model closeout for internal_notice consumption projection truth.
 
 ## Current Slice
 
@@ -40,8 +40,15 @@ updated: 2026-04-24
   - research: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/RESEARCH.md`
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/PLAN.md`
   - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-5-adoption-and-verification/SUMMARY.md`
-- current `Phase 6` artifact:
+- completed `Phase 6` artifacts:
   - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`
+  - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/SUMMARY.md`
+- completed `Phase 7` artifacts:
+  - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-7-non-regulation-derived-unit-coverage/PLAN.md`
+  - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-7-non-regulation-derived-unit-coverage/SUMMARY.md`
+- completed `Phase 8` artifacts:
+  - plan: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md`
+  - summary: `.planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/SUMMARY.md`
 
 - preserved modeling truth:
   - `source_notice -> notice_attachment -> derived consumption unit` fan-out boundary 已冻结
@@ -56,32 +63,44 @@ updated: 2026-04-24
   - `internal_notice_restricted + roster_publication`
   - `internal_notice_restricted + lecture_activity`
   - 两者继续只保留 source-triage / provenance truth
-- 当前 reopen 原因：
-  - repo 代码仍缺失 repo-owned notice consumption projection store
-  - `internal_notice` downstream consumer 仍直接从 source holding collection 扫描/判定，而不是读取 persisted derived-unit metadata truth
-  - 因此 “这条线已完成” 只对 modeling 成立，不对 implementation 成立
-- 当前 slice：
-  - 落地 `notice consumption projection` store 与 shared model
-  - 先在 `internal_notice_restricted` source family 上补 canonical rebuild path
-  - 让 `regulations/institutional_rules` / `regulations/scoped_rules` materialization 通过 projection 过滤 ready candidates
+- Phase 6 closeout：
+  - repo-owned notice consumption projection shared model / in-memory store / Postgres store 已落地
+  - `internal_notice_restricted` canonical rebuild path 已落地
+  - `import_authenticated_notice_export` 已支持显式 projection rebuild seam
+  - `regulations/institutional_rules` / `regulations/scoped_rules` materialization 已经通过 projection ready derived-unit truth 过滤 candidate
+  - operator read-model 已能按 notice id 汇总 ready / held / manual / no-adoption units
+- Phase 7 closeout：
+  - `procurement_notice` notice category 与 projection unit 已落地
+  - internal restricted `roster_publication` / `lecture_activity` no-adoption projection truth 已落地
+  - `service_status_override` projection candidate 已落地，但继续 `held_in_notice_runtime`
+  - `attachment_form_template` projection truth 已落地，但继续 `held_in_notice_runtime`
+- Phase 8 closeout：
+  - operator/read-model status 可以按 notice id 汇总 ready / held / manual / no-adoption units 与原因
+  - explicit worker CLI `show_internal_notice_consumption_projection_status` 已落地
+  - selected-notice rebuild 已改为 replace selected notices，避免局部 rebuild 留下 stale projection units
 
 ## Blockers
 
 - 无外部 blocker。
-- 当前约束：
+- Closeout 后约束：
   - 不在本轮重开 query-serving 或 runtime opening
   - 不把 procurement / lecture / roster 这类 future/non-adopted family 混进 regulation target hardening
+  - 不把 service-status 或 form-template candidate 升格成 campus-services runtime / document-center rollout
   - `authenticated-notice-regulation-consumption` 仍只负责 target-side hardening，不承接 generic middle-layer truth
 
 ## Verification
 
-- implementation reopen in progress；本轮需要补：
+- Targeted implementation tests 已补：
   - projection store / builder 单元测试
-  - `internal_notice` institutional/scoped materialization targeted tests
+  - import projection rebuild seam 测试
+  - `internal_notice` institutional materialization projection ready gate 测试
+  - explicit rebuild worker CLI 测试
+  - operator status worker CLI 测试
+  - procurement/no-adoption/service-status/form-template projection unit 测试
 - planning verification:
-  - `git diff --check -- .planning/PROJECT.md .planning/WORKSTREAMS.md .planning/workstreams/notice-consumption-layer/README.md .planning/workstreams/notice-consumption-layer/REQUIREMENTS.md .planning/workstreams/notice-consumption-layer/ROADMAP.md .planning/workstreams/notice-consumption-layer/STATE.md .planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md docs/plans/archive/completed/notice-consumption-layer.md`
+  - `git diff --check -- .planning/PROJECT.md .planning/WORKSTREAMS.md .planning/workstreams/notice-consumption-layer/README.md .planning/workstreams/notice-consumption-layer/REQUIREMENTS.md .planning/workstreams/notice-consumption-layer/ROADMAP.md .planning/workstreams/notice-consumption-layer/STATE.md .planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md .planning/workstreams/notice-consumption-layer/phases/phase-7-non-regulation-derived-unit-coverage/PLAN.md .planning/workstreams/notice-consumption-layer/phases/phase-7-non-regulation-derived-unit-coverage/SUMMARY.md .planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/PLAN.md .planning/workstreams/notice-consumption-layer/phases/phase-8-operator-query-and-closeout/SUMMARY.md`
 
 ## Session Continuity
 
-**Stopped At:** `Phase 6` projection/store foundation 与 consumer rewiring 正在推进
-**Resume File:** `.planning/workstreams/notice-consumption-layer/phases/phase-6-projection-and-consumer-foundation/PLAN.md`
+**Stopped At:** `notice-consumption-layer` implementation closeout complete for internal_notice.
+**Resume File:** `.planning/workstreams/notice-consumption-layer/STATE.md`

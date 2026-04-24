@@ -34,6 +34,76 @@
 			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册"]
 		},
 		{
+			"family": "procurement_notice",
+			"admission_policy": "archive_notice",
+			"priority": 55,
+			"description": "采购、招标、比选、询价、竞价、中标、中选和成交类通知，当前作为通知类别归档，不误投到规章制度或服务运行时。",
+			"title_any_patterns": [
+				"采购公告",
+				"采购通知",
+				"采购项目",
+				"招标公告",
+				"招标项目",
+				"比选公告",
+				"比选结果",
+				"询价公告",
+				"竞价公告",
+				"成交公告",
+				"中标公告",
+				"中选结果",
+				"谈判结果"
+			],
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"工作规程",
+				"制度",
+				"规范",
+				"条例",
+				"章程",
+				"准则",
+				"指导意见",
+				"手册",
+				"指南"
+			]
+		},
+		{
+			"family": "service_status_override",
+			"admission_policy": "hold_notice_runtime",
+			"priority": 58,
+			"description": "服务开放、暂停、恢复、假期办理窗口或运行时间调整类通知；当前只进入 consumption projection 的 service-status candidate truth，不打开 campus services runtime。",
+			"title_any_patterns": [
+				"暑假期间.*办理",
+				"寒假期间.*办理",
+				"假期期间.*办理",
+				"服务时间",
+				"开放时间",
+				"暂停.*服务",
+				"恢复.*服务",
+				"暂停.*办理",
+				"恢复.*办理",
+				"临时.*办理",
+				"闭馆",
+				"校车.*运行",
+				"食堂.*开放"
+			],
+			"title_exclude_patterns": [
+				"管理办法",
+				"管理规定",
+				"实施细则",
+				"工作规程",
+				"制度",
+				"规范",
+				"条例",
+				"章程",
+				"准则",
+				"指导意见",
+				"手册",
+				"指南"
+			]
+		},
+		{
 			"family": "roster_publication",
 			"admission_policy": "admit_after_policy",
 			"priority": 50,

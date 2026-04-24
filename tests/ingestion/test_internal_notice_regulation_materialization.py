@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
 
 import campus_ingestion_core.internal_notice_regulation_materialization as regulation_materialization
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -9,6 +10,17 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     InMemoryAuthenticatedNoticeSourceTruthInventoryStore,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.notice_consumption_projection import (
+    NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+    NOTICE_COMPLETENESS_REFERENCE_ONLY,
+    NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+    NOTICE_DEFAULT_AGENT_NOTICE,
+    NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+    NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+    NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+    NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+    NoticeConsumptionProjectionEntry,
+)
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
@@ -702,6 +714,110 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
         self.assertEqual(report.materialized_document_count, 0)
         target_records = registry.list_by_scope("regulations", "institutional_rules")
         self.assertEqual(target_records, ())
+
+    def test_materialize_from_internal_notice_scope_obeys_consumption_projection_ready_gate(
+        self,
+    ) -> None:
+        materialize = getattr(
+            regulation_materialization,
+            "materialize_institutional_regulations_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        parent = _record(
+            document_id="notice:muc_internal_portal:300001",
+            source_uri="https://portal.example.edu/notices/300001",
+            canonical_key="campus_notices/documents/internal_notice/300001/canonical.md",
+            units_key="campus_notices/documents/internal_notice/300001/document-units.jsonl",
+            content_hash="sha256:parent-300001",
+            is_current=True,
+        )
+        registry = InMemoryDocumentRegistry((parent,))
+        raw_asset_registry = InMemoryRawAssetRegistry(())
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory_entry(
+                    notice_id="300001",
+                    notice_title="中央民族大学实验室安全管理规定",
+                    published_date="2026-04-20",
+                ),
+            )
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", parent.canonical_markdown_object_key): _canonical_markdown(
+                    "# 中央民族大学实验室安全管理规定\n\n"
+                    "第一条 为加强实验室安全管理，制定本规定。\n"
+                    "第二条 实验室实行分级分类安全管理。\n"
+                ),
+                ("campus-rag-derived", parent.document_units_object_key): _document_units(
+                    [
+                        {
+                            "doc_id": parent.document_id,
+                            "version_id": parent.version_id,
+                            "chunk_id": "row-0001",
+                            "clean_text": "中央民族大学实验室安全管理规定",
+                            "source_url": parent.source_uri,
+                            "page_start": 1,
+                            "page_end": 2,
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_scope": "campus",
+                            "visibility_level": "restricted",
+                            "policy_projection_version": "phase1-authorization-projection-v1",
+                            "metadata": {"title": "中央民族大学实验室安全管理规定"},
+                        }
+                    ]
+                ),
+            }
+        )
+        held_projection_entry = NoticeConsumptionProjectionEntry(
+            source_family="internal_notice_restricted",
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="300001",
+            unit_id="notice_unit:muc_internal_portal:300001:attachment_rule_body:held",
+            primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
+            semantic_owner=NOTICE_SEMANTIC_OWNER_NOTICE_BODY,
+            default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
+            target_surface=NOTICE_TARGET_SURFACE_INSTITUTIONAL_RULES,
+            temporal_policy=NOTICE_TEMPORAL_POLICY_STANDING_UNTIL_REPLACED,
+            completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
+            answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
+            consumption_status=NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
+            source_notice_document_id=parent.document_id,
+            source_document_id=parent.document_id,
+            role_metadata={"reasons": ("projection_gate_forced_hold",)},
+        )
+
+        with patch.object(
+            regulation_materialization,
+            "rebuild_internal_notice_consumption_projection",
+            return_value=(held_projection_entry,),
+        ):
+            report = materialize(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "EMBEDDING_PROVIDER": "mock",
+                    "EMBEDDING_MODEL": "mock-embedding-8d",
+                    "SPARSE_PROVIDER": "mock",
+                },
+                object_store=object_store,
+                registry=registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report.promotion_candidate_count, 0)
+        self.assertEqual(report.materialized_document_count, 0)
+        self.assertEqual(registry.list_by_scope("regulations", "institutional_rules"), ())
 
 
 if __name__ == "__main__":

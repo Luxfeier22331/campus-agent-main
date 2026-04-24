@@ -53,10 +53,40 @@ class PostgresNoticeConsumptionProjectionStore:
         source_collection: str,
         records: Sequence[NoticeConsumptionProjectionEntry],
     ) -> None:
-        with _patched_postgres_connection(self.database_url, autocommit=False) as conn, conn.cursor() as cursor:
+        with (
+            _patched_postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
             cursor.execute(
                 f"delete from {self.table_name} where source_corpus = %s and source_collection = %s",
                 (source_corpus, source_collection),
+            )
+            rows = tuple(records)
+            if rows:
+                cursor.execute(self._bulk_upsert_query(), (self._recordset_payload(rows),))
+
+    def replace_notices(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        notice_ids: Sequence[str],
+        records: Sequence[NoticeConsumptionProjectionEntry],
+    ) -> None:
+        normalized_notice_ids = normalize_notice_ids(notice_ids)
+        if not normalized_notice_ids:
+            return
+        with (
+            _patched_postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
+            cursor.execute(
+                f"""
+                delete from {self.table_name}
+                where source_corpus = %s
+                  and source_collection = %s
+                  and source_notice_id = any(%s)
+                """,
+                (source_corpus, source_collection, list(normalized_notice_ids)),
             )
             rows = tuple(records)
             if rows:

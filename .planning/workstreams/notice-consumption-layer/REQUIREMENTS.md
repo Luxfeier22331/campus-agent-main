@@ -1,6 +1,6 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-21
 updated: 2026-04-24
 ---
@@ -45,6 +45,7 @@ updated: 2026-04-24
    - 为什么还停在 notice runtime
    - 为什么是 manual review / no-adoption
 5. `notice-consumption-layer` 不再错误地被表述为 “只要 modeling closeout 就完成”。
+6. internal notice 的 non-regulation derived-unit coverage 至少覆盖 `procurement_notice`、internal restricted no-adoption、`service_status_override` 与 `attachment_form_template`，且不打开新的 query-serving/runtime surface。
 
 ## Canonical Entry
 

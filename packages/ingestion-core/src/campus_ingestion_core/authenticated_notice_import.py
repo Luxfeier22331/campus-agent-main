@@ -45,6 +45,14 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     utc_now,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.internal_notice_consumption_projection import (
+    NoticeConsumptionProjectionStore,
+    build_notice_consumption_projection_store_from_env,
+    rebuild_internal_notice_consumption_projection,
+)
+from campus_ingestion_core.internal_notice_regulation_promotion import (
+    InternalNoticeRegulationPromotionRequest,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import (
     build_raw_asset_key,
@@ -181,6 +189,7 @@ def import_authenticated_notice_export(
     document_registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
+    consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
 ) -> dict[str, Any]:
     source = env if env is not None else dict(os.environ)
     object_store_settings = ObjectStoreSettings.from_env(source)
@@ -298,6 +307,25 @@ def import_authenticated_notice_export(
             request.collection,
             tuple(inventory_entries),
         )
+    projection_store = consumption_projection_store
+    if projection_store is None:
+        projection_store = _build_consumption_projection_store_from_env_if_configured(source)
+    projection_entries = ()
+    if inventory_store is not None and projection_store is not None:
+        projection_entries = rebuild_internal_notice_consumption_projection(
+            request=InternalNoticeRegulationPromotionRequest(
+                corpus=request.corpus,
+                collection=request.collection,
+                notice_ids=tuple(
+                    notice_import.notice_id for notice_import in prepared.notice_imports
+                ),
+            ),
+            env=source,
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=writer,
+            projection_store=projection_store,
+        )
     result = {
         "notice_count": prepared.notice_count,
         "created_document_ids": list(stats.created_document_ids),
@@ -307,6 +335,8 @@ def import_authenticated_notice_export(
         "raw_reused_count": raw_reused_count,
         "errors": list(stats.errors),
     }
+    if projection_store is not None:
+        result["consumption_projection_entry_count"] = len(projection_entries)
     if attachment_object_backfill_summary is not None:
         result["attachment_object_backfill"] = attachment_object_backfill_summary
     return result
@@ -339,6 +369,28 @@ def _build_inventory_store_from_env_if_configured(
     if any(env.get(key) for key in runtime_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(env)
     return None
+
+
+def _build_consumption_projection_store_from_env_if_configured(
+    env: dict[str, str],
+) -> NoticeConsumptionProjectionStore | None:
+    projection_env_keys = (
+        "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+        "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+        "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+    )
+    if not any(env.get(key) for key in projection_env_keys):
+        return None
+    return build_notice_consumption_projection_store_from_env(
+        env,
+        prefer_operator=any(
+            env.get(key)
+            for key in (
+                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+            )
+        ),
+    )
 
 
 def _should_preserve_authenticated_notice_scope_record(

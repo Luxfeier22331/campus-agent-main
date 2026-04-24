@@ -18,9 +18,7 @@ class InMemoryNoticeConsumptionProjectionStore:
 
     def upsert_many(self, records: Sequence[NoticeConsumptionProjectionEntry]) -> None:
         for record in records:
-            self._records[
-                (record.source_corpus, record.source_collection, record.unit_id)
-            ] = record
+            self._records[(record.source_corpus, record.source_collection, record.unit_id)] = record
 
     def replace_scope(
         self,
@@ -29,9 +27,28 @@ class InMemoryNoticeConsumptionProjectionStore:
         records: Sequence[NoticeConsumptionProjectionEntry],
     ) -> None:
         stale_keys = [
+            key for key in self._records if key[0] == source_corpus and key[1] == source_collection
+        ]
+        for key in stale_keys:
+            self._records.pop(key, None)
+        self.upsert_many(records)
+
+    def replace_notices(
+        self,
+        source_corpus: str,
+        source_collection: str,
+        notice_ids: Sequence[str],
+        records: Sequence[NoticeConsumptionProjectionEntry],
+    ) -> None:
+        normalized_notice_ids = set(normalize_notice_ids(notice_ids))
+        if not normalized_notice_ids:
+            return
+        stale_keys = [
             key
-            for key in self._records
-            if key[0] == source_corpus and key[1] == source_collection
+            for key, record in self._records.items()
+            if key[0] == source_corpus
+            and key[1] == source_collection
+            and record.source_notice_id in normalized_notice_ids
         ]
         for key in stale_keys:
             self._records.pop(key, None)

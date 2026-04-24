@@ -171,3 +171,39 @@ class AuthenticatedNoticeNoticeFamilyClassificationTest(unittest.TestCase):
 
         self.assertEqual(classification.family, "other")
         self.assertEqual(classification.admission_policy, "review_later")
+
+    def test_classify_procurement_notice_as_procurement_notice(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=13,
+                title="中央民族大学丰台校区家具采购项目比选公告",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "procurement_notice")
+        self.assertEqual(classification.admission_policy, "archive_notice")
+
+    def test_classify_service_status_override_as_notice_runtime_hold(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=15,
+                title="关于暑假期间办理就业相关事务的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "service_status_override")
+        self.assertEqual(classification.admission_policy, "hold_notice_runtime")
+
+    def test_procurement_regulation_remains_policy_regulation(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=14,
+                title="关于修订《中央民族大学采购工作管理办法》的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "policy_regulation")
+        self.assertEqual(classification.admission_policy, "priority_now")

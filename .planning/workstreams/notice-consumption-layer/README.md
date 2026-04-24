@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
 updated: 2026-04-24
 ---
@@ -9,16 +9,17 @@ updated: 2026-04-24
 
 这是 `notice-consumption-layer` 的本地 workstream 入口。
 这条线的 `Phase 1-5` 已完成 semantic modeling closeout，但 “implementation 应完全回到 adoption target、因此本线可关闭” 这一判断已被证实过早。
-当前这条 workstream 已重开为 active implementation lane，负责把 repo-owned notice consumption projection 真正落成代码与持久化 metadata truth。
+当前这条 workstream 已完成 active implementation closeout：repo-owned notice consumption projection 已落成代码与持久化 metadata truth。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 6`
-- current focus:
-  - 补 `source_notice -> derived consumption unit` 的持久化 projection store
-  - 让 `internal_notice` 的 regulation / scoped downstream consumer 经由 projection 过滤，而不是继续直接扫 source holding collection
-  - 保留 `Phase 1-5` 的 modeling truth，不重开 source family / schema / authority 基线
+- status: `completed`
+- current phase: `closeout`
+- closeout focus:
+  - `source_notice -> derived consumption unit` projection store / rebuild path 已落地
+  - `internal_notice` regulation/scoped downstream consumer 已通过 projection ready truth 过滤
+  - `procurement_notice`、internal restricted no-adoption、`service_status_override`、`attachment_form_template` coverage 已代码化
+  - operator/read-model 查询入口已补齐，不重开 query-serving、panel、live control-plane 或 authenticated portal runtime
 
 ## Native Planning Truth
 
