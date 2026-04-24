@@ -267,6 +267,78 @@ export function registerChatCommandServiceCoreSuite(): void {
 		expect(telemetry.recordRequestTransportError).not.toHaveBeenCalled();
 	});
 
+	it("leaves omitted requestedCapability unset so supervisor can infer the entrance intent", async () => {
+		const { store, acceptedWrites, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn().mockResolvedValue({
+				answerText: "图书馆在海淀校区主教学区西侧。",
+				error: null,
+				followUpQuestion: "",
+				result: {
+					place_card: {
+						location_description: "海淀校区主教学区西侧。",
+						place: {
+							display_name: "图书馆",
+							entity_type: "building",
+							place_id: "muc.haidian.library",
+						},
+					},
+				},
+				selectedTarget: "navigation-agent",
+				status: "completed",
+				traceId: "trace_0002",
+			}),
+		};
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-11T09:00:00.000Z"),
+			conversationStore,
+			store,
+			supervisor,
+			telemetry,
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "图书馆在哪里",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		});
+
+		expect(supervisor.execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestedCapability: null,
+				userGoal: "图书馆在哪里",
+			}),
+		);
+		expect(acceptedWrites[0]).toMatchObject({
+			requestExecution: {
+				requestedCapability: null,
+			},
+			requestObservabilityFact: {
+				requestedCapability: null,
+			},
+		});
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				requestedCapability: null,
+				selectedTarget: "navigation-agent",
+			},
+			requestObservabilityFact: {
+				requestedCapability: null,
+			},
+		});
+		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
+			expect.objectContaining({
+				requestedCapability: null,
+			}),
+		);
+	});
+
 	it("passes explicit versionQuery through validation, supervisor execution, and request writes", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

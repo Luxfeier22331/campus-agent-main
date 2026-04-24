@@ -85,7 +85,7 @@ export function buildChatCommandService(
 			}
 
 			const surface = input.surface?.trim() || "public_chat_web";
-			const validatedPayload = resolveValidatedPayload(input.payload);
+			const validatedPayload = resolveValidatedPayload(input.payload, { surface });
 			const ownerUserId = input.principal.principal.principalId;
 
 			let conversation: ChatConversation | null = null;

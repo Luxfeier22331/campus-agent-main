@@ -68,7 +68,7 @@ export function buildAcceptedWrite(input: {
 	prompt: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	requestedCapability: string;
+	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
@@ -189,7 +189,7 @@ export function buildFinalizedWrite(input: {
 	outboxEventId: string;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedCapability: string;
+	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	response: SupervisorExecutionResponse;
 	versionQuery: VersionQuery | null;
@@ -345,7 +345,7 @@ export function buildFinalizedWrite(input: {
 			requestFingerprintSha256: null,
 			traceId: normalizedTraceId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedCapability: "knowledge",
+			requestedCapability: input.requestedCapability,
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope,

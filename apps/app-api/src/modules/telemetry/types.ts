@@ -10,7 +10,7 @@ export interface BaseRequestTelemetry {
 	conversationId: string;
 	principalType?: string | null;
 	requestId: string;
-	requestedCapability: string;
+	requestedCapability: string | null;
 	requestedScope?: RequestedScope | null;
 	resolvedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;

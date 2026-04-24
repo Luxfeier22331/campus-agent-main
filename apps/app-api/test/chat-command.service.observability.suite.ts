@@ -248,7 +248,7 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 				policyProjectionVersion: "phase1-authorization-projection-v1",
 				principalType: "student",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedCapability: null,
 				requestedScopeSummary: null,
 				resolvedScopeSummary: null,
 				retrievalAttempted: null,

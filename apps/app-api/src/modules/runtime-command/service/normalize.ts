@@ -8,6 +8,7 @@ import {
 	type VersionQuery,
 	VersionQueryValidationError,
 } from "../../version-query";
+import { resolveRequestedCapabilityForSurface } from "./capability-policy";
 import { createPreAcceptError } from "./errors";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
 
@@ -22,7 +23,7 @@ export function defaultGenerateId(prefix: string): string {
 export function defaultComputeFingerprint(input: {
 	conversationDiscriminator: string;
 	prompt: string;
-	requestedCapability: string;
+	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }): string {
@@ -115,11 +116,6 @@ function normalizeRequestedScope(value: unknown): RequestedScope | null {
 	}
 
 	return { corpus, collection };
-}
-
-function normalizeRequestedCapability(value: unknown): string | null {
-	const capability = normalizeString(value);
-	return capability || null;
 }
 
 function resolveSafetyIdentifierSource(principal: ResolvedAppPrincipal): string | null {
@@ -277,7 +273,10 @@ export function extractSourceDocIds(result: unknown): string[] {
 	return Array.from(new Set(sourceDocIds));
 }
 
-export function resolveValidatedPayload(payload: ChatCommandPayload): ValidatedChatCommandPayload {
+export function resolveValidatedPayload(
+	payload: ChatCommandPayload,
+	input: { surface: string },
+): ValidatedChatCommandPayload {
 	const conversationId = normalizeString(payload.conversationId) || null;
 
 	const prompt = normalizeString(payload.prompt);
@@ -290,16 +289,10 @@ export function resolveValidatedPayload(payload: ChatCommandPayload): ValidatedC
 		});
 	}
 
-	const requestedCapability =
-		normalizeRequestedCapability(payload.requestedCapability) ?? "knowledge";
-	if (requestedCapability !== "knowledge") {
-		throw createPreAcceptError({
-			code: "validation_failed",
-			details: { field: "requestedCapability" },
-			message: "Only knowledge requests are accepted on this route.",
-			status: 422,
-		});
-	}
+	const requestedCapability = resolveRequestedCapabilityForSurface({
+		requestedCapability: payload.requestedCapability,
+		surface: input.surface,
+	});
 
 	const requestedScope = normalizeRequestedScope(payload.requestedScope);
 	let versionQuery: VersionQuery | null;

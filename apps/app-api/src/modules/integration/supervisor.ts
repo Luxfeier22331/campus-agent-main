@@ -65,7 +65,7 @@ export interface SupervisorExecutionInput {
 	context: SupervisorContextProjection;
 	conversationId: string;
 	requestId: string;
-	requestedCapability?: string;
+	requestedCapability?: string | null;
 	requestedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;
 	surface?: string;
@@ -460,7 +460,9 @@ export function createSupervisorExecutionClient(
 						context: toSupervisorContext(payload.context),
 						conversation_id: payload.conversationId,
 						request_id: payload.requestId,
-						requested_capability: payload.requestedCapability,
+						...(payload.requestedCapability
+							? { requested_capability: payload.requestedCapability }
+							: {}),
 						...(payload.requestedScope ? { requested_scope: payload.requestedScope } : {}),
 						...(payload.safetyIdentifier ? { safety_identifier: payload.safetyIdentifier } : {}),
 						...(payload.versionQuery

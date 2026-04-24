@@ -58,7 +58,7 @@ export interface ChatCommandServiceDependencies {
 	computeFingerprint?: (input: {
 		conversationDiscriminator: string;
 		prompt: string;
-		requestedCapability: string;
+		requestedCapability: string | null;
 		requestedScope: RequestedScope | null;
 		versionQuery: VersionQuery | null;
 	}) => string;
@@ -85,7 +85,7 @@ export interface ChatCommandServiceDependencies {
 export interface ValidatedChatCommandPayload {
 	conversationId: string | null;
 	prompt: string;
-	requestedCapability: string;
+	requestedCapability: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }
