@@ -34,6 +34,9 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	if s.rejectClosedStructuredRuntime(response, request.Context(), executionRequest, time.Since(startedAt)) {
 		return
 	}
+	if s.handleDirectStructuredAnswer(response, request, executionRequest, startedAt) {
+		return
+	}
 
 	if s.bridge == nil || !s.bridge.Configured() {
 		setOutcome(response, "bridge_not_configured")

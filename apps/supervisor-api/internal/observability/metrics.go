@@ -122,6 +122,10 @@ type RuntimeDecisionLabels struct {
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
+	SelectedTarget        string
+	SelectedTool          string
+	TerminalOutcome       string
+	FailCloseReason       string
 }
 
 type runtimeDecisionKey struct {
@@ -132,6 +136,10 @@ type runtimeDecisionKey struct {
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
+	SelectedTarget        string
+	SelectedTool          string
+	TerminalOutcome       string
+	FailCloseReason       string
 }
 
 type Metrics struct {
@@ -319,6 +327,10 @@ func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
 		ContextPreflightState: defaultMetricLabel(labels.ContextPreflightState, "unknown"),
 		RoutingNextAction:     defaultMetricLabel(labels.RoutingNextAction, "unknown"),
 		PlanningOutcome:       defaultMetricLabel(labels.PlanningOutcome, "unknown"),
+		SelectedTarget:        defaultMetricLabel(labels.SelectedTarget, "none"),
+		SelectedTool:          defaultMetricLabel(labels.SelectedTool, "none"),
+		TerminalOutcome:       defaultMetricLabel(labels.TerminalOutcome, "none"),
+		FailCloseReason:       defaultMetricLabel(labels.FailCloseReason, "none"),
 	}]++
 }
 
@@ -563,7 +575,7 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_supervisor_api_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q} %d\n",
+			"campus_supervisor_api_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_target=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
 			key.Capability,
 			key.Lane,
 			key.ScopeGate,
@@ -571,6 +583,10 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			key.ContextPreflightState,
 			key.RoutingNextAction,
 			key.PlanningOutcome,
+			key.SelectedTarget,
+			key.SelectedTool,
+			key.TerminalOutcome,
+			key.FailCloseReason,
 			m.runtimeDecisionTotals[key],
 		)
 	}
@@ -873,7 +889,19 @@ func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDec
 		if keys[left].RoutingNextAction != keys[right].RoutingNextAction {
 			return keys[left].RoutingNextAction < keys[right].RoutingNextAction
 		}
-		return keys[left].PlanningOutcome < keys[right].PlanningOutcome
+		if keys[left].PlanningOutcome != keys[right].PlanningOutcome {
+			return keys[left].PlanningOutcome < keys[right].PlanningOutcome
+		}
+		if keys[left].SelectedTarget != keys[right].SelectedTarget {
+			return keys[left].SelectedTarget < keys[right].SelectedTarget
+		}
+		if keys[left].SelectedTool != keys[right].SelectedTool {
+			return keys[left].SelectedTool < keys[right].SelectedTool
+		}
+		if keys[left].TerminalOutcome != keys[right].TerminalOutcome {
+			return keys[left].TerminalOutcome < keys[right].TerminalOutcome
+		}
+		return keys[left].FailCloseReason < keys[right].FailCloseReason
 	})
 	return keys
 }

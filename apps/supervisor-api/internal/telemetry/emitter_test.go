@@ -146,6 +146,8 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		RequestedCapability:   "knowledge",
 		RoutingNextAction:     "out_of_scope",
 		ScopeGateDecision:     "out_of_scope",
+		TerminalOutcome:       "no_answer",
+		FailCloseReason:       "product_scope_boundary",
 		StatusCode:            504,
 		TraceID:               "trace-attrs",
 	})
@@ -169,7 +171,11 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"request_id":              true,
 		"requested_capability":    true,
 		"routing_next_action":     true,
+		"selected_target":         true,
+		"selected_tool":           true,
 		"scope_gate_decision":     true,
+		"terminal_outcome":        true,
+		"fail_close_reason":       true,
 		"status_code":             true,
 		"trace_id":                true,
 	}
@@ -186,6 +192,8 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"context_preflight_state": "not_follow_up",
 		"routing_next_action":     "out_of_scope",
 		"planning_outcome":        "not_preplanned",
+		"terminal_outcome":        "no_answer",
+		"fail_close_reason":       "product_scope_boundary",
 	}
 	for key, want := range expectedValues {
 		if found[key] != want {

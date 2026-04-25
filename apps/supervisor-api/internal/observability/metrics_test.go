@@ -26,6 +26,8 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		ContextPreflightState: "not_follow_up",
 		RoutingNextAction:     "out_of_scope",
 		PlanningOutcome:       "not_preplanned",
+		TerminalOutcome:       "no_answer",
+		FailCloseReason:       "product_scope_boundary",
 	})
 
 	output := string(metrics.Prometheus(AdmissionSnapshot{
@@ -64,7 +66,7 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_supervisor_api_bridge_duration_ms_count 1`,
 		`campus_supervisor_api_bridge_failures_total{kind="timeout"} 1`,
 		`campus_supervisor_api_capability_gate_decisions_total{capability="campus_services",gate="structured_runtime",decision="closed"} 1`,
-		`campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned"} 1`,
+		`campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_target="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`,
 		`campus_supervisor_api_lifecycle_completed_total{state="completed"} 1`,
 		`campus_supervisor_api_lifecycle_completed_total{state="failed"} 1`,
 		`campus_supervisor_api_telemetry_exported_total 5`,

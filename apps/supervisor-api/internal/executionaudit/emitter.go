@@ -36,6 +36,10 @@ type Event struct {
 	Retryable             bool
 	RoutingNextAction     string
 	ScopeGateDecision     string
+	SelectedTarget        string
+	SelectedTool          string
+	TerminalOutcome       string
+	FailCloseReason       string
 	TraceID               string
 }
 
@@ -524,6 +528,10 @@ func eventPayload(event Event) map[string]any {
 		"retryable":               event.Retryable,
 		"routing_next_action":     nullableString(event.RoutingNextAction),
 		"scope_gate_decision":     nullableString(event.ScopeGateDecision),
+		"selected_target":         nullableString(event.SelectedTarget),
+		"selected_tool":           nullableString(event.SelectedTool),
+		"terminal_outcome":        nullableString(event.TerminalOutcome),
+		"fail_close_reason":       nullableString(event.FailCloseReason),
 		"trace_id":                strings.TrimSpace(event.TraceID),
 	}
 }

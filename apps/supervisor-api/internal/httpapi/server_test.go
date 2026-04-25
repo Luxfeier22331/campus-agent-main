@@ -567,19 +567,23 @@ func TestAnswerRecordsRuntimePolicyDecisionMetricsBeforeBridge(t *testing.T) {
 
 	metricsResponse := httptest.NewRecorder()
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
-	expectedMetric := `campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned"} 1`
+	expectedMetric := `campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_target="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`
 	if !strings.Contains(metricsResponse.Body.String(), expectedMetric) {
 		t.Fatalf("metrics missing runtime policy decision:\n%s", metricsResponse.Body.String())
 	}
 }
 
-func TestAnswerAllowsOpenedStructuredRuntimeToReachBridge(t *testing.T) {
+func TestAnswerAllowsOpenedStructuredRuntimeWithoutPythonBridge(t *testing.T) {
+	bridgeCalls := 0
 	bridgeClient := &fakeBridge{
 		configured: true,
-		response: bridge.ExecuteResponse{
-			StatusCode: http.StatusOK,
-			Kind:       "supervisor_response",
-			Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"ok"}`),
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+			}, nil
 		},
 	}
 	server := NewServer(config.Config{
@@ -603,9 +607,110 @@ func TestAnswerAllowsOpenedStructuredRuntimeToReachBridge(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
-	projected := decodeJSONRecord(t, bridgeClient.seen.Payload)
-	if projected["requested_capability"] != "campus_services" {
-		t.Fatalf("requested_capability = %v, want campus_services", projected["requested_capability"])
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := decodeBody(t, response)
+	if body["selected_target"] != "campus-services-agent" {
+		t.Fatalf("selected_target = %v, want campus-services-agent", body["selected_target"])
+	}
+	if body["status"] != "no_answer" {
+		t.Fatalf("status = %v, want no_answer", body["status"])
+	}
+}
+
+func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
+	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:haidian-to-fengtai",
+				"service_dates":["2026-04-25"],
+				"departure_time":"06:50",
+				"arrival_time":"08:05",
+				"origin_stop_id":"stop:haidian-east-gate",
+				"destination_stop_id":"stop:fengtai-main-gate"
+			}
+		]
+	}`)
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:                          "bearer",
+		BearerToken:                       "secret-token",
+		DefaultActorID:                    "runtime-bearer-user",
+		RequestBodyLimitBytes:             1_048_576,
+		MaxConcurrentAnswers:              8,
+		OpenCapabilities:                  []string{"campus_services"},
+		StructuredQueryProjectionPath:     projectionPath,
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"我明天早上要去丰台上课，最早的班车是几点","request_id":"req-structured-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-structured-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := decodeBody(t, response)
+	if body["selected_target"] != "campus-services-agent" {
+		t.Fatalf("selected_target = %v, want campus-services-agent", body["selected_target"])
+	}
+	if body["status"] != "completed" {
+		t.Fatalf("status = %v, want completed", body["status"])
+	}
+	if body["trace_id"] != "trace-structured-direct" {
+		t.Fatalf("trace_id = %v, want trace-structured-direct", body["trace_id"])
+	}
+	result := expectRecord(t, body["result"], "result")
+	if result["outcome"] != "resolved_current" {
+		t.Fatalf("result.outcome = %v, want resolved_current", result["outcome"])
+	}
+	observability := expectRecord(t, body["observability"], "observability")
+	if observability["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("observability.selected_tool = %v, want transport_schedule_lookup", observability["selected_tool"])
 	}
 }
 

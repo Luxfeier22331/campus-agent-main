@@ -240,6 +240,8 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		Retryable:             true,
 		RoutingNextAction:     "out_of_scope",
 		ScopeGateDecision:     "out_of_scope",
+		TerminalOutcome:       "no_answer",
+		FailCloseReason:       "product_scope_boundary",
 		TraceID:               "trace-001",
 	})
 
@@ -268,6 +270,8 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 			"context_preflight_state": "not_follow_up",
 			"routing_next_action":     "out_of_scope",
 			"planning_outcome":        "not_preplanned",
+			"terminal_outcome":        "no_answer",
+			"fail_close_reason":       "product_scope_boundary",
 		}
 		for key, want := range expectedRuntimeFields {
 			if event[key] != want {
