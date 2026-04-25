@@ -54,6 +54,25 @@
 - `campus_notices/internal_notice` 已在 local Postgres + local MinIO + cloud Qdrant 路径上完成 current-scope replay -> verified preparation -> single promote -> unpublished release：`promotion_id=promotion-0001`、`release_id=r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`，且 serving alias `internal_notice` 仍未发布；runtime truth 继续保持 `restricted + offline_preparation`
 - authenticated-notice 的后续工作当前收口为两条前向线加两条已完成 closeout：`notice-consumption-layer` 已完成 implementation closeout，repo 现有 `source_notice -> derived consumption unit` persisted projection、显式 rebuild/status worker、import rebuild seam、regulation/scoped ready gate、non-regulation coverage 与 operator read-model truth；已捕获 corpus 的 bounded regulation/scoped downstream consumption 继续由独立 workstream 负责 target-side hardening；`file_release owner recovery` 的 auth-window readiness closeout 已完成，`351119` 已被显式排除，未来 target-specific recovery 必须先 admission 新的 non-excluded target 才能 reopen；`live portal / authenticated control-plane` 继续保持 deferred。对 `355222` 比选公告与 `355325` 中选结果公示这类 procurement notice，当前已进入 `procurement_notice` notice category / projection truth；`service_status_override` 与 `attachment_form_template` 也只作为 held projection truth，不打开 campus-services runtime、document center、query-serving 或 panel surface
 - 当前 worktree 已完成 Wave E place-finding foundation 的 repo-internal 资产：repo-owned `campus_navigation/place_catalog` seed/runtime-profile、`packages/navigation-agent` 与 `place_lookup` / `place_card` contract 仍保留在仓库中；但按 2026-04-14 产品决策，当前 supervisor 产品路径已对校内导航 fail-close，`place_card` / map consumption 延后到地图实际上线后再恢复。在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
+- 当前 worktree 已完成 go-shell Phase 55：private bridge 升级为
+  `supervisor_bridge_v5 + specialist_response` contract，Python bridge /
+  `packages/supervisor-core` 只返回 `SpecialistResponse`，Go `supervisor-api`
+  统一 finalizes public `SupervisorResponse` 与 response observability；
+  `packages/supervisor-core` 的 legacy `policy.py` / `response.py` /
+  `handle_request` public handler 已删除。在合入 `develop` 前，这仍属于
+  worktree-local progress，而不是 merged truth
+- 当前 worktree 已完成 go-shell Phase 56-60：`packages/supervisor-core` 已从旧
+  supervisor core 语义退役为 private agent dispatch helper，只保留
+  `AgentDispatcher` / `dispatch_agent_request` / `AgentDelegate`；默认 agent delegate
+  map 已迁到 `apps/supervisor-core-worker`，Python core 不再 import concrete agent
+  packages，旧 `SupervisorAgent` / `handle_specialist_request` /
+  `MissingSpecialistDelegateError` 命名已删除。在合入 `develop` 前，这仍属于
+  worktree-local progress，而不是 merged truth
+- 当前 worktree 已完成 go-shell Phase 61 internal naming closeout：worker 内部变量/函数、
+  supervisor focused tests 与 active docs/planning 叙述已统一为 agent handoff /
+  agent request；`SpecialistRequest` / `SpecialistResponse` / `specialist_response`
+  仅作为 bridge v5 legacy contract seam 保留。在合入 `develop` 前，这仍属于
+  worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 Phase 14 `产品主链路 Prompt Stack 与 System Prompt Runtime 收口`：`apps/supervisor-api`、`packages/supervisor-core`、`packages/rag-agent`、`apps/app-api` 与 `packages/evals` 现已统一收口 prompt metadata sink、typed prompt runtime state 与 deterministic-path regression coverage；在合入 `develop` 前，这仍属于 worktree-local progress，而不是 merged truth
 - 当前 worktree 已完成 Phase 16 `OCR 资产分类与双渠道择优路由` closeout：compare lane 现已输出 `asset_typing` / `routing_recommendation`，`source_truth_only` 对 `generic_image` 现已支持 Paddle + MinerU 双跑判型、`ocr-routing-decision.json` evidence 与 raw-asset refined type 回写；当前冻结的 canonical scope 是 `pdf -> MinerU primary`、`simple_table_image -> Paddle primary`、`complex_table_image -> MinerU primary`、`spatial/office -> deferred`，而不是把 MinerU 升格成全局 canonical OCR provider
 - 当前 worktree 已完成 `shared-file-asset-loader-contract` 的 `Phase H`：legacy Office canonical path 现已切到 service-backed client，repo 已拥有 `JODConverter + LibreOffice` self-hosted conversion runtime、统一的 `LEGACY_OFFICE_CONVERSION_*` env/runbook truth，以及真实 authenticated notice `.doc/.xls` closeout evidence
@@ -117,7 +136,7 @@
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`agent` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
 - **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_rules` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 agent / retrieval 的基础
-- **Runtime Boundary**: runtime 与 transport 逻辑留在 `apps/`，尤其是 `apps/supervisor-api`；`packages/supervisor-core` 只负责 request framing、routing、policy、response shaping、audit projection — 避免框架宿主反向污染编排层
+- **Runtime Boundary**: runtime、transport、deterministic routing/policy gate、audit projection、default agent delegate registry 与 public response finalization 留在 `apps/`；`packages/supervisor-core` 只保留 private injected-delegate dispatch helper — 避免框架宿主反向污染语义 agent 边界
 - **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/supervisor-api` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义
 - **Security**: v1 必须做到身份透传、trace 透传、retrieval 前 ACL 过滤、最小审计和最小 source traceability — 这是面向不同权限用户上线前的最低治理要求
 - **Execution Goal**: 当前优先级是把新架构站稳，不以覆盖更多知识域或更复杂 agent 能力为第一目标 — 避免为了功能面牺牲边界正确性

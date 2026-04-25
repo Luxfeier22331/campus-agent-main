@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # Workstreams
@@ -43,7 +43,7 @@ updated: 2026-04-25
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 正式 `public-docs` app 已提升为 docs shell；当前继续收口 published reader assets、runtime-backed `app-api` docs seams 与 shell consumption truth；notice-derived/internal regulation 仅允许显式 public 子集进入公开 docs，restricted 子集保持 gated |
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 54 closeout` | Go `apps/supervisor-api` 已拥有 bridge v4 projection、capability/scope/version guard、runtime policy、structured/direct paths、audit/metrics/readiness truth 与 full `SpecialistRequest` handoff；Python core/worker 已收口为 delegate-only semantic worker，legacy policy/routing/audit helpers 已删除，产品主路由 gate 仍保持关闭 |
+| `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 61 internal naming closeout` | Go `apps/supervisor-api` 已拥有 bridge v5 projection、capability/scope/version guard、runtime policy、structured/direct paths、audit/metrics/readiness truth、full legacy-contract handoff 与 `SpecialistResponse -> SupervisorResponse` finalization；Python core/worker 已收口为 delegate-only semantic worker，`packages/supervisor-core` 只保留 `AgentDispatcher` / `dispatch_agent_request`，默认 agent delegate map 已迁到 worker，legacy policy/response/routing/audit helpers 与旧 `SupervisorAgent` 命名已删除，worker/test/docs active naming 已收口到 agent handoff / agent request，`Specialist*` 与 `specialist_response` 仅作为 bridge v5 legacy contract seam 保留，`campus_services` / `notice` 产品主路由 gate 仍保持关闭 |
 | `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | `Phase A` | 已从 deferred 恢复到 auth-readiness 收口；collector 现支持 `AUTHENTICATED_NOTICE_SSO_TGC` seed storage state 并脱敏 authenticated CLI 错误，当前被候选 `SSO_TGC` 返回 `auth-expired: session invalid` 阻塞 |
 
 ## Completed
