@@ -385,8 +385,11 @@ def materialize_curriculum_course_map_docs_surface(
     for document_id in document_ids_to_process:
         document_units_key = document_units_keys[document_id]
         surface_object_key = build_curriculum_course_map_docs_surface_object_key(document_units_key)
-        surface_prefix = str(PurePosixPath(surface_object_key).parent)
-        runtime_object_store.delete_prefix(bucket=derived_bucket, prefix=surface_prefix)
+        _purge_course_map_docs_surface_assets(
+            object_store=runtime_object_store,
+            bucket=derived_bucket,
+            surface_object_key=surface_object_key,
+        )
         purged_document_ids.append(document_id)
         page_probes = probes_by_document.get(document_id) or []
         if not page_probes:
@@ -508,6 +511,22 @@ def _build_page_probe_blocks(
             )
         )
     return tuple(blocks)
+
+
+def _purge_course_map_docs_surface_assets(
+    *,
+    object_store: ObjectStoreAdmin,
+    bucket: str,
+    surface_object_key: str,
+) -> None:
+    surface_path = PurePosixPath(surface_object_key)
+    if surface_path.name != CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME:
+        raise ValueError("surface_object_key must point to course-maps.json")
+    object_store.delete_prefix(bucket=bucket, prefix=surface_object_key)
+    object_store.delete_prefix(
+        bucket=bucket,
+        prefix=str(surface_path.parent / CURRICULUM_COURSE_MAP_DOCS_IMAGE_DIRECTORY) + "/",
+    )
 
 
 def _build_docs_block_id(*, page_number: int, row_id: str, map_index: int) -> str:

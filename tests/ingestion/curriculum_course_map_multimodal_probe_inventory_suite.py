@@ -68,6 +68,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         )
 
         self.assertEqual([item.provider_page_height for item in inventory], [1000.0, 1200.0])
+        self.assertEqual([item.provider_page_width for item in inventory], [300.0, 300.0])
 
     def test_build_inventory_maps_image_rows_back_to_declared_documents(self) -> None:
         layout_path = Path("tests/fixtures/curriculum_plan/layout-elements.pages-278-297.jsonl")
@@ -183,6 +184,24 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
         self.assertAlmostEqual(pdf_bbox[0], 81.44907110826392)
         self.assertAlmostEqual(pdf_bbox[1], 137.00704676489428)
 
+    def test_provider_canvas_uses_layout_width_when_wider_than_pdf_aspect_inference(self) -> None:
+        provider_canvas = derive_provider_canvas(
+            pdf_page_width=595,
+            pdf_page_height=842,
+            provider_page_height=925,
+            provider_page_width=875,
+        )
+        pdf_bbox = project_provider_bbox_to_pdf_rect(
+            provider_bbox=(685.0, 168.0, 852.0, 488.0),
+            provider_canvas=provider_canvas,
+            pdf_page_width=595,
+            pdf_page_height=842,
+        )
+
+        self.assertEqual(provider_canvas, (875, 925))
+        self.assertLess(pdf_bbox[0], pdf_bbox[2])
+        self.assertLessEqual(pdf_bbox[2], 595)
+
     def test_render_sample_outputs_full_page_and_crop_pngs(self) -> None:
         try:
             import fitz
@@ -210,6 +229,7 @@ class CurriculumCourseMapMultimodalProbeInventoryTest(unittest.TestCase):
                 source_pdf_key="source.pdf",
                 provider_response_key="provider-response.jsonl",
                 layout_elements_key="layout-elements.jsonl",
+                provider_page_width=1200.0,
             )
             rendered = render_curriculum_course_map_sample(
                 pdf_bytes=pdf_path.read_bytes(),

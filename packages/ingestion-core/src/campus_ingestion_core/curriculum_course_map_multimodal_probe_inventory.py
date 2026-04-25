@@ -29,9 +29,11 @@ def build_curriculum_course_map_inventory(
 ) -> tuple[CurriculumCourseMapInventoryEntry, ...]:
     document_ranges = _load_split_manifest_document_ranges(split_manifest_bytes)
     provider_page_heights = load_provider_page_heights(provider_response_bytes)
+    layout_rows = _load_jsonl_bytes(layout_elements_bytes)
+    provider_page_widths = _derive_layout_page_widths(layout_rows)
     inventory: list[CurriculumCourseMapInventoryEntry] = []
     active_course_map_headings_by_document: dict[str, str] = {}
-    for row in _load_jsonl_bytes(layout_elements_bytes):
+    for row in layout_rows:
         page_number = int(row.get("page_start") or 0)
         if page_number <= 0:
             if str(row.get("row_type") or "").strip() == "image":
@@ -75,6 +77,7 @@ def build_curriculum_course_map_inventory(
                 source_pdf_key=source_pdf_key,
                 provider_response_key=provider_response_key,
                 layout_elements_key=layout_elements_key,
+                provider_page_width=provider_page_widths.get(page_number),
             )
         )
     return tuple(sorted(inventory, key=lambda item: (item.page_number, item.row_id)))
@@ -106,6 +109,23 @@ def load_provider_page_heights(provider_response_bytes: bytes) -> dict[int, floa
     if not heights:
         raise ValueError("provider-response payload does not contain any page heights")
     return heights
+
+
+def _derive_layout_page_widths(
+    layout_rows: tuple[dict[str, object], ...],
+) -> dict[int, float]:
+    widths: dict[int, float] = {}
+    for row in layout_rows:
+        page_number = int(row.get("page_start") or 0)
+        if page_number <= 0:
+            continue
+        bbox = row.get("bbox")
+        if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            continue
+        right = float(bbox[2])
+        if right > 0:
+            widths[page_number] = max(widths.get(page_number, 0.0), right)
+    return widths
 
 
 def _extract_provider_page_height(
@@ -293,6 +313,7 @@ def _load_jsonl_bytes(payload: bytes) -> tuple[dict[str, object], ...]:
 
 __all__ = [
     "_is_curriculum_course_map_candidate",
+    "_derive_layout_page_widths",
     "_load_jsonl_bytes",
     "_load_split_manifest_document_ranges",
     "_resolve_document_for_page",

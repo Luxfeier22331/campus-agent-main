@@ -89,6 +89,7 @@ class CurriculumCourseMapInventoryEntry:
     source_pdf_key: str
     provider_response_key: str
     layout_elements_key: str
+    provider_page_width: float | None = None
 
     def __post_init__(self) -> None:
         if not self.document_id.strip():
@@ -103,6 +104,8 @@ class CurriculumCourseMapInventoryEntry:
             raise ValueError("bbox_provider must contain four numbers")
         if self.provider_page_height <= 0:
             raise ValueError("provider_page_height must be greater than zero")
+        if self.provider_page_width is not None and self.provider_page_width <= 0:
+            raise ValueError("provider_page_width must be greater than zero")
 
 
 @dataclass(frozen=True, slots=True)

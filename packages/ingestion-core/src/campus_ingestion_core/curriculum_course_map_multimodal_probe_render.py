@@ -41,6 +41,7 @@ def render_curriculum_course_map_sample(
             pdf_page_width=page_rect.width,
             pdf_page_height=page_rect.height,
             provider_page_height=entry.provider_page_height,
+            provider_page_width=entry.provider_page_width,
         )
         pdf_bbox = project_provider_bbox_to_pdf_rect(
             provider_bbox=entry.bbox_provider,
@@ -87,12 +88,20 @@ def derive_provider_canvas(
     pdf_page_width: float,
     pdf_page_height: float,
     provider_page_height: float,
+    provider_page_width: float | None = None,
 ) -> tuple[float, float]:
     if pdf_page_width <= 0 or pdf_page_height <= 0:
         raise ValueError("pdf page dimensions must be positive")
     if provider_page_height <= 0:
         raise ValueError("provider_page_height must be positive")
-    provider_width = provider_page_height * (pdf_page_width / pdf_page_height)
+    if provider_page_width is not None and provider_page_width <= 0:
+        raise ValueError("provider_page_width must be positive")
+    inferred_width = provider_page_height * (pdf_page_width / pdf_page_height)
+    provider_width = (
+        max(provider_page_width, inferred_width)
+        if provider_page_width is not None
+        else inferred_width
+    )
     return (provider_width, provider_page_height)
 
 

@@ -154,6 +154,8 @@ def _append_jsonl(path: Path, payload: object) -> None:
 
 
 def _is_retryable_probe_exception(exc: Exception) -> bool:
+    if isinstance(exc, json.JSONDecodeError):
+        return True
     if isinstance(
         exc,
         (

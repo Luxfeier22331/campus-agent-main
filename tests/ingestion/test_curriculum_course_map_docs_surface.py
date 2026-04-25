@@ -32,6 +32,19 @@ load_curriculum_course_map_docs_surface = (
 serialize_curriculum_course_map_docs_surface = (
     _docs_surface_module.serialize_curriculum_course_map_docs_surface
 )
+_purge_course_map_docs_surface_assets = _docs_surface_module._purge_course_map_docs_surface_assets
+
+
+class _RecordingObjectStore:
+    def __init__(self) -> None:
+        self.deleted_prefixes: list[tuple[str, str]] = []
+
+    def delete_prefix(
+        self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()
+    ) -> None:
+        if exclude_keys:
+            raise AssertionError("course-map purge should not need exclude_keys")
+        self.deleted_prefixes.append((bucket, prefix))
 
 
 class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
@@ -188,6 +201,39 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
         )
         self.assertEqual(roundtrip.document_id, "curriculum:test")
         self.assertEqual(len(roundtrip.blocks), 3)
+
+    def test_purge_scope_keeps_other_reader_assets(self) -> None:
+        surface_key = (
+            "curriculum/documents/curriculum_plan/example/current-effective/2022/"
+            "reader-assets/course-maps.json"
+        )
+        store = _RecordingObjectStore()
+
+        _purge_course_map_docs_surface_assets(
+            object_store=store,
+            bucket="campus-rag-derived",
+            surface_object_key=surface_key,
+        )
+
+        self.assertEqual(
+            store.deleted_prefixes,
+            [
+                ("campus-rag-derived", surface_key),
+                (
+                    "campus-rag-derived",
+                    "curriculum/documents/curriculum_plan/example/current-effective/2022/"
+                    "reader-assets/course-maps/",
+                ),
+            ],
+        )
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "curriculum/documents/curriculum_plan/example/current-effective/2022/"
+                "reader-assets",
+            ),
+            store.deleted_prefixes,
+        )
 
 
 if __name__ == "__main__":

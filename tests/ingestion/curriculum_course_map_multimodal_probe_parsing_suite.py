@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from .curriculum_course_map_multimodal_probe_test_support import *
@@ -26,6 +27,51 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "PROMPT_RUNTIME_TRANSPORT"):
             _normalize_prompt_runtime_transport("invalid")
+
+    def test_responses_multimodal_content_uses_responses_input_item_shape(self) -> None:
+        converted = _to_responses_multimodal_content(
+            [
+                {"type": "text", "text": "说明"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "data:image/png;base64,abc",
+                        "detail": "high",
+                    },
+                },
+            ]
+        )
+
+        self.assertEqual(
+            converted,
+            [
+                {"type": "input_text", "text": "说明"},
+                {
+                    "type": "input_image",
+                    "image_url": "data:image/png;base64,abc",
+                    "detail": "high",
+                },
+            ],
+        )
+
+    def test_responses_multimodal_input_keeps_system_content_as_plain_string(self) -> None:
+        messages = _build_responses_multimodal_input(
+            system_prompt="系统提示",
+            user_content=[
+                {"type": "text", "text": "用户说明"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+            ],
+        )
+
+        self.assertEqual(messages[0]["role"], "system")
+        self.assertEqual(messages[0]["content"], "系统提示")
+        self.assertEqual(messages[1]["content"][0]["type"], "input_text")
+        self.assertEqual(messages[1]["content"][1]["type"], "input_image")
+
+    def test_non_json_provider_body_is_retryable(self) -> None:
+        exc = json.JSONDecodeError("Expecting value", "", 0)
+
+        self.assertTrue(_is_retryable_probe_exception(exc))
 
     def test_extract_chat_completions_output_parsed_reads_string_message(self) -> None:
         payload = {

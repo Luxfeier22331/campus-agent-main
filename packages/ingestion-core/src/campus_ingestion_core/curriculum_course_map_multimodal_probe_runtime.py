@@ -482,14 +482,10 @@ async def _request_structured_multimodal_payload_async(
         payload: dict[str, object] = {
             "model": model_name,
             "stream": False,
-            "input": [
-                {
-                    "role": "system",
-                    "type": "message",
-                    "content": [{"type": "input_text", "text": system_prompt}],
-                },
-                {"role": "user", "type": "message", "content": user_content},
-            ],
+            "input": _build_responses_multimodal_input(
+                system_prompt=system_prompt,
+                user_content=user_content,
+            ),
             "text": {
                 "format": {
                     "type": "json_schema",
@@ -559,6 +555,53 @@ async def _request_structured_multimodal_payload_async(
     if not isinstance(raw_payload, dict):
         raise ValueError("curriculum course-map probe parsed payload must be a JSON object")
     return raw_payload
+
+
+def _build_responses_multimodal_input(
+    *,
+    system_prompt: str,
+    user_content: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "role": "system",
+            "type": "message",
+            "content": system_prompt,
+        },
+        {
+            "role": "user",
+            "type": "message",
+            "content": _to_responses_multimodal_content(user_content),
+        },
+    ]
+
+
+def _to_responses_multimodal_content(
+    content: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    converted: list[dict[str, object]] = []
+    for item in content:
+        item_type = item.get("type")
+        if item_type == "text":
+            converted.append({"type": "input_text", "text": str(item.get("text") or "")})
+            continue
+        if item_type == "image_url":
+            image_url = item.get("image_url")
+            if isinstance(image_url, dict):
+                url = str(image_url.get("url") or "").strip()
+                detail = str(image_url.get("detail") or "").strip()
+            else:
+                url = str(image_url or "").strip()
+                detail = str(item.get("detail") or "").strip()
+            if not url:
+                raise ValueError("image_url content item missing url")
+            converted_item: dict[str, object] = {"type": "input_image", "image_url": url}
+            if detail:
+                converted_item["detail"] = detail
+            converted.append(converted_item)
+            continue
+        converted.append(dict(item))
+    return converted
 
 
 async def _post_probe_json_async(
