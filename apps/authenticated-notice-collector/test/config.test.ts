@@ -24,6 +24,11 @@ describe("authenticated notice collector config", () => {
 				"apps/authenticated-notice-collector/runtime/auth/storageState.json",
 			),
 		).toBe(true);
+		expect(config.attachmentFetchStatusDatabaseUrl).toBeNull();
+		expect(config.attachmentFetchStatusDisabled).toBe(false);
+		expect(config.collectionMode).toBe("incremental");
+		expect(config.collectorRunLedgerDatabaseUrl).toBeNull();
+		expect(config.collectorRunLedgerDisabled).toBe(false);
 	});
 
 	it("accepts explicit overrides from env-like input", () => {
@@ -31,6 +36,14 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE: "6",
 			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
+			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL:
+				"postgresql://runtime.example/postgres",
+			AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE: "true",
+			AUTHENTICATED_NOTICE_COLLECTION_MODE: "backfill",
+			AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL:
+				"postgresql://ledger.example/postgres",
+			AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE: "true",
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
 			AUTHENTICATED_NOTICE_RUNTIME_DIR: "/tmp/collector-runtime",
 			AUTHENTICATED_NOTICE_SSO_TGC: "sso-token",
@@ -41,7 +54,34 @@ describe("authenticated notice collector config", () => {
 		expect(config.requestMaxRetries).toBe(5);
 		expect(config.authCheckNoticeType).toBe("6");
 		expect(config.authSsoTgcToken).toBe("sso-token");
+		expect(config.attachmentFetchStatusDatabaseUrl).toBe("postgresql://runtime.example/postgres");
+		expect(config.attachmentFetchStatusDisabled).toBe(true);
+		expect(config.collectionMode).toBe("backfill");
+		expect(config.collectorRunLedgerDatabaseUrl).toBe("postgresql://ledger.example/postgres");
+		expect(config.collectorRunLedgerDisabled).toBe(true);
+		expect(config.bypassProxyForPortal).toBe(false);
+		expect(config.portalProxyServer).toBeNull();
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
+	});
+
+	it("resolves an explicit portal proxy server when proxy bypass is disabled", () => {
+		const config = resolveCollectorConfig({
+			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			HTTPS_PROXY: "http://127.0.0.1:10808",
+		});
+
+		expect(config.bypassProxyForPortal).toBe(false);
+		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
+	});
+
+	it("falls back to shell proxy vars when explicit portal proxy is empty", () => {
+		const config = resolveCollectorConfig({
+			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			AUTHENTICATED_NOTICE_PROXY_SERVER: "",
+			HTTP_PROXY: "http://127.0.0.1:10808",
+		});
+
+		expect(config.portalProxyServer).toBe("http://127.0.0.1:10808");
 	});
 
 	it("appends muc portal hosts into no_proxy and preserves existing entries", () => {
@@ -65,6 +105,18 @@ describe("authenticated notice collector config", () => {
 		applyCollectorNoProxyEnv(env);
 
 		expect(env.NO_PROXY).toBe("localhost,.muc.edu.cn,my.muc.edu.cn,muc.edu.cn,ca.muc.edu.cn");
+		expect(env.no_proxy).toBe(env.NO_PROXY);
+	});
+
+	it("removes muc portal hosts from no_proxy when proxy bypass is disabled", () => {
+		const env = {
+			AUTHENTICATED_NOTICE_BYPASS_PROXY: "false",
+			NO_PROXY: "localhost,muc.edu.cn,.muc.edu.cn,my.muc.edu.cn,ca.muc.edu.cn,127.0.0.1",
+		} as NodeJS.ProcessEnv;
+
+		applyCollectorNoProxyEnv(env);
+
+		expect(env.NO_PROXY).toBe("localhost,127.0.0.1");
 		expect(env.no_proxy).toBe(env.NO_PROXY);
 	});
 });

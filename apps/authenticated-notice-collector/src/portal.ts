@@ -32,20 +32,21 @@ export interface PageLike {
 }
 
 export interface CreateApiContextFromStorageStateDependencies {
-	launchBrowser?: () => Promise<BrowserLike>;
+	launchBrowser?: (config: CollectorConfig) => Promise<BrowserLike>;
 	createRequestContext?: (input: {
 		baseURL: string;
 		extraHTTPHeaders: Record<string, string>;
+		proxy?: { server: string };
 		storageState: PortalStorageState;
 	}) => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 }
 
 export async function launchContextWithStoredAuth(
 	config: CollectorConfig = resolveCollectorConfig(process.env),
-	launchBrowser: () => Promise<BrowserLike> = defaultLaunchBrowser,
+	launchBrowser: (config: CollectorConfig) => Promise<BrowserLike> = defaultLaunchBrowser,
 ): Promise<{ browserContext: BrowserContextLike; close: () => Promise<void> }> {
 	ensureRuntimeDirs(config);
-	const browser = await launchBrowser();
+	const browser = await launchBrowser(config);
 	const browserContext = await browser.newContext({
 		storageState: config.authStorageStatePath,
 	});
@@ -73,6 +74,7 @@ export async function createApiContextFromStorageState(
 		return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
 			baseURL: config.portalBaseUrl,
 			extraHTTPHeaders: buildPortalApiHeaders(config),
+			...buildProxyOption(config),
 			storageState: readStoredAuthStorageState(config.authStorageStatePath),
 		});
 	}
@@ -101,6 +103,7 @@ export async function createApiContextFromStorageState(
 			return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
 				baseURL: config.portalBaseUrl,
 				extraHTTPHeaders: buildPortalApiHeaders(config),
+				...buildProxyOption(config),
 				storageState,
 			});
 		} finally {
@@ -111,10 +114,11 @@ export async function createApiContextFromStorageState(
 	}
 }
 
-function defaultLaunchBrowser(): Promise<Browser> {
+function defaultLaunchBrowser(config: CollectorConfig): Promise<Browser> {
 	return chromium.launch({
 		headless: true,
 		channel: "chrome",
+		...buildProxyOption(config),
 		timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
 	});
 }
@@ -215,6 +219,10 @@ function buildPortalApiHeaders(config: CollectorConfig): Record<string, string> 
 		"content-type": "application/x-www-form-urlencoded; charset=UTF-8",
 		referer: config.portalPageUrl.replace(/#.*$/, ""),
 	};
+}
+
+function buildProxyOption(config: CollectorConfig): { proxy?: { server: string } } {
+	return config.portalProxyServer ? { proxy: { server: config.portalProxyServer } } : {};
 }
 
 function isRecoverablePortalBootstrapError(error: unknown): boolean {

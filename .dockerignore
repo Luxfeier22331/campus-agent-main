@@ -4,6 +4,8 @@
 !apps/supervisor-api/**
 !apps/supervisor-core-worker/
 !apps/supervisor-core-worker/**
+!apps/legacy-office-conversion-service/
+!apps/legacy-office-conversion-service/**
 !configs/ingestion/
 !configs/ingestion/**
 !configs/runtime/

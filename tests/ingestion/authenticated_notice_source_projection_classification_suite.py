@@ -86,6 +86,28 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
 
         self.assertEqual(result.classification, "text_extractable")
 
+    def test_classify_attachment_ref_routes_doc_to_text_extractable(self) -> None:
+        config = load_authenticated_notice_source_projections_config(
+            Path(__file__).resolve().parents[2]
+            / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
+        )
+        result = _classify_attachment_ref(
+            attachment_ref={
+                "attachment_ref_id": "attachment-0001",
+                "final_url": "https://portal.example.edu/files/legacy-rule.doc",
+                "source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                "normalized_source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                "anchor_text": "历史制度正文.doc",
+                "object_key": "attachments/cc/ccddeeff00112233445566778899aa/legacy-rule.doc",
+                "content_sha256": "ccddeeff00112233445566778899aa",
+                "mime_type": "application/msword",
+                "byte_size": 8192,
+            },
+            config=config,
+        )
+
+        self.assertEqual(result.classification, "text_extractable")
+
     def test_attachment_projection_plan_carries_attachment_content_sha256(self) -> None:
         config = load_authenticated_notice_source_projections_config(
             Path(__file__).resolve().parents[2]
@@ -127,7 +149,7 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             "1df2ea505dc7e5db04474fa3de2c44726de158e6fb215b55ce86ed375b508735",
         )
 
-    def test_attachment_projection_plan_rejects_downloaded_doc_without_explicit_extractor(
+    def test_attachment_projection_plan_accepts_downloaded_doc_with_legacy_office_extractor(
         self,
     ) -> None:
         config = load_authenticated_notice_source_projections_config(
@@ -135,26 +157,24 @@ class AuthenticatedNoticeAttachmentClassificationTest(unittest.TestCase):
             / "configs/ingestion/campus_notices/internal_notice/source-projections.v1.json"
         )
 
-        with self.assertRaisesRegex(
-            ValueError,
-            "requires an explicit extractor before replay",
-        ):
-            build_authenticated_notice_attachment_projection_plans(
-                parent_document_id="notice:muc_internal_portal:355282",
-                attachment_refs=(
-                    {
-                        "attachment_ref_id": "attachment-0009",
-                        "final_url": "https://portal.example.edu/files/legacy-rule.doc",
-                        "source_url": "https://portal.example.edu/files/legacy-rule.doc",
-                        "normalized_source_url": "https://portal.example.edu/files/legacy-rule.doc",
-                        "anchor_text": "历史制度正文.doc",
-                        "object_key": (
-                            "attachments/cc/ccddeeff00112233445566778899aa/legacy-rule.doc"
-                        ),
-                        "content_sha256": "ccddeeff00112233445566778899aa",
-                        "mime_type": "application/msword",
-                        "byte_size": 8192,
-                    },
-                ),
-                config=config,
-            )
+        plans = build_authenticated_notice_attachment_projection_plans(
+            parent_document_id="notice:muc_internal_portal:355282",
+            attachment_refs=(
+                {
+                    "attachment_ref_id": "attachment-0009",
+                    "final_url": "https://portal.example.edu/files/legacy-rule.doc",
+                    "source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                    "normalized_source_url": "https://portal.example.edu/files/legacy-rule.doc",
+                    "anchor_text": "历史制度正文.doc",
+                    "object_key": ("attachments/cc/ccddeeff00112233445566778899aa/legacy-rule.doc"),
+                    "content_sha256": "ccddeeff00112233445566778899aa",
+                    "mime_type": "application/msword",
+                    "byte_size": 8192,
+                },
+            ),
+            config=config,
+        )
+
+        self.assertEqual(len(plans), 1)
+        self.assertEqual(plans[0]["classification"], "text_extractable")
+        self.assertEqual(plans[0]["materialization_policy"], "required_document")

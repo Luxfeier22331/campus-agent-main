@@ -5,6 +5,11 @@ import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 } from "./artifact-store";
+import {
+	type AuthenticatedNoticeAttachmentFetchStatusStore,
+	createPostgresAttachmentFetchStatusStore,
+	type DisposableAttachmentFetchStatusStore,
+} from "./attachment-fetch-status";
 import { materializeBundleAttachments } from "./attachment-materialization";
 import {
 	buildCategories,
@@ -21,7 +26,17 @@ import {
 	normalizeRequiredText,
 	toTimestampLabel,
 } from "./bootstrap-export-helpers";
-import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
+import {
+	buildCollectorRunLedgerRecord,
+	createPostgresCollectorRunLedgerStore,
+	type DisposableCollectorRunLedgerStore,
+} from "./collector-run-ledger";
+import {
+	type CollectorConfig,
+	ensureRuntimeDirs,
+	loadCollectorEnv,
+	resolveCollectorConfig,
+} from "./config";
 import { getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
 import type {
@@ -29,6 +44,7 @@ import type {
 	BootstrapExportManifest,
 	BundleNoticeRecord,
 	DisposableApiContextLike,
+	NoticeCollectionMode,
 	NoticeDetailInfo,
 	NoticeDetailResponse,
 	NoticeItem,
@@ -39,6 +55,7 @@ import type {
 
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	createApiContext?: () => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 	exportedAt: string;
 	fetchNoticeDetail?: (input: {
@@ -58,11 +75,20 @@ export interface CollectBootstrapBundleInput {
 		pageSize: number;
 	}) => Promise<NoticeSelectsResponse>;
 	maxNotices?: number;
+	collectionMode?: NoticeCollectionMode;
 	noticeTypes: NoticeTypeConfig[];
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
+	selectedNotices?: SelectedNoticeSpec[];
 	siteId: string;
 	sourceHomeUrl: string;
+}
+
+export interface SelectedNoticeSpec {
+	noticeId: number;
+	noticeType: string;
+	noticeTypeName?: string;
+	noticeTitle?: string;
 }
 
 export interface CollectBootstrapBundleResult {
@@ -200,6 +226,12 @@ export async function collectBootstrapBundle(
 		downloadedAttachmentCount: 0,
 		uploadedAttachmentCount: 0,
 	};
+	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
+	const collectionMode: NoticeCollectionMode =
+		selectedNotices.length > 0 ? "selected" : (input.collectionMode ?? "incremental");
+	if (collectionMode === "selected" && selectedNotices.length === 0) {
+		throw new Error("selected collection mode requires selected notice ids");
+	}
 
 	try {
 		const noticeSelects = await fetchSelects({
@@ -209,61 +241,96 @@ export async function collectBootstrapBundle(
 		});
 		observedNoticeTypes = normalizeObservedNoticeTypes(noticeSelects);
 		observedOrganizations = normalizeObservedOrganizations(noticeSelects);
-		for (const noticeType of input.noticeTypes) {
-			for (let currentPage = 1; currentPage <= noticeType.incrementalPages; currentPage += 1) {
-				if (input.maxNotices && bundleMap.size >= input.maxNotices) {
-					break;
-				}
-
-				const pageResponse = await fetchPage({
+		if (selectedNotices.length > 0) {
+			itemsSeen = selectedNotices.length;
+			for (const selectedNotice of selectedNotices) {
+				const detailResponse = await fetchDetail({
 					apiContext,
-					currentPage,
-					noticeType: noticeType.type,
-					pageSize: noticeType.incrementalPageSize,
+					noticeId: selectedNotice.noticeId,
+					noticeType: selectedNotice.noticeType,
 				});
-				pagesFetched += 1;
-
-				const items = pageResponse.datas?.tables ?? [];
-				itemsSeen += items.length;
-
-				for (const item of items) {
-					const noticeId = normalizeOptionalNoticeId(item.notice_id);
-					if (noticeId === null) {
-						continue;
-					}
-					const existing = bundleMap.get(noticeId);
-					if (existing) {
-						bundleMap.set(noticeId, mergeBundleRecord(existing, item, input.exportedAt));
-						continue;
-					}
+				detailFetched += 1;
+				const detailInfo = detailResponse.datas?.notice_info;
+				const record = buildBundleRecord({
+					detailInfo,
+					notice: {
+						notice_id: selectedNotice.noticeId,
+						notice_title: selectedNotice.noticeTitle ?? detailInfo?.notice_title ?? undefined,
+						notice_type: selectedNotice.noticeType,
+						notice_type_name:
+							selectedNotice.noticeTypeName ??
+							detailInfo?.notice_type_name ??
+							findNoticeTypeName(input.noticeTypes, selectedNotice.noticeType) ??
+							findObservedNoticeTypeName(observedNoticeTypes, selectedNotice.noticeType),
+					},
+					observedAt: input.exportedAt,
+					sourceHomeUrl: input.sourceHomeUrl,
+				});
+				bundleMap.set(selectedNotice.noticeId, record);
+			}
+		} else {
+			for (const noticeType of input.noticeTypes) {
+				const pageBudget =
+					collectionMode === "backfill" ? noticeType.backfillPages : noticeType.incrementalPages;
+				const pageSize =
+					collectionMode === "backfill"
+						? noticeType.backfillPageSize
+						: noticeType.incrementalPageSize;
+				for (let currentPage = 1; currentPage <= pageBudget; currentPage += 1) {
 					if (input.maxNotices && bundleMap.size >= input.maxNotices) {
 						break;
 					}
-					const detailResponse = await fetchDetail({
+
+					const pageResponse = await fetchPage({
 						apiContext,
-						noticeId,
-						noticeType: normalizeNoticeType(item.notice_type ?? noticeType.type),
+						currentPage,
+						noticeType: noticeType.type,
+						pageSize,
 					});
-					detailFetched += 1;
-					bundleMap.set(
-						noticeId,
-						buildBundleRecord({
-							detailInfo: detailResponse.datas?.notice_info,
-							notice: item,
-							observedAt: input.exportedAt,
-							sourceHomeUrl: input.sourceHomeUrl,
-						}),
-					);
+					pagesFetched += 1;
+
+					const items = pageResponse.datas?.tables ?? [];
+					itemsSeen += items.length;
+
+					for (const item of items) {
+						const noticeId = normalizeOptionalNoticeId(item.notice_id);
+						if (noticeId === null) {
+							continue;
+						}
+						const existing = bundleMap.get(noticeId);
+						if (existing) {
+							bundleMap.set(noticeId, mergeBundleRecord(existing, item, input.exportedAt));
+							continue;
+						}
+						if (input.maxNotices && bundleMap.size >= input.maxNotices) {
+							break;
+						}
+						const detailResponse = await fetchDetail({
+							apiContext,
+							noticeId,
+							noticeType: normalizeNoticeType(item.notice_type ?? noticeType.type),
+						});
+						detailFetched += 1;
+						bundleMap.set(
+							noticeId,
+							buildBundleRecord({
+								detailInfo: detailResponse.datas?.notice_info,
+								notice: item,
+								observedAt: input.exportedAt,
+								sourceHomeUrl: input.sourceHomeUrl,
+							}),
+						);
+					}
+
+					const totalCounts = pageResponse.datas?.page?.totalCounts;
+					if (typeof totalCounts === "number" && currentPage >= totalCounts) {
+						break;
+					}
 				}
 
-				const totalCounts = pageResponse.datas?.page?.totalCounts;
-				if (typeof totalCounts === "number" && currentPage >= totalCounts) {
+				if (input.maxNotices && bundleMap.size >= input.maxNotices) {
 					break;
 				}
-			}
-
-			if (input.maxNotices && bundleMap.size >= input.maxNotices) {
-				break;
 			}
 		}
 		const bundleRecords = [...bundleMap.values()];
@@ -277,10 +344,12 @@ export async function collectBootstrapBundle(
 				: await materializeBundleAttachments({
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
+						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 						bundleRecords,
 						observedAt: input.exportedAt,
 						requestBackoffBaseMs: input.requestBackoffBaseMs,
 						requestMaxRetries: input.requestMaxRetries,
+						siteId: input.siteId,
 					});
 	} finally {
 		await apiContext.dispose();
@@ -291,6 +360,7 @@ export async function collectBootstrapBundle(
 		exportManifest: buildExportManifest({
 			attachmentStorageMode:
 				input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
+			collectionMode,
 			detailFetched,
 			exportedAt: input.exportedAt,
 			itemsInserted: materialized.bundleRecords.length,
@@ -300,6 +370,8 @@ export async function collectBootstrapBundle(
 			observedNoticeTypes,
 			observedOrganizations,
 			pagesFetched,
+			selectedNoticeIds: selectedNotices.map((item) => String(item.noticeId)),
+			selectedNoticeTypes: normalizeNoticeTypes(selectedNotices.map((item) => item.noticeType)),
 			siteId: input.siteId,
 			sourceHomeUrl: input.sourceHomeUrl,
 		}),
@@ -310,6 +382,81 @@ export async function collectBootstrapBundle(
 			pagesFetched,
 		},
 	};
+}
+
+export function parseSelectedNoticeSpecs(raw: string | undefined): SelectedNoticeSpec[] {
+	const normalized = String(raw ?? "").trim();
+	if (!normalized) {
+		return [];
+	}
+	const specs: SelectedNoticeSpec[] = [];
+	for (const token of normalized.split(",")) {
+		const parts = token
+			.split(":")
+			.map((part) => part.trim())
+			.filter(Boolean);
+		if (parts.length < 2) {
+			throw new Error(
+				"AUTHENTICATED_NOTICE_SELECTED_NOTICES entries must use notice_id:notice_type",
+			);
+		}
+		const noticeId = Number(parts[0]);
+		if (!Number.isInteger(noticeId) || noticeId <= 0) {
+			throw new Error(`invalid selected notice id: ${parts[0]}`);
+		}
+		specs.push({
+			noticeId,
+			noticeType: parts[1],
+			noticeTypeName: parts[2],
+		});
+	}
+	return normalizeSelectedNoticeSpecs(specs);
+}
+
+function normalizeSelectedNoticeSpecs(specs: SelectedNoticeSpec[]): SelectedNoticeSpec[] {
+	const normalized: SelectedNoticeSpec[] = [];
+	const seen = new Set<string>();
+	for (const spec of specs) {
+		const noticeId = Number(spec.noticeId);
+		const noticeType = String(spec.noticeType || "").trim();
+		if (!Number.isInteger(noticeId) || noticeId <= 0 || !noticeType) {
+			continue;
+		}
+		const key = `${noticeId}:${noticeType}`;
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		normalized.push({
+			noticeId,
+			noticeType,
+			noticeTypeName: normalizeNullableText(spec.noticeTypeName) ?? undefined,
+			noticeTitle: normalizeNullableText(spec.noticeTitle) ?? undefined,
+		});
+	}
+	return normalized;
+}
+
+function findNoticeTypeName(
+	noticeTypes: NoticeTypeConfig[],
+	noticeType: string,
+): string | undefined {
+	return noticeTypes.find((item) => item.type === noticeType)?.name;
+}
+
+function findObservedNoticeTypeName(
+	noticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>,
+	noticeType: string,
+): string | undefined {
+	const parsed = Number(noticeType);
+	if (!Number.isInteger(parsed)) {
+		return;
+	}
+	return noticeTypes.find((item) => item.notice_type_id === parsed)?.notice_type_name;
+}
+
+function normalizeNoticeTypes(values: string[]): string[] {
+	return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
 export function writeBootstrapArtifacts(
@@ -336,29 +483,76 @@ export async function main(): Promise<void> {
 	const noticeTypes = getEnabledNoticeTypes(loadNoticeTypes(config.noticeTypesPath));
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
-	const result = await collectBootstrapBundle({
-		attachmentArtifactStore,
-		exportedAt,
-		noticeTypes,
-		requestBackoffBaseMs: config.requestBackoffBaseMs,
-		requestMaxRetries: config.requestMaxRetries,
-		siteId: config.siteId,
-		sourceHomeUrl: config.sourceHomeUrl,
-	});
-	const written = writeBootstrapArtifacts({
-		bundleRecords: result.bundleRecords,
-		exportManifest: result.exportManifest,
-		outputDir: config.exportsDir,
-	});
-	console.log(
-		JSON.stringify(
-			{
-				...result.stats,
+	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
+	const collectorRunLedgerStore = buildCollectorRunLedgerStoreForMain(config);
+	try {
+		const selectedNotices = parseSelectedNoticeSpecs(
+			process.env.AUTHENTICATED_NOTICE_SELECTED_NOTICES,
+		);
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore,
+			attachmentFetchStatusStore,
+			collectionMode: config.collectionMode,
+			exportedAt,
+			noticeTypes,
+			requestBackoffBaseMs: config.requestBackoffBaseMs,
+			requestMaxRetries: config.requestMaxRetries,
+			selectedNotices,
+			siteId: config.siteId,
+			sourceHomeUrl: config.sourceHomeUrl,
+		});
+		const written = writeBootstrapArtifacts({
+			bundleRecords: result.bundleRecords,
+			exportManifest: result.exportManifest,
+			outputDir: config.exportsDir,
+		});
+		await collectorRunLedgerStore?.upsertRun(
+			buildCollectorRunLedgerRecord({
 				bundlePath: written.bundlePath,
+				bundleRecords: result.bundleRecords,
+				collectionMode: result.exportManifest.run.mode,
+				exportedAt,
+				manifest: result.exportManifest,
 				manifestPath: written.manifestPath,
-			},
-			null,
-			2,
-		),
-	);
+				siteId: config.siteId,
+				sourceHomeUrl: config.sourceHomeUrl,
+			}),
+		);
+		console.log(
+			JSON.stringify(
+				{
+					...result.stats,
+					bundlePath: written.bundlePath,
+					manifestPath: written.manifestPath,
+				},
+				null,
+				2,
+			),
+		);
+	} finally {
+		await attachmentFetchStatusStore?.dispose();
+		await collectorRunLedgerStore?.dispose();
+	}
+}
+
+function buildAttachmentFetchStatusStoreForMain(
+	config: CollectorConfig,
+): DisposableAttachmentFetchStatusStore | undefined {
+	if (config.attachmentFetchStatusDisabled || config.attachmentFetchStatusDatabaseUrl === null) {
+		return;
+	}
+	return createPostgresAttachmentFetchStatusStore({
+		databaseUrl: config.attachmentFetchStatusDatabaseUrl,
+	});
+}
+
+function buildCollectorRunLedgerStoreForMain(
+	config: CollectorConfig,
+): DisposableCollectorRunLedgerStore | undefined {
+	if (config.collectorRunLedgerDisabled || config.collectorRunLedgerDatabaseUrl === null) {
+		return;
+	}
+	return createPostgresCollectorRunLedgerStore({
+		databaseUrl: config.collectorRunLedgerDatabaseUrl,
+	});
 }

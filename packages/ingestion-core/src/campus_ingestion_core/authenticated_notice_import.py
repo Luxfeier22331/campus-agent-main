@@ -8,6 +8,14 @@ from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
+    DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
+    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
+    DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
+    AuthenticatedNoticeAttachmentFetchStatusStore,
+    build_attachment_fetch_status_records_from_bundle_records,
+    build_authenticated_notice_attachment_fetch_status_store_from_env,
+)
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
@@ -197,6 +205,7 @@ def import_authenticated_notice_export(
     document_registry: DocumentRegistry | None = None,
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
+    attachment_fetch_status_store: AuthenticatedNoticeAttachmentFetchStatusStore | None = None,
     consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
     read_model_store: InternalNoticeReadModelStore | None = None,
 ) -> dict[str, Any]:
@@ -208,6 +217,9 @@ def import_authenticated_notice_export(
     inventory_store = source_truth_inventory_store
     if inventory_store is None:
         inventory_store = _build_inventory_store_from_env_if_configured(source)
+    fetch_status_store = attachment_fetch_status_store
+    if fetch_status_store is None:
+        fetch_status_store = _build_attachment_fetch_status_store_from_env_if_configured(source)
     export_manifest = load_authenticated_notice_export_manifest(request.export_manifest_path)
     bundle_payload = load_authenticated_notice_bundle_payload(request.bundle_path)
     _assert_attachment_blob_root_precondition(
@@ -220,6 +232,7 @@ def import_authenticated_notice_export(
         bundle_records=bundle_payload,
         export_manifest=export_manifest,
     )
+    selected_notice_ids = _selected_notice_ids_from_export_manifest(export_manifest)
 
     raw_uploaded_count = 0
     raw_reused_count = 0
@@ -264,7 +277,7 @@ def import_authenticated_notice_export(
         embedding_model=request.embedding_model,
         cleaning_policy_version=runtime_profile.cleaning_policy_version,
         default_visibility_scope=request.visibility_scope,
-        scope_refresh=(request.corpus, request.collection),
+        scope_refresh=(None if selected_notice_ids else (request.corpus, request.collection)),
         scope_refresh_preserve_existing=_should_preserve_authenticated_notice_scope_record,
     )
     if inventory_store is not None:
@@ -311,11 +324,14 @@ def import_authenticated_notice_export(
                 object_store_settings=object_store_settings,
             )
             inventory_entries.append(inventory_entry_from_parent_snapshot(parent_snapshot))
-        inventory_store.replace_scope(
-            request.corpus,
-            request.collection,
-            tuple(inventory_entries),
-        )
+        if selected_notice_ids:
+            inventory_store.upsert_many(tuple(inventory_entries))
+        else:
+            inventory_store.replace_scope(
+                request.corpus,
+                request.collection,
+                tuple(inventory_entries),
+            )
     projection_store = consumption_projection_store
     if projection_store is None:
         projection_store = _build_consumption_projection_store_from_env_if_configured(source)
@@ -370,6 +386,16 @@ def import_authenticated_notice_export(
         result["internal_notice_read_model_entry_count"] = len(read_model_entries)
     if attachment_object_backfill_summary is not None:
         result["attachment_object_backfill"] = attachment_object_backfill_summary
+    if fetch_status_store is not None:
+        fetch_status_records = build_attachment_fetch_status_records_from_bundle_records(
+            bundle_records=bundle_payload,
+            site_id=request.site_id,
+            observed_at=(export_manifest or {}).get("exported_at")
+            if isinstance(export_manifest, dict)
+            else None,
+        )
+        fetch_status_store.upsert_many(fetch_status_records)
+        result["attachment_fetch_status_record_count"] = len(fetch_status_records)
     return result
 
 
@@ -399,6 +425,29 @@ def _build_inventory_store_from_env_if_configured(
     )
     if any(env.get(key) for key in runtime_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(env)
+    return None
+
+
+def _build_attachment_fetch_status_store_from_env_if_configured(
+    env: dict[str, str],
+) -> AuthenticatedNoticeAttachmentFetchStatusStore | None:
+    operator_env_keys = (
+        DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
+        DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
+        SHARED_POSTGRES_OPERATOR_ENV_KEY,
+        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
+    )
+    if any(env.get(key) for key in operator_env_keys):
+        return build_authenticated_notice_attachment_fetch_status_store_from_env(
+            env,
+            prefer_operator=True,
+        )
+    runtime_env_keys = (
+        DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
+        SHARED_POSTGRES_ENV_KEY,
+    )
+    if any(env.get(key) for key in runtime_env_keys):
+        return build_authenticated_notice_attachment_fetch_status_store_from_env(env)
     return None
 
 
@@ -446,6 +495,23 @@ def _should_preserve_authenticated_notice_scope_record(
     # same internal_notice scope are produced by later pipelines and must not be
     # deleted when parent notices are replayed into PG.
     return not str(record.document_id).startswith("notice:")
+
+
+def _selected_notice_ids_from_export_manifest(
+    export_manifest: dict[str, Any] | None,
+) -> tuple[str, ...]:
+    if not isinstance(export_manifest, dict):
+        return ()
+    filters = export_manifest.get("filters")
+    if not isinstance(filters, dict):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            str(item).strip()
+            for item in filters.get("selected_notice_ids") or ()
+            if str(item).strip()
+        )
+    )
 
 
 def _assert_attachment_blob_root_precondition(

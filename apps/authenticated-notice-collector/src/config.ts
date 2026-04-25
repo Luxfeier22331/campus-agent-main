@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import type { NoticeCollectionMode } from "./types";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(packageRoot, "../..");
@@ -11,8 +12,13 @@ export interface CollectorConfig {
 	packageRoot: string;
 	repoRoot: string;
 	runtimeDir: string;
+	attachmentFetchStatusDatabaseUrl: string | null;
+	attachmentFetchStatusDisabled: boolean;
 	authStorageStatePath: string;
 	authSsoTgcToken: string | null;
+	collectionMode: NoticeCollectionMode;
+	collectorRunLedgerDatabaseUrl: string | null;
+	collectorRunLedgerDisabled: boolean;
 	exportsDir: string;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
@@ -23,6 +29,8 @@ export interface CollectorConfig {
 	requestBackoffBaseMs: number;
 	authCheckNoticeType: string;
 	authCheckPageSize: number;
+	bypassProxyForPortal: boolean;
+	portalProxyServer: string | null;
 }
 
 export function loadCollectorEnv(): void {
@@ -32,7 +40,10 @@ export function loadCollectorEnv(): void {
 }
 
 export function applyCollectorNoProxyEnv(target: NodeJS.ProcessEnv): void {
-	const merged = mergeNoProxyValue(target.NO_PROXY ?? target.no_proxy);
+	const raw = target.NO_PROXY ?? target.no_proxy;
+	const merged = shouldBypassProxyForPortal(target.AUTHENTICATED_NOTICE_BYPASS_PROXY)
+		? mergeNoProxyValue(raw)
+		: removePortalNoProxyHosts(raw);
 	target.NO_PROXY = merged;
 	target.no_proxy = merged;
 }
@@ -46,13 +57,29 @@ export function resolveCollectorConfig(
 	const portalBaseUrl = String(
 		source.AUTHENTICATED_NOTICE_BASE_URL || "https://my.muc.edu.cn",
 	).trim();
+	const bypassProxyForPortal = shouldBypassProxyForPortal(source.AUTHENTICATED_NOTICE_BYPASS_PROXY);
 	return {
 		packageRoot,
-			repoRoot,
-			runtimeDir,
-			authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-			authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
-			exportsDir: path.join(runtimeDir, "exports"),
+		repoRoot,
+		runtimeDir,
+		attachmentFetchStatusDatabaseUrl: normalizeOptionalSecret(
+			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DATABASE_URL,
+		),
+		attachmentFetchStatusDisabled: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_ATTACHMENT_FETCH_STATUS_DISABLE,
+			false,
+		),
+		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
+		authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
+		collectionMode: parseCollectionMode(source.AUTHENTICATED_NOTICE_COLLECTION_MODE),
+		collectorRunLedgerDatabaseUrl: normalizeOptionalSecret(
+			source.AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL,
+		),
+		collectorRunLedgerDisabled: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE,
+			false,
+		),
+		exportsDir: path.join(runtimeDir, "exports"),
 		noticeTypesPath: path.resolve(
 			String(
 				source.AUTHENTICATED_NOTICE_NOTICE_TYPES_PATH ||
@@ -75,6 +102,8 @@ export function resolveCollectorConfig(
 		authCheckNoticeType:
 			String(source.AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE || "5").trim() || "5",
 		authCheckPageSize: parsePositiveInteger(source.AUTHENTICATED_NOTICE_AUTH_CHECK_PAGE_SIZE, 3),
+		bypassProxyForPortal,
+		portalProxyServer: resolvePortalProxyServer(source, bypassProxyForPortal),
 	};
 }
 
@@ -97,6 +126,35 @@ function parsePositiveInteger(raw: string | undefined, fallback: number): number
 	return Math.floor(parsed);
 }
 
+function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
+	const normalized = String(raw ?? "")
+		.trim()
+		.toLowerCase();
+	if (!normalized) {
+		return fallback;
+	}
+	if (["1", "true", "yes", "on"].includes(normalized)) {
+		return true;
+	}
+	if (["0", "false", "no", "off"].includes(normalized)) {
+		return false;
+	}
+	return fallback;
+}
+
+function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {
+	const normalized = String(raw ?? "").trim().toLowerCase();
+	if (!normalized) {
+		return "incremental";
+	}
+	if (normalized === "incremental" || normalized === "backfill" || normalized === "selected") {
+		return normalized;
+	}
+	throw new Error(
+		"AUTHENTICATED_NOTICE_COLLECTION_MODE must be incremental, backfill, or selected",
+	);
+}
+
 function mergeNoProxyValue(raw: string | undefined): string {
 	const tokens = (raw || "")
 		.split(",")
@@ -112,4 +170,48 @@ function mergeNoProxyValue(raw: string | undefined): string {
 		seen.add(normalized);
 	}
 	return tokens.join(",");
+}
+
+function removePortalNoProxyHosts(raw: string | undefined): string {
+	const portalHosts = new Set(REQUIRED_NO_PROXY_HOSTS.map((host) => host.toLowerCase()));
+	return (raw || "")
+		.split(",")
+		.map((token) => token.trim())
+		.filter(Boolean)
+		.filter((token) => !portalHosts.has(token.toLowerCase()))
+		.join(",");
+}
+
+function shouldBypassProxyForPortal(raw: string | undefined): boolean {
+	const normalized = String(raw ?? "")
+		.trim()
+		.toLowerCase();
+	if (!normalized) {
+		return true;
+	}
+	return !["0", "false", "no", "off"].includes(normalized);
+}
+
+function resolvePortalProxyServer(
+	source: NodeJS.ProcessEnv | Record<string, string | undefined>,
+	bypassProxyForPortal: boolean,
+): string | null {
+	if (bypassProxyForPortal) {
+		return null;
+	}
+	for (const candidate of [
+		source.AUTHENTICATED_NOTICE_PROXY_SERVER,
+		source.HTTPS_PROXY,
+		source.https_proxy,
+		source.HTTP_PROXY,
+		source.http_proxy,
+		source.ALL_PROXY,
+		source.all_proxy,
+	] as Array<string | undefined>) {
+		const normalized = String(candidate ?? "").trim();
+		if (normalized) {
+			return normalized;
+		}
+	}
+	return null;
 }

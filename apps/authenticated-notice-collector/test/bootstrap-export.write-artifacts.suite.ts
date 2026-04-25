@@ -33,6 +33,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				export_scope: "bootstrap-20260404T012345Z",
 				exported_at: "2026-04-04T01:23:45.000Z",
 				filters: {
+					collection_mode: "incremental",
 					max_notices: null,
 					notice_types: ["5"],
 				},
@@ -76,7 +77,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 					finished_at: "2026-04-04T01:23:45.000Z",
 					items_inserted: 1,
 					items_seen: 1,
-					mode: "bootstrap_export",
+					mode: "incremental",
 					pages_fetched: 1,
 					started_at: "2026-04-04T01:23:45.000Z",
 					status: "success",

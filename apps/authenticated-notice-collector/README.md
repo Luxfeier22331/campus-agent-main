@@ -57,6 +57,14 @@ Auth note:
 - collector now appends `muc.edu.cn`, `.muc.edu.cn`, `my.muc.edu.cn`,
   `ca.muc.edu.cn` into `NO_PROXY` / `no_proxy` at runtime so the portal path
   bypasses repo-local shell proxies by default
+- when the local WSL direct DNS/network path is broken and the configured proxy
+  is trusted for this authenticated portal session, set
+  `AUTHENTICATED_NOTICE_BYPASS_PROXY=false`; this prevents the collector from
+  adding the portal hosts to `NO_PROXY` and removes those portal hosts from the
+  current process `NO_PROXY` value if already present; the collector also passes
+  an explicit Playwright proxy to browser bootstrap and API requests using
+  `AUTHENTICATED_NOTICE_PROXY_SERVER`, or `HTTPS_PROXY` / `HTTP_PROXY` /
+  `ALL_PROXY` when the explicit value is empty
 - `JSESSIONID` and `nginx` are portal-derived session cookies; the collector
   will first try visiting `<https://my.muc.edu.cn/page/11#/`> once before
   creating the API request context so these cookies can be refreshed at runtime
@@ -89,6 +97,10 @@ Notice export note:
 
 - `bootstrap:export` now snapshots the portal-wide `notice` selector truth from
   `/comsys-portal-notice-web/getNoticeSlects`
+- `bootstrap:export` can also run a bounded historical notice refresh with
+  `AUTHENTICATED_NOTICE_SELECTED_NOTICES`, using comma-separated
+  `notice_id:notice_type[:notice_type_name]` entries. In this mode it fetches
+  only those details and does not scan current list pages.
 - bootstrap manifest therefore includes:
   - `observed_notice_types`
   - `observed_organizations`

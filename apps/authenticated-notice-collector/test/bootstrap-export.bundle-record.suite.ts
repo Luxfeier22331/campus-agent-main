@@ -136,6 +136,77 @@ export function registerBootstrapExportBundleRecordSuite() {
 		]);
 	});
 
+	it("extracts inline image attachment refs from notice html", () => {
+		const record = buildBundleRecord({
+			detailInfo: {
+				notice_content:
+					'<p>小篮球场东、西两侧（见附件红色区域）停车位。</p><p><img src="http://portal.example.edu:80/comsys-portal-notice-web/upload/ueditor/2026413/red-zone.png" alt="红色区域图.png"/></p>',
+				notice_id: 355549,
+			},
+			observedAt: "2026-04-04T01:23:45.000Z",
+			notice: {
+				notice_id: 355549,
+				notice_title: "关于暂时停用相关区域停车权限的通知",
+				notice_type: "5",
+				notice_type_name: "办公通知",
+			},
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(record.links).toHaveLength(1);
+		expect(record.links[0]).toMatchObject({
+			collect_policy: "reference_only",
+			content_kind: "inline_image",
+			final_url:
+				"http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026413/red-zone.png",
+			link_scope: "internal",
+			link_text: "红色区域图.png",
+			url_scheme: "http",
+		});
+		expect(record.notice_attachments).toEqual([
+			{
+				anchor_text: "红色区域图.png",
+				attachment_id: 1,
+				discovered_at: "2026-04-04T01:23:45.000Z",
+				link_id: 1,
+				notice_id: 355549,
+				relation_source: "content",
+				resource_role: "inline_image",
+			},
+		]);
+		expect(record.attachments).toEqual([
+			{
+				attachment_id: 1,
+				bucket: null,
+				byte_size: null,
+				created_at: "2026-04-04T01:23:45.000Z",
+				downloaded_at: null,
+				etag: null,
+				final_url:
+					"http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026413/red-zone.png",
+				ingest_status: "reference_only",
+				last_error: null,
+				local_path: null,
+				mime_type: null,
+				normalized_source_url:
+					"http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026413/red-zone.png",
+				object_key: null,
+				origin_host: "portal.example.edu",
+				origin_scope: "internal",
+				origin_url_scheme: "http",
+				original_filename: "red-zone.png",
+				provenance_status: "reference_only",
+				sha256: null,
+				source_url:
+					"http://portal.example.edu/comsys-portal-notice-web/upload/ueditor/2026413/red-zone.png",
+				storage_provider: "reference_only",
+				updated_at: "2026-04-04T01:23:45.000Z",
+				uploaded_at: null,
+				version_id: null,
+			},
+		]);
+	});
+
 	it("extracts reference-only attachment refs from notice detail annex list", () => {
 		const record = buildBundleRecord({
 			detailInfo: {

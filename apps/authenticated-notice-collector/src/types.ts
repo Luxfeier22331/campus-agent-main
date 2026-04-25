@@ -8,6 +8,8 @@ export interface NoticeTypeConfig {
 	backfillPageSize: number;
 }
 
+export type NoticeCollectionMode = "incremental" | "backfill" | "selected";
+
 export interface NoticeTypePolicySnapshot {
 	type: string;
 	name: string;
@@ -123,7 +125,7 @@ export interface BundleLinkObservation {
 	notice_id: number;
 	run_id: number | null;
 	source: "content";
-	content_kind: "body_link" | "attachment_list";
+	content_kind: "body_link" | "attachment_list" | "inline_image";
 	url: string;
 	url_scheme: string | null;
 	link_host: string | null;
@@ -147,7 +149,7 @@ export interface BundleNoticeAttachmentRelation {
 	attachment_id: number;
 	link_id: number | null;
 	relation_source: "content" | "detail_api";
-	resource_role: "attachment";
+	resource_role: "attachment" | "inline_image";
 	anchor_text: string | null;
 	discovered_at: string;
 }
@@ -406,7 +408,9 @@ export interface BootstrapExportManifest {
 	collector: CollectorExportMetadata;
 	filters: {
 		notice_types: string[];
+		collection_mode: NoticeCollectionMode;
 		max_notices: number | null;
+		selected_notice_ids?: string[];
 	};
 	notice_type_policy: NoticeTypePolicySnapshot[];
 	observed_notice_types: Array<{
@@ -418,7 +422,7 @@ export interface BootstrapExportManifest {
 		organization_name: string;
 	}>;
 	run: {
-		mode: "bootstrap_export";
+		mode: NoticeCollectionMode;
 		status: "success";
 		started_at: string;
 		finished_at: string;

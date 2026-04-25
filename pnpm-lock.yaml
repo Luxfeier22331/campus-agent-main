@@ -81,6 +81,9 @@ importers:
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
       playwright:
         specifier: ^1.59.1
         version: 1.59.1
@@ -88,6 +91,9 @@ importers:
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.0
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       tsx:
         specifier: ^4.20.5
         version: 4.21.0

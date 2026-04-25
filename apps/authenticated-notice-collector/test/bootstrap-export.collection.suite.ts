@@ -216,6 +216,196 @@ export function registerBootstrapExportCollectionSuite() {
 		});
 	});
 
+	it("collects selected historical notice ids without scanning current list pages", async () => {
+		const detailCalls: Array<{ noticeId: number; noticeType: string }> = [];
+		let pageCalls = 0;
+		const result = await collectBootstrapBundle({
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from(""),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId, noticeType }) => {
+				detailCalls.push({ noticeId, noticeType });
+				return {
+					datas: {
+						notice_info: {
+							notice_content: `<p>${noticeId} 正文</p>`,
+							notice_id: noticeId,
+							notice_release_time: "2021-02-28 16:09",
+							notice_title: "历史制度通知",
+						},
+					},
+					state: true,
+				};
+			},
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 5,
+							notice_type_name: "办公通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => {
+				pageCalls += 1;
+				return { datas: { page: { totalCounts: 0 }, tables: [] }, state: true };
+			},
+			noticeTypes: [
+				{
+					type: "5",
+					name: "办公通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 20,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [
+				{
+					noticeId: 187233,
+					noticeType: "32",
+					noticeTypeName: "学工通知",
+				},
+			],
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pageCalls).toBe(0);
+		expect(detailCalls).toEqual([{ noticeId: 187233, noticeType: "32" }]);
+		expect(result.stats).toEqual({
+			attachmentObjectsUploaded: 0,
+			detailFetched: 1,
+			noticesCollected: 1,
+			pagesFetched: 0,
+		});
+		expect(result.bundleRecords[0]?.notice).toMatchObject({
+			notice_id: 187233,
+			notice_title: "历史制度通知",
+			categories: [
+				{
+					notice_id: 187233,
+					notice_type: "32",
+					notice_type_name: "学工通知",
+				},
+			],
+		});
+		expect(result.exportManifest.filters).toMatchObject({
+			max_notices: null,
+			notice_types: ["32"],
+			selected_notice_ids: ["187233"],
+		});
+		expect(result.exportManifest.run.items_seen).toBe(1);
+	});
+
+	it("uses backfill page budgets when collection mode is backfill", async () => {
+		const pageCalls: Array<{ currentPage: number; noticeType: string; pageSize: number }> = [];
+		const detailCalls: number[] = [];
+		const result = await collectBootstrapBundle({
+			collectionMode: "backfill",
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from(""),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => {
+				detailCalls.push(noticeId);
+				return {
+					datas: {
+						notice_info: {
+							notice_content: `<p>${noticeId}</p>`,
+							notice_id: noticeId,
+							notice_release_time: "2026-04-02 18:49",
+							notice_title: `回填通知 ${noticeId}`,
+						},
+					},
+					state: true,
+				};
+			},
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 5,
+							notice_type_name: "办公通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ currentPage, noticeType, pageSize }) => {
+				pageCalls.push({ currentPage, noticeType, pageSize });
+				return {
+					datas: {
+						page: {
+							totalCounts: 2,
+						},
+						tables: [
+							{
+								notice_id: 355000 + currentPage,
+								notice_title: `回填通知 ${currentPage}`,
+								notice_type: noticeType,
+								notice_type_name: "办公通知",
+							},
+						],
+					},
+					state: true,
+				};
+			},
+			noticeTypes: [
+				{
+					type: "5",
+					name: "办公通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 2,
+					backfillPageSize: 50,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pageCalls).toEqual([
+			{ currentPage: 1, noticeType: "5", pageSize: 50 },
+			{ currentPage: 2, noticeType: "5", pageSize: 50 },
+		]);
+		expect(detailCalls).toEqual([355001, 355002]);
+		expect(result.stats.pagesFetched).toBe(2);
+		expect(result.exportManifest.filters.collection_mode).toBe("backfill");
+		expect(result.exportManifest.run.mode).toBe("backfill");
+	});
+
 	it("materializes internal attachments into object-backed bundle rows when an artifact store is configured", async () => {
 		const storedObjects: Array<{
 			key: string;
@@ -580,5 +770,109 @@ export function registerBootstrapExportCollectionSuite() {
 			ingest_status: "reference_only",
 		});
 		expect(result.bundleRecords[0]?.links).toEqual([]);
+	});
+
+	it("skips terminal unavailable attachment downloads from the fetch-status ledger", async () => {
+		let downloadCalls = 0;
+		const result = await collectBootstrapBundle({
+			attachmentArtifactStore: {
+				storageProvider: "object_store",
+				putObject: async () => {
+					throw new Error("unexpected upload");
+				},
+			},
+			attachmentFetchStatusStore: {
+				getTerminalUnavailable: async ({ attachmentRefId, noticeId, siteId, sourceUrl }) => {
+					expect(siteId).toBe("muc_internal_portal");
+					expect(noticeId).toBe("186977");
+					expect(attachmentRefId).toBe("attachment-0001");
+					expect(sourceUrl).toBe(
+						"https://portal.example.edu/comsys-portal-notice-web/download?id=missing&notice_id=186977",
+					);
+					return {
+						fetchStatus: "terminal_unavailable",
+						lastError: "downloadAttachment failed: 404 ",
+						lastHttpStatus: 404,
+						terminalReason: "http_404",
+					};
+				},
+			},
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => {
+					downloadCalls += 1;
+					throw new Error("download should be skipped");
+				},
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						home_url: "https://portal.example.edu/home",
+						notice_annext: [
+							{
+								notice_annex_id: "missing",
+								notice_annex_name: "missing.pdf",
+							},
+						],
+						notice_content: "<p>正文</p>",
+						notice_id: noticeId,
+						notice_release_time: "2021-01-05 19:02",
+						notice_title: "药学院2021年硕博连读博士研究生招生实施细则",
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 6,
+							notice_type_name: "教学通知",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async () => {
+				throw new Error("unexpected page fetch");
+			},
+			noticeTypes: [
+				{
+					type: "6",
+					name: "教学通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 1,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			selectedNotices: [
+				{
+					noticeId: 186977,
+					noticeType: "6",
+					noticeTypeName: "教学通知",
+				},
+			],
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(downloadCalls).toBe(0);
+		expect(result.stats.attachmentObjectsUploaded).toBe(0);
+		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
+			storage_provider: "reference_only",
+			object_key: null,
+			original_filename: "missing.pdf",
+			last_error: "terminal_unavailable:http_404",
+			ingest_status: "reference_only",
+		});
 	});
 }

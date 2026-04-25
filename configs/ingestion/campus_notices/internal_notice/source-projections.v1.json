@@ -38,7 +38,7 @@
 		"ocr_required": "ocr_document_attachment"
 	},
 	"extraction_policy_version": "authenticated_notice_attachment_extraction_v2",
-	"text_extractable_extensions": ["docx", "xls", "xlsx"],
+	"text_extractable_extensions": ["doc", "docx", "xls", "xlsx"],
 	"ocr_required_mime_types": [
 		"application/pdf",
 		"image/png",

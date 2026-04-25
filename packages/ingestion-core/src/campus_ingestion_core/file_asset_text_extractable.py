@@ -31,7 +31,7 @@ def extract_text_extractable_file_asset(
             media_type=media_type,
             source_object_key=source_object_key,
         )
-    if extension == "xls":
+    if extension in {"doc", "xls"}:
         return extract_legacy_office_text_blocks(
             file_bytes,
             filename=filename,

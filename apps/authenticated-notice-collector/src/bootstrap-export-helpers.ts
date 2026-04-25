@@ -11,6 +11,7 @@ import type {
 	CollectorExportMetadata,
 	NoticeAnnexInfo,
 	NoticeCategoryRecord,
+	NoticeCollectionMode,
 	NoticeItem,
 	NoticeSelectsResponse,
 	NoticeTypeConfig,
@@ -18,6 +19,9 @@ import type {
 export const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 export const EXPORT_SCHEMA_VERSION = "authenticated_notice_collector_export_v2";
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;
+const HTML_IMG_TAG_RE = /<img\b[^>]*>/gis;
+const HTML_ATTR_RE =
+	/\s([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
 const HTML_TAG_RE = /<[^>]+>/g;
 const WHITESPACE_RE = /\s+/g;
 const ATTACHMENT_FILE_EXTENSIONS = new Set([
@@ -41,6 +45,7 @@ const ATTACHMENT_FILE_EXTENSIONS = new Set([
 
 export function buildExportManifest(input: {
 	attachmentStorageMode: CollectorExportMetadata["attachment_storage_mode"];
+	collectionMode: NoticeCollectionMode;
 	detailFetched: number;
 	exportedAt: string;
 	itemsInserted: number;
@@ -50,6 +55,8 @@ export function buildExportManifest(input: {
 	observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
 	observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
 	pagesFetched: number;
+	selectedNoticeIds?: string[];
+	selectedNoticeTypes?: string[];
 	siteId: string;
 	sourceHomeUrl: string;
 }): BootstrapExportManifest {
@@ -73,8 +80,14 @@ export function buildExportManifest(input: {
 			attachment_storage_mode: input.attachmentStorageMode,
 		},
 		filters: {
+			collection_mode: input.collectionMode,
 			max_notices: input.maxNotices,
-			notice_types: input.noticeTypes.map((item) => item.type),
+			notice_types: input.selectedNoticeTypes?.length
+				? input.selectedNoticeTypes
+				: input.noticeTypes.map((item) => item.type),
+			...(input.selectedNoticeIds?.length
+				? { selected_notice_ids: input.selectedNoticeIds }
+				: {}),
 		},
 		notice_type_policy: buildNoticeTypePolicySnapshot(input.noticeTypes),
 		observed_notice_types: input.observedNoticeTypes,
@@ -85,7 +98,7 @@ export function buildExportManifest(input: {
 			finished_at: input.exportedAt,
 			items_inserted: input.itemsInserted,
 			items_seen: input.itemsSeen,
-			mode: "bootstrap_export",
+			mode: input.collectionMode,
 			pages_fetched: input.pagesFetched,
 			started_at: input.exportedAt,
 			status: "success",
@@ -298,6 +311,71 @@ export function buildReferenceArtifacts(input: {
 			link_id: linkId,
 			relation_source: "content",
 			resource_role: "attachment",
+			anchor_text: linkText,
+			discovered_at: input.observedAt,
+		});
+	}
+
+	for (const match of input.htmlValue.matchAll(HTML_IMG_TAG_RE)) {
+		const tag = String(match[0] || "");
+		const rawSrc = htmlAttributeValue(tag, "src");
+		if (!rawSrc) {
+			continue;
+		}
+		const resolvedLink = resolveLinkTarget({
+			rawHref: rawSrc,
+			sourceHomeUrl: input.sourceHomeUrl,
+		});
+		const linkText =
+			htmlAttributeValue(tag, "alt") ??
+			htmlAttributeValue(tag, "title") ??
+			(resolvedLink.finalUrl === null ? null : deriveOriginalFilename(resolvedLink.finalUrl, null));
+		const linkId = nextLinkId;
+		nextLinkId += 1;
+		links.push({
+			id: linkId,
+			notice_id: input.noticeId,
+			run_id: null,
+			source: "content",
+			content_kind: "inline_image",
+			url: rawSrc,
+			url_scheme: resolvedLink.urlScheme,
+			link_host: resolvedLink.linkHost,
+			link_scope: resolvedLink.linkScope,
+			collect_policy: resolvedLink.collectPolicy,
+			skip_reason: resolvedLink.skipReason,
+			link_text: linkText,
+			final_url: resolvedLink.finalUrl,
+			title: null,
+			status_code: null,
+			content_type: null,
+			downloaded: false,
+			download_path: null,
+			file_size: null,
+			fetched_at: input.observedAt,
+			error_message: resolvedLink.errorMessage,
+		});
+
+		if (resolvedLink.collectPolicy !== "reference_only" || resolvedLink.finalUrl === null) {
+			continue;
+		}
+		const attachmentId = ensureAttachmentObservation({
+			filenameHint: linkText,
+			finalUrl: resolvedLink.finalUrl,
+			linkHost: resolvedLink.linkHost,
+			linkScope: resolvedLink.linkScope,
+			urlScheme: resolvedLink.urlScheme,
+		});
+		if (htmlAttachmentIds.has(attachmentId)) {
+			continue;
+		}
+		htmlAttachmentIds.add(attachmentId);
+		noticeAttachments.push({
+			notice_id: input.noticeId,
+			attachment_id: attachmentId,
+			link_id: linkId,
+			relation_source: "content",
+			resource_role: "inline_image",
 			anchor_text: linkText,
 			discovered_at: input.observedAt,
 		});
@@ -538,6 +616,22 @@ function decodeHtmlAttribute(value: string): string {
 		.replace(/&gt;/g, ">")
 		.replace(/&quot;/g, '"')
 		.replace(/&#39;/g, "'");
+}
+
+function htmlAttributeValue(tag: string, attributeName: string): string | null {
+	const target = attributeName.toLowerCase();
+	for (const match of tag.matchAll(HTML_ATTR_RE)) {
+		if (String(match[1] || "").toLowerCase() !== target) {
+			continue;
+		}
+		const value = normalizeNullableText(
+			decodeHtmlAttribute(String(match[2] ?? match[3] ?? match[4] ?? "")),
+		);
+		if (value) {
+			return value;
+		}
+	}
+	return null;
 }
 
 function stripHtml(value: string): string {

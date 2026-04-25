@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active-blocked
+status: active
 created: 2026-04-22
 updated: 2026-04-25
 ---
@@ -8,14 +8,15 @@ updated: 2026-04-25
 # Workstream: Authenticated Notice Live Portal Control Plane
 
 这是 `authenticated-notice-live-portal-control-plane` 的 native workstream 入口。
-它负责 authenticated source-channel 的 live portal capture、scheduler、run ledger、artifact refs 与 bounded control-plane；当前已从 deferred 恢复到 auth-readiness 收口。
-恢复后还需显式收口一类已知 capture gap：正文声明存在附件，但 detail payload / source-truth 未 materialize 出任何附件实体或 attachment ref。
+它负责 authenticated source-channel 的 live portal capture、scheduler、run ledger、artifact refs 与 bounded control-plane；当前已从 deferred 恢复并完成本轮 auth-readiness / live capture truth refresh。
+本轮已补齐正文内联图片漏采集，不再把 `<img src>` 附件静默写成“无附件”。
 
 ## Current Status
 
-- status: `active-blocked`
-- current blocker: 当前候选 `SSO_TGC` 已能 seed collector storage state，但真实 `auth:check` 返回 `auth-expired: session invalid`；需要重新复制当前有效的 `SSO_TGC@.muc.edu.cn`
-- reopen rule: 认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane
+- status: `active`
+- current position: fresh authenticated notice export succeeded through the trusted proxy path; notice source-truth import and PG inventory sync succeeded for the refreshed 60-notice slice
+- latest capture truth: `noticesCollected=60`, `attachmentObjectsUploaded=80`, `source_truth_inventory_entries=60`, `attachment_ref_total=80`
+- remaining work: run ledger / artifact refs / scheduling / bounded operator control-plane are still open workstream phases
 
 ## Native Planning Truth
 

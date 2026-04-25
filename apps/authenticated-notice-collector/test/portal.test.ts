@@ -278,6 +278,37 @@ describe("authenticated notice collector portal bootstrap", () => {
 		await apiContext.dispose();
 	});
 
+	it("passes the configured portal proxy to the API request context", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-proxy-"));
+		tempDirs.push(runtimeDir);
+
+		const config = {
+			...buildConfig(runtimeDir),
+			authSsoTgcToken: "proxy-seeded-token",
+			bypassProxyForPortal: false,
+			portalProxyServer: "http://127.0.0.1:10808",
+		};
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				expect(input.proxy).toEqual({ server: "http://127.0.0.1:10808" });
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+			launchBrowser: async () => {
+				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+			},
+		});
+
+		await apiContext.dispose();
+	});
+
 	it("rejects invalid SSO_TGC token material before creating a request context", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-invalid-sso-"));
 		tempDirs.push(runtimeDir);
@@ -305,14 +336,21 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 	return {
 		authCheckNoticeType: "5",
 		authCheckPageSize: 3,
+		attachmentFetchStatusDatabaseUrl: null,
+		attachmentFetchStatusDisabled: false,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
 		authSsoTgcToken: null,
+		bypassProxyForPortal: true,
+		collectionMode: "incremental",
+		collectorRunLedgerDatabaseUrl: null,
+		collectorRunLedgerDisabled: false,
 		exportsDir: path.join(runtimeDir, "exports"),
 		noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
 		packageRoot: runtimeDir,
 		repoRoot: runtimeDir,
 		portalBaseUrl: "https://portal.example.edu",
 		portalPageUrl: "https://portal.example.edu/page/11#/",
+		portalProxyServer: null,
 		requestBackoffBaseMs: 1,
 		requestMaxRetries: 3,
 		runtimeDir,

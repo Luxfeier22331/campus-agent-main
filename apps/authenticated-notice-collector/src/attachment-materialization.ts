@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { type FetchAttachmentBinaryResult, fetchAttachmentBinary } from "./api";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store";
+import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
 import type {
 	ApiRequestContextLike,
 	BundleAttachmentObservation,
@@ -34,10 +35,12 @@ const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/o
 export interface MaterializeBundleAttachmentsInput {
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
+	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	bundleRecords: BundleNoticeRecord[];
 	observedAt: string;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
+	siteId: string;
 }
 
 export interface MaterializeBundleAttachmentsResult {
@@ -70,6 +73,13 @@ export async function materializeBundleAttachments(
 	for (const record of input.bundleRecords) {
 		const linksById = new Map(record.links.map((link) => [link.id, { ...link }]));
 		const attachmentsById = new Map<number, BundleAttachmentObservation>();
+		const attachmentRefIdByAttachmentId = new Map<number, string>();
+		record.notice_attachments.forEach((relation, index) => {
+			attachmentRefIdByAttachmentId.set(
+				relation.attachment_id,
+				`attachment-${String(index + 1).padStart(4, "0")}`,
+			);
+		});
 
 		for (const attachment of record.attachments) {
 			const clonedAttachment = { ...attachment };
@@ -92,9 +102,15 @@ export async function materializeBundleAttachments(
 					apiContext: input.apiContext,
 					artifactStore: input.artifactStore,
 					attachment: clonedAttachment,
+					attachmentFetchStatusStore: input.attachmentFetchStatusStore,
+					attachmentRefId:
+						attachmentRefIdByAttachmentId.get(clonedAttachment.attachment_id) ??
+						`attachment-${String(clonedAttachment.attachment_id).padStart(4, "0")}`,
+					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
 					requestBackoffBaseMs: input.requestBackoffBaseMs,
 					requestMaxRetries: input.requestMaxRetries,
+					siteId: input.siteId,
 					year: inferAuthenticatedNoticeYear(record),
 				});
 				cache.set(candidateUrl, task);
@@ -140,18 +156,51 @@ async function materializeSingleAttachment(input: {
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	attachment: BundleAttachmentObservation;
+	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
+	attachmentRefId: string;
+	noticeId: string;
 	observedAt: string;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
+	siteId: string;
 	year: string | null;
 }): Promise<MaterializedAttachment> {
+	const sourceUrl =
+		input.attachment.final_url ??
+		input.attachment.normalized_source_url ??
+		input.attachment.source_url;
+	const terminalStatus = input.attachmentFetchStatusStore
+		? await input.attachmentFetchStatusStore.getTerminalUnavailable({
+				siteId: input.siteId,
+				noticeId: input.noticeId,
+				attachmentRefId: input.attachmentRefId,
+				sourceUrl,
+			})
+		: null;
+	if (terminalStatus) {
+		const message = `terminal_unavailable:${terminalStatus.terminalReason}`;
+		return {
+			attachment: {
+				...input.attachment,
+				last_error: message,
+				updated_at: input.observedAt,
+			},
+			uploaded: false,
+			linkPatch: {
+				status_code: terminalStatus.lastHttpStatus,
+				content_type: null,
+				downloaded: false,
+				download_path: null,
+				file_size: null,
+				fetched_at: input.observedAt,
+				error_message: message,
+			},
+		};
+	}
 	try {
 		const result = await fetchAttachmentBinary({
 			apiContext: input.apiContext,
-			attachmentUrl:
-				input.attachment.final_url ??
-				input.attachment.normalized_source_url ??
-				input.attachment.source_url,
+			attachmentUrl: sourceUrl,
 			requestBackoffBaseMs: input.requestBackoffBaseMs,
 			requestMaxRetries: input.requestMaxRetries,
 		});
