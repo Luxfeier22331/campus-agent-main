@@ -322,9 +322,9 @@ payload 或 provider raw response。
 
 补充说明：
 
-- `place_lookup` contract 仍保留在 internal execution seam，并已由
-  `supervisor-api` Go direct structured runtime 承接地点目录查询
-- 当前仍不开放 route planning、地图 UI 或完整 `place_card` product consumption；
+- `place_lookup` contract 仍保留在 internal execution seam
+- 当前产品路径已对 `place_lookup` fail-close，等待地图产品上线后再开放地点查询、
+  route planning、地图 UI 或完整 `place_card` product consumption；
   `app-api` 只按 capability/request projection 传递请求，不伪造 retrieval scope
 - `campus_services` / `notice` 只有在上游 surface policy 已显式 admission 时才应传入；
   knowledge path 下的 notice/service-like query 仍保持现有 gate posture，不被这次 wire

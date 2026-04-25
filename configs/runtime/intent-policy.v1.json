@@ -13,6 +13,7 @@
 		"explicit_requested_capability",
 		"explicit_requested_scope",
 		"intent_policy_unavailable",
+		"navigation_temporarily_unsupported",
 		"policy_guardrail",
 		"political_persuasion",
 		"product_scope_boundary",

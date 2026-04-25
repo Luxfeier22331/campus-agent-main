@@ -52,7 +52,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_capability": "place_lookup",
                     "intent_task_kind": "place_lookup",
                     "intent_scope_class": "out_of_scope",
-                    "intent_policy_reason": "product_scope_boundary",
+                    "intent_policy_reason": "navigation_temporarily_unsupported",
                 },
                 {
                     "request_id": "req-002",
@@ -62,7 +62,7 @@ class IntentCaseMinerTest(unittest.TestCase):
                     "intent_capability": "place_lookup",
                     "intent_task_kind": "place_lookup",
                     "intent_scope_class": "out_of_scope",
-                    "intent_policy_reason": "product_scope_boundary",
+                    "intent_policy_reason": "navigation_temporarily_unsupported",
                 },
             )
         )

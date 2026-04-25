@@ -50,10 +50,9 @@ updated: 2026-04-14
 
 ## 当前产品状态
 
-- 当前 `supervisor-api` internal execution path 已支持 Go direct `place_lookup`
-  地点目录查询
-- `place_catalog` 继续保留为 repo-owned spatial truth foundation；它不是默认公开
-  query-serving collection
+- 当前 supervisor 产品路径已对 `place_lookup` fail-close
+- 校内导航 / 地点查询暂不作为已开放能力，等待地图产品上线后再开放
+- `place_catalog` 继续保留为 repo-owned spatial truth foundation，而不是当前浏览器可消费 surface
 - `place_card` / map consumption 已后置到地图实际上线后的 backlog
 
 ## Record Shape

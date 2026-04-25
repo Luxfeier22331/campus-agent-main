@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	ToolPlaceLookup             = "place_lookup"
 	ToolServiceStatusLookup     = "service_status_lookup"
 	ToolServiceGuideLookup      = "service_guide_lookup"
 	ToolTransportScheduleLookup = "transport_schedule_lookup"
@@ -22,7 +21,6 @@ const (
 
 type Options struct {
 	ProjectionPath                  string
-	PlaceCatalogPath                string
 	TrustedTimeRFC3339              string
 	NoticeReadModelStore            NoticeReadModelStore
 	NoticeBodyStore                 NoticeBodyStore
@@ -38,7 +36,6 @@ type Options struct {
 
 type Runtime struct {
 	projectionPath       string
-	placeCatalogPath     string
 	trustedTime          time.Time
 	noticeReadModelStore NoticeReadModelStore
 	noticeBodyStore      NoticeBodyStore
@@ -47,9 +44,6 @@ type Runtime struct {
 type Status struct {
 	Configured                   bool   `json:"configured"`
 	ProjectionSource             string `json:"projection_source"`
-	PlaceCatalogConfigured       bool   `json:"place_catalog_configured"`
-	PlaceCatalogReady            bool   `json:"place_catalog_ready"`
-	PlaceCatalogSource           string `json:"place_catalog_source"`
 	ServiceStatusProjectionReady bool   `json:"service_status_projection_ready"`
 	ServiceGuideProjectionReady  bool   `json:"service_guide_projection_ready"`
 	TransportScheduleImplemented bool   `json:"transport_schedule_implemented"`
@@ -227,7 +221,6 @@ func NewRuntime(options Options) *Runtime {
 	}
 	runtime := &Runtime{
 		projectionPath:       strings.TrimSpace(options.ProjectionPath),
-		placeCatalogPath:     resolvePlaceCatalogPath(strings.TrimSpace(options.PlaceCatalogPath)),
 		noticeReadModelStore: noticeReadModelStore,
 		noticeBodyStore:      noticeBodyStore,
 	}
@@ -258,12 +251,6 @@ func (r *Runtime) Status(ctx context.Context) Status {
 		status.ServiceStatusProjectionReady = err == nil && len(bundle.ServiceStatusRecords) > 0
 		status.ServiceGuideProjectionReady = err == nil && len(bundle.ServiceGuideRecords) > 0
 		status.TransportScheduleImplemented = err == nil && len(bundle.TransportScheduleSnapshots) > 0
-	}
-	if r.placeCatalogPath != "" {
-		catalog, err := r.loadPlaceCatalog()
-		status.PlaceCatalogConfigured = true
-		status.PlaceCatalogSource = "file"
-		status.PlaceCatalogReady = err == nil && len(catalog.Places) > 0
 	}
 	status.NoticeReadModelConfigured = r.noticeReadModelStore != nil
 	status.NoticeBodyStoreConfigured = r.noticeBodyStore != nil

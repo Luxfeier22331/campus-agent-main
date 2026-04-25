@@ -41,16 +41,16 @@ func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {
 	}
 }
 
-func TestObserveIntentForEvalReportsNavigationHandoffForPlaceLookup(t *testing.T) {
+func TestObserveIntentForEvalReportsTerminalOutcomeForClosedPlaceLookup(t *testing.T) {
 	observed, err := ObserveIntentForEval(
 		json.RawMessage(`{
 			"user_goal":"图书馆在哪里",
-			"request_id":"intent-eval-place-open-001",
+			"request_id":"intent-eval-place-closed-001",
 			"requested_capability":"place_lookup"
 		}`),
 		map[string]string{
 			"authorization": "Bearer intent-eval-token",
-			"x-trace-id":    "trace-intent-eval-place-open-001",
+			"x-trace-id":    "trace-intent-eval-place-closed-001",
 		},
 		intentEvalBearerConfig(),
 	)
@@ -58,14 +58,14 @@ func TestObserveIntentForEvalReportsNavigationHandoffForPlaceLookup(t *testing.T
 	if err != nil {
 		t.Fatalf("unexpected eval error: %#v", err)
 	}
-	if observed.NextAction != "delegate" {
-		t.Fatalf("next_action = %q, want delegate", observed.NextAction)
+	if observed.NextAction != "out_of_scope" {
+		t.Fatalf("next_action = %q, want out_of_scope", observed.NextAction)
 	}
-	if observed.Target != "navigation-agent" {
-		t.Fatalf("target = %q, want navigation-agent", observed.Target)
+	if observed.Target != "none" {
+		t.Fatalf("target = %q, want none", observed.Target)
 	}
-	if observed.PlanningOutcome != "preplanned" {
-		t.Fatalf("planning_outcome = %q, want preplanned", observed.PlanningOutcome)
+	if observed.TerminalStatus != "no_answer" {
+		t.Fatalf("terminal_status = %q, want no_answer", observed.TerminalStatus)
 	}
 }
 

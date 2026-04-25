@@ -809,87 +809,6 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	}
 }
 
-func TestAnswerExecutesPlaceLookupDirectlyInGo(t *testing.T) {
-	placeCatalogPath := writeStructuredQueryPlaceCatalogFixture(t, `{
-		"version":"v1",
-		"coordinate_reference_system":"EPSG:4326",
-		"places":[
-			{
-				"place_id":"muc.haidian.library",
-				"entity_type":"building",
-				"display_name":"图书馆",
-				"aliases":["海淀图书馆","校图书馆"],
-				"campus_scope":"haidian",
-				"campus_area":"主教学区西侧",
-				"location_description":"海淀校区主教学区西侧，靠近校医院。",
-				"landmark_hint":"从知行广场向西步行约 3 分钟可到达。",
-				"access_note":"校外访客请先完成入校登记。",
-				"opening_note":"以图书馆当日公告为准。",
-				"service_tags":["自习","借阅"],
-				"point_geometry":{"longitude":116.31551,"latitude":39.96162},
-				"coordinate_reference_system":"EPSG:4326",
-				"source_refs":["seed:campus_navigation/place_catalog.v1"],
-				"verification_state":"manual_seed_reviewed"
-			}
-		]
-	}`)
-	bridgeCalls := 0
-	server := NewServer(config.Config{
-		AuthMode:                        "bearer",
-		BearerToken:                     "secret-token",
-		DefaultActorID:                  "runtime-bearer-user",
-		RequestBodyLimitBytes:           1_048_576,
-		MaxConcurrentAnswers:            8,
-		StructuredQueryPlaceCatalogPath: placeCatalogPath,
-	}, &fakeBridge{
-		configured: true,
-		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
-			bridgeCalls++
-			return bridge.ExecuteResponse{
-				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
-				Body:       json.RawMessage(`{"selected_target":"navigation-agent","status":"completed","answer_text":"bridge"}`),
-			}, nil
-		},
-	})
-	response := httptest.NewRecorder()
-	request := newTestRequest(
-		http.MethodPost,
-		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"海淀图书馆在哪里","requested_capability":"place_lookup","request_id":"req-place-direct"}`),
-	)
-	request.Header.Set("authorization", "Bearer secret-token")
-	request.Header.Set("x-trace-id", "trace-place-direct")
-
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	if bridgeCalls != 0 {
-		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
-	}
-	body := decodeBody(t, response)
-	if body["selected_target"] != "navigation-agent" {
-		t.Fatalf("selected_target = %v, want navigation-agent", body["selected_target"])
-	}
-	if body["status"] != "completed" {
-		t.Fatalf("status = %v, want completed", body["status"])
-	}
-	if body["trace_id"] != "trace-place-direct" {
-		t.Fatalf("trace_id = %v, want trace-place-direct", body["trace_id"])
-	}
-	result := expectRecord(t, body["result"], "result")
-	resolvedPlace := expectRecord(t, result["resolved_place"], "result.resolved_place")
-	if resolvedPlace["place_id"] != "muc.haidian.library" {
-		t.Fatalf("resolved_place.place_id = %v", resolvedPlace["place_id"])
-	}
-	observability := expectRecord(t, body["observability"], "observability")
-	if observability["selected_tool"] != "place_lookup" {
-		t.Fatalf("observability.selected_tool = %v, want place_lookup", observability["selected_tool"])
-	}
-}
-
 func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	projectionPath := writeStructuredQueryProjectionFixture(t, `{
 		"schema_version":"campus_services_projection_bundle.v1",
@@ -2889,15 +2808,6 @@ func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {
 	path := t.TempDir() + "/campus-services-projection.json"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write projection fixture: %v", err)
-	}
-	return path
-}
-
-func writeStructuredQueryPlaceCatalogFixture(t *testing.T, body string) string {
-	t.Helper()
-	path := t.TempDir() + "/place-catalog.json"
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatalf("write place catalog fixture: %v", err)
 	}
 	return path
 }

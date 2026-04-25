@@ -364,24 +364,30 @@ func TestEvaluateRuntimePolicyDelegatesCampusServiceGuideSubtype(t *testing.T) {
 	}
 }
 
-func TestEvaluateRuntimePolicyDelegatesPlaceLookup(t *testing.T) {
+func TestEvaluateRuntimePolicyFailsClosedPlaceLookupUntilNavigationRollout(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "place_lookup",
 		UserGoal:            "海淀图书馆在哪里",
 	})
 
-	if decision.PolicyGate.Decision != "delegate" {
-		t.Fatalf("policy decision = %q, want delegate", decision.PolicyGate.Decision)
+	if decision.PolicyGate.Decision != "out_of_scope" {
+		t.Fatalf("policy decision = %q, want out_of_scope", decision.PolicyGate.Decision)
 	}
-	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
-		t.Fatalf("next action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
+		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
 	}
-	if decision.RoutingFrame.ScopeClass != "in_scope" {
-		t.Fatalf("scope class = %q, want in_scope", decision.RoutingFrame.ScopeClass)
+	if decision.RoutingFrame.ScopeClass != "out_of_scope" {
+		t.Fatalf("scope class = %q, want out_of_scope", decision.RoutingFrame.ScopeClass)
 	}
 	if len(decision.RoutingFrame.DomainCandidates) != 1 ||
-		decision.RoutingFrame.DomainCandidates[0] != "navigation" {
-		t.Fatalf("domain candidates = %#v, want navigation", decision.RoutingFrame.DomainCandidates)
+		decision.RoutingFrame.DomainCandidates[0] != "out_of_scope" {
+		t.Fatalf("domain candidates = %#v, want out_of_scope", decision.RoutingFrame.DomainCandidates)
+	}
+	if decision.RoutingFrame.PolicyReason != "navigation_temporarily_unsupported" {
+		t.Fatalf(
+			"policy reason = %q, want navigation_temporarily_unsupported",
+			decision.RoutingFrame.PolicyReason,
+		)
 	}
 }
 
@@ -397,9 +403,8 @@ func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
 		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
 	}
-	placeLookupAllowed := AllowedToolsForPayloadKind("navigation-agent", "place_lookup")
-	if len(placeLookupAllowed) != 1 || placeLookupAllowed[0] != "place_lookup" {
-		t.Fatalf("place lookup allowed = %#v, want place_lookup", placeLookupAllowed)
+	if AllowedToolsForPayloadKind("navigation-agent", "place_lookup") != nil {
+		t.Fatal("navigation-agent must not allow place_lookup before map rollout")
 	}
 }
 

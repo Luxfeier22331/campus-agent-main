@@ -147,16 +147,6 @@ func Plan(request Request) *Handoff {
 		}
 		return nil
 	}
-	if request.EffectiveCapability == "place_lookup" {
-		return &Handoff{
-			Target:      "navigation-agent",
-			PayloadKind: "place_lookup",
-			Payload: map[string]any{
-				"query_text": request.UserGoal,
-			},
-			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("navigation-agent", "place_lookup"),
-		}
-	}
 	if request.EffectiveCapability == "notice" {
 		selectedNoticeRef := request.SelectedNoticeRef
 		if selectedNoticeRef.NoticeID != "" && containsAny(normalizedGoal, noticeGetSignals) {

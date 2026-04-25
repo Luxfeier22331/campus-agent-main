@@ -12,7 +12,7 @@ from tests.evals.formal_benchmark_test_support import Path, TemporaryDirectory
 
 
 def _accepted_case_payload(
-    case_id: str = "intent-observed-navigation-open-001",
+    case_id: str = "intent-observed-navigation-closed-001",
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -22,7 +22,7 @@ def _accepted_case_payload(
                 "domain": "intent",
                 "source": {
                     "badcase_id": "qbad_observed_navigation_001",
-                    "expected_fix_reason": "Navigation place lookup should route to navigation-agent.",
+                    "expected_fix_reason": "Navigation remains closed until map rollout.",
                     "observed_failure_class": "unexpected_handoff_target",
                     "sampled_at": "2026-04-25T00:00:00.000Z",
                     "source_request_id": "req_observed_navigation_001",
@@ -31,7 +31,7 @@ def _accepted_case_payload(
                 },
                 "review": {
                     "decision": "accepted",
-                    "reason": "Navigation place lookup should route to navigation-agent.",
+                    "reason": "Navigation remains closed until map rollout.",
                     "reviewed_at": "2026-04-25T00:05:00.000Z",
                     "reviewer": "eval-governance",
                     "target_suite": "observed_regression",
@@ -39,13 +39,13 @@ def _accepted_case_payload(
                 "intent_case": {
                     "critical": True,
                     "expected_capability": "place_lookup",
-                    "expected_allowed_tools": ["place_lookup"],
-                    "expected_launch_state": "open",
-                    "expected_next_action": "delegate",
-                    "expected_scope_class": "in_scope",
-                    "expected_target": "navigation-agent",
+                    "expected_launch_state": "closed",
+                    "expected_next_action": "out_of_scope",
+                    "expected_policy_reason": "navigation_temporarily_unsupported",
+                    "expected_scope_class": "out_of_scope",
+                    "expected_target": "none",
                     "expected_task_kind": "place_lookup",
-                    "tags": ["observed_regression", "navigation", "open"],
+                    "tags": ["observed_regression", "navigation", "closed"],
                     "user_goal": "图书馆在哪里",
                 },
             }
@@ -65,9 +65,9 @@ class IntentObservedRegressionTest(unittest.TestCase):
             cases = load_intent_observed_regression_cases(path)
 
         self.assertEqual(len(cases), 1)
-        self.assertEqual(cases[0].case_id, "intent-observed-navigation-open-001")
-        self.assertEqual(cases[0].expected_launch_state, "open")
-        self.assertEqual(cases[0].expected_allowed_tools, ("place_lookup",))
+        self.assertEqual(cases[0].case_id, "intent-observed-navigation-closed-001")
+        self.assertEqual(cases[0].expected_launch_state, "closed")
+        self.assertEqual(cases[0].expected_policy_reason, "navigation_temporarily_unsupported")
         self.assertIn("observed_regression", cases[0].tags)
 
     def test_load_intent_observed_regression_cases_rejects_duplicate_case_ids(self) -> None:

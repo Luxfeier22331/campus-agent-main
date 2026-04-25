@@ -424,8 +424,7 @@ func emitStructuredRuntimeStreamFailure(
 
 func isStructuredPayloadKind(payloadKind string) bool {
 	switch payloadKind {
-	case structuredquery.ToolPlaceLookup,
-		structuredquery.ToolServiceStatusLookup,
+	case structuredquery.ToolServiceStatusLookup,
 		structuredquery.ToolServiceGuideLookup,
 		structuredquery.ToolTransportScheduleLookup,
 		structuredquery.ToolCampusNoticeDiscover,
@@ -456,8 +455,6 @@ func (s *Server) executeStructuredRuntime(
 	rawPayload []byte,
 ) structuredquery.Response {
 	switch payloadKind {
-	case structuredquery.ToolPlaceLookup:
-		return s.structuredQuery.LookupPlace(ctx, rawPayload)
 	case structuredquery.ToolServiceStatusLookup:
 		return s.structuredQuery.LookupServiceStatus(ctx, rawPayload)
 	case structuredquery.ToolServiceGuideLookup:
@@ -555,22 +552,6 @@ func confidenceForStructuredOutcome(outcome string) string {
 func structuredAnswerText(payloadKind string, result map[string]any, status string) string {
 	if status == "completed" {
 		switch payloadKind {
-		case structuredquery.ToolPlaceLookup:
-			place := stringValue(nestedMap(result, "resolved_place")["display_name"])
-			card := nestedMap(result, "place_card")
-			location := stringValue(card["location_description"])
-			landmark := stringValue(card["landmark_hint"])
-			accessNote := stringValue(card["access_note"])
-			if place != "" && location != "" {
-				segments := []string{place + "在" + location}
-				if landmark != "" {
-					segments = append(segments, landmark)
-				}
-				if accessNote != "" {
-					segments = append(segments, "提示："+accessNote)
-				}
-				return strings.Join(segments, " ")
-			}
 		case structuredquery.ToolServiceStatusLookup:
 			subject := stringValue(result["resolved_subject"])
 			statusValue := stringValue(result["observed_status"])
@@ -609,14 +590,6 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 		}
 	}
 	switch payloadKind {
-	case structuredquery.ToolPlaceLookup:
-		if stringValue(result["outcome"]) == "not_found" {
-			return "当前地点目录里还没有这个地点，请换个更具体的校内地点名称再试一次。"
-		}
-		if stringValue(result["outcome"]) == "clarification_required" {
-			return "请明确你要找的具体地点。"
-		}
-		return "当前还不能稳定确认这个地点。"
 	case structuredquery.ToolServiceStatusLookup:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应的校园服务状态。"

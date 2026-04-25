@@ -134,20 +134,15 @@ Current cancellation boundary:
 Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
-- `place_lookup` is an always-open Go direct structured runtime backed by the
-  repo-owned place catalog. Structured product serving gates for
-  `campus_services` and `notice` are closed by default.
-  `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist for opening those
-  capabilities after eval / product admission evidence exists. It only accepts
+- Structured product serving gates for `campus_services` and `notice` are
+  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist
+  for opening those capabilities after eval / product admission evidence exists.
+  It only accepts
   `campus_services`, `notice`, or `campus_services,notice`; wildcard values such
   as `*` or `all` are rejected.
 - `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
 - `SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH` points at a dev/test file
   projection bundle for the current foundation slice.
-- `SUPERVISOR_STRUCTURED_QUERY_PLACE_CATALOG_PATH` points at the repo-owned
-  place catalog JSON used by the Go direct place lookup runtime. Local repo runs
-  discover `configs/ingestion/campus_navigation/place_catalog/seed.v1.json` when
-  unset; the Docker image sets it to `/etc/campus-agent/place-catalog.seed.v1.json`.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
   for deterministic tests; production should normally omit it.
 - `SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
@@ -163,8 +158,8 @@ Current structured query runtime boundary:
   `OBJECT_STORE_BUCKET_DERIVED` configure notice canonical body reads from the
   S3-compatible derived bucket.
 - The runtime is not browser-facing and not an `app-api` product surface. It
-  opens only `place_lookup` directly; it does not open `campus_services` or
-  `notice` query-serving.
+  does not open `place_lookup`; navigation / map-backed place lookup remains
+  deferred until the map product rollout.
 - Python orchestration can consume this seam only when
   `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
   `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
@@ -262,7 +257,6 @@ export SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
-export SUPERVISOR_STRUCTURED_QUERY_PLACE_CATALOG_PATH=configs/ingestion/campus_navigation/place_catalog/seed.v1.json
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=

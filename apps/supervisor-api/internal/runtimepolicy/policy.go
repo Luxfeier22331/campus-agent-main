@@ -259,9 +259,17 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 
 	switch request.EffectiveCapability {
 	case "place_lookup":
-		frame.DomainCandidates = []string{"navigation"}
-		frame.ScopeClass = "in_scope"
-		frame.ScopeReason = scopeGate.Reason
+		frame.DomainCandidates = []string{"out_of_scope"}
+		frame.SuggestedNextAction = "out_of_scope"
+		frame.ScopeClass = "out_of_scope"
+		frame.PolicyReason = "navigation_temporarily_unsupported"
+		frame.LaunchState = "closed"
+		frame.ScopeReason = "navigation_temporarily_unsupported"
+		policyGate = PolicyGate{
+			Decision:  "out_of_scope",
+			Reason:    frame.PolicyReason,
+			RiskLevel: "low",
+		}
 	case "campus_services":
 		if !isPlannableCampusServicesSubtype(normalizedGoal, policy) {
 			frame.DomainCandidates = []string{"campus_services"}

@@ -227,7 +227,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
-	t.Setenv("SUPERVISOR_STRUCTURED_QUERY_PLACE_CATALOG_PATH", "/etc/campus-agent/place-catalog.seed.v1.json")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
@@ -277,7 +276,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		len(cfg.OpenCapabilities) != 2 ||
 		cfg.OpenCapabilities[0] != "campus_services" ||
 		cfg.OpenCapabilities[1] != "notice" ||
-		cfg.StructuredQueryPlaceCatalogPath != "/etc/campus-agent/place-catalog.seed.v1.json" ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.SupervisorPromptModel != "gpt-supervisor" ||
 		cfg.SpecialistPromptModel != "gpt-specialist" ||
@@ -317,6 +315,14 @@ func TestCapabilityOpenDoesNotTreatWildcardAsRuntimeAllow(t *testing.T) {
 
 	if cfg.CapabilityOpen("notice") {
 		t.Fatal("wildcard open capability must not open notice")
+	}
+}
+
+func TestCapabilityOpenDoesNotOpenPlaceLookupBeforeMapRollout(t *testing.T) {
+	cfg := Config{}
+
+	if cfg.CapabilityOpen("place_lookup") {
+		t.Fatal("place_lookup must remain closed until map rollout")
 	}
 }
 

@@ -107,19 +107,6 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"campus_scope": "fengtai"},
 		},
 		{
-			name: "place lookup",
-			request: Request{
-				EffectiveCapability: "place_lookup",
-				UserGoal:            "海淀图书馆在哪里",
-			},
-			wantTarget: "navigation-agent",
-			wantKind:   "place_lookup",
-			wantTool:   "place_lookup",
-			wantPayload: map[string]any{
-				"query_text": "海淀图书馆在哪里",
-			},
-		},
-		{
 			name: "service guide procedure",
 			request: Request{
 				EffectiveCapability: "campus_services",

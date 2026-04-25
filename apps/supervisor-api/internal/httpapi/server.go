@@ -114,7 +114,6 @@ func NewServerWithDependencies(
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
 		ProjectionPath:                  cfg.StructuredQueryProjectionPath,
-		PlaceCatalogPath:                cfg.StructuredQueryPlaceCatalogPath,
 		TrustedTimeRFC3339:              cfg.StructuredQueryTrustedTimeRFC3339,
 		NoticeReadModelDatabaseURL:      cfg.NoticeReadModelDatabaseURL,
 		NoticeReadModelTable:            cfg.NoticeReadModelTable,
@@ -209,8 +208,6 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleAnswerStream(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/execution/cancel":
 		s.handleCancel(writer, request)
-	case request.Method == http.MethodPost && path == "/internal/query/navigation/place":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolPlaceLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":

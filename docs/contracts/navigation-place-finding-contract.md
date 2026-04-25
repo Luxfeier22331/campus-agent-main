@@ -27,22 +27,21 @@ updated: 2026-04-14
 
 ## 当前 rollout 状态
 
-- `supervisor-api` internal execution path 已支持 Go direct `place_lookup`
-  地点目录查询
-- 本文保留的是 repo-owned contract truth；地图 UI、route planning 与更完整的
-  `place_card` product consumption 仍未开放
+- 当前产品路径暂不支持校内导航；supervisor 已对 `place_lookup` fail-close
+- 本文保留的是 repo-owned contract truth，不代表当前浏览器产品面已经开放
+- 地图 UI、route planning 与更完整的 `place_card` product consumption 等到地图产品上线后再开放
 - `place_card` / map consumption 已转入地图实际上线后的 backlog
 
 ## Capability And Routing
 
 - `RequestedCapability` 首发新增 `place_lookup`
 - `SpecialistTarget` 首发新增 `navigation-agent`
-- Go `supervisor-api` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
+- `supervisor-core` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 
 原因：
 
-- 第一期开的是 repo-owned `place_catalog` internal spatial truth
+- 第一阶段只保留 repo-owned `place_catalog` internal spatial truth
 - 它不是默认公开 query-serving surface
 - `app-api` 不应伪造 collection scope 再把导航退回成 retrieval query
 
@@ -150,9 +149,9 @@ updated: 2026-04-14
 
 当前说明：
 
-- 这份 normalization shape 继续保留为 navigation rollout contract
-- 当前 `supervisor-api` 可以直接返回 `place_lookup` supervisor-style response
-- `place_card` 的 map consumption / full navigation UI 仍不是当前浏览器已开放能力
+- 这份 normalization shape 继续保留为 future navigation rollout contract
+- 当前产品路径里，supervisor 不会把 `place_lookup` 委派到 `navigation-agent`
+- 因此 `place_card` 当前不是浏览器已开放能力
 
 当前 assistant structured part 固定为：
 

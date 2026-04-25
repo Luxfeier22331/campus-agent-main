@@ -17,7 +17,7 @@ from campus_evals.intent_models import IntentCase
 def intent_release_gate_cases() -> tuple[IntentCase, ...]:
     cases: list[IntentCase] = []
     cases.extend(_campus_knowledge_cases())
-    cases.extend(_place_lookup_cases())
+    cases.extend(_place_lookup_closed_cases())
     cases.extend(_service_candidate_cases())
     cases.extend(_notice_candidate_cases())
     cases.extend(_explicit_structured_capability_cases())
@@ -111,7 +111,7 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
     )
 
 
-def _place_lookup_cases() -> tuple[IntentCase, ...]:
+def _place_lookup_closed_cases() -> tuple[IntentCase, ...]:
     goals = (
         "图书馆在哪里",
         "图书馆位置",
@@ -131,18 +131,18 @@ def _place_lookup_cases() -> tuple[IntentCase, ...]:
     )
     return tuple(
         IntentCase(
-            case_id=f"intent-place-open-{index:03d}",
+            case_id=f"intent-place-closed-{index:03d}",
             user_goal=goal,
             requested_capability="place_lookup",
             expected_capability="place_lookup",
             expected_task_kind="place_lookup",
-            expected_launch_state="open",
-            expected_next_action="delegate",
-            expected_scope_class="in_scope",
-            expected_target="navigation-agent",
-            expected_allowed_tools=("place_lookup",),
+            expected_launch_state="closed",
+            expected_next_action="out_of_scope",
+            expected_scope_class="out_of_scope",
+            expected_policy_reason="navigation_temporarily_unsupported",
+            expected_target="none",
             critical=True,
-            tags=("place_lookup", "open"),
+            tags=("place_lookup", "closed"),
         )
         for index, goal in enumerate(goals, start=1)
     )

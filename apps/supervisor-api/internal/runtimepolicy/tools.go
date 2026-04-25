@@ -1,10 +1,8 @@
 package runtimepolicy
 
 var allowedToolsByTarget = map[string][]string{
-	"rag-agent": {},
-	"navigation-agent": {
-		"place_lookup",
-	},
+	"rag-agent":        {},
+	"navigation-agent": {},
 	"campus-services-agent": {
 		"service_status_lookup",
 		"service_guide_lookup",
