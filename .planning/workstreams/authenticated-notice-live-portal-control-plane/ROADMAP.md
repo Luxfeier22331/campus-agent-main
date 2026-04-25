@@ -1,16 +1,17 @@
 ---
 doc_type: roadmap
-status: deferred
+status: active-blocked
 created: 2026-04-19
-updated: 2026-04-23
+updated: 2026-04-25
 ---
 
 # Roadmap: Authenticated Notice Live Portal Control Plane
 
 ## Overview
 
-这条 workstream 当前为 deferred。
-恢复时固定顺序如下：
+这条 workstream 当前已恢复到 auth-readiness 收口，但被当前候选 `SSO_TGC` 返回
+`auth-expired: session invalid` 阻塞。
+继续执行时固定顺序如下：
 
 - [ ] **Phase A: Collector Runtime / Repo Migration Truth Refresh**
 - [ ] **Phase B: Auth Bootstrap / Live Capture Policy / Scheduling**

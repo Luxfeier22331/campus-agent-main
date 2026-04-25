@@ -44,6 +44,7 @@ updated: 2026-04-25
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
 | `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 19 closeout` | Go `apps/supervisor-api` runtime 已 hardcut；Python private bridge worker 已 hardcut 到 `apps/supervisor-core-worker`；cancel checkpoints、bridge circuit breaker、runtime accounting、audit batching/retry/spool、OTel sampling 与 lifecycle SSE endpoint 已落地，但产品主路由 gate 仍保持关闭 |
+| `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | `Phase A` | 已从 deferred 恢复到 auth-readiness 收口；collector 现支持 `AUTHENTICATED_NOTICE_SSO_TGC` seed storage state 并脱敏 authenticated CLI 错误，当前被候选 `SSO_TGC` 返回 `auth-expired: session invalid` 阻塞 |
 
 ## Completed
 
@@ -69,7 +70,6 @@ updated: 2026-04-25
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
 | `curriculum course-map docs presentation refinement` | `curriculum-course-map-docs-presentation-refinement` | `yes` | `.planning/workstreams/curriculum-course-map-docs-presentation-refinement/README.md` | 当前 docs 课程地图展示可先保留 baseline；当产品范围决定继续打磨课程地图在文档站中的真实显示效果时恢复 |
-| `authenticated-notice live portal / authenticated control-plane` | `authenticated-notice-live-portal-control-plane` | `yes` | `.planning/workstreams/authenticated-notice-live-portal-control-plane/README.md` | 只有在认证窗口恢复，或产品范围决定恢复 source-channel live portal scheduling / authenticated control-plane 时才恢复 |
 | `restricted document rollout / verification` | `restricted-document-rollout-verification` | `yes` | `.planning/workstreams/restricted-document-rollout-verification/README.md` | 只有在产品范围决定打开 restricted surface 或推进 restricted collection rollout 时才恢复 |
 
 ## Backlog
