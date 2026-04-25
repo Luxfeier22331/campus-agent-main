@@ -43,7 +43,6 @@ updated: 2026-04-25
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 2` | 正式 `public-docs` app 已提升为 docs shell；当前继续收口 published reader assets、runtime-backed `app-api` docs seams 与 shell consumption truth；notice-derived/internal regulation 仅允许显式 public 子集进入公开 docs，restricted 子集保持 gated |
 | `repo-wide codebase decomposition` | `repo-wide-codebase-decomposition` | `yes` | `.planning/workstreams/repo-wide-codebase-decomposition/README.md` | `Phase 10` | reopened decomposition inventory 当前 admission 了 `internal_notice_regulation_materialization.py`、`tests/ingestion/test_curriculum_provider_normalize.py` 与 `tests/test_public_docs_sync.py`；`pnpm decomposition:lint` 继续作为 canonical gate，后续必须回到独立 split phase 收口 |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5` | `Phase 1-4` 已完成 shared runtime / artifact / publish / automation 收口；当前仅剩 `golden dataset` 与 shared case governance，继续等待采集内容补全后启动 |
-| `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | `Phase 4` | `chat_completions + gpt-5.4` 已完成 fixed sample-set `1-run + 3-run` live rerun，当前 admission 为 `bounded_candidate_for_follow_up`；产品面仍 fail-close，等待 follow-up routing 明确 |
 | `go-shell` | `go-shell` | `yes` | `.planning/workstreams/go-shell/README.md` | `Phase 19 closeout` | Go `apps/supervisor-api` runtime 已 hardcut；Python private bridge worker 已 hardcut 到 `apps/supervisor-core-worker`；cancel checkpoints、bridge circuit breaker、runtime accounting、audit batching/retry/spool、OTel sampling 与 lifecycle SSE endpoint 已落地，但产品主路由 gate 仍保持关闭 |
 
 ## Completed
@@ -63,6 +62,7 @@ updated: 2026-04-25
 | `repo-wide agent harness rollout` | `repo-wide-agent-harness-rollout` | `yes` | `.planning/workstreams/repo-wide-agent-harness-rollout/README.md` | 只有在 repo 重新 admission 非-Codex adapter implementation、显式改写 terminal-result transport / blocker taxonomy / hook contract，或需要再次调整默认 execution entrypoint 时才恢复 |
 | `notice consumption layer` | `notice-consumption-layer` | `yes` | `.planning/workstreams/notice-consumption-layer/README.md` | 只有在 repo 重新 admission internal_notice consumption projection schema/route semantics、打开新的 notice-derived downstream target，或发现 projection store/rebuild/operator status truth 与代码漂移时才恢复 |
 | `authenticated-notice -> regulation downstream consumption` | `authenticated-notice-regulation-consumption` | `yes` | `.planning/workstreams/authenticated-notice-regulation-consumption/README.md` | 只有在新 admission authenticated-notice regulation target、显式改写 `institutional_rules` / `scoped_rules` 边界，或把 stop point 从 `offline_preparation` 提升到 release / query-serving 时恢复 |
+| `curriculum course-map multimodal probe` | `curriculum-course-map-multimodal-probe` | `yes` | `.planning/workstreams/curriculum-course-map-multimodal-probe/README.md` | 只有在课程地图重新 admission 为 RAG/query-serving、source-truth canonical 或新的 multimodal extraction contract 时恢复；单纯 UI/UX 展示打磨走 `curriculum-course-map-docs-presentation-refinement` |
 
 ## Deferred
 

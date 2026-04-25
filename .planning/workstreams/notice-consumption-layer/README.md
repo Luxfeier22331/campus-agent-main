@@ -46,15 +46,38 @@ consumption projection / query read model / query runtime 语义拆开。
     `target_surfaces` facet，例如只查 `procurement_notice_history`；read-model
     consistency doctor 已落地为 repo-owned worker CLI，只读检查 projection 与
     read model 的 missing/extra unit
-  - 2026-04-25 manual-review downline：新生成的 consumption projection 不再写入
-    `consumption_status=manual_review_required`；可机器继续处理的 legacy manual
-    promotion action 转为 `pending_multimodal_processing` +
-    `multimodal_processing_candidate`，硬性不采纳 reason 转为 `no_adoption` +
+  - 2026-04-25 machine-processing downline：新生成的 consumption projection 不再把
+    attachment classification 写成 consumption status；promotion action 不再产出
+    attachment classification，可机器继续处理的 action 使用
+    `requires_multimodal_processing` 并投向 `pending_multimodal_processing` +
+    `multimodal_processing_candidate`；硬性不采纳 reason 转为 `no_adoption` +
     `unsupported`，并新增 processing gaps audit CLI
   - 2026-04-25 multimodal closeout：新增 selected-notice multimodal processor，
     通过 env chat endpoint 处理 `pending_multimodal_processing` units；机器摘要
     只回写为 notice-level query/read-model truth 或 `no_adoption`，不把视觉模型输出
     伪装成 regulation ready target
+  - 2026-04-25 runtime closeout：consumer admission batch 已有 started /
+    completed / failed lifecycle 与 operator list CLI；projection rows 与
+    multimodal attempts 会携带 consumer admission batch provenance；multimodal
+    attempt store 已持久化，runtime smoke 与 multimodal decision eval gate 已落地
+  - 2026-04-25 execution closeout：legacy manual-review consumption migration
+    CLI/core path 已移除；admission
+    batch 记录 selection source/path/hash 与 command args；read-model rebuild /
+    repair 也纳入 admission lifecycle；regulation/scoped downstream materializer
+    在未注入或未配置 projection store 时 fail closed，不再 fallback 到空内存
+    projection；runtime smoke 会校验 projection admission provenance、
+    pending-multimodal attempts 与可选 chat endpoint；multimodal eval gate 支持
+    accuracy / needs-additional-processing 阈值
+  - 2026-04-25 non-smoke closeout：补齐 repo-owned
+    `consumption-layer-schema.sql` 持久化 schema artifact；consumer admission
+    current batch 外新增 append-only event log；新增 projection-only pending
+    multimodal drain CLI；multimodal eval CLI 默认使用 repo-tracked JSONL fixture
+    gate；真实 PG/chat smoke 不作为本次修复前置条件
+  - 2026-04-25 multimodal eval hardening：decision fixture 扩到 20 个
+    action/classification case；新增 visual fixture gate，检查 required text
+    spans、forbidden claims、reason codes 与 confidence；多模态写回前新增
+    retain/no-adoption guard，低置信或空内容 retain、带 extracted text 的
+    no-adoption 均保持 pending，不进入 read model
 
 ## Native Planning Truth
 

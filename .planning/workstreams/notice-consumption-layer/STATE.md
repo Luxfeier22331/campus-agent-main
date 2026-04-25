@@ -16,12 +16,14 @@ updated: 2026-04-25
 **Total Plans in Phase:** 1
 **Progress:** 8/8 phases complete
 **Last Activity:** 2026-04-25
-**Last Activity Description:** Completed manual-review downline for the
-internal_notice consumption layer: new projection rows no longer emit
-`consumption_status=manual_review_required`; machine-continuable legacy manual
-promotion outcomes are routed to `pending_multimodal_processing`, hard
-unsupported outcomes are routed to `no_adoption`, and operator gap audit now
-reports processing states directly.
+**Last Activity Description:** Completed non-smoke closeout for the
+internal_notice consumption layer: legacy manual-review migration paths are
+removed, new projection rows no longer treat attachment classification as
+consumption status, promotion no longer emits attachment classification actions,
+selected rebuild/process/repair/drain commands
+record admission lifecycle with selection provenance and append-only events,
+downstream materializers read projection truth fail-closed, and fixed eval/schema
+artifacts now cover the non-real-smoke gates.
 
 ## Current Slice
 
@@ -84,7 +86,7 @@ reports processing states directly.
   - `regulations/institutional_rules` / `regulations/scoped_rules`
     materialization 已经通过 projection ready derived-unit truth 过滤 candidate
   - operator read-model 已能按 notice id 汇总 ready / held /
-    pending_multimodal / legacy manual / no-adoption units
+    pending_multimodal / no-adoption units
 - Phase 7 closeout：
   - `procurement_notice` notice category 与 projection unit 已落地
   - internal restricted `roster_publication` / `lecture_activity` no-adoption
@@ -96,7 +98,7 @@ reports processing states directly.
     `notice_level_query`，状态仍是 `retained_for_notice_query`
 - Phase 8 closeout：
   - operator/read-model status 可以按 notice id 汇总 ready / held /
-    pending_multimodal / legacy manual / no-adoption units 与原因
+    pending_multimodal / no-adoption units 与原因
   - explicit worker CLI `show_internal_notice_consumption_projection_status` 已落地
   - selected-notice rebuild 已改为 replace selected notices，避免局部 rebuild 留下
     stale projection units
@@ -129,17 +131,18 @@ reports processing states directly.
     - 新增 `check_internal_notice_read_model_consistency` worker CLI，用于只读
       比对 consumption projection 与 read model，报告 queryable projection
       missing rows 与 read-model extra rows
-  - 2026-04-25 manual-review downline：
-    - 新生成的 consumption projection 不再产出
-      `consumption_status=manual_review_required`
-    - legacy `manual_review_required` promotion action 若仍可机器继续处理，转为
+  - 2026-04-25 machine-processing downline：
+    - 新生成的 consumption projection 不再把 attachment classification 写成
+      consumption status
+    - promotion action 不再产出 attachment classification；若仍可机器继续处理，使用
+      `requires_multimodal_processing` 并转为
       `target_surface=multimodal_processing_candidate` 与
       `consumption_status=pending_multimodal_processing`
     - `input_lane_not_admitted` / `draft_signal_detected` /
       `unsupported_revision_track` 等硬性不采纳 reason 转为
       `target_surface=unsupported` 与 `consumption_status=no_adoption`
-    - status/report worker 增加 pending multimodal count，同时保留 legacy manual
-      count 用于历史数据暴露
+    - status/report worker 只暴露 pending multimodal / no-adoption /
+      authority-pending 等消费层状态，不再输出 legacy manual-review count
     - 新增 `check_internal_notice_processing_gaps` worker CLI，按 selected notices
       汇总 pending multimodal、authority pending、unsupported、no adoption、ready
       与 retained 状态
@@ -155,6 +158,53 @@ reports processing states directly.
       pending，不直接升格为 regulation target
     - read model 现在会把 `multimodal_summary` /
       `multimodal_extracted_text` 纳入 bounded excerpt/search text
+  - 2026-04-25 runtime closeout：
+    - consumer admission batch 现在按 selected notice 记录 started / completed /
+      failed lifecycle；operator 可用
+      `list_internal_notice_consumption_admissions` 查询批次
+    - admission batch 记录 selection source、selection path、selection sha256 与
+      command args；projection rebuild、multimodal processing、read-model rebuild
+      与 read-model repair 都纳入同一 lifecycle
+    - projection rebuild 会把 `consumer_admission_batch_id` /
+      `consumer_admission_command` /
+      `consumer_admission_created_at` 写入 projection row metadata
+    - multimodal processing attempts 已有 Postgres store，按
+      `(source_corpus, source_collection, unit_id, attempt_number)` 持久化，并记录
+      admission batch provenance
+    - `check_internal_notice_processing_gaps` gap unit 输出
+      `consumer_admission_batch_id`
+    - downstream `institutional_rules` / `scoped_rules` materializer 只读
+      configured projection store；未注入且 env 未配置 projection store 时直接
+      fail closed，不 fallback 到空 in-memory projection
+    - legacy manual-review consumption migration worker/core/test path
+      已移除；不迁移从未消费过的 legacy manual-review projection data
+    - runtime smoke CLI 会检查 projection rows 是否有 completed admission
+      provenance、pending multimodal units 是否已有 attempts，并可选检查 env
+      chat endpoint 配置
+    - multimodal decision JSONL eval gate 输出 accuracy 与
+      needs-additional-processing rate，并支持阈值；env doctor 增加
+      `internal-notice-consumption` surface
+  - 2026-04-25 non-smoke closeout：
+    - 新增
+      `configs/ingestion/campus_notices/internal_notice/consumption-layer-schema.sql`
+      作为 repo-owned PG schema artifact / operator runbook
+    - consumer admission current batch 之外新增 append-only
+      `internal_notice_consumption_admission_event` event log，记录 started /
+      completed / failed lifecycle 历史
+    - 新增 `drain_internal_notice_pending_multimodal_entries` core helper 与
+      `drain_internal_notice_pending_multimodal` worker CLI，只扫描
+      consumption projection pending units，不回扫 source-truth inventory
+    - multimodal eval CLI 默认读取 repo-tracked
+      `multimodal-decision-eval.v1.jsonl` fixture；真实 PG/chat smoke 本轮未运行
+  - 2026-04-25 multimodal eval hardening：
+    - `multimodal-decision-eval.v1.jsonl` 扩为 20 个 action/classification
+      case，覆盖 retain / no-adoption / needs-additional-processing
+    - 新增 `multimodal-visual-eval.v1.jsonl` 与
+      `evaluate_internal_notice_multimodal_visual` CLI，deterministic 检查
+      required text spans、forbidden claims、required reasons 与 confidence
+    - 多模态 projection 写回前增加 retain/no-adoption guard：low-confidence 或
+      空内容 retain、带 extracted text 的 no-adoption 均保持
+      `pending_multimodal_processing`，不进入 queryable read model
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
@@ -190,8 +240,13 @@ reports processing states directly.
   - procurement/no-adoption/service-status/form-template projection unit 测试
   - read-model consistency checker / worker CLI 测试
   - notice discover target surface facet 测试
-  - manual-review downline projection / status / rebuild report / processing gap
+  - machine-processing downline projection / status / rebuild report / processing gap
     checker 测试
+  - consumer admission lifecycle / append-only event log / list CLI /
+    persistent attempt store / runtime smoke / multimodal eval gate 测试
+  - read-model rebuild/repair admission lifecycle 测试
+  - downstream projection-store fail-closed 测试
+  - legacy manual-review consumption migration/action removal guard 测试
 - planning verification:
   - `git diff --check -- ...notice-consumption-layer...`
 
