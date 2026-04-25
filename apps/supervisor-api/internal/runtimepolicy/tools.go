@@ -18,7 +18,7 @@ func AllowedToolsForTarget(target string) []string {
 	if !ok {
 		return nil
 	}
-	return append([]string(nil), allowedTools...)
+	return append(make([]string, 0, len(allowedTools)), allowedTools...)
 }
 
 func AllowedToolsForPayloadKind(target string, payloadKind string) []string {
