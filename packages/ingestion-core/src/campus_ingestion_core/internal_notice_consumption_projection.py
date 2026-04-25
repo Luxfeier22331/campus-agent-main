@@ -92,6 +92,66 @@ class InternalNoticeConsumptionProjectionObjectStore(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
+NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED = "not_required"
+NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS = "process"
+NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP = "skip"
+NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER = "low_value_ephemeral_event_poster"
+_LOW_VALUE_EPHEMERAL_EVENT_POSTER_KEYWORDS = (
+    "讲座预告",
+    "讲座",
+    "讲堂",
+    "大讲堂",
+    "名家讲堂",
+    "论坛",
+    "女教授论坛",
+    "工作坊",
+    "读书会",
+    "宣讲",
+    "项目宣讲",
+    "活动",
+    "体验活动",
+    "行业导师进课堂",
+    "挑战杯",
+    "赛事",
+    "邀请函",
+)
+_HIGH_VALUE_MULTIMODAL_PROCESSING_KEYWORDS = (
+    "采购",
+    "招标",
+    "比选",
+    "询价",
+    "竞价",
+    "成交",
+    "中标",
+    "中选",
+    "公示",
+    "名单",
+    "结果",
+    "办法",
+    "规定",
+    "细则",
+    "条例",
+    "章程",
+    "准则",
+    "指导意见",
+    "流程",
+    "操作手册",
+    "手册",
+    "附件",
+    "材料",
+    "表格",
+    "申请表",
+    "报名表",
+    "二维码",
+    "扫码",
+    "报名方式",
+    "报名链接",
+    "报名二维码",
+    "下载",
+    "文件发布",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class NoticeConsumptionProjectionUnitStatus:
     unit_id: str
@@ -113,6 +173,9 @@ class NoticeConsumptionProjectionStatus:
     no_adoption_unit_count: int
     has_target_ready_units: bool
     units: tuple[NoticeConsumptionProjectionUnitStatus, ...]
+    source_multimodal_required_count: int = 0
+    multimodal_skipped_low_value_count: int = 0
+    multimodal_action_required_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +205,19 @@ class InternalNoticeProcessingGapsReport:
     consumption_status_counts: dict[str, int]
     target_surface_counts: dict[str, int]
     gap_units: tuple[InternalNoticeProcessingGapUnit, ...]
+    source_multimodal_required_count: int = 0
+    multimodal_skipped_low_value_count: int = 0
+    multimodal_action_required_count: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _MultimodalConsumptionDecision:
+    policy: str
+    source_required_count: int = 0
+    pending_attachment_count: int = 0
+    skipped_attachment_count: int = 0
+    action_required: bool = False
+    skip_reason: str = ""
 
 
 def build_internal_notice_consumption_projection_entries(
@@ -334,6 +410,14 @@ def read_notice_consumption_projection_status(
     no_adoption_count = sum(
         1 for entry in entries if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
     )
+    source_multimodal_required_count = _sum_notice_multimodal_metadata(
+        entries,
+        "source_multimodal_processing_required_count",
+    )
+    multimodal_skipped_low_value_count = _sum_notice_multimodal_metadata(
+        entries,
+        "multimodal_skipped_attachment_count",
+    )
     return NoticeConsumptionProjectionStatus(
         source_corpus=source_corpus,
         source_collection=source_collection,
@@ -345,6 +429,9 @@ def read_notice_consumption_projection_status(
         no_adoption_unit_count=no_adoption_count,
         has_target_ready_units=ready_count > 0,
         units=units,
+        source_multimodal_required_count=source_multimodal_required_count,
+        multimodal_skipped_low_value_count=multimodal_skipped_low_value_count,
+        multimodal_action_required_count=pending_multimodal_count,
     )
 
 
@@ -386,6 +473,14 @@ def check_internal_notice_processing_gaps(
         for entry in entries
         if is_notice_query_retained_consumption_status(entry.consumption_status)
     )
+    source_multimodal_required_count = _sum_notice_multimodal_metadata(
+        entries,
+        "source_multimodal_processing_required_count",
+    )
+    multimodal_skipped_low_value_count = _sum_notice_multimodal_metadata(
+        entries,
+        "multimodal_skipped_attachment_count",
+    )
     return InternalNoticeProcessingGapsReport(
         source_corpus=source_corpus,
         source_collection=source_collection,
@@ -400,7 +495,26 @@ def check_internal_notice_processing_gaps(
         consumption_status_counts=dict(sorted(consumption_status_counts.items())),
         target_surface_counts=dict(sorted(target_surface_counts.items())),
         gap_units=tuple(_build_processing_gap_units(entries)),
+        source_multimodal_required_count=source_multimodal_required_count,
+        multimodal_skipped_low_value_count=multimodal_skipped_low_value_count,
+        multimodal_action_required_count=pending_multimodal_count,
     )
+
+
+def _sum_notice_multimodal_metadata(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+    key: str,
+) -> int:
+    values_by_notice_id: dict[str, int] = {}
+    for entry in entries:
+        value = _coerce_int(entry.role_metadata.get(key))
+        if value <= 0:
+            continue
+        values_by_notice_id[entry.source_notice_id] = max(
+            values_by_notice_id.get(entry.source_notice_id, 0),
+            value,
+        )
+    return sum(values_by_notice_id.values())
 
 
 def _build_unit_status(
@@ -512,6 +626,7 @@ def _build_notice_window_entry(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
 ) -> NoticeConsumptionProjectionEntry:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+    multimodal_decision = _resolve_inventory_multimodal_consumption_decision(inventory_entry)
     return NoticeConsumptionProjectionEntry(
         source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
         source_corpus=inventory_entry.corpus,
@@ -538,10 +653,11 @@ def _build_notice_window_entry(
             "text_extractable_count": inventory_entry.text_extractable_count,
             "ocr_required_count": inventory_entry.ocr_required_count,
             "reference_only_count": inventory_entry.reference_only_count,
-            "pending_multimodal_attachment_count": (
-                inventory_entry.multimodal_processing_required_count
-            ),
             "owner_expectation_count": int(parent_snapshot.get("owner_expectation_count") or 0),
+            **_build_multimodal_consumption_metadata(
+                multimodal_decision,
+                include_not_required=True,
+            ),
         },
     )
 
@@ -757,9 +873,25 @@ def _build_document_consumption_entry(
     combined_text = "\n".join(item for item in (title, promotion_body) if item)
     semantic_owner = _resolve_semantic_owner(report)
     completeness_status = _resolve_completeness_status(report)
+    multimodal_decision = _resolve_report_multimodal_consumption_decision(
+        report=report,
+        inventory_entry=inventory_entry,
+        title=title,
+        body=promotion_body,
+    )
+    if (
+        _requires_multimodal_processing(report)
+        and multimodal_decision.policy == NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP
+    ):
+        completeness_status = NOTICE_COMPLETENESS_REFERENCE_ONLY
     answerability = _resolve_answerability(completeness_status=completeness_status)
     target_surface = _resolve_target_surface(primary_role)
-    if _requires_multimodal_processing(report):
+    if (
+        _requires_multimodal_processing(report)
+        and multimodal_decision.policy == NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP
+    ):
+        target_surface = NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+    elif _requires_multimodal_processing(report):
         target_surface = NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
     elif _is_unsupported_machine_processing_reason(report):
         target_surface = NOTICE_TARGET_SURFACE_UNSUPPORTED
@@ -822,9 +954,118 @@ def _build_document_consumption_entry(
             "school_unit_name": _extract_school_unit_name(title),
             "campus_site": _extract_campus_site(combined_text),
             "force_status": _extract_force_status(combined_text),
-            **_build_processing_gap_metadata(report),
+            **_build_multimodal_consumption_metadata(multimodal_decision),
+            **_build_processing_gap_metadata(report, multimodal_decision),
         },
     )
+
+
+def _resolve_inventory_multimodal_consumption_decision(
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
+) -> _MultimodalConsumptionDecision:
+    source_required_count = max(
+        0,
+        int(inventory_entry.multimodal_processing_required_count or 0),
+    )
+    if source_required_count <= 0:
+        return _MultimodalConsumptionDecision(
+            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED
+        )
+    parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
+    if _looks_like_low_value_ephemeral_event_poster(notice_title):
+        return _MultimodalConsumptionDecision(
+            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+            source_required_count=source_required_count,
+            skipped_attachment_count=source_required_count,
+            skip_reason=NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
+        )
+    return _MultimodalConsumptionDecision(
+        policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+        source_required_count=source_required_count,
+        pending_attachment_count=source_required_count,
+        action_required=True,
+    )
+
+
+def _resolve_report_multimodal_consumption_decision(
+    *,
+    report: InternalNoticeRegulationPromotionDocumentReport,
+    inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
+    title: str,
+    body: str,
+) -> _MultimodalConsumptionDecision:
+    source_required_count = (
+        max(0, int(inventory_entry.multimodal_processing_required_count or 0))
+        if inventory_entry is not None
+        else 0
+    )
+    if not _requires_multimodal_processing(report):
+        return _MultimodalConsumptionDecision(
+            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED,
+            source_required_count=source_required_count,
+        )
+    parent_title = ""
+    if inventory_entry is not None:
+        parent_snapshot = dict(inventory_entry.parent_snapshot or {})
+        parent_title = str(parent_snapshot.get("notice_title") or "")
+    policy_text = "\n".join(
+        item
+        for item in (
+            report.source_title,
+            title,
+            report.regulation_title_normalized or "",
+            parent_title,
+            body,
+        )
+        if item
+    )
+    if _looks_like_low_value_ephemeral_event_poster(policy_text):
+        skipped_count = source_required_count or 1
+        return _MultimodalConsumptionDecision(
+            policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+            source_required_count=source_required_count,
+            skipped_attachment_count=skipped_count,
+            skip_reason=NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
+        )
+    return _MultimodalConsumptionDecision(
+        policy=NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+        source_required_count=source_required_count,
+        pending_attachment_count=source_required_count or 1,
+        action_required=True,
+    )
+
+
+def _build_multimodal_consumption_metadata(
+    decision: _MultimodalConsumptionDecision,
+    *,
+    include_not_required: bool = False,
+) -> dict[str, object]:
+    if (
+        not include_not_required
+        and decision.policy == NOTICE_MULTIMODAL_CONSUMPTION_POLICY_NOT_REQUIRED
+        and decision.source_required_count <= 0
+    ):
+        return {}
+    metadata: dict[str, object] = {
+        "source_multimodal_processing_required_count": decision.source_required_count,
+        "pending_multimodal_attachment_count": decision.pending_attachment_count,
+        "multimodal_consumption_policy": decision.policy,
+        "multimodal_action_required": decision.action_required,
+        "multimodal_skipped_attachment_count": decision.skipped_attachment_count,
+    }
+    if decision.skip_reason:
+        metadata["multimodal_skip_reason"] = decision.skip_reason
+    return metadata
+
+
+def _looks_like_low_value_ephemeral_event_poster(text: str) -> bool:
+    normalized = "".join(str(text or "").split())
+    if not normalized:
+        return False
+    if any(keyword in normalized for keyword in _HIGH_VALUE_MULTIMODAL_PROCESSING_KEYWORDS):
+        return False
+    return any(keyword in normalized for keyword in _LOW_VALUE_EPHEMERAL_EVENT_POSTER_KEYWORDS)
 
 
 def _resolve_primary_role(
@@ -965,8 +1206,12 @@ def _is_unsupported_machine_processing_reason(
 
 def _build_processing_gap_metadata(
     report: InternalNoticeRegulationPromotionDocumentReport,
+    multimodal_decision: _MultimodalConsumptionDecision,
 ) -> dict[str, object]:
-    if _requires_multimodal_processing(report):
+    if (
+        _requires_multimodal_processing(report)
+        and multimodal_decision.policy == NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS
+    ):
         return {
             "processing_gap_reason": "multimodal_processing_required",
         }
@@ -1264,3 +1509,10 @@ def _looks_like_lecture_activity(title: str) -> bool:
             "文华讲堂",
         )
     )
+
+
+def _coerce_int(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0

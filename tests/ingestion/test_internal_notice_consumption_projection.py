@@ -11,6 +11,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
 from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
     NOTICE_COMPLETENESS_COMPLETE,
+    NOTICE_COMPLETENESS_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
@@ -18,6 +19,9 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
+    NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+    NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+    NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
     NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,
@@ -592,6 +596,158 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             pending_unit.role_metadata["processing_gap_reason"],
             "multimodal_processing_required",
         )
+        self.assertEqual(
+            pending_unit.role_metadata["multimodal_consumption_policy"],
+            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+        )
+        self.assertTrue(pending_unit.role_metadata["multimodal_action_required"])
+
+    def test_low_value_event_poster_multimodal_gap_is_retained_without_token_spend(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355546",
+                    title_slug="dance-lecture-poster",
+                    title="讲座预告丨舞蹈学院名家讲堂",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry_with_multimodal_inline_images(
+                    notice_id="355546",
+                    notice_title="讲座预告丨舞蹈学院名家讲堂",
+                    count=1,
+                ),
+            )
+        )
+        machine_processing_report = _machine_processing_report(
+            document_id="notice:muc_internal_portal:355546",
+            notice_id="355546",
+            document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+            reasons=("promotion_class_ambiguous",),
+            source_title="讲座预告丨舞蹈学院名家讲堂",
+        )
+
+        with patch(
+            "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
+            return_value=_manifest_report((machine_processing_report,)),
+        ):
+            entries = build_internal_notice_consumption_projection_entries(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+            )
+
+        notice_window = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355546"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
+        )
+        retained_machine_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355546"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+        )
+
+        self.assertEqual(notice_window.role_metadata["pending_multimodal_attachment_count"], 0)
+        self.assertEqual(
+            notice_window.role_metadata["source_multimodal_processing_required_count"],
+            1,
+        )
+        self.assertEqual(
+            notice_window.role_metadata["multimodal_consumption_policy"],
+            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+        )
+        self.assertEqual(
+            notice_window.role_metadata["multimodal_skip_reason"],
+            NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
+        )
+        self.assertEqual(
+            retained_machine_unit.target_surface, NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY
+        )
+        self.assertEqual(
+            retained_machine_unit.completeness_status,
+            NOTICE_COMPLETENESS_REFERENCE_ONLY,
+        )
+        self.assertEqual(
+            retained_machine_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+        self.assertEqual(
+            retained_machine_unit.role_metadata["multimodal_consumption_policy"],
+            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP,
+        )
+        self.assertEqual(
+            retained_machine_unit.role_metadata["multimodal_skip_reason"],
+            NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER,
+        )
+        self.assertFalse(
+            any(
+                entry.consumption_status == NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
+                for entry in entries
+                if entry.source_notice_id == "355546"
+            )
+        )
+
+    def test_high_value_multimodal_gap_stays_action_required(self) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355403",
+                    title_slug="research-manual",
+                    title="关于科研系统操作手册详见附件的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry_with_multimodal_inline_images(
+                    notice_id="355403",
+                    notice_title="关于科研系统操作手册详见附件的通知",
+                    count=1,
+                ),
+            )
+        )
+        machine_processing_report = _machine_processing_report(
+            document_id="notice:muc_internal_portal:355403",
+            notice_id="355403",
+            document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
+            reasons=("promotion_class_ambiguous",),
+            source_title="关于科研系统操作手册详见附件的通知",
+        )
+
+        with patch(
+            "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
+            return_value=_manifest_report((machine_processing_report,)),
+        ):
+            entries = build_internal_notice_consumption_projection_entries(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+            )
+
+        pending_unit = next(
+            entry
+            for entry in entries
+            if entry.source_notice_id == "355403"
+            and entry.primary_role == NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE
+        )
+        self.assertEqual(
+            pending_unit.consumption_status,
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(
+            pending_unit.role_metadata["multimodal_consumption_policy"],
+            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS,
+        )
+        self.assertTrue(pending_unit.role_metadata["multimodal_action_required"])
 
     def test_hard_machine_processing_reasons_become_unsupported_no_adoption(
         self,
@@ -805,6 +961,9 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
 
         self.assertEqual(report.projection_entry_count, 4)
         self.assertEqual(report.pending_multimodal_processing_count, 1)
+        self.assertEqual(report.source_multimodal_required_count, 0)
+        self.assertEqual(report.multimodal_skipped_low_value_count, 0)
+        self.assertEqual(report.multimodal_action_required_count, 1)
         self.assertEqual(report.authority_pending_count, 1)
         self.assertEqual(report.unsupported_count, 1)
         self.assertEqual(report.no_adoption_count, 1)
@@ -818,6 +977,59 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
                 "notice_unit:355001:unsupported",
                 "notice_unit:355003:authority_pending",
             },
+        )
+
+    def test_check_internal_notice_processing_gaps_splits_skipped_source_multimodal_counts(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                replace(
+                    _projection_entry("355546"),
+                    unit_id="notice_unit:355546:notice_window",
+                    role_metadata={
+                        "source_multimodal_processing_required_count": 1,
+                        "pending_multimodal_attachment_count": 0,
+                        "multimodal_consumption_policy": (
+                            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_SKIP
+                        ),
+                        "multimodal_skip_reason": (
+                            NOTICE_MULTIMODAL_SKIP_REASON_LOW_VALUE_EPHEMERAL_EVENT_POSTER
+                        ),
+                        "multimodal_skipped_attachment_count": 1,
+                    },
+                ),
+                replace(
+                    _projection_entry("355403"),
+                    unit_id="notice_unit:355403:pending_multimodal",
+                    target_surface=NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+                    consumption_status=NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+                    role_metadata={
+                        "source_multimodal_processing_required_count": 1,
+                        "pending_multimodal_attachment_count": 1,
+                        "multimodal_consumption_policy": (
+                            NOTICE_MULTIMODAL_CONSUMPTION_POLICY_PROCESS
+                        ),
+                        "multimodal_action_required": True,
+                        "processing_gap_reason": "multimodal_processing_required",
+                    },
+                ),
+            )
+        )
+
+        report = check_internal_notice_processing_gaps(
+            projection_store=projection_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+        )
+
+        self.assertEqual(report.source_multimodal_required_count, 2)
+        self.assertEqual(report.multimodal_skipped_low_value_count, 1)
+        self.assertEqual(report.multimodal_action_required_count, 1)
+        self.assertEqual(report.pending_multimodal_processing_count, 1)
+        self.assertEqual(
+            {unit.unit_id for unit in report.gap_units},
+            {"notice_unit:355403:pending_multimodal"},
         )
 
 
@@ -1006,6 +1218,37 @@ def _inventory_entry_with_attachment_projection_plans(
     )
 
 
+def _inventory_entry_with_multimodal_inline_images(
+    *,
+    notice_id: str,
+    notice_title: str,
+    count: int,
+):
+    plans = tuple(
+        {
+            "attachment_ref_id": f"inline-image-{index + 1:04d}",
+            "classification": "multimodal_processing_required",
+            "content_kind": "inline_image",
+            "materialization_policy": "multimodal_processing",
+            "resource_role": "inline_image",
+        }
+        for index in range(count)
+    )
+    entry = _inventory_entry(notice_id=notice_id, notice_title=notice_title)
+    parent_snapshot = dict(entry.parent_snapshot)
+    parent_snapshot["attachment_projection_plans"] = [dict(plan) for plan in plans]
+    parent_snapshot["multimodal_processing_required_count"] = count
+    return replace(
+        entry,
+        attachment_ref_count=count,
+        multimodal_processing_required_count=count,
+        notice_risk_label="body_with_spatial_attachments",
+        attachment_mix_score=count + 1,
+        has_spatial_attachment=count > 0,
+        parent_snapshot=parent_snapshot,
+    )
+
+
 def _projection_entry(notice_id: str):
     inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
     inventory_store.upsert_many(
@@ -1034,13 +1277,14 @@ def _machine_processing_report(
     notice_id: str,
     document_nature: str,
     reasons: tuple[str, ...],
+    source_title: str = "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
 ) -> InternalNoticeRegulationPromotionDocumentReport:
     return InternalNoticeRegulationPromotionDocumentReport(
         document_id=document_id,
         notice_id=notice_id,
         site_id="muc_internal_portal",
         source_kind="parent_notice",
-        source_title="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+        source_title=source_title,
         input_lane="notice_body",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
@@ -1050,7 +1294,7 @@ def _machine_processing_report(
         semantic_owner_kind="notice_body",
         target_corpus="regulations",
         target_collection="scoped_rules",
-        regulation_title_normalized="新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+        regulation_title_normalized=source_title,
         issuing_org="中央民族大学",
         effective_date=None,
         revision_signal=None,

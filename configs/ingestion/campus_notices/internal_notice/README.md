@@ -31,6 +31,10 @@ It does not carry:
 - `notice-family-classification.v1.json`
   - read-only notice-family admission metadata used by inventory/replay/operator
     read models
+- `routing-taxonomy-eval.v1.jsonl`
+  - fixed routing taxonomy fixture consumed by the deterministic eval gate for
+    `notice_family`, `suggested_consumption_route`, and
+    `machine_processing_policy`
 - `promotion-routing.v1.json`
   - downstream routing scaffold for `regulations/institutional_rules` and
     `regulations/scoped_rules`
@@ -72,6 +76,17 @@ Current interpretation is:
   ...`
   - read-only promotion manifest builder for `candidate / hold /
     requires_multimodal_processing`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.sample_authenticated_notice_routing_candidates ...`
+  - read-only stratified routing sampler for notice-family taxonomy review; it
+    can replay a historical bundle or sample current source-truth inventory, and
+    does not create consumption admission
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
+  --fail-on-error`
+  - deterministic routing taxonomy gate for repo-tracked JSONL fixtures; it
+    validates notice family, suggested route, and machine-processing policy
+    before taxonomy rule changes are promoted
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`

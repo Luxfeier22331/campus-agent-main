@@ -131,6 +131,232 @@ class AuthenticatedNoticeNoticeFamilyClassificationTest(unittest.TestCase):
         self.assertEqual(classification.family, "operational_procedure")
         self.assertEqual(classification.admission_policy, "admit_next")
 
+    def test_classify_course_teaching_arrangement_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=16,
+                title="关于2025-2026学年第二学期本科生网上选课的通知",
+                notice_type="6",
+                notice_type_name="教学通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "course_teaching_arrangement")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_exchange_visit_project_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=17,
+                title="关于启动2026年国家留学基金委与加拿大麦克马斯特大学合作奖学金项目校内遴选工作的通知",
+                notice_type="6",
+                notice_type_name="教学通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "exchange_visit_project")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_document_collection_deadline_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=18,
+                title="关于做好2025-2026学年全国大学生实习公共服务平台数据报送工作的通知",
+                notice_type="6",
+                notice_type_name="教学通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "document_collection_deadline")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_academic_affairs_lifecycle_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=20,
+                title="关于开展2026届本科生毕业论文（设计）检测工作的通知",
+                notice_type="6",
+                notice_type_name="教学通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "academic_affairs_lifecycle")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_finance_payment_action_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=21,
+                title="关于确认发放2025年12月份研究生助管、助研岗位津贴的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "finance_payment_action")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_health_medical_action_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=22,
+                title="关于组织2026年度教职工体检的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "health_medical_action")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_form_template_download_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=23,
+                title="关于发布2025年寒假期间学校值班汇总表的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "form_template_download")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_survey_feedback_collection_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=24,
+                title="关于组织填答党纪学习教育调查问卷的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "survey_feedback_collection")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_facility_service_status_as_service_status_candidate(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=25,
+                title="关于海淀校区部分配电室停电抢修的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "facility_service_status")
+        self.assertEqual(classification.admission_policy, "hold_notice_runtime")
+
+    def test_classify_it_platform_service_status_as_service_status_candidate(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=26,
+                title="关于信息门户升级维护的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "it_platform_service_status")
+        self.assertEqual(classification.admission_policy, "hold_notice_runtime")
+
+    def test_classify_library_service_status_as_service_status_candidate(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=27,
+                title="中央民族大学图书馆2026年寒假期间开放安排",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "library_service_status")
+        self.assertEqual(classification.admission_policy, "hold_notice_runtime")
+
+    def test_classify_library_resource_notice_as_notice_query(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=28,
+                title="关于 JSTOR 数据库恢复开通的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "library_resource_notice")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_transport_commute_status_as_service_status_candidate(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=29,
+                title="关于两校区学生通勤班车增加班次的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "transport_commute_status")
+        self.assertEqual(classification.admission_policy, "hold_notice_runtime")
+
+    def test_classify_internal_governance_party_admin_as_defer(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=30,
+                title="关于召开中央民族大学第九届党委第一轮巡察动员部署会的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "internal_governance_party_admin")
+        self.assertEqual(classification.admission_policy, "defer")
+
+    def test_classify_general_publicity_culture_as_defer(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=31,
+                title="民图影坛第五十七期 |《高山盛装》",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "general_publicity_culture")
+        self.assertEqual(classification.admission_policy, "defer")
+
+    def test_policy_regulation_still_wins_over_internal_governance_terms(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=32,
+                title="关于修订《中央民族大学党委会议事规则》的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "policy_regulation")
+        self.assertEqual(classification.admission_policy, "priority_now")
+
+    def test_database_trial_is_library_resource_not_service_status(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=33,
+                title="关于 “SpecialSci专题数据库”试用开通的通知",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "library_resource_notice")
+        self.assertEqual(classification.admission_policy, "notice_level_query")
+
+    def test_classify_job_recruitment_as_defer(self) -> None:
+        classification = classify_authenticated_notice_bundle_record(
+            _bundle_record(
+                notice_id=19,
+                title="国际教育学院招聘学生助理的通知",
+                notice_type="10",
+                notice_type_name="就业信息",
+            ),
+            config=self.config,
+        )
+
+        self.assertEqual(classification.family, "job_recruitment")
+        self.assertEqual(classification.admission_policy, "defer")
+
     def test_classify_social_practice_notice_as_event_activity(self) -> None:
         classification = classify_authenticated_notice_bundle_record(
             _bundle_record(

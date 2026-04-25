@@ -104,6 +104,67 @@
 			]
 		},
 		{
+			"family": "facility_service_status",
+			"admission_policy": "hold_notice_runtime",
+			"priority": 62,
+			"description": "教室、宿舍、公寓、场馆、楼宇、停水停电、施工抢修和设施开放/关闭类状态通知；进入 service-status candidate。",
+			"title_any_patterns": [
+				"停水",
+				"停电",
+				"抢修",
+				"施工",
+				"维修",
+				"开放运营",
+				"气膜馆开放",
+				"学生公寓.*防治",
+				"教室.*开放",
+				"场馆.*开放",
+				"体育馆.*开放"
+			],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "工作规程", "制度", "规范", "条例", "章程", "准则", "指导意见", "手册", "指南", "方案", "规则"]
+		},
+		{
+			"family": "it_platform_service_status",
+			"admission_policy": "hold_notice_runtime",
+			"priority": 61,
+			"description": "信息门户、校园网、VPN、邮箱、一卡通和线上平台的维护、升级、停用、断网、异常与恢复通知；进入 service-status candidate。",
+			"title_any_patterns": [
+				"信息门户.*(升级|维护|异常|恢复)",
+				"校园网.*(断网|维护|异常|恢复)",
+				"有线网.*(断网|维护|异常|恢复)",
+				"VPN.*(维护|异常|恢复)",
+				"邮箱.*(维护|异常|恢复)",
+				"一卡通.*(停用|维护|异常|恢复|充值)",
+				"网费.*充值",
+				"电费.*充值",
+				"系统.*(升级|维护|停用|恢复)"
+			],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "工作规程", "制度", "规范", "条例", "章程", "准则", "指导意见", "手册", "指南", "方案", "规则"]
+		},
+		{
+			"family": "library_service_status",
+			"admission_policy": "hold_notice_runtime",
+			"priority": 60,
+			"description": "图书馆开放安排、闭馆、开放时间、放假服务和认证异常类状态通知；进入 service-status candidate。",
+			"title_any_patterns": [
+				"图书馆.*开放安排",
+				"图书馆.*开放时间",
+				"图书馆.*闭馆",
+				"图书馆.*放假",
+				"图书馆.*消息接收异常",
+				"图书馆.*身份认证"
+			],
+			"title_exclude_patterns": ["数据库", "电子资源", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南", "规则"]
+		},
+		{
+			"family": "transport_commute_status",
+			"admission_policy": "hold_notice_runtime",
+			"priority": 59,
+			"description": "校车、班车、通勤班车、线路、班次和运行时间调整类通知；进入 service-status candidate。",
+			"title_any_patterns": ["校车.*运行", "班车.*(调整|增加|运行|班次|时间)", "通勤班车.*(调整|增加|运行|班次|时间)"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南", "规则"]
+		},
+		{
 			"family": "roster_publication",
 			"admission_policy": "admit_after_policy",
 			"priority": 50,
@@ -118,6 +179,102 @@
 				"结果公示",
 				"最终公示"
 			]
+		},
+		{
+			"family": "course_teaching_arrangement",
+			"admission_policy": "notice_level_query",
+			"priority": 78,
+			"description": "选课、考试、课程调整、排课调课等教学运行安排；保留 notice-level 查询，不作为规章制度正文。",
+			"title_any_patterns": ["网上选课", "选课", "课程调整", "课程安排", "考试安排", "补考", "缓考", "排课", "调课"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "exchange_visit_project",
+			"admission_policy": "notice_level_query",
+			"priority": 76,
+			"description": "访学、留学基金、境外交流和合作奖学金项目通知；作为项目类 notice 查询，不进入 regulation。",
+			"title_any_patterns": ["访学", "留学基金", "合作奖学金", "境外", "海外", "交流项目", "派出研究生"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "student_affairs_application",
+			"admission_policy": "notice_level_query",
+			"priority": 74,
+			"description": "学生报名、资格审核、评优、奖助、推优和校内遴选类通知；保留行动型 notice 查询。",
+			"title_any_patterns": ["报名", "资格审核", "奖学金", "助学金", "评优", "推优", "校内遴选", "遴选工作"],
+			"title_exclude_patterns": ["讲座预告", "论坛", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "document_collection_deadline",
+			"admission_policy": "notice_level_query",
+			"priority": 72,
+			"description": "材料提交、数据报送、填报、征集和稿件收集类通知；保留 deadline/action 查询。",
+			"title_any_patterns": ["报送", "提交", "填报", "征集", "数据报送", "材料提交", "材料报送", "稿件"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "research_project_application",
+			"admission_policy": "notice_level_query",
+			"priority": 70,
+			"description": "科研项目、课题、专项项目、立项、结项和中期检查类通知；作为项目申报/管理 notice 查询。",
+			"title_any_patterns": ["项目申报", "课题", "基金项目", "科研项目", "专项(项目|计划|课题|申报|资金|基金)", "立项", "结项", "中期检查", "科研诚信"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "safety_compliance_notice",
+			"admission_policy": "notice_level_query",
+			"priority": 66,
+			"description": "安全、消防、保密、交通安全和专项检查类通知；优先保留 notice-level 查询，不直接 promotion。",
+			"title_any_patterns": ["安全", "消防", "保密", "交通安全", "专项检查", "检查"],
+			"title_exclude_patterns": ["安全管理办法", "安全管理规定", "安全实施细则", "制度", "手册", "指南"]
+		},
+		{
+			"family": "academic_affairs_lifecycle",
+			"admission_policy": "notice_level_query",
+			"priority": 65,
+			"description": "毕业、学位、论文、答辩、普通话/四六级、教育教学能力考核、教材、培养方案和实习实践等教务生命周期通知。",
+			"title_any_patterns": ["毕业论文", "学位论文", "预答辩", "答辩", "毕业生", "学位", "普通话水平测试", "四六级", "四级", "六级", "教育教学能力考核", "教材", "培养方案", "实习", "实践教学"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "工作规程", "制度", "规范", "条例", "章程", "准则", "指导意见", "手册", "指南", "赛事指导教师"]
+		},
+		{
+			"family": "finance_payment_action",
+			"admission_policy": "notice_level_query",
+			"priority": 64,
+			"description": "缴费、退费、补贴、津贴、发票、充值和财务办理等行动型财务通知。",
+			"title_any_patterns": ["缴费", "收费", "退费", "补贴", "津贴", "发票", "充值", "财务办理", "助管.*津贴", "助研.*津贴"],
+			"title_exclude_patterns": ["预算批复", "新增资产预算", "固定资产登记", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "health_medical_action",
+			"admission_policy": "notice_level_query",
+			"priority": 63,
+			"description": "体检、疫苗、校医院、医保、健康保和传染病防控等健康医疗行动型通知。",
+			"title_any_patterns": ["体检", "疫苗", "校医院", "医保", "健康保", "艾滋病", "结核", "传染病", "HPV"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "form_template_download",
+			"admission_policy": "notice_level_query",
+			"priority": 57,
+			"description": "表格、模板、申请表、登记表、汇总表和常用下载类通知；保留 notice-level 查询与附件线索。",
+			"title_any_patterns": ["常用下载", "下载", "表格", "模板", "申请表", "登记表", "汇总表"],
+			"title_exclude_patterns": ["数据库", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "survey_feedback_collection",
+			"admission_policy": "notice_level_query",
+			"priority": 56,
+			"description": "问卷、调查、征求意见、满意度反馈和信息采集类通知；保留 action/deadline 查询。",
+			"title_any_patterns": ["问卷", "调查问卷", "征求意见", "满意度", "信息采集"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "library_resource_notice",
+			"admission_policy": "notice_level_query",
+			"priority": 54,
+			"description": "图书馆数据库、电子资源、文献资源试用、开通与恢复类通知；保留 notice-level 查询。",
+			"title_any_patterns": ["数据库.*(试用|开通|恢复)", "电子资源", "文献.*(数据库|资源)", "SpecialSci", "JSTOR", "科研支持数据库"],
+			"title_exclude_patterns": ["开放安排", "开放时间", "闭馆", "放假", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
 		},
 		{
 			"family": "operational_procedure",
@@ -139,6 +296,46 @@
 			"title_exclude_patterns": ["讲座预告", "比赛", "活动预告"]
 		},
 		{
+			"family": "meeting_training",
+			"admission_policy": "defer",
+			"priority": 30,
+			"description": "培训、会议、说明会、启动会、座谈会和研讨会；默认延后，除非后续样本证明需要行动型查询。",
+			"title_any_patterns": ["培训", "会议", "说明会", "启动会", "座谈会", "研讨会"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南", "规则", "规程", "条例", "章程", "准则"]
+		},
+		{
+			"family": "competition_event",
+			"admission_policy": "defer",
+			"priority": 25,
+			"description": "竞赛、比赛、大赛和预选赛类活动通知；默认延后，不为海报类内容花费多模态 token。",
+			"title_any_patterns": ["竞赛", "比赛", "大赛", "预选赛"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "job_recruitment",
+			"admission_policy": "defer",
+			"priority": 18,
+			"description": "招聘、实习岗位和勤工助学类通知；当前默认延后，不进入 deep consumption。",
+			"title_any_patterns": ["招聘", "勤工助学", "实习岗位", "就业"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
+			"family": "internal_governance_party_admin",
+			"admission_policy": "defer",
+			"priority": 16,
+			"description": "党团、工会、委员会、换届、巡察、组织生活会、廉洁提醒等内部治理活动通知；制度类仍由 policy_regulation 接管。",
+			"title_any_patterns": ["组织生活会", "民主评议党员", "党费", "中央八项规定", "廉洁过节", "党委", "团委", "工会", "委员会", "换届", "巡察"],
+			"title_exclude_patterns": ["管理办法", "管理规定", "实施细则", "工作规程", "制度", "规范", "条例", "章程", "准则", "指导意见", "手册", "指南", "规则", "规程"]
+		},
+		{
+			"family": "general_publicity_culture",
+			"admission_policy": "defer",
+			"priority": 14,
+			"description": "影坛、阅读推广、展演、音乐会、文化体验和一般邀请函等宣传文化类通知；默认延后。",
+			"title_any_patterns": ["影坛", "阅读之星", "阅读推广", "音乐会", "展演", "非遗进校园", "文化体验", "邀请函"],
+			"title_exclude_patterns": ["报名", "资格审核", "提交", "报送", "管理办法", "管理规定", "实施细则", "制度", "规范", "手册", "指南"]
+		},
+		{
 			"family": "policy_regulation",
 			"admission_policy": "priority_now",
 			"priority": 100,
@@ -152,6 +349,7 @@
 				"规程",
 				"条例",
 				"章程",
+				"规则",
 				"准则",
 				"指导意见",
 				"应知应会手册",
