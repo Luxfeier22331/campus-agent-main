@@ -4,6 +4,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_classificatio
     _build_attachment_title,
     _classify_attachment_ref,
     build_authenticated_notice_attachment_projection_plans,
+    build_authenticated_notice_attachment_routing_records,
 )
 from campus_ingestion_core.authenticated_notice_source_projections_engine import (
     _project_parent_source_truth as _project_parent_source_truth_impl,
@@ -16,6 +17,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_shared import
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_UNSUPPORTED_BINARY,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
@@ -91,6 +93,7 @@ __all__ = [
     "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT",
     "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED",
     "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT",
+    "AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_UNSUPPORTED_BINARY",
     "AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT",
     "AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING",
     "AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT",
@@ -112,6 +115,7 @@ __all__ = [
     "_project_parent_source_truth",
     "_resolve_authenticated_notice_ocr_runtime",
     "build_authenticated_notice_attachment_projection_plans",
+    "build_authenticated_notice_attachment_routing_records",
     "load_authenticated_notice_source_projections_config",
     "read_authenticated_notice_source_projections_config_path",
     "rebuild_authenticated_notice_source_projections",

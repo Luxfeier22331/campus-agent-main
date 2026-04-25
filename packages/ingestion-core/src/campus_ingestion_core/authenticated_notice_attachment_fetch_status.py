@@ -151,6 +151,49 @@ class ReferenceOnlyAttachmentExplanationReport:
     rows: tuple[ReferenceOnlyAttachmentExplanationRow, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class AttachmentOwnerExpectationMismatchRow:
+    site_id: str
+    notice_id: str
+    owner_kind: str
+    relation_type: str
+    owner_title_hint: str | None = None
+    evidence_text: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeLiveHistoricalReconcileReport:
+    source_notice_count: int
+    source_attachment_ref_count: int
+    fetch_status_record_count: int
+    missing_fetch_status_attachment_refs: tuple[str, ...]
+    extra_fetch_status_attachment_refs: tuple[str, ...]
+    status_counts: dict[str, int]
+    terminal_reason_counts: dict[str, int]
+    attachment_owner_expectation_mismatch_count: int
+    attachment_owner_expectation_mismatches: tuple[AttachmentOwnerExpectationMismatchRow, ...]
+    action_required_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeControlPlaneStatusReport:
+    source_notice_count: int
+    source_attachment_ref_count: int
+    fetch_status_record_count: int
+    missing_fetch_status_attachment_ref_count: int
+    extra_fetch_status_attachment_ref_count: int
+    reference_only_attachment_count: int
+    reference_only_action_required_count: int
+    reconcile_action_required_count: int
+    unsupported_binary_count: int
+    multimodal_processing_required_count: int
+    notice_risk_counts: dict[str, int]
+    action_required_count: int
+    latest_collector_run: dict[str, Any] | None
+    reconcile_report: AuthenticatedNoticeLiveHistoricalReconcileReport
+    reference_only_report: ReferenceOnlyAttachmentExplanationReport
+
+
 class AuthenticatedNoticeAttachmentFetchStatusStore(Protocol):
     def upsert_many(
         self,
@@ -544,6 +587,9 @@ def build_reference_only_attachment_explanation_report(
         attachment_refs_key = str(getattr(entry, "attachment_refs_key", "") or "").strip()
         attachment_refs = tuple(attachment_refs_by_key.get(attachment_refs_key, ()))
         projected_attachment_ref_ids = _projected_attachment_ref_ids(entry)
+        non_reference_terminal_attachment_ref_ids = _non_reference_terminal_attachment_ref_ids(
+            entry
+        )
         if not attachment_refs:
             rows.extend(
                 _missing_attachment_ref_artifact_rows(
@@ -551,13 +597,20 @@ def build_reference_only_attachment_explanation_report(
                     site_id=site_id,
                     notice_id=notice_id,
                     projected_attachment_ref_ids=projected_attachment_ref_ids,
+                    non_reference_terminal_attachment_ref_ids=(
+                        non_reference_terminal_attachment_ref_ids
+                    ),
                     fetch_status_by_ref=fetch_status_by_ref,
                 )
             )
             continue
         for attachment_ref in attachment_refs:
             attachment_ref_id = _normalize_optional_text(attachment_ref.get("attachment_ref_id"))
-            if attachment_ref_id is None or attachment_ref_id in projected_attachment_ref_ids:
+            if (
+                attachment_ref_id is None
+                or attachment_ref_id in projected_attachment_ref_ids
+                or attachment_ref_id in non_reference_terminal_attachment_ref_ids
+            ):
                 continue
             rows.append(
                 _explain_reference_only_attachment_ref(
@@ -588,6 +641,82 @@ def build_reference_only_attachment_explanation_report(
                 key=lambda item: (item.notice_id, item.attachment_ref_id, item.reason),
             )
         ),
+    )
+
+
+def build_authenticated_notice_live_historical_reconcile_report(
+    *,
+    inventory_entries: Sequence[Any],
+    fetch_status_records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
+) -> AuthenticatedNoticeLiveHistoricalReconcileReport:
+    coverage_report = build_attachment_fetch_status_coverage_report(
+        inventory_entries=inventory_entries,
+        fetch_status_records=fetch_status_records,
+    )
+    owner_mismatches = _attachment_owner_expectation_mismatches(inventory_entries)
+    action_required_count = (
+        len(coverage_report.missing_fetch_status_attachment_refs)
+        + len(owner_mismatches)
+        + int(coverage_report.status_counts.get(FETCH_STATUS_TRANSIENT_FAILED, 0) or 0)
+    )
+    return AuthenticatedNoticeLiveHistoricalReconcileReport(
+        source_notice_count=coverage_report.source_notice_count,
+        source_attachment_ref_count=coverage_report.source_attachment_ref_count,
+        fetch_status_record_count=coverage_report.fetch_status_record_count,
+        missing_fetch_status_attachment_refs=coverage_report.missing_fetch_status_attachment_refs,
+        extra_fetch_status_attachment_refs=coverage_report.extra_fetch_status_attachment_refs,
+        status_counts=coverage_report.status_counts,
+        terminal_reason_counts=coverage_report.terminal_reason_counts,
+        attachment_owner_expectation_mismatch_count=len(owner_mismatches),
+        attachment_owner_expectation_mismatches=owner_mismatches,
+        action_required_count=action_required_count,
+    )
+
+
+def build_authenticated_notice_control_plane_status_report(
+    *,
+    inventory_entries: Sequence[Any],
+    reconcile_report: AuthenticatedNoticeLiveHistoricalReconcileReport,
+    reference_only_report: ReferenceOnlyAttachmentExplanationReport,
+    latest_collector_run: dict[str, Any] | None = None,
+) -> AuthenticatedNoticeControlPlaneStatusReport:
+    entries = tuple(inventory_entries)
+    notice_risk_counts = Counter(
+        str(getattr(entry, "notice_risk_label", "") or "body_only") for entry in entries
+    )
+    unsupported_binary_count = sum(
+        int(getattr(entry, "unsupported_binary_count", 0) or 0) for entry in entries
+    )
+    multimodal_processing_required_count = sum(
+        int(getattr(entry, "multimodal_processing_required_count", 0) or 0) for entry in entries
+    )
+    action_required_count = (
+        reconcile_report.action_required_count + reference_only_report.action_required_count
+    )
+    return AuthenticatedNoticeControlPlaneStatusReport(
+        source_notice_count=len(entries),
+        source_attachment_ref_count=sum(
+            int(getattr(entry, "attachment_ref_count", 0) or 0) for entry in entries
+        ),
+        fetch_status_record_count=reconcile_report.fetch_status_record_count,
+        missing_fetch_status_attachment_ref_count=len(
+            reconcile_report.missing_fetch_status_attachment_refs
+        ),
+        extra_fetch_status_attachment_ref_count=len(
+            reconcile_report.extra_fetch_status_attachment_refs
+        ),
+        reference_only_attachment_count=reference_only_report.reference_only_attachment_count,
+        reference_only_action_required_count=reference_only_report.action_required_count,
+        reconcile_action_required_count=reconcile_report.action_required_count,
+        unsupported_binary_count=unsupported_binary_count,
+        multimodal_processing_required_count=multimodal_processing_required_count,
+        notice_risk_counts=dict(sorted(notice_risk_counts.items())),
+        action_required_count=action_required_count,
+        latest_collector_run=dict(latest_collector_run)
+        if latest_collector_run is not None
+        else None,
+        reconcile_report=reconcile_report,
+        reference_only_report=reference_only_report,
     )
 
 
@@ -746,19 +875,81 @@ def _projected_attachment_ref_ids(entry: Any) -> set[str]:
     return projected
 
 
+def _non_reference_terminal_attachment_ref_ids(entry: Any) -> set[str]:
+    parent_snapshot = getattr(entry, "parent_snapshot", None)
+    if not isinstance(parent_snapshot, dict):
+        return set()
+    rows = parent_snapshot.get("terminal_attachment_outcomes") or ()
+    terminal: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("classification") or "") == "reference_only":
+            continue
+        attachment_ref_id = _normalize_optional_text(row.get("attachment_ref_id"))
+        if attachment_ref_id is not None:
+            terminal.add(attachment_ref_id)
+    return terminal
+
+
+def _attachment_owner_expectation_mismatches(
+    inventory_entries: Sequence[Any],
+) -> tuple[AttachmentOwnerExpectationMismatchRow, ...]:
+    rows: list[AttachmentOwnerExpectationMismatchRow] = []
+    for entry in inventory_entries:
+        if int(getattr(entry, "attachment_ref_count", 0) or 0) > 0:
+            continue
+        site_id = str(getattr(entry, "site_id", "") or "").strip()
+        notice_id = str(getattr(entry, "notice_id", "") or "").strip()
+        parent_snapshot = getattr(entry, "parent_snapshot", None)
+        if not site_id or not notice_id or not isinstance(parent_snapshot, dict):
+            continue
+        for expectation in parent_snapshot.get("owner_expectations") or ():
+            if not isinstance(expectation, dict):
+                continue
+            owner_kind = str(expectation.get("owner_kind") or "").strip()
+            relation_type = str(expectation.get("relation_type") or "").strip()
+            if owner_kind != "attachment_document" or relation_type != "attachment_ref":
+                continue
+            rows.append(
+                AttachmentOwnerExpectationMismatchRow(
+                    site_id=site_id,
+                    notice_id=notice_id,
+                    owner_kind=owner_kind,
+                    relation_type=relation_type,
+                    owner_title_hint=_normalize_optional_text(expectation.get("owner_title_hint")),
+                    evidence_text=_normalize_optional_text(expectation.get("evidence_text")),
+                )
+            )
+    return tuple(
+        sorted(
+            rows,
+            key=lambda item: (
+                item.notice_id,
+                item.owner_title_hint or "",
+                item.evidence_text or "",
+            ),
+        )
+    )
+
+
 def _missing_attachment_ref_artifact_rows(
     *,
     entry: Any,
     site_id: str,
     notice_id: str,
     projected_attachment_ref_ids: set[str],
+    non_reference_terminal_attachment_ref_ids: set[str],
     fetch_status_by_ref: dict[str, AuthenticatedNoticeAttachmentFetchStatusRecord],
 ) -> tuple[ReferenceOnlyAttachmentExplanationRow, ...]:
     attachment_ref_count = int(getattr(entry, "attachment_ref_count", 0) or 0)
     rows: list[ReferenceOnlyAttachmentExplanationRow] = []
     for index in range(1, attachment_ref_count + 1):
         attachment_ref_id = f"attachment-{index:04d}"
-        if attachment_ref_id in projected_attachment_ref_ids:
+        if (
+            attachment_ref_id in projected_attachment_ref_ids
+            or attachment_ref_id in non_reference_terminal_attachment_ref_ids
+        ):
             continue
         fetch_status = fetch_status_by_ref.get(
             _fetch_status_ref_key(site_id, notice_id, attachment_ref_id)

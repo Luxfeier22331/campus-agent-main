@@ -86,6 +86,85 @@ class AuthenticatedNoticeSourceProjectionAttachmentExtractableTest(unittest.Test
         self.assertIn("张三", spreadsheet_markdown)
         self.assertIn("2026001", spreadsheet_markdown)
 
+    def test_rebuild_authenticated_notice_source_projections_skips_unsupported_binary_attachment(
+        self,
+    ) -> None:
+        zip_bytes = b"PK\x03\x04unsupported-binary-fixture"
+        bundle = _sample_notice_bundle_with_downloaded_spreadsheet_attachment(
+            spreadsheet_bytes=zip_bytes,
+            filename="unsupported-materials.zip",
+            mime_type="application/zip",
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+            )
+
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][0]["object_key"]),
+                data=zip_bytes,
+                content_type="application/zip",
+            )
+            object_store.put_bytes(
+                bucket=SOURCE_BUCKET,
+                key=str(bundle[0]["attachments"][1]["object_key"]),
+                data=_build_minimal_png_bytes(),
+                content_type="image/png",
+            )
+
+            report = rebuild_authenticated_notice_source_projections(
+                request=AuthenticatedNoticeSourceProjectionRequest(
+                    corpus="campus_notices",
+                    collection="internal_notice",
+                ),
+                env=_env(),
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                ocr_client=_FakeAttachmentOcrClient(),
+            )
+
+        self.assertEqual(report.parent_notice_count, 1)
+        self.assertEqual(report.attachment_ref_count, 3)
+        self.assertEqual(report.unsupported_binary_attachment_count, 1)
+        self.assertEqual(report.reference_only_attachment_count, 1)
+        self.assertEqual(report.ocr_attachment_count, 1)
+        self.assertEqual(report.projected_attachment_count, 1)
+        self.assertEqual(report.errors, ())
+
+        records = document_registry.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(
+            {record.document_id for record in records},
+            {
+                "notice:muc_internal_portal:355119",
+                "notice_attachment:muc_internal_portal:355119:attachment-0002",
+            },
+        )
+
     def test_rebuild_authenticated_notice_source_projections_materializes_downloaded_xls_attachment(
         self,
     ) -> None:

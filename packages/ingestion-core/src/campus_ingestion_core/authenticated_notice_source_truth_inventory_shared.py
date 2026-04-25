@@ -26,6 +26,7 @@ NOTICE_RISK_LABEL_BODY_ONLY = "body_only"
 NOTICE_RISK_LABEL_REFERENCE_ONLY = "body_with_reference_only_attachments"
 NOTICE_RISK_LABEL_TEXT_ATTACHMENTS = "body_with_text_attachments"
 NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS = "body_with_spatial_attachments"
+NOTICE_RISK_LABEL_UNSUPPORTED_BINARY = "body_with_unsupported_binary_attachments"
 NOTICE_RISK_LABEL_MIXED_HIGH_RISK = "mixed_high_risk"
 HIGH_RISK_NOTICE_LABELS = frozenset(
     {
@@ -69,6 +70,8 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
     planning_weight: int
     updated_at: str = field(default_factory=utc_now)
     parent_snapshot: dict[str, Any] = field(default_factory=dict)
+    unsupported_binary_count: int = 0
+    has_unsupported_binary_attachment: bool = False
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> AuthenticatedNoticeSourceTruthInventoryEntry:
@@ -78,12 +81,16 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
         raw["multimodal_processing_required_count"] = int(
             raw.get("multimodal_processing_required_count") or 0
         )
+        raw["unsupported_binary_count"] = int(raw.get("unsupported_binary_count") or 0)
         raw["notice_risk_label"] = str(raw.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY)
         raw["attachment_mix_score"] = int(raw.get("attachment_mix_score") or 0)
         raw["has_text_table_attachment"] = _coerce_bool(raw.get("has_text_table_attachment"))
         raw["has_spatial_attachment"] = _coerce_bool(raw.get("has_spatial_attachment"))
         raw["has_reference_only_attachment"] = _coerce_bool(
             raw.get("has_reference_only_attachment")
+        )
+        raw["has_unsupported_binary_attachment"] = _coerce_bool(
+            raw.get("has_unsupported_binary_attachment")
         )
         allowed_field_names = {item.name for item in fields(cls)}
         raw = {key: value for key, value in raw.items() if key in allowed_field_names}
@@ -127,10 +134,15 @@ def _derive_notice_risk_label(
     has_text_table_attachment: bool,
     has_spatial_attachment: bool,
     has_reference_only_attachment: bool,
+    has_unsupported_binary_attachment: bool = False,
 ) -> str:
     if attachment_ref_count <= 0:
         return NOTICE_RISK_LABEL_BODY_ONLY
-    if has_spatial_attachment and (has_text_table_attachment or has_reference_only_attachment):
+    if has_spatial_attachment and (
+        has_text_table_attachment
+        or has_reference_only_attachment
+        or has_unsupported_binary_attachment
+    ):
         return NOTICE_RISK_LABEL_MIXED_HIGH_RISK
     if has_spatial_attachment:
         return NOTICE_RISK_LABEL_SPATIAL_ATTACHMENTS
@@ -138,6 +150,8 @@ def _derive_notice_risk_label(
         return NOTICE_RISK_LABEL_TEXT_ATTACHMENTS
     if has_reference_only_attachment:
         return NOTICE_RISK_LABEL_REFERENCE_ONLY
+    if has_unsupported_binary_attachment:
+        return NOTICE_RISK_LABEL_UNSUPPORTED_BINARY
     return NOTICE_RISK_LABEL_BODY_ONLY
 
 

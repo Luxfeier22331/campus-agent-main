@@ -44,6 +44,7 @@ AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT = "no_extractable_te
 AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED = (
     "multimodal_processing_required"
 )
+AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_UNSUPPORTED_BINARY = "unsupported_binary"
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_SPATIAL_VISUAL_ASSET = "spatial_visual_asset"
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE = (
     "operational_schedule_guide_image"
@@ -123,6 +124,7 @@ class AuthenticatedNoticeSourceProjectionReport:
     updated_document_ids: tuple[str, ...]
     skipped_document_ids: tuple[str, ...]
     errors: tuple[str, ...]
+    unsupported_binary_attachment_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +156,8 @@ class AuthenticatedNoticeAttachmentProjectionResult:
 class AuthenticatedNoticeProjectedNotice:
     documents: tuple[object, ...]
     attachment_outcomes: tuple[AuthenticatedNoticeAttachmentProjectionOutcome, ...]
+    reference_only_attachment_count: int = 0
+    unsupported_binary_attachment_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)

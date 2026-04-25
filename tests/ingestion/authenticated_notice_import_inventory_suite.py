@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import unittest
+
+from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
+    InMemoryAuthenticatedNoticeAttachmentFetchStatusStore,
+)
 
 from .authenticated_notice_import_test_support import *
 
@@ -158,6 +163,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                     object_store=object_store,
                     document_registry=document_registry,
                     raw_asset_registry=raw_asset_registry,
+                    attachment_fetch_status_store=InMemoryAuthenticatedNoticeAttachmentFetchStatusStore(),
                 )
 
         self.assertEqual(report["errors"], [])
@@ -306,3 +312,93 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
             "https://portal.example.edu/files/application.docx",
         )
         self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
+
+    def test_import_authenticated_notice_export_records_unsupported_binary_attachment_terminal_outcome(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        zip_bytes = b"PK\x03\x04unsupported-binary-fixture"
+        zip_sha256 = hashlib.sha256(zip_bytes).hexdigest()
+        zip_key = f"{zip_sha256[:2]}/{zip_sha256}/unsupported-materials.zip"
+
+        bundle[0]["notice"]["notice_content"] = (
+            "<h1>关于评选2026届北京市优秀毕业生和校级优秀毕业生的通知</h1>"
+            "<p>请各单位按要求报送材料。</p>"
+            "<p>附件：优秀毕业生相关报送材料.zip</p>"
+        )
+        bundle[0]["links"][0]["url"] = "https://portal.example.edu/files/unsupported-materials.zip"
+        bundle[0]["links"][0]["final_url"] = (
+            "https://portal.example.edu/files/unsupported-materials.zip"
+        )
+        bundle[0]["links"][0]["link_text"] = "优秀毕业生相关报送材料.zip"
+        bundle[0]["links"][0]["content_type"] = "application/zip"
+        bundle[0]["links"][0]["file_size"] = len(zip_bytes)
+        bundle[0]["notice_attachments"][0]["anchor_text"] = "优秀毕业生相关报送材料.zip"
+        bundle[0]["attachments"][0]["source_url"] = (
+            "https://portal.example.edu/files/unsupported-materials.zip"
+        )
+        bundle[0]["attachments"][0]["normalized_source_url"] = (
+            "https://portal.example.edu/files/unsupported-materials.zip"
+        )
+        bundle[0]["attachments"][0]["final_url"] = (
+            "https://portal.example.edu/files/unsupported-materials.zip"
+        )
+        bundle[0]["attachments"][0]["original_filename"] = "unsupported-materials.zip"
+        bundle[0]["attachments"][0]["mime_type"] = "application/zip"
+        bundle[0]["attachments"][0]["byte_size"] = len(zip_bytes)
+        bundle[0]["attachments"][0]["sha256"] = zip_sha256
+        bundle[0]["attachments"][0]["object_key"] = zip_key
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                ),
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry.attachment_ref_count, 1)
+        self.assertEqual(entry.attachment_document_count, 0)
+        self.assertEqual(entry.reference_only_count, 0)
+        self.assertEqual(entry.unsupported_binary_count, 1)
+        self.assertFalse(entry.has_reference_only_attachment)
+        self.assertTrue(entry.has_unsupported_binary_attachment)
+        self.assertEqual(entry.notice_risk_label, "body_with_unsupported_binary_attachments")
+        self.assertEqual(entry.parent_snapshot["attachment_projection_plans"], [])
+        self.assertEqual(entry.parent_snapshot["unsupported_binary_count"], 1)
+        terminal_outcomes = entry.parent_snapshot["terminal_attachment_outcomes"]
+        self.assertEqual(len(terminal_outcomes), 1)
+        self.assertEqual(terminal_outcomes[0]["attachment_ref_id"], "attachment-0001")
+        self.assertEqual(terminal_outcomes[0]["classification"], "unsupported_binary")
+        self.assertEqual(terminal_outcomes[0]["terminal_outcome"], "unsupported_binary")
+        self.assertEqual(terminal_outcomes[0]["attachment_content_sha256"], zip_sha256)

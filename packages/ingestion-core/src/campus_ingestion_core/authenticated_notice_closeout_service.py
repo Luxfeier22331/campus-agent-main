@@ -38,7 +38,7 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
-    build_authenticated_notice_attachment_projection_plans,
+    build_authenticated_notice_attachment_routing_records,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
@@ -420,9 +420,9 @@ class AuthenticatedNoticeCloseoutService:
                 object_store=self.object_store,
                 object_store_settings=self.object_store_settings,
             )
-            attachment_projection_plans = [
+            attachment_routing_records = [
                 dict(item)
-                for item in build_authenticated_notice_attachment_projection_plans(
+                for item in build_authenticated_notice_attachment_routing_records(
                     parent_document_id=parent_source_truth.record.document_id,
                     attachment_refs=parent_source_truth.attachment_refs,
                     config=config,
@@ -430,6 +430,14 @@ class AuthenticatedNoticeCloseoutService:
                     object_store_settings=self.object_store_settings,
                     parent_record=parent_source_truth.record,
                 )
+            ]
+            attachment_projection_plans = [
+                dict(item)
+                for item in attachment_routing_records
+                if "materialization_policy" in item
+            ]
+            terminal_attachment_outcomes = [
+                dict(item) for item in attachment_routing_records if "terminal_outcome" in item
             ]
             required_documents = [
                 dict(plan)
@@ -451,10 +459,21 @@ class AuthenticatedNoticeCloseoutService:
                 for plan in attachment_projection_plans
                 if str(plan.get("materialization_policy") or "") == "multimodal_processing"
             )
+            reference_only_count = sum(
+                1
+                for outcome in terminal_attachment_outcomes
+                if str(outcome.get("classification") or "") == "reference_only"
+            )
+            unsupported_binary_count = sum(
+                1
+                for outcome in terminal_attachment_outcomes
+                if str(outcome.get("classification") or "") == "unsupported_binary"
+            )
             required_attachment_document_count += len(required_documents)
             ocr_candidate_count += parent_ocr_candidate_count
             parent_payload = dict(parent)
             parent_payload["attachment_projection_plans"] = attachment_projection_plans
+            parent_payload["terminal_attachment_outcomes"] = terminal_attachment_outcomes
             parent_payload["expected_attachment_documents"] = required_documents
             parent_payload["attachment_document_count"] = len(required_documents)
             parent_payload["text_extractable_count"] = text_extractable_count
@@ -462,13 +481,8 @@ class AuthenticatedNoticeCloseoutService:
             parent_payload["multimodal_processing_required_count"] = (
                 multimodal_processing_required_count
             )
-            parent_payload["reference_only_count"] = max(
-                len(parent_source_truth.attachment_refs)
-                - text_extractable_count
-                - parent_ocr_candidate_count
-                - multimodal_processing_required_count,
-                0,
-            )
+            parent_payload["reference_only_count"] = reference_only_count
+            parent_payload["unsupported_binary_count"] = unsupported_binary_count
             parent_payload["attachment_ref_count"] = len(parent_source_truth.attachment_refs)
             parent_payload["has_text_table_attachment"] = (
                 text_extractable_count > 0 or parent_ocr_candidate_count > 0
@@ -477,6 +491,9 @@ class AuthenticatedNoticeCloseoutService:
             parent_payload["has_reference_only_attachment"] = (
                 parent_payload["reference_only_count"] > 0
             )
+            parent_payload["has_unsupported_binary_attachment"] = (
+                parent_payload["unsupported_binary_count"] > 0
+            )
             attachment_lane_count = sum(
                 1
                 for count in (
@@ -484,6 +501,7 @@ class AuthenticatedNoticeCloseoutService:
                     parent_ocr_candidate_count,
                     multimodal_processing_required_count,
                     int(parent_payload["reference_only_count"]),
+                    int(parent_payload["unsupported_binary_count"]),
                 )
                 if count > 0
             )
@@ -495,6 +513,9 @@ class AuthenticatedNoticeCloseoutService:
                 has_text_table_attachment=bool(parent_payload["has_text_table_attachment"]),
                 has_spatial_attachment=bool(parent_payload["has_spatial_attachment"]),
                 has_reference_only_attachment=bool(parent_payload["has_reference_only_attachment"]),
+                has_unsupported_binary_attachment=bool(
+                    parent_payload["has_unsupported_binary_attachment"]
+                ),
             )
             parent_payload["notice_risk_label"] = notice_risk_label
             notice_risk_counts[notice_risk_label] = notice_risk_counts.get(notice_risk_label, 0) + 1

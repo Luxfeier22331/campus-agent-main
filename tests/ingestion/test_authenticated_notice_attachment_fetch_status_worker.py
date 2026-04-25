@@ -30,6 +30,9 @@ check_worker = importlib.import_module(
 check_reference_only_worker = importlib.import_module(
     "campus_ingestion_worker.check_authenticated_notice_reference_only_attachments"
 )
+fetch_status_module = importlib.import_module(
+    "campus_ingestion_core.authenticated_notice_attachment_fetch_status"
+)
 
 
 class AuthenticatedNoticeAttachmentFetchStatusWorkerCliTest(unittest.TestCase):
@@ -274,6 +277,49 @@ class AuthenticatedNoticeAttachmentFetchStatusWorkerCliTest(unittest.TestCase):
         self.assertEqual(report.action_required_count, 0)
         self.assertEqual(report.rows, ())
 
+    def test_reference_only_explanation_report_excludes_unsupported_binary_terminal_outcomes(
+        self,
+    ) -> None:
+        report = build_reference_only_attachment_explanation_report(
+            inventory_entries=(
+                _inventory_entry(
+                    "355493",
+                    attachment_ref_count=2,
+                    reference_only_count=1,
+                    terminal_attachment_outcomes=(
+                        {
+                            "attachment_ref_id": "attachment-0002",
+                            "classification": "unsupported_binary",
+                            "terminal_outcome": "unsupported_binary",
+                        },
+                    ),
+                ),
+            ),
+            attachment_refs_by_key={
+                "authenticated_notice_portal/355493/attachment-refs.jsonl": (
+                    _attachment_ref(
+                        "355493",
+                        "attachment-0001",
+                        object_key=None,
+                        content_sha256=None,
+                    ),
+                    _attachment_ref(
+                        "355493",
+                        "attachment-0002",
+                        object_key="objects/355493/materials.zip",
+                        content_sha256="b" * 64,
+                    ),
+                ),
+            },
+            fetch_status_records=(),
+        )
+
+        self.assertEqual(report.reference_only_attachment_count, 1)
+        self.assertEqual(
+            [(row.notice_id, row.attachment_ref_id) for row in report.rows],
+            [("355493", "attachment-0001")],
+        )
+
     def test_check_reference_only_main_reports_action_required_rows(self) -> None:
         inventory_store = _FakeInventoryStore(
             (
@@ -349,6 +395,273 @@ class AuthenticatedNoticeAttachmentFetchStatusWorkerCliTest(unittest.TestCase):
         self.assertEqual(payload["rows"][0]["reason"], "terminal_unavailable")
         self.assertEqual(payload["rows"][1]["reason"], "missing_object_key")
 
+    def test_live_historical_reconcile_report_flags_owner_expectation_mismatches(
+        self,
+    ) -> None:
+        build_report = getattr(
+            fetch_status_module,
+            "build_authenticated_notice_live_historical_reconcile_report",
+            None,
+        )
+        self.assertIsNotNone(build_report)
+
+        report = build_report(
+            inventory_entries=(
+                _inventory_entry(
+                    "186977",
+                    attachment_ref_count=0,
+                    owner_expectations=(
+                        {
+                            "owner_kind": "attachment_document",
+                            "relation_type": "attachment_ref",
+                            "owner_title_hint": "报名表",
+                            "evidence_text": "附件：报名表",
+                        },
+                    ),
+                ),
+                _inventory_entry("355119", attachment_ref_count=1),
+            ),
+            fetch_status_records=(
+                _fetch_status_record("355119", "attachment-0001"),
+                _fetch_status_record("999999", "attachment-0001"),
+            ),
+        )
+
+        self.assertEqual(report.source_notice_count, 2)
+        self.assertEqual(report.source_attachment_ref_count, 1)
+        self.assertEqual(report.fetch_status_record_count, 2)
+        self.assertEqual(report.missing_fetch_status_attachment_refs, ())
+        self.assertEqual(
+            report.extra_fetch_status_attachment_refs,
+            ("muc_internal_portal:999999:attachment-0001",),
+        )
+        self.assertEqual(report.attachment_owner_expectation_mismatch_count, 1)
+        self.assertEqual(report.action_required_count, 1)
+        self.assertEqual(report.attachment_owner_expectation_mismatches[0].notice_id, "186977")
+        self.assertEqual(
+            report.attachment_owner_expectation_mismatches[0].owner_title_hint,
+            "报名表",
+        )
+
+    def test_control_plane_status_report_aggregates_bounded_operator_counts(self) -> None:
+        build_reconcile_report = getattr(
+            fetch_status_module,
+            "build_authenticated_notice_live_historical_reconcile_report",
+            None,
+        )
+        build_control_plane_status_report = getattr(
+            fetch_status_module,
+            "build_authenticated_notice_control_plane_status_report",
+            None,
+        )
+        self.assertIsNotNone(build_reconcile_report)
+        self.assertIsNotNone(build_control_plane_status_report)
+        inventory_entries = (
+            _inventory_entry(
+                "186977",
+                attachment_ref_count=1,
+                reference_only_count=1,
+                owner_expectations=(
+                    {
+                        "owner_kind": "attachment_document",
+                        "relation_type": "attachment_ref",
+                        "owner_title_hint": "报名表",
+                        "evidence_text": "附件：报名表",
+                    },
+                ),
+            ),
+            _inventory_entry(
+                "355493",
+                attachment_ref_count=1,
+                reference_only_count=0,
+                terminal_attachment_outcomes=(
+                    {
+                        "attachment_ref_id": "attachment-0001",
+                        "classification": "unsupported_binary",
+                        "terminal_outcome": "unsupported_binary",
+                    },
+                ),
+            ),
+        )
+        fetch_status_records = (
+            _fetch_status_record("186977", "attachment-0001"),
+            _collected_fetch_status_record("355493", "attachment-0001"),
+        )
+        reference_only_report = build_reference_only_attachment_explanation_report(
+            inventory_entries=inventory_entries,
+            attachment_refs_by_key={
+                "authenticated_notice_portal/186977/attachment-refs.jsonl": (
+                    _attachment_ref(
+                        "186977",
+                        "attachment-0001",
+                        object_key=None,
+                        content_sha256=None,
+                    ),
+                ),
+                "authenticated_notice_portal/355493/attachment-refs.jsonl": (
+                    _attachment_ref(
+                        "355493",
+                        "attachment-0001",
+                        object_key="objects/355493/materials.zip",
+                        content_sha256="b" * 64,
+                    ),
+                ),
+            },
+            fetch_status_records=fetch_status_records,
+        )
+        reconcile_report = build_reconcile_report(
+            inventory_entries=inventory_entries,
+            fetch_status_records=fetch_status_records,
+        )
+
+        status_report = build_control_plane_status_report(
+            inventory_entries=inventory_entries,
+            reconcile_report=reconcile_report,
+            reference_only_report=reference_only_report,
+            latest_collector_run={"run_id": "run-20260404", "notices_collected": 2},
+        )
+
+        self.assertEqual(status_report.source_notice_count, 2)
+        self.assertEqual(status_report.source_attachment_ref_count, 2)
+        self.assertEqual(status_report.reference_only_action_required_count, 0)
+        self.assertEqual(status_report.reconcile_action_required_count, 0)
+        self.assertEqual(status_report.unsupported_binary_count, 1)
+        self.assertEqual(status_report.latest_collector_run["run_id"], "run-20260404")
+
+    def test_check_live_historical_reconcile_main_reports_owner_mismatches(self) -> None:
+        reconcile_worker = importlib.import_module(
+            "campus_ingestion_worker.check_authenticated_notice_live_historical_reconcile"
+        )
+        inventory_store = _FakeInventoryStore(
+            (
+                _inventory_entry(
+                    "186977",
+                    attachment_ref_count=0,
+                    owner_expectations=(
+                        {
+                            "owner_kind": "attachment_document",
+                            "relation_type": "attachment_ref",
+                            "owner_title_hint": "报名表",
+                            "evidence_text": "附件：报名表",
+                        },
+                    ),
+                ),
+            )
+        )
+        with (
+            patch(
+                "campus_ingestion_worker.check_authenticated_notice_live_historical_reconcile.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.check_authenticated_notice_live_historical_reconcile.build_authenticated_notice_source_truth_inventory_store_from_env",
+                return_value=inventory_store,
+            ),
+            patch(
+                "campus_ingestion_worker.check_authenticated_notice_live_historical_reconcile.build_authenticated_notice_attachment_fetch_status_store_from_env",
+                return_value=InMemoryAuthenticatedNoticeAttachmentFetchStatusStore(),
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            reconcile_worker.main(
+                [
+                    "--corpus",
+                    "campus_notices",
+                    "--collection",
+                    "internal_notice",
+                    "--site-id",
+                    "muc_internal_portal",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["attachment_owner_expectation_mismatch_count"], 1)
+        self.assertEqual(payload["action_required_count"], 1)
+
+    def test_show_control_plane_status_main_reports_operator_summary(self) -> None:
+        status_worker = importlib.import_module(
+            "campus_ingestion_worker.show_authenticated_notice_control_plane_status"
+        )
+        inventory_store = _FakeInventoryStore(
+            (
+                _inventory_entry("186977", attachment_ref_count=1),
+                _inventory_entry(
+                    "355493",
+                    attachment_ref_count=1,
+                    reference_only_count=0,
+                    terminal_attachment_outcomes=(
+                        {
+                            "attachment_ref_id": "attachment-0001",
+                            "classification": "unsupported_binary",
+                            "terminal_outcome": "unsupported_binary",
+                        },
+                    ),
+                ),
+            )
+        )
+        fetch_status_store = InMemoryAuthenticatedNoticeAttachmentFetchStatusStore(
+            (
+                _fetch_status_record("186977", "attachment-0001"),
+                _collected_fetch_status_record("355493", "attachment-0001"),
+            )
+        )
+        object_store = _FakeSourceTruthObjectStore(
+            {
+                "authenticated_notice_portal/186977/attachment-refs.jsonl": (
+                    _attachment_ref(
+                        "186977",
+                        "attachment-0001",
+                        object_key=None,
+                        content_sha256=None,
+                    ),
+                ),
+                "authenticated_notice_portal/355493/attachment-refs.jsonl": (
+                    _attachment_ref(
+                        "355493",
+                        "attachment-0001",
+                        object_key="objects/355493/materials.zip",
+                        content_sha256="b" * 64,
+                    ),
+                ),
+            }
+        )
+        with (
+            patch(
+                "campus_ingestion_worker.show_authenticated_notice_control_plane_status.load_worker_env"
+            ),
+            patch(
+                "campus_ingestion_worker.show_authenticated_notice_control_plane_status.build_authenticated_notice_source_truth_inventory_store_from_env",
+                return_value=inventory_store,
+            ),
+            patch(
+                "campus_ingestion_worker.show_authenticated_notice_control_plane_status.build_authenticated_notice_attachment_fetch_status_store_from_env",
+                return_value=fetch_status_store,
+            ),
+            patch(
+                "campus_ingestion_worker.show_authenticated_notice_control_plane_status.build_source_truth_object_store",
+                return_value=object_store,
+            ),
+            patch(
+                "campus_ingestion_worker.show_authenticated_notice_control_plane_status.load_latest_authenticated_notice_collector_run_from_env",
+                return_value={"run_id": "run-20260404"},
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            status_worker.main(
+                [
+                    "--corpus",
+                    "campus_notices",
+                    "--collection",
+                    "internal_notice",
+                    "--site-id",
+                    "muc_internal_portal",
+                ]
+            )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["source_notice_count"], 2)
+        self.assertEqual(payload["unsupported_binary_count"], 1)
+        self.assertEqual(payload["latest_collector_run"]["run_id"], "run-20260404")
+
 
 def _bundle_with_missing_attachment() -> tuple[dict[str, object], ...]:
     return (
@@ -395,6 +708,8 @@ def _inventory_entry(
     attachment_ref_count: int,
     projected_attachment_ref_ids: tuple[str, ...] = (),
     reference_only_count: int | None = None,
+    terminal_attachment_outcomes: tuple[dict[str, object], ...] = (),
+    owner_expectations: tuple[dict[str, object], ...] = (),
 ) -> AuthenticatedNoticeSourceTruthInventoryEntry:
     attachment_projection_plans = [
         {
@@ -407,6 +722,11 @@ def _inventory_entry(
         }
         for attachment_ref_id in projected_attachment_ref_ids
     ]
+    unsupported_binary_count = sum(
+        1
+        for item in terminal_attachment_outcomes
+        if str(item.get("classification") or "") == "unsupported_binary"
+    )
     return AuthenticatedNoticeSourceTruthInventoryEntry(
         attachment_document_count=0,
         attachment_mix_score=attachment_ref_count,
@@ -422,12 +742,18 @@ def _inventory_entry(
         ),
         has_spatial_attachment=False,
         has_text_table_attachment=False,
+        has_unsupported_binary_attachment=unsupported_binary_count > 0,
         multimodal_processing_required_count=0,
         notice_id=notice_id,
         notice_manifest_key=f"authenticated_notice_portal/{notice_id}/notice-manifest.json",
         notice_risk_label="body_with_reference_only_attachments",
         ocr_required_count=0,
-        parent_snapshot={"attachment_projection_plans": attachment_projection_plans},
+        parent_snapshot={
+            "attachment_projection_plans": attachment_projection_plans,
+            "terminal_attachment_outcomes": [dict(item) for item in terminal_attachment_outcomes],
+            "owner_expectations": [dict(item) for item in owner_expectations],
+            "owner_expectation_count": len(owner_expectations),
+        },
         planning_weight=1,
         raw_asset_id=f"asset:authenticated-notice:muc_internal_portal:{notice_id}",
         raw_version_id="sha256:test",
@@ -438,6 +764,7 @@ def _inventory_entry(
         site_id="muc_internal_portal",
         source_home_url="https://portal.example.edu",
         text_extractable_count=0,
+        unsupported_binary_count=unsupported_binary_count,
         version_id="sha256:test",
     )
 

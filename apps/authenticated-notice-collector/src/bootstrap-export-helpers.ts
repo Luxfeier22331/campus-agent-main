@@ -13,6 +13,7 @@ import type {
 	NoticeCategoryRecord,
 	NoticeCollectionMode,
 	NoticeItem,
+	NoticeRunAdmissionReport,
 	NoticeSelectsResponse,
 	NoticeTypeConfig,
 } from "./types";
@@ -55,6 +56,7 @@ export function buildExportManifest(input: {
 	observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>;
 	observedOrganizations: Array<{ organization_id: string; organization_name: string }>;
 	pagesFetched: number;
+	runAdmission: NoticeRunAdmissionReport;
 	selectedNoticeIds?: string[];
 	selectedNoticeTypes?: string[];
 	siteId: string;
@@ -89,6 +91,7 @@ export function buildExportManifest(input: {
 				? { selected_notice_ids: input.selectedNoticeIds }
 				: {}),
 		},
+		run_admission: input.runAdmission,
 		notice_type_policy: buildNoticeTypePolicySnapshot(input.noticeTypes),
 		observed_notice_types: input.observedNoticeTypes,
 		observed_organizations: input.observedOrganizations,

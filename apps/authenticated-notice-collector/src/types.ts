@@ -24,6 +24,23 @@ export interface NoticeTypePolicySnapshot {
 	};
 }
 
+export interface NoticeRunAdmissionPageBudget {
+	notice_type: string;
+	notice_type_name: string;
+	pages: number;
+	page_size: number;
+}
+
+export interface NoticeRunAdmissionReport {
+	accepted: boolean;
+	collection_mode: NoticeCollectionMode;
+	notice_type_ids: string[];
+	selected_notice_ids: string[];
+	expected_page_count: number;
+	page_budget: NoticeRunAdmissionPageBudget[];
+	rejection_reasons: string[];
+}
+
 export interface NoticeItem {
 	notice_id?: number;
 	notice_type?: number | string;
@@ -412,6 +429,7 @@ export interface BootstrapExportManifest {
 		max_notices: number | null;
 		selected_notice_ids?: string[];
 	};
+	run_admission?: NoticeRunAdmissionReport;
 	notice_type_policy: NoticeTypePolicySnapshot[];
 	observed_notice_types: Array<{
 		notice_type_id: number;

@@ -598,8 +598,43 @@ def build_authenticated_notice_attachment_projection_plans(
     object_store_settings: ObjectStoreSettings | None = None,
     parent_record: DocumentRegistryRecord | None = None,
 ) -> tuple[dict[str, str], ...]:
+    return tuple(
+        {
+            key: value
+            for key, value in item.items()
+            if key
+            in {
+                "attachment_ref_id",
+                "classification",
+                "document_id",
+                "materialization_policy",
+                "attachment_content_sha256",
+                "review_reason",
+            }
+        }
+        for item in build_authenticated_notice_attachment_routing_records(
+            parent_document_id=parent_document_id,
+            attachment_refs=attachment_refs,
+            config=config,
+            object_store=object_store,
+            object_store_settings=object_store_settings,
+            parent_record=parent_record,
+        )
+        if "materialization_policy" in item
+    )
+
+
+def build_authenticated_notice_attachment_routing_records(
+    *,
+    parent_document_id: str,
+    attachment_refs: tuple[dict[str, Any], ...],
+    config: AuthenticatedNoticeSourceProjectionsConfig,
+    object_store: AuthenticatedNoticeProjectionObjectStore | None = None,
+    object_store_settings: ObjectStoreSettings | None = None,
+    parent_record: DocumentRegistryRecord | None = None,
+) -> tuple[dict[str, str], ...]:
     site_id, notice_id = _parse_notice_document_id(parent_document_id)
-    plans: list[dict[str, str]] = []
+    records: list[dict[str, str]] = []
     attachment_context_by_ref_id = (
         _build_attachment_context_by_ref_id(
             record=parent_record,
@@ -620,28 +655,36 @@ def build_authenticated_notice_attachment_projection_plans(
         )
         classification = classification_result.classification
         attachment_ref_id = str(attachment_ref.get("attachment_ref_id") or "").strip()
-        if classification == "reference_only":
-            continue
-        if classification == "unsupported_binary":
-            raise ValueError(
-                "unsupported authenticated notice attachment requires an explicit extractor before replay: "
-                f"{parent_document_id}#{attachment_ref_id or 'unknown'}"
-            )
         if not attachment_ref_id:
             raise ValueError(f"{parent_document_id} attachment_ref_id is required")
-        plan = {
+        record = {
             "attachment_ref_id": attachment_ref_id,
             "classification": classification,
-            "document_id": f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}",
-            "materialization_policy": _materialization_policy_for_classification(classification),
         }
         attachment_content_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
         if attachment_content_sha256 is not None:
-            plan["attachment_content_sha256"] = attachment_content_sha256
+            record["attachment_content_sha256"] = attachment_content_sha256
         if classification_result.review_reason is not None:
-            plan["review_reason"] = classification_result.review_reason
-        plans.append(plan)
-    return tuple(plans)
+            record["review_reason"] = classification_result.review_reason
+        if classification in {"reference_only", "unsupported_binary"}:
+            record["terminal_outcome"] = classification
+            attachment_object_key = _normalize_optional_text(attachment_ref.get("object_key"))
+            if attachment_object_key is not None:
+                record["attachment_object_key"] = attachment_object_key
+            attachment_mime_type = _normalize_optional_text(attachment_ref.get("mime_type"))
+            if attachment_mime_type is not None:
+                record["attachment_mime_type"] = attachment_mime_type
+            attachment_filename = _guess_attachment_filename(attachment_ref)
+            if attachment_filename:
+                record["attachment_filename"] = attachment_filename
+            records.append(record)
+            continue
+        record["document_id"] = f"notice_attachment:{site_id}:{notice_id}:{attachment_ref_id}"
+        record["materialization_policy"] = _materialization_policy_for_classification(
+            classification
+        )
+        records.append(record)
+    return tuple(records)
 
 
 def _materialization_policy_for_classification(classification: str) -> str:

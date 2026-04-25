@@ -143,6 +143,7 @@ def rebuild_authenticated_notice_source_projections_impl(
     ocr_no_text_attachment_count = 0
     reference_only_attachment_count = 0
     multimodal_processing_attachment_count = 0
+    unsupported_binary_attachment_count = 0
     documents: list[DocumentImportInput] = []
     ocr_provider_response_cache: dict[str, bytes] = {}
 
@@ -161,9 +162,8 @@ def rebuild_authenticated_notice_source_projections_impl(
         )
         documents.extend(projected_notice.documents)
         attachment_ref_count += len(parent_source_truth.attachment_refs)
-        reference_only_attachment_count += len(parent_source_truth.attachment_refs) - len(
-            projected_notice.attachment_outcomes
-        )
+        reference_only_attachment_count += projected_notice.reference_only_attachment_count
+        unsupported_binary_attachment_count += projected_notice.unsupported_binary_attachment_count
         for outcome in projected_notice.attachment_outcomes:
             if outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT:
                 projected_attachment_count += 1
@@ -203,6 +203,7 @@ def rebuild_authenticated_notice_source_projections_impl(
         updated_document_ids=stats.updated_document_ids,
         skipped_document_ids=stats.skipped_document_ids,
         errors=stats.errors,
+        unsupported_binary_attachment_count=unsupported_binary_attachment_count,
     )
 
 
@@ -227,6 +228,8 @@ def _project_parent_source_truth(
     ]
     attachment_outcomes: list[AuthenticatedNoticeAttachmentProjectionOutcome] = []
     runtime_ocr = ocr_runtime
+    reference_only_attachment_count = 0
+    unsupported_binary_attachment_count = 0
     attachment_context_by_ref_id = _build_attachment_context_by_ref_id(
         record=parent_source_truth.record,
         attachment_refs=parent_source_truth.attachment_refs,
@@ -243,13 +246,11 @@ def _project_parent_source_truth(
         )
         classification = classification_result.classification
         if classification == "reference_only":
+            reference_only_attachment_count += 1
             continue
         if classification == "unsupported_binary":
-            raise ValueError(
-                "unsupported authenticated notice attachment requires an explicit extractor: "
-                f"{parent_source_truth.record.document_id}#{attachment_ref.get('attachment_ref_id')} "
-                f"mime_type={attachment_ref.get('mime_type')!r} object_key={attachment_ref.get('object_key')!r}"
-            )
+            unsupported_binary_attachment_count += 1
+            continue
         if classification == "ocr_required" and runtime_ocr is None:
             runtime_ocr = _resolve_authenticated_notice_ocr_runtime(env=env, ocr_client=None)
         result = _build_attachment_projection_result(
@@ -273,6 +274,8 @@ def _project_parent_source_truth(
         AuthenticatedNoticeProjectedNotice(
             documents=tuple(documents),
             attachment_outcomes=tuple(attachment_outcomes),
+            reference_only_attachment_count=reference_only_attachment_count,
+            unsupported_binary_attachment_count=unsupported_binary_attachment_count,
         ),
         runtime_ocr,
     )

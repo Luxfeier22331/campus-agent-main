@@ -214,6 +214,28 @@ export function registerBootstrapExportCollectionSuite() {
 			link_collection_mode: "html_reference_only",
 			runtime_shell: "repo_local_node",
 		});
+		expect(result.exportManifest.run_admission).toMatchObject({
+			accepted: true,
+			collection_mode: "incremental",
+			notice_type_ids: ["5", "6"],
+			selected_notice_ids: [],
+			expected_page_count: 2,
+			page_budget: [
+				{
+					notice_type: "5",
+					notice_type_name: "办公通知",
+					page_size: 2,
+					pages: 1,
+				},
+				{
+					notice_type: "6",
+					notice_type_name: "教学通知",
+					page_size: 2,
+					pages: 1,
+				},
+			],
+			rejection_reasons: [],
+		});
 	});
 
 	it("collects selected historical notice ids without scanning current list pages", async () => {
@@ -312,7 +334,104 @@ export function registerBootstrapExportCollectionSuite() {
 			notice_types: ["32"],
 			selected_notice_ids: ["187233"],
 		});
+		expect(result.exportManifest.run_admission).toMatchObject({
+			accepted: true,
+			collection_mode: "selected",
+			notice_type_ids: ["32"],
+			selected_notice_ids: ["187233"],
+			expected_page_count: 0,
+			page_budget: [],
+			rejection_reasons: [],
+		});
 		expect(result.exportManifest.run.items_seen).toBe(1);
+	});
+
+	it("rejects selected collection mode before creating an api context when notice ids are missing", async () => {
+		let apiContextCreated = false;
+
+		await expect(
+			collectBootstrapBundle({
+				collectionMode: "selected",
+				createApiContext: async () => {
+					apiContextCreated = true;
+					return {
+						dispose: async () => undefined,
+						get: async () => ({
+							body: async () => Buffer.from(""),
+							json: async () => ({}),
+							ok: () => true,
+							status: () => 200,
+							statusText: () => "OK",
+						}),
+						post: async () => {
+							throw new Error("unexpected post");
+						},
+					};
+				},
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				noticeTypes: [
+					{
+						type: "5",
+						name: "办公通知",
+						enabled: true,
+						incrementalPages: 1,
+						incrementalPageSize: 20,
+						backfillPages: 1,
+						backfillPageSize: 20,
+					},
+				],
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+			}),
+		).rejects.toThrow("selected_notice_ids_required");
+
+		expect(apiContextCreated).toBe(false);
+	});
+
+	it("rejects incremental runs without enabled notice types before creating an api context", async () => {
+		let apiContextCreated = false;
+
+		await expect(
+			collectBootstrapBundle({
+				collectionMode: "incremental",
+				createApiContext: async () => {
+					apiContextCreated = true;
+					return {
+						dispose: async () => undefined,
+						get: async () => ({
+							body: async () => Buffer.from(""),
+							json: async () => ({}),
+							ok: () => true,
+							status: () => 200,
+							statusText: () => "OK",
+						}),
+						post: async () => {
+							throw new Error("unexpected post");
+						},
+					};
+				},
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				noticeTypes: [
+					{
+						type: "5",
+						name: "办公通知",
+						enabled: false,
+						incrementalPages: 1,
+						incrementalPageSize: 20,
+						backfillPages: 1,
+						backfillPageSize: 20,
+					},
+				],
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+			}),
+		).rejects.toThrow("enabled_notice_types_required");
+
+		expect(apiContextCreated).toBe(false);
 	});
 
 	it("uses backfill page budgets when collection mode is backfill", async () => {

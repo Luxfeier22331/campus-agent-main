@@ -39,6 +39,10 @@ import {
 } from "./config";
 import { getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
+import {
+	assertNoticeRunAdmissionAccepted,
+	buildNoticeRunAdmission,
+} from "./run-admission";
 import type {
 	ApiRequestContextLike,
 	BootstrapExportManifest,
@@ -191,6 +195,15 @@ export function buildBundleRecord(input: {
 export async function collectBootstrapBundle(
 	input: CollectBootstrapBundleInput,
 ): Promise<CollectBootstrapBundleResult> {
+	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
+	const runAdmission = buildNoticeRunAdmission({
+		collectionMode: input.collectionMode,
+		noticeTypes: input.noticeTypes,
+		selectedNotices,
+	});
+	assertNoticeRunAdmissionAccepted(runAdmission);
+	const collectionMode = runAdmission.collection_mode;
+	const enabledNoticeTypes = getEnabledNoticeTypes(input.noticeTypes);
 	const createApiContext =
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveCollectorConfig(process.env)));
@@ -231,13 +244,6 @@ export async function collectBootstrapBundle(
 		downloadedAttachmentCount: 0,
 		uploadedAttachmentCount: 0,
 	};
-	const selectedNotices = normalizeSelectedNoticeSpecs(input.selectedNotices ?? []);
-	const collectionMode: NoticeCollectionMode =
-		selectedNotices.length > 0 ? "selected" : (input.collectionMode ?? "incremental");
-	if (collectionMode === "selected" && selectedNotices.length === 0) {
-		throw new Error("selected collection mode requires selected notice ids");
-	}
-	const enabledNoticeTypes = getEnabledNoticeTypes(input.noticeTypes);
 
 	try {
 		const noticeSelects = await fetchSelects({
@@ -376,6 +382,7 @@ export async function collectBootstrapBundle(
 			observedNoticeTypes,
 			observedOrganizations,
 			pagesFetched,
+			runAdmission,
 			selectedNoticeIds: selectedNotices.map((item) => String(item.noticeId)),
 			selectedNoticeTypes: normalizeNoticeTypes(selectedNotices.map((item) => item.noticeType)),
 			siteId: input.siteId,

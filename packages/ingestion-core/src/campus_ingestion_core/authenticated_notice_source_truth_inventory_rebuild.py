@@ -9,7 +9,7 @@ from campus_ingestion_core.authenticated_notice_source_projections import (
     _find_processed_key,
     _load_json_payload,
     _load_jsonl_rows,
-    build_authenticated_notice_attachment_projection_plans,
+    build_authenticated_notice_attachment_routing_records,
     load_authenticated_notice_source_projections_config,
     read_authenticated_notice_source_projections_config_path,
 )
@@ -257,13 +257,19 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
     ]
     text_extractable_count = 0
     ocr_required_count = 0
-    attachment_projection_plans = build_authenticated_notice_attachment_projection_plans(
+    attachment_routing_records = build_authenticated_notice_attachment_routing_records(
         parent_document_id=record.document_id,
         attachment_refs=tuple(attachment_refs),
         config=config,
         object_store=object_store,
         object_store_settings=object_store_settings,
         parent_record=record,
+    )
+    attachment_projection_plans = tuple(
+        dict(item) for item in attachment_routing_records if "materialization_policy" in item
+    )
+    terminal_attachment_outcomes = tuple(
+        dict(item) for item in attachment_routing_records if "terminal_outcome" in item
     )
     for plan in attachment_projection_plans:
         classification = str(plan["classification"])
@@ -276,9 +282,15 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         for plan in attachment_projection_plans
         if str(plan.get("classification") or "") == "multimodal_processing_required"
     )
-    reference_only_count = max(
-        0,
-        len(tuple(attachment_refs)) - len(attachment_projection_plans),
+    reference_only_count = sum(
+        1
+        for outcome in terminal_attachment_outcomes
+        if str(outcome.get("classification") or "") == "reference_only"
+    )
+    unsupported_binary_count = sum(
+        1
+        for outcome in terminal_attachment_outcomes
+        if str(outcome.get("classification") or "") == "unsupported_binary"
     )
     expected_attachment_documents = [
         dict(plan)
@@ -291,6 +303,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
     has_text_table_attachment = text_extractable_count > 0 or ocr_required_count > 0
     has_spatial_attachment = multimodal_processing_required_count > 0
     has_reference_only_attachment = reference_only_count > 0
+    has_unsupported_binary_attachment = unsupported_binary_count > 0
     attachment_lane_count = sum(
         1
         for count in (
@@ -298,6 +311,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
             ocr_required_count,
             multimodal_processing_required_count,
             reference_only_count,
+            unsupported_binary_count,
         )
         if count > 0
     )
@@ -307,6 +321,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         has_text_table_attachment=has_text_table_attachment,
         has_spatial_attachment=has_spatial_attachment,
         has_reference_only_attachment=has_reference_only_attachment,
+        has_unsupported_binary_attachment=has_unsupported_binary_attachment,
     )
     planning_weight = (
         AUTHENTICATED_NOTICE_SOURCE_TRUTH_BASE_WEIGHT
@@ -324,6 +339,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "content_blocks_key": content_blocks_key,
         "attachment_refs_key": attachment_refs_key,
         "attachment_projection_plans": [dict(item) for item in attachment_projection_plans],
+        "terminal_attachment_outcomes": [dict(item) for item in terminal_attachment_outcomes],
         "expected_attachment_documents": expected_attachment_documents,
         "attachment_document_count": len(expected_attachment_documents),
         "attachment_ref_count": attachment_ref_count,
@@ -335,6 +351,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "ocr_required_count": ocr_required_count,
         "reference_only_count": reference_only_count,
         "multimodal_processing_required_count": multimodal_processing_required_count,
+        "unsupported_binary_count": unsupported_binary_count,
         "notice_title": _normalize_non_empty_text(
             notice_manifest.get("notice_title_normalized")
             or notice_manifest.get("notice_title_raw")
@@ -349,6 +366,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "has_text_table_attachment": has_text_table_attachment,
         "has_spatial_attachment": has_spatial_attachment,
         "has_reference_only_attachment": has_reference_only_attachment,
+        "has_unsupported_binary_attachment": has_unsupported_binary_attachment,
         "planning_weight": planning_weight,
         "source_home_url": source_home_url,
         "embedding_model": record.embedding_model,
@@ -391,6 +409,10 @@ def inventory_entry_from_parent_snapshot(
         ),
         planning_weight=int(parent_snapshot["planning_weight"]),
         parent_snapshot=dict(parent_snapshot),
+        unsupported_binary_count=int(parent_snapshot.get("unsupported_binary_count") or 0),
+        has_unsupported_binary_attachment=bool(
+            parent_snapshot.get("has_unsupported_binary_attachment", False)
+        ),
     )
 
 
