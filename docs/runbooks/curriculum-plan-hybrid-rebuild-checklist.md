@@ -23,7 +23,7 @@ updated: 2026-04-23
 ## 不在本文负责
 
 - curriculum source-truth 清洗与 split-manifest 规则本身
-- supervisor / specialist 的长期编排设计
+- supervisor / agent 的长期编排设计
 - handbook 或 `campus_services` 的 live 验收
 
 ## 前置真相源

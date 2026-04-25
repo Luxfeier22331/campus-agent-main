@@ -17,7 +17,7 @@ updated: 2026-04-25
   需要 release-gate regression / eval evidence。
 - `Phase 11` 已补齐 forward capability label / lane alignment：`campus_services`
   与 `notice` 可作为显式 internal execution capability 进入对应 Go admission lane
-  和 specialist-owned structured runtime handoff；knowledge path gate-closed 行为不变。
+  和 agent-owned structured runtime handoff；knowledge path gate-closed 行为不变。
 - `Phase 12` 已将 `campus_notice_discover` / `campus_notice_get` 的确定性
   read-model query runtime 迁到 Go `apps/supervisor-api`：Go 读取 PG read model 与
   S3-compatible derived canonical body，Python `notice-agent` 保留 HTTP thin
@@ -36,7 +36,7 @@ updated: 2026-04-25
   writer 清理；`campus_services` / `notice` 仍默认 gate closed。
 - `Phase 27` 已把 Go preplanned handoff 从 structured-only 扩展到 knowledge
   delegate path，Python bridge / `packages/supervisor-core` 主路径不再 fallback 构造
-  routing 或 specialist request payload。
+  routing 或 agent request payload。
 - `Phase 28-30` 已把 non-delegate terminal envelope、structured tool policy
   summary 与 current nested runtime decision envelope 收口到 Go
   `supervisor-api`，Python bridge 对缺失 Go-owned handoff / terminal envelope 的请求
@@ -47,12 +47,12 @@ updated: 2026-04-25
 - `Phase 32-33` 已把 selected target / tool、terminal outcome 与 fail-close reason
   纳入 metrics / OTel / execution audit 的低基数 runtime decision summary，并补齐
   docs 与 guardrails。
-- `Phase 34-38` 已将 bridge 升级为 v4 full `SpecialistRequest` handoff，删除 Python
+- `Phase 34-38` 已将 bridge 升级为 v4 full `AgentRequest` handoff，删除 Python
   framing helper、Python bridge runtime audit emission 与 production supervisor terminal
   prompt stack，并让 lifecycle SSE structured direct path 与 docs / guardrails 完成收口。
 - `Phase 39-45` 已让 Go non-stream / lifecycle SSE answer path 直接执行
   non-delegate terminal envelope，Python bridge hardcut 为 delegate-only v4 handoff，
-  `packages/supervisor-core` public handler 只接受 Go preplanned `SpecialistRequest`；
+  `packages/supervisor-core` public handler 只接受 Go preplanned `AgentRequest`；
   production core 不再导入 `RoutingDecision`、`finalize_routing_decision` 或 runtime
   audit sink。
 - `Phase 46-48` 已删除 Python worker stale audit seam、supervisor-core `audit.py`
@@ -64,6 +64,10 @@ updated: 2026-04-25
   `tool_policy.py`，Go runtime policy / execution 覆盖 residual 裁决 case，
   `packages/supervisor-core` 不再执行 Python target/tool matrix；Python worker cancel
   registry 仅保留 cancel flag store，不再发布 execution lifecycle counters。
+- `Phase 55-62` 已把 bridge v6 response finalization、agent dispatch naming、
+  default agent registry 与 standalone supervisor-core package 全部收口；剩余
+  `AgentDispatcher` / `dispatch_agent_request` 已内联到
+  `apps/supervisor-agent-worker`，`packages/supervisor-core` 已退役。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -329,7 +333,7 @@ capability family，而不把 knowledge path 下的 structured runtime gate 自�
   `notice`
 - map `campus_services` and `notice` to their Go admission lanes
 - keep `requested_scope` and non-current `version_query` knowledge-only
-- allow explicit forward capability handoff to the corresponding specialist-owned
+- allow explicit forward capability handoff to the corresponding agent-owned
   structured runtime payload
 - preserve existing knowledge-path structured runtime gate-closed behavior
 
@@ -391,7 +395,7 @@ supervisor semantic orchestration checkpoints 观测。
 - expose request-scoped cancel checks from Python bridge registry
 - check cancellation before / after supervisor handling in the bridge answer route
 - pass cancellation checker into default `packages/supervisor-core` orchestration
-- check cancellation around routing, RAG prompt execution, specialist delegation and
+- check cancellation around routing, RAG prompt execution, agent delegation and
   finalization
 - return typed `499 execution_cancelled` bridge terminal response without expanding
   `SupervisorStatus`
@@ -603,7 +607,7 @@ envelope。
 **Closeout Note:**
 
 - Repo-local implementation is complete. The bridge is a private
-  `supervisor-api -> supervisor-core-worker` envelope, not a shared contract.
+  `supervisor-api -> supervisor-agent-worker` envelope, not a shared contract.
 
 ## Phase 22: Capability Scope Version Single Truth
 
@@ -634,7 +638,7 @@ envelope。
 **Scope:**
 
 - build structured handoff payloads in Go `internal/structuredplanning`
-- pass target, allowed tools, specialist request and planning outcome through
+- pass target, allowed tools, agent request and planning outcome through
   `runtime_decisions.handoff`
 - make Python routing consume the Go handoff
 
@@ -755,7 +759,7 @@ envelope。
 **Closeout Note:**
 
 - Repo-local implementation is complete. Python finalization still handles
-  specialist responses, not runtime terminal policy copy.
+  agent responses, not runtime terminal policy copy.
 
 ## Phase 29: Tool Policy Single Truth
 
@@ -854,7 +858,7 @@ fields。
 
 **Scope:**
 
-- update supervisor-api, supervisor-core-worker, supervisor-core and architecture docs
+- update supervisor-api, supervisor-agent-worker, supervisor-core and architecture docs
 - update workstream README / STATE / ROADMAP
 - scan for legacy bridge and flat planner-field references
 - keep guard tests for Python planner, parser and tool-policy drift
@@ -870,24 +874,24 @@ fields。
 - Repo-local implementation is complete when the verification section in `STATE.md`
   records the fresh closeout commands for Phase 28-33.
 
-## Phase 34: Bridge V4 Specialist Request Handoff
+## Phase 34: Bridge V4 Agent Request Handoff
 
-**Goal:** 让 Go handoff 直接投影完整 `SpecialistRequest`，删除 Python bridge 对
-specialist request 的二次组装。
+**Goal:** 让 Go handoff 直接投影完整 `AgentRequest`，删除 Python bridge 对
+agent request 的二次组装。
 
 **Scope:**
 
 - emit `supervisor_bridge_v4`
 - replace handoff payload fragment with
-  `runtime_decisions.handoff.specialist_request`
+  `runtime_decisions.handoff.agent_request`
 - pass trace, actor, context, payload and allowed tools through the Go-owned envelope
 - hardcut Python parser to v4-only
 
 **Exit Criteria:**
 
-- Go tests cover full `SpecialistRequest` projection
+- Go tests cover full `AgentRequest` projection
 - Python bridge tests reject older bridge versions and missing
-  `handoff.specialist_request`
+  `handoff.agent_request`
 
 **Closeout Note:**
 
@@ -966,9 +970,9 @@ runtime 完成。
 
 **Scope:**
 
-- update supervisor-api, supervisor-core-worker, supervisor-core and architecture docs
+- update supervisor-api, supervisor-agent-worker, supervisor-core and architecture docs
 - update this workstream README / ROADMAP / STATE
-- add / refresh guard tests for bridge v4, full `SpecialistRequest`, deleted framing,
+- add / refresh guard tests for bridge v4, full `AgentRequest`, deleted framing,
   deleted supervisor prompt stack and Python bridge audit removal
 
 **Exit Criteria:**
@@ -1007,14 +1011,14 @@ runtime 完成。
 
 **Scope:**
 
-- bridge parser returns `SupervisorRequest` plus `SpecialistRequest`
+- bridge parser returns `SupervisorRequest` plus `AgentRequest`
 - reject routing frames whose next action is not `delegate`
-- reject v4 requests missing `runtime_decisions.handoff.specialist_request`
+- reject v4 requests missing `runtime_decisions.handoff.agent_request`
 
 **Exit Criteria:**
 
 - Python bridge tests reject terminal frames
-- Python bridge tests parse Go full `SpecialistRequest` handoff
+- Python bridge tests parse Go full `AgentRequest` handoff
 
 **Closeout Note:**
 
@@ -1034,7 +1038,7 @@ audit sink knobs。
 **Exit Criteria:**
 
 - guard tests prove public API has no runtime routing or audit sink surface
-- focused supervisor tests use `preplanned_specialist_request`
+- focused supervisor tests use `preplanned_agent_request`
 
 **Closeout Note:**
 
@@ -1055,7 +1059,7 @@ audit sink knobs。
 
 - guard tests prove production agent and public exports do not reference
   `RoutingDecision`
-- policy tests cover only specialist finalization for production path
+- policy tests cover only agent finalization for production path
 
 **Closeout Note:**
 
@@ -1087,7 +1091,7 @@ envelope consumption。
 
 **Scope:**
 
-- update supervisor-api, supervisor-core-worker, supervisor-core README files
+- update supervisor-api, supervisor-agent-worker, supervisor-core README files
 - update current architecture and execution / prompt architecture docs
 - update workstream README / ROADMAP / STATE
 
@@ -1260,8 +1264,8 @@ runtime policy truth。
 **Scope:**
 
 - delete Python target/tool policy helper module
-- remove Python `InvalidSpecialistToolPolicyError`
-- update supervisor-core specialist policy tests to assert Go preplanned handoff is
+- remove Python `InvalidAgentToolPolicyError`
+- update supervisor-core agent policy tests to assert Go preplanned handoff is
   delegated without Python target/tool matrix
 
 **Exit Criteria:**
@@ -1320,21 +1324,21 @@ execution lifecycle runtime truth。
 
 **Goal:** 让 Go `supervisor-api` 成为 public `SupervisorResponse` finalization 与
 response observability owner，Python bridge / `packages/supervisor-core` 只返回
-private `SpecialistResponse`。
+private `AgentResponse`。
 
 **Scope:**
 
-- upgrade private bridge envelope to `supervisor_bridge_v5`
-- require `response_contract=specialist_response` on Python bridge requests
-- make Python bridge return `x-supervisor-bridge-kind: specialist_response`
-- finalize bridge `SpecialistResponse` into public `SupervisorResponse` in Go
+- upgrade private bridge envelope to `supervisor_bridge_v6`
+- require `response_contract=agent_response` on Python bridge requests
+- make Python bridge return `x-supervisor-bridge-kind: agent_response`
+- finalize bridge `AgentResponse` into public `SupervisorResponse` in Go
 - delete Python `policy.py` / `response.py` and legacy `handle_request`
 - update docs / guard coverage for the slimmed Python core boundary
 
 **Exit Criteria:**
 
-- Go tests prove bridge `specialist_response` is finalized into the public envelope
-- Python bridge tests reject v4 / missing specialist response contract
+- Go tests prove bridge `agent_response` is finalized into the public envelope
+- Python bridge tests reject v4 / missing agent response contract
 - active Python supervisor-core no longer imports finalization / response helper modules
 - focused Go, Python, ruff, docs and diff checks pass or record blockers
 
@@ -1345,19 +1349,19 @@ private `SpecialistResponse`。
 
 ## Phase 56: Python Agent Dispatch Naming Closeout
 
-**Goal:** 退役 active Python core 中误导性的 supervisor/specialist runtime naming，保留
-shared wire contract 的 `SpecialistRequest` / `SpecialistResponse` 名称不变。
+**Goal:** 退役 active Python core 中误导性的 supervisor/agent runtime naming，保留
+shared wire contract 的 `AgentRequest` / `AgentResponse` 名称不变。
 
 **Scope:**
 
 - rename `SupervisorAgent` to `AgentDispatcher`
-- rename `handle_specialist_request` to `dispatch_agent_request`
-- rename `SpecialistDelegate` to `AgentDelegate`
-- rename worker `specialist_handler` parameters to `agent_handler`
+- rename `handle_agent_request` to `dispatch_agent_request`
+- rename `AgentDelegate` to `AgentDelegate`
+- rename worker `agent_handler` parameters to `agent_handler`
 
 **Exit Criteria:**
 
-- active Python code no longer exposes `SupervisorAgent` or `handle_specialist_request`
+- active Python code no longer exposes `SupervisorAgent` or `handle_agent_request`
 - focused tests use `AgentDispatcher` / `dispatch_agent_request`
 
 ## Phase 57: Move Default Agent Registry To Worker
@@ -1368,7 +1372,7 @@ shared wire contract 的 `SpecialistRequest` / `SpecialistResponse` 名称不变
 **Scope:**
 
 - move rag / navigation / campus-services / notice delegate registry to
-  `apps/supervisor-core-worker`
+  `apps/supervisor-agent-worker`
 - keep `packages/supervisor-core` limited to injected delegate dispatch
 - keep RAG prompt executor and structured query service injection in worker
 
@@ -1421,28 +1425,70 @@ shared wire contract 的 `SpecialistRequest` / `SpecialistResponse` 名称不变
 **Exit Criteria:**
 
 - docs reflect agent-dispatch-only Python core boundary
-- active drift scan reports only allowed wire-contract `Specialist*` names and
+- active drift scan reports only allowed wire-contract `Agent*` names and
   historical closure records
 
 ## Phase 61: Internal Agent Handoff Naming Closeout
 
-**Goal:** 把 worker / tests / docs 的 active implementation 命名从 specialist residual
-收口到 agent handoff，同时不修改 bridge v5 / shared contracts 的 legacy wire 名称。
+**Goal:** 把 worker / tests / docs 的 active implementation 命名收口到 agent
+handoff，同时保持 bridge v6 / shared contracts 的 private wire 名称稳定。
 
 **Scope:**
 
-- rename worker-local `preplanned_specialist_request` /
-  `runtime_specialist_request` variables to agent request naming
-- rename bridge parser helper functions from specialist parser names to agent
-  handoff parser names while preserving `runtime_decisions.handoff.specialist_request`
+- rename worker-local `preplanned_agent_request` /
+  `runtime_agent_request` variables to agent request naming
+- rename bridge parser helper functions from agent parser names to agent
+  handoff parser names while preserving `runtime_decisions.handoff.agent_request`
   wire path
-- rename supervisor focused test suite from specialist policy to agent handoff
-- update docs / guard coverage so `SpecialistRequest` / `SpecialistResponse` remain
-  explicitly documented as legacy wire contract names only
+- rename supervisor focused test suite from agent policy to agent handoff
+- update docs / guard coverage so `AgentRequest` / `AgentResponse` remain
+  explicitly documented as private bridge contract names
 
 **Exit Criteria:**
 
-- focused guard proves worker internals no longer use specialist aliases for agent
+- focused guard proves worker internals no longer use agent aliases for agent
   handoff implementation names
 - bridge/API behavior remains unchanged
 - focused Python, ruff, docs and diff checks pass or record blockers
+
+## Phase 62: Supervisor-Core Package Retirement
+
+**Goal:** 退役 standalone `packages/supervisor-core`，让剩余 private agent dispatch
+明确归属 `apps/supervisor-agent-worker`。
+
+**Scope:**
+
+- move `AgentDispatcher` / `dispatch_agent_request` and dispatch errors into
+  `apps/supervisor-agent-worker`
+- remove `campus-supervisor-core` workspace dependency and Docker image copy /
+  `PYTHONPATH` entries
+- delete standalone `packages/supervisor-core`
+- update focused tests, guardrails, active architecture docs and workstream state
+
+**Exit Criteria:**
+
+- active Python runtime no longer imports `campus_supervisor_core`
+- `packages/supervisor-core` directory no longer exists
+- worker-owned agent dispatch tests pass
+
+## Phase 63: Agent Worker And Contract Hardcut
+
+**Goal:** 完成 `supervisor-core-worker` 与 `specialist` contract aliases 的 active
+hardcut，让 runtime、module、env、bridge contract 与 docs 全部使用 agent 命名。
+
+**Scope:**
+
+- rename Python worker runtime/package/env from supervisor-core worker to supervisor
+  agent worker
+- hardcut shared contract and bridge v6 response naming to canonical
+  `AgentRequest` / `AgentResponse` / `agent_response`
+- update infra scripts, Docker image naming, focused tests, guardrails, active docs
+  and workstream state
+- keep historical archives untouched
+
+**Exit Criteria:**
+
+- active code/docs/tests contain no `specialist` aliases or old supervisor-core worker
+  runtime names
+- Go `pnpm go:check`, focused Python tests, ruff, docs lint, Docker build and
+  `git diff --check` pass or record blockers

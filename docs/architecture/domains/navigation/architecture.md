@@ -36,7 +36,7 @@ updated: 2026-04-23
 
 长期导航主链路固定为：
 
-`web surface -> app-api -> supervisor-api -> supervisor-core -> navigation-agent
+`web surface -> app-api -> supervisor-api -> supervisor-agent-worker -> navigation-agent
 -> spatial truth / provider adapters -> supervisor response`
 
 ## Product Goal
@@ -87,7 +87,7 @@ updated: 2026-04-23
 
 ## Execution Ownership
 
-### `packages/supervisor-core`
+### `apps/supervisor-api`
 
 长期负责：
 

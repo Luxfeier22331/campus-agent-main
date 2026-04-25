@@ -12,7 +12,7 @@ updated: 2026-04-26
 
 它回答的是：
 
-- `apps/supervisor-api` 与 `packages/supervisor-core` 分别负责什么
+- `apps/supervisor-api` 与 `apps/supervisor-agent-worker` 分别负责什么
 - supervisor 如何与 agent 交互
 - RAG agent 与其他 domain capability family 的长期角色是什么
 
@@ -20,8 +20,8 @@ updated: 2026-04-26
 
 当前与长期都遵循：
 
-`app-api -> supervisor-api -> supervisor-core-worker private bridge ->
-supervisor-core -> agent -> retrieval-core -> evidence -> supervisor response`
+`app-api -> supervisor-api -> supervisor-agent-worker private bridge ->
+agent -> retrieval-core -> evidence -> supervisor response`
 
 已打开的 deterministic structured capability 是这条语义链路的例外分支：
 
@@ -30,10 +30,9 @@ supervisor-core -> agent -> retrieval-core -> evidence -> supervisor response`
 边界固定如下：
 
 - Go `apps/supervisor-api` 负责 Docker-side execution runtime control plane
-- Python `apps/supervisor-core-worker` 负责 private bridge worker、prompt runtime assembly
-  与默认 agent delegate map 装配
-- `packages/supervisor-core` 负责 private `AgentDispatcher`：消费 Go preplanned
-  `SpecialistRequest` handoff，并调用 worker 注入的 agent delegate
+- Python `apps/supervisor-agent-worker` 负责 private bridge worker、prompt runtime
+  assembly 与默认 agent delegate map 装配；worker 内部 `AgentDispatcher` 消费
+  Go preplanned `AgentRequest` handoff，并调用注入的 agent delegate
 - agent 负责能力边界内的 planning / evidence consumption / answer shaping
 - `packages/retrieval-core` 负责 evidence retrieval kernel、target-state retrieval
   execution 与 query activity，不负责顶层产品编排
@@ -49,9 +48,9 @@ supervisor 长期负责：
 - fail-close terminal semantics
 
 当前语言切分下，deterministic admission / routing / handoff projection 与
-`SpecialistResponse -> SupervisorResponse` finalization 由 Go `apps/supervisor-api`
-拥有；Python `apps/supervisor-core-worker` 装配 agent delegates，`packages/supervisor-core`
-只保留 private `AgentDispatcher`。
+`AgentResponse -> SupervisorResponse` finalization 由 Go `apps/supervisor-api`
+拥有；Python `apps/supervisor-agent-worker` 只装配 agent delegates 并执行 private
+agent dispatch。
 
 supervisor 不负责：
 
@@ -104,10 +103,10 @@ Docker-side Go runtime control plane 长期负责：
   当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
   与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
   knowledge 请求仍保持 knowledge path
-- Go `supervisor-api` 已拥有 private bridge v5 canonical request projection：
-  Python bridge hardcut 到 `supervisor_bridge_v5`，缺失 Go-owned
+- Go `supervisor-api` 已拥有 private bridge v6 canonical request projection：
+  Python bridge hardcut 到 `supervisor_bridge_v6`，缺失 Go-owned
   `effective_capability` / `lane` / `runtime_decisions` 时 fail-closed；
-  `packages/supervisor-core` 不再重复做 capability keyword inference
+  Python worker 不再重复做 capability keyword inference
 - Go `supervisor-api` 已落地 gate-closed structured query runtime foundation；当前
   `service_status_lookup` 具备 file projection fixture backed foundation，
   `transport_schedule_lookup` 具备 projection-backed schedule query kernel 与
@@ -115,19 +114,18 @@ Docker-side Go runtime control plane 长期负责：
   具备 Go-owned PG read-model + S3-compatible canonical body query runtime 与
   Python notice-agent HTTP thin-adapter wiring；其 authenticated-notice-backed
   offline projection builder 属于 ingestion data plane，产品主路由 gate 仍保持关闭
-- Go `supervisor-api` 已拥有 deterministic delegate handoff planner，bridge v5
-  通过 `runtime_decisions.handoff.specialist_request` 传递完整
-  `SpecialistRequest`、target、allowed tools 与 planning outcome；Python worker 只消费
-  Go handoff，不再在
-  `packages/supervisor-core` query time 构造 RAG / navigation / 校车 /
+- Go `supervisor-api` 已拥有 deterministic delegate handoff planner，bridge v6
+  通过 `runtime_decisions.handoff.agent_request` 传递完整
+  `AgentRequest`、target、allowed tools 与 planning outcome；Python worker 只消费
+  Go handoff，不再在 Python query time 构造 RAG / navigation / 校车 /
   service status / notice payload
 - planner 实现边界在 `apps/supervisor-api/internal/structuredplanning`；
-  `apps/supervisor-api/internal/execution` 只负责 request projection 与 bridge v5
+  `apps/supervisor-api/internal/execution` 只负责 request projection 与 bridge v6
   `runtime_decisions` 适配
 - Go `supervisor-api` 已拥有 deterministic runtime policy foundation；当前实现位于
-  `apps/supervisor-api/internal/runtimepolicy`，bridge v5 delegate 请求传递
+  `apps/supervisor-api/internal/runtimepolicy`，bridge v6 delegate 请求传递
   `scope_gate`、`policy_gate`、`context_preflight`、`tool_policy`、`routing_frame` 与
-  `handoff`。Python bridge 对缺失 Go-owned routing frame / delegate handoff 的 v5
+  `handoff`。Python bridge 对缺失 Go-owned routing frame / delegate handoff 的 v6
   请求 fail-closed，不再在 bridge 主路径重新做 product-scope、approval-required、
   context-follow-up 或 terminal 裁决；non-delegate terminal routing 由 Go direct
   terminal path 返回
@@ -153,12 +151,12 @@ Docker-side Go runtime control plane 长期负责：
   tool、terminal outcome 与 fail-close reason；OTel 与 execution audit 同步携带这些安全摘要，
   不携带 raw `user_goal` 或 prompt/provider payload
 - Go `supervisor-api` 已拥有 bridge response finalization：Python bridge 只返回
-  `SpecialistResponse`，Go finalizer 统一生成 public `SupervisorResponse` 与
-  response-level observability；`packages/supervisor-core` 的 `policy.py` /
-  `response.py` 已删除
-- Python `packages/supervisor-core` 已退役旧 `SupervisorAgent` / `agent.py` /
-  `handle_specialist_request` 命名，当前只暴露 `AgentDispatcher` 与
-  `dispatch_agent_request`；默认 agent delegate map 已迁到 worker runtime assembly
+  `AgentResponse`，Go finalizer 统一生成 public `SupervisorResponse` 与
+  response-level observability；Python legacy `policy.py` / `response.py` 已删除
+- Standalone Python `packages/supervisor-core` 已退役；剩余
+  `AgentDispatcher` / `dispatch_agent_request` 已内联到
+  `apps/supervisor-agent-worker`，默认 agent delegate map 由 worker runtime
+  assembly 装配
 - Go `supervisor-api` 已拥有 query-enabled scope admission；当前 allowlist 来自
   `configs/runtime/query-serving-scopes.v1.json`，并通过 drift test 与 ingestion
   runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
@@ -176,7 +174,7 @@ Docker-side Go runtime control plane 长期负责：
 
 Python semantic orchestration 长期继续负责：
 
-- `packages/supervisor-core` 的 private agent dispatch checkpoint
+- `apps/supervisor-agent-worker` 的 private agent dispatch checkpoint
 - agent reasoning、prompt-owned clarification / answer synthesis 与 RAG grounding
 - RAG prompt stack semantic assembly 与 provider-backed structured output execution，除非
   后续 profiling 证明它们是 Go runtime 稳定后的下一条瓶颈线
@@ -242,8 +240,8 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 - 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`
 - 当前 label 已与 forward family label 一致的能力边界，不再额外维护 synthetic split；如未来新增 domain
   capability，需要先冻结 family label，再决定其 package/runtime admission 形态
-- 当前 shared contract seam 仍保留 `SpecialistRequest` / `SpecialistResponse` 等
-  legacy DTO 名称；这些类型名暂不代表 canonical runtime vocabulary。
+- 当前 shared contract seam 使用 `AgentRequest` / `AgentResponse` 作为 private
+  bridge 的 canonical DTO 名称。
 
 ## Structured Runtime Families
 
@@ -401,7 +399,7 @@ adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
 当前重要的是：
 
 - transport 留在 `apps/*`
-- private agent dispatch checkpoint 留在 `packages/supervisor-core`
+- private agent dispatch checkpoint 留在 `apps/supervisor-agent-worker`
 - agent behavior 留在 agent package
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - Docker-side Go `supervisor-api` owns runtime hardening: request limits, caller
@@ -410,7 +408,7 @@ adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
   metrics, OTel telemetry seam and graceful drain
 - 这项冻结不改写 `app-api -> supervisor-api` contract，也不提前冻结单一 Python/HTTP
   framework
-- Python `apps/supervisor-core-worker` 只保留 private bridge worker，不再保留 repo-local
+- Python `apps/supervisor-agent-worker` 只保留 private bridge worker，不再保留 repo-local
   public compatibility entry
 
 ## Prompt And Instruction Ownership
@@ -421,11 +419,11 @@ execution path 的 prompt / instruction 继续遵循 package-owned ownership：
   families
 - `packages/retrieval-core` 不拥有 top-level task prompt；只拥有 evidence retrieval 与
   serialization helper
-- `apps/supervisor-core-worker` 不拥有长期 prompt truth；只负责 semantic runtime
+- `apps/supervisor-agent-worker` 不拥有长期 prompt truth；只负责 semantic runtime
   assembly 与 provider-backed execution adapter
 
 当前实现中，supervisor deterministic terminal wording 已由 Go direct terminal path
-承接；`packages/supervisor-core` 不再维护 production supervisor terminal prompt family。
+承接；Python worker 不再维护 production supervisor terminal prompt family。
 
 prompt 不能替代 code-owned routing、authz、serving filter 或 fail-close terminal
 semantics。
@@ -437,10 +435,10 @@ task/evidence packet -> Go-side supervisor finalization`
 
 补充约束：
 
-- `apps/supervisor-core-worker` 与后续 product runtime 只负责装配与执行，不拥有新的
+- `apps/supervisor-agent-worker` 与后续 product runtime 只负责装配与执行，不拥有新的
   monolithic mega system prompt
 - 当前 repo-default runtime assembly seam 已收口到
-  `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_stack.py`；它必须把
+  `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`；它必须把
   trusted developer/task layers 与 untrusted user/evidence layers 分开表达
 - `packages/retrieval-core` 继续只提供 evidence serialization helper，不拥有 top-level
   prompt truth
@@ -453,7 +451,7 @@ task/evidence packet -> Go-side supervisor finalization`
 - 不把 agent 重新降级成 `campusRAG` 式扁平 tool
 - 不把 `campus-services-agent` / `notice-agent` 的 structured runtime 再塞回 generic
   RAG 或单一 mega-tool router
-- 不把 retrieval implementation 细节塞回 `packages/supervisor-core`
+- 不把 retrieval implementation 细节塞回 `apps/supervisor-agent-worker`
 - 不让 `apps/supervisor-api` 恢复 product backend、operator query 或 browser API 责任
 - 不让 execution path 为了取 service/notice truth 而回调 `app-api` loopback HTTP
 - 不让 tool 在 query time 重新扫描 raw notice/source bundle 来“临时算答案”

@@ -31,7 +31,7 @@ updated: 2026-04-24
 - `apps/supervisor-api` 的前向 deploy substrate 已正式冻结为 Docker-first internal
   execution service
 - 当前 repo-owned staging execution runtime 已收敛到这台开发机上的
-  `supervisor-api + supervisor-core-worker` 双容器
+  `supervisor-api + supervisor-agent-worker` 双容器
 - 这条 canonical execution runtime 的运维姿势、计划任务、自愈与日志规则统一记录在
   `supervisor-api-staging-operations.md`
 - Python public compatibility ingress 已退出 active staging path

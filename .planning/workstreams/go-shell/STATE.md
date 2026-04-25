@@ -10,39 +10,41 @@ updated: 2026-04-26
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 61 internal naming closeout`
-- current slice: Go `supervisor-api` runtime kernel hardening、bridge v5
+- current phase: `Phase 63 agent worker and contract hardcut`
+- current slice: Go `supervisor-api` runtime kernel hardening、bridge v6
   canonical projection、deterministic capability/scope/version 裁决、structured
   runtime payload planner、prompt config admission summary、readiness runtime
   truth、execution audit batching/retry/spool、OTel sample accounting 与
   lifecycle SSE endpoint 已落地；Go handoff planner 已从 structured-only 扩展为
-  all-delegate preplanned handoff，knowledge `rag_request` 也由 Go bridge v5 投影；
+  all-delegate preplanned handoff，knowledge `rag_request` 也由 Go bridge v6 投影；
   Go 同时拥有 terminal envelope、non-delegate terminal direct answer path、
   `place_lookup` Go direct runtime、structured tool policy summary、opened structured capability non-stream /
   lifecycle SSE direct answer path、runtime decision observability summary 与 full
-  `SpecialistRequest` handoff projection，以及
-  `SpecialistResponse -> SupervisorResponse` finalization；Python bridge 已收窄为
+  `AgentRequest` handoff projection，以及
+  `AgentResponse -> SupervisorResponse` finalization；Python bridge 已收窄为
   delegate-only
-  semantic worker，`packages/supervisor-core` production path 不再依赖
+  semantic worker，`apps/supervisor-agent-worker` production path 不再依赖
   `RoutingDecision` / terminal envelope / runtime audit sink；legacy Python
   `routing.py`、supervisor-core `audit.py`、`policy.py`、`response.py` 与 worker
   stale audit helper 已删除，intent eval 只通过 Go `supervisor-api`
   runtime-policy runner 执行；Python supervisor-core residual `intent.py`、
   `scope_policy.py`、`query_policy.py`、`validation.py`、`context.py` 与
   `tool_policy.py` 已删除，Python worker cancel registry 仅保留
-  cancel flag store，不再发布 execution lifecycle counters；`packages/supervisor-core`
-  已退役 `SupervisorAgent` / `agent.py` / `handle_specialist_request` /
-  `SpecialistDelegate` / `MissingSpecialistDelegateError`，只保留
-  `dispatcher.py`、`AgentDispatcher`、`AgentDelegate`、`dispatch_agent_request` 与
-  dispatch error；默认 agent delegate map 已迁到 `apps/supervisor-core-worker`，
-  Python core 不再 import concrete agent packages；worker/test/docs active naming
-  已收口到 agent handoff / agent request，`SpecialistRequest` /
-  `SpecialistResponse` 与 `specialist_response` 只作为 bridge v5 legacy wire
-  contract seam 保留；`campus_services` /
+  cancel flag store，不再发布 execution lifecycle counters；旧
+  `SupervisorAgent` / `agent.py` / `handle_agent_request` /
+  `AgentDelegate` / `MissingAgentDelegateError` 已退役，剩余
+  `AgentDispatcher`、`AgentDelegate`、`dispatch_agent_request` 与 dispatch error
+  已内联到 `apps/supervisor-agent-worker`，standalone `packages/supervisor-core`
+  已退役；默认 agent delegate map 已迁到 worker runtime assembly，dispatch helper
+  不再 import concrete agent packages；worker/test/docs active naming
+  已收口到 agent worker / agent handoff / agent request，bridge v6 private
+  contract 以 `AgentRequest` / `AgentResponse` / `agent_response` 为 canonical
+  命名；旧 `specialist` aliases 与 `supervisor-core-worker` runtime 名称已从
+  active code / tests / docs 移除；`campus_services` /
   `notice` 产品主路由 gate 仍默认关闭
 - owner: unassigned
 - active implementation: yes, Go `apps/supervisor-api` plus Python
-  `apps/supervisor-core-worker`
+  `apps/supervisor-agent-worker`
 
 ## Captured Context
 
@@ -50,9 +52,13 @@ updated: 2026-04-26
 
 - Go implementation path 已从 `apps/go-shell` hardcut 到 `apps/supervisor-api`。
 - Python private bridge worker 已从 `apps/supervisor-api` hardcut 到
-  `apps/supervisor-core-worker`。
-- active runtime pair 是 `supervisor-api + supervisor-core-worker`；`go-shell` 仅保留为
+  `apps/supervisor-agent-worker`。
+- active runtime pair 是 `supervisor-api + supervisor-agent-worker`；`go-shell` 仅保留为
   这条迁移 workstream 的短名。
+- Python worker module/package/env 已 hardcut 到
+  `campus_supervisor_agent_worker` / `campus-supervisor-agent-worker` /
+  `SUPERVISOR_AGENT_WORKER_*`；bridge v6 private wire contract 已 hardcut 到
+  canonical `AgentRequest` / `AgentResponse` / `agent_response`。
 
 2026-04-23 讨论结论：
 
@@ -69,29 +75,29 @@ updated: 2026-04-26
   - Python orchestration bridge
 - 2026-04-25 补充：Go `supervisor-api` 现在拥有 effective capability/lane inference
   与 `campus_services` / `notice` structured runtime opening gate；Python
-  `supervisor-core-worker` 不再拥有本地 JSONL audit writer。
+  `supervisor-agent-worker` 不再拥有本地 JSONL audit writer。
 - 2026-04-25 补充：Go `supervisor-api` 现在拥有 bridge v4 canonical request
   projection、capability/scope/version 单源裁决、deterministic structured
   payload planner 与 prompt config admission summary；Python
-  `supervisor-core-worker` 只消费 Go preplanned handoff，并只发布 minimal
+  `supervisor-agent-worker` 只消费 Go preplanned handoff，并只发布 minimal
   semantic worker readiness。
 - 2026-04-25 补充：Go `supervisor-api` 的 preplanned handoff 已覆盖 knowledge
   delegate path；Python bridge 对 delegate routing 缺失 Go preplanned payload
   fail-closed，`packages/supervisor-core` 不再 fallback 到 Python `route_request()`，
-  也不再构造 RAG / navigation / structured specialist request payload。
+  也不再构造 RAG / navigation / structured agent request payload。
 - 2026-04-25 补充：Go `supervisor-api` 现在拥有 non-delegate terminal envelope、
   nested bridge v4 runtime decisions、structured tool policy summary、opened
   structured capability non-stream / lifecycle SSE direct answer path，以及低基数
   runtime decision observability labels；Python bridge hardcut 到 v4，
   `packages/supervisor-core` 不再合成 terminal prompt response，也不再维护 target ->
   tool matrix。
-- 2026-04-25 补充：bridge v4 handoff 改为传完整 `SpecialistRequest`，Python
+- 2026-04-25 补充：bridge v4 handoff 改为传完整 `AgentRequest`，Python
   `framing.py` 与 production supervisor terminal prompt stack 已删除；Python bridge 不再
   作为 execution audit runtime emission owner。
 - 2026-04-25 补充：Go non-stream / lifecycle SSE answer path 现在直接执行
   non-delegate terminal envelope；Python bridge answer route 只接受 delegate
-  `runtime_decisions.handoff.specialist_request`，`packages/supervisor-core` public
-  handler 只接受 `preplanned_specialist_request`，不再暴露 `preplanned_routing_decision`
+  `runtime_decisions.handoff.agent_request`，`packages/supervisor-core` public
+  handler 只接受 `preplanned_agent_request`，不再暴露 `preplanned_routing_decision`
   或 `audit_sink`。
 - 2026-04-25 补充：legacy Python `packages/supervisor-core/routing.py`、direct
   `audit.py` helper 与 worker stale audit seam 已删除；intent eval hardcut 到 Go
@@ -101,20 +107,26 @@ updated: 2026-04-26
   context/tool policy helpers 已删除；Go runtime policy / execution tests 承接 residual
   裁决覆盖，Python core 不再维护 target/tool matrix；Python bridge cancel registry
   只保留 request-scoped cancel flag store，execution lifecycle counters 继续由 Go 发布。
-- 2026-04-26 补充：bridge envelope 升级为 `supervisor_bridge_v5`，并要求
-  `response_contract=specialist_response`；Python bridge 只返回 private
-  `SpecialistResponse`，Go `supervisor-api` 统一 finalizes public
+- 2026-04-26 补充：bridge envelope 升级为 `supervisor_bridge_v6`，并要求
+  `response_contract=agent_response`；Python bridge 只返回 private
+  `AgentResponse`，Go `supervisor-api` 统一 finalizes public
   `SupervisorResponse` 与 response observability。`packages/supervisor-core`
   已删除 `policy.py` / `response.py` 与 legacy `handle_request` public handler。
 - 2026-04-26 补充：Python active core 进一步退役为 private agent dispatch helper；
-  `SupervisorAgent` / `agent.py` / `handle_specialist_request` / `SpecialistDelegate`
+  `SupervisorAgent` / `agent.py` / `handle_agent_request` / `AgentDelegate`
   / `MissingSpecialistDelegateError` 已移除，默认 agent delegate map 迁到
-  `apps/supervisor-core-worker`，`packages/supervisor-core` 不再 import concrete agent
+  `apps/supervisor-agent-worker`，`packages/supervisor-core` 不再 import concrete agent
   packages。
 - 2026-04-26 补充：完成内部命名 closeout；worker 内部变量/函数、supervisor focused
-  tests 与 docs/planning active 叙述统一为 agent handoff / agent request。bridge v5
-  wire 字段 `runtime_decisions.handoff.specialist_request`、`response_contract=specialist_response`
-  与 shared contract `SpecialistRequest` / `SpecialistResponse` 暂时保留。
+  tests 与 docs/planning active 叙述统一为 agent handoff / agent request。bridge v6
+  wire 字段 `runtime_decisions.handoff.agent_request`、`response_contract=agent_response`
+  与 shared contract `AgentRequest` / `AgentResponse` 作为 canonical bridge v6
+  private contract 保留。
+- 2026-04-26 补充：standalone `packages/supervisor-core` 已退役；剩余 private
+  `AgentDispatcher` / `dispatch_agent_request` 与 dispatch error API 已内联到
+  `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agent_dispatch.py`。
+  Worker Dockerfile、workspace dependency、tests、guard 与 active docs 已同步到
+  worker-owned agent dispatch。
 - 更宽的 Go/Rust/Python split 保留在
   `supervisor-docker-runtime-language-split` backlog。
 
@@ -162,12 +174,12 @@ updated: 2026-04-26
     `tests.api.test_supervisor_api_prompt_executor`
     `tests.api.supervisor_api_settings_and_health_suite`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.test_supervisor_runtime_guardrails`
-    `tests.specialist.rag_specialist_answer_grounding_suite`
+    `tests.agent.rag_agent_answer_grounding_suite`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
@@ -177,19 +189,19 @@ updated: 2026-04-26
     `tests/api/test_supervisor_api_prompt_executor.py`
     `tests/api/supervisor_api_settings_and_health_suite.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/supervisor_core_prompt_execution_suite.py`
     `tests/supervisor/test_supervisor_runtime_guardrails.py`
-    `tests/specialist/rag_specialist_answer_grounding_suite.py`
-    `tests/specialist/rag_specialist_test_support.py`
+    `tests/agent/rag_agent_answer_grounding_suite.py`
+    `tests/agent/rag_agent_test_support.py`
   - `uv run --all-packages ruff format` for the same Python paths with
     `--check`
   - `pnpm docs:lint`
   - `git diff --check`
   - active drift scan found no concrete agent package imports inside
     `packages/supervisor-core`; legacy `SupervisorAgent` /
-    `handle_specialist_request` / `SpecialistDelegate` /
-    `MissingSpecialistDelegateError` hits are limited to guard assertions and
+    `handle_agent_request` / `AgentDelegate` /
+    `MissingAgentDelegateError` hits are limited to guard assertions and
     descriptive planning / architecture closeout records
 - Phase 55 focused verification passed on 2026-04-26:
   - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
@@ -198,21 +210,21 @@ updated: 2026-04-26
     `tests.api.supervisor_api_bridge_suite`
     `tests.api.supervisor_api_audit_suite`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.test_supervisor_runtime_guardrails`
-    `tests.specialist.rag_specialist_answer_grounding_suite`
+    `tests.agent.rag_agent_answer_grounding_suite`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/supervisor_core_prompt_execution_suite.py`
     `tests/supervisor/test_supervisor_runtime_guardrails.py`
-    `tests/specialist/rag_specialist_answer_grounding_suite.py`
-    `tests/specialist/rag_specialist_test_support.py`
+    `tests/agent/rag_agent_answer_grounding_suite.py`
+    `tests/agent/rag_agent_test_support.py`
   - `uv run --all-packages ruff format` for the same Python paths with
     `--check`
   - `pnpm docs:lint`
@@ -230,7 +242,7 @@ updated: 2026-04-26
     `tests.api.test_supervisor_api_prompt_executor`
     `tests.shared.test_prompt_runtime`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.supervisor_core_observability_context_suite`
     `tests.supervisor.test_supervisor_policy`
@@ -238,7 +250,7 @@ updated: 2026-04-26
   - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
     `pnpm go:check`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
@@ -246,7 +258,7 @@ updated: 2026-04-26
     `tests/api/test_supervisor_api_prompt_executor.py`
     `tests/shared/test_prompt_runtime.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/supervisor_core_prompt_execution_suite.py`
     `tests/supervisor/supervisor_core_observability_context_suite.py`
     `tests/supervisor/test_supervisor_runtime_guardrails.py`
@@ -274,7 +286,7 @@ updated: 2026-04-26
     `tests.api.test_supervisor_api_prompt_executor`
     `tests.shared.test_prompt_runtime`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.supervisor_core_observability_context_suite`
     `tests.supervisor.test_supervisor_runtime_guardrails`
@@ -282,7 +294,7 @@ updated: 2026-04-26
   - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
     `pnpm go:check`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `packages/evals/src/campus_evals/intent_runner.py`
     `scripts/intent_gate.py`
@@ -307,7 +319,7 @@ updated: 2026-04-26
     `tests.api.test_supervisor_api_prompt_executor`
     `tests.shared.test_prompt_runtime`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.supervisor_core_observability_context_suite`
     `tests.supervisor.supervisor_core_audit_record_suite`
@@ -315,7 +327,7 @@ updated: 2026-04-26
     `tests.supervisor.test_supervisor_routing`
     `tests.supervisor.test_supervisor_policy`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
@@ -323,7 +335,7 @@ updated: 2026-04-26
     `tests/api/test_supervisor_api_prompt_executor.py`
     `tests/shared/test_prompt_runtime.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/supervisor_core_prompt_execution_suite.py`
     `tests/supervisor/supervisor_core_observability_context_suite.py`
     `tests/supervisor/supervisor_core_audit_record_suite.py`
@@ -349,14 +361,14 @@ updated: 2026-04-26
     `tests.api.test_supervisor_api_prompt_executor`
     `tests.shared.test_prompt_runtime`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.supervisor_core_prompt_execution_suite`
     `tests.supervisor.supervisor_core_observability_context_suite`
     `tests.supervisor.supervisor_core_audit_record_suite`
     `tests.supervisor.test_supervisor_runtime_guardrails`
     `tests.supervisor.test_supervisor_routing`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/test_supervisor_api_prompt_stack.py`
     `tests/api/test_supervisor_api_prompt_executor.py`
@@ -368,7 +380,7 @@ updated: 2026-04-26
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/test_supervisor_routing.py`
   - `uv run --all-packages ruff format` for the same Python paths with
     `--check`
@@ -385,17 +397,17 @@ updated: 2026-04-26
     `tests.api.supervisor_api_audit_suite`
     `tests.api.supervisor_api_bridge_suite`
     `tests.supervisor.supervisor_core_routing_suite`
-    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_agent_policy_suite`
     `tests.supervisor.test_supervisor_policy`
     `tests.supervisor.test_supervisor_runtime_guardrails`
     `tests.supervisor.test_supervisor_structured_runtime_observability`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `packages/supervisor-core/src/campus_supervisor_core`
     `tests/api/supervisor_api_bridge_suite.py`
     `tests/api/supervisor_api_audit_suite.py`
     `tests/supervisor/supervisor_core_routing_suite.py`
-    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_agent_policy_suite.py`
     `tests/supervisor/test_supervisor_policy.py`
     `tests/supervisor/test_supervisor_runtime_guardrails.py`
   - `uv run --all-packages ruff format` for the same Python paths with
@@ -414,11 +426,11 @@ updated: 2026-04-26
     `tests.supervisor.test_supervisor_validation`
     `tests.supervisor.test_supervisor_routing`
   - `uv run --all-packages ruff check`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `tests/api/supervisor_api_audit_suite.py`
     `tests/api/supervisor_api_settings_and_health_suite.py`
   - `uv run --all-packages ruff format`
-    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker`
     `tests/api/supervisor_api_audit_suite.py`
     `tests/api/supervisor_api_settings_and_health_suite.py --check`
   - `pnpm docs:lint`
@@ -428,7 +440,7 @@ updated: 2026-04-26
   - `uv run --all-packages python -m unittest` for supervisor API bridge,
     ASGI, prompt executor/stack, workspace layout, supervisor-api runtime
     smoke tests, shell/lint coverage tests, campus-services / notice
-    specialist wiring, and supervisor validation / routing / scope policy
+    agent wiring, and supervisor validation / routing / scope policy
   - `pnpm --dir apps/app-api test:node --`
     `operator-observability-ingest.route.test.ts`
     `operator-observability-command.service.test.ts`
@@ -439,11 +451,11 @@ updated: 2026-04-26
     `pnpm jsonl:lint`, `pnpm sql:lint`, `pnpm editorconfig:lint`,
     `pnpm html:lint`, `pnpm xml:lint`, and `pnpm public-docs:lint`
   - `API_WORKER_SHARED_SECRET=worker-secret`
-    `SUPERVISOR_CORE_WORKER_SHARED_SECRET=core-secret`
+    `SUPERVISOR_AGENT_WORKER_SHARED_SECRET=core-secret`
     `docker compose -f infra/local/docker-compose.supervisor-runtime.yml config`
   - `docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .`
-  - `docker build -f apps/supervisor-core-worker/Dockerfile`
-    `-t campus-supervisor-core-worker:local .`
+  - `docker build -f apps/supervisor-agent-worker/Dockerfile`
+    `-t campus-supervisor-agent-worker:local .`
   - stale runtime naming scan returned no active matches for old
     `apps/go-shell`, `campus_supervisor_api`, `go_shell`, or
     `SUPERVISOR_PY_BRIDGE` surfaces outside the historical workstream slug /
@@ -527,17 +539,17 @@ updated: 2026-04-26
 - Phase 10 transport schedule query kernel verification passed on 2026-04-24:
   - `PATH="$PATH:$(go env GOPATH)/bin" pnpm go:check`
   - `uv run --all-packages python -m unittest`
-    `tests.specialist.test_campus_services_agent`
+    `tests.agent.test_campus_services_agent`
     `tests.api.supervisor_api_bridge_suite`
     `tests.api.test_supervisor_api_asgi`
   - `uv run --all-packages ruff check apps/supervisor-api/src/campus_supervisor_api`
     `packages/campus-services-agent/src/campus_services_agent`
     `tests/api/supervisor_api_bridge_suite.py`
-    `tests/specialist/test_campus_services_agent.py`
+    `tests/agent/test_campus_services_agent.py`
   - `uv run --all-packages ruff format apps/supervisor-api/src/campus_supervisor_api`
     `packages/campus-services-agent/src/campus_services_agent`
     `tests/api/supervisor_api_bridge_suite.py`
-    `tests/specialist/test_campus_services_agent.py --check`
+    `tests/agent/test_campus_services_agent.py --check`
   - `pnpm docs:lint`
   - `pnpm yaml:lint`
 - Phase 11 forward capability lane alignment focused red/green verification
@@ -572,8 +584,8 @@ updated: 2026-04-26
     `go test ./internal/structuredquery ./internal/config ./internal/httpapi -count=1`
     in `apps/go-shell`
   - `uv run --all-packages python -m unittest`
-    `tests.specialist.test_notice_runtime_wiring`
-    `tests.specialist.test_notice_agent`
+    `tests.agent.test_notice_runtime_wiring`
+    `tests.agent.test_notice_agent`
     `tests.api.supervisor_api_bridge_suite`
 - Phase 13-15 bridge hardening focused verification passed on 2026-04-24:
   - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
@@ -611,7 +623,7 @@ updated: 2026-04-26
     `./internal/telemetry ./internal/observability ./internal/httpapi -count=1`
     in `apps/supervisor-api`
   - `uv run --all-packages python -m unittest`
-    `tests.specialist.test_campus_services_agent`
+    `tests.agent.test_campus_services_agent`
     `tests.api.supervisor_api_bridge_suite`
   - `pnpm --dir apps/app-api exec vitest run -c vitest.node.config.mts`
     `test/supervisor-adapter.test.ts`
@@ -773,7 +785,7 @@ updated: 2026-04-26
 - supervisor validation accepts explicit `campus_services` / `notice` while
   preserving knowledge-only scope/version semantics
 - supervisor routing delegates explicit `campus_services` / `notice` requests to
-  corresponding specialist-owned structured runtime payloads
+  corresponding agent-owned structured runtime payloads
 - existing knowledge-path structured runtime candidates remain gate-closed and
   still route through the current `rag-agent` path unless a higher-level surface
   explicitly admits a forward capability
@@ -787,7 +799,7 @@ updated: 2026-04-26
 - Go notice runtime consumes `payload + access_context` envelope so restricted
   internal notice authorization is enforced in Go
 - Go notice runtime reads `ingestion_projection.internal_notice_read_model`
-  through `pgx/v5`
+  through `pgx/v6`
 - Go notice get reads canonical markdown bodies from S3-compatible derived bucket
   through AWS SDK v2 S3 client with path-style endpoint support
 - `NoticeHTTPQueryService` is now the Python notice-agent thin adapter for the Go
@@ -805,7 +817,7 @@ updated: 2026-04-26
 - Python bridge cancel registry now exposes request-scoped cancel checks
 - worker answer route stops before and after supervisor handling when cancel is observed
 - default `packages/supervisor-core` orchestration checks cancellation around routing,
-  RAG prompt execution, specialist delegation and response finalization
+  RAG prompt execution, agent delegation and response finalization
 - Python bridge returns `499 execution_cancelled` as a `supervisor_error` bridge
   envelope for cancelled executions
 - Go `apps/supervisor-api` maps bridge cancellation terminal responses to lifecycle
@@ -833,9 +845,9 @@ updated: 2026-04-26
 ## Phase 34-38 Completed Implementation
 
 - Bridge envelope is now `supervisor_bridge_v4`.
-- Go `runtime_decisions.handoff` projects full `specialist_request` with trace,
+- Go `runtime_decisions.handoff` projects full `agent_request` with trace,
   actor, context, payload and allowed tools; Python parser no longer assembles
-  specialist requests from payload fragments.
+  agent requests from payload fragments.
 - Python bridge answer handling no longer emits runtime audit records; execution audit
   remains Go-owned.
 - Opened structured capabilities can complete through Go direct runtime on both
@@ -844,9 +856,9 @@ updated: 2026-04-26
   markdown templates have been removed from `packages/supervisor-core`; deterministic
   terminal wording is Go `terminal_envelope` truth.
 - Prompt runtime admission now requires the provider, API key, strict structured
-  outputs and specialist model used by the RAG executor; the removed supervisor
+  outputs and agent model used by the RAG executor; the removed supervisor
   terminal model is no longer an admission blocker.
-- Guard tests cover v4-only bridge parsing, full `specialist_request` handoff, deleted
+- Guard tests cover v4-only bridge parsing, full `agent_request` handoff, deleted
   framing / supervisor prompt stack files, and Python bridge audit emission removal.
 
 ## Remaining Implementation

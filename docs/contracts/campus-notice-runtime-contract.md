@@ -17,7 +17,7 @@ direction。
 它覆盖：
 
 - `packages/contracts` 内 notice runtime shared types
-- `packages/supervisor-core -> packages/notice-agent` 的 handoff seam
+- `apps/supervisor-agent-worker -> packages/notice-agent` 的 handoff seam
 - `notice-agent -> thin tool adapter -> internal query service` 的
   request/result seam
 
@@ -198,4 +198,4 @@ CampusNoticeGetResult
 - `notice_source_family_summary`
 - `temporal_posture`
 
-这些字段是 app-owned compact summary，不是 raw specialist dump contract。
+这些字段是 app-owned compact summary，不是 raw agent dump contract。

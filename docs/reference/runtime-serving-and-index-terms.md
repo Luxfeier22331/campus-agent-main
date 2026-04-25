@@ -105,7 +105,7 @@ updated: 2026-04-23
 
 定义：
 
-- supervisor 在 specialist-owned execution 之前识别的顶层能力类别
+- supervisor 在 agent-owned execution 之前识别的顶层能力类别
 
 说明：
 
@@ -143,7 +143,7 @@ updated: 2026-04-23
 
 定义：
 
-- supervisor 为了判定 admission、capability route 或 handoff path，在 specialist-owned
+- supervisor 为了判定 admission、capability route 或 handoff path，在 agent-owned
   execution 之前发起的澄清
 
 说明：
@@ -153,23 +153,23 @@ updated: 2026-04-23
   `corpus/collection`
 - 某些 surface 当前可以选择 fail-close，而不是把 routing clarification 直接暴露给终端用户
 
-### Specialist Clarification
+### Agent Clarification
 
 定义：
 
-- 在 capability route 已确定后，由 specialist 为本域缺失参数、歧义或约束信息发起的澄清
+- 在 capability route 已确定后，由 agent 为本域缺失参数、歧义或约束信息发起的澄清
 
 说明：
 
-- specialist clarification 属于 specialist-owned execution，不属于顶层 routing gate
-- knowledge-family specialist 可以用它补全时间、院系、版本或制度对象等 domain-specific slots
-- 不同 specialist 的 clarification shape 可以不同，但都不应回退成顶层 capability routing 代理
+- agent clarification 属于 agent-owned execution，不属于顶层 routing gate
+- knowledge-family agent 可以用它补全时间、院系、版本或制度对象等 domain-specific slots
+- 不同 agent 的 clarification shape 可以不同，但都不应回退成顶层 capability routing 代理
 
 ### Retrieval Plan
 
 定义：
 
-- planner-first retrieval 中由 specialist 生成的 typed retrieval execution plan
+- planner-first retrieval 中由 agent 生成的 typed retrieval execution plan
 
 说明：
 
@@ -466,7 +466,7 @@ updated: 2026-04-23
 
 - 不要把 serving alias 和 physical collection 混为一谈
 - 不要把 `corpus/collection` 或 `requestedScope` 误当成 capability routing 的代理字段
-- 不要把 routing clarification 和 specialist clarification 混为一谈
+- 不要把 routing clarification 和 agent clarification 混为一谈
 - 不要把 chunk preparation manifest 误读成 index release manifest
 - 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant Cloud”
 - 不要把 release manifest 当成 chunk store

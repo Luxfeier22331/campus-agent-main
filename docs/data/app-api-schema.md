@@ -299,7 +299,7 @@ updated: 2026-04-25
 - `requested_scope_json` 表示 accept 时上游显式请求的 scope，可为空
 - `version_query_json` 保存 raw caller-supplied version query；缺失表示 caller 没有显式覆盖
   current
-- `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 specialist
+- `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 agent
   自主解析 surface，这里必须落最终解析结果
 - `selected_target` 表示 finalized execution 实际选择的 current runtime target；它不承载
   forward family vocabulary，也不应被重载为 operator-facing display label
@@ -511,7 +511,7 @@ updated: 2026-04-25
 
 - `request_id` 与 `runtime.request_execution.request_id` 一一对应
 - 这是 panel-facing materialized view，不要求与 command-side 列完全相同
-- `requested_scope_json` 用于展示调用方显式约束；`resolved_scope_json` 用于展示 specialist 最终解析的
+- `requested_scope_json` 用于展示调用方显式约束；`resolved_scope_json` 用于展示 agent 最终解析的
   serving scope
 - `version_query_json` 用于展示 raw caller-supplied version query；operator surface
   如需友好文案应改读 `runtime.request_observability_fact.version_query_summary`

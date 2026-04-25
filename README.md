@@ -12,7 +12,7 @@ retrieval / ingestion packages。
 
 ```text
 browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
--> supervisor-core -> agent
+-> supervisor-agent-worker -> agent
 ```
 
 当前正式 docs surface 为：
@@ -51,7 +51,7 @@ browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
     cted-panel-web`、`app-api`、`supervisor-api`、`ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `supervisor-core`、`rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
+    `rag-agent`、`retrieval-core`、`ingestion-core`、`contracts`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -68,7 +68,7 @@ browser -> public-chat-web / protected-panel-web -> app-api -> supervisor-api
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/public-docs`](./apps/public-docs/)
 - [`apps/supervisor-api`](./apps/supervisor-api/)
-- [`packages/supervisor-core`](./packages/supervisor-core/)
+- [`apps/supervisor-agent-worker`](./apps/supervisor-agent-worker/)
 - [`packages/rag-agent`](./packages/rag-agent/)
 - [`packages/retrieval-core`](./packages/retrieval-core/)
 

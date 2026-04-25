@@ -406,7 +406,7 @@ icy.md`。
 - `requestedCapability` 可选；当前 public chat 只接受 `knowledge`。这是 current surface
   posture，不表示长期产品入口必须 `knowledge-only` 或 `RAG-first`
 - `requestedScope` 可选；它只属于 knowledge-family path。未提供时 `app-api` 不得伪造默认 serving
-  surface，最终 scope 由 downstream specialist 解析，并在 finalized projection /
+  surface，最终 scope 由 downstream agent 解析，并在 finalized projection /
   observability 中回填 `resolvedScope`
 - `versionQuery` 可选；它只属于 knowledge-family path，用 `camelCase` 传
   `mode`、`asOf`、`versionId`、`compareToVersionId`
@@ -592,9 +592,9 @@ terminal event 额外携带：
 
 - 这是 projection detail，不是 raw execution dump
 - `requestedScope` 表示调用方显式请求的 knowledge-family scope，可为 `null`
-- `resolvedScope` 表示 specialist 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
+- `resolvedScope` 表示 agent 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
-- v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 specialist-internal payload
+- v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 agent-internal payload
 
 ## Explicit Non-Goals
 

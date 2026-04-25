@@ -89,6 +89,6 @@ Phase 1 之后，仓库的当前 truth 已由以下文档接管：
 
 - 当前产品与 runtime truth：`docs/architecture/current-architecture.md`
 - retrieval / serving 边界：`docs/architecture/retrieval-serving-architecture.md`
-- 更晚期的 identity、authorization、offline data plane 与 specialist/supervisor 边界文档
+- 更晚期的 identity、authorization、offline data plane 与 agent/supervisor 边界文档
 
 因此本文现在只保留追溯价值，不再作为 active implementation 入口。

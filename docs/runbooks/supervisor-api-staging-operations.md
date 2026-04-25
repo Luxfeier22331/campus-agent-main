@@ -10,7 +10,7 @@ updated: 2026-04-24
 
 这份 runbook 只回答当前 canonical staging execution upstream 的长期运维真相：
 
-- 当前 repo-owned staging execution runtime 是 `supervisor-api + supervisor-core-worker`
+- 当前 repo-owned staging execution runtime 是 `supervisor-api + supervisor-agent-worker`
   双容器
 - `exec-staging.ayafeed.com` 继续通过 named tunnel 指回这台主机上的本地
   `supervisor-api` runtime
@@ -29,7 +29,7 @@ updated: 2026-04-24
     - `127.0.0.1:27010`
     - `/healthz` `/readyz` `/metrics` `/api/v1/answer`
     - bounded in-process admission queue / backpressure / graceful drain
-  - `supervisor-core-worker`
+  - `supervisor-agent-worker`
     - private `/internal/bridge/*`
 - named tunnel：
   - tunnel name: `supervisor-api-staging`
@@ -88,7 +88,7 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 
 `--check` 通过标准：
 
-- `supervisor-api` 与 `supervisor-core-worker` 都在当前 compose project 中运行
+- `supervisor-api` 与 `supervisor-agent-worker` 都在当前 compose project 中运行
 - 如果配置了 public execution origin，则 `cloudflared` 进程存在
 - 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27010/readyz`> 返回 `200`
@@ -102,7 +102,7 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - `supervisor-api` 默认 admission 参数为 `SUPERVISOR_API_MAX_CONCURRENT_ANSWERS=8`、
   `SUPERVISOR_API_QUEUE_CAPACITY=24`、`SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000`、
   `SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000` 与
-  `SUPERVISOR_CORE_WORKER_TIMEOUT_MS=35000`
+  `SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000`
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
@@ -114,7 +114,7 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
   runtime 不 ready
-- `supervisor-core-worker` 必须同时拿到 query runtime env，包括 `QDRANT_URL`、
+- `supervisor-agent-worker` 必须同时拿到 query runtime env，包括 `QDRANT_URL`、
   `QDRANT_API_KEY`、`QDRANT_TIMEOUT_SECONDS`、`DOCUMENT_REGISTRY_DATABASE_URL` 或
   `CAMPUS_SHARED_POSTGRES_URL`、`EMBEDDING_*` 与 `SPARSE_*`
 - `infra/local/staging/start-supervisor-api-staging.sh` 会从 repo env 与 `apps/app-api/.dev.vars`
@@ -154,7 +154,7 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 日志目录：
 
 - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
-- `.tmp/supervisor-api-staging/logs/supervisor-core-worker.log`
+- `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
 - `.tmp/supervisor-api-staging/logs/cloudflared.log`
 
 轮转规则：
@@ -169,7 +169,7 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 
 - 先看：
   - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
-  - `.tmp/supervisor-api-staging/logs/supervisor-core-worker.log`
+  - `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
 - 再直接执行：
 
 ```bash
@@ -181,23 +181,23 @@ docker compose -f infra/local/docker-compose.supervisor-runtime.yml ps
 
 `status --check` 报 `local readyz returned HTTP ...`
 
-- 说明 `supervisor-api` 或 `supervisor-core-worker` 还没达到真实 runtime ready
+- 说明 `supervisor-api` 或 `supervisor-agent-worker` 还没达到真实 runtime ready
 - 先跑：
 
 ```bash
 uv run --all-packages python -m scripts.doctor_env supervisor-api --json
 ```
 
-- 再看 `supervisor-core-worker.log` 中缺的是 prompt/runtime 还是 audit/runtime
+- 再看 `supervisor-agent-worker.log` 中缺的是 prompt/runtime 还是 audit/runtime
 
-真实 chat smoke 返回 `supervisor_unavailable`，且 `supervisor-core-worker.log` 中出现
+真实 chat smoke 返回 `supervisor_unavailable`，且 `supervisor-agent-worker.log` 中出现
 `QDRANT_URL is required`
 
 - 说明 transport ready，但 query runtime env 没有进入 Docker runtime
 - 先确认容器里变量存在：
 
 ```bash
-docker exec campus-supervisor-api-staging-supervisor-core-worker-1 \
+docker exec campus-supervisor-api-staging-supervisor-agent-worker-1 \
   sh -lc 'for k in QDRANT_URL DOCUMENT_REGISTRY_DATABASE_URL \
   EMBEDDING_MODEL; do \
   eval v=\${$k:-}; [ -n "$v" ] && echo "$k=set" || echo "$k=unset"; done'
@@ -243,5 +243,5 @@ curl --noproxy '*' -sS -i https://campus-api-staging.ayafeed.com/readyz
 
 ## Recovery Boundary
 
-当前 active recovery path 是重启 `supervisor-api + supervisor-core-worker` 双容器 runtime。
+当前 active recovery path 是重启 `supervisor-api + supervisor-agent-worker` 双容器 runtime。
 仓库不再维护 dev-backed Python public ingress fallback。

@@ -273,7 +273,7 @@ seam：
 - `context.session.selected_notice_ref` 只属于 query-time runtime carrier，不改变
   source-truth owner
 - `notice-agent` 的 structured-runtime observability summary 只回传 compact
-  execution summary，不回传 raw source bundle 或 raw specialist dump
+  execution summary，不回传 raw source bundle 或 raw agent dump
 
 ## Runtime Connectivity Posture
 

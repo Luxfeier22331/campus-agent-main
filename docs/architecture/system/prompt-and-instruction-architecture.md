@@ -29,7 +29,7 @@ updated: 2026-04-25
 当前 repo 已经把 prompt / instruction runtime 收口为显式 supporting architecture +
 code-owned runtime seam。当前接受的实现基线是：
 
-- `packages/supervisor-core` 拥有 intent framing、routing、policy、response
+- Go `apps/supervisor-api` 拥有 intent framing、routing、policy 与 response
   finalization
 - `packages/rag-agent` 拥有 ambiguity handling、query planning、retrieval-oriented
   answer shaping
@@ -39,14 +39,14 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - repo-global developer invariants 由 shared prompt runtime helper 持有
 - package-owned role prompt 当前由 `packages/rag-agent` prompt registry 持有；
-  `packages/supervisor-core` 的 production supervisor terminal prompt family 已移除
+  Python production supervisor terminal prompt family 已移除
 - `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但
   prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path
   wording，不再把 `rag-agent` 当默认对外标签
-- `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_stack.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_stack.py`
   负责把 developer invariants、role prompt、trusted task packet、untrusted user/evidence
   packet 组装成 runtime stack
-- `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_executor.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/prompt_executor.py`
   负责 provider-backed strict structured outputs，并在产品主链路生成 validated
   `PromptTrace`
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
@@ -152,7 +152,6 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - `apps/app-api`
 - `apps/supervisor-api`
-- `packages/supervisor-core`
 - `packages/retrieval-core`
 - registry / runtime profile / release manifest
 
@@ -317,7 +316,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 拥有 product-facing answer kind 映射与 operator-facing projection
 - 不拥有 policy / scope / grounding 的最终真相判断
 
-### `packages/supervisor-core` ownership
+### `apps/supervisor-api` ownership
 
 - 拥有 top-level `policy gate` 与 `scope gate`
 - 拥有语义终态 finalization
@@ -384,7 +383,7 @@ repo 级 instruction hierarchy 固定拆成五层：
 
 - `apps/supervisor-api`
   - owns prompt config admission summary and deterministic terminal envelopes
-- `apps/supervisor-core-worker`
+- `apps/supervisor-agent-worker`
   - owns RAG provider client / prompt executor runtime binding
 - `packages/rag-agent`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
@@ -500,9 +499,9 @@ repo 当前推荐的 system / role 设计固定为：
 
 - `packages/rag-agent` 的 prompt family 只负责 `answer / clarify / no-answer /
   unsupported` 的 grounded wording
-- `packages/supervisor-core` 当前不拥有 production supervisor terminal prompt family；
-  non-delegate terminal routing 由 Go direct terminal path 返回，Python core 只继续负责
-  delegated specialist response finalization
+- Python worker 当前不拥有 production supervisor terminal prompt family；
+  non-delegate terminal routing 由 Go direct terminal path 返回，Go 继续负责
+  delegated agent response finalization
 - `packages/retrieval-core` 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission
   / product projection
@@ -536,17 +535,12 @@ repo 当前推荐的 system / role 设计固定为：
 - 只拥有 product-layer session / principal / request context projection
 - 可拥有 consumer-facing UX copy prompt，但不拥有 agent instructions
 
-### `apps/supervisor-api`
+### Supervisor Runtime Prompt Boundary
 
 - 不拥有长期 prompt 文案
 - 只负责 execution admission、transport、request packaging
-
-### `packages/supervisor-core`
-
-- owns supervisor role instructions
-- owns supervisor task packet assembly
-- owns clarification / approval-required / out-of-scope / reject wording prompt
-  families
+- owns deterministic supervisor terminal wording
+- owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
 ### `packages/rag-agent`
@@ -897,7 +891,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 - package-owned prompt registry、prompt packet 与 strict validation seam
   已成为 knowledge path 产品主链路的一部分
 - `apps/supervisor-api` 已承担 prompt config admission summary；Python
-  `apps/supervisor-core-worker` 仍实际创建 RAG provider client / prompt executor，并将
+  `apps/supervisor-agent-worker` 仍实际创建 RAG provider client / prompt executor，并将
   prompt trace 接入现有 diagnostics / observability
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture

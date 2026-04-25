@@ -53,7 +53,7 @@ uv run --all-packages python -m scripts.doctor_env <surface> --json
 from Worker staging:
 
 - shared LLM provider resolution
-- supervisor / specialist prompt model selection
+- supervisor / agent prompt model selection
 - prompt HTTP timeout and connection-pool tuning keys
 - async audit queue capacity
 - answer admission and worker-thread tuning keys

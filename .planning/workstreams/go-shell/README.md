@@ -15,7 +15,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 当前 hardcut 后的实现位于：
 
 - Go execution ingress: `apps/supervisor-api`
-- Python private bridge worker: `apps/supervisor-core-worker`
+- Python private bridge worker: `apps/supervisor-agent-worker`
 
 已落地的 runtime 能力包括：
 
@@ -23,38 +23,39 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 - `/healthz`、`/readyz`、`/api/v1/answer` transport surface
 - request body limit、JSON object 校验、`bearer` / `trusted-worker` auth
 - global admission semaphore 与 bridge fail-closed 行为
-- `SupervisorRequest -> SpecialistRequest -> SpecialistResponse` private HTTP bridge；
+- `SupervisorRequest -> AgentRequest -> AgentResponse` private HTTP bridge；
   public `SupervisorResponse` finalization 由 Go `supervisor-api` 执行
-- Go `supervisor-api` / Python `supervisor-core-worker` 双容器本地 Docker harness
+- Go `supervisor-api` / Python `supervisor-agent-worker` 双容器本地 Docker harness
 - Dockerfile 与 root `pnpm go:check` / CI lint lane
 
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 61 internal naming closeout`
-- current slice: Go `supervisor-api` 已承接 bridge v5 canonical request
+- current phase: `Phase 63 agent worker and contract hardcut`
+- current slice: Go `supervisor-api` 已承接 bridge v6 canonical request
   projection、deterministic capability/scope/version 裁决、structured runtime
   payload planner、prompt config admission summary、runtime readiness truth 与
-  execution audit ownership；Python `supervisor-core-worker` 已收窄为 private
+  execution audit ownership；Python `supervisor-agent-worker` 已收窄为 private
   semantic worker，消费 Go preplanned handoff，不再发布 execution runtime truth；Go
   已从 structured-only handoff planner 扩展为 all-delegate handoff planner，knowledge
-  `rag_request` 也由 bridge v5 preplanned；Go 同时拥有 terminal envelope、structured
+  `rag_request` 也由 bridge v6 preplanned；Go 同时拥有 terminal envelope、structured
   tool policy summary、non-delegate terminal direct answer path、`place_lookup`
   Go direct runtime、opened structured capability 的 non-stream / lifecycle SSE direct answer path、runtime decision
-  observability summary、full legacy-contract handoff projection 与
-  `SpecialistResponse -> SupervisorResponse` finalization；Python bridge /
-  `packages/supervisor-core` production path 已收口为 preplanned agent handoff
+  observability summary、canonical `AgentRequest` handoff projection 与
+  `AgentResponse -> SupervisorResponse` finalization；Python
+  `apps/supervisor-agent-worker` production path 已收口为 preplanned agent handoff
   only，legacy Python `routing.py`、`audit.py`、`policy.py`、`response.py`、
   `intent.py`、`scope_policy.py`、`query_policy.py`、`validation.py`、`context.py`
   与 `tool_policy.py` helper 已删除；
   Python worker cancel registry 仅保留最小 cancel flag store，不再发布 execution
-  lifecycle counters；`packages/supervisor-core` 已进一步退役旧 `SupervisorAgent` / `agent.py` /
-  `handle_specialist_request` 命名，只保留 `AgentDispatcher` /
-  `dispatch_agent_request`；默认 agent delegate map 已迁到
-  `apps/supervisor-core-worker` runtime assembly，Python core 不再 import 具体 agent
-  packages；2026-04-26 internal naming closeout 已把 worker/test/docs active 叙述
-  统一到 agent handoff / agent request，`SpecialistRequest` / `SpecialistResponse`
-  与 `specialist_response` 仅作为 bridge v5 legacy wire contract seam 保留
+  lifecycle counters；旧 `SupervisorAgent` / `agent.py` /
+  `handle_agent_request` 命名已退役，剩余 `AgentDispatcher` /
+  `dispatch_agent_request` 已内联到 `apps/supervisor-agent-worker`，standalone
+  `packages/supervisor-core` 已退役；默认 agent delegate map 已迁到 worker runtime
+  assembly，Python worker 不再 import 具体 agent packages 到 dispatch helper；2026-04-26
+  internal naming closeout 已把 worker/test/docs active 叙述统一到 agent worker /
+  agent handoff / agent request；bridge v6 private contract 现在以
+  `AgentRequest` / `AgentResponse` / `agent_response` 为 canonical 命名
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -104,7 +105,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - Go execution parser 将 forward capability 映射到对应 lane admission
   - supervisor validation 明确 `requested_scope` / `version_query` 只属于
     knowledge path
-  - explicit forward capability 可进入对应 specialist-owned structured runtime
+  - explicit forward capability 可进入对应 agent-owned structured runtime
     handoff；knowledge path gate-closed 行为不变
 - `Phase 12`
   - Go `supervisor-api` 已提供 `/internal/query/notices/discover` 与
@@ -145,7 +146,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     opening gate，默认 closed，可通过 `SUPERVISOR_API_OPEN_CAPABILITIES` 显式打开
   - `/readyz` 暴露 `capability_gates`，`/metrics` 暴露 capability gate decision
     counter
-  - Python `supervisor-core-worker` 不再创建本地 JSONL audit writer，execution audit
+  - Python `supervisor-agent-worker` 不再创建本地 JSONL audit writer，execution audit
     writer/backflow 归 Go `supervisor-api` 所有
 - `Phase 21`
   - Go bridge payload 成为 canonical request projection
@@ -160,7 +161,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 - `Phase 23`
   - Go structured runtime payload planner 输出
     `runtime_decisions.handoff`，其中包含 target、`allowed_tools`、
-    `specialist_request` 与 `planning_outcome`
+    `agent_request` 与 `planning_outcome`
   - Python worker 注入 Go preplanned handoff；`packages/supervisor-core`
     不再构造校车 / service status / notice deterministic payload
 - `Phase 24`
@@ -179,7 +180,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - Go `internal/structuredplanning` 输出 knowledge `rag_request` handoff
   - Python bridge 对 delegate routing 缺失 `planning_outcome=preplanned` fail-closed
   - `packages/supervisor-core` 不再 fallback 调用 Python `route_request()`，也不再在
-    Python 中构造 RAG / navigation / structured specialist request payload
+    Python 中构造 RAG / navigation / structured agent request payload
 - `Phase 28`
   - Go `supervisor-api` 生成 non-delegate routing 的 terminal envelope
   - Python bridge 要求 terminal routing 必须携带 Go terminal envelope
@@ -208,8 +209,8 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     和 Python payload builder 回流
 - `Phase 34`
   - bridge envelope 升级为 `supervisor_bridge_v4`
-  - `runtime_decisions.handoff` 改为携带完整 `specialist_request`
-  - Python parser 只消费 v4 handoff，不再从 payload fragment 组装 specialist request
+  - `runtime_decisions.handoff` 改为携带完整 `agent_request`
+  - Python parser 只消费 v4 handoff，不再从 payload fragment 组装 agent request
 - `Phase 35`
   - Python bridge execution audit emission 移出 runtime path
   - Go 继续作为 execution audit writer / observability owner
@@ -218,15 +219,15 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
   - lifecycle SSE 返回 supervisor-style completed / failed event，不再强制经过 Python bridge
 - `Phase 37`
   - 删除 production supervisor terminal prompt executor、prompt packets、registry 与模板
-  - prompt admission 收口到当前仍实际创建的 RAG/specialist provider executor
+  - prompt admission 收口到当前仍实际创建的 RAG/agent provider executor
 - `Phase 38`
-  - 更新 supervisor-api / supervisor-core-worker / supervisor-core / architecture docs
-  - 增加 guard，防止 bridge v4、full `SpecialistRequest` handoff、supervisor prompt stack
+  - 更新 supervisor-api / supervisor-agent-worker / supervisor-core / architecture docs
+  - 增加 guard，防止 bridge v4、full `AgentRequest` handoff、supervisor prompt stack
     删除与 Python runtime audit 收口发生回流
 - `Phase 39-45`
   - Go non-stream / lifecycle SSE answer path 直接执行 non-delegate terminal envelope
   - Python bridge answer route hardcut 为 delegate-only `supervisor_bridge_v4`
-  - `packages/supervisor-core` public handler 只接受 Go preplanned `SpecialistRequest`
+  - `packages/supervisor-core` public handler 只接受 Go preplanned `AgentRequest`
   - production core 不再导入 `RoutingDecision`、`finalize_routing_decision` 或 runtime
     audit sink
   - 更新 tests / docs / guard，防止 Python runtime routing / terminal handling 回流
@@ -240,32 +241,45 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
     context / tool policy helpers
   - Go runtime policy / execution tests 覆盖 residual scope、query-serving scope、
     capability/scope/version guard 与 target/tool policy ownership
-  - `packages/supervisor-core` 只信任 Go bridge v4 full `SpecialistRequest` handoff，
+  - `packages/supervisor-core` 只信任 Go bridge v4 full `AgentRequest` handoff，
     不再执行 Python target/tool matrix
   - Python worker cancel registry 瘦身为 request-scoped cancel flag store，readyz 不再
     暴露 active execution / cancel count runtime truth
   - 更新 docs / guard，防止 legacy helper 与 direct runtime truth 回流
 - `Phase 55`
-  - bridge envelope 升级为 `supervisor_bridge_v5`
-  - Go `supervisor-api` 要求 Python bridge 返回 `specialist_response` contract
-  - Go finalizer 将 private `SpecialistResponse` 统一转为 public
+  - bridge envelope 升级为 `supervisor_bridge_v6`
+  - Go `supervisor-api` 要求 Python bridge 返回 `agent_response` contract
+  - Go finalizer 将 private `AgentResponse` 统一转为 public
     `SupervisorResponse`，并生成 response-level observability
   - Python bridge / `packages/supervisor-core` 不再组装 public `SupervisorResponse`
   - 删除 Python `policy.py` / `response.py` 与 legacy `handle_request` public handler
 - `Phase 56-60`
-  - `SupervisorAgent` / `handle_specialist_request` 退役为
+  - `SupervisorAgent` / `handle_agent_request` 退役为
     `AgentDispatcher` / `dispatch_agent_request`
   - `SpecialistDelegate` / `MissingSpecialistDelegateError` 退役为
     `AgentDelegate` / `MissingAgentDelegateError`
   - 默认 agent delegate map 从 `packages/supervisor-core` 迁到
-    `apps/supervisor-core-worker`
+    `apps/supervisor-agent-worker`
   - `packages/supervisor-core` 不再 import `rag-agent` / `navigation-agent` /
     `campus-services-agent` / `notice-agent`
   - docs / guard 更新，防止旧 Python supervisor core 命名和 agent registry 回流
+- `Phase 61`
+  - worker/test/docs active 叙述统一到 agent handoff / agent request
+  - `AgentRequest` / `AgentResponse` 作为 bridge v6 private contract canonical 名称
+- `Phase 62`
+  - standalone `packages/supervisor-core` 退役
+  - 剩余 `AgentDispatcher` / `dispatch_agent_request` 内联到
+    `apps/supervisor-agent-worker`
+  - worker Dockerfile / workspace dependency / guard / docs 同步到 worker-owned
+    agent dispatch
+- `Phase 63`
+  - worker runtime/package/env hardcut 到 `supervisor-agent-worker`
+  - bridge/shared contract hardcut 到 canonical `AgentRequest` / `AgentResponse` /
+    `agent_response`
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-60 的剩余必做实现项
+- repo 内当前没有 Phase 8-63 的剩余必做实现项
 - `place_lookup` 已由 Go direct runtime 承接 repo-owned place catalog 查询；
   地图 UI、route planning 与 `place_card` product consumption 仍属于 navigation
   rollout backlog
@@ -305,7 +319,7 @@ Go，同时保留现有 Python `supervisor-core` / agent semantic dispatch 语�
 
 Go 侧优先使用标准库和少量官方生态组件。第一版不引入 Gin / Echo / Fiber，也不引入
 gRPC 作为默认 bridge；Go `supervisor-api` 通过稳定 JSON bridge 调用长驻 Python
-`supervisor-core-worker`。
+`supervisor-agent-worker`。
 
 ## Related Workstreams
 

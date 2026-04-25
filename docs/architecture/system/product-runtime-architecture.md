@@ -22,7 +22,7 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core-worker
+`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge`
 
 `browser -> public-docs`
@@ -141,9 +141,10 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   - 拥有 execution-level lifecycle、explicit cancel、global / per-lane admission、
     queue、timeout、bridge circuit breaker、readiness、metrics、OTel telemetry seam 与
     graceful drain
-- Python `apps/supervisor-core-worker`
+- Python `apps/supervisor-agent-worker`
   - private orchestration bridge worker
-  - 负责把 Go 已投影的 `SupervisorRequest` 交给 `packages/supervisor-core`
+  - 负责消费 Go 已投影的 private bridge request，并通过 worker 内部
+    agent dispatcher 调用 agent
   - 负责在 semantic orchestration checkpoints 观测 Go 投递的 cooperative cancel
   - 不再拥有 public execution ingress、caller auth 或 transport admission
 
@@ -239,7 +240,7 @@ contract 或 auth family route/endpoint truth。
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - 这项冻结不等于提前冻结 `apps/supervisor-api` 的单一 Python/HTTP framework
 - execution public ingress 已 hardcut 到 Go `apps/supervisor-api`；Python
-  `apps/supervisor-core-worker`
+  `apps/supervisor-agent-worker`
   只保留 private orchestration bridge
 
 ## Forbidden Shapes

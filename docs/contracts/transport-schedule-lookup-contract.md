@@ -13,7 +13,7 @@ updated: 2026-04-23
 它覆盖：
 
 - `packages/contracts` 内 transport schedule shared types 的目标 shape
-- `packages/supervisor-core -> packages/campus-services-agent` 的 transport schedule
+- `apps/supervisor-agent-worker -> packages/campus-services-agent` 的 transport schedule
   capability 语义
 - `campus-services-agent -> thin tool adapter -> internal query service`
   的 request/result seam
@@ -129,7 +129,7 @@ TransportScheduleLookupPayload
 固定语义：
 
 - `query_text` 保留用户原问句，不能为空
-- `intent` 由 capability router / specialist framing 显式给出，不由 tool 内部再猜
+- `intent` 由 capability router / agent framing 显式给出，不由 tool 内部再猜
 - `route_selector` 表达已知路线约束；如果缺失且该 intent 需要路线分辨，tool 必须走 clarification
 - `snapshot_query` 复用现有 `TemporalQuery`
   - 默认 `mode=current`

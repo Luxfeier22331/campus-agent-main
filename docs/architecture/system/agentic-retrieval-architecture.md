@@ -123,7 +123,7 @@ grounding validation -> supervisor finalization`
   - authz projection、identity projection、operator-facing read model
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
-- `packages/supervisor-core`
+- `apps/supervisor-api`
   - policy / capability admission
 
 ## RetrievalPlan

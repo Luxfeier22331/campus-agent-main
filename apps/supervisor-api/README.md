@@ -15,9 +15,9 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Projects the external execution request into private bridge v5
-  `SupervisorRequest -> SpecialistRequest -> SpecialistResponse` JSON for
-  semantic delegate requests, then finalizes the bridge `SpecialistResponse`
+- Projects the external execution request into private bridge v6
+  `SupervisorRequest -> AgentRequest -> AgentResponse` JSON for
+  semantic delegate requests, then finalizes the bridge `AgentResponse`
   into the public `SupervisorResponse` envelope in Go. Non-delegate terminal
   decisions and opened deterministic structured requests complete in Go without
   calling the Python orchestration bridge.
@@ -34,24 +34,24 @@ Current status:
 - Propagates explicit cancel to the Python private bridge through
   `/internal/bridge/execution/cancel`; Python records the cooperative cancel
   signal and the semantic orchestration path checks it around routing, RAG
-  prompt execution and specialist delegation. Provider / prompt calls that are
+  prompt execution and agent delegation. Provider / prompt calls that are
   already in-flight still are not hard-aborted.
 - Owns the bridge circuit breaker for Python bridge transport / protocol
   failures; open circuits short-circuit answer execution with
   `503 supervisor_bridge_circuit_open` and degrade `/readyz`.
 - Bounds Python bridge response bodies with
-  `SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES`.
+  `SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES`.
 - Owns deterministic delegate handoff planning in `internal/structuredplanning`,
   including `rag-agent` `rag_request` payload projection and structured
   campus-services / notice payload projection; `internal/execution` only adapts
-  planner output into bridge v5 `runtime_decisions`.
-- Bridge v5 handoff carries the full `SpecialistRequest` envelope under
-  `runtime_decisions.handoff.specialist_request`; the older handoff-only payload
+  planner output into bridge v6 `runtime_decisions`.
+- Bridge v6 handoff carries the full `AgentRequest` envelope under
+  `runtime_decisions.handoff.agent_request`; the older handoff-only payload
   fragment is not an active compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
-  Runtime policy decisions are projected into bridge v5 and summarized in
+  Runtime policy decisions are projected into bridge v6 and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
 - Owns non-delegate terminal envelopes for clarify, approval-required,
@@ -251,11 +251,11 @@ export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
 export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
-export SUPERVISOR_CORE_WORKER_BASE_URL=http://127.0.0.1:18081
-export SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret
-export SUPERVISOR_CORE_WORKER_TIMEOUT_MS=35000
-export SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS=500
-export SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES=1048576
+export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081
+export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
+export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
+export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
+export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
 export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=

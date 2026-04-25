@@ -263,7 +263,7 @@ transcript 恢复、展示 alias 或自由文本总结。
 - curriculum `course_family` completed
 
 因此，`chat.session_slots` 不是通用 conversation summary，也不是
-`runtime.request_execution` 的派生缓存；它只保存后续 specialist 安全可消费的 typed confirmed
+`runtime.request_execution` 的派生缓存；它只保存后续 agent 安全可消费的 typed confirmed
 state。
 
 ## Projection Rule

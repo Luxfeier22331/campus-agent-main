@@ -28,8 +28,8 @@ updated: 2026-04-26
 
 当前接受的主拓扑固定为：
 
-`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-core-worker
-private bridge -> supervisor-core -> agent`
+`browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
+private bridge -> agent`
 
 `browser -> public-docs`
 
@@ -46,11 +46,11 @@ model`
 - `apps/supervisor-api` 是 Go-owned internal execution engine，不是产品后端
 - `apps/supervisor-api` 的部署 substrate 已冻结为 Docker-first internal execution service
 - `apps/supervisor-api` 是当前 Docker execution ingress，负责 execution HTTP surface
-  与 runtime hardening；Python `apps/supervisor-core-worker` 只保留 private bridge worker
+  与 runtime hardening；Python `apps/supervisor-agent-worker` 只保留 private bridge worker
 - semantic delegate path 仍进入 Python private bridge；已打开的 deterministic
   structured capability 可以在 Go `apps/supervisor-api` 的 non-stream answer path 与
   lifecycle SSE answer path 直接完成
-- Python bridge 返回 private `SpecialistResponse`；public `SupervisorResponse`
+- Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
   finalization 与 response observability projection 由 Go `apps/supervisor-api` 执行
 - online query path 与 offline data plane 持续分层
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
@@ -136,7 +136,7 @@ model`
   seam 与 graceful drain
 - 拥有 deterministic structured planner；当前实现位于
   `apps/supervisor-api/internal/structuredplanning`，`internal/execution`
-  仅负责把 planner 输出适配成 bridge v5 `runtime_decisions`
+  仅负责把 planner 输出适配成 bridge v6 `runtime_decisions`
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope
@@ -147,22 +147,21 @@ model`
 - 拥有 non-delegate terminal envelope 与 runtime decision summary；non-stream /
   lifecycle SSE answer path 会直接在 Go 中返回 terminal supervisor-style response；
   metrics、OTel 与 execution audit 使用同一组低基数 runtime policy labels
-- 拥有 private bridge `SpecialistResponse -> SupervisorResponse` finalization 与
+- 拥有 private bridge `AgentResponse -> SupervisorResponse` finalization 与
   response-level observability projection
 - 对已打开的 `campus_services` / `notice` deterministic structured payload，
   non-stream `/api/v1/answer` 与 lifecycle SSE `/api/v1/answer/stream` 可以直接执行
   Go structured runtime 并返回 supervisor-style response
-- 通过 private bridge 调用 Python `apps/supervisor-core-worker`
+- 通过 private bridge 调用 Python `apps/supervisor-agent-worker`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
 
-### `apps/supervisor-core-worker`
+### `apps/supervisor-agent-worker`
 
 - Docker-first internal execution service 的 Python orchestration worker
-- 只接收 Go `supervisor-api` 已投影的 private bridge v5 delegate request
-- 装配默认 agent delegate map，并进入
-  `packages/supervisor-core AgentDispatcher -> agent`
-- 只返回 `SpecialistResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
+- 只接收 Go `supervisor-api` 已投影的 private bridge v6 delegate request
+- 装配默认 agent delegate map，并通过 worker 内部 `AgentDispatcher` 调用 agent
+- 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
 - 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
   metrics 与 published `transport_runtime` 由 `apps/supervisor-api` 拥有
 
@@ -179,9 +178,6 @@ model`
 
 ## 当前 Package 边界
 
-- `packages/supervisor-core` private `AgentDispatcher`；只消费 Go preplanned
-  `SpecialistRequest` 并调用 worker 注入的 agent delegate，不拥有默认 agent registry
-  或 public response finalization
 - `packages/rag-agent` 当前默认 knowledge agent，负责 retrieval-specific
   planning、clarification、grounded answer synthesis
 - `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /
@@ -201,11 +197,11 @@ model`
   - `campus-services-agent`
   - `notice-agent`
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current
-  runtime truth 已经对齐；active canonical surface 不再维护单独的 `*-specialist`
+  runtime truth 已经对齐；active canonical surface 不再维护单独的 legacy
   current-truth alias。
-- shared DTO 仍保留 `SpecialistRequest` / `SpecialistResponse` 等 legacy seam
-  名称；这些类型名不再代表 repo 的 canonical runtime vocabulary。active runtime /
-  package implementation 叙述使用 agent dispatch / agent handoff。
+- shared DTO 的 canonical supervisor -> agent handoff 名称是 `AgentRequest` /
+  `AgentResponse`；active runtime / package implementation 叙述使用 agent dispatch /
+  agent handoff。
 - 未来新增 capability family 的命名规则与 reopen 条件，以已完成的
   `execution-capability-family-convergence` workstream 为准。
 

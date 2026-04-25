@@ -69,7 +69,7 @@ truth。
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
 
-这里的 `agent` 默认指 knowledge-family specialist，而不是顶层 capability router。
+这里的 `agent` 默认指 knowledge-family agent，而不是顶层 capability router。
 
 ## Current Baseline Vs Target Agentic Retrieval
 

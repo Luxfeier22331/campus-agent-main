@@ -58,7 +58,7 @@ raw/source-truth/projection/document/chunk/index`
 - online query path 与 offline data plane 不混层
 - serving surface 由 runtime profile / explicit policy 控制，而不是硬编码在 entry shell
 - surface capability allowlist 由 shared `app-api` / product runtime policy
-  拥有，而不是由 specialist 或 browser surface 自行推断
+  拥有，而不是由 agent 或 browser surface 自行推断
 - 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
 - `requested_scope` 只属于 knowledge-family path，不再作为所有 capability 共用的顶层默认字段
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
@@ -96,9 +96,9 @@ raw/source-truth/projection/document/chunk/index`
   - `campus-services-agent`
   - `notice-agent`
 - 当长期新增稳定能力边界时，前向 family 命名默认采用 `<domain>-agent`
-- 早期实验性的 `availability-specialist` 占位 capability 已退休；当前不再保留 `availability-agent`
+- 早期实验性的 `availability-agent` 占位 capability 已退休；当前不再保留 `availability-agent`
   之类前向 alias
-- 对已完成收口的 capability family，不再维护 `*-specialist` current-truth
+- 对已完成收口的 capability family，不再维护 `*-agent` current-truth
   alias；后续也不得继续无规则地新增混合命名
 - supervisor 负责 admission / guardrails、capability routing、handoff、response
   finalization
@@ -106,8 +106,9 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
   execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
   writer 与 fail-close envelope
-- supervisor semantic orchestration 长期继续由 `packages/supervisor-core` 与 package-owned
-  agent families 承接，不因 Go runtime 扩张而迁入 `apps/*`
+- supervisor deterministic orchestration 长期由 Go `apps/supervisor-api` 承接；
+  Python `apps/supervisor-agent-worker` 只保留 private bridge worker、prompt runtime
+  assembly 与 agent dispatch，不再单独保留 `packages/supervisor-core`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - `campus-services-agent` 长期承接只读校园服务结构化查询，包括 transport
   schedule、service status、service guide、temporary override 与 later-wave contact
@@ -125,8 +126,8 @@ raw/source-truth/projection/document/chunk/index`
 - retrieval backend、vector infra、framework 选择隐藏在 agent / retrieval boundary 之后
 - 非 RAG capability 只要是长期稳定能力边界，也应作为稳定 domain family 落地，而不是回退成 supervisor inline
   tool
-- `routing clarification` 与 `specialist clarification` 必须显式分层；前者由 supervisor
-  拥有，后者由对应 specialist 拥有
+- `routing clarification` 与 `agent clarification` 必须显式分层；前者由 supervisor
+  拥有，后者由对应 agent 拥有
 - 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
   `campus_notice_discover/get` 这类结构化 runtime capability，长期实现形态固定为
   `projection-backed internal query service + thin tool adapter + domain-agent`，而不是
@@ -149,9 +150,9 @@ prompt 内部的隐式判断。
   review truth 与观测驱动治理 read model
 - `apps/supervisor-api` 只拥有 deterministic execution admission、lane / opening gate、
   timeout / cancel / audit event 与 runtime metrics
-- `packages/supervisor-core` 拥有 supervisor routing intent framing、routing clarification
-  与 handoff semantics
-- domain agent 只拥有已选定 capability family 内部的 specialist clarification 与执行语义
+- `apps/supervisor-api` 拥有 supervisor routing intent framing、routing
+  clarification 与 handoff semantics
+- domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
 - `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
   promotion 协议
 
@@ -209,7 +210,7 @@ suite family 固定为：
 长期 operator observability 必须能区分：
 
 - routing 错误
-- routing clarification 正确但 specialist 证据不足
+- routing clarification 正确但 agent 证据不足
 - capability family 正确但 handoff / tool / source 执行失败
 - schema / classifier version 变化导致的行为漂移
 

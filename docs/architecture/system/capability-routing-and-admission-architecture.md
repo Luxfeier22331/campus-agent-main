@@ -16,7 +16,7 @@ architecture。
 - 顶层产品入口应先做什么判断、后做什么判断
 - `admission` 与 `routing` 应怎样分层
 - `requested_scope`、`capability family`、clarification 分别属于哪一层
-- `apps/app-api`、`apps/supervisor-api`、`packages/supervisor-core` 与 specialist
+- `apps/app-api`、`apps/supervisor-api`、`apps/supervisor-agent-worker` 与 agent
   各自负责什么
 
 它不负责：
@@ -38,7 +38,7 @@ supporting architecture，不得把它误读成“public chat 当前已经不是
 而是：
 
 `surface intake -> admission / guardrails -> capability routing ->
-specialist-owned execution -> supervisor finalization`
+agent-owned execution -> supervisor finalization`
 
 其中固定规则如下：
 
@@ -73,7 +73,7 @@ specialist-owned execution -> supervisor finalization`
 1. `surface intake`
 1. `admission / guardrails`
 1. `capability routing`
-1. `specialist-owned execution`
+1. `agent-owned execution`
 1. `supervisor finalization`
 
 ### 1. Surface Intake
@@ -115,7 +115,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 
 - `admission` 先于 `routing`
 - prompt 不得覆盖 deterministic gate
-- specialist 不得反向放开上游已关闭的 capability 或 surface policy
+- agent 不得反向放开上游已关闭的 capability 或 surface policy
 
 ### 3. Capability Routing
 
@@ -142,9 +142,9 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 
 如果未来明确接受新的 capability，它必须先以 repo-owned family label 入场，而不是作为 hidden fallback。
 
-### 4. Specialist-Owned Execution
+### 4. Agent-Owned Execution
 
-一旦 capability family 已确定，后续执行 truth 归对应 specialist 拥有。
+一旦 capability family 已确定，后续执行 truth 归对应 agent 拥有。
 
 固定分工：
 
@@ -181,7 +181,7 @@ supervisor 长期继续统一负责：
 禁止做法：
 
 - 把某个 surface 当前开放的 capability 直接写死成整个 repo 的长期入口原则
-- 让 `apps/supervisor-api` 或 specialist 反向拥有 browser-facing capability policy
+- 让 `apps/supervisor-api` 或 agent 反向拥有 browser-facing capability policy
 
 ## Capability Family First, Scope Second
 
@@ -210,13 +210,13 @@ supervisor 长期继续统一负责：
 
 - `routing clarification`
   - 顶层尚不能稳定判定 capability family 或缺少进入某个 family 的关键路由槽位
-- `specialist clarification`
+- `agent clarification`
   - 已经选定 capability family，但该 family 内部仍需要 disambiguation / slot completion
 
 固定规则：
 
 - `routing clarification` 由 supervisor 触发
-- `specialist clarification` 由对应 specialist 触发
+- `agent clarification` 由对应 agent 触发
 - 两者不得在 observability、eval truth 或 contract 语义上混成一个模糊的 clarification 桶
 
 ## Routing Intent
@@ -249,7 +249,7 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 
 - requested capability hint
 - finalized selected target
-- routing / specialist clarification 区分
+- routing / agent clarification 区分
 - policy / scope / approval 分支
 - requested scope 与 resolved scope 的分层
 
@@ -257,16 +257,16 @@ capability routing 不是纯 prompt 细节，必须进入长期 observability / 
 
 - routing changes 进入 release path 前必须有独立 eval
 - 不能只用最终 answer quality 掩盖顶层路由错误
-- operator-facing summary 必须能区分“路由错了”和“进入正确 specialist 但证据不足”
+- operator-facing summary 必须能区分“路由错了”和“进入正确 agent 但证据不足”
 
 ## Forbidden Shapes
 
 - 不把所有请求默认压成 `rag-agent`，再在 knowledge path 内临时 patch 其他能力
 - 不用 `requested_scope` 充当 capability family 的代理字段
-- 不让 specialist 反向改写 surface capability policy
+- 不让 agent 反向改写 surface capability policy
 - 不把 structured runtime capability 伪装成 generic retrieval fallback
 - 不让 browser surface 绕开 `app-api` 直接推理最终 capability routing
-- 不把 `routing clarification` 与 `specialist clarification` 混成一个模糊状态
+- 不把 `routing clarification` 与 `agent clarification` 混成一个模糊状态
 
 ## 相关稳定文档
 

@@ -27,7 +27,7 @@ updated: 2026-04-25
 
 这份文档不冻结：
 
-- `packages/contracts` 中 specialist payload 的全部字段
+- `packages/contracts` 中 agent payload 的全部字段
 - execution engine runtime 必须采用哪种 Python/HTTP 框架
 - Docker 镜像构建细节、容器编排平台与 repo-level staging hostname
 - public entry Worker 对 `apps/supervisor-api` 的现有 Cloudflare ingress contract
@@ -36,8 +36,7 @@ updated: 2026-04-25
 
 长期执行链路固定为：
 
-`public-chat-web -> app-api -> supervisor-api -> packages/supervisor-core ->
-specialist`
+`public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker -> agent`
 
 这里的关键规则只有三条：
 
@@ -153,7 +152,7 @@ lifecycle endpoint。它复用非流式 answer request body、auth header、trac
 当前取消语义保证 Go `apps/supervisor-api` 停止等待、释放 execution admission slot，
 并把 lifecycle 标记为 `cancel_requested` / `cancelled`。Python bridge 已提供
 `/internal/bridge/execution/cancel` 并记录 active request id 的 cooperative cancel
-state；默认 supervisor orchestration 会在路由、prompt composition、specialist
+state；默认 supervisor orchestration 会在路由、prompt composition、agent
 delegation 和 finalization 前后检查该状态，并以 `499 execution_cancelled` 终止。
 已经进入阻塞 provider / prompt executor HTTP 调用的工作仍不承诺 hard-abort。
 
@@ -312,7 +311,7 @@ payload 或 provider raw response。
   policy 决定允许子集
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
   scope hint。如果上游已经显式约束 serving surface，则传入这个字段。若缺失，execution path 必须允许
-  specialist 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-core` 伪造默认
+  agent 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-api` 伪造默认
   collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
   `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
   query-serving surface；`campus_services` 与 `notice` 同样不得携带 `requested_scope`
@@ -425,7 +424,7 @@ payload 或 provider raw response。
   `rag-agent`、`navigation-agent`、`campus-services-agent`、`notice-agent`。 它不是
   capability family label，也不是 operator-facing display label；当 current runtime
   label 与 family label 一致时，serialized contract 直接承载这个 admitted runtime target。
-- `result` 仍由 specialist / shared contract 拥有，不在这里完整重定义
+- `result` 仍由 agent / shared contract 拥有，不在这里完整重定义
 - 当 `selected_target = navigation-agent` 时，`result` 使用 `PlaceLookupResult` 的
   Python-side `snake_case` 形态：
   - `query_text`
@@ -444,8 +443,8 @@ payload 或 provider raw response。
   - `claim_supports`
   - `unsupported_fields`
 - 上述 `result.diagnostics.*` 只用于 app-owned summary projection；它不是 panel 或 browser
-  的 raw specialist dump contract
-- `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 specialist
+  的 raw agent dump contract
+- `app-api` 可以从 `result` 中提取 source identifiers 进入 projection，但不得把 agent
   payload 直接当 browser contract 暴露
 - 当前这份 `place_card` normalization shape 继续保留为 future navigation rollout seam；但由于
   supervisor 已在产品路径上 fail-close `place_lookup`，浏览器当前不会收到这类 payload
@@ -522,7 +521,7 @@ shared product path 已收口为：
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-core-worker` 只保留 private bridge worker，不再暴露 public
+- Python `apps/supervisor-agent-worker` 只保留 private bridge worker，不再暴露 public
   compatibility ingress
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。

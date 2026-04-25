@@ -48,7 +48,7 @@ Go `apps/supervisor-api` owns:
 Python orchestration owns for now:
 
 - `supervisor-core` routing / policy / handoff / answer assembly
-- specialist agent execution semantics
+- agent execution semantics
 - prompt stack assembly
 - provider-backed prompt executor until measured otherwise
 - retrieval / notice / navigation query semantics
@@ -128,7 +128,7 @@ there is a measured cross-process contract or streaming need.
 
 - Rewriting Worker-side `apps/app-api`
 - Rewriting `packages/supervisor-core`
-- Rewriting specialist agents in Go
+- Rewriting agents in Go
 - Replacing retrieval backend or ingestion/data-plane logic
 - Introducing a long synchronous queue inside `supervisor-api`
 - Changing `packages/contracts` to expose Go runtime types

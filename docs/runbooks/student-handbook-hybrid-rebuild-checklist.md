@@ -27,7 +27,7 @@ updated: 2026-04-23
 ## 不在本文负责
 
 - handbook raw -> source truth -> projections 的清洗与 chunking 规则细节
-- supervisor / specialist 路由与对话层行为
+- supervisor / agent 路由与对话层行为
 - curriculum / campus_services 等其他 collection 的 live 验收
 
 ## 前置真相源

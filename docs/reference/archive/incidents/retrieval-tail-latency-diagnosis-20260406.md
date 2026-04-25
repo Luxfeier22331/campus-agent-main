@@ -78,7 +78,7 @@ Wave 2 的历史决策是：
 
 - 新增内部 surface：`curriculum/program_semester_facts`
 - 只在 resolved single-doc + single-semester `course_list` 场景路由过去
-- `program_semester_facts` 仍是 specialist 内部 surface，不是新的公开 query-serving surface
+- `program_semester_facts` 仍是 agent 内部 surface，不是新的公开 query-serving surface
 
 ## Historical Execution Result
 
@@ -90,7 +90,7 @@ Wave 2 的历史决策是：
   - 已解析单文档请求会跳过 follow-up support `query_points`
 - Wave 2 已完成：
   - `ingestion-core` 新增 `curriculum_program_semester_facts_projection.py`
-  - `rag-specialist` 对特定 semester `course_list` 问句改路由到 `program_semester_facts`
+  - `rag-agent` 对特定 semester `course_list` 问句改路由到 `program_semester_facts`
   - `evals/confidence` 已将其视为 curriculum internal collection
 
 ## Historical Significance

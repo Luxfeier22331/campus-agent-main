@@ -200,7 +200,7 @@ response body：
 
 ## Lifecycle Notes
 
-- internal eval ingress 通过真实 `app-api` command path 执行，不是直接调用 specialist /
+- internal eval ingress 通过真实 `app-api` command path 执行，不是直接调用 agent /
   supervisor shortcut
 - 它服务 live benchmark、request correlation、operator publish backflow 与
   deterministic trace observation

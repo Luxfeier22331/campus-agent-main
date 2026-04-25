@@ -13,7 +13,7 @@ updated: 2026-04-14
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `packages/supervisor-core -> packages/navigation-agent` 的 capability / target
+- `apps/supervisor-agent-worker -> packages/navigation-agent` 的 capability / target
   语义
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/public-chat-web` 对地点卡片的消费形态
@@ -35,7 +35,7 @@ updated: 2026-04-14
 ## Capability And Routing
 
 - `RequestedCapability` 首发新增 `place_lookup`
-- `SpecialistTarget` 首发新增 `navigation-agent`
+- `AgentTarget` 首发新增 `navigation-agent`
 - `supervisor-core` 把用户地点问句 framing 成 `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
 

@@ -34,7 +34,7 @@ Accepted on 2026-04-23.
 - 所有请求先进入 `rag-agent`，再在 knowledge path 内临时补 notice/service/navigation 分叉
 - 用 `requested_scope` 代替 capability routing
 - 把 `public chat` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
-- 把 routing clarification 与 specialist clarification 混成一个模糊 clarification 桶
+- 把 routing clarification 与 agent clarification 混成一个模糊 clarification 桶
 
 ## 决策
 
@@ -60,7 +60,7 @@ knowledge/RAG 问题。
 
 直接含义：
 
-- approval、reject、out-of-scope 不应被 specialist 自由覆盖
+- approval、reject、out-of-scope 不应被 agent 自由覆盖
 - routing 不应反向拥有 authz / surface policy
 - “先过 deterministic gate，再做 capability routing” 是长期不退回的结构
 
@@ -73,7 +73,7 @@ knowledge/RAG 问题。
 - `public-chat-web` 当前 knowledge-only 只是 current surface posture
 - `public-docs` 不自动进入 execution capability routing
 - future `服务状态`、`校园地图` 等 surface 可以拥有不同 capability set
-- `apps/supervisor-api` 与 specialist 都不拥有 browser-facing capability allowlist
+- `apps/supervisor-api` 与 agent 都不拥有 browser-facing capability allowlist
   truth
 
 ### 决策 4：`requested_scope` 只属于 knowledge-family path
@@ -91,19 +91,19 @@ knowledge/RAG 问题。
 - retrieval / serving 文档只负责 knowledge-family 内部 truth
 - structured runtime capability 不再被描述成 retrieval scope 的特殊分支
 
-### 决策 5：clarification 固定拆成 routing clarification 与 specialist clarification
+### 决策 5：clarification 固定拆成 routing clarification 与 agent clarification
 
 长期固定区分：
 
 - `routing clarification`
   - supervisor 无法稳定确定 capability family，或缺少顶层路由所需关键信息
-- `specialist clarification`
+- `agent clarification`
   - capability family 已确定，但 family 内部仍存在业务歧义或槽位缺失
 
 直接含义：
 
 - 两者在 contract、observability、eval 里不得再混成同一类 clarification
-- supervisor 拥有前者，specialist 拥有后者
+- supervisor 拥有前者，agent 拥有后者
 
 ### 决策 6：capability routing 变更必须进入独立 eval 与 observability
 
@@ -139,8 +139,8 @@ knowledge/RAG 问题。
 - 后续 architecture 文档必须把 capability-neutral routing 与 knowledge-family retrieval
   分开书写
 - `requested_scope` 的长期语义必须收窄为 knowledge-family-specific field
-- `apps/app-api`、`apps/supervisor-api`、`packages/supervisor-core` 与 specialist
-  的边界说明必须围绕 `surface policy -> admission -> routing -> specialist` 收口
+- `apps/app-api`、`apps/supervisor-api`、`packages/supervisor-core` 与 agent
+  的边界说明必须围绕 `surface policy -> admission -> routing -> agent` 收口
 - 当前 browser-facing / internal execution contract 若还保留 `requested_capability +
   requested_scope`，必须显式区分 current truth 与 forward evolution
 

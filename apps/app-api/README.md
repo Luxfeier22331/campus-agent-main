@@ -30,7 +30,7 @@ It owns:
 It does not own:
 
 - browser-facing UI shells
-- supervisor routing or specialist orchestration
+- supervisor routing or agent orchestration
 - panel business actions
 
 Current runtime scope:

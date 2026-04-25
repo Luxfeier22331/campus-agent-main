@@ -42,7 +42,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: supervisor / specialist 在线回答，eval 默认 judge/ragas LLM
+  作用: supervisor / agent 在线回答，eval 默认 judge/ragas LLM
   主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `AGNO_SUPERVISOR_MODEL`
   `AGNO_SPECIALIST_MODEL`
   放置位置: root `.env`
@@ -182,7 +182,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   主要 env keys: `SUPERVISOR_API_STAGING_TUNNEL_NAME`
   `SUPERVISOR_API_STAGING_PUBLIC_BASE_URL`
   `SUPERVISOR_API_STAGING_APP_API_BASE_URL`
-  `SUPERVISOR_CORE_WORKER_STAGING_SHARED_SECRET`
+  `SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET`
   放置位置: operator shell / Windows scheduled task action
   何时必需: 当前 canonical staging execution runtime 需要
   获取方式: repo 默认值已在 `infra/local/staging` 固定；只在 recovery / test 时显式覆写

@@ -32,7 +32,7 @@ updated: 2026-04-24
   - `GET /readyz`
   - `GET /metrics`
   - `POST /api/v1/answer`
-- `supervisor-core-worker`
+- `supervisor-agent-worker`
   - Python orchestration worker
   - `POST /internal/bridge/supervisor/answer`
   - `GET /internal/bridge/healthz`
@@ -53,7 +53,7 @@ compose entry：
 手动绕过启动脚本时，最小必填：
 
 ```bash
-export SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret
+export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export API_WORKER_SHARED_SECRET=worker-secret
 ```
 
@@ -107,7 +107,7 @@ curl -sS http://127.0.0.1:18080/metrics
 ```
 
 启动后不要只等待 `/healthz`。`supervisor-api` 可能已经开始监听，但
-`supervisor-core-worker` 仍在导入 Python package、尚未开放 bridge 端口；这时立即打
+`supervisor-agent-worker` 仍在导入 Python package、尚未开放 bridge 端口；这时立即打
 answer path 会得到 bridge `connection refused` 的假阴性。
 
 正式发起 answer smoke 前，至少等待 `/readyz` 中：
@@ -240,7 +240,7 @@ Go `apps/supervisor-api` 当前结构化日志最小字段：
 
 ## Step 5. Shutdown
 
-关闭 `supervisor-api + supervisor-core-worker` 双容器 runtime：
+关闭 `supervisor-api + supervisor-agent-worker` 双容器 runtime：
 
 ```bash
 infra/local/start-supervisor-runtime.sh down

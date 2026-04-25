@@ -28,7 +28,7 @@ execution origin 为准。
 - `apps/supervisor-api` 的前向 deploy substrate 已冻结为 Docker-first internal execution
   service
 - 当前 repo-owned staging execution runtime 是
-  `supervisor-api + supervisor-core-worker + named tunnel`
+  `supervisor-api + supervisor-agent-worker + named tunnel`
 - 如果继续复用 `<https://exec-staging.ayafeed.com`> 作为 execution origin，就不需要为了
   runtime hard cut 重新 deploy `app-api-staging`
 - 只有当 execution upstream URL 本身变化时，才需要重新设置

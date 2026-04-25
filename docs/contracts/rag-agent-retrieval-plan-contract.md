@@ -21,7 +21,7 @@ seam。
 它不负责：
 
 - browser-facing HTTP schema
-- supervisor -> specialist handoff schema
+- supervisor -> agent handoff schema
 - 当前 multi-step executor 的具体代码实现
 - 通用工具平台或开放域 browse contract
 
