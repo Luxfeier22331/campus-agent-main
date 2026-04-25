@@ -22,6 +22,7 @@ import {
 	buildCourseMapDocEmbedForRoute,
 	inferCourseMapRouteGroup,
 	normalizeCourseMapNodeLabel,
+	normalizeCourseMapStageLabel,
 	syncCurriculumCourseMapArtifacts,
 } from "../scripts/sync-real-docs/course-map";
 import {
@@ -178,6 +179,12 @@ describe("course-map rendering keys", () => {
 	it("normalizes known course-map OCR label drift before rendering", () => {
 		expect(normalizeCourseMapNodeLabel("中近现代史纲要")).toBe("中国近现代史纲要");
 		expect(normalizeCourseMapNodeLabel("高散结构")).toBe("离散结构");
+	});
+
+	it("normalizes ambiguous course-map stage labels before public rendering", () => {
+		expect(normalizeCourseMapStageLabel("下学期")).toBe("未按学期拆分");
+		expect(normalizeCourseMapStageLabel(" 上学期 ")).toBe("未按学期拆分");
+		expect(normalizeCourseMapStageLabel("本科三年级")).toBe("本科三年级");
 	});
 
 	it("applies course-map label normalization to nodes, edges, and relation counts", () => {
@@ -700,39 +707,106 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 
 		expect(css).toContain(".rspress-doc .docs-table-scroll");
 		expect(css).toContain(".rspress-doc .rp-table-scroll-container");
+		expect(css).toContain(".rspress-doc.docs-reader-normal");
+		expect(css).toContain("max-width: min(100%, 64rem);");
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
+		expect(css).toContain("max-width: min(100%, 66rem);");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
-		expect(css).toContain("--docs-sidebar-width: 20rem;");
+		expect(css).toContain(".rspress-doc.docs-reader-home");
+		expect(css).toContain("grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);");
+		expect(css).toContain("grid-template-columns: minmax(5.5rem, 8rem) minmax(0, 1fr);");
+		expect(css).toContain("--docs-sidebar-width: 17rem;");
+		expect(css).toContain("--docs-sidebar-width: 16.5rem;");
+		expect(css).toContain("--docs-sidebar-outer-gutter: 16px;");
 		expect(css).toContain("--docs-sidebar-gutter: 12px;");
+		expect(css).toContain("--docs-outline-width: 11rem;");
 		expect(css).toContain("--rp-sidebar-margin-left: var(--docs-sidebar-gutter);");
+		expect(css).toContain("--rp-outline-width: var(--docs-outline-width);");
+		expect(css).toContain("width: var(--docs-outline-width);");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item__left");
+		expect(css).toContain('.rp-doc-layout__sidebar .rp-sidebar-item[data-depth="1"]');
+		expect(css).toContain("--docs-sidebar-item-indent: 0.75rem;");
+		expect(css).toContain('.rp-doc-layout__sidebar .rp-sidebar-item[data-depth="2"]');
+		expect(css).toContain("--docs-sidebar-item-indent: 1.25rem;");
+		expect(css).toContain("padding-left: var(--docs-sidebar-item-indent, 0.25rem);");
 		expect(css).toContain("-webkit-line-clamp: 2;");
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item--group-item::before");
 		expect(css).toContain("body .rp-search-button--mobile");
 		expect(css).toContain("body .rp-nav-hamburger__sm");
+		expect(css).toContain("body:has(.rp-doc-layout__sidebar--open) .rp-sidebar-menu__left::after");
+		expect(css).toContain('content: "关闭目录";');
 		expect(css).toContain(".rspress-doc .docs-table-scroll table");
+		expect(css).toContain(".rspress-doc .docs-table-mobile-cards");
+		expect(css).toContain(".rspress-doc .docs-table-mobile-raw");
+		expect(css).toContain("max-width: 100%;\n\t\tmin-width: 0;\n\t\toverflow-x: auto;");
+		expect(css).toContain('.docs-table-scroll[data-docs-enhanced-table="true"]');
+		expect(css).toContain('.docs-table-scroll[data-docs-scrollable="false"]::before');
 		expect(css).toContain(".rspress-doc table thead th");
 		expect(css).toContain("main.rp-doc-layout__doc-container {\n\tbox-sizing: border-box;");
+		expect(css).toContain(".rp-doc-layout__doc {\n\t\tmax-width: none;");
+		expect(css).toContain("padding-left: var(--docs-reader-padding);");
 		expect(css).toContain(".rspress-doc {\n\tmin-width: 0;");
 		expect(css).toContain("padding-right: 1.25rem;");
+		expect(css).toContain("font-size: 0.82rem;");
+		expect(css).toContain("min-width: 7.25rem;");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
 		expect(css).not.toContain(".rspress-doc table {\n\twidth: max-content;");
 		expect(css).toContain('content: "横向滑动查看更多列"');
-		expect(css).toContain("--docs-sidebar-width: 20rem;");
-		expect(css).toContain("@media (min-width: 1100px) and (max-width: 1359px)");
+		expect(css).toContain("--docs-sidebar-width: 18rem;");
+		expect(css).toContain("@media (min-width: 1600px)");
+		expect(css).toContain("@media (min-width: 1280px)");
+		expect(css).toContain(".rp-doc-layout__container .rp-doc-layout__sidebar-placeholder");
+		expect(css).toContain("margin-left: var(--docs-sidebar-outer-gutter);");
+		expect(css).toContain("@media (min-width: 1100px) and (max-width: 1599px)");
 		expect(css).toContain("@media (min-width: 900px) and (max-width: 1099px)");
+		expect(css).toContain("@media (max-width: 899px)");
+		expect(css).toContain("--docs-sidebar-item-indent: 0.85rem;");
+		expect(css).toContain("--docs-sidebar-item-indent: 1.45rem;");
+		expect(css).toContain("--docs-sidebar-item-indent: 1.9rem;");
 		expect(theme).not.toContain("useFlushSidebarIndent();");
 		expect(theme).not.toContain("MutationObserver");
 	});
 
+	it("wires a mobile sidebar close guard for the Rspress menu affordance", () => {
+		const config = readFileSync(join(process.cwd(), "rspress.config.ts"), "utf8");
+		const guard = readFileSync(
+			join(process.cwd(), "src/components/MobileSidebarGuard.tsx"),
+			"utf8",
+		);
+
+		expect(config).toContain("MobileSidebarGuard.tsx");
+		expect(config).toContain("DocsContentEnhancer.tsx");
+		expect(guard).toContain(".rp-sidebar-menu__left");
+		expect(guard).toContain(".rp-sidebar-menu__mask");
+		expect(guard).toContain("stopImmediatePropagation");
+		expect(guard).toContain('event.key !== "Escape"');
+		expect(guard).toContain("mask.click()");
+	});
+
 	it("keeps course-map routes as a lightweight read-first document surface", () => {
 		const css = readFileSync(join(process.cwd(), "src/components/course-map-section.css"), "utf8");
+		const component = readFileSync(
+			join(process.cwd(), "src/components/CourseMapSection.tsx"),
+			"utf8",
+		);
 
 		expect(css).toContain("container-type: inline-size;");
 		expect(css).toContain("@container (max-width: 58rem)");
 		expect(css).toContain(".course-map-course-relations summary");
 		expect(css).toContain(".course-map-route-card-list");
 		expect(css).toContain(".course-map-document-nav-tab");
+		expect(css).toContain(
+			"grid-template-columns: repeat(auto-fit, minmax(min(14.5rem, 100%), 1fr));",
+		);
+		expect(css).toContain(".course-map-image-actions");
+		expect(css).toContain(".course-map-route-card-compact");
+		expect(css).toContain(".course-map-disclosure summary");
+		expect(component).toContain("建议核对原图");
+		expect(component).toContain("已整理为课程路径");
+		expect(component).toContain("未按学期拆分");
+		expect(component).toContain("单独打开原图");
+		expect(component).not.toContain("需核对");
+		expect(component).not.toContain("结构化课程路径");
 		expect(css).not.toContain(".course-map-inspector");
 		expect(css).not.toContain(".course-map-graph");
 	});

@@ -45,20 +45,30 @@ const ROUTE_GROUP_ORDER = ["foundation", "core", "extension", "practice"] as con
 
 const STATUS_LABELS = {
 	ready: "已整理",
-	partial: "需核对",
+	partial: "建议核对原图",
 	failed: "仅原图",
 } as const;
 
 const STATUS_DESCRIPTIONS = {
-	ready: "结构化课程路径已生成，原始区域图保留用于核对。",
-	partial: "结构化课程路径已生成，部分边界仍建议结合原图核对。",
-	failed: "暂未形成结构化课程路径，仅保留原始区域图。",
+	ready: "已整理为课程路径，原始区域图保留用于核对。",
+	partial: "已整理为课程路径，部分边界建议核对原图。",
+	failed: "暂未整理为课程路径，仅保留原始区域图。",
 } as const;
 
+function resolveRenderableStageLabel(stageLabel: string): string {
+	const normalized = stageLabel.trim();
+	if (/^[上下]学期$/.test(normalized) || normalized === "未标明学期") {
+		return "未按学期拆分";
+	}
+	return normalized;
+}
+
 function resolveStageLabels(data: CourseMapBlock): string[] {
-	return data.displayStageLabels.length > 0
-		? data.displayStageLabels
-		: Array.from(new Set(data.nodes.map((node) => node.stage_label).filter(Boolean)));
+	const stageLabels =
+		data.displayStageLabels.length > 0
+			? data.displayStageLabels
+			: data.nodes.map((node) => node.stage_label).filter(Boolean);
+	return Array.from(new Set(stageLabels.map(resolveRenderableStageLabel).filter(Boolean)));
 }
 
 function resolveNodeGroup(node: CourseMapNode): keyof typeof ROUTE_GROUP_LABELS {
@@ -89,9 +99,10 @@ function matchesCourseQuery(node: CourseMapNode, query: string): boolean {
 	if (!query) {
 		return true;
 	}
-	const haystack = `${node.node_label} ${node.stage_label} ${node.category_label} ${
-		ROUTE_GROUP_LABELS[resolveNodeGroup(node)]
-	}`.toLocaleLowerCase("zh-Hans-CN");
+	const haystack =
+		`${node.node_label} ${node.stage_label} ${node.category_label} ${resolveRenderableStageLabel(
+			node.stage_label,
+		)} ${ROUTE_GROUP_LABELS[resolveNodeGroup(node)]}`.toLocaleLowerCase("zh-Hans-CN");
 	return haystack.includes(query.toLocaleLowerCase("zh-Hans-CN"));
 }
 
@@ -166,7 +177,7 @@ function CourseMapSearch({
 	const searchInputId = useId();
 
 	return (
-		<details className="course-map-search">
+		<details className="course-map-search course-map-disclosure">
 			<summary>
 				<span>筛选课程</span>
 				<small>
@@ -223,7 +234,13 @@ function CourseRouteCard({ node, relations }: { node: CourseMapNode; relations: 
 		: "未标出前后关系";
 
 	return (
-		<article className="course-map-route-card">
+		<article
+			className={
+				hasRelations
+					? "course-map-route-card"
+					: "course-map-route-card course-map-route-card-compact"
+			}
+		>
 			<header className="course-map-route-card-main">
 				<strong className="course-map-route-card-title">{node.node_label}</strong>
 				<span className="course-map-route-card-meta">
@@ -232,7 +249,7 @@ function CourseRouteCard({ node, relations }: { node: CourseMapNode; relations: 
 				</span>
 			</header>
 			{hasRelations ? (
-				<details className="course-map-course-relations">
+				<details className="course-map-course-relations course-map-disclosure">
 					<summary>{relationLabel}</summary>
 					<div className="course-map-relation-grid">
 						<RelationColumn
@@ -272,7 +289,7 @@ function CourseRouteMapView({
 		<section className="course-map-route-panel" aria-label="课程路径">
 			<div className="course-map-route-copy">
 				<h4>按培养阶段阅读</h4>
-				<p>默认展示整理后的课程路径。前置和后续课程收在条目内，按需展开核对。</p>
+				<p>按培养阶段列出课程。前置和后续关系收在条目内，可展开查看。</p>
 			</div>
 			{visibleNodes.length === 0 ? (
 				<div className="course-map-empty-filter">
@@ -282,7 +299,9 @@ function CourseRouteMapView({
 			) : (
 				<div className="course-map-stage-list">
 					{stageLabels.map((stageLabel) => {
-						const stageNodes = visibleNodes.filter(({ node }) => node.stage_label === stageLabel);
+						const stageNodes = visibleNodes.filter(
+							({ node }) => resolveRenderableStageLabel(node.stage_label) === stageLabel,
+						);
 						const groups = buildStageGroups({ nodes: stageNodes });
 						if (groups.length === 0) {
 							return null;
@@ -348,14 +367,14 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 				</div>
 				<h3>{block.title}</h3>
 				<p className="course-map-meta">{summary}</p>
-				{effectiveStatus !== "ready" ? (
+				{effectiveStatus === "ready" ? null : (
 					<p className="course-map-status-copy">{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
-				) : null}
+				)}
 			</header>
 
 			{effectiveStatus === "failed" ? (
 				<section className="course-map-failure-panel">
-					<h4>暂未形成结构化课程路径</h4>
+					<h4>暂未整理为课程路径</h4>
 					<p>{STATUS_DESCRIPTIONS[effectiveStatus]}</p>
 				</section>
 			) : (
@@ -377,14 +396,19 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 				</>
 			)}
 
-			<details className="course-map-image-panel">
-				<summary>查看原始课程地图区域图</summary>
-				<p>原图仅用于核对结构化结果，不作为默认阅读入口。</p>
+			<details className="course-map-image-panel course-map-disclosure">
+				<summary>查看原始课程地图</summary>
+				<div className="course-map-image-actions">
+					<p>原图用于核对课程路径，默认收起以减少阅读干扰。</p>
+					<a href={block.imageSrc} target="_blank" rel="noreferrer">
+						单独打开原图
+					</a>
+				</div>
 				<img alt={`${block.title} 原始区域图`} src={block.imageSrc} />
 			</details>
 
 			{block.extractionNotes.length > 0 ? (
-				<details className="course-map-notes">
+				<details className="course-map-notes course-map-disclosure">
 					<summary>查看整理说明</summary>
 					<ul>
 						{keyedExtractionNotes.map(({ note, noteKey }) => (

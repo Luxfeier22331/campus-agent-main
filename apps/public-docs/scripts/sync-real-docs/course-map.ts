@@ -246,6 +246,17 @@ export function normalizeCourseMapNodeLabel(nodeLabel: string): string {
 	return replacements.get(normalized) ?? normalized;
 }
 
+export function normalizeCourseMapStageLabel(stageLabel: string): string {
+	const normalized = stageLabel.trim();
+	if (!normalized) {
+		return "";
+	}
+	if (/^[上下]学期$/.test(normalized)) {
+		return "未按学期拆分";
+	}
+	return normalized;
+}
+
 function buildCourseMapBlockPayload(input: {
 	block: CourseMapBlock;
 	publicSlug: string;
@@ -299,9 +310,10 @@ function buildCourseMapBlockPayload(input: {
 function buildNormalizedCourseMapNodes(nodes: CourseMapNode[]): NormalizedCourseMapNode[] {
 	return nodes.map((node, index) => {
 		const nodeLabel = normalizeCourseMapNodeLabel(node.node_label);
-		const stageLabel = String(node.stage_label ?? "").trim();
+		const stageLabel = normalizeCourseMapStageLabel(String(node.stage_label ?? ""));
 		const stageId = normalizeCourseMapIdentifier(
-			String(node.stage_id ?? "").trim() || buildHashedCourseMapId("stage", stageLabel || "unknown"),
+			String(node.stage_id ?? "").trim() ||
+				buildHashedCourseMapId("stage", stageLabel || "unknown"),
 		);
 		return {
 			node_id: normalizeCourseMapIdentifier(
@@ -353,7 +365,7 @@ function buildNormalizedCourseMapEdges(input: {
 			});
 		const sourceNode = nodeById.get(sourceNodeId);
 		const targetNode = nodeById.get(targetNodeId);
-		if (!sourceNode || !targetNode) {
+		if (!(sourceNode && targetNode)) {
 			notes.push("存在无法定位到唯一课程节点的关系，已从结构化关系中移除。");
 			continue;
 		}
@@ -398,7 +410,9 @@ function resolvePublishableStageLabels(input: {
 	displayStageLabels: string[];
 	nodes: NormalizedCourseMapNode[];
 }): string[] {
-	const declared = input.displayStageLabels.map((label) => label.trim()).filter(Boolean);
+	const declared = input.displayStageLabels
+		.map((label) => normalizeCourseMapStageLabel(label))
+		.filter(Boolean);
 	if (declared.length > 0) {
 		return Array.from(new Set(declared));
 	}

@@ -5,9 +5,17 @@ import { useEffect } from "react";
 
 export * from "@rspress/core/theme-original";
 
-const READER_LAYOUT_CLASSES = ["docs-reader-normal", "docs-reader-wide", "docs-reader-map"];
+const READER_LAYOUT_CLASSES = [
+	"docs-reader-normal",
+	"docs-reader-wide",
+	"docs-reader-map",
+	"docs-reader-home",
+];
 
 function resolveReaderLayoutClasses(routePath: string): string[] {
+	if (routePath === "/" || routePath.endsWith("/index") || routePath.endsWith("/index.html")) {
+		return ["docs-reader-home"];
+	}
 	if (routePath.includes("/curriculum-plan/") && !routePath.endsWith("/curriculum-plan/")) {
 		return ["docs-reader-wide", "docs-reader-map"];
 	}
