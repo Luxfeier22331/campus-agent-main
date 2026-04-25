@@ -16,6 +16,11 @@ export interface RawOfficialWebRunRecord {
 	finishedAt: string | null;
 	ingestionDispatchRef: string | null;
 	ingestionDispatchStatus: string;
+	ingestionExecutionErrorCode: string | null;
+	ingestionExecutionErrorMessage: string | null;
+	ingestionExecutionRef: string | null;
+	ingestionExecutionStatus: string;
+	ingestionExecutionUpdatedAt: string | null;
 	lastHeartbeatAt: string | null;
 	projectedAt: string;
 	runId: string;
@@ -119,6 +124,9 @@ export interface RawOfficialWebSiteRecord {
 	latestCollectorVersion: string | null;
 	latestConfigVersion: string | null;
 	latestIngestionDispatchStatus: string | null;
+	latestIngestionExecutionErrorCode: string | null;
+	latestIngestionExecutionStatus: string | null;
+	latestIngestionExecutionUpdatedAt: string | null;
 	latestRunId: string | null;
 	latestRunStatus: string | null;
 	projectedAt: string;

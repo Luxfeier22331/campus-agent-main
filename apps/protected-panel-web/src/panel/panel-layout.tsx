@@ -162,6 +162,11 @@ function ProtectedPanelMenu() {
 				to="/observability/quality"
 			/>
 			<RaMenu.Item
+				leftIcon={<QueryStatsOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.intent}
+				to="/observability/intent"
+			/>
+			<RaMenu.Item
 				leftIcon={<AdminPanelSettingsOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.safety}
 				to="/observability/safety"

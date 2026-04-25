@@ -11,6 +11,7 @@ import { buildQualityRuntimeTrendSeries, buildRefusalDistributionEntries } from 
 import {
 	buildQualityFilterSummaryItems,
 	QualityDetailDrawer,
+	QualityEvalCandidateSection,
 	QualityHeaderSection,
 	QualityInsightSections,
 	QualityQueueSection,
@@ -32,6 +33,7 @@ export function QualityPage() {
 		badcaseCauseClass: "",
 		badcaseDetectedBy: "",
 		badcaseStatus: "",
+		evalPage: 1,
 		page: 1,
 		perPage: 10,
 		selectedTarget: null,
@@ -114,6 +116,27 @@ export function QualityPage() {
 		staleTime: 15_000,
 	});
 
+	const evalCandidatesQuery = useQuery({
+		queryFn: ({ signal }) =>
+			dataProvider.listOperatorQualityEvalCandidates({
+				causeClass: normalizeFilterValue(deferredBadcaseCauseClass),
+				detectedBy: normalizeFilterValue(deferredBadcaseDetectedBy),
+				page: filters.evalPage,
+				perPage: filters.perPage,
+				signal,
+				status: normalizeFilterValue(deferredBadcaseStatus),
+			}),
+		queryKey: [
+			"protected-panel-quality-eval-candidates",
+			filters.evalPage,
+			filters.perPage,
+			deferredBadcaseStatus,
+			deferredBadcaseCauseClass,
+			deferredBadcaseDetectedBy,
+		] as const,
+		staleTime: 15_000,
+	});
+
 	const summaryErrorMessage = summaryQuery.error
 		? toQueryErrorMessage(summaryQuery.error, PANEL_COPY.qualityPage.states.loadFailed)
 		: null;
@@ -123,11 +146,19 @@ export function QualityPage() {
 	const badcaseErrorMessage = badcasesQuery.error
 		? toQueryErrorMessage(badcasesQuery.error, PANEL_COPY.qualityPage.states.badcaseLoadFailed)
 		: null;
+	const evalCandidatesErrorMessage = evalCandidatesQuery.error
+		? toQueryErrorMessage(
+				evalCandidatesQuery.error,
+				PANEL_COPY.qualityPage.states.badcaseLoadFailed,
+			)
+		: null;
 
 	const summary = summaryQuery.data?.data ?? null;
 	const timeseries = timeseriesQuery.data?.data ?? null;
 	const badcases = badcasesQuery.data?.data ?? [];
 	const badcasePageInfo = badcasesQuery.data?.pageInfo;
+	const evalCandidates = evalCandidatesQuery.data?.data ?? [];
+	const evalCandidatePageInfo = evalCandidatesQuery.data?.pageInfo;
 	const trendSeries = timeseries ? buildQualityRuntimeTrendSeries(timeseries.series) : [];
 	const runtimeSummaryCards = summary ? buildRuntimeSummaryCards(summary) : [];
 	const sampledCards = summary ? buildSampledCards(summary) : [];
@@ -145,6 +176,15 @@ export function QualityPage() {
 
 		return `${start}-${end} · 第 ${filters.page} 页`;
 	}, [badcases.length, filters.page, filters.perPage]);
+	const evalCandidatePageDescription = useMemo(() => {
+		const start = (filters.evalPage - 1) * filters.perPage + 1;
+		const end = start + evalCandidates.length - 1;
+		if (evalCandidates.length === 0) {
+			return `第 ${filters.evalPage} 页`;
+		}
+
+		return `${start}-${end} · 第 ${filters.evalPage} 页`;
+	}, [evalCandidates.length, filters.evalPage, filters.perPage]);
 
 	const asOf = summary?.asOf ?? timeseries?.asOf ?? null;
 
@@ -203,6 +243,7 @@ export function QualityPage() {
 								setFilters((current) => ({
 									...current,
 									badcaseCauseClass: value,
+									evalPage: 1,
 									page: 1,
 								}));
 							});
@@ -212,6 +253,7 @@ export function QualityPage() {
 								setFilters((current) => ({
 									...current,
 									badcaseDetectedBy: value,
+									evalPage: 1,
 									page: 1,
 								}));
 							});
@@ -229,6 +271,7 @@ export function QualityPage() {
 								setFilters((current) => ({
 									...current,
 									page: 1,
+									evalPage: 1,
 									perPage: value,
 								}));
 							});
@@ -247,11 +290,37 @@ export function QualityPage() {
 								setFilters((current) => ({
 									...current,
 									badcaseStatus: value,
+									evalPage: 1,
 									page: 1,
 								}));
 							});
 						}}
 						pageDescription={queuePageDescription}
+						queueFilters={filters}
+					/>
+
+					<QualityEvalCandidateSection
+						candidates={evalCandidates}
+						errorMessage={evalCandidatesErrorMessage}
+						hasNextPage={Boolean(evalCandidatePageInfo?.hasNextPage)}
+						isPending={evalCandidatesQuery.isPending}
+						onNextPage={() => {
+							startTransition(() => {
+								setFilters((current) => ({
+									...current,
+									evalPage: current.evalPage + 1,
+								}));
+							});
+						}}
+						onPreviousPage={() => {
+							startTransition(() => {
+								setFilters((current) => ({
+									...current,
+									evalPage: Math.max(1, current.evalPage - 1),
+								}));
+							});
+						}}
+						pageDescription={evalCandidatePageDescription}
 						queueFilters={filters}
 					/>
 				</Stack>

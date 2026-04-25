@@ -22,6 +22,9 @@ describe("protected panel official web formatters", () => {
 	it("formats official web statuses in chinese", () => {
 		expect(formatOfficialWebStatusLabel("completed_with_errors")).toBe("完成但有错误");
 		expect(formatOfficialWebStatusLabel("abandoned")).toBe("已放弃");
+		expect(formatIngestionStatusLabel("staged")).toBe("已暂存");
+		expect(formatIngestionStatusLabel("promoted")).toBe("已提升");
+		expect(formatIngestionStatusLabel("succeeded")).toBe("已成功");
 		expect(formatIngestionStatusLabel("ingestion_failed")).toBe("分发失败");
 		expect(formatIngestionStatusLabel(null)).toBe("暂无");
 		expect(formatOfficialWebRunIntentLabel("repair")).toBe("修复");

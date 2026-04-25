@@ -157,6 +157,41 @@ export function registerWorkerOperatorDomainsSuite() {
 								);
 							}
 
+							if (pathname === "/api/operator/intent/summary") {
+								return new Response(
+									JSON.stringify({
+										asOf: "2026-03-28T08:00:10.000Z",
+										runtime: {
+											ambiguityRate: { count: 1, eligibleCount: 4, value: 0.25 },
+											contextUnresolvedRate: { count: 0, eligibleCount: 4, value: 0 },
+											distributions: {
+												capability: [{ count: 4, value: "knowledge" }],
+												classifierVersion: [{ count: 4, value: "intent-classifier@2026-04-20" }],
+												launchState: [{ count: 4, value: "open" }],
+												nextAction: [{ count: 4, value: "delegate" }],
+												schemaVersion: [{ count: 4, value: "intent-schema-1.0.0" }],
+												scopeClass: [{ count: 4, value: "in_scope" }],
+												taskKind: [{ count: 4, value: "knowledge_lookup" }],
+											},
+											lowConfidenceRate: { count: 0, eligibleCount: 4, value: 0 },
+											requestCount: 4,
+										},
+										sampledGrades: null,
+										window: {
+											from: "2026-03-27T08:00:10.000Z",
+											granularity: "1h",
+											to: "2026-03-28T08:00:10.000Z",
+										},
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
 							if (pathname === "/api/operator/audit/aevt_01HQ") {
 								return new Response(
 									JSON.stringify({
@@ -271,6 +306,24 @@ export function registerWorkerOperatorDomainsSuite() {
 					],
 				});
 
+				const intentSummaryResponse = await worker.fetch(
+					new Request(
+						"https://panel.example.com/api/operator/intent/summary?window=24h&surface=public_chat_web",
+						{
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						},
+					),
+					workerEnv,
+				);
+				expect(intentSummaryResponse.status).toBe(200);
+				await expect(intentSummaryResponse.json()).resolves.toMatchObject({
+					runtime: {
+						requestCount: 4,
+					},
+				});
+
 				const auditDetailResponse = await worker.fetch(
 					new Request("https://panel.example.com/api/operator/audit/aevt_01HQ", {
 						headers: {
@@ -291,9 +344,11 @@ export function registerWorkerOperatorDomainsSuite() {
 					"https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h",
 					"https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
 					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=intent_classifier_mismatch",
+					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=public_chat_web",
 					"https://app-api.internal/api/operator/audit/aevt_01HQ",
 				]);
 				expect(forwardedOperatorEmails).toEqual([
+					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",

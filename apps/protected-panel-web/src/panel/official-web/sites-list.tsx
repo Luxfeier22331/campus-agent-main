@@ -89,6 +89,12 @@ export function OfficialWebSitesListPage() {
 								<OfficialWebIngestionStatusChip status={record.latestIngestionDispatchStatus} />
 							)}
 						/>
+						<FunctionField
+							label="执行"
+							render={(record: OfficialWebSiteRecord) => (
+								<OfficialWebIngestionStatusChip status={record.latestIngestionExecutionStatus} />
+							)}
+						/>
 						<DateField label="最近成功" locales="zh-CN" showTime source="lastSuccessAt" />
 						<DateField label="最近失败" locales="zh-CN" showTime source="lastFailureAt" />
 						<ShowButton label={PANEL_COPY.view} />

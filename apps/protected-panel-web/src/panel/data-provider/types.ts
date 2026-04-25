@@ -7,9 +7,12 @@ import type {
 	OperatorAuditListFilterInput,
 	OperatorCostSummaryRecord,
 	OperatorCostTimeseriesRecord,
+	OperatorIntentSummaryRecord,
+	OperatorIntentTimeseriesRecord,
 	OperatorOverviewRecord,
 	OperatorQualityBadcaseListFilterInput,
 	OperatorQualityBadcaseRecord,
+	OperatorQualityEvalCandidateRecord,
 	OperatorQualitySummaryRecord,
 	OperatorQualityTimeseriesRecord,
 	OperatorSafetyAnomalyListFilterInput,
@@ -31,10 +34,25 @@ export interface ProtectedPanelDataProvider extends DataProvider {
 	getOperatorQualityTimeseries(
 		input?: OperatorTimeseriesFilterInput & { signal?: AbortSignal },
 	): Promise<{ data: OperatorQualityTimeseriesRecord }>;
+	getOperatorIntentSummary(
+		input?: OperatorAggregateFilterInput & { signal?: AbortSignal },
+	): Promise<{ data: OperatorIntentSummaryRecord }>;
+	getOperatorIntentTimeseries(
+		input?: OperatorTimeseriesFilterInput & { signal?: AbortSignal },
+	): Promise<{ data: OperatorIntentTimeseriesRecord }>;
 	listOperatorQualityBadcases(
 		input?: OperatorQualityBadcaseListFilterInput & { signal?: AbortSignal },
 	): Promise<{
 		data: OperatorQualityBadcaseRecord[];
+		pageInfo: {
+			hasNextPage: boolean;
+			hasPreviousPage: boolean;
+		};
+	}>;
+	listOperatorQualityEvalCandidates(
+		input?: OperatorQualityBadcaseListFilterInput & { signal?: AbortSignal },
+	): Promise<{
+		data: OperatorQualityEvalCandidateRecord[];
 		pageInfo: {
 			hasNextPage: boolean;
 			hasPreviousPage: boolean;

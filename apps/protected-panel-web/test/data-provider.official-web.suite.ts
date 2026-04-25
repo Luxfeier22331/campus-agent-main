@@ -19,6 +19,11 @@ export function registerDataProviderOfficialWebSuite() {
 						finishedAt: "2026-03-29T08:17:32.000Z",
 						ingestionDispatchRef: null,
 						ingestionDispatchStatus: "queued",
+						ingestionExecutionErrorCode: "worker_timeout",
+						ingestionExecutionErrorMessage: "Worker timed out while indexing artifacts.",
+						ingestionExecutionRef: "ingexec_01HQ",
+						ingestionExecutionStatus: "failed",
+						ingestionExecutionUpdatedAt: "2026-03-29T08:18:00.000Z",
 						lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
 						projectedAt: "2026-03-29T08:17:33.000Z",
 						runId: "owrun_01HQ",
@@ -55,6 +60,9 @@ export function registerDataProviderOfficialWebSuite() {
 
 		expect(response.data[0]).toMatchObject({
 			id: "owrun_01HQ",
+			ingestionExecutionErrorCode: "worker_timeout",
+			ingestionExecutionRef: "ingexec_01HQ",
+			ingestionExecutionStatus: "failed",
 			runId: "owrun_01HQ",
 			runIntent: "baseline",
 			status: "completed",
@@ -68,6 +76,133 @@ export function registerDataProviderOfficialWebSuite() {
 				method: "GET",
 			}),
 		);
+	});
+
+	it("returns an exact total for terminal official web run cursor pages", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				page: {
+					nextCursor: null,
+				},
+				runs: [
+					{
+						artifacts: [],
+						collectorVersion: "official-web-collector@0.1.0",
+						configVersion: "git:abc1234",
+						failureCount: 0,
+						finishedAt: "2026-03-29T08:17:32.000Z",
+						ingestionDispatchRef: null,
+						ingestionDispatchStatus: "dispatched",
+						ingestionExecutionErrorCode: null,
+						ingestionExecutionErrorMessage: null,
+						ingestionExecutionRef: null,
+						ingestionExecutionStatus: "pending",
+						ingestionExecutionUpdatedAt: null,
+						lastHeartbeatAt: "2026-03-29T08:05:00.000Z",
+						projectedAt: "2026-03-29T08:17:33.000Z",
+						runId: "owrun_01HQ",
+						runIntent: "baseline",
+						siteId: "www_muc_edu_cn",
+						startedAt: "2026-03-29T08:00:01.000Z",
+						status: "completed",
+						summary: null,
+					},
+					{
+						artifacts: [],
+						collectorVersion: "official-web-collector@0.1.0",
+						configVersion: "git:abc1234",
+						failureCount: 0,
+						finishedAt: "2026-03-29T07:17:32.000Z",
+						ingestionDispatchRef: null,
+						ingestionDispatchStatus: "dispatched",
+						ingestionExecutionErrorCode: null,
+						ingestionExecutionErrorMessage: null,
+						ingestionExecutionRef: null,
+						ingestionExecutionStatus: "pending",
+						ingestionExecutionUpdatedAt: null,
+						lastHeartbeatAt: "2026-03-29T07:05:00.000Z",
+						projectedAt: "2026-03-29T07:17:33.000Z",
+						runId: "owrun_02HQ",
+						runIntent: "hot",
+						siteId: "www_muc_edu_cn",
+						startedAt: "2026-03-29T07:00:01.000Z",
+						status: "completed",
+						summary: null,
+					},
+				],
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getList("officialWebRuns", {
+				filter: {},
+				meta: undefined,
+				pagination: {
+					page: 1,
+					perPage: 20,
+				},
+				signal: undefined,
+				sort: {
+					field: "startedAt",
+					order: "DESC",
+				},
+			}),
+		).resolves.toMatchObject({
+			data: [{ id: "owrun_01HQ" }, { id: "owrun_02HQ" }],
+			pageInfo: {
+				hasNextPage: false,
+				hasPreviousPage: false,
+			},
+			total: 2,
+		});
+	});
+
+	it("returns an exact total for official web site lists", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				sites: [
+					{
+						displayName: "Www Muc Edu Cn",
+						hostRoots: ["www.muc.edu.cn"],
+						lastFailureAt: null,
+						lastSuccessAt: "2026-03-29T08:17:32.000Z",
+						latestCollectorVersion: "official-web-collector@0.1.0",
+						latestConfigVersion: "git:abc1234",
+						latestIngestionDispatchStatus: "dispatched",
+						latestIngestionExecutionErrorCode: null,
+						latestIngestionExecutionStatus: "pending",
+						latestIngestionExecutionUpdatedAt: null,
+						latestRunId: "owrun_01HQ",
+						latestRunStatus: "completed",
+						projectedAt: "2026-03-29T08:17:33.000Z",
+						siteId: "www_muc_edu_cn",
+					},
+				],
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getList("officialWebSites", {
+				filter: {},
+				meta: undefined,
+				pagination: {
+					page: 1,
+					perPage: 50,
+				},
+				signal: undefined,
+				sort: {
+					field: "siteId",
+					order: "ASC",
+				},
+			}),
+		).resolves.toMatchObject({
+			data: [{ id: "www_muc_edu_cn" }],
+			pageInfo: {
+				hasNextPage: false,
+				hasPreviousPage: false,
+			},
+			total: 1,
+		});
 	});
 
 	it("loads official web site detail and recent runs from the runtime seam", async () => {
@@ -109,6 +244,9 @@ export function registerDataProviderOfficialWebSuite() {
 					},
 				],
 				site: {
+					latestIngestionExecutionErrorCode: "worker_timeout",
+					latestIngestionExecutionStatus: "failed",
+					latestIngestionExecutionUpdatedAt: "2026-03-29T08:18:00.000Z",
 					siteId: "www_muc_edu_cn",
 				},
 			}),
@@ -133,6 +271,8 @@ export function registerDataProviderOfficialWebSuite() {
 					duePages: 7,
 				}),
 				id: "www_muc_edu_cn",
+				latestIngestionExecutionErrorCode: "worker_timeout",
+				latestIngestionExecutionStatus: "failed",
 				recentPageChanges: [
 					expect.objectContaining({
 						id: "owobs_01",
@@ -162,6 +302,11 @@ export function registerDataProviderOfficialWebSuite() {
 						},
 					],
 					run: {
+						ingestionExecutionErrorCode: null,
+						ingestionExecutionErrorMessage: null,
+						ingestionExecutionRef: "ingexec_01HQ",
+						ingestionExecutionStatus: "completed",
+						ingestionExecutionUpdatedAt: "2026-03-29T08:18:00.000Z",
 						runId: "owrun_01HQ",
 						runIntent: "repair",
 					},
@@ -178,6 +323,8 @@ export function registerDataProviderOfficialWebSuite() {
 		).resolves.toMatchObject({
 			data: {
 				id: "owrun_01HQ",
+				ingestionExecutionRef: "ingexec_01HQ",
+				ingestionExecutionStatus: "completed",
 				pageChangeSummary: expect.objectContaining({
 					changedPages: 1,
 					failedFetchPages: 1,

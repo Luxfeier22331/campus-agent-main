@@ -1,8 +1,10 @@
 import { formatPanelTimestamp, PANEL_COPY } from "../panel-copy";
 import type {
+	RequestClaimSupportSummary,
 	RequestIntentObservabilitySummary,
 	RequestProjectionDiagnostics,
 	RequestProjectionRecord,
+	RequestReplaySummary,
 } from "../types";
 
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
@@ -365,6 +367,109 @@ export function buildRequestIntentEntries(intent: RequestIntentObservabilitySumm
 			value: intent.classifierVersion || PANEL_COPY.unknown,
 		},
 	];
+}
+
+function formatClaimSupportSummary(summary: RequestClaimSupportSummary | null | undefined) {
+	if (!summary) {
+		return PANEL_COPY.unknown;
+	}
+
+	return `${summary.supportedClaims}/${summary.totalClaims} 支撑 · ${summary.unsupportedClaims} 未支撑`;
+}
+
+function formatGroundingDowngradeState(value: boolean | null) {
+	if (value === null) {
+		return PANEL_COPY.unknown;
+	}
+
+	return value ? "已降级" : "未降级";
+}
+
+function formatPromptSummary(prompt: RequestReplaySummary["prompt"]) {
+	if (!prompt) {
+		return PANEL_COPY.unknown;
+	}
+
+	const identity = prompt.id || PANEL_COPY.unknown;
+	const version = prompt.version ? `@${prompt.version}` : "";
+	const runtime = prompt.runtimeState || prompt.runtimeDetail || PANEL_COPY.unknown;
+	return `${identity}${version} · ${runtime}`;
+}
+
+function formatRetrievalPlanSummary(plan: NonNullable<RequestReplaySummary["retrieval"]>["plan"]) {
+	if (!plan) {
+		return PANEL_COPY.unknown;
+	}
+
+	return [
+		plan.planId || PANEL_COPY.unknown,
+		plan.queryMode || PANEL_COPY.unknown,
+		plan.terminalState || PANEL_COPY.unknown,
+	].join(" · ");
+}
+
+export function buildRequestReplayEntries(replay: RequestReplaySummary | undefined) {
+	if (!replay) {
+		return [];
+	}
+
+	const retrieval = replay.retrieval;
+	const answerQuality = replay.answerQuality;
+	const prompt = replay.prompt;
+	const execution = replay.execution;
+	const entries: Array<{ label: string; value: string }> = [];
+
+	if (retrieval) {
+		entries.push(
+			{
+				label: "检索充分性",
+				value: retrieval.adequacyVerdict || PANEL_COPY.unknown,
+			},
+			{
+				label: "检索原因",
+				value: retrieval.adequacyReason || PANEL_COPY.unknown,
+			},
+			{
+				label: "检索计划",
+				value: formatRetrievalPlanSummary(retrieval.plan),
+			},
+			{
+				label: "来源轨迹",
+				value: `召回 ${retrieval.sourceTraceCounts.retrieved} · 支撑 ${retrieval.sourceTraceCounts.supporting}`,
+			},
+		);
+	}
+
+	if (answerQuality) {
+		entries.push(
+			{
+				label: "声明支撑",
+				value: formatClaimSupportSummary(answerQuality.claimSupportSummary),
+			},
+			{
+				label: "Grounding",
+				value: `${answerQuality.groundingVerdict || PANEL_COPY.unknown} · ${formatGroundingDowngradeState(
+					answerQuality.groundingDowngraded,
+				)}`,
+			},
+		);
+	}
+
+	if (prompt) {
+		entries.push({
+			label: "Prompt",
+			value: formatPromptSummary(prompt),
+		});
+	}
+
+	if (execution?.semanticOutcome) {
+		entries.push({
+			label: "执行语义",
+			value: execution.semanticOutcome,
+		});
+	}
+
+	return entries;
 }
 
 export function formatAclDecisionLabel(decision: string | null) {

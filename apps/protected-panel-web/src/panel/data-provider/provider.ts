@@ -30,12 +30,15 @@ import {
 	getOperatorAuditEvent,
 	getOperatorCostSummary,
 	getOperatorCostTimeseries,
+	getOperatorIntentSummary,
+	getOperatorIntentTimeseries,
 	getOperatorOverview,
 	getOperatorQualitySummary,
 	getOperatorQualityTimeseries,
 	getOperatorSafetySummary,
 	listOperatorAudit,
 	listOperatorQualityBadcases,
+	listOperatorQualityEvalCandidates,
 	listOperatorSafetyAnomalies,
 } from "./operator";
 import { getRequestDetail, getRequestList, getRequestObservabilityDetail } from "./requests";
@@ -152,8 +155,17 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 	async getOperatorQualityTimeseries(input) {
 		return getOperatorQualityTimeseries(input);
 	},
+	async getOperatorIntentSummary(input) {
+		return getOperatorIntentSummary(input);
+	},
+	async getOperatorIntentTimeseries(input) {
+		return getOperatorIntentTimeseries(input);
+	},
 	async listOperatorQualityBadcases(input) {
 		return listOperatorQualityBadcases(input);
+	},
+	async listOperatorQualityEvalCandidates(input) {
+		return listOperatorQualityEvalCandidates(input);
 	},
 	async getOperatorSafetySummary(input) {
 		return getOperatorSafetySummary(input);

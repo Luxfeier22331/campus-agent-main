@@ -102,6 +102,9 @@ export interface RawOperatorOverviewRecord {
 		};
 		sinkHealth: {
 			missingTraceRate: RawOperatorMetricRatio;
+			outboxPendingCount: number;
+			outboxRetryCount: number;
+			outboxStaleCount: number;
 			projectionFailureCount: number;
 		};
 	};
@@ -130,7 +133,7 @@ export interface RawOperatorQualitySummaryRecord {
 		citationPassRate: RawOperatorMetricRatio | null;
 		coverageRate: RawOperatorMetricRatio | null;
 		groundingPassRate: RawOperatorMetricRatio | null;
-		intentPassRate?: RawOperatorMetricRatio | null;
+		intentPassRate: RawOperatorMetricRatio | null;
 		policyPassRate: RawOperatorMetricRatio | null;
 	} | null;
 	window: RawOperatorResultWindow;
@@ -156,6 +159,57 @@ export interface RawOperatorQualityTimeseriesRecord {
 }
 
 export type OperatorQualityTimeseriesRecord = RawOperatorQualityTimeseriesRecord;
+
+export interface RawOperatorDistributionBucket {
+	count: number;
+	value: string;
+}
+
+export type OperatorDistributionBucket = RawOperatorDistributionBucket;
+
+export interface RawOperatorIntentSummaryRecord {
+	asOf: string;
+	runtime: {
+		ambiguityRate: RawOperatorMetricRatio;
+		contextUnresolvedRate: RawOperatorMetricRatio;
+		distributions: {
+			capability: RawOperatorDistributionBucket[];
+			classifierVersion: RawOperatorDistributionBucket[];
+			launchState: RawOperatorDistributionBucket[];
+			nextAction: RawOperatorDistributionBucket[];
+			schemaVersion: RawOperatorDistributionBucket[];
+			scopeClass: RawOperatorDistributionBucket[];
+			taskKind: RawOperatorDistributionBucket[];
+		};
+		lowConfidenceRate: RawOperatorMetricRatio;
+		requestCount: number;
+	};
+	sampledGrades: {
+		coverageRate: RawOperatorMetricRatio | null;
+		intentPassRate: RawOperatorMetricRatio | null;
+	} | null;
+	window: RawOperatorResultWindow;
+}
+
+export type OperatorIntentSummaryRecord = RawOperatorIntentSummaryRecord;
+
+export interface RawOperatorIntentTimeseriesBucket {
+	ambiguityRate: number;
+	bucketEnd: string;
+	bucketStart: string;
+	contextUnresolvedRate: number;
+	lowConfidenceRate: number;
+	requestCount: number;
+	sampledIntentPassRate: number | null;
+}
+
+export interface RawOperatorIntentTimeseriesRecord {
+	asOf: string;
+	series: RawOperatorIntentTimeseriesBucket[];
+	window: RawOperatorResultWindow;
+}
+
+export type OperatorIntentTimeseriesRecord = RawOperatorIntentTimeseriesRecord;
 
 export interface RawOperatorTraceLinks {
 	issueFingerprint: string | null;
@@ -188,6 +242,39 @@ export interface OperatorQualityBadcaseRecord extends RawOperatorQualityBadcaseR
 
 export interface RawOperatorQualityBadcaseListResponse {
 	badcases: RawOperatorQualityBadcaseRecord[];
+	page: {
+		nextCursor: string | null;
+	};
+}
+
+export interface RawOperatorQualityEvalCandidateRecord {
+	candidateId: string;
+	causeClass: string;
+	grade: {
+		graderVersion: string;
+		result: string;
+		score: number | null;
+	} | null;
+	intake: {
+		createdAt: string;
+		source: "operator_badcase";
+		status: "pending_review";
+		suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
+	};
+	links: RawOperatorTraceLinks;
+	requestId: string;
+	selectedTarget: string | null;
+	summary: string;
+	surface: string;
+	traceId: string;
+}
+
+export interface OperatorQualityEvalCandidateRecord extends RawOperatorQualityEvalCandidateRecord {
+	id: string;
+}
+
+export interface RawOperatorQualityEvalCandidateListResponse {
+	candidates: RawOperatorQualityEvalCandidateRecord[];
 	page: {
 		nextCursor: string | null;
 	};
@@ -362,9 +449,26 @@ export function normalizeOperatorOverviewAlert(
 export function normalizeOperatorOverviewRecord(
 	input: RawOperatorOverviewRecord,
 ): OperatorOverviewRecord {
+	const sinkHealth = input.overview.sinkHealth as Partial<
+		RawOperatorOverviewRecord["overview"]["sinkHealth"]
+	> &
+		Pick<
+			RawOperatorOverviewRecord["overview"]["sinkHealth"],
+			"missingTraceRate" | "projectionFailureCount"
+		>;
+
 	return {
 		...input,
 		alerts: input.alerts.map(normalizeOperatorOverviewAlert),
+		overview: {
+			...input.overview,
+			sinkHealth: {
+				...sinkHealth,
+				outboxPendingCount: sinkHealth.outboxPendingCount ?? 0,
+				outboxRetryCount: sinkHealth.outboxRetryCount ?? 0,
+				outboxStaleCount: sinkHealth.outboxStaleCount ?? 0,
+			},
+		},
 	};
 }
 
@@ -384,12 +488,37 @@ export function normalizeOperatorQualityTimeseriesRecord(
 	};
 }
 
+export function normalizeOperatorIntentSummaryRecord(
+	input: RawOperatorIntentSummaryRecord,
+): OperatorIntentSummaryRecord {
+	return {
+		...input,
+	};
+}
+
+export function normalizeOperatorIntentTimeseriesRecord(
+	input: RawOperatorIntentTimeseriesRecord,
+): OperatorIntentTimeseriesRecord {
+	return {
+		...input,
+	};
+}
+
 export function normalizeOperatorQualityBadcaseRecord(
 	input: RawOperatorQualityBadcaseRecord,
 ): OperatorQualityBadcaseRecord {
 	return {
 		...input,
 		id: input.badcaseId,
+	};
+}
+
+export function normalizeOperatorQualityEvalCandidateRecord(
+	input: RawOperatorQualityEvalCandidateRecord,
+): OperatorQualityEvalCandidateRecord {
+	return {
+		...input,
+		id: input.candidateId,
 	};
 }
 

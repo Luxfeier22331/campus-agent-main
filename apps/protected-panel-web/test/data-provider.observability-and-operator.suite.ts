@@ -349,6 +349,176 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		);
 	});
 
+	it("loads operator quality eval candidates with sequential cursor pagination", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(
+				createJsonResponse({
+					candidates: [
+						{
+							candidateId: "eval_candidate:badcase_01",
+							causeClass: "intent_classifier_mismatch",
+							grade: {
+								graderVersion: "intent-grader@2026-04-20",
+								result: "fail",
+								score: 0.12,
+							},
+							intake: {
+								createdAt: "2026-04-01T10:00:00.000Z",
+								source: "operator_badcase",
+								status: "pending_review",
+								suggestedEvalFamily: "intent",
+							},
+							links: {
+								issueFingerprint: "intent-classifier-mismatch",
+								issueLink: null,
+								traceLink: "https://sentry.example/traces/trace_01",
+							},
+							requestId: "req_01",
+							selectedTarget: "supervisor-core",
+							summary: "Intent classifier selected the wrong target",
+							surface: "public_chat_web",
+							traceId: "trace_01",
+						},
+					],
+					page: {
+						nextCursor: "cursor_eval_02",
+					},
+				}),
+			)
+			.mockResolvedValueOnce(
+				createJsonResponse({
+					candidates: [],
+					page: {
+						nextCursor: null,
+					},
+				}),
+			);
+
+		await expect(
+			protectedPanelDataProvider.listOperatorQualityEvalCandidates({
+				causeClass: "intent_classifier_mismatch",
+				detectedBy: "runtime_monitor",
+				page: 1,
+				perPage: 10,
+				signal: undefined,
+				status: "open",
+			}),
+		).resolves.toMatchObject({
+			data: [
+				{
+					candidateId: "eval_candidate:badcase_01",
+					id: "eval_candidate:badcase_01",
+					intake: {
+						suggestedEvalFamily: "intent",
+					},
+				},
+			],
+			pageInfo: {
+				hasNextPage: true,
+				hasPreviousPage: false,
+			},
+		});
+
+		await expect(
+			protectedPanelDataProvider.listOperatorQualityEvalCandidates({
+				causeClass: "intent_classifier_mismatch",
+				detectedBy: "runtime_monitor",
+				page: 2,
+				perPage: 10,
+				signal: undefined,
+				status: "open",
+			}),
+		).resolves.toMatchObject({
+			data: [],
+			pageInfo: {
+				hasNextPage: false,
+				hasPreviousPage: true,
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			1,
+			"/api/operator/quality/eval-candidates?limit=10&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+		expect(fetchSpy).toHaveBeenNthCalledWith(
+			2,
+			"/api/operator/quality/eval-candidates?limit=10&status=open&causeClass=intent_classifier_mismatch&detectedBy=runtime_monitor&cursor=cursor_eval_02",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("loads operator intent governance summaries from the protected same-site seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				asOf: "2026-03-28T08:00:10.000Z",
+				runtime: {
+					ambiguityRate: { count: 2, eligibleCount: 10, value: 0.2 },
+					contextUnresolvedRate: { count: 1, eligibleCount: 10, value: 0.1 },
+					distributions: {
+						capability: [{ count: 6, value: "knowledge" }],
+						classifierVersion: [{ count: 10, value: "intent-classifier@2026-04-20" }],
+						launchState: [{ count: 8, value: "open" }],
+						nextAction: [{ count: 7, value: "delegate" }],
+						schemaVersion: [{ count: 10, value: "intent-schema-1.0.0" }],
+						scopeClass: [{ count: 9, value: "in_scope" }],
+						taskKind: [{ count: 6, value: "knowledge_lookup" }],
+					},
+					lowConfidenceRate: { count: 1, eligibleCount: 10, value: 0.1 },
+					requestCount: 10,
+				},
+				sampledGrades: {
+					coverageRate: { count: 4, eligibleCount: 10, value: 0.4 },
+					intentPassRate: { count: 3, eligibleCount: 4, value: 0.75 },
+				},
+				window: {
+					from: "2026-03-27T08:00:10.000Z",
+					granularity: "1h",
+					to: "2026-03-28T08:00:10.000Z",
+				},
+			}),
+		);
+
+		await expect(
+			protectedPanelDataProvider.getOperatorIntentSummary({
+				selectedTarget: "supervisor-core",
+				surface: "public_chat_web",
+				window: "24h",
+			}),
+		).resolves.toMatchObject({
+			data: {
+				runtime: {
+					requestCount: 10,
+					lowConfidenceRate: { count: 1, eligibleCount: 10, value: 0.1 },
+				},
+				sampledGrades: {
+					intentPassRate: { count: 3, eligibleCount: 4, value: 0.75 },
+				},
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedTarget=supervisor-core",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
 	it("fails closed on invalid operator timeseries window and granularity combinations", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
 

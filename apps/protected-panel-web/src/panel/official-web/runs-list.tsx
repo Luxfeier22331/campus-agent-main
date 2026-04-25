@@ -138,6 +138,12 @@ export function OfficialWebRunsListPage() {
 							)}
 						/>
 						<FunctionField
+							label="执行"
+							render={(record: OfficialWebRunRecord) => (
+								<OfficialWebIngestionStatusChip status={record.ingestionExecutionStatus} />
+							)}
+						/>
+						<FunctionField
 							label="失败数"
 							render={(record: OfficialWebRunRecord) => (
 								<OfficialWebFailureSummary record={record} />

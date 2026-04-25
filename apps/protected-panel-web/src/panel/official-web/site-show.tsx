@@ -155,6 +155,22 @@ function OfficialWebSiteShowContent() {
 										<OfficialWebIngestionStatusChip status={record.latestIngestionDispatchStatus} />
 									}
 								/>
+								<SiteFieldRow
+									label="执行"
+									value={
+										<OfficialWebIngestionStatusChip
+											status={record.latestIngestionExecutionStatus}
+										/>
+									}
+								/>
+								<SiteFieldRow
+									label="执行更新时间"
+									value={formatTimestamp(record.latestIngestionExecutionUpdatedAt)}
+								/>
+								<SiteFieldRow
+									label="执行错误"
+									value={record.latestIngestionExecutionErrorCode || PANEL_COPY.none}
+								/>
 								<SiteFieldRow label="最近成功" value={formatTimestamp(record.lastSuccessAt)} />
 								<SiteFieldRow label="最近失败" value={formatTimestamp(record.lastFailureAt)} />
 							</Stack>
@@ -233,6 +249,7 @@ function OfficialWebSiteShowContent() {
 													<OfficialWebRunIntentChip runIntent={run.runIntent} />
 													<OfficialWebRunStatusChip status={run.status} />
 													<OfficialWebIngestionStatusChip status={run.ingestionDispatchStatus} />
+													<OfficialWebIngestionStatusChip status={run.ingestionExecutionStatus} />
 													<Typography color="text.secondary" variant="caption">
 														开始于 {formatTimestamp(run.startedAt)}
 													</Typography>

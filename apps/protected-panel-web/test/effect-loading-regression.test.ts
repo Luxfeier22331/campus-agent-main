@@ -70,6 +70,7 @@ describe("protected panel loading effects", () => {
 	it("uses query-driven quality loading instead of direct fetch calls", () => {
 		expect(qualityPageSource).toContain("useQueries(");
 		expect(qualityPageSource).toContain("useQuery(");
+		expect(qualityPageSource).toContain("listOperatorQualityEvalCandidates");
 		expect(qualityPageSource).not.toContain("fetch(");
 	});
 

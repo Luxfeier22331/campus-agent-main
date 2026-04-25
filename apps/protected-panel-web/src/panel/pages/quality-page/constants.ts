@@ -10,6 +10,7 @@ export interface QualityFilterState {
 	badcaseCauseClass: string;
 	badcaseDetectedBy: string;
 	badcaseStatus: string;
+	evalPage: number;
 	page: number;
 	perPage: number;
 	selectedTarget: string | null;

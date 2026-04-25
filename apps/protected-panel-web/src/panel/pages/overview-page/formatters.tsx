@@ -191,10 +191,16 @@ export function buildOverviewCards(record: OperatorOverviewRecord) {
 		{
 			detail: `${PANEL_COPY.overviewPage.cardDetail.projectionFailureCount} ${formatCount(
 				record.overview.sinkHealth.projectionFailureCount,
+			)} · ${PANEL_COPY.overviewPage.cardDetail.outboxPendingCount} ${formatCount(
+				record.overview.sinkHealth.outboxPendingCount,
+			)} · ${PANEL_COPY.overviewPage.cardDetail.outboxStaleCount} ${formatCount(
+				record.overview.sinkHealth.outboxStaleCount,
 			)}`,
 			label: PANEL_COPY.overviewPage.cards.sinkHealth,
 			value: `${PANEL_COPY.overviewPage.cardDetail.missingTraceRate} ${formatMetricRate(
 				record.overview.sinkHealth.missingTraceRate,
+			)} · ${PANEL_COPY.overviewPage.cardDetail.outboxRetryCount} ${formatCount(
+				record.overview.sinkHealth.outboxRetryCount,
 			)}`,
 		},
 	];

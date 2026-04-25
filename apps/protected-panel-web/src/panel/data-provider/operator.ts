@@ -6,8 +6,11 @@ import {
 	normalizeOperatorAuditEventRecord,
 	normalizeOperatorCostSummaryRecord,
 	normalizeOperatorCostTimeseriesRecord,
+	normalizeOperatorIntentSummaryRecord,
+	normalizeOperatorIntentTimeseriesRecord,
 	normalizeOperatorOverviewRecord,
 	normalizeOperatorQualityBadcaseRecord,
+	normalizeOperatorQualityEvalCandidateRecord,
 	normalizeOperatorQualitySummaryRecord,
 	normalizeOperatorQualityTimeseriesRecord,
 	normalizeOperatorSafetyAnomalyRecord,
@@ -18,9 +21,12 @@ import {
 	type OperatorAuditListFilterInput,
 	type OperatorCostSummaryRecord,
 	type OperatorCostTimeseriesRecord,
+	type OperatorIntentSummaryRecord,
+	type OperatorIntentTimeseriesRecord,
 	type OperatorOverviewRecord,
 	type OperatorQualityBadcaseListFilterInput,
 	type OperatorQualityBadcaseRecord,
+	type OperatorQualityEvalCandidateRecord,
 	type OperatorQualitySummaryRecord,
 	type OperatorQualityTimeseriesRecord,
 	type OperatorSafetyAnomalyListFilterInput,
@@ -31,8 +37,11 @@ import {
 	type RawOperatorAuditListResponse,
 	type RawOperatorCostSummaryRecord,
 	type RawOperatorCostTimeseriesRecord,
+	type RawOperatorIntentSummaryRecord,
+	type RawOperatorIntentTimeseriesRecord,
 	type RawOperatorOverviewRecord,
 	type RawOperatorQualityBadcaseListResponse,
+	type RawOperatorQualityEvalCandidateListResponse,
 	type RawOperatorQualitySummaryRecord,
 	type RawOperatorQualityTimeseriesRecord,
 	type RawOperatorSafetyAnomalyListResponse,
@@ -99,6 +108,42 @@ export async function getOperatorQualityTimeseries(
 	};
 }
 
+export async function getOperatorIntentSummary(
+	input?: OperatorAggregateFilterInput & { signal?: AbortSignal },
+): Promise<{ data: OperatorIntentSummaryRecord }> {
+	const query = new URLSearchParams();
+	appendOperatorAggregateFilters(query, input);
+
+	const payload = await fetchJson<RawOperatorIntentSummaryRecord>(
+		`/api/operator/intent/summary?${query.toString()}`,
+		{
+			signal: input?.signal,
+		},
+	);
+
+	return {
+		data: normalizeOperatorIntentSummaryRecord(payload),
+	};
+}
+
+export async function getOperatorIntentTimeseries(
+	input?: OperatorTimeseriesFilterInput & { signal?: AbortSignal },
+): Promise<{ data: OperatorIntentTimeseriesRecord }> {
+	const query = new URLSearchParams();
+	appendOperatorTimeseriesFilters(query, input);
+
+	const payload = await fetchJson<RawOperatorIntentTimeseriesRecord>(
+		`/api/operator/intent/timeseries?${query.toString()}`,
+		{
+			signal: input?.signal,
+		},
+	);
+
+	return {
+		data: normalizeOperatorIntentTimeseriesRecord(payload),
+	};
+}
+
 export async function listOperatorQualityBadcases(
 	input?: OperatorQualityBadcaseListFilterInput & { signal?: AbortSignal },
 ): Promise<SequentialCursorListResult<OperatorQualityBadcaseRecord>> {
@@ -127,6 +172,37 @@ export async function listOperatorQualityBadcases(
 		},
 		signal: input?.signal,
 		sourcePath: "/api/operator/quality/badcases",
+	});
+}
+
+export async function listOperatorQualityEvalCandidates(
+	input?: OperatorQualityBadcaseListFilterInput & { signal?: AbortSignal },
+): Promise<SequentialCursorListResult<OperatorQualityEvalCandidateRecord>> {
+	return getSequentialCursorList<
+		RawOperatorQualityEvalCandidateListResponse,
+		RawOperatorQualityEvalCandidateListResponse["candidates"][number],
+		OperatorQualityEvalCandidateRecord
+	>({
+		buildQuery(query) {
+			appendOptionalQueryParam(query, "status", input?.status);
+			appendOptionalQueryParam(query, "causeClass", input?.causeClass);
+			appendOptionalQueryParam(query, "detectedBy", input?.detectedBy);
+		},
+		cursorFilter: {
+			causeClass: input?.causeClass,
+			detectedBy: input?.detectedBy,
+			status: input?.status,
+		},
+		normalizeRecord: normalizeOperatorQualityEvalCandidateRecord,
+		page: input?.page,
+		perPage: input?.perPage,
+		resource: "operatorQualityEvalCandidates",
+		resourceLabel: "operator quality eval candidate",
+		responseItems(payload) {
+			return payload.candidates;
+		},
+		signal: input?.signal,
+		sourcePath: "/api/operator/quality/eval-candidates",
 	});
 }
 

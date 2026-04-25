@@ -4,6 +4,7 @@ import workerSource from "../src/index.ts?raw";
 import appSource from "../src/panel/app.tsx?raw";
 import auditPageSource from "../src/panel/pages/audit-page.tsx?raw";
 import costPageSource from "../src/panel/pages/cost-page.tsx?raw";
+import intentPageSource from "../src/panel/pages/intent-page.tsx?raw";
 import overviewPageCardsSource from "../src/panel/pages/overview-page/cards.tsx?raw";
 import overviewPageSource from "../src/panel/pages/overview-page.tsx?raw";
 import qualityPageSource from "../src/panel/pages/quality-page.tsx?raw";
@@ -113,6 +114,17 @@ describe("protected panel shell chinese copy", () => {
 		expect(qualityPageSource).not.toContain("function SectionCard(");
 		expect(qualityPageSource).not.toContain('getList("operatorQualityBadcases"');
 		expect(qualityPageSource).not.toContain('resource="operatorQualityBadcases"');
+	});
+
+	it("cuts the intent governance route and nav over to a real intent observability page", () => {
+		expect(appSource).toContain('path="/observability/intent"');
+		expect(layoutSource).toContain("PANEL_COPY.menu.intent");
+		expect(layoutSource).toContain('to="/observability/intent"');
+		expect(intentPageSource).toContain("getOperatorIntentSummary");
+		expect(intentPageSource).toContain("getOperatorIntentTimeseries");
+		expect(intentPageSource).toContain("LineChart");
+		expect(intentPageSource).not.toContain("fetch(");
+		expect(intentPageSource).not.toContain('getList("operatorIntent"');
 	});
 
 	it("cuts the safety route and nav over to a real safety/authz domain page", () => {

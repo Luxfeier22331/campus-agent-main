@@ -43,6 +43,16 @@ const STATIC_PROXY_ROUTES = [
 	},
 	{
 		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
+		path: "/api/operator/intent/summary",
+		targetPath: "/api/operator/intent/summary",
+	},
+	{
+		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
+		path: "/api/operator/intent/timeseries",
+		targetPath: "/api/operator/intent/timeseries",
+	},
+	{
+		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
 		path: "/api/operator/safety/summary",
 		targetPath: "/api/operator/safety/summary",
 	},

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildRequestIntentEntries,
+	buildRequestReplayEntries,
 	CURRENT_RUNTIME_TARGET_OPTIONS,
 	formatCapabilityLabel,
 	formatIntentLaunchStateLabel,
@@ -101,5 +102,108 @@ describe("request intent formatters", () => {
 
 	it("omits intent rows when an old observability record has no intent summary", () => {
 		expect(buildRequestIntentEntries(undefined)).toEqual([]);
+	});
+});
+
+describe("request replay formatters", () => {
+	it("builds operator-facing replay rows from retrieval, answer, and prompt summaries", () => {
+		expect(
+			buildRequestReplayEntries({
+				answerQuality: {
+					citationCount: 1,
+					citationExpected: true,
+					citationMissing: false,
+					claimSupportSummary: {
+						supportedClaims: 2,
+						totalClaims: 3,
+						unsupportedClaimTypes: ["deadline"],
+						unsupportedClaims: 1,
+						unsupportedFields: ["deadline_claims"],
+					},
+					freshnessFailClosed: false,
+					groundingDowngraded: true,
+					groundingVerdict: "partial",
+					policyReason: null,
+				},
+				context: {
+					applicabilityScope: "undergraduate",
+					entitlementGroups: ["students"],
+					entitlementSnapshotId: "ent_01HQ",
+					policyProjectionVersion: "phase1-authorization-projection-v1",
+					principalType: "student",
+					visibilityScope: "main",
+				},
+				execution: {
+					errorCode: null,
+					failClosed: false,
+					refusalClass: null,
+					scopeClass: "in_scope",
+					semanticOutcome: "answered",
+					status: "completed",
+				},
+				prompt: {
+					id: "rag_answer_v1",
+					runtimeDetail: null,
+					runtimeState: "ok",
+					templateSha256: "0123456789abcdef",
+					version: "v1",
+				},
+				retrieval: {
+					adequacyReason: "enough evidence",
+					adequacyVerdict: "sufficient",
+					candidateCount: 4,
+					emptyRecall: false,
+					plan: {
+						planId: "student_rules:current",
+						queryMode: "current",
+						replanCount: 0,
+						stepActivities: [],
+						terminalState: "completed",
+					},
+					retrievalAttempted: true,
+					retrievedSourceCount: 2,
+					sourceTraceCounts: {
+						retrieved: 2,
+						supporting: 1,
+					},
+				},
+				routing: {
+					requestedCapability: "knowledge",
+					requestedScope: { collection: "student_rules", corpus: "regulations" },
+					resolvedScope: { collection: "student_rules", corpus: "regulations" },
+					selectedTarget: "rag-agent",
+				},
+			}),
+		).toEqual([
+			{ label: "检索充分性", value: "sufficient" },
+			{ label: "检索原因", value: "enough evidence" },
+			{ label: "检索计划", value: "student_rules:current · current · completed" },
+			{ label: "来源轨迹", value: "召回 2 · 支撑 1" },
+			{ label: "声明支撑", value: "2/3 支撑 · 1 未支撑" },
+			{ label: "Grounding", value: "partial · 已降级" },
+			{ label: "Prompt", value: "rag_answer_v1@v1 · ok" },
+			{ label: "执行语义", value: "answered" },
+		]);
+	});
+
+	it("keeps replay formatter compatible with older observability records", () => {
+		expect(buildRequestReplayEntries(undefined)).toEqual([]);
+	});
+
+	it("shows unknown instead of not downgraded when grounding downgrade state is absent", () => {
+		expect(
+			buildRequestReplayEntries({
+				answerQuality: {
+					citationCount: 1,
+					citationExpected: true,
+					citationMissing: false,
+					claimSupportSummary: null,
+					freshnessFailClosed: false,
+					groundingDowngraded: null,
+					groundingVerdict: "passed",
+					policyReason: null,
+				},
+			}),
+		).toContainEqual({ label: "Grounding", value: "passed · 未知" });
 	});
 });

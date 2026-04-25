@@ -19,6 +19,7 @@ import type { RequestProjectionRecord } from "../types";
 import {
 	buildRequestDiagnosticEntries,
 	buildRequestIntentEntries,
+	buildRequestReplayEntries,
 	formatAclDecisionLabel,
 	formatCapabilityLabel,
 	formatDuration,
@@ -175,6 +176,7 @@ function RequestShowContent() {
 	const links = observabilityRecord?.links ?? null;
 	const auditSummary = observabilityRecord?.auditSummary ?? null;
 	const intentEntries = buildRequestIntentEntries(observability?.intent);
+	const replayEntries = buildRequestReplayEntries(observabilityRecord?.replay);
 
 	return (
 		<Box sx={{ p: 3 }}>
@@ -332,6 +334,14 @@ function RequestShowContent() {
 												value={formatPanelBoolean(observability.emptyRecall)}
 											/>
 											<RequestFieldRow
+												label="检索充分性"
+												value={observability.retrievalAdequacyVerdict || PANEL_COPY.unknown}
+											/>
+											<RequestFieldRow
+												label="检索原因"
+												value={observability.retrievalAdequacyReason || PANEL_COPY.unknown}
+											/>
+											<RequestFieldRow
 												label="是否期望引用"
 												value={formatPanelBoolean(observability.citationExpected)}
 											/>
@@ -378,6 +388,18 @@ function RequestShowContent() {
 												label="观测时间"
 												value={formatTimestamp(observability.measuredAt)}
 											/>
+											<RequestFieldRow
+												label="版本查询"
+												value={observability.versionQuerySummary || PANEL_COPY.none}
+											/>
+											<RequestFieldRow
+												label="Prompt"
+												value={
+													observability.prompt?.id || observability.prompt?.version
+														? `${observability.prompt.id || PANEL_COPY.unknown}@${observability.prompt.version || PANEL_COPY.unknown}`
+														: PANEL_COPY.unknown
+												}
+											/>
 										</Stack>
 
 										<Stack spacing={2}>
@@ -418,6 +440,14 @@ function RequestShowContent() {
 												value={auditSummary?.auditEventCount ?? PANEL_COPY.unknown}
 											/>
 											<RequestFieldRow
+												label="来源轨迹"
+												value={
+													observability.sourceTrace
+														? `召回 ${observability.sourceTrace.retrieved.length} · 支撑 ${observability.sourceTrace.supporting.length}`
+														: PANEL_COPY.unknown
+												}
+											/>
+											<RequestFieldRow
 												label="最近终态代码"
 												value={auditSummary?.latestTerminalCode || PANEL_COPY.unknown}
 											/>
@@ -427,6 +457,31 @@ function RequestShowContent() {
 							</Stack>
 						</CardContent>
 					</Card>
+
+					{replayEntries.length > 0 ? (
+						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
+							<CardContent>
+								<Stack spacing={2}>
+									<Typography variant="h6">回放摘要</Typography>
+									<Divider />
+									<Box
+										sx={{
+											display: "grid",
+											gap: 2,
+											gridTemplateColumns: {
+												md: "repeat(4, minmax(0, 1fr))",
+												xs: "1fr",
+											},
+										}}
+									>
+										{replayEntries.map((entry) => (
+											<RequestFieldRow key={entry.label} label={entry.label} value={entry.value} />
+										))}
+									</Box>
+								</Stack>
+							</CardContent>
+						</Card>
+					) : null}
 
 					<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
 						<CardContent>

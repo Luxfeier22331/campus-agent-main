@@ -10,6 +10,7 @@ export interface SequentialCursorListResult<RecordType> {
 		hasNextPage: boolean;
 		hasPreviousPage: boolean;
 	};
+	total?: number;
 }
 
 export function normalizeFilterValue(value: unknown): string | null {
@@ -110,11 +111,16 @@ export async function getSequentialCursorList<
 		cursorHistory.set(page + 1, payload.page.nextCursor);
 	}
 
+	const data = input.responseItems(payload).map(input.normalizeRecord);
+	const hasNextPage = Boolean(payload.page.nextCursor);
+	const exactTotal = hasNextPage ? undefined : (page - 1) * perPage + data.length;
+
 	return {
-		data: input.responseItems(payload).map(input.normalizeRecord),
+		data,
 		pageInfo: {
-			hasNextPage: Boolean(payload.page.nextCursor),
+			hasNextPage,
 			hasPreviousPage: page > 1,
 		},
+		total: exactTotal,
 	};
 }

@@ -112,8 +112,20 @@ export function formatOfficialWebFreshnessSummaryLabel(key: string) {
 
 export function formatIngestionStatusLabel(status: string | null) {
 	switch (status) {
+		case "completed":
+			return PANEL_COPY.officialWebStatus.completed;
+		case "failed":
+			return PANEL_COPY.officialWebStatus.failed;
+		case "running":
+			return PANEL_COPY.officialWebStatus.running;
 		case "pending":
 			return PANEL_COPY.ingestionStatus.pending;
+		case "staged":
+			return PANEL_COPY.ingestionStatus.staged;
+		case "promoted":
+			return PANEL_COPY.ingestionStatus.promoted;
+		case "succeeded":
+			return PANEL_COPY.ingestionStatus.succeeded;
 		case "queued":
 			return PANEL_COPY.ingestionStatus.queued;
 		case "dispatched":

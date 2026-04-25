@@ -24,7 +24,11 @@ import { Link as RouterLink } from "react-router-dom";
 
 import { formatPanelTimestamp, PANEL_COPY } from "../../panel-copy";
 import { formatSelectedTargetLabel, formatSurfaceLabel } from "../../requests/request-formatters";
-import type { OperatorOverviewWindow, OperatorQualityBadcaseRecord } from "../../types";
+import type {
+	OperatorOverviewWindow,
+	OperatorQualityBadcaseRecord,
+	OperatorQualityEvalCandidateRecord,
+} from "../../types";
 import {
 	formatQualityBadcaseCauseClass,
 	formatQualityBadcaseDetectedBy,
@@ -509,6 +513,95 @@ export function QualityQueueSection(props: {
 				<Stack direction="row" spacing={1}>
 					<Button
 						disabled={props.queueFilters.page <= 1}
+						onClick={props.onPreviousPage}
+						variant="outlined"
+					>
+						{PANEL_COPY.qualityPage.queue.previousPage}
+					</Button>
+					<Button disabled={!props.hasNextPage} onClick={props.onNextPage} variant="contained">
+						{PANEL_COPY.qualityPage.queue.nextPage}
+					</Button>
+				</Stack>
+			</Stack>
+		</SectionCard>
+	);
+}
+
+export function QualityEvalCandidateSection(props: {
+	candidates: OperatorQualityEvalCandidateRecord[];
+	errorMessage: string | null;
+	hasNextPage: boolean;
+	isPending: boolean;
+	onNextPage(): void;
+	onPreviousPage(): void;
+	pageDescription: string;
+	queueFilters: Pick<QualityFilterState, "evalPage">;
+}) {
+	return (
+		<SectionCard
+			description={PANEL_COPY.qualityPage.queue.evalCandidatesHint}
+			title={PANEL_COPY.qualityPage.sections.evalCandidates}
+		>
+			{props.errorMessage ? <Alert severity="error">{props.errorMessage}</Alert> : null}
+
+			{!props.errorMessage && props.candidates.length === 0 && !props.isPending ? (
+				<Alert severity="info">{PANEL_COPY.qualityPage.queue.evalCandidatesEmpty}</Alert>
+			) : null}
+
+			{props.candidates.length > 0 ? (
+				<Box sx={{ overflowX: "auto" }}>
+					<Table size="small">
+						<TableHead>
+							<TableRow>
+								<TableCell>候选 ID</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.summary}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.causeClass}</TableCell>
+								<TableCell>建议评测族</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.surface}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.selectedTarget}</TableCell>
+								<TableCell>{PANEL_COPY.qualityPage.queueColumns.requestId}</TableCell>
+							</TableRow>
+						</TableHead>
+						<TableBody>
+							{props.candidates.map((candidate) => (
+								<TableRow hover key={candidate.id}>
+									<TableCell>{candidate.candidateId}</TableCell>
+									<TableCell sx={{ maxWidth: 320 }}>
+										<Typography variant="body2">{candidate.summary}</Typography>
+									</TableCell>
+									<TableCell>{formatQualityBadcaseCauseClass(candidate.causeClass)}</TableCell>
+									<TableCell>{candidate.intake.suggestedEvalFamily}</TableCell>
+									<TableCell>{formatSurfaceLabel(candidate.surface)}</TableCell>
+									<TableCell>{formatSelectedTargetLabel(candidate.selectedTarget)}</TableCell>
+									<TableCell>
+										<Button
+											component={RouterLink}
+											size="small"
+											to={`/requests/${candidate.requestId}/show`}
+											variant="outlined"
+										>
+											{candidate.requestId}
+										</Button>
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</Box>
+			) : null}
+
+			<Stack
+				direction={{ md: "row", xs: "column" }}
+				justifyContent="space-between"
+				spacing={1.5}
+				sx={{ alignItems: { md: "center", xs: "stretch" } }}
+			>
+				<Typography color="text.secondary" variant="body2">
+					{props.pageDescription}
+				</Typography>
+				<Stack direction="row" spacing={1}>
+					<Button
+						disabled={props.queueFilters.evalPage <= 1}
 						onClick={props.onPreviousPage}
 						variant="outlined"
 					>

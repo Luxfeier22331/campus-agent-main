@@ -2,6 +2,7 @@ import { Alert, Box, Card, CardContent, Divider, Stack, Typography } from "@mui/
 import type { ReactNode } from "react";
 import { Show, useRecordContext } from "react-admin";
 
+import { PANEL_COPY } from "../panel-copy";
 import type { OfficialWebRunRecord } from "../types";
 import {
 	formatOfficialWebChangeReasonLabel,
@@ -75,6 +76,12 @@ function OfficialWebRunShowContent() {
 									label="分发"
 									value={<OfficialWebIngestionStatusChip status={record.ingestionDispatchStatus} />}
 								/>
+								<RunFieldRow
+									label="执行"
+									value={
+										<OfficialWebIngestionStatusChip status={record.ingestionExecutionStatus} />
+									}
+								/>
 							</Stack>
 						</CardContent>
 					</Card>
@@ -88,7 +95,27 @@ function OfficialWebRunShowContent() {
 								<RunFieldRow label="最近心跳" value={formatTimestamp(record.lastHeartbeatAt)} />
 								<RunFieldRow label="结束时间" value={formatTimestamp(record.finishedAt)} />
 								<RunFieldRow label="投影时间" value={formatTimestamp(record.projectedAt)} />
+								<RunFieldRow
+									label="执行更新时间"
+									value={formatTimestamp(record.ingestionExecutionUpdatedAt)}
+								/>
 								<RunFieldRow label="失败数" value={record.failureCount} />
+								<RunFieldRow
+									label="执行引用"
+									value={record.ingestionExecutionRef || PANEL_COPY.notAvailable}
+								/>
+								<RunFieldRow
+									label="执行错误"
+									value={
+										record.ingestionExecutionErrorCode
+											? `${record.ingestionExecutionErrorCode}${
+													record.ingestionExecutionErrorMessage
+														? ` · ${record.ingestionExecutionErrorMessage}`
+														: ""
+												}`
+											: PANEL_COPY.none
+									}
+								/>
 							</Stack>
 						</CardContent>
 					</Card>

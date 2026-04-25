@@ -64,17 +64,20 @@ export async function getOfficialWebSiteList(signal?: AbortSignal): Promise<{
 		hasNextPage: boolean;
 		hasPreviousPage: boolean;
 	};
+	total: number;
 }> {
 	const payload = await fetchJson<RawOfficialWebSiteListResponse>("/api/official-web/sites", {
 		signal,
 	});
+	const data = payload.sites.map(normalizeOfficialWebSiteRecord);
 
 	return {
-		data: payload.sites.map(normalizeOfficialWebSiteRecord),
+		data,
 		pageInfo: {
 			hasNextPage: false,
 			hasPreviousPage: false,
 		},
+		total: data.length,
 	};
 }
 
