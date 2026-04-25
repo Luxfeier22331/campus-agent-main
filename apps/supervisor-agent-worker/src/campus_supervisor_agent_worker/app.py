@@ -20,7 +20,7 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     dispatch_agent_request,
 )
 from campus_supervisor_agent_worker.api import (
-    ExecutionCancelRegistry,
+    CancelFlagStore,
     HttpResponse,
     HttpRoute,
     build_bridge_routes,
@@ -33,7 +33,7 @@ from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 @dataclass(frozen=True, slots=True)
-class AgentOSRuntime:
+class AgentWorkerRuntime:
     provider: str = ""
     supervisor_model: str = ""
     agent_model: str = ""
@@ -63,12 +63,12 @@ class PromptHTTPPoolRuntime:
 
 
 @dataclass(slots=True)
-class SupervisorApiApp:
+class SupervisorAgentWorkerApp:
     name: str
-    runtime: AgentOSRuntime
+    runtime: AgentWorkerRuntime
     routes: tuple[HttpRoute, ...]
     prompt_http_pool: PromptHTTPPoolRuntime
-    cancel_registry: ExecutionCancelRegistry
+    cancel_flags: CancelFlagStore
 
     def handle(
         self,
@@ -95,10 +95,6 @@ class SupervisorApiApp:
             "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         }
 
-    def flush_audit(self, *, timeout_seconds: float = 1.0) -> bool:
-        _ = timeout_seconds
-        return True
-
     def close(self) -> None:
         self.prompt_http_pool.close()
 
@@ -107,7 +103,7 @@ def create_bridge_app(
     *,
     settings: ApiSettings | None = None,
     agent_handler=dispatch_agent_request,
-) -> SupervisorApiApp:
+) -> SupervisorAgentWorkerApp:
     return _create_runtime_app(
         settings=settings,
         agent_handler=agent_handler,
@@ -118,19 +114,19 @@ def _create_runtime_app(
     *,
     settings: ApiSettings | None = None,
     agent_handler=dispatch_agent_request,
-) -> SupervisorApiApp:
+) -> SupervisorAgentWorkerApp:
     runtime_settings = settings or ApiSettings.from_env()
     (
         prompt_runtime,
         prompt_http_pool,
         rag_prompt_executor,
     ) = _build_prompt_runtime_assets(runtime_settings)
-    cancel_registry = ExecutionCancelRegistry()
+    cancel_flags = CancelFlagStore()
     bound_agent_handler = _bind_agent_handler(
         runtime_settings,
         agent_handler=agent_handler,
         rag_prompt_executor=rag_prompt_executor,
-        cancel_registry=cancel_registry,
+        cancel_flags=cancel_flags,
     )
     routes = build_bridge_routes(
         runtime_settings,
@@ -140,11 +136,11 @@ def _create_runtime_app(
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
             "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
         },
-        cancel_registry=cancel_registry,
+        cancel_flags=cancel_flags,
     )
-    return SupervisorApiApp(
+    return SupervisorAgentWorkerApp(
         name=runtime_settings.app_name,
-        runtime=AgentOSRuntime(
+        runtime=AgentWorkerRuntime(
             provider=runtime_settings.runtime_provider,
             supervisor_model=runtime_settings.supervisor_prompt_model,
             agent_model=runtime_settings.agent_prompt_model,
@@ -152,7 +148,7 @@ def _create_runtime_app(
         ),
         routes=routes,
         prompt_http_pool=prompt_http_pool,
-        cancel_registry=cancel_registry,
+        cancel_flags=cancel_flags,
     )
 
 
@@ -161,10 +157,10 @@ def _bind_agent_handler(
     *,
     agent_handler,
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
-    cancel_registry: ExecutionCancelRegistry,
+    cancel_flags: CancelFlagStore,
 ):
     if agent_handler is not dispatch_agent_request:
-        return _wrap_with_cancel_checks(agent_handler, cancel_registry)
+        return _wrap_with_cancel_checks(agent_handler, cancel_flags)
     campus_services_query_service = _build_campus_services_query_service(settings)
     notice_query_service = _build_notice_query_service(settings)
     agent_delegates = _build_agent_delegates(
@@ -176,7 +172,7 @@ def _bind_agent_handler(
     return lambda request, preplanned_agent_request: dispatch_agent_request(
         preplanned_agent_request,
         agent_delegates=agent_delegates,
-        cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
+        cancellation_checker=lambda: cancel_flags.is_cancel_requested(request.request_id),
     )
 
 
@@ -210,15 +206,15 @@ def _build_agent_delegates(
     return agent_delegates
 
 
-def _wrap_with_cancel_checks(agent_handler, cancel_registry: ExecutionCancelRegistry):
+def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
     def guarded_agent_handler(
         request,
         preplanned_agent_request,
     ):
-        if cancel_registry.is_cancel_requested(request.request_id):
+        if cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
         response = agent_handler(preplanned_agent_request)
-        if cancel_registry.is_cancel_requested(request.request_id):
+        if cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
         return response
 

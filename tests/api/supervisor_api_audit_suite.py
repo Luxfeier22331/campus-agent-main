@@ -246,7 +246,6 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 200)
-            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
             self.assertFalse(audit_path.exists())
             app.close()
 
@@ -274,7 +273,6 @@ class SupervisorApiAuditTest(unittest.TestCase):
             )
 
             self.assertEqual(response.status_code, 500)
-            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
             self.assertFalse(audit_path.exists())
             app.close()
 
@@ -306,7 +304,6 @@ class SupervisorApiAuditTest(unittest.TestCase):
                     trace_id="trace-audit-failure",
                 ),
             )
-            self.assertTrue(app.flush_audit(timeout_seconds=1.0))
             ready = app.handle(
                 "GET",
                 "/internal/bridge/readyz",

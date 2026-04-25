@@ -13,7 +13,7 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     dispatch_agent_request,
 )
 from campus_supervisor_agent_worker.api_request_parsing import (
-    _parse_bridge_supervisor_envelope,
+    parse_bridge_supervisor_envelope,
 )
 from campus_supervisor_agent_worker.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_agent_worker.settings import ApiSettings
@@ -45,23 +45,23 @@ RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
 
 
 @dataclass(slots=True)
-class CancelRecord:
+class CancelFlag:
     request_id: str
     trace_id: str = ""
     reason: str = ""
     cancel_requested: bool = False
 
 
-class ExecutionCancelRegistry:
+class CancelFlagStore:
     def __init__(self) -> None:
         self._lock = Lock()
-        self._active: dict[str, CancelRecord] = {}
+        self._active: dict[str, CancelFlag] = {}
 
     def register(self, request: SupervisorRequest) -> None:
         if not request.request_id:
             return
         with self._lock:
-            self._active[request.request_id] = CancelRecord(
+            self._active[request.request_id] = CancelFlag(
                 request_id=request.request_id,
                 trace_id=request.trace.trace_id,
             )
@@ -72,14 +72,14 @@ class ExecutionCancelRegistry:
         with self._lock:
             self._active.pop(request_id, None)
 
-    def cancel(self, request_id: str, reason: str = "") -> CancelRecord | None:
+    def cancel(self, request_id: str, reason: str = "") -> CancelFlag | None:
         with self._lock:
             record = self._active.get(request_id)
             if record is None:
                 return None
             record.cancel_requested = True
             record.reason = reason
-            return CancelRecord(
+            return CancelFlag(
                 request_id=record.request_id,
                 trace_id=record.trace_id,
                 reason=record.reason,
@@ -100,9 +100,9 @@ def build_bridge_routes(
     agent_handler: AgentEnvelopeHandler | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
-    cancel_registry: ExecutionCancelRegistry | None = None,
+    cancel_flags: CancelFlagStore | None = None,
 ) -> tuple[HttpRoute, ...]:
-    runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
+    runtime_cancel_flags = cancel_flags or CancelFlagStore()
     runtime_agent_handler = agent_handler or _default_agent_envelope_handler
     return (
         HttpRoute(
@@ -113,7 +113,7 @@ def build_bridge_routes(
                 body,
                 settings,
                 runtime_agent_handler,
-                cancel_registry=runtime_cancel_registry,
+                cancel_flags=runtime_cancel_flags,
             ),
         ),
         HttpRoute(
@@ -123,7 +123,7 @@ def build_bridge_routes(
                 headers,
                 body,
                 settings,
-                cancel_registry=runtime_cancel_registry,
+                cancel_flags=runtime_cancel_flags,
             ),
         ),
         HttpRoute(
@@ -158,7 +158,7 @@ def handle_bridge_answer(
     settings: ApiSettings,
     agent_handler: AgentEnvelopeHandler,
     *,
-    cancel_registry: ExecutionCancelRegistry | None = None,
+    cancel_flags: CancelFlagStore | None = None,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
     if bridge_auth_error is not None:
@@ -166,7 +166,7 @@ def handle_bridge_answer(
 
     payload = body or {}
     try:
-        envelope = _parse_bridge_supervisor_envelope(payload)
+        envelope = parse_bridge_supervisor_envelope(payload)
     except ValueError as exc:
         return _bridge_response(
             400,
@@ -189,16 +189,16 @@ def handle_bridge_answer(
             kind="bridge_invalid_request",
         )
 
-    runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
-    runtime_cancel_registry.register(request)
+    runtime_cancel_flags = cancel_flags or CancelFlagStore()
+    runtime_cancel_flags.register(request)
     try:
-        if runtime_cancel_registry.is_cancel_requested(request.request_id):
+        if runtime_cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
         response = agent_handler(
             request,
             runtime_agent_request,
         )
-        if runtime_cancel_registry.is_cancel_requested(request.request_id):
+        if runtime_cancel_flags.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Execution was cancelled.")
     except ExecutionCancelledError as exc:
         return _bridge_response(
@@ -213,7 +213,7 @@ def handle_bridge_answer(
             kind="supervisor_error",
         )
     finally:
-        runtime_cancel_registry.complete(request.request_id)
+        runtime_cancel_flags.complete(request.request_id)
 
     return _bridge_response(200, asdict(response), kind="agent_response")
 
@@ -223,7 +223,7 @@ def handle_bridge_cancel(
     body: dict[str, object] | None,
     settings: ApiSettings,
     *,
-    cancel_registry: ExecutionCancelRegistry,
+    cancel_flags: CancelFlagStore,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
     if bridge_auth_error is not None:
@@ -237,7 +237,7 @@ def handle_bridge_cancel(
             ErrorInfo(code="invalid_request", message="request_id is required."),
         )
     reason = str(payload.get("reason", "")).strip()
-    record = cancel_registry.cancel(request_id, reason)
+    record = cancel_flags.cancel(request_id, reason)
     if record is None:
         return error_response(
             404,

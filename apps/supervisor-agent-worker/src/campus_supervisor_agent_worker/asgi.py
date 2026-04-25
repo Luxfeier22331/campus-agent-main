@@ -8,13 +8,13 @@ from http import HTTPStatus
 from urllib.parse import urlsplit
 
 from campus_supervisor_agent_worker.api import HttpResponse
-from campus_supervisor_agent_worker.app import SupervisorApiApp
+from campus_supervisor_agent_worker.app import SupervisorAgentWorkerApp
 
 
 class SupervisorBridgeAsgiApp:
     def __init__(
         self,
-        app: SupervisorApiApp,
+        app: SupervisorAgentWorkerApp,
         *,
         max_workers: int | None = None,
     ) -> None:
@@ -121,7 +121,7 @@ class SupervisorBridgeAsgiApp:
 
 
 def dispatch_http_request(
-    app: SupervisorApiApp,
+    app: SupervisorAgentWorkerApp,
     *,
     method: str,
     path: str,

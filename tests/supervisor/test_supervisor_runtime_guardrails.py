@@ -4,11 +4,14 @@ import unittest
 from pathlib import Path
 
 SUPERVISOR_CORE_PACKAGE = Path("packages/supervisor-core")
-BRIDGE_PARSER = Path(
+BRIDGE_REQUEST_FACADE = Path(
     "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/api_request_parsing.py"
 )
 WORKER_CORE = Path("apps/supervisor-agent-worker/src/campus_supervisor_agent_worker")
+BRIDGE_V6_PARSER = WORKER_CORE / "bridge_v6_parser.py"
 AGENT_DISPATCH = WORKER_CORE / "agent_dispatch.py"
+WORKER_APP = WORKER_CORE / "app.py"
+WORKER_API = WORKER_CORE / "api.py"
 
 
 class SupervisorRuntimeGuardrailTest(unittest.TestCase):
@@ -121,7 +124,7 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
     def test_bridge_parser_is_v6_only_and_requires_go_runtime_handoff(
         self,
     ) -> None:
-        parser_source = BRIDGE_PARSER.read_text(encoding="utf-8")
+        parser_source = BRIDGE_V6_PARSER.read_text(encoding="utf-8")
 
         self.assertIn('"supervisor_bridge_v6"', parser_source)
         self.assertIn('"agent_response"', parser_source)
@@ -227,7 +230,8 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertNotIn("build_supervisor_observability", source)
                 self.assertNotIn("def handle_request", source)
                 self.assertNotIn(" handle_request(", source)
-                self.assertNotIn("SupervisorAgent", source)
+                self.assertNotIn("class SupervisorAgent(", source)
+                self.assertNotIn("SupervisorAgent.handle", source)
                 self.assertNotIn("handle_agent_request", source)
                 self.assertNotIn("SpecialistDelegate", source)
                 self.assertNotIn("MissingSpecialistDelegateError", source)
@@ -252,10 +256,39 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertNotIn("import campus_supervisor_core", source)
 
     def test_python_bridge_does_not_publish_cancel_runtime_counters(self) -> None:
-        api_source = Path(
-            "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/api.py"
-        ).read_text(encoding="utf-8")
+        api_source = WORKER_API.read_text(encoding="utf-8")
 
         self.assertNotIn("active_executions", api_source)
         self.assertNotIn("cancel_requested_count", api_source)
         self.assertNotIn("def status(", api_source)
+
+    def test_worker_runtime_names_are_agent_worker_specific(self) -> None:
+        app_source = WORKER_APP.read_text(encoding="utf-8")
+
+        self.assertIn("class SupervisorAgentWorkerApp", app_source)
+        self.assertIn("class AgentWorkerRuntime", app_source)
+        self.assertNotIn("class SupervisorApiApp", app_source)
+        self.assertNotIn("class AgentOSRuntime", app_source)
+        self.assertNotIn("flush_audit", app_source)
+
+    def test_worker_cancel_state_is_named_as_flag_store_not_runtime_registry(self) -> None:
+        api_source = WORKER_API.read_text(encoding="utf-8")
+        app_source = WORKER_APP.read_text(encoding="utf-8")
+
+        self.assertIn("class CancelFlagStore", api_source)
+        self.assertIn("CancelFlagStore", app_source)
+        self.assertNotIn("ExecutionCancelRegistry", api_source)
+        self.assertNotIn("ExecutionCancelRegistry", app_source)
+        self.assertNotIn("CancelRecord", api_source)
+        self.assertNotIn("CancelRecord", app_source)
+
+    def test_bridge_v6_parser_is_split_from_api_request_facade(self) -> None:
+        parser_source = BRIDGE_REQUEST_FACADE.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(parser_source.splitlines()), 80)
+        self.assertTrue(BRIDGE_V6_PARSER.exists())
+        self.assertTrue((WORKER_CORE / "bridge_payload_codecs.py").exists())
+        self.assertTrue((WORKER_CORE / "bridge_context_codecs.py").exists())
+        self.assertNotIn("def _parse_bridge_supervisor_request", parser_source)
+        self.assertNotIn("def _task_kind_for_capability", parser_source)
+        self.assertNotIn("def _domain_candidates_for_target", parser_source)

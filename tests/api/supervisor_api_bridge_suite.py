@@ -12,7 +12,7 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
-from campus_supervisor_agent_worker.api_request_parsing import _parse_bridge_supervisor_envelope
+from campus_supervisor_agent_worker.api_request_parsing import parse_bridge_supervisor_envelope
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.settings import ApiSettings
 
@@ -538,7 +538,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("bridge_version", response.json_body["error"]["message"])
 
-    def test_bridge_answer_route_maps_v4_effective_capability_to_supervisor_request(
+    def test_bridge_answer_route_maps_go_effective_capability_to_agent_request(
         self,
     ) -> None:
         captured_requests = []
@@ -796,7 +796,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "compare_to_version_id": "v2:student-handbook",
         }
 
-        envelope = _parse_bridge_supervisor_envelope(body)
+        envelope = parse_bridge_supervisor_envelope(body)
 
         self.assertEqual(envelope.request.requested_capability, "knowledge")
         self.assertIsNotNone(envelope.agent_request)
