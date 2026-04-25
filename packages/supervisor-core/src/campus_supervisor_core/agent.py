@@ -15,17 +15,13 @@ from campus_notice_agent import delegate_to_notice_agent
 from campus_rag_agent.prompt_execution import RagPromptExecutor
 from campus_services_agent import delegate_to_campus_services_agent
 
-from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.errors import (
     ExecutionCancelledError,
     MissingRoutingInputError,
     MissingSpecialistDelegateError,
 )
-from campus_supervisor_core.framing import frame_specialist_request
-from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
-from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
-from campus_supervisor_core.response import assemble_response, attach_intent_observability
-from campus_supervisor_core.routing import RoutingDecision
+from campus_supervisor_core.policy import finalize_specialist_response
+from campus_supervisor_core.response import assemble_response
 from campus_supervisor_core.tool_policy import assert_tool_policy_is_supported
 
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
@@ -45,10 +41,9 @@ def _delegate_to_rag_agent(
 @dataclass(slots=True)
 class SupervisorAgent:
     specialist_delegates: dict[SpecialistTarget, SpecialistDelegate] | None = None
-    supervisor_prompt_executor: SupervisorPromptExecutor | None = None
     rag_prompt_executor: RagPromptExecutor | None = None
     cancellation_checker: CancellationChecker | None = None
-    preplanned_routing_decision: RoutingDecision | None = None
+    preplanned_specialist_request: SpecialistRequest | None = None
 
     def __post_init__(self) -> None:
         if self.specialist_delegates is None:
@@ -64,33 +59,21 @@ class SupervisorAgent:
 
     def handle(self, request: SupervisorRequest) -> SupervisorResponse:
         self._raise_if_cancelled()
-        context = SupervisorRequestContext.from_request(request)
-        if self.preplanned_routing_decision is None:
+        specialist_request = self.preplanned_specialist_request
+        if specialist_request is None:
             raise MissingRoutingInputError(
-                "preplanned routing decision is required from supervisor-api"
+                "preplanned specialist request is required from supervisor-api"
             )
-        decision = self.preplanned_routing_decision
-        self._raise_if_cancelled()
-        terminal_response = finalize_routing_decision(
-            context,
-            decision,
-            prompt_executor=self.supervisor_prompt_executor,
-        )
-        self._raise_if_cancelled()
-        if terminal_response is not None:
-            return assemble_response(terminal_response)
-        delegate = self.specialist_delegates.get(decision.target)
+        delegate = self.specialist_delegates.get(specialist_request.target)
         if delegate is None:
             raise MissingSpecialistDelegateError(
-                f"missing delegate for specialist target: {decision.target}"
+                f"missing delegate for specialist target: {specialist_request.target}"
             )
-        specialist_request = frame_specialist_request(context, decision)
         assert_tool_policy_is_supported(specialist_request)
         self._raise_if_cancelled()
         specialist_response = delegate(specialist_request)
         self._raise_if_cancelled()
         finalized_response = finalize_specialist_response(specialist_response)
-        finalized_response = attach_intent_observability(finalized_response, decision)
         self._raise_if_cancelled()
         return assemble_response(finalized_response)
 

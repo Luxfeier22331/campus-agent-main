@@ -118,9 +118,12 @@ def _intent_case_from_payload(*, case_id: str, payload: dict[str, Any]) -> Inten
 
 
 def _validate_source_correlation(source: dict[str, Any]) -> None:
-    _required_string(source.get("request_id"), "source.request_id")
+    _required_string(source.get("source_request_id"), "source.source_request_id")
     _required_string(source.get("trace_id"), "source.trace_id")
     _required_string(source.get("sampled_at"), "source.sampled_at")
+    _required_string(source.get("source_surface"), "source.source_surface")
+    _required_string(source.get("observed_failure_class"), "source.observed_failure_class")
+    _required_string(source.get("expected_fix_reason"), "source.expected_fix_reason")
 
 
 def _knowledge_scope_from_payload(value: object) -> KnowledgeScope | None:

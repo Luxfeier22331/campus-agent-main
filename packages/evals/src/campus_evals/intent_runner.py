@@ -6,11 +6,6 @@ from collections import Counter, defaultdict
 from dataclasses import asdict
 from pathlib import Path
 
-from campus_contracts import SupervisorRequest
-from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import SupervisorError
-from campus_supervisor_core.routing import route_request
-
 from campus_evals.intent_models import (
     IntentCase,
     IntentCaseResult,
@@ -19,8 +14,22 @@ from campus_evals.intent_models import (
 )
 
 
-def run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
-    results = tuple(evaluate_intent_case(case) for case in cases)
+def run_intent_cases(
+    cases: tuple[IntentCase, ...],
+    *,
+    runner: str = "supervisor-api-go",
+) -> IntentEvalReport:
+    if runner == "supervisor-api-go":
+        from campus_evals.intent_go_runner import run_intent_cases_with_go
+
+        return run_intent_cases_with_go(cases)
+    raise ValueError(f"unsupported intent runner: {runner}")
+
+
+def build_intent_eval_report(
+    cases: tuple[IntentCase, ...],
+    results: tuple[IntentCaseResult, ...],
+) -> IntentEvalReport:
     passed = sum(1 for result in results if result.passed)
     critical_results = tuple(result for result in results if result.critical)
     critical_passed = sum(1 for result in critical_results if result.passed)
@@ -54,39 +63,16 @@ def run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
     )
 
 
-def evaluate_intent_case(case: IntentCase) -> IntentCaseResult:
+def intent_case_result_from_observed(
+    case: IntentCase,
+    observed: ObservedIntent,
+) -> IntentCaseResult:
     critical = _is_critical_case(case)
-    try:
-        decision = route_request(SupervisorRequestContext.from_request(_request_from_case(case)))
-    except SupervisorError as exc:
-        observed = ObservedIntent(error_code=exc.error_code)
-        mismatches = _error_mismatches(case, observed)
-        return IntentCaseResult(
-            case_id=case.case_id,
-            passed=not mismatches,
-            critical=critical,
-            observed=observed,
-            mismatches=mismatches,
-        )
-
-    intent = decision.intent_frame
-    observed = ObservedIntent(
-        capability=intent.capability,
-        task_kind=intent.task_kind,
-        launch_state=intent.launch_state,
-        next_action=intent.suggested_next_action,
-        scope_class=intent.scope_class,
-        policy_reason=intent.policy_reason,
-        scope_reason=intent.scope_reason,
-        target=decision.target or "none",
-        allowed_tools=tuple(decision.allowed_tools),
-        classifier_version=intent.classifier_version,
-        schema_version=getattr(intent, "schema_version", ""),
-        context_resolution_state=getattr(intent, "context_resolution_state", ""),
-        context_reference_type=getattr(intent, "context_reference_type", ""),
-        missing_slots=tuple(getattr(intent, "missing_slots", ())),
+    mismatches = (
+        _error_mismatches(case, observed)
+        if observed.error_code
+        else _intent_mismatches(case, observed)
     )
-    mismatches = _intent_mismatches(case, observed)
     return IntentCaseResult(
         case_id=case.case_id,
         passed=not mismatches,
@@ -100,16 +86,6 @@ def report_to_dict(report: IntentEvalReport) -> dict[str, object]:
     payload = asdict(report)
     payload["confusion"] = {key: dict(value) for key, value in report.confusion.items()}
     return payload
-
-
-def _request_from_case(case: IntentCase) -> SupervisorRequest:
-    return SupervisorRequest(
-        user_goal=case.user_goal,
-        requested_capability=case.requested_capability,
-        requested_scope=case.requested_scope,
-        version_query=case.version_query,
-        context=case.context,
-    )
 
 
 def _intent_mismatches(case: IntentCase, observed: ObservedIntent) -> dict[str, str]:
@@ -223,11 +199,17 @@ def main(argv: list[str] | None = None) -> int:
         default="release_gate",
         help="Intent suite name: release_gate, context_follow_up, observed_regression, version_compat.",
     )
+    parser.add_argument(
+        "--runner",
+        default="supervisor-api-go",
+        choices=("supervisor-api-go",),
+        help="Intent runner to use.",
+    )
     args = parser.parse_args(argv)
 
     from campus_evals.intent_scenarios import intent_suite_cases
 
-    report = run_intent_cases(intent_suite_cases(args.suite))
+    report = run_intent_cases(intent_suite_cases(args.suite), runner=args.runner)
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -241,4 +223,10 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-__all__ = ["evaluate_intent_case", "main", "report_to_dict", "run_intent_cases"]
+__all__ = [
+    "build_intent_eval_report",
+    "intent_case_result_from_observed",
+    "main",
+    "report_to_dict",
+    "run_intent_cases",
+]

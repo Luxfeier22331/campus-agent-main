@@ -109,8 +109,10 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor semantic orchestration 长期继续由 `packages/supervisor-core` 与 package-owned
   agent families 承接，不因 Go runtime 扩张而迁入 `apps/*`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
-- `campus-services-agent` 长期承接 transport schedule、service status、temporary
-  override 等结构化校园服务真相
+- `campus-services-agent` 长期承接只读校园服务结构化查询，包括 transport
+  schedule、service status、service guide、temporary override 与 later-wave contact
+  directory 等结构化校园服务真相；其中 `service_guide_lookup` 只回答办理指南、材料、
+  入口说明、服务时间、联系方式与来源引用，不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
 - `notice-agent` 长期承接 notice discovery、canonical notice reading、historical
   downgrade 与 source-linked notice rendering
 - `navigation-agent` 长期可消费 transport point refs / service point refs，但不拥有
@@ -125,10 +127,11 @@ raw/source-truth/projection/document/chunk/index`
   tool
 - `routing clarification` 与 `specialist clarification` 必须显式分层；前者由 supervisor
   拥有，后者由对应 specialist 拥有
-- 对 `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/
-  get` 这类结构化 runtime capability，长期实现形态固定为 `projection-backed internal query
-  service + thin tool adapter + domain-agent`，而不是 query-time raw source
-  scan、browser/public API 直连，或 execution path 回调 `app-api` loopback HTTP
+- 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
+  `campus_notice_discover/get` 这类结构化 runtime capability，长期实现形态固定为
+  `projection-backed internal query service + thin tool adapter + domain-agent`，而不是
+  query-time raw source scan、browser/public API 直连，或 execution path 回调
+  `app-api` loopback HTTP
 - projection-backed internal query service 可优先采用 Go 实现，以降低 Docker-side runtime
   latency / memory cost；这不改变 domain-agent 的 capability owner 角色
 

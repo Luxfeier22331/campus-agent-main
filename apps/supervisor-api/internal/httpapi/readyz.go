@@ -145,7 +145,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	switch {
 	case provider == "":
 		reason = "prompt_provider_not_configured"
-	case supervisorModel == "" || specialistModel == "":
+	case specialistModel == "":
 		reason = "prompt_models_not_configured"
 	case !cfg.PromptStrictStructuredOutputs:
 		reason = "strict_structured_outputs_disabled"

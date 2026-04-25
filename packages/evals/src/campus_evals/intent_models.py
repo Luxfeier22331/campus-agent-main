@@ -56,6 +56,8 @@ class ObservedIntent:
     context_resolution_state: str = ""
     context_reference_type: str = ""
     missing_slots: tuple[str, ...] = ()
+    planning_outcome: str = ""
+    terminal_status: str = ""
     error_code: str = ""
 
 

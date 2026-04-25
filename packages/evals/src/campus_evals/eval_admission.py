@@ -7,6 +7,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+INTENT_SOURCE_METADATA_FIELDS = (
+    "source_request_id",
+    "trace_id",
+    "sampled_at",
+    "source_surface",
+    "observed_failure_class",
+    "expected_fix_reason",
+)
+
 
 def build_intent_candidate_review_manifest(
     candidates: Iterable[Mapping[str, object]],
@@ -25,11 +34,18 @@ def build_intent_candidate_review_manifest(
         if case_id in seen_case_ids:
             raise ValueError(f"duplicate candidate case_id: {case_id}")
         seen_case_ids.add(case_id)
-        intent_case = {key: value for key, value in candidate.items() if key != "case_id"}
+        source_metadata = {
+            key: _required_string(candidate.get(key), key) for key in INTENT_SOURCE_METADATA_FIELDS
+        }
+        intent_case = {
+            key: value
+            for key, value in candidate.items()
+            if key != "case_id" and key not in INTENT_SOURCE_METADATA_FIELDS
+        }
         manifest_candidates.append(
             {
                 "case_id": case_id,
-                "source": {"source_type": normalized_source},
+                "source": {"source_type": normalized_source, **source_metadata},
                 "review": {"decision": "pending_review"},
                 "intent_case": intent_case,
             }
@@ -120,6 +136,7 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "INTENT_SOURCE_METADATA_FIELDS",
     "build_intent_candidate_review_manifest",
     "build_parser",
     "main",

@@ -60,6 +60,17 @@ var nonSpatialWhereActionSignals = []string{
 }
 
 var transportSignals = []string{"校车", "班车", "通勤车", "接驳车"}
+var serviceStatusSignals = []string{
+	"开门",
+	"开放",
+	"营业",
+	"办公时间",
+	"开放时间",
+	"开到几点",
+	"营业到几点",
+	"状态",
+}
+var serviceSubjectSignals = []string{"图书馆", "食堂", "会议室", "校医院", "校园卡", "一卡通", "宿舍", "报修"}
 var noticeSignals = []string{"通知", "公告", "公示"}
 
 func effectiveCapability(
@@ -88,6 +99,28 @@ func effectiveCapability(
 	return "knowledge"
 }
 
+func effectiveCapabilitySource(
+	requestedCapability string,
+	effectiveCapability string,
+	hasRequestedScope bool,
+	versionQuery versionQuery,
+) string {
+	normalizedRequestedCapability := strings.TrimSpace(requestedCapability)
+	if normalizedRequestedCapability != "" && normalizedRequestedCapability != "knowledge" {
+		return "explicit"
+	}
+	if hasRequestedScope || (versionQuery.Mode != "" && versionQuery.Mode != "current") {
+		return "explicit_knowledge"
+	}
+	if effectiveCapability != "" && effectiveCapability != "knowledge" {
+		return "inferred"
+	}
+	if normalizedRequestedCapability == "knowledge" {
+		return "explicit_knowledge"
+	}
+	return "default"
+}
+
 func inferCapabilityFromGoal(userGoal string) string {
 	normalized := normalizeGoal(userGoal)
 	if normalized == "" {
@@ -103,6 +136,9 @@ func inferCapabilityFromGoal(userGoal string) string {
 		return "place_lookup"
 	}
 	if containsAny(normalized, transportSignals) {
+		return "campus_services"
+	}
+	if containsAny(normalized, serviceStatusSignals) && containsAny(normalized, serviceSubjectSignals) {
 		return "campus_services"
 	}
 	if containsAny(normalized, noticeSignals) {

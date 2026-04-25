@@ -34,6 +34,9 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 	if s.rejectClosedStructuredRuntime(response, request.Context(), executionRequest, time.Since(startedAt)) {
 		return
 	}
+	if s.handleDirectTerminalAnswer(response, request, executionRequest, startedAt) {
+		return
+	}
 	if s.handleDirectStructuredAnswer(response, request, executionRequest, startedAt) {
 		return
 	}
@@ -105,6 +108,12 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		Outcome:   "accepted",
 	})
 	if s.rejectClosedStructuredRuntimeStream(response, request.Context(), executionRequest, time.Since(startedAt)) {
+		return
+	}
+	if s.handleDirectTerminalAnswerStream(response, request, executionRequest, startedAt) {
+		return
+	}
+	if s.handleDirectStructuredAnswerStream(response, request, executionRequest, startedAt) {
 		return
 	}
 

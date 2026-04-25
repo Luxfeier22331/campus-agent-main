@@ -46,6 +46,12 @@ def intent_suite_cases(suite: str) -> tuple[IntentCase, ...]:
     raise ValueError(f"unsupported intent suite: {suite}")
 
 
+def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
+    if any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
+        return ("transport_schedule_lookup",)
+    return ("service_status_lookup",)
+
+
 def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
     goals = (
         "奖学金怎么申请？",
@@ -145,13 +151,14 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-service-candidate-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
-            expected_capability="knowledge",
-            expected_task_kind="knowledge_lookup",
-            expected_launch_state="candidate_only",
+            expected_capability="campus_services",
+            expected_task_kind="campus_services_lookup",
+            expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="rag-agent",
+            expected_target="campus-services-agent",
+            expected_allowed_tools=_campus_services_allowed_tools(goal),
             critical=True,
             tags=("campus_services", "candidate_only"),
         )
@@ -178,13 +185,14 @@ def _notice_candidate_cases() -> tuple[IntentCase, ...]:
             case_id=f"intent-notice-candidate-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
-            expected_capability="knowledge",
-            expected_task_kind="knowledge_lookup",
-            expected_launch_state="candidate_only",
+            expected_capability="notice",
+            expected_task_kind="notice_lookup",
+            expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="rag-agent",
+            expected_target="notice-agent",
+            expected_allowed_tools=("campus_notice_discover",),
             critical=True,
             tags=("notice", "candidate_only"),
         )
@@ -222,7 +230,9 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="none",
+            expected_scope_reason="explicit_requested_capability",
+            expected_target="campus-services-agent",
+            expected_allowed_tools=_campus_services_allowed_tools(goal),
         )
         for index, goal in enumerate(service_goals, start=1)
     ]
@@ -236,7 +246,9 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="none",
+            expected_scope_reason="explicit_requested_capability",
+            expected_target="notice-agent",
+            expected_allowed_tools=("campus_notice_discover",),
         )
         for index, goal in enumerate(notice_goals, start=1)
     )
@@ -303,6 +315,7 @@ def _transaction_guardrail_cases() -> tuple[IntentCase, ...]:
             expected_launch_state="closed",
             expected_next_action="approval_required",
             expected_scope_class="in_scope",
+            expected_policy_reason="approval_required",
             expected_scope_reason="transaction_guardrail",
             expected_target="none",
             critical=True,
@@ -428,9 +441,10 @@ def _contextual_follow_up_cases() -> tuple[IntentCase, ...]:
             expected_capability="knowledge",
             expected_task_kind="knowledge_lookup",
             expected_launch_state="closed",
-            expected_next_action="out_of_scope",
-            expected_scope_class="out_of_scope",
-            expected_policy_reason="product_scope_boundary",
+            expected_next_action="approval_required",
+            expected_scope_class="in_scope",
+            expected_policy_reason="approval_required",
+            expected_scope_reason="transaction_guardrail",
             expected_target="none",
             critical=True,
             tags=("contextual_followup", "transaction_guardrail"),
@@ -453,13 +467,14 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
                     )
                 )
             ),
-            expected_capability="knowledge",
-            expected_task_kind="knowledge_lookup",
-            expected_launch_state="candidate_only",
+            expected_capability="notice",
+            expected_task_kind="notice_lookup",
+            expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_target="rag-agent",
+            expected_target="notice-agent",
+            expected_allowed_tools=("campus_notice_get",),
             expected_context_resolution_state="resolved",
             expected_context_reference_type="selected_notice",
             critical=True,
@@ -469,8 +484,8 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
             case_id="intent-context-notice-missing-001",
             user_goal="这条通知详情",
             requested_capability="knowledge",
-            expected_capability="knowledge",
-            expected_task_kind="knowledge_lookup",
+            expected_capability="notice",
+            expected_task_kind="notice_lookup",
             expected_launch_state="candidate_only",
             expected_next_action="clarify",
             expected_scope_class="in_scope",

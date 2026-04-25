@@ -5,20 +5,16 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from threading import Lock
 
-from campus_contracts import ErrorInfo, SupervisorRequest, SupervisorResponse
+from campus_contracts import ErrorInfo, SpecialistRequest, SupervisorRequest, SupervisorResponse
 from campus_supervisor_core import (
     ExecutionCancelledError,
     SupervisorError,
-    build_audit_record,
-    build_error_audit_record,
     handle_request,
 )
-from campus_supervisor_core.routing import RoutingDecision
 
 from campus_supervisor_core_worker.api_request_parsing import (
     _parse_bridge_supervisor_envelope,
 )
-from campus_supervisor_core_worker.audit import AuditSink, AuditSinkError
 from campus_supervisor_core_worker.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_core_worker.settings import ApiSettings
 
@@ -42,7 +38,7 @@ SupervisorHandler = Callable[
     SupervisorResponse,
 ]
 SupervisorEnvelopeHandler = Callable[
-    [SupervisorRequest, RoutingDecision | None],
+    [SupervisorRequest, SpecialistRequest],
     SupervisorResponse,
 ]
 RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
@@ -111,7 +107,6 @@ def build_bridge_routes(
     settings: ApiSettings,
     *,
     supervisor_handler: SupervisorEnvelopeHandler | None = None,
-    audit_sink: AuditSink | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
@@ -127,7 +122,6 @@ def build_bridge_routes(
                 body,
                 settings,
                 runtime_supervisor_handler,
-                audit_sink=audit_sink,
                 cancel_registry=runtime_cancel_registry,
             ),
         ),
@@ -162,11 +156,11 @@ def build_bridge_routes(
 
 def _default_supervisor_envelope_handler(
     request: SupervisorRequest,
-    preplanned_routing_decision: RoutingDecision | None,
+    preplanned_specialist_request: SpecialistRequest,
 ) -> SupervisorResponse:
     return handle_request(
         request,
-        preplanned_routing_decision=preplanned_routing_decision,
+        preplanned_specialist_request=preplanned_specialist_request,
     )
 
 
@@ -176,7 +170,6 @@ def handle_bridge_answer(
     settings: ApiSettings,
     supervisor_handler: SupervisorEnvelopeHandler,
     *,
-    audit_sink: AuditSink | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
@@ -193,31 +186,39 @@ def handle_bridge_answer(
             kind="bridge_invalid_request",
         )
     request = envelope.request
-    runtime_routing_decision = envelope.routing_decision
+    runtime_specialist_request = envelope.specialist_request
+    if runtime_specialist_request is None:
+        return _bridge_response(
+            400,
+            {
+                "error": asdict(
+                    ErrorInfo(
+                        code="invalid_request",
+                        message="runtime_decisions.handoff.specialist_request is required.",
+                    )
+                )
+            },
+            kind="bridge_invalid_request",
+        )
 
     runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
     runtime_cancel_registry.register(request)
     try:
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
-        response = supervisor_handler(request, runtime_routing_decision)
+        response = supervisor_handler(
+            request,
+            runtime_specialist_request,
+        )
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
     except ExecutionCancelledError as exc:
-        _emit_audit_best_effort(
-            audit_sink,
-            build_error_audit_record(request, error_code=exc.error_code),
-        )
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
             kind="supervisor_error",
         )
     except SupervisorError as exc:
-        _emit_audit_best_effort(
-            audit_sink,
-            build_error_audit_record(request, error_code=exc.error_code),
-        )
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
@@ -226,7 +227,6 @@ def handle_bridge_answer(
     finally:
         runtime_cancel_registry.complete(request.request_id)
 
-    _emit_audit_best_effort(audit_sink, build_audit_record(request, response))
     return _bridge_response(200, asdict(response), kind="supervisor_response")
 
 
@@ -377,24 +377,13 @@ def _require_bridge_auth(headers: Mapping[str, str], settings: ApiSettings) -> H
     return None
 
 
-def _emit_audit_best_effort(audit_sink: AuditSink | None, record: object) -> None:
-    if audit_sink is None:
-        return
-    try:
-        audit_sink(record)  # type: ignore[arg-type]
-    except AuditSinkError:
-        return
-
-
 def _resolve_prompt_runtime_settings(settings: ApiSettings) -> PromptRuntimeSettings:
     prompt_runtime_provider = settings.prompt_runtime_provider or settings.runtime_provider
     if not prompt_runtime_provider:
         admission_reason = "provider_not_configured"
     elif not settings.prompt_strict_structured_outputs:
         admission_reason = "strict_structured_outputs_disabled"
-    elif (
-        not settings.supervisor_prompt_model.strip() or not settings.specialist_prompt_model.strip()
-    ):
+    elif not settings.specialist_prompt_model.strip():
         admission_reason = "prompt_models_not_configured"
     elif not settings.prompt_runtime_api_key.strip():
         admission_reason = "api_key_not_configured"

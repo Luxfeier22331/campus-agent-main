@@ -22,9 +22,11 @@ def _accepted_case_payload(
                 "domain": "intent",
                 "source": {
                     "badcase_id": "qbad_observed_navigation_001",
-                    "request_id": "req_observed_navigation_001",
+                    "expected_fix_reason": "Navigation remains closed until navigation-agent serving opens.",
+                    "observed_failure_class": "unexpected_handoff_target",
                     "sampled_at": "2026-04-25T00:00:00.000Z",
-                    "surface": "public_chat_web",
+                    "source_request_id": "req_observed_navigation_001",
+                    "source_surface": "public_chat_web",
                     "trace_id": "trace_observed_navigation_001",
                 },
                 "review": {
@@ -81,13 +83,13 @@ class IntentObservedRegressionTest(unittest.TestCase):
 
     def test_load_intent_observed_regression_cases_requires_source_correlation(self) -> None:
         payload = _accepted_case_payload()
-        payload["cases"][0]["source"]["request_id"] = ""
+        payload["cases"][0]["source"]["source_request_id"] = ""
 
         with TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "intent-observed-regression.json"
             path.write_text(json.dumps(payload), encoding="utf-8")
 
-            with self.assertRaisesRegex(ValueError, "source.request_id is required"):
+            with self.assertRaisesRegex(ValueError, "source.source_request_id is required"):
                 load_intent_observed_regression_cases(path)
 
     def test_named_observed_regression_suite_loads_repo_fixture(self) -> None:

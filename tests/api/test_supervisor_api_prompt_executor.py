@@ -12,7 +12,6 @@ from campus_contracts import (
     KnowledgeScope,
     RagRequestPayload,
     SpecialistRequest,
-    SupervisorRequest,
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
@@ -21,13 +20,8 @@ from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
 )
-from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.prompt_packets import build_supervisor_clarify_prompt_packet
-from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core_worker.prompt_executor import (
     ProviderBackedRagPromptExecutor,
-    ProviderBackedSupervisorPromptExecutor,
 )
 
 
@@ -38,38 +32,6 @@ def _provider_config() -> PromptRuntimeProviderConfig:
         base_url="https://prompt-runtime.example/v1",
         api_key="test-api-key",
         http_settings=PromptRuntimeHTTPSettings(),
-    )
-
-
-def _build_supervisor_packet():
-    request = SupervisorRequest(
-        user_goal="法学民族实验班培养方案里大二下有什么课",
-        request_id="req-supervisor-provider-exec",
-        safety_identifier="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        trace=TraceContext(trace_id="trace-supervisor-provider-exec"),
-        actor=ActorContext(user_id="student-001"),
-        requested_capability="knowledge",
-        context=ContextProjection(actor=ActorContext(user_id="student-001")),
-    )
-    decision = RoutingDecision(
-        target=None,
-        primary_corpus=None,
-        primary_collection=None,
-        intent_frame=IntentFrame(
-            capability="knowledge",
-            task_kind="knowledge_lookup",
-            domain_candidates=("knowledge",),
-            missing_slots=("requested_scope",),
-            risk_level="low",
-            needs_clarification=True,
-            suggested_next_action="clarify",
-            personalization_mode="generic",
-            clarification_subject="民族实验班",
-        ),
-    )
-    return build_supervisor_clarify_prompt_packet(
-        SupervisorRequestContext.from_request(request),
-        decision,
     )
 
 
@@ -118,51 +80,6 @@ def _build_rag_packet():
 
 
 class ProviderBackedPromptExecutorTest(unittest.TestCase):
-    def test_supervisor_executor_returns_typed_output_and_prompt_trace(self) -> None:
-        captured_payloads: list[dict[str, object]] = []
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            captured_payloads.append(json.loads(request.content.decode("utf-8")))
-            return httpx.Response(
-                200,
-                json={
-                    "status": "completed",
-                    "output_parsed": {
-                        "follow_up_question": "请先说明你要查询的是哪个资料集合。",
-                    },
-                },
-            )
-
-        executor = ProviderBackedSupervisorPromptExecutor(
-            provider_config=_provider_config(),
-            model_name="gpt-5.2",
-            http_client=httpx.Client(
-                transport=httpx.MockTransport(handler),
-                base_url="https://prompt-runtime.example/v1",
-            ),
-        )
-
-        execution = executor.compose_clarify(_build_supervisor_packet())
-
-        self.assertEqual(
-            execution.output.follow_up_question,
-            "请先说明你要查询的是哪个资料集合。",
-        )
-        self.assertEqual(execution.prompt_trace.prompt_id, "supervisor_clarify_v1")
-        self.assertEqual(execution.prompt_trace.prompt_version, "v1")
-        self.assertEqual(execution.prompt_trace.model_provider, "openai-responses")
-        self.assertEqual(execution.prompt_trace.model_name, "gpt-5.2")
-        self.assertEqual(captured_payloads[0]["text"]["format"]["type"], "json_schema")
-        self.assertTrue(captured_payloads[0]["text"]["format"]["strict"])
-        self.assertEqual(
-            [item["role"] for item in captured_payloads[0]["input"]],
-            ["developer", "developer", "developer", "user"],
-        )
-        self.assertEqual(
-            captured_payloads[0]["safety_identifier"],
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-
     def test_rag_executor_returns_typed_output_and_prompt_trace(self) -> None:
         captured_payloads: list[dict[str, object]] = []
 
@@ -242,38 +159,6 @@ class ProviderBackedPromptExecutorTest(unittest.TestCase):
             ),
         )
 
-    def test_supervisor_executor_fail_closes_on_provider_refusal(self) -> None:
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200,
-                json={
-                    "status": "completed",
-                    "output": [
-                        {
-                            "type": "message",
-                            "content": [
-                                {
-                                    "type": "refusal",
-                                    "refusal": "I can’t help with that request.",
-                                }
-                            ],
-                        }
-                    ],
-                },
-            )
-
-        executor = ProviderBackedSupervisorPromptExecutor(
-            provider_config=_provider_config(),
-            model_name="gpt-5.2",
-            http_client=httpx.Client(
-                transport=httpx.MockTransport(handler),
-                base_url="https://prompt-runtime.example/v1",
-            ),
-        )
-
-        with self.assertRaisesRegex(Exception, "provider_refusal"):
-            executor.compose_clarify(_build_supervisor_packet())
-
     def test_rag_executor_fail_closes_on_incomplete_response(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
@@ -297,29 +182,6 @@ class ProviderBackedPromptExecutorTest(unittest.TestCase):
 
         with self.assertRaisesRegex(Exception, "provider_incomplete"):
             executor.compose_answer(_build_rag_packet())
-
-    def test_supervisor_executor_fail_closes_on_provider_request_error(self) -> None:
-        def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                400,
-                json={
-                    "error": {
-                        "message": "Invalid schema for response_format.",
-                    }
-                },
-            )
-
-        executor = ProviderBackedSupervisorPromptExecutor(
-            provider_config=_provider_config(),
-            model_name="gpt-5.2",
-            http_client=httpx.Client(
-                transport=httpx.MockTransport(handler),
-                base_url="https://prompt-runtime.example/v1",
-            ),
-        )
-
-        with self.assertRaisesRegex(Exception, "provider_request_failed"):
-            executor.compose_clarify(_build_supervisor_packet())
 
 
 if __name__ == "__main__":

@@ -21,7 +21,6 @@ from campus_supervisor_core_worker.api import (
 )
 from campus_supervisor_core_worker.prompt_executor import (
     ProviderBackedRagPromptExecutor,
-    ProviderBackedSupervisorPromptExecutor,
 )
 from campus_supervisor_core_worker.prompt_stack import PromptRuntimeSettings
 from campus_supervisor_core_worker.settings import ApiSettings
@@ -118,14 +117,12 @@ def _create_runtime_app(
     (
         prompt_runtime,
         prompt_http_pool,
-        supervisor_prompt_executor,
         rag_prompt_executor,
     ) = _build_prompt_runtime_assets(runtime_settings)
     cancel_registry = ExecutionCancelRegistry()
     bound_supervisor_handler = _bind_supervisor_handler(
         runtime_settings,
         supervisor_handler=supervisor_handler,
-        supervisor_prompt_executor=supervisor_prompt_executor,
         rag_prompt_executor=rag_prompt_executor,
         cancel_registry=cancel_registry,
     )
@@ -157,7 +154,6 @@ def _bind_supervisor_handler(
     settings: ApiSettings,
     *,
     supervisor_handler,
-    supervisor_prompt_executor: ProviderBackedSupervisorPromptExecutor | None,
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
     cancel_registry: ExecutionCancelRegistry,
 ):
@@ -167,14 +163,16 @@ def _bind_supervisor_handler(
     notice_query_service = _build_notice_query_service(settings)
     if campus_services_query_service is not None or notice_query_service is not None:
 
-        def handle_with_structured_query_services(request, preplanned_routing_decision=None):
+        def handle_with_structured_query_services(
+            request,
+            preplanned_specialist_request,
+        ):
             agent = SupervisorAgent(
-                supervisor_prompt_executor=supervisor_prompt_executor,
                 rag_prompt_executor=rag_prompt_executor,
                 cancellation_checker=lambda: cancel_registry.is_cancel_requested(
                     request.request_id
                 ),
-                preplanned_routing_decision=preplanned_routing_decision,
+                preplanned_specialist_request=preplanned_specialist_request,
             )
             assert agent.specialist_delegates is not None
             if campus_services_query_service is not None:
@@ -194,24 +192,26 @@ def _bind_supervisor_handler(
             return agent.handle(request)
 
         return handle_with_structured_query_services
-    if supervisor_prompt_executor is not None and rag_prompt_executor is not None:
-        return lambda request, preplanned_routing_decision=None: handle_request(
+    if rag_prompt_executor is not None:
+        return lambda request, preplanned_specialist_request: handle_request(
             request,
-            supervisor_prompt_executor=supervisor_prompt_executor,
             rag_prompt_executor=rag_prompt_executor,
             cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
-            preplanned_routing_decision=preplanned_routing_decision,
+            preplanned_specialist_request=preplanned_specialist_request,
         )
-    return lambda request, preplanned_routing_decision=None: handle_request(
+    return lambda request, preplanned_specialist_request: handle_request(
         request,
         cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
-        preplanned_routing_decision=preplanned_routing_decision,
+        preplanned_specialist_request=preplanned_specialist_request,
     )
 
 
 def _wrap_with_cancel_checks(supervisor_handler, cancel_registry: ExecutionCancelRegistry):
-    def guarded_supervisor_handler(request, preplanned_routing_decision=None):
-        _ = preplanned_routing_decision
+    def guarded_supervisor_handler(
+        request,
+        preplanned_specialist_request,
+    ):
+        _ = preplanned_specialist_request
         if cancel_registry.is_cancel_requested(request.request_id):
             raise ExecutionCancelledError("Supervisor execution was cancelled.")
         response = supervisor_handler(request)
@@ -251,7 +251,6 @@ def _build_prompt_runtime_assets(
 ) -> tuple[
     PromptRuntimeSettings,
     PromptHTTPPoolRuntime,
-    ProviderBackedSupervisorPromptExecutor | None,
     ProviderBackedRagPromptExecutor | None,
 ]:
     provider = settings.prompt_runtime_provider or settings.runtime_provider
@@ -280,7 +279,6 @@ def _build_prompt_runtime_assets(
             replace(prompt_runtime, admission_reason="provider_not_configured"),
             prompt_http_pool,
             None,
-            None,
         )
     if not settings.prompt_strict_structured_outputs:
         return (
@@ -290,20 +288,17 @@ def _build_prompt_runtime_assets(
             ),
             prompt_http_pool,
             None,
-            None,
         )
-    if not settings.supervisor_prompt_model.strip() or not settings.specialist_prompt_model.strip():
+    if not settings.specialist_prompt_model.strip():
         return (
             replace(prompt_runtime, admission_reason="prompt_models_not_configured"),
             prompt_http_pool,
-            None,
             None,
         )
     if not settings.prompt_runtime_api_key.strip():
         return (
             replace(prompt_runtime, admission_reason="api_key_not_configured"),
             prompt_http_pool,
-            None,
             None,
         )
     try:
@@ -321,17 +316,11 @@ def _build_prompt_runtime_assets(
             replace(prompt_runtime, admission_reason=str(exc)),
             prompt_http_pool,
             None,
-            None,
         )
     prompt_http_pool.client = build_prompt_runtime_http_client(provider_config)
     return (
         replace(prompt_runtime, admitted=True),
         prompt_http_pool,
-        ProviderBackedSupervisorPromptExecutor(
-            provider_config=provider_config,
-            model_name=settings.supervisor_prompt_model,
-            http_client=prompt_http_pool.client,
-        ),
         ProviderBackedRagPromptExecutor(
             provider_config=provider_config,
             model_name=settings.specialist_prompt_model,

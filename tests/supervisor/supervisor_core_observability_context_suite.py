@@ -12,7 +12,6 @@ from campus_contracts import (
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
-    PromptTrace,
     RagResultDiagnostics,
     RagResultPayload,
     SessionSlot,
@@ -22,21 +21,7 @@ from campus_contracts import (
     TraceContext,
 )
 from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
-
-
-def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
-    spec = get_supervisor_prompt_spec(prompt_id)
-    return PromptTrace(
-        prompt_id=prompt_id,
-        prompt_version=prompt_id.rsplit("_", 1)[-1],
-        template_sha256=spec.template_sha256,
-        variables_schema_version=spec.variables_schema_version,
-        output_schema_version=spec.output_schema_version,
-        model_provider="openai-responses",
-        model_name="gpt-5.2",
-    )
 
 
 def _make_rag_completed_response() -> SpecialistResponse:

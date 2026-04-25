@@ -15,10 +15,11 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Projects the external execution request into private bridge v3
-  `SupervisorRequest -> SupervisorResponse` JSON. Semantic delegate requests call
-  the Python orchestration bridge at `/internal/bridge/*`; opened deterministic
-  structured requests can complete through the Go direct runtime path.
+- Projects the external execution request into private bridge v4
+  `SupervisorRequest -> SpecialistRequest -> SupervisorResponse` JSON for
+  semantic delegate requests. Non-delegate terminal decisions and opened
+  deterministic structured requests complete in Go without calling the Python
+  orchestration bridge.
 - Aggregates Python worker readiness into Go-owned `/readyz`, while keeping Go
   transport admission as the published `transport_runtime`.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -31,8 +32,8 @@ Current status:
   never blocks answer requests.
 - Propagates explicit cancel to the Python private bridge through
   `/internal/bridge/execution/cancel`; Python records the cooperative cancel
-  signal and the semantic orchestration path checks it around routing, prompt
-  composition, specialist delegation, and response finalization. Provider /
+  signal and the semantic orchestration path checks it around routing, RAG
+  prompt execution, specialist delegation, and response finalization. Provider /
   prompt calls that are already in-flight still are not hard-aborted.
 - Owns the bridge circuit breaker for Python bridge transport / protocol
   failures; open circuits short-circuit answer execution with
@@ -42,16 +43,20 @@ Current status:
 - Owns deterministic delegate handoff planning in `internal/structuredplanning`,
   including `rag-agent` `rag_request` payload projection and structured
   campus-services / notice payload projection; `internal/execution` only adapts
-  planner output into bridge v3 `runtime_decisions`.
+  planner output into bridge v4 `runtime_decisions`.
+- Bridge v4 handoff carries the full `SpecialistRequest` envelope under
+  `runtime_decisions.handoff.specialist_request`; the older handoff-only payload
+  fragment is not an active compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
-  Runtime policy decisions are projected into bridge v3 and summarized in
+  Runtime policy decisions are projected into bridge v4 and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
 - Owns non-delegate terminal envelopes for clarify, approval-required,
-  out-of-scope and rejected decisions. Python consumes the envelope instead of
-  synthesizing terminal prompt responses.
+  out-of-scope and rejected decisions. Non-stream and lifecycle SSE answer
+  routes execute those terminal envelopes directly in Go; Python bridge only
+  receives delegate handoff requests.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
 - Hosts the gate-closed structured query runtime foundation for campus services
@@ -63,8 +68,9 @@ Current status:
   internal notice PG read model and S3-compatible derived canonical bodies. This
   still does not open `campus_services` or `notice` product serving.
 - When `campus_services` or `notice` is explicitly opened, non-stream
-  `/api/v1/answer` can execute those deterministic structured payloads directly
-  in Go and shape a supervisor-style response without calling the Python bridge.
+  `/api/v1/answer` and lifecycle SSE `/api/v1/answer/stream` can execute those
+  deterministic structured payloads directly in Go and shape a supervisor-style
+  response without calling the Python bridge.
 - Owns bounded FIFO execution admission with queue full / lane queue full /
   queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
@@ -158,7 +164,8 @@ Current structured query runtime boundary:
   `supervisor-api` worker container.
 - The Go direct structured answer path uses the same projection-backed query
   runtime internally after the structured capability opening gate admits the
-  request.
+  request; this applies to both non-stream answer and lifecycle SSE answer
+  routes.
 - `/readyz` reports `capability_gates` so operators can see whether
   `campus_services` / `notice` are still closed, and `/metrics` reports
   capability gate open / closed decisions.

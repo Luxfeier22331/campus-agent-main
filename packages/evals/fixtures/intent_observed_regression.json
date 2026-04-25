@@ -1,36 +1,38 @@
 {
-  "schema_version": 1,
-  "cases": [
-    {
-      "case_id": "intent-observed-navigation-closed-001",
-      "domain": "intent",
-      "source": {
-        "badcase_id": "qbad_observed_navigation_001",
-        "request_id": "req_observed_navigation_001",
-        "sampled_at": "2026-04-25T00:00:00.000Z",
-        "surface": "public_chat_web",
-        "trace_id": "trace_observed_navigation_001"
-      },
-      "review": {
-        "decision": "accepted",
-        "reason": "Navigation remains closed until navigation-agent serving opens.",
-        "reviewed_at": "2026-04-25T00:05:00.000Z",
-        "reviewer": "eval-governance",
-        "target_suite": "observed_regression"
-      },
-      "intent_case": {
-        "critical": true,
-        "expected_capability": "place_lookup",
-        "expected_launch_state": "closed",
-        "expected_next_action": "out_of_scope",
-        "expected_policy_reason": "navigation_temporarily_unsupported",
-        "expected_scope_class": "out_of_scope",
-        "expected_target": "none",
-        "expected_task_kind": "place_lookup",
-        "requested_capability": "place_lookup",
-        "tags": ["observed_regression", "navigation", "closed"],
-        "user_goal": "图书馆在哪里"
-      }
-    }
-  ]
+	"schema_version": 1,
+	"cases": [
+		{
+			"case_id": "intent-observed-navigation-closed-001",
+			"domain": "intent",
+			"source": {
+				"badcase_id": "qbad_observed_navigation_001",
+				"expected_fix_reason": "Navigation remains closed until navigation-agent serving opens.",
+				"observed_failure_class": "unexpected_handoff_target",
+				"sampled_at": "2026-04-25T00:00:00.000Z",
+				"source_request_id": "req_observed_navigation_001",
+				"source_surface": "public_chat_web",
+				"trace_id": "trace_observed_navigation_001"
+			},
+			"review": {
+				"decision": "accepted",
+				"reason": "Navigation remains closed until navigation-agent serving opens.",
+				"reviewed_at": "2026-04-25T00:05:00.000Z",
+				"reviewer": "eval-governance",
+				"target_suite": "observed_regression"
+			},
+			"intent_case": {
+				"critical": true,
+				"expected_capability": "place_lookup",
+				"expected_launch_state": "closed",
+				"expected_next_action": "out_of_scope",
+				"expected_policy_reason": "navigation_temporarily_unsupported",
+				"expected_scope_class": "out_of_scope",
+				"expected_target": "none",
+				"expected_task_kind": "place_lookup",
+				"requested_capability": "place_lookup",
+				"tags": ["observed_regression", "navigation", "closed"],
+				"user_goal": "图书馆在哪里"
+			}
+		}
+	]
 }

@@ -3,11 +3,13 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
@@ -105,6 +107,109 @@ func (s *Server) handleDirectStructuredAnswer(
 	return true
 }
 
+func (s *Server) handleDirectStructuredAnswerStream(
+	response http.ResponseWriter,
+	request *http.Request,
+	executionRequest execution.AnswerExecutionRequest,
+	startedAt time.Time,
+) bool {
+	handoff := executionRequest.StructuredHandoff
+	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+		return false
+	}
+
+	requestCtx, complete, ok := s.beginDirectStructuredStreamExecution(
+		response,
+		request,
+		executionRequest,
+		startedAt,
+	)
+	if !ok {
+		return true
+	}
+	defer complete(lifecycle.StateCompleted)
+
+	ctx, cancel := context.WithTimeout(
+		requestCtx,
+		time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond,
+	)
+	defer cancel()
+
+	rawPayload, err := structuredQueryPayload(handoff, executionRequest.NoticeAccessContext)
+	if err != nil {
+		complete(lifecycle.StateFailed)
+		setOutcome(response, "structured_runtime_invalid_payload")
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusBadGateway,
+			"structured_runtime_invalid_payload",
+			"Go structured runtime payload could not be encoded.",
+			false,
+		)
+		return true
+	}
+
+	result := s.executeStructuredRuntime(ctx, handoff.PayloadKind, rawPayload)
+	s.metrics.RecordStructuredQuery(handoff.PayloadKind, result.Outcome, result.StatusCode)
+	if result.StatusCode < 200 || result.StatusCode >= 300 {
+		complete(lifecycle.StateFailed)
+		setOutcome(response, "structured_runtime_error")
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusBadGateway,
+			"structured_runtime_error",
+			"Go structured runtime returned an invalid response.",
+			true,
+		)
+		return true
+	}
+
+	resultBody, err := structuredResultMap(result.Body)
+	if err != nil {
+		complete(lifecycle.StateFailed)
+		setOutcome(response, "structured_runtime_invalid_response")
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusBadGateway,
+			"structured_runtime_invalid_response",
+			"Go structured runtime response could not be encoded.",
+			true,
+		)
+		return true
+	}
+
+	supervisorResponse := shapeStructuredSupervisorResponse(
+		handoff.Target,
+		handoff.PayloadKind,
+		resultBody,
+		executionRequest.TraceID,
+	)
+	setOutcome(response, "supervisor_response")
+	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		Name:                "answer_stream.completed",
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+		Outcome:             "supervisor_response",
+		StatusCode:          http.StatusOK,
+		Duration:            time.Since(startedAt),
+	}, executionRequest))
+	emitSSE(response, "execution.completed", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.completed",
+		Status:     "completed",
+		Outcome:    "supervisor_response",
+		HTTPStatus: http.StatusOK,
+		Response:   supervisorResponse,
+	})
+	return true
+}
+
 func (s *Server) beginDirectStructuredExecution(
 	response http.ResponseWriter,
 	request *http.Request,
@@ -163,6 +268,158 @@ func (s *Server) beginDirectStructuredExecution(
 		lease.Release()
 		complete(state)
 	}, true
+}
+
+func (s *Server) beginDirectStructuredStreamExecution(
+	response http.ResponseWriter,
+	request *http.Request,
+	executionRequest execution.AnswerExecutionRequest,
+	startedAt time.Time,
+) (context.Context, func(lifecycle.State), bool) {
+	timeoutCtx, requestCancel := context.WithTimeout(
+		request.Context(),
+		time.Duration(s.config.RequestTimeoutMS)*time.Millisecond,
+	)
+	executionHandle, requestCtx, registerErr := s.lifecycle.Register(timeoutCtx, lifecycle.Metadata{
+		RequestID:           executionRequest.RequestID,
+		TraceID:             executionRequest.TraceID,
+		Lane:                executionRequest.Lane,
+		RequestedCapability: executionRequest.RequestedCapability,
+	})
+	if registerErr != nil {
+		requestCancel()
+		code := "execution_lifecycle_unavailable"
+		status := http.StatusInternalServerError
+		message := "Supervisor execution lifecycle could not be registered."
+		if errors.Is(registerErr, lifecycle.ErrDuplicateExecution) {
+			code = "execution_already_in_flight"
+			status = http.StatusConflict
+			message = "Supervisor execution request_id is already active."
+		}
+		setOutcome(response, code)
+		emitStructuredRuntimeStreamFailure(response, executionRequest, status, code, message, true)
+		return nil, nil, false
+	}
+	completed := false
+	complete := func(state lifecycle.State) {
+		if completed {
+			return
+		}
+		completed = true
+		if state == "" {
+			state = lifecycle.StateFailed
+		}
+		s.lifecycle.Complete(executionHandle.RequestID(), state)
+		requestCancel()
+	}
+
+	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateQueued)
+	emitSSE(response, "execution.queued", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.queued",
+		Status:     "queued",
+		Outcome:    "queued",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
+
+	lease, decision := s.admission.AcquireLane(requestCtx, executionRequest.Lane)
+	if lease == nil {
+		s.metrics.RecordAdmissionDecisionForLane(executionRequest.Lane, string(decision), 0)
+		state := s.lifecycleStateForRejectedAdmission(
+			executionRequest.RequestID,
+			decision,
+			requestCtx,
+		)
+		code, message, retryable := admissionErrorForStream(
+			decision,
+			s.lifecycle.Canceled(executionRequest.RequestID),
+		)
+		status := http.StatusServiceUnavailable
+		if code == "execution_cancelled" || code == "client_canceled" {
+			status = statusClientClosedRequest
+		}
+		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			Name:                "answer_stream.admission_rejected",
+			RequestID:           executionRequest.RequestID,
+			TraceID:             executionRequest.TraceID,
+			Lane:                executionRequest.Lane,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Decision:            string(decision),
+			Outcome:             code,
+			StatusCode:          status,
+			Duration:            time.Since(startedAt),
+		}, executionRequest))
+		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+			Decision:            string(decision),
+			Duration:            time.Since(startedAt),
+			EventType:           "execution.admission_rejected",
+			HTTPStatus:          status,
+			Lane:                executionRequest.Lane,
+			RequestID:           executionRequest.RequestID,
+			RequestedCapability: executionRequest.RequestedCapability,
+			Retryable:           retryable,
+			TraceID:             executionRequest.TraceID,
+		}, executionRequest))
+		complete(state)
+		setOutcome(response, code)
+		emitSSE(response, terminalStreamEventName(state), streamPayload{
+			RequestID:  executionRequest.RequestID,
+			TraceID:    executionRequest.TraceID,
+			EventType:  terminalStreamEventName(state),
+			Status:     streamStatusForLifecycle(state),
+			Outcome:    code,
+			HTTPStatus: status,
+			Retryable:  retryable,
+			Error: &errorInfo{
+				Code:      code,
+				Message:   message,
+				Retryable: retryable,
+			},
+			OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		return nil, nil, false
+	}
+	queueWait := lease.WaitDuration()
+	s.metrics.RecordAdmissionDecisionForLane(executionRequest.Lane, string(decision), queueWait)
+	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateRunningBridge)
+	emitSSE(response, "execution.running", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.running",
+		Status:     "running",
+		Outcome:    "running",
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	return requestCtx, func(state lifecycle.State) {
+		lease.Release()
+		complete(state)
+	}, true
+}
+
+func emitStructuredRuntimeStreamFailure(
+	response http.ResponseWriter,
+	executionRequest execution.AnswerExecutionRequest,
+	status int,
+	code string,
+	message string,
+	retryable bool,
+) {
+	emitSSE(response, "execution.failed", streamPayload{
+		RequestID:  executionRequest.RequestID,
+		TraceID:    executionRequest.TraceID,
+		EventType:  "execution.failed",
+		Status:     "failed",
+		Outcome:    code,
+		HTTPStatus: status,
+		Retryable:  retryable,
+		Error: &errorInfo{
+			Code:      code,
+			Message:   message,
+			Retryable: retryable,
+		},
+		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+	})
 }
 
 func isStructuredPayloadKind(payloadKind string) bool {

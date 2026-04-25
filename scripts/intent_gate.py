@@ -9,13 +9,15 @@ from campus_evals.intent_policy_artifact import intent_policy_gate_metadata
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
 from campus_evals.intent_scenarios import intent_release_gate_cases, intent_suite_cases
 
-DEFAULT_OUTPUT = Path(".tmp/evals/intent-release-gate.json")
+DEFAULT_OUTPUT = Path(".tmp/evals/intent-gate.json")
 DEFAULT_SUITES = (
     "release_gate",
     "context_follow_up",
     "version_compat",
     "observed_regression",
 )
+DEFAULT_RUNNER = "supervisor-api-go"
+INTENT_RUNNERS = ("supervisor-api-go",)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,24 +33,39 @@ def build_parser() -> argparse.ArgumentParser:
         choices=DEFAULT_SUITES,
         help="Intent suite to run. Repeat to select multiple suites. Defaults to all gate suites.",
     )
+    parser.add_argument(
+        "--runner",
+        choices=INTENT_RUNNERS,
+        default=DEFAULT_RUNNER,
+        help="Intent runner to use. Defaults to supervisor-api-go.",
+    )
     return parser
 
 
-def run_intent_suite(suite: str) -> IntentEvalReport:
+def run_intent_suite(suite: str, *, runner: str = DEFAULT_RUNNER) -> IntentEvalReport:
     cases = intent_release_gate_cases() if suite == "release_gate" else intent_suite_cases(suite)
-    return run_intent_cases(cases)
+    return run_intent_cases(cases, runner=runner)
 
 
-def run_intent_gate(suites: tuple[str, ...] = DEFAULT_SUITES) -> dict[str, object]:
-    suite_reports = {suite: run_intent_suite(suite) for suite in suites}
-    return build_gate_payload(suite_reports)
+def run_intent_gate(
+    suites: tuple[str, ...] = DEFAULT_SUITES,
+    *,
+    runner: str = DEFAULT_RUNNER,
+) -> dict[str, object]:
+    suite_reports = {suite: run_intent_suite(suite, runner=runner) for suite in suites}
+    return build_gate_payload(suite_reports, runner=runner)
 
 
-def build_gate_payload(suite_reports: dict[str, IntentEvalReport]) -> dict[str, object]:
+def build_gate_payload(
+    suite_reports: dict[str, IntentEvalReport],
+    *,
+    runner: str = DEFAULT_RUNNER,
+) -> dict[str, object]:
     suite_payloads = {suite: report_to_dict(report) for suite, report in suite_reports.items()}
     policy_metadata = intent_policy_gate_metadata()
     return {
         "schema_version": 1,
+        "runner": runner,
         "case_set_version": policy_metadata["case_set_version"],
         "policy_artifact": {
             "schema_version": policy_metadata["schema_version"],
@@ -89,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
     output_path = Path(args.output)
     suites = tuple(args.suite) if args.suite else DEFAULT_SUITES
 
-    payload = run_intent_gate(suites)
+    payload = run_intent_gate(suites, runner=args.runner)
     write_report(payload, output_path)
     print(render_summary_text(payload, output_path))
     return 0 if int(payload["failed"]) == 0 else 1
@@ -107,7 +124,9 @@ if __name__ == "__main__":
 
 __all__ = [
     "DEFAULT_OUTPUT",
+    "DEFAULT_RUNNER",
     "DEFAULT_SUITES",
+    "INTENT_RUNNERS",
     "build_gate_payload",
     "build_parser",
     "main",

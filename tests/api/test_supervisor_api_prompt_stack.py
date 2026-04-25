@@ -10,18 +10,12 @@ from campus_contracts import (
     KnowledgeScope,
     RagRequestPayload,
     SpecialistRequest,
-    SupervisorRequest,
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.prompt_packets import build_supervisor_clarify_prompt_packet
-from campus_supervisor_core.routing import RoutingDecision
 from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.prompt_stack import (
     build_rag_prompt_stack,
-    build_supervisor_prompt_stack,
 )
 from campus_supervisor_core_worker.settings import ApiSettings
 
@@ -46,58 +40,21 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
         self.assertEqual(app.runtime.prompt_runtime.developer_invariants_version, "v1")
         self.assertTrue(app.runtime.prompt_runtime.strict_structured_outputs)
 
-    def test_build_supervisor_prompt_stack_keeps_user_text_out_of_developer_zone(self) -> None:
-        request = SupervisorRequest(
-            user_goal="法学民族实验班培养方案里大二下有什么课",
-            request_id="req-supervisor-prompt-stack",
-            trace=TraceContext(trace_id="trace-supervisor-prompt-stack"),
-            actor=ActorContext(user_id="student-001"),
-            requested_capability="knowledge",
-            context=ContextProjection(actor=ActorContext(user_id="student-001")),
-        )
-        decision = RoutingDecision(
-            target=None,
-            primary_corpus=None,
-            primary_collection=None,
-            intent_frame=IntentFrame(
-                capability="knowledge",
-                task_kind="knowledge_lookup",
-                domain_candidates=("knowledge",),
-                missing_slots=("requested_scope",),
-                risk_level="low",
-                needs_clarification=True,
-                suggested_next_action="clarify",
-                personalization_mode="generic",
-                clarification_subject="民族实验班",
-            ),
+    def test_prompt_runtime_admission_does_not_require_supervisor_terminal_model(
+        self,
+    ) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="",
+                specialist_prompt_model="gpt-5.2-mini",
+                prompt_runtime_api_key="test-key",
+            )
         )
 
-        packet = build_supervisor_clarify_prompt_packet(
-            SupervisorRequestContext.from_request(request),
-            decision,
-        )
-
-        stack = build_supervisor_prompt_stack(
-            packet,
-            provider="openai-responses",
-            model_name="gpt-5.2",
-        )
-
-        self.assertEqual(stack.prompt_id, "supervisor_clarify_v1")
-        self.assertEqual(
-            tuple(message.zone for message in stack.messages),
-            (
-                "repo_global_developer_invariants",
-                "package_role_prompt",
-                "trusted_task_packet",
-                "untrusted_user_input",
-            ),
-        )
-        developer_contents = "\n".join(
-            message.content for message in stack.messages if message.role == "developer"
-        )
-        self.assertNotIn(packet.user_input_text, developer_contents)
-        self.assertIn(packet.user_input_text, stack.messages[-1].content)
+        self.assertTrue(app.runtime.prompt_runtime.admitted)
+        self.assertEqual(app.runtime.prompt_runtime.admission_reason, "")
+        self.assertEqual(app.runtime.prompt_runtime.specialist_prompt_model, "gpt-5.2-mini")
 
     def test_build_rag_prompt_stack_keeps_evidence_out_of_developer_zone(self) -> None:
         request = SpecialistRequest(

@@ -6,17 +6,17 @@ from dataclasses import dataclass
 
 import httpx
 from campus_contracts import PromptTrace
+from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from campus_shared import (
     NormalizedProviderGroundingSupport,
-    build_prompt_runtime_http_client,
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
     PromptRuntimeValidationError,
     ResponsesStructuredOutputExecutor,
+    build_prompt_runtime_http_client,
     normalize_provider_grounding_supports,
     validate_prompt_trace_contract,
 )
-from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 from pydantic import BaseModel
 
 
@@ -79,11 +79,11 @@ class PromptRuntimeValidationTest(unittest.TestCase):
             first_client.close()
 
     def test_validate_prompt_trace_requires_model_metadata(self) -> None:
-        spec = get_supervisor_prompt_spec("supervisor_clarify_v1")
+        spec = get_rag_prompt_spec("rag_answer_v1")
         with self.assertRaises(PromptRuntimeValidationError):
             validate_prompt_trace_contract(
                 prompt_trace=PromptTrace(
-                    prompt_id="supervisor_clarify_v1",
+                    prompt_id="rag_answer_v1",
                     prompt_version="v1",
                     template_sha256=spec.template_sha256,
                     variables_schema_version=spec.variables_schema_version,

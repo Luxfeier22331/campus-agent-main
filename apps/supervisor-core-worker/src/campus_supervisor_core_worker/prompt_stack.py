@@ -11,8 +11,6 @@ from campus_shared import (
     get_repo_global_developer_invariants_text,
     serialize_prompt_payload,
 )
-from campus_supervisor_core.prompt_packets import SupervisorPromptPacket
-from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
 
 PromptMessageRole = Literal["developer", "user"]
 PromptMessageZone = Literal[
@@ -55,48 +53,6 @@ class PromptStackAssembly:
     variables_schema_version: str
     output_schema_version: str
     messages: tuple[PromptStackMessage, ...]
-
-
-def build_supervisor_prompt_stack(
-    packet: SupervisorPromptPacket,
-    *,
-    provider: str,
-    model_name: str,
-) -> PromptStackAssembly:
-    spec = get_supervisor_prompt_spec(packet.prompt_id)
-    messages = (
-        PromptStackMessage(
-            role="developer",
-            zone="repo_global_developer_invariants",
-            content=get_repo_global_developer_invariants_text(),
-        ),
-        PromptStackMessage(
-            role="developer",
-            zone="package_role_prompt",
-            content=spec.template_text,
-        ),
-        PromptStackMessage(
-            role="developer",
-            zone="trusted_task_packet",
-            content=serialize_prompt_payload(packet.task),
-        ),
-        PromptStackMessage(
-            role="user",
-            zone="untrusted_user_input",
-            content=serialize_prompt_payload({"user_input_text": packet.user_input_text}),
-        ),
-    )
-    return PromptStackAssembly(
-        prompt_id=spec.prompt_id,
-        owner_package=spec.owner_package,
-        output_schema_name=packet.task.output_schema_name,
-        model_provider=provider,
-        model_name=model_name,
-        template_sha256=spec.template_sha256,
-        variables_schema_version=spec.variables_schema_version,
-        output_schema_version=spec.output_schema_version,
-        messages=messages,
-    )
 
 
 def build_rag_prompt_stack(
@@ -154,5 +110,4 @@ __all__ = [
     "PromptStackAssembly",
     "PromptStackMessage",
     "build_rag_prompt_stack",
-    "build_supervisor_prompt_stack",
 ]

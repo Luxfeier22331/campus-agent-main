@@ -25,11 +25,11 @@ class IntentEvalRunnerTest(unittest.TestCase):
                 ),
                 IntentCase(
                     case_id="intent-notice-candidate",
-                    user_goal="找一下春假通知",
+                    user_goal="民族学本科人才培养方案总学分要求是多少？",
                     requested_capability="knowledge",
                     expected_capability="knowledge",
                     expected_task_kind="knowledge_lookup",
-                    expected_launch_state="candidate_only",
+                    expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
                     expected_target="rag-agent",
@@ -104,7 +104,10 @@ class IntentEvalRunnerTest(unittest.TestCase):
         self.assertEqual(report.results[0].observed.scope_reason, "explicit_requested_scope")
 
     def test_run_intent_cases_reports_context_resolution_metrics(self) -> None:
-        report = run_intent_cases(intent_context_follow_up_cases())
+        report = run_intent_cases(
+            intent_context_follow_up_cases(),
+            runner="supervisor-api-go",
+        )
 
         self.assertGreaterEqual(report.total, 3)
         self.assertEqual(report.failed, 0)

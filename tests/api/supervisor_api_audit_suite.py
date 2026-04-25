@@ -17,7 +17,7 @@ def _bridge_request_payload(
     trace_id: str = "trace-audit-001",
 ) -> dict[str, object]:
     return {
-        "bridge_version": "supervisor_bridge_v3",
+        "bridge_version": "supervisor_bridge_v4",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
@@ -133,15 +133,81 @@ def _bridge_request_payload(
                 "planning_outcome": "preplanned",
                 "target": "rag-agent",
                 "allowed_tools": [],
-                "specialist_payload": {
-                    "kind": "rag_request",
-                    "payload": {
-                        "scope": {
-                            "corpus": "regulations",
-                            "collection": "student_rules",
-                        },
-                        "version_query": {"mode": "current"},
+                "specialist_request": {
+                    "target": "rag-agent",
+                    "user_goal": user_goal,
+                    "conversation_id": "conv-audit-001",
+                    "request_id": request_id,
+                    "safety_identifier": None,
+                    "trace": {"trace_id": trace_id},
+                    "actor": {
+                        "user_id": "student@example.edu",
+                        "principal_id": "principal-001",
+                        "principal_type": "student",
+                        "roles": ["student"],
+                        "cohort": "2023",
+                        "major": "philosophy",
                     },
+                    "context": {
+                        "actor": {
+                            "user_id": "student@example.edu",
+                            "principal_id": "principal-001",
+                            "principal_type": "student",
+                            "roles": ["student"],
+                            "cohort": "2023",
+                            "major": "philosophy",
+                        },
+                        "authorization": {
+                            "principal_id": "principal-001",
+                            "projection_source": "campus_identity",
+                            "entitlement_snapshot_id": "entitlements-2026-03-29",
+                            "entitlement_groups": ["students", "library"],
+                            "visibility_scope": "north",
+                            "applicability_scope": "undergraduate",
+                            "ownership_scopes": ["conversation:student@example.edu"],
+                            "approval_state": "not_required",
+                            "retrieval_filter": {
+                                "entitlement_groups": ["students", "library"],
+                                "visibility_level": "restricted",
+                                "visibility_scope": "north",
+                                "policy_projection_version": "phase1-authorization-projection-v1",
+                            },
+                        },
+                        "profile_memory": {
+                            "items": [
+                                {
+                                    "item_id": "memory-001",
+                                    "key": "recent_goal",
+                                    "value": "咨询保研",
+                                    "source_type": "user_declared",
+                                    "confidence": "high",
+                                    "visibility": "user_visible",
+                                    "last_verified_at": "2026-03-28",
+                                }
+                            ]
+                        },
+                        "session": {
+                            "confirmed_slots": [
+                                {
+                                    "name": "policy_topic",
+                                    "value": "推免资格",
+                                    "confirmed": True,
+                                }
+                            ],
+                            "turn_count": 2,
+                        },
+                    },
+                    "payload": {
+                        "kind": "rag_request",
+                        "payload": {
+                            "scope": {
+                                "corpus": "regulations",
+                                "collection": "student_rules",
+                            },
+                            "version_query": {"mode": "current"},
+                        },
+                    },
+                    "allowed_tools": [],
                 },
             },
         },

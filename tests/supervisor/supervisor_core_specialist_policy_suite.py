@@ -6,7 +6,6 @@ from campus_contracts import (
     CampusNoticeDiscoverPayload,
     EvidenceBundle,
     EvidenceSource,
-    PromptTrace,
     RagResultPayload,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
@@ -19,22 +18,6 @@ from campus_supervisor_core import handle_request, handle_specialist_request
 from campus_supervisor_core.errors import (
     InvalidSpecialistToolPolicyError,
 )
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
-from campus_supervisor_core.routing import RoutingDecision
-
-
-def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
-    spec = get_supervisor_prompt_spec(prompt_id)
-    return PromptTrace(
-        prompt_id=prompt_id,
-        prompt_version=prompt_id.rsplit("_", 1)[-1],
-        template_sha256=spec.template_sha256,
-        variables_schema_version=spec.variables_schema_version,
-        output_schema_version=spec.output_schema_version,
-        model_provider="openai-responses",
-        model_name="gpt-5.2",
-    )
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -123,33 +106,28 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
                 ),
             )
 
+        supervisor_request = SupervisorRequest(
+            user_goal="图书馆今天开门吗",
+            requested_capability="campus_services",
+        )
+        specialist_request = SpecialistRequest(
+            target="campus-services-agent",
+            user_goal=supervisor_request.user_goal,
+            trace=supervisor_request.trace,
+            actor=supervisor_request.actor,
+            context=supervisor_request.context,
+            payload=ServiceStatusLookupPayload(
+                subject_query="图书馆今天开门吗",
+                temporal_query=TemporalQuery(mode="current"),
+                campus_scope="haidian",
+            ),
+            allowed_tools=("service_status_lookup",),
+        )
+
         response = handle_request(
-            SupervisorRequest(
-                user_goal="图书馆今天开门吗",
-                requested_capability="campus_services",
-            ),
+            supervisor_request,
             specialist_delegates={"campus-services-agent": fake_campus_services_agent},
-            preplanned_routing_decision=RoutingDecision(
-                target="campus-services-agent",
-                primary_corpus=None,
-                primary_collection=None,
-                intent_frame=IntentFrame(
-                    capability="campus_services",
-                    task_kind="campus_services_lookup",
-                    domain_candidates=("campus_services",),
-                    missing_slots=(),
-                    risk_level="low",
-                    needs_clarification=False,
-                    suggested_next_action="delegate",
-                    scope_class="in_scope",
-                ),
-                specialist_payload=ServiceStatusLookupPayload(
-                    subject_query="图书馆今天开门吗",
-                    temporal_query=TemporalQuery(mode="current"),
-                    campus_scope="haidian",
-                ),
-                allowed_tools=("service_status_lookup",),
-            ),
+            preplanned_specialist_request=specialist_request,
         )
 
         self.assertEqual(len(captured_requests), 1)

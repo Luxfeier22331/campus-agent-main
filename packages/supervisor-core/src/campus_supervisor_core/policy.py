@@ -5,31 +5,9 @@ from campus_contracts import (
     SupervisorResponse,
 )
 
-from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.errors import MissingRoutingInputError
-from campus_supervisor_core.prompt_execution import SupervisorPromptExecutor
 from campus_supervisor_core.response import (
-    attach_intent_observability,
     build_supervisor_observability_from_specialist_response,
 )
-from campus_supervisor_core.routing import RoutingDecision
-
-
-def finalize_routing_decision(
-    context: SupervisorRequestContext,
-    decision: RoutingDecision,
-    *,
-    prompt_executor: SupervisorPromptExecutor | None = None,
-) -> SupervisorResponse | None:
-    _ = context
-    _ = prompt_executor
-    if decision.target is not None:
-        return None
-    if decision.terminal_response is None:
-        raise MissingRoutingInputError(
-            "terminal_response is required for non-delegate routing decisions"
-        )
-    return attach_intent_observability(decision.terminal_response, decision)
 
 
 def finalize_specialist_response(response: SpecialistResponse) -> SupervisorResponse:

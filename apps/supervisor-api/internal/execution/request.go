@@ -30,6 +30,7 @@ type AnswerExecutionRequest struct {
 	Lane                string
 	RuntimeDecisions    RuntimeDecisionSummary
 	StructuredHandoff   *RuntimeHandoff
+	TerminalEnvelope    map[string]any
 	NoticeAccessContext map[string]any
 }
 
@@ -262,16 +263,28 @@ func ParseAnswerRequest(
 		hasRequestedScope,
 		versionQuery,
 	)
+	capabilitySource := effectiveCapabilitySource(
+		requestedCapability,
+		effectiveRequestedCapability,
+		hasRequestedScope,
+		versionQuery,
+	)
 
 	traceID := strings.TrimSpace(headers["x-trace-id"])
 	if traceID == "" {
 		traceID = newTraceID()
 	}
 
-	runtimeDecisionPayload, runtimeDecisionSummary, structuredHandoff := runtimeDecisions(
+	runtimeDecisionPayload, runtimeDecisionSummary, structuredHandoff, terminalEnvelope := runtimeDecisions(
 		effectiveRequestedCapability,
+		capabilitySource,
 		laneForCapability(effectiveRequestedCapability),
 		userGoal,
+		conversationID,
+		requestID,
+		safetyIdentifier,
+		traceID,
+		actor,
 		hasRequestedScope,
 		requestedScope,
 		versionQuery,
@@ -279,7 +292,7 @@ func ParseAnswerRequest(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       "supervisor_bridge_v3",
+		"bridge_version":       "supervisor_bridge_v4",
 		"user_goal":            userGoal,
 		"conversation_id":      conversationID,
 		"request_id":           requestID,
@@ -327,6 +340,7 @@ func ParseAnswerRequest(
 		Lane:                laneForCapability(effectiveRequestedCapability),
 		RuntimeDecisions:    runtimeDecisionSummary,
 		StructuredHandoff:   structuredHandoff,
+		TerminalEnvelope:    terminalEnvelope,
 		NoticeAccessContext: context.noticeAccessContextMap(),
 	}, nil
 }

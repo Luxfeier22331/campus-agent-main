@@ -11,6 +11,8 @@ var yearPattern = regexp.MustCompile(`(20\d{2})年`)
 
 var transportSignals = []string{"校车", "班车", "通勤车", "接驳车"}
 
+var delegatedActionPrefixes = []string{"帮我", "代我", "替我"}
+
 var transactionalActionSignals = []string{
 	"提交",
 	"办理",
@@ -77,7 +79,7 @@ type Handoff struct {
 
 func Plan(request Request) *Handoff {
 	normalizedGoal := normalizeGoal(request.UserGoal)
-	if normalizedGoal == "" || containsAny(normalizedGoal, transactionalActionSignals) {
+	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal) {
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
@@ -131,6 +133,11 @@ func Plan(request Request) *Handoff {
 		}
 	}
 	return nil
+}
+
+func isDelegatedTransactionAction(normalizedGoal string) bool {
+	return containsAny(normalizedGoal, delegatedActionPrefixes) &&
+		containsAny(normalizedGoal, transactionalActionSignals)
 }
 
 func (h Handoff) Map() map[string]any {

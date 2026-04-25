@@ -10,7 +10,6 @@ from campus_contracts import (
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContextProjection,
-    ErrorInfo,
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
@@ -18,9 +17,8 @@ from campus_contracts import (
     ServiceStatusLookupPayload,
     SessionSlot,
     SessionSummary,
-    SupervisorObservability,
+    SpecialistRequest,
     SupervisorRequest,
-    SupervisorResponse,
     TemporalQuery,
     TraceContext,
     TransportRouteSelector,
@@ -28,32 +26,12 @@ from campus_contracts import (
     TransportServiceTimeQuery,
     VersionQuery,
 )
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.routing import RoutingDecision
-
-
-@dataclass(frozen=True, slots=True)
-class BridgePreplannedRouting:
-    target: str
-    payload_kind: str
-    payload: dict[str, object]
-    allowed_tools: tuple[str, ...]
-
-    def to_routing_decision(self, *, intent_frame: IntentFrame) -> RoutingDecision:
-        return RoutingDecision(
-            target=self.target,  # type: ignore[arg-type]
-            primary_corpus=None,
-            primary_collection=None,
-            intent_frame=intent_frame,
-            specialist_payload=_parse_specialist_payload(self.payload_kind, self.payload),
-            allowed_tools=self.allowed_tools,  # type: ignore[arg-type]
-        )
 
 
 @dataclass(frozen=True, slots=True)
 class BridgeSupervisorEnvelope:
     request: SupervisorRequest
-    routing_decision: RoutingDecision | None = None
+    specialist_request: SpecialistRequest | None = None
 
 
 def _parse_bridge_supervisor_request(payload: dict[str, object]) -> SupervisorRequest:
@@ -64,11 +42,6 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
     _require_bridge_version(payload.get("bridge_version"))
     effective_capability = _parse_effective_capability(payload)
     lane = _require_string(payload.get("lane"), field_name="lane")
-    runtime_routing_decision = _parse_runtime_decisions(
-        payload.get("runtime_decisions"),
-        effective_capability=effective_capability,
-        lane=lane,
-    )
     request = SupervisorRequest(
         user_goal=_require_string(payload.get("user_goal"), field_name="user_goal"),
         conversation_id=_parse_optional_string(payload.get("conversation_id")) or "",
@@ -83,13 +56,22 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
             _require_object(payload.get("version_query"), field_name="version_query")
         ),
     )
-    return BridgeSupervisorEnvelope(request=request, routing_decision=runtime_routing_decision)
+    runtime_specialist_request = _parse_runtime_decisions(
+        payload.get("runtime_decisions"),
+        effective_capability=effective_capability,
+        lane=lane,
+        request=request,
+    )
+    return BridgeSupervisorEnvelope(
+        request=request,
+        specialist_request=runtime_specialist_request,
+    )
 
 
 def _require_bridge_version(raw_version: object) -> None:
     bridge_version = _require_string(raw_version, field_name="bridge_version")
-    if bridge_version != "supervisor_bridge_v3":
-        raise ValueError("bridge_version must be supervisor_bridge_v3")
+    if bridge_version != "supervisor_bridge_v4":
+        raise ValueError("bridge_version must be supervisor_bridge_v4")
 
 
 def _parse_effective_capability(payload: dict[str, object]) -> str:
@@ -109,7 +91,8 @@ def _parse_runtime_decisions(
     *,
     effective_capability: str,
     lane: str,
-) -> RoutingDecision | None:
+    request: SupervisorRequest,
+) -> SpecialistRequest:
     decisions = _require_object(raw_decisions, field_name="runtime_decisions")
     decision_capability = _require_string(
         decisions.get("effective_capability"),
@@ -123,16 +106,15 @@ def _parse_runtime_decisions(
         raise ValueError("runtime_decisions.effective_capability must match effective_capability")
     if decision_lane != lane:
         raise ValueError("runtime_decisions.lane must match lane")
-    intent_frame = _parse_routing_frame(
+    suggested_next_action = _parse_routing_frame(
         decisions.get("routing_frame"),
         effective_capability=effective_capability,
     )
     raw_handoff = decisions.get("handoff")
     if raw_handoff is None:
-        return _routing_decision_from_terminal_envelope(
-            intent_frame,
-            decisions.get("terminal_envelope"),
-        )
+        raise ValueError("runtime_decisions.handoff must be present for Python delegate bridge")
+    if suggested_next_action != "delegate":
+        raise ValueError("Python delegate bridge only accepts delegate routing frames")
     handoff = _require_object(raw_handoff, field_name="runtime_decisions.handoff")
     planning_outcome = _parse_optional_string(handoff.get("planning_outcome"))
     if planning_outcome != "preplanned":
@@ -145,27 +127,16 @@ def _parse_runtime_decisions(
         handoff.get("allowed_tools"),
         field_name="runtime_decisions.handoff.allowed_tools",
     )
-    specialist_payload = _require_object(
-        handoff.get("specialist_payload"),
-        field_name="runtime_decisions.handoff.specialist_payload",
+    specialist_request = _parse_specialist_request(
+        handoff.get("specialist_request"),
+        expected_target=target,
+        expected_allowed_tools=allowed_tools,
     )
-    payload_kind = _require_string(
-        specialist_payload.get("kind"),
-        field_name="runtime_decisions.handoff.specialist_payload.kind",
-    )
-    payload = _require_object(
-        specialist_payload.get("payload"),
-        field_name="runtime_decisions.handoff.specialist_payload.payload",
-    )
-    return BridgePreplannedRouting(
-        target=target,
-        payload_kind=payload_kind,
-        payload=payload,
-        allowed_tools=allowed_tools,
-    ).to_routing_decision(intent_frame=intent_frame)
+    _assert_specialist_request_matches_supervisor_request(specialist_request, request)
+    return specialist_request
 
 
-def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> IntentFrame:
+def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> str:
     frame = _require_object(raw_frame, field_name="runtime_decisions.routing_frame")
     capability = _require_string(
         frame.get("capability"),
@@ -175,133 +146,122 @@ def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> Int
         raise ValueError(
             "runtime_decisions.routing_frame.capability must match effective_capability"
         )
-    return IntentFrame(
-        capability=capability,  # type: ignore[arg-type]
-        task_kind=_require_string(
-            frame.get("task_kind"),
-            field_name="runtime_decisions.routing_frame.task_kind",
-        ),  # type: ignore[arg-type]
-        domain_candidates=_parse_string_tuple(
-            frame.get("domain_candidates"),
-            field_name="runtime_decisions.routing_frame.domain_candidates",
-        ),
-        missing_slots=_parse_string_tuple(
-            frame.get("missing_slots"),
-            field_name="runtime_decisions.routing_frame.missing_slots",
-        ),
-        risk_level=_require_string(
-            frame.get("risk_level"),
-            field_name="runtime_decisions.routing_frame.risk_level",
-        ),  # type: ignore[arg-type]
-        needs_clarification=_require_bool(
-            frame.get("needs_clarification"),
-            field_name="runtime_decisions.routing_frame.needs_clarification",
-        ),
-        suggested_next_action=_require_string(
-            frame.get("suggested_next_action"),
-            field_name="runtime_decisions.routing_frame.suggested_next_action",
-        ),  # type: ignore[arg-type]
-        personalization_mode=(
-            _parse_optional_string(frame.get("personalization_mode")) or "generic"
-        ),  # type: ignore[arg-type]
-        clarification_subject=_parse_optional_string(frame.get("clarification_subject")) or "",
-        scope_class=_parse_optional_string(frame.get("scope_class")) or "",
-        policy_reason=_parse_optional_string(frame.get("policy_reason")) or "",
-        launch_state=_parse_optional_string(frame.get("launch_state")) or "open",  # type: ignore[arg-type]
-        scope_reason=_parse_optional_string(frame.get("scope_reason")) or "",
-        matched_signal=_parse_optional_string(frame.get("matched_signal")) or "",
-        classifier_version=(
-            _parse_optional_string(frame.get("classifier_version")) or "go-runtime-policy-v1"
-        ),
-        schema_version=_parse_optional_string(frame.get("schema_version")) or "intent-schema-1.0.0",
-        routing_confidence=(_parse_optional_string(frame.get("routing_confidence")) or "high"),  # type: ignore[arg-type]
-        ambiguity_signal=_parse_optional_string(frame.get("ambiguity_signal")) or "",
-        context_resolution_state=(
-            _parse_optional_string(frame.get("context_resolution_state")) or "not_follow_up"
-        ),  # type: ignore[arg-type]
-        context_reference_type=(
-            _parse_optional_string(frame.get("context_reference_type")) or "none"
-        ),  # type: ignore[arg-type]
-        resolved_slots=_parse_string_dict(
-            frame.get("resolved_slots"),
-            field_name="runtime_decisions.routing_frame.resolved_slots",
-        ),
-        ambiguity_reason=_parse_optional_string(frame.get("ambiguity_reason")) or "",
+    _require_string(
+        frame.get("task_kind"),
+        field_name="runtime_decisions.routing_frame.task_kind",
     )
-
-
-def _routing_decision_from_terminal_envelope(
-    intent_frame: IntentFrame,
-    raw_terminal_envelope: object,
-) -> RoutingDecision | None:
-    if intent_frame.suggested_next_action == "delegate":
-        raise ValueError("runtime_decisions.handoff must be present for delegate routing")
-    terminal_response = _parse_terminal_response(raw_terminal_envelope)
-    return RoutingDecision(
-        target=None,
-        primary_corpus=None,
-        primary_collection=None,
-        intent_frame=intent_frame,
-        terminal_response=terminal_response,
+    _parse_string_tuple(
+        frame.get("domain_candidates"),
+        field_name="runtime_decisions.routing_frame.domain_candidates",
     )
-
-
-def _parse_terminal_response(raw_terminal_envelope: object) -> SupervisorResponse:
-    envelope = _require_object(
-        raw_terminal_envelope,
-        field_name="runtime_decisions.terminal_envelope",
+    _parse_string_tuple(
+        frame.get("missing_slots"),
+        field_name="runtime_decisions.routing_frame.missing_slots",
     )
-    error = None
-    raw_error = envelope.get("error")
-    if raw_error is not None:
-        error_obj = _require_object(
-            raw_error, field_name="runtime_decisions.terminal_envelope.error"
+    _require_string(
+        frame.get("risk_level"),
+        field_name="runtime_decisions.routing_frame.risk_level",
+    )
+    _require_bool(
+        frame.get("needs_clarification"),
+        field_name="runtime_decisions.routing_frame.needs_clarification",
+    )
+    suggested_next_action = _require_string(
+        frame.get("suggested_next_action"),
+        field_name="runtime_decisions.routing_frame.suggested_next_action",
+    )
+    _parse_string_dict(
+        frame.get("resolved_slots"),
+        field_name="runtime_decisions.routing_frame.resolved_slots",
+    )
+    return suggested_next_action
+
+
+def _parse_specialist_request(
+    raw_request: object,
+    *,
+    expected_target: str,
+    expected_allowed_tools: tuple[str, ...],
+) -> SpecialistRequest:
+    request = _require_object(
+        raw_request,
+        field_name="runtime_decisions.handoff.specialist_request",
+    )
+    target = _require_string(
+        request.get("target"),
+        field_name="runtime_decisions.handoff.specialist_request.target",
+    )
+    if target != expected_target:
+        raise ValueError("runtime_decisions.handoff.specialist_request.target must match target")
+    allowed_tools = _parse_string_tuple(
+        request.get("allowed_tools"),
+        field_name="runtime_decisions.handoff.specialist_request.allowed_tools",
+    )
+    if allowed_tools != expected_allowed_tools:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.allowed_tools must match allowed_tools"
         )
-        error = ErrorInfo(
-            code=_require_string(
-                error_obj.get("code"),
-                field_name="runtime_decisions.terminal_envelope.error.code",
-            ),
-            message=_require_string(
-                error_obj.get("message"),
-                field_name="runtime_decisions.terminal_envelope.error.message",
-            ),
+    payload_envelope = _require_object(
+        request.get("payload"),
+        field_name="runtime_decisions.handoff.specialist_request.payload",
+    )
+    payload_kind = _require_string(
+        payload_envelope.get("kind"),
+        field_name="runtime_decisions.handoff.specialist_request.payload.kind",
+    )
+    payload = _require_object(
+        payload_envelope.get("payload"),
+        field_name="runtime_decisions.handoff.specialist_request.payload.payload",
+    )
+    return SpecialistRequest(
+        target=target,  # type: ignore[arg-type]
+        user_goal=_require_string(
+            request.get("user_goal"),
+            field_name="runtime_decisions.handoff.specialist_request.user_goal",
+        ),
+        conversation_id=(_parse_optional_string(request.get("conversation_id")) or ""),
+        request_id=_require_string(
+            request.get("request_id"),
+            field_name="runtime_decisions.handoff.specialist_request.request_id",
+        ),
+        safety_identifier=_parse_optional_string(request.get("safety_identifier")),
+        trace=_parse_trace_context(request.get("trace")),
+        actor=_parse_actor_context(
+            request.get("actor"),
+            field_prefix="runtime_decisions.handoff.specialist_request.actor",
+        ),
+        context=_parse_bridge_context_projection(request.get("context")),
+        payload=_parse_payload_by_kind(payload_kind, payload),
+        allowed_tools=allowed_tools,  # type: ignore[arg-type]
+    )
+
+
+def _assert_specialist_request_matches_supervisor_request(
+    specialist_request: SpecialistRequest,
+    request: SupervisorRequest,
+) -> None:
+    if specialist_request.user_goal != request.user_goal:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.user_goal must match user_goal"
         )
-    return SupervisorResponse(
-        selected_target=None,
-        status=_require_string(
-            envelope.get("status"),
-            field_name="runtime_decisions.terminal_envelope.status",
-        ),  # type: ignore[arg-type]
-        answer_text=_parse_optional_string(envelope.get("answer_text")) or "",
-        follow_up_question=_parse_optional_string(envelope.get("follow_up_question")) or "",
-        confidence=(_parse_optional_string(envelope.get("confidence")) or "low"),  # type: ignore[arg-type]
-        error=error,
-        observability=_parse_terminal_observability(envelope.get("observability")),
-    )
-
-
-def _parse_terminal_observability(raw_observability: object) -> SupervisorObservability | None:
-    if raw_observability is None:
-        return None
-    observability = _require_object(
-        raw_observability,
-        field_name="runtime_decisions.terminal_envelope.observability",
-    )
-    return SupervisorObservability(
-        retrieval_attempted=_parse_optional_bool(observability.get("retrieval_attempted")),
-        candidate_count=_parse_optional_int(observability.get("candidate_count")),
-        retrieved_source_count=_parse_optional_int(observability.get("retrieved_source_count")),
-        citation_expected=_parse_optional_bool(observability.get("citation_expected")),
-        citation_count=_parse_optional_int(observability.get("citation_count")),
-        citation_missing=_parse_optional_bool(observability.get("citation_missing")),
-        refusal_class=_parse_optional_string(observability.get("refusal_class")) or "",
-        semantic_outcome=_parse_optional_string(observability.get("semantic_outcome")) or "",
-        scope_class=_parse_optional_string(observability.get("scope_class")) or "",
-        policy_reason=_parse_optional_string(observability.get("policy_reason")) or "",
-        acl_decision=_parse_optional_string(observability.get("acl_decision")) or "",
-        fail_closed=_parse_optional_bool(observability.get("fail_closed")),
-    )
+    if specialist_request.conversation_id != request.conversation_id:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.conversation_id must match conversation_id"
+        )
+    if specialist_request.request_id != request.request_id:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.request_id must match request_id"
+        )
+    if specialist_request.safety_identifier != request.safety_identifier:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.safety_identifier must match safety_identifier"
+        )
+    if specialist_request.trace.trace_id != request.trace.trace_id:
+        raise ValueError(
+            "runtime_decisions.handoff.specialist_request.trace.trace_id must match trace.trace_id"
+        )
+    if specialist_request.context != request.context:
+        raise ValueError("runtime_decisions.handoff.specialist_request.context must match context")
 
 
 def _require_object(raw_value: object, *, field_name: str) -> dict[str, object]:
@@ -310,7 +270,7 @@ def _require_object(raw_value: object, *, field_name: str) -> dict[str, object]:
     return raw_value
 
 
-def _parse_specialist_payload(
+def _parse_payload_by_kind(
     payload_kind: str,
     payload: dict[str, object],
 ) -> (

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-21
+updated: 2026-04-25
 ---
 # Prompt And Instruction Architecture
 
@@ -38,8 +38,8 @@ code-owned runtime seam。当前接受的实现基线是：
 补充约束：
 
 - repo-global developer invariants 由 shared prompt runtime helper 持有
-- package-owned role prompt 继续由 `packages/supervisor-core` /
-  `packages/rag-agent` prompt registry 持有
+- package-owned role prompt 当前由 `packages/rag-agent` prompt registry 持有；
+  `packages/supervisor-core` 的 production supervisor terminal prompt family 已移除
 - `packages/rag-agent` 的 runtime package 名称继续保持 current merged truth；但
   prompt-facing persona / family wording 应使用 `rag-agent` 或中性的 knowledge-path
   wording，不再把 `rag-agent` 当默认对外标签
@@ -49,8 +49,8 @@ code-owned runtime seam。当前接受的实现基线是：
 - `apps/supervisor-core-worker/src/campus_supervisor_core_worker/prompt_executor.py`
   负责 provider-backed strict structured outputs，并在产品主链路生成 validated
   `PromptTrace`
-- provider `refusal`、`incomplete` 与 request/schema failure 必须 fail-close，不得被当作
-  schema-valid success 放行
+- provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
+  path fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
   version`、`template_sha256`、`prompt_runtime_state`、`prompt_runtime_detail`
 - curriculum / handbook 的 deterministic-first protected paths 继续保持
@@ -383,9 +383,9 @@ repo 级 instruction hierarchy 固定拆成五层：
 当前实现边界：
 
 - `apps/supervisor-api`
-  - owns runtime assembly / provider binding seam
-- `packages/supervisor-core`
-  - owns supervisor role prompt assets 与 typed task packet
+  - owns prompt config admission summary and deterministic terminal envelopes
+- `apps/supervisor-core-worker`
+  - owns RAG provider client / prompt executor runtime binding
 - `packages/rag-agent`
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
@@ -498,10 +498,11 @@ repo 当前推荐的 system / role 设计固定为：
 
 直接含义：
 
-- `packages/supervisor-core` 的 prompt family 只负责 `clarify / approval_required /
-  out_of_scope / reject` 的用户措辞
 - `packages/rag-agent` 的 prompt family 只负责 `answer / clarify / no-answer /
   unsupported` 的 grounded wording
+- `packages/supervisor-core` 当前不拥有 production supervisor terminal prompt family；
+  non-delegate terminal routing 由 Go direct terminal path 返回，Python core 只继续负责
+  delegated specialist response finalization
 - `packages/retrieval-core` 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission
   / product projection
@@ -562,22 +563,13 @@ repo 当前推荐的 system / role 设计固定为：
 
 ## Prompt Family Model
 
-每个 agent / supervisor 不维护一份“大 prompt”，而维护 `prompt family + mode`。
+每个 agent 不维护一份“大 prompt”，而维护 `prompt family + mode`。
 
-第一阶段推荐 family 如下：
-
-### Supervisor
-
-- `supervisor_clarify_v1`
-- `supervisor_reject_v1`
-- `supervisor_approval_required_v1`
-- `supervisor_out_of_scope_v1`
-
-说明：
-
-- routing / capability gate 继续 code-owned
-- supervisor prompt 在第一版不承担 authz 或 routing truth
-- 如果后续引入 LLM-assisted routing，再新增 `supervisor_route_v1`，但仍必须经过 code finalization
+当前 production supervisor terminal path 不再维护 prompt family；clarify /
+approval-required / out-of-scope / reject 的 deterministic terminal wording 由 Go
+`supervisor-api` 的 direct terminal path 承接。若后续重新引入 LLM-assisted supervisor
+wording，必须作为新的显式 workstream 重新定义 prompt family、eval gate 与 code
+finalization，不得复用已删除的旧 supervisor prompt assets。
 
 ### Knowledge Path (`packages/rag-agent`)
 
@@ -596,7 +588,6 @@ repo 当前推荐的 system / role 设计固定为：
 
 prompt assets 长期放在各自 package source tree 内，而不是集中堆到 repo root：
 
-- `packages/supervisor-core/src/campus_supervisor_core/prompts/`
 - `packages/rag-agent/src/campus_rag_agent/prompts/`
 
 prompt-facing vocabulary 规则固定为：
@@ -862,6 +853,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 ### 继续保持 code-owned 的部分
 
 - supervisor routing
+- supervisor deterministic terminal wording
 - authz / visibility gate
 - serving-surface filter
 - retrieval planning
@@ -870,7 +862,6 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 ### 第一版优先 promptify 的部分
 
-- supervisor clarification wording
 - rag clarify wording
 - rag no-answer wording
 - rag answer naturalization
@@ -892,7 +883,8 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 
 - 我们需要显式 prompt architecture，而且当前产品主链路已经落地第一版 runtime seam
 - 但不需要把系统改写成 prompt-first RAG
-- supervisor prompt 应保持薄
+- supervisor terminal prompt family 当前已移除；deterministic terminal wording 由 Go
+  direct terminal path 承接
 - knowledge-path prompt 应按 mode 拆分，并避免把 raw runtime target label 写成 model-facing
   persona
 - 结构化、高精度场景继续优先 deterministic composer
@@ -903,9 +895,10 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 当前 repo 的稳定运行时基线是：
 
 - package-owned prompt registry、prompt packet 与 strict validation seam
-  已成为产品主链路的一部分
-- `apps/supervisor-api` 已承担 runtime assembly / provider binding seam，并将 prompt
-  trace 接入现有 diagnostics / observability
+  已成为 knowledge path 产品主链路的一部分
+- `apps/supervisor-api` 已承担 prompt config admission summary；Python
+  `apps/supervisor-core-worker` 仍实际创建 RAG provider client / prompt executor，并将
+  prompt trace 接入现有 diagnostics / observability
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
 - supervisor 的 `policy gate + scope gate` 与 knowledge-path grounding validator

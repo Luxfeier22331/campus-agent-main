@@ -44,6 +44,7 @@ type Context struct {
 
 type Request struct {
 	EffectiveCapability string
+	CapabilitySource    string
 	UserGoal            string
 	HasRequestedScope   bool
 	RequestedScope      Scope
@@ -283,12 +284,12 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 		} else {
 			frame.DomainCandidates = []string{"campus_services"}
 			frame.ScopeClass = "in_scope"
-			frame.ScopeReason = "explicit_requested_capability"
+			frame.ScopeReason = scopeGate.Reason
 		}
 	case "notice":
 		frame.DomainCandidates = []string{"notice"}
 		frame.ScopeClass = "in_scope"
-		frame.ScopeReason = "explicit_requested_capability"
+		frame.ScopeReason = scopeGate.Reason
 	default:
 		if scopeGate.Decision == "out_of_scope" {
 			frame.DomainCandidates = []string{"out_of_scope"}
@@ -383,7 +384,11 @@ func baseRoutingFrame(capability string, policy IntentPolicyArtifact) RoutingFra
 
 func evaluateScope(request Request, normalizedGoal string, policy IntentPolicyArtifact) ScopeGate {
 	if request.EffectiveCapability != "" && request.EffectiveCapability != "knowledge" {
-		return ScopeGate{Decision: "in_scope", Reason: "explicit_requested_capability"}
+		reason := "explicit_requested_capability"
+		if request.CapabilitySource == "inferred" {
+			reason = "structured_runtime_candidate_signal"
+		}
+		return ScopeGate{Decision: "in_scope", Reason: reason}
 	}
 	if request.HasRequestedScope {
 		return ScopeGate{Decision: "in_scope", Reason: "explicit_requested_scope"}

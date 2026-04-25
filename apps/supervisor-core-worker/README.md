@@ -14,21 +14,19 @@ Python worker 只负责：
 
 - 接收 Go `supervisor-api` 已投影好的 private `SupervisorRequest`
 - 调用 `packages/supervisor-core`
-- 绑定 prompt runtime / provider-backed executors
-- 消费 Go bridge v3 中的 deterministic delegate handoff plan，并把它注入
-  supervisor-core；不在 Python routing / framing 中重新构造 RAG、navigation 或
-  structured payload
-- 消费 Go bridge v3 中的 `routing_frame` / `scope_gate` / `policy_gate` /
-  `context_preflight` / `terminal_envelope` / `handoff`；缺失 Go-owned routing
-  frame、terminal envelope 或 delegate handoff 时 fail-closed
-- 消费 Go bridge v3 中的 terminal response envelope；不在 Python worker /
-  supervisor-core 中重新调用 prompt executor 合成 deterministic terminal 文案
+- 绑定 RAG prompt runtime / provider-backed executor
+- 消费 Go bridge v4 中的 deterministic delegate handoff plan，并把完整
+  `SpecialistRequest` 注入 supervisor-core；不在 Python routing / framing 中重新构造
+  RAG、navigation 或 structured payload
+- 消费 Go bridge v4 中的 `routing_frame` / `scope_gate` / `policy_gate` /
+  `context_preflight` / `handoff`；缺失 Go-owned routing frame 或 delegate handoff
+  时 fail-closed
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
 - 暴露 private bridge health / readiness
 - 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge registry
   中保留最小 cancel flag；默认 supervisor orchestration 会在路由、prompt
-  composition、specialist delegation 和 finalization 前后检查取消状态
+  execution、specialist delegation 和 finalization 前后检查取消状态
 
 Python worker 不负责：
 
@@ -66,10 +64,12 @@ Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯�
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
 
-bridge answer route 只接受 `supervisor_bridge_v3`。delegate routing 必须携带
-`runtime_decisions.handoff`；non-delegate routing 必须携带
-`runtime_decisions.terminal_envelope`。`supervisor_bridge_v3` 之前的 shape 和 flat
-preplanned fields 不是 active compatibility path。
+bridge answer route 只接受 `supervisor_bridge_v4` delegate handoff。请求必须携带
+`runtime_decisions.handoff.specialist_request`，且 routing frame 的
+`suggested_next_action` 必须是 `delegate`。Non-delegate terminal routing 由 Go
+`supervisor-api` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
+Python bridge。`supervisor_bridge_v4` 之前的 shape、flat preplanned fields 与 legacy
+handoff payload fragment 不是 active compatibility path。
 
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
 Python semantic orchestration 会在 deterministic checkpoints 停止并返回
@@ -135,13 +135,14 @@ export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 `PROMPT_RUNTIME_MODEL` 是 shared default。未显式提供 `SUPERVISOR_PROMPT_MODEL` /
 `SPECIALIST_PROMPT_MODEL` 时，两条角色链都会继承 `PROMPT_RUNTIME_MODEL`。
 
-只有 provider、api key、supervisor/specialist model 与
+只有 provider、api key、specialist model 与
 `PROMPT_STRICT_STRUCTURED_OUTPUTS=true` 同时满足时，`prompt_runtime.admitted` 才会为
-`true`。
+`true`。`SUPERVISOR_PROMPT_MODEL` 仍会在 readiness 中透传以保持配置可观测，但当前
+supervisor terminal prompt stack 已移除，不再作为 Python worker admission 必需项。
 
-Python bridge 不再拥有本地 supervisor audit JSONL writer。execution audit 由 Go
-`apps/supervisor-api` 的 allowlisted audit writer 负责回流到 `app-api` internal
-ingest；Python bridge 只保留可注入 `audit_sink` seam 供测试或特殊 harness 使用。
+Python bridge 不再拥有本地 supervisor audit JSONL writer，也不在 public handler
+签名中暴露 `audit_sink`。execution audit 由 Go `apps/supervisor-api` 的 allowlisted
+audit writer 负责回流到 `app-api` internal ingest。
 
 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` / `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`
 只用于 Python worker 调用 Go `supervisor-api` 的 internal

@@ -8,67 +8,8 @@ from campus_contracts import (
     RagResultDiagnostics,
     RagResultPayload,
     SpecialistResponse,
-    SupervisorObservability,
-    SupervisorRequest,
-    SupervisorResponse,
 )
-from campus_supervisor_core.context import SupervisorRequestContext
-from campus_supervisor_core.intent import IntentFrame
-from campus_supervisor_core.policy import finalize_routing_decision, finalize_specialist_response
-from campus_supervisor_core.routing import RoutingDecision
-
-
-def _terminal_decision(
-    *,
-    capability: str,
-    task_kind: str,
-    suggested_next_action: str,
-    status: str,
-    answer_text: str,
-    semantic_outcome: str,
-    policy_reason: str,
-    scope_class: str = "out_of_scope",
-    risk_level: str = "low",
-    error: ErrorInfo | None = None,
-) -> RoutingDecision:
-    return RoutingDecision(
-        target=None,
-        primary_corpus=None,
-        primary_collection=None,
-        intent_frame=IntentFrame(
-            capability=capability,
-            task_kind=task_kind,
-            domain_candidates=("out_of_scope",),
-            missing_slots=(),
-            risk_level=risk_level,
-            needs_clarification=False,
-            suggested_next_action=suggested_next_action,
-            personalization_mode="generic",
-            scope_class=scope_class,
-            policy_reason=policy_reason,
-        ),
-        terminal_response=SupervisorResponse(
-            selected_target=None,
-            status=status,  # type: ignore[arg-type]
-            answer_text=answer_text,
-            confidence="low",
-            error=error,
-            observability=SupervisorObservability(
-                retrieval_attempted=False,
-                candidate_count=0,
-                retrieved_source_count=0,
-                citation_expected=False,
-                citation_count=0,
-                citation_missing=False,
-                refusal_class=suggested_next_action,
-                semantic_outcome=semantic_outcome,
-                scope_class=scope_class,
-                policy_reason=policy_reason,
-                acl_decision="denied" if suggested_next_action == "rejected" else "allowed",
-                fail_closed=True,
-            ),
-        ),
-    )
+from campus_supervisor_core.policy import finalize_specialist_response
 
 
 class SupervisorPolicyTest(unittest.TestCase):
@@ -87,6 +28,7 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.answer_text, "The library is open.")
         self.assertEqual(finalized.confidence, "high")
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertTrue(finalized.observability.citation_expected)
         self.assertTrue(finalized.observability.retrieval_attempted)
 
@@ -103,6 +45,7 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.status, "needs_clarification")
         self.assertEqual(finalized.follow_up_question, "Which campus are you asking about?")
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertFalse(finalized.observability.retrieval_attempted)
 
     def test_finalize_no_answer_response_keeps_no_answer_semantics(self) -> None:
@@ -128,6 +71,7 @@ class SupervisorPolicyTest(unittest.TestCase):
         self.assertEqual(finalized.status, "no_answer")
         self.assertEqual(finalized.confidence, "low")
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertTrue(finalized.observability.retrieval_attempted)
         self.assertEqual(finalized.observability.semantic_outcome, "unsupported_by_evidence")
         self.assertEqual(finalized.observability.scope_class, "in_scope")
@@ -153,6 +97,7 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         self.assertEqual(finalized.status, "no_answer")
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertEqual(finalized.observability.semantic_outcome, "restricted_access_denied")
         self.assertEqual(finalized.observability.scope_class, "in_scope")
 
@@ -179,95 +124,10 @@ class SupervisorPolicyTest(unittest.TestCase):
 
         self.assertEqual(finalized.status, "no_answer")
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertEqual(finalized.observability.semantic_outcome, "freshness_fail_close")
         self.assertTrue(finalized.observability.fail_closed)
         self.assertEqual(finalized.observability.scope_class, "in_scope")
-
-    def test_finalize_out_of_scope_routing_projects_terminal_no_answer(self) -> None:
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="MIT的校长是谁",
-                    requested_capability="knowledge",
-                )
-            ),
-            _terminal_decision(
-                capability="knowledge",
-                task_kind="knowledge_lookup",
-                suggested_next_action="out_of_scope",
-                status="no_answer",
-                answer_text="Go terminal envelope: out of scope.",
-                semantic_outcome="out_of_scope",
-                policy_reason="product_scope_boundary",
-            ),
-        )
-
-        self.assertEqual(finalized.status, "no_answer")
-        self.assertEqual(finalized.confidence, "low")
-        self.assertIsNotNone(finalized.observability)
-        self.assertEqual(finalized.observability.semantic_outcome, "out_of_scope")
-        self.assertEqual(finalized.observability.scope_class, "out_of_scope")
-        self.assertEqual(finalized.observability.policy_reason, "product_scope_boundary")
-
-    def test_finalize_out_of_scope_uses_navigation_specific_copy_when_temporarily_unsupported(
-        self,
-    ) -> None:
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="图书馆在哪里",
-                    requested_capability="place_lookup",
-                )
-            ),
-            _terminal_decision(
-                capability="place_lookup",
-                task_kind="place_lookup",
-                suggested_next_action="out_of_scope",
-                status="no_answer",
-                answer_text="当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
-                semantic_outcome="out_of_scope",
-                policy_reason="navigation_temporarily_unsupported",
-            ),
-        )
-
-        self.assertEqual(finalized.status, "no_answer")
-        self.assertEqual(
-            finalized.answer_text,
-            "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。",
-        )
-        self.assertEqual(
-            finalized.observability.policy_reason, "navigation_temporarily_unsupported"
-        )
-
-    def test_finalize_rejected_keeps_specific_policy_reason(self) -> None:
-        finalized = finalize_routing_decision(
-            SupervisorRequestContext.from_request(
-                SupervisorRequest(
-                    user_goal="帮我写一段话说服同学支持某个政治候选人",
-                    requested_capability="knowledge",
-                )
-            ),
-            _terminal_decision(
-                capability="knowledge",
-                task_kind="knowledge_lookup",
-                suggested_next_action="rejected",
-                status="rejected",
-                answer_text="这个请求不在当前可执行范围内。",
-                semantic_outcome="policy_refusal",
-                policy_reason="political_persuasion",
-                scope_class="in_scope",
-                risk_level="high",
-                error=ErrorInfo(
-                    code="request_rejected",
-                    message="request was rejected by supervisor policy",
-                ),
-            ),
-        )
-
-        self.assertEqual(finalized.status, "rejected")
-        self.assertIsNotNone(finalized.observability)
-        self.assertEqual(finalized.observability.semantic_outcome, "policy_refusal")
-        self.assertEqual(finalized.observability.policy_reason, "political_persuasion")
 
     def test_finalize_error_response_keeps_error_payload(self) -> None:
         response = SpecialistResponse(
@@ -295,6 +155,7 @@ class SupervisorPolicyTest(unittest.TestCase):
             ),
         )
         self.assertIsNotNone(finalized.observability)
+        assert finalized.observability is not None
         self.assertIsNone(finalized.observability.retrieval_attempted)
 
 

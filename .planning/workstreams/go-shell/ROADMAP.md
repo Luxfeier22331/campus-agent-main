@@ -9,7 +9,7 @@ updated: 2026-04-25
 
 ## Current Progress
 
-- `Phase 0-33` repo-local implementation 已完成。
+- `Phase 0-48` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -36,9 +36,9 @@ updated: 2026-04-25
   writer 清理；`campus_services` / `notice` 仍默认 gate closed。
 - `Phase 27` 已把 Go preplanned handoff 从 structured-only 扩展到 knowledge
   delegate path，Python bridge / `packages/supervisor-core` 主路径不再 fallback 构造
-  routing 或 specialist payload。
+  routing 或 specialist request payload。
 - `Phase 28-30` 已把 non-delegate terminal envelope、structured tool policy
-  summary 与 bridge v3 nested runtime decision envelope 收口到 Go
+  summary 与 current nested runtime decision envelope 收口到 Go
   `supervisor-api`，Python bridge 对缺失 Go-owned handoff / terminal envelope 的请求
   fail-closed。
 - `Phase 31` 已为 opened `campus_services` / `notice` structured capability 增加
@@ -47,6 +47,18 @@ updated: 2026-04-25
 - `Phase 32-33` 已把 selected target / tool、terminal outcome 与 fail-close reason
   纳入 metrics / OTel / execution audit 的低基数 runtime decision summary，并补齐
   docs 与 guardrails。
+- `Phase 34-38` 已将 bridge 升级为 v4 full `SpecialistRequest` handoff，删除 Python
+  framing helper、Python bridge runtime audit emission 与 production supervisor terminal
+  prompt stack，并让 lifecycle SSE structured direct path 与 docs / guardrails 完成收口。
+- `Phase 39-45` 已让 Go non-stream / lifecycle SSE answer path 直接执行
+  non-delegate terminal envelope，Python bridge hardcut 为 delegate-only v4 handoff，
+  `packages/supervisor-core` public handler 只接受 Go preplanned `SpecialistRequest`；
+  production core 不再导入 `RoutingDecision`、`finalize_routing_decision` 或 runtime
+  audit sink。
+- `Phase 46-48` 已删除 Python worker stale audit seam、supervisor-core `audit.py`
+  与 legacy `routing.py`，intent eval 默认且唯一使用 Go `supervisor-api`
+  runtime-policy runner；guard 防止 `python-legacy` runner、`route_request()` 与
+  runtime audit helper 回流。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -374,7 +386,7 @@ supervisor semantic orchestration checkpoints 观测。
 - expose request-scoped cancel checks from Python bridge registry
 - check cancellation before / after supervisor handling in the bridge answer route
 - pass cancellation checker into default `packages/supervisor-core` orchestration
-- check cancellation around routing, prompt composition, specialist delegation and
+- check cancellation around routing, RAG prompt execution, specialist delegation and
   finalization
 - return typed `499 execution_cancelled` bridge terminal response without expanding
   `SupervisorStatus`
@@ -565,23 +577,23 @@ supervisor audit JSONL writer。
   for product serving still requires eval / regression evidence and product
   route admission; this phase only installs the runtime gate.
 
-## Phase 21: Bridge V3 Canonical Projection
+## Phase 21: Bridge Canonical Projection
 
 **Goal:** 建立 Go-owned canonical request projection，并让 Python bridge 只消费该 private
 envelope。
 
 **Scope:**
 
-- emit bridge v3 payload from Go `apps/supervisor-api`
+- emit canonical bridge payload from Go `apps/supervisor-api`
 - carry request id, trace, actor, context, user goal, effective capability, lane,
   scope/version and runtime decisions
-- hardcut Python parser to `supervisor_bridge_v3`
+- hardcut Python parser to the current private bridge envelope
 - keep Go runtime types out of `packages/contracts`
 
 **Exit Criteria:**
 
 - Go tests cover bridge payload projection
-- Python bridge tests cover v3 parsing and v2 rejection
+- Python bridge tests cover current-envelope parsing and legacy rejection
 
 **Closeout Note:**
 
@@ -617,8 +629,8 @@ envelope。
 **Scope:**
 
 - build structured handoff payloads in Go `internal/structuredplanning`
-- pass target, allowed tools, specialist payload and planning outcome through bridge
-  v3 `runtime_decisions.handoff`
+- pass target, allowed tools, specialist request and planning outcome through
+  `runtime_decisions.handoff`
 - make Python routing consume the Go handoff
 
 **Exit Criteria:**
@@ -746,7 +758,7 @@ envelope。
 
 **Scope:**
 
-- publish tool policy through bridge v3 runtime decisions
+- publish tool policy through bridge runtime decisions
 - remove Python target -> allowed-tools matrix
 - keep Python validation limited to payload kind vs Go-provided allowed tools
 - add guard test against target-tool matrix reintroduction
@@ -761,23 +773,24 @@ envelope。
 - Repo-local implementation is complete. Python can reject malformed handoff but does
   not decide which tool a target may use.
 
-## Phase 30: Bridge V3 Runtime Decision Envelope
+## Phase 30: Runtime Decision Envelope
 
-**Goal:** 将 bridge runtime decisions 收口为 nested v3 envelope，删除 flat planner fields。
+**Goal:** 将 bridge runtime decisions 收口为 nested private envelope，删除 flat planner
+fields。
 
 **Scope:**
 
 - use `routing_frame`, `terminal_envelope`, `handoff`, `tool_policy` and
   `runtime_decision_summary`
-- reject pre-v3 bridge markers
+- reject legacy bridge markers
 - reject flat planner-field bridge shapes
-- update Go and Python tests to v3-only expectations
+- update Go and Python tests to current-envelope-only expectations
 
 **Exit Criteria:**
 
-- Go bridge projection tests assert nested v3 shape
+- Go bridge projection tests assert nested current envelope shape
 - Python bridge tests reject v2 and missing terminal / handoff fields
-- guard scan blocks active pre-v3 parser truth
+- guard scan blocks active legacy parser truth
 
 **Closeout Note:**
 
@@ -838,16 +851,334 @@ envelope。
 
 - update supervisor-api, supervisor-core-worker, supervisor-core and architecture docs
 - update workstream README / STATE / ROADMAP
-- scan for pre-v3 bridge and flat planner-field references
+- scan for legacy bridge and flat planner-field references
 - keep guard tests for Python planner, parser and tool-policy drift
 
 **Exit Criteria:**
 
 - focused Go and Python verification passes
 - docs lint and `git diff --check` pass
-- active docs no longer describe pre-v3 or flat planner-field shapes as current truth
+- active docs no longer describe legacy bridge or flat planner-field shapes as current truth
 
 **Closeout Note:**
 
 - Repo-local implementation is complete when the verification section in `STATE.md`
   records the fresh closeout commands for Phase 28-33.
+
+## Phase 34: Bridge V4 Specialist Request Handoff
+
+**Goal:** 让 Go handoff 直接投影完整 `SpecialistRequest`，删除 Python bridge 对
+specialist request 的二次组装。
+
+**Scope:**
+
+- emit `supervisor_bridge_v4`
+- replace handoff payload fragment with
+  `runtime_decisions.handoff.specialist_request`
+- pass trace, actor, context, payload and allowed tools through the Go-owned envelope
+- hardcut Python parser to v4-only
+
+**Exit Criteria:**
+
+- Go tests cover full `SpecialistRequest` projection
+- Python bridge tests reject older bridge versions and missing
+  `handoff.specialist_request`
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. The private bridge remains outside
+  `packages/contracts`.
+
+## Phase 35: Python Bridge Audit Emission Removal
+
+**Goal:** 确保 Python bridge 不再发布 execution runtime audit truth。
+
+**Scope:**
+
+- remove bridge answer-path calls to supervisor audit builders
+- keep package-level semantic audit projection available for tests / downstream
+  semantic uses
+- preserve Go execution audit writer / readiness / metrics as runtime truth
+
+**Exit Criteria:**
+
+- Python bridge tests prove answer / error paths do not call audit builders
+- guard test blocks bridge API from importing runtime audit builders
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Python bridge runtime audit emission is
+  removed.
+
+## Phase 36: Stream Direct Structured Runtime
+
+**Goal:** opened structured capability 的 lifecycle SSE 路径也能直接由 Go deterministic
+runtime 完成。
+
+**Scope:**
+
+- route `/api/v1/answer/stream` opened structured handoff to Go direct runtime before
+  Python bridge
+- emit queued / running / completed or failed SSE lifecycle events
+- keep closed structured runtime fail-closed semantics unchanged
+
+**Exit Criteria:**
+
+- Go HTTP tests prove opened structured stream path completes without Python bridge
+- direct stream failures return terminal SSE failure events
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Streaming still emits lifecycle events, not
+  token deltas.
+
+## Phase 37: Supervisor Terminal Prompt Stack Removal
+
+**Goal:** 删除已被 Go terminal envelope 取代的 production supervisor terminal prompt stack。
+
+**Scope:**
+
+- remove supervisor prompt executor, prompt packets, prompt registry and markdown
+  templates from `packages/supervisor-core`
+- keep RAG prompt executor / packet / registry path intact
+- make prompt runtime admission require only the model used by the remaining
+  provider-backed RAG executor
+
+**Exit Criteria:**
+
+- Python tests prove RAG prompt stack still works
+- guard test proves deleted supervisor prompt stack files do not return
+- Go and Python readiness admit when the removed supervisor terminal model is absent
+
+**Closeout Note:**
+
+- Repo-local implementation is complete. Deterministic supervisor terminal wording is
+  Go direct terminal path truth.
+
+## Phase 38: Final Docs And Drift Guards
+
+**Goal:** 将 Phase 34-37 的实现口径落到 active docs，并补齐防回流测试。
+
+**Scope:**
+
+- update supervisor-api, supervisor-core-worker, supervisor-core and architecture docs
+- update this workstream README / ROADMAP / STATE
+- add / refresh guard tests for bridge v4, full `SpecialistRequest`, deleted framing,
+  deleted supervisor prompt stack and Python bridge audit removal
+
+**Exit Criteria:**
+
+- focused Go and Python verification passes
+- docs lint and `git diff --check` pass
+- active docs no longer describe removed Python responsibilities as current truth
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when the fresh Phase 34-38 verification is
+  recorded in `STATE.md`.
+
+## Phase 39: Go Direct Terminal Answer Path
+
+**Goal:** Non-delegate runtime decisions 不再进入 Python bridge。
+
+**Scope:**
+
+- carry Go terminal envelope on parsed answer execution requests
+- return non-stream terminal supervisor-style responses directly in Go
+- emit lifecycle SSE terminal completed events directly in Go
+
+**Exit Criteria:**
+
+- Go tests prove terminal answer and stream paths do not call Python bridge
+- terminal response includes request trace projection
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 40: Python Bridge Delegate-Only Contract
+
+**Goal:** Python private bridge 只接受 delegate handoff。
+
+**Scope:**
+
+- bridge parser returns `SupervisorRequest` plus `SpecialistRequest`
+- reject routing frames whose next action is not `delegate`
+- reject v4 requests missing `runtime_decisions.handoff.specialist_request`
+
+**Exit Criteria:**
+
+- Python bridge tests reject terminal frames
+- Python bridge tests parse Go full `SpecialistRequest` handoff
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 41: Supervisor Core Public API Slimming
+
+**Goal:** `packages/supervisor-core` production public API 不再暴露 runtime routing /
+audit sink knobs。
+
+**Scope:**
+
+- remove `preplanned_routing_decision` from `handle_request`
+- remove `audit_sink` from production handler path
+- remove runtime `audit_sink` surface while preserving Go-owned execution audit truth
+
+**Exit Criteria:**
+
+- guard tests prove public API has no runtime routing or audit sink surface
+- focused supervisor tests use `preplanned_specialist_request`
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 42: Production Core Routing Dependency Removal
+
+**Goal:** Production core 不再依赖 `RoutingDecision`。
+
+**Scope:**
+
+- remove `RoutingDecision` imports from `agent.py`, `policy.py`, and package exports
+- remove `finalize_routing_decision`
+- remove production `RoutingDecision` dependencies while leaving legacy helper cleanup to
+  follow-up closeout
+
+**Exit Criteria:**
+
+- guard tests prove production agent and public exports do not reference
+  `RoutingDecision`
+- policy tests cover only specialist finalization for production path
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 43: Terminal Semantics Test Rehome
+
+**Goal:** Terminal semantics 归 Go runtime tests 覆盖，Python core tests 不再模拟 terminal
+envelope consumption。
+
+**Scope:**
+
+- move terminal direct assertions into Go HTTP tests
+- update bridge parser tests to terminal-frame rejection
+- update Python core tests to delegate-only handoff behavior
+
+**Exit Criteria:**
+
+- Python supervisor tests no longer call `finalize_routing_decision`
+- Go HTTP tests cover terminal direct non-stream and stream paths
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 44: Docs And Boundary State Refresh
+
+**Goal:** Active docs 反映 Go terminal direct 与 Python delegate-only 边界。
+
+**Scope:**
+
+- update supervisor-api, supervisor-core-worker, supervisor-core README files
+- update current architecture and execution / prompt architecture docs
+- update workstream README / ROADMAP / STATE
+
+**Exit Criteria:**
+
+- docs no longer describe Python bridge/core as terminal envelope consumer
+- docs lint passes
+
+**Closeout Note:**
+
+- Repo-local implementation is complete.
+
+## Phase 45: Verification And Drift Guard Closeout
+
+**Goal:** 防止 Python runtime routing / terminal handling 回流。
+
+**Scope:**
+
+- refresh guard tests for production core public API
+- run focused Python and Go checks
+- run drift scan for forbidden production symbols
+
+**Exit Criteria:**
+
+- `pnpm go:check` passes
+- focused Python unittest and ruff checks pass
+- docs lint and diff check pass
+- drift scan only reports allowed legacy helpers / guard-test strings
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 46: Remove Python Audit Helper Remainder
+
+**Goal:** 删除 Python worker stale audit seam 与 supervisor-core direct `audit.py` helper。
+
+**Scope:**
+
+- delete worker-side stale audit helper
+- delete supervisor-core direct audit projection helper
+- keep execution audit ownership in Go `apps/supervisor-api`
+- refresh supervisor-core docs and guard tests
+
+**Exit Criteria:**
+
+- guard tests prove Python runtime audit helpers do not exist
+- Python bridge API no longer imports or emits runtime audit records
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 47: Intent Eval Go Runner Hardcut
+
+**Goal:** Intent eval 不再通过 Python legacy routing helper 评估 runtime policy。
+
+**Scope:**
+
+- remove `python-legacy` runner choice
+- remove direct `campus_supervisor_core.routing` import from intent eval runner
+- use Go `supervisor-api` runtime-policy runner as the only supported runner
+- keep report aggregation logic in Python eval package
+
+**Exit Criteria:**
+
+- intent eval runner tests execute through Go runner
+- guard tests reject `python-legacy`, `route_request()` and `evaluate_intent_case`
+  reintroduction
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 48: Delete Legacy Routing Helper And Drift Guards
+
+**Goal:** 删除 legacy `packages/supervisor-core/routing.py`，防止 deterministic runtime
+planner 回流到 Python core。
+
+**Scope:**
+
+- delete `packages/supervisor-core/src/campus_supervisor_core/routing.py`
+- delete legacy Python routing tests
+- update supervisor-core README and workstream state
+- run focused Go / Python checks and active drift scan
+
+**Exit Criteria:**
+
+- guard tests prove `routing.py` does not exist
+- focused intent, supervisor, Go, ruff, docs and diff checks pass
+- active drift scan only reports intentionally allowed guard / closure-record strings
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.

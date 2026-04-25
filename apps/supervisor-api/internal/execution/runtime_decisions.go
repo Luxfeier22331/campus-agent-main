@@ -7,15 +7,22 @@ import (
 
 func runtimeDecisions(
 	effectiveCapability string,
+	capabilitySource string,
 	lane string,
 	userGoal string,
+	conversationID string,
+	requestID string,
+	safetyIdentifier string,
+	traceID string,
+	actor actorContext,
 	hasRequestedScope bool,
 	requestedScope knowledgeScope,
 	versionQuery versionQuery,
 	context contextProjection,
-) (map[string]any, RuntimeDecisionSummary, *RuntimeHandoff) {
+) (map[string]any, RuntimeDecisionSummary, *RuntimeHandoff, map[string]any) {
 	policyDecision := runtimepolicy.Evaluate(runtimepolicy.Request{
 		EffectiveCapability: effectiveCapability,
+		CapabilitySource:    capabilitySource,
 		UserGoal:            userGoal,
 		HasRequestedScope:   hasRequestedScope,
 		RequestedScope: runtimepolicy.Scope{
@@ -80,16 +87,23 @@ func runtimeDecisions(
 			"planning_outcome": "preplanned",
 			"target":           handoff.Target,
 			"allowed_tools":    handoff.AllowedTools,
-			"specialist_payload": map[string]any{
-				"kind":    handoff.PayloadKind,
-				"payload": handoff.Payload,
-			},
+			"specialist_request": specialistRequestProjection(
+				handoff,
+				userGoal,
+				conversationID,
+				requestID,
+				safetyIdentifier,
+				traceID,
+				actor,
+				context,
+			),
 		}
 		decisions["runtime_decision_summary"] = summary.Map()
-		return decisions, summary, runtimeHandoff
+		return decisions, summary, runtimeHandoff, nil
 	}
+	var terminal map[string]any
 	if policyDecision.RoutingFrame.SuggestedNextAction != "delegate" {
-		terminal := terminalEnvelope(policyDecision.RoutingFrame)
+		terminal = terminalEnvelope(policyDecision.RoutingFrame)
 		if terminal != nil {
 			summary.TerminalOutcome, _ = terminal["status"].(string)
 			summary.FailCloseReason = failCloseReason(policyDecision.RoutingFrame)
@@ -97,7 +111,40 @@ func runtimeDecisions(
 		}
 	}
 	decisions["runtime_decision_summary"] = summary.Map()
-	return decisions, summary, nil
+	return decisions, summary, nil, terminal
+}
+
+func specialistRequestProjection(
+	handoff *structuredplanning.Handoff,
+	userGoal string,
+	conversationID string,
+	requestID string,
+	safetyIdentifier string,
+	traceID string,
+	actor actorContext,
+	context contextProjection,
+) map[string]any {
+	var safetyValue any
+	if safetyIdentifier != "" {
+		safetyValue = safetyIdentifier
+	}
+	return map[string]any{
+		"target":            handoff.Target,
+		"user_goal":         userGoal,
+		"conversation_id":   conversationID,
+		"request_id":        requestID,
+		"safety_identifier": safetyValue,
+		"trace": map[string]any{
+			"trace_id": traceID,
+		},
+		"actor":   actor.toMap(),
+		"context": context.toMap(),
+		"payload": map[string]any{
+			"kind":    handoff.PayloadKind,
+			"payload": handoff.Payload,
+		},
+		"allowed_tools": handoff.AllowedTools,
+	}
 }
 
 func terminalEnvelope(frame runtimepolicy.RoutingFrame) map[string]any {

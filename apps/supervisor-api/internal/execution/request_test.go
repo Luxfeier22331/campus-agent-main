@@ -387,7 +387,7 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 	}
 }
 
-func TestParseAnswerRequestProjectsBridgeV3RuntimeDecisionsForTransportSchedule(t *testing.T) {
+func TestParseAnswerRequestProjectsBridgeV4SpecialistRequestForTransportSchedule(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -407,8 +407,8 @@ func TestParseAnswerRequestProjectsBridgeV3RuntimeDecisionsForTransportSchedule(
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["bridge_version"] != "supervisor_bridge_v3" {
-		t.Fatalf("bridge_version = %v, want supervisor_bridge_v3", payload["bridge_version"])
+	if payload["bridge_version"] != "supervisor_bridge_v4" {
+		t.Fatalf("bridge_version = %v, want supervisor_bridge_v4", payload["bridge_version"])
 	}
 	if payload["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
@@ -435,23 +435,33 @@ func TestParseAnswerRequestProjectsBridgeV3RuntimeDecisionsForTransportSchedule(
 	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
 		t.Fatalf("handoff.allowed_tools = %#v, want transport_schedule_lookup", handoff["allowed_tools"])
 	}
-	specialistPayload := expectExecutionRecord(t, handoff["specialist_payload"], "handoff.specialist_payload")
-	if specialistPayload["kind"] != "transport_schedule_lookup" {
-		t.Fatalf("specialist_payload.kind = %v, want transport_schedule_lookup", specialistPayload["kind"])
+	legacyHandoffPayloadKey := "specialist" + "_" + "payload"
+	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
+		t.Fatalf("handoff must not expose legacy payload fragment: %#v", handoff)
 	}
-	specialistPayloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "specialist_payload.payload")
-	if specialistPayloadRecord["intent"] != "first_departure" {
-		t.Fatalf("specialist_payload.payload.intent = %v, want first_departure", specialistPayloadRecord["intent"])
+	specialistRequest := expectExecutionRecord(t, handoff["specialist_request"], "handoff.specialist_request")
+	if specialistRequest["target"] != "campus-services-agent" {
+		t.Fatalf("specialist_request.target = %v, want campus-services-agent", specialistRequest["target"])
 	}
-	payloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "handoff.specialist_payload.payload")
-	if payloadRecord["intent"] != "first_departure" {
-		t.Fatalf("intent = %v, want first_departure", payloadRecord["intent"])
+	if specialistRequest["request_id"] != "req-transport-preplan" {
+		t.Fatalf("specialist_request.request_id = %v, want req-transport-preplan", specialistRequest["request_id"])
 	}
-	routeSelector := expectExecutionRecord(t, payloadRecord["route_selector"], "route_selector")
+	payloadRecord := expectExecutionRecord(t, specialistRequest["payload"], "handoff.specialist_request.payload")
+	if payloadRecord["kind"] != "transport_schedule_lookup" {
+		t.Fatalf("specialist_request.payload.kind = %v, want transport_schedule_lookup", payloadRecord["kind"])
+	}
+	payloadBody := expectExecutionRecord(t, payloadRecord["payload"], "handoff.specialist_request.payload.payload")
+	if _, ok := payloadRecord["intent"]; ok {
+		t.Fatalf("legacy payload intent should not be present at payload wrapper level: %#v", payloadRecord)
+	}
+	if payloadBody["intent"] != "first_departure" {
+		t.Fatalf("intent = %v, want first_departure", payloadBody["intent"])
+	}
+	routeSelector := expectExecutionRecord(t, payloadBody["route_selector"], "route_selector")
 	if routeSelector["destination_campus"] != "fengtai" {
 		t.Fatalf("destination_campus = %v, want fengtai", routeSelector["destination_campus"])
 	}
-	serviceTimeQuery := expectExecutionRecord(t, payloadRecord["service_time_query"], "service_time_query")
+	serviceTimeQuery := expectExecutionRecord(t, payloadBody["service_time_query"], "service_time_query")
 	if serviceTimeQuery["date_mode"] != "tomorrow" || serviceTimeQuery["daypart"] != "morning" {
 		t.Fatalf("service_time_query = %#v, want tomorrow morning", serviceTimeQuery)
 	}
@@ -498,16 +508,24 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	if !ok || len(allowedTools) != 0 {
 		t.Fatalf("handoff.allowed_tools = %#v, want empty array", handoff["allowed_tools"])
 	}
-	specialistPayload := expectExecutionRecord(t, handoff["specialist_payload"], "handoff.specialist_payload")
-	if specialistPayload["kind"] != "rag_request" {
-		t.Fatalf("specialist_payload.kind = %v, want rag_request", specialistPayload["kind"])
+	legacyHandoffPayloadKey := "specialist" + "_" + "payload"
+	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
+		t.Fatalf("handoff must not expose legacy payload fragment: %#v", handoff)
 	}
-	specialistPayloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "specialist_payload.payload")
-	scope := expectExecutionRecord(t, specialistPayloadRecord["scope"], "specialist_payload.payload.scope")
+	specialistRequest := expectExecutionRecord(t, handoff["specialist_request"], "handoff.specialist_request")
+	if specialistRequest["target"] != "rag-agent" {
+		t.Fatalf("specialist_request.target = %v, want rag-agent", specialistRequest["target"])
+	}
+	specialistPayload := expectExecutionRecord(t, specialistRequest["payload"], "specialist_request.payload")
+	if specialistPayload["kind"] != "rag_request" {
+		t.Fatalf("specialist_request.payload.kind = %v, want rag_request", specialistPayload["kind"])
+	}
+	specialistPayloadRecord := expectExecutionRecord(t, specialistPayload["payload"], "specialist_request.payload.payload")
+	scope := expectExecutionRecord(t, specialistPayloadRecord["scope"], "specialist_request.payload.payload.scope")
 	if scope["corpus"] != "regulations" || scope["collection"] != "student_rules" {
 		t.Fatalf("scope = %#v, want regulations/student_rules", scope)
 	}
-	versionQuery := expectExecutionRecord(t, specialistPayloadRecord["version_query"], "specialist_payload.payload.version_query")
+	versionQuery := expectExecutionRecord(t, specialistPayloadRecord["version_query"], "specialist_request.payload.payload.version_query")
 	if versionQuery["mode"] != "compare" ||
 		versionQuery["version_id"] != "v1:student-handbook" ||
 		versionQuery["compare_to_version_id"] != "v2:student-handbook" {

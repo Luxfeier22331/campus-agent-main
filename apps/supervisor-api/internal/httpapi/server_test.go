@@ -33,6 +33,12 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 	return httptest.NewRequestWithContext(context.Background(), method, target, body)
 }
 
+func delegateAnswerBody(requestID string) io.Reader {
+	return strings.NewReader(
+		`{"user_goal":"学生手册图书馆开放时间","request_id":"` + requestID + `","requested_scope":{"corpus":"regulations","collection":"student_rules"}}`,
+	)
+}
+
 func TestHealthzReturnsOk(t *testing.T) {
 	server := NewServer(config.Config{AppName: "campus-agent"}, nil)
 	response := httptest.NewRecorder()
@@ -196,6 +202,45 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 	}
 	if promptConfigGate["reason"] != "prompt_api_key_not_configured" {
 		t.Fatalf("prompt_config_gate.reason = %v", promptConfigGate["reason"])
+	}
+}
+
+func TestReadyzPromptConfigGateDoesNotRequireSupervisorTerminalModel(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:                       "campus-agent",
+		MaxConcurrentAnswers:          8,
+		PromptRuntimeProvider:         "openai-responses",
+		SupervisorPromptModel:         "",
+		SpecialistPromptModel:         "gpt-specialist",
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeTransport:        "responses",
+		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
+		PromptStrictStructuredOutputs: true,
+	}, &fakeBridge{
+		configured: true,
+		readyz: bridge.ReadyzResponse{
+			StatusCode: http.StatusOK,
+			Body: json.RawMessage(`{
+				"status":"ready",
+				"prompt_runtime":{"admitted":true},
+				"prompt_http_pool":{"healthy":true}
+			}`),
+		},
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
+	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
+		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	}
+	if promptConfigGate["supervisor_model"] != "" {
+		t.Fatalf("prompt_config_gate.supervisor_model = %v, want empty", promptConfigGate["supervisor_model"])
 	}
 }
 
@@ -472,7 +517,7 @@ func TestAnswerFailsClosedWhenBridgeIsMissing(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-missing"}`),
+		delegateAnswerBody("req-bridge-missing"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 
@@ -545,10 +590,9 @@ func TestAnswerRecordsRuntimePolicyDecisionMetricsBeforeBridge(t *testing.T) {
 		MaxConcurrentAnswers:  8,
 	}, &fakeBridge{
 		configured: true,
-		response: bridge.ExecuteResponse{
-			StatusCode: http.StatusOK,
-			Kind:       "supervisor_response",
-			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"out of scope"}`),
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			t.Fatal("terminal runtime policy response must not call Python bridge")
+			return bridge.ExecuteResponse{}, nil
 		},
 	})
 	response := httptest.NewRecorder()
@@ -564,12 +608,63 @@ func TestAnswerRecordsRuntimePolicyDecisionMetricsBeforeBridge(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
+	body := decodeBody(t, response)
+	if body["status"] != "no_answer" {
+		t.Fatalf("status body = %v, want no_answer", body["status"])
+	}
+	if body["trace_id"] == "" {
+		t.Fatalf("trace_id must be injected into terminal response: %#v", body)
+	}
 
 	metricsResponse := httptest.NewRecorder()
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	expectedMetric := `campus_supervisor_api_runtime_policy_decisions_total{capability="knowledge",lane="rag",scope_gate="out_of_scope",policy_gate="out_of_scope",context_preflight="not_follow_up",routing_next_action="out_of_scope",planning_outcome="not_preplanned",selected_target="none",selected_tool="none",terminal_outcome="no_answer",fail_close_reason="product_scope_boundary"} 1`
 	if !strings.Contains(metricsResponse.Body.String(), expectedMetric) {
 		t.Fatalf("metrics missing runtime policy decision:\n%s", metricsResponse.Body.String())
+	}
+}
+
+func TestAnswerStreamExecutesTerminalEnvelopeDirectlyInGo(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			t.Fatal("terminal runtime policy stream response must not call Python bridge")
+			return bridge.ExecuteResponse{}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"MIT的校长是谁","request_id":"req-terminal-stream-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-terminal-stream-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, snippet := range []string{
+		"event: execution.started",
+		"event: execution.completed",
+		`"request_id":"req-terminal-stream-direct"`,
+		`"trace_id":"trace-terminal-stream-direct"`,
+		`"status":"completed"`,
+		`"outcome":"supervisor_response"`,
+		`"status":"no_answer"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("stream body missing %q:\n%s", snippet, body)
+		}
 	}
 }
 
@@ -714,6 +809,98 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	}
 }
 
+func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
+	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"notice:bus-schedule-2026-04-20",
+				"is_current":true
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:haidian-to-fengtai",
+				"service_dates":["2026-04-25"],
+				"departure_time":"06:50",
+				"arrival_time":"08:05",
+				"origin_stop_id":"stop:haidian-east-gate",
+				"destination_stop_id":"stop:fengtai-main-gate"
+			}
+		]
+	}`)
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:                          "bearer",
+		BearerToken:                       "secret-token",
+		DefaultActorID:                    "runtime-bearer-user",
+		RequestBodyLimitBytes:             1_048_576,
+		MaxConcurrentAnswers:              8,
+		OpenCapabilities:                  []string{"campus_services"},
+		StructuredQueryProjectionPath:     projectionPath,
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer/stream",
+		strings.NewReader(`{"user_goal":"我明天早上要去丰台上课，最早的班车是几点","request_id":"req-structured-stream-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-structured-stream-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := response.Body.String()
+	for _, snippet := range []string{
+		"event: execution.started",
+		"event: execution.running",
+		"event: execution.completed",
+		`"request_id":"req-structured-stream-direct"`,
+		`"trace_id":"trace-structured-stream-direct"`,
+		`"selected_target":"campus-services-agent"`,
+		`"status":"completed"`,
+		`"outcome":"supervisor_response"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("stream body missing %q:\n%s", snippet, body)
+		}
+	}
+}
+
 func TestAnswerReturnsQueueFullWhenAdmissionQueueIsFull(t *testing.T) {
 	controller := admission.NewController(admission.Config{
 		MaxConcurrent: 1,
@@ -743,7 +930,7 @@ func TestAnswerReturnsQueueFullWhenAdmissionQueueIsFull(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-queue-full"}`),
+		delegateAnswerBody("req-queue-full"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 
@@ -810,7 +997,7 @@ func TestAnswerQueueFullEmitsExecutionAuditEvent(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-audit-queue-full"}`),
+		delegateAnswerBody("req-audit-queue-full"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 
@@ -870,7 +1057,7 @@ func TestAnswerReturnsQueueTimeoutWhenAdmissionWaitExpires(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-queue-timeout"}`),
+		delegateAnswerBody("req-queue-timeout"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 
@@ -960,7 +1147,7 @@ func TestAnswerPassesSupervisorErrorsThrough(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-supervisor-error"}`),
+		delegateAnswerBody("req-supervisor-error"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -988,7 +1175,7 @@ func TestAnswerRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-response-status-mismatch"}`),
+		delegateAnswerBody("req-response-status-mismatch"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1016,7 +1203,7 @@ func TestAnswerRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-error-status-mismatch"}`),
+		delegateAnswerBody("req-error-status-mismatch"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1046,7 +1233,7 @@ func TestAnswerMapsSupervisorBridgeCancellationToCanceledLifecycle(t *testing.T)
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-cancelled"}`),
+		delegateAnswerBody("req-bridge-cancelled"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1082,7 +1269,7 @@ func TestAnswerMapsBridgeInvalidRequestToBadGateway(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-invalid-request"}`),
+		delegateAnswerBody("req-bridge-invalid-request"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1113,7 +1300,7 @@ func TestAnswerRejectsMissingBridgeEnvelope(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-missing-bridge-envelope"}`),
+		delegateAnswerBody("req-missing-bridge-envelope"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1153,7 +1340,7 @@ func TestAnswerShortCircuitsWhenBridgeCircuitIsOpen(t *testing.T) {
 	firstRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-breaker-first"}`),
+		delegateAnswerBody("req-breaker-first"),
 	)
 	firstRequest.Header.Set("authorization", "Bearer secret-token")
 	firstResponse := httptest.NewRecorder()
@@ -1163,7 +1350,7 @@ func TestAnswerShortCircuitsWhenBridgeCircuitIsOpen(t *testing.T) {
 	secondRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-breaker-open"}`),
+		delegateAnswerBody("req-breaker-open"),
 	)
 	secondRequest.Header.Set("authorization", "Bearer secret-token")
 	secondResponse := httptest.NewRecorder()
@@ -1226,7 +1413,7 @@ func TestAnswerBridgeProtocolFailureAuditIncludesBridgeDuration(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-audit-bridge-protocol"}`),
+		delegateAnswerBody("req-audit-bridge-protocol"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1267,7 +1454,7 @@ func TestAnswerMapsBridgeTimeout(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-timeout"}`),
+		delegateAnswerBody("req-bridge-timeout"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1291,7 +1478,7 @@ func TestAnswerRedactsBridgeTransportError(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-bridge-redaction"}`),
+		delegateAnswerBody("req-bridge-redaction"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -1327,7 +1514,7 @@ func TestAnswerReturnsWithoutWritingWhenClientContextIsCanceled(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-client-cancelled"}`),
+		delegateAnswerBody("req-client-cancelled"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	canceledContext, cancel := context.WithCancel(request.Context())
@@ -1373,7 +1560,7 @@ func TestAnswerRejectsDuplicateInFlightRequestID(t *testing.T) {
 	firstRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-duplicate"}`),
+		delegateAnswerBody("req-duplicate"),
 	)
 	firstRequest.Header.Set("authorization", "Bearer secret-token")
 	firstResponse := httptest.NewRecorder()
@@ -1392,7 +1579,7 @@ func TestAnswerRejectsDuplicateInFlightRequestID(t *testing.T) {
 	secondRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello again","request_id":"req-duplicate"}`),
+		delegateAnswerBody("req-duplicate"),
 	)
 	secondRequest.Header.Set("authorization", "Bearer secret-token")
 	secondResponse := httptest.NewRecorder()
@@ -1432,7 +1619,7 @@ func TestCancelEndpointCancelsActiveExecution(t *testing.T) {
 	answerRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-cancel-active"}`),
+		delegateAnswerBody("req-cancel-active"),
 	)
 	answerRequest.Header.Set("authorization", "Bearer secret-token")
 	answerResponse := httptest.NewRecorder()
@@ -1512,7 +1699,7 @@ func TestCancelEndpointPropagatesCooperativeCancelToPythonBridge(t *testing.T) {
 	answerRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-cooperative-cancel"}`),
+		delegateAnswerBody("req-cooperative-cancel"),
 	)
 	answerRequest.Header.Set("authorization", "Bearer secret-token")
 	answerResponse := httptest.NewRecorder()
@@ -1877,7 +2064,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	successRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-metrics-success"}`),
+		delegateAnswerBody("req-metrics-success"),
 	)
 	successRequest.Header.Set("authorization", "Bearer secret-token")
 	successResponse := httptest.NewRecorder()
@@ -1893,7 +2080,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	saturatedRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-metrics-saturated"}`),
+		delegateAnswerBody("req-metrics-saturated"),
 	)
 	saturatedRequest.Header.Set("authorization", "Bearer secret-token")
 	saturatedResponse := httptest.NewRecorder()
@@ -1904,7 +2091,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 	timeoutRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-metrics-timeout"}`),
+		delegateAnswerBody("req-metrics-timeout"),
 	)
 	timeoutRequest.Header.Set("authorization", "Bearer secret-token")
 	timeoutResponse := httptest.NewRecorder()
@@ -2057,7 +2244,7 @@ func TestAnswerRejectsWhileAdmissionIsDraining(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-draining"}`),
+		delegateAnswerBody("req-draining"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 
@@ -2157,7 +2344,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	timeoutRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-readyz-timeout"}`),
+		delegateAnswerBody("req-readyz-timeout"),
 	)
 	timeoutRequest.Header.Set("authorization", "Bearer secret-token")
 	timeoutResponse := httptest.NewRecorder()
@@ -2167,7 +2354,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 	successRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-readyz-success"}`),
+		delegateAnswerBody("req-readyz-success"),
 	)
 	successRequest.Header.Set("authorization", "Bearer secret-token")
 	successResponse := httptest.NewRecorder()
@@ -2264,7 +2451,7 @@ func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer/stream",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-success"}`),
+		delegateAnswerBody("req-stream-success"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	request.Header.Set("x-trace-id", "trace-stream-1")
@@ -2311,7 +2498,7 @@ func TestAnswerStreamRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer/stream",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-response-status-mismatch"}`),
+		delegateAnswerBody("req-stream-response-status-mismatch"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -2347,7 +2534,7 @@ func TestAnswerStreamRejectsSupervisorErrorWith2xxStatus(t *testing.T) {
 	request := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer/stream",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-error-status-mismatch"}`),
+		delegateAnswerBody("req-stream-error-status-mismatch"),
 	)
 	request.Header.Set("authorization", "Bearer secret-token")
 	response := httptest.NewRecorder()
@@ -2461,7 +2648,7 @@ func TestAnswerStreamEmitsFailureWhenBridgeCircuitIsOpen(t *testing.T) {
 	firstRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-breaker-first"}`),
+		delegateAnswerBody("req-stream-breaker-first"),
 	)
 	firstRequest.Header.Set("authorization", "Bearer secret-token")
 	firstResponse := httptest.NewRecorder()
@@ -2471,7 +2658,7 @@ func TestAnswerStreamEmitsFailureWhenBridgeCircuitIsOpen(t *testing.T) {
 	streamRequest := newTestRequest(
 		http.MethodPost,
 		"/api/v1/answer/stream",
-		strings.NewReader(`{"user_goal":"hello","request_id":"req-stream-breaker-open"}`),
+		delegateAnswerBody("req-stream-breaker-open"),
 	)
 	streamRequest.Header.Set("authorization", "Bearer secret-token")
 	streamResponse := httptest.NewRecorder()
