@@ -262,6 +262,42 @@ class DoctorEnvTest(unittest.TestCase):
                 ]
             )
 
+    def test_collect_env_doctor_status_reports_internal_notice_consumption_runtime(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4-mini",
+                        "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL=postgresql://projection/postgres",
+                        "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=postgresql://read-model/postgres",
+                        "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL=postgresql://admission/postgres",
+                        "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL=postgresql://attempt/postgres",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="internal-notice-consumption",
+                )
+
+            self.assertTrue(status["overall_ready"])
+            self.assertEqual(
+                status["settings"]["required"]["multimodal_api_key"]["resolved_key"],
+                "LLM_API_KEY",
+            )
+            self.assertEqual(
+                status["settings"]["required"]["multimodal_model"]["resolved_key"],
+                "PROMPT_RUNTIME_MODEL",
+            )
+            self.assertTrue(status["settings"]["required"]["admission_database_url"]["present"])
+            self.assertTrue(status["settings"]["required"]["attempt_database_url"]["present"])
+
     def test_collect_env_doctor_status_reports_ingestion_surface_missing_legacy_office_service_contract(
         self,
     ) -> None:

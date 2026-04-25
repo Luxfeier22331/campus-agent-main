@@ -80,6 +80,71 @@ _SURFACE_SPECS = {
         },
         "files": {},
     },
+    "internal-notice-consumption": {
+        "providers": {},
+        "required_settings": {
+            "projection_database_url": (
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+                "DOCUMENT_REGISTRY_DATABASE_URL",
+            ),
+            "read_model_database_url": (
+                "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "admission_database_url": (
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "attempt_database_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_URL",
+            ),
+            "multimodal_api_key": (
+                "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
+                "PROMPT_RUNTIME_API_KEY",
+                "LLM_API_KEY",
+            ),
+            "multimodal_model": (
+                "INTERNAL_NOTICE_MULTIMODAL_MODEL",
+                "PROMPT_RUNTIME_MODEL",
+            ),
+        },
+        "optional_settings": {
+            "projection_operator_database_url": (
+                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
+            ),
+            "admission_operator_database_url": (
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
+                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
+            ),
+            "attempt_operator_database_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
+                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
+            ),
+            "multimodal_base_url": (
+                "INTERNAL_NOTICE_MULTIMODAL_BASE_URL",
+                "PROMPT_RUNTIME_BASE_URL",
+                "LLM_BASE_URL",
+            ),
+            "multimodal_max_output_tokens": (
+                "INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS",
+                "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
+            ),
+        },
+        "files": {},
+    },
     "query": {
         "providers": {
             "llm": {
