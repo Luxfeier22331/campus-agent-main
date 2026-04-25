@@ -80,7 +80,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         self.assertIn("apps/public-docs/README.md", relative_paths)
         self.assertNotIn("apps/public-docs/docs/index.md", relative_paths)
         self.assertNotIn(
-            "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx",
+            "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
             relative_paths,
         )
         self.assertIn("packages/rag-agent/AGENTS.md", relative_paths)

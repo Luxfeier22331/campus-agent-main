@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-03-31
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 # Testing And Verification Lanes
 
@@ -78,6 +78,7 @@ uv run --all-packages ruff format . --check
   YAML files，默认排除 `.planning/`
 - TOML 侧使用 repo-owned Python checker，对当前 worktree `*.toml` 做 `tomllib` 结构校验
 - shell 侧使用 repo-owned Python checker，对当前 worktree `*.sh` 做 `bash -n` 语法校验
+- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm lint`
 - XML 侧使用 repo-owned Python checker，对当前 worktree `*.xml` 做 well-formedness 结构校验
 - JSONL 侧使用 repo-owned Python checker，对当前 worktree `*.jsonl` 做逐行 JSON object
   校验，并对 repo 当前已承诺的 sample 形状做最小 schema

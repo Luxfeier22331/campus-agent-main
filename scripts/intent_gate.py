@@ -9,7 +9,7 @@ from campus_evals.intent_policy_artifact import intent_policy_gate_metadata
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
 from campus_evals.intent_scenarios import intent_release_gate_cases, intent_suite_cases
 
-DEFAULT_OUTPUT = Path(".tmp/evals/intent-gate.json")
+DEFAULT_OUTPUT = Path(".tmp/evals/intent-release-gate.json")
 DEFAULT_SUITES = (
     "release_gate",
     "context_follow_up",

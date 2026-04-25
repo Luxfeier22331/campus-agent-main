@@ -20,10 +20,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
         self.assertIn("package.json", candidates)
         self.assertIn("apps/public-chat-web/index.html", candidates)
-        self.assertIn(
-            "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx",
-            candidates,
-        )
+        self.assertIn("apps/public-docs/docs/index.md", candidates)
         self.assertIn(
             "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
             candidates,
@@ -42,9 +39,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("html:lint",),
         )
         self.assertEqual(
-            lint_families_for_path(
-                "apps/public-docs/docs/curriculum-plan/computer-science-ethnic-experimental-program.mdx"
-            ),
+            lint_families_for_path("apps/public-docs/docs/index.md"),
             ("public-docs:lint",),
         )
         self.assertEqual(
