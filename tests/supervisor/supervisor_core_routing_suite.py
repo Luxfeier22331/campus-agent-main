@@ -691,6 +691,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     intent_next_action="approval_required",
                     intent_scope_class="in_scope",
                     intent_scope_reason="transaction_guardrail",
+                    intent_policy_reason="approval_required",
                     intent_classifier_version="go-runtime-policy-v1",
                     intent_schema_version="intent-schema-1.0.0",
                     intent_routing_confidence="high",
