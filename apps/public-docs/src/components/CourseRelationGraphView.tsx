@@ -9,9 +9,10 @@ import {
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
+	useReactFlow,
 } from "@xyflow/react";
 import dagre from "dagre";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import "@xyflow/react/dist/style.css";
 import {
 	buildNodeKey,
@@ -41,6 +42,13 @@ interface IndexedCourseMapNode {
 
 const NODE_WIDTH = 196;
 const NODE_HEIGHT = 84;
+const GRAPH_MIN_ZOOM = 0.08;
+const GRAPH_MAX_ZOOM = 1.4;
+const GRAPH_FIT_VIEW_OPTIONS = {
+	padding: 0.14,
+	minZoom: GRAPH_MIN_ZOOM,
+	maxZoom: GRAPH_MAX_ZOOM,
+};
 
 const ROUTE_GROUP_LABELS = {
 	foundation: "公共基础",
@@ -212,6 +220,10 @@ function buildRelationGraph({
 			sourcePosition: Position.Right,
 			targetPosition: Position.Left,
 			type: "courseMapNode",
+			style: {
+				height: NODE_HEIGHT,
+				width: NODE_WIDTH,
+			},
 			className:
 				nodeId === activeNodeKey
 					? "course-map-graph-node selected"
@@ -226,29 +238,83 @@ function buildRelationGraph({
 
 function GraphContent({ data, activeNodeKey, onSelectNode }: Props) {
 	const graph = useMemo(() => buildRelationGraph({ data, activeNodeKey }), [activeNodeKey, data]);
+	const canvasRef = useRef<HTMLDivElement>(null);
+	const reactFlow = useReactFlow<Node<GraphNodeData>, Edge>();
+
+	useEffect(() => {
+		if (graph.nodes.length === 0) {
+			return;
+		}
+
+		let animationFrame: number | undefined;
+		let delayedFit: number | undefined;
+		const fitView = () => {
+			void reactFlow.fitView(GRAPH_FIT_VIEW_OPTIONS);
+		};
+		const scheduleFitView = () => {
+			if (animationFrame !== undefined) {
+				window.cancelAnimationFrame(animationFrame);
+			}
+			if (delayedFit !== undefined) {
+				window.clearTimeout(delayedFit);
+			}
+			animationFrame = window.requestAnimationFrame(() => {
+				animationFrame = window.requestAnimationFrame(fitView);
+			});
+			delayedFit = window.setTimeout(fitView, 180);
+		};
+
+		scheduleFitView();
+		window.addEventListener("resize", scheduleFitView);
+		const canvas = canvasRef.current;
+		if (!canvas || typeof ResizeObserver === "undefined") {
+			return () => {
+				window.removeEventListener("resize", scheduleFitView);
+				if (animationFrame !== undefined) {
+					window.cancelAnimationFrame(animationFrame);
+				}
+				if (delayedFit !== undefined) {
+					window.clearTimeout(delayedFit);
+				}
+			};
+		}
+
+		const observer = new ResizeObserver(scheduleFitView);
+		observer.observe(canvas);
+		return () => {
+			window.removeEventListener("resize", scheduleFitView);
+			observer.disconnect();
+			if (animationFrame !== undefined) {
+				window.cancelAnimationFrame(animationFrame);
+			}
+			if (delayedFit !== undefined) {
+				window.clearTimeout(delayedFit);
+			}
+		};
+	}, [graph.nodes.length, reactFlow]);
 
 	return (
 		<div className="course-map-graph-surface">
 			<div className="course-map-graph-copy">
 				<h4>课程关系图</h4>
-				<p>这里用于查看依赖关系，不是默认阅读视图。点击节点可继续联动下方详情。</p>
+				<p>这里用于查看全局拓扑，不是默认阅读视图。点击节点会同步选中课程关系检查器。</p>
 			</div>
-			<div className="course-map-graph-canvas">
+			<div className="course-map-graph-canvas" ref={canvasRef}>
 				<ReactFlow
 					nodes={graph.nodes}
 					edges={graph.edges}
 					nodeTypes={nodeTypes}
 					fitView
-					fitViewOptions={{ padding: 0.16 }}
-					minZoom={0.45}
-					maxZoom={1.4}
+					fitViewOptions={GRAPH_FIT_VIEW_OPTIONS}
+					minZoom={GRAPH_MIN_ZOOM}
+					maxZoom={GRAPH_MAX_ZOOM}
 					onNodeClick={(_, node) => onSelectNode(node.id)}
 					nodesDraggable={false}
 					nodesConnectable={false}
 					elementsSelectable
 					proOptions={{ hideAttribution: true }}
 				>
-					<Controls showInteractive={false} />
+					<Controls fitViewOptions={GRAPH_FIT_VIEW_OPTIONS} showInteractive={false} />
 					<Background gap={18} size={1} color="#e2eee8" />
 				</ReactFlow>
 			</div>
