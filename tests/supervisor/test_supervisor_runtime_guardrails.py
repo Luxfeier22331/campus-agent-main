@@ -11,26 +11,6 @@ WORKER_CORE = Path("apps/supervisor-core-worker/src/campus_supervisor_core_worke
 
 
 class SupervisorRuntimeGuardrailTest(unittest.TestCase):
-    def test_python_validation_does_not_reintroduce_capability_inference(self) -> None:
-        validation_source = (SUPERVISOR_CORE / "validation.py").read_text(encoding="utf-8")
-
-        forbidden_fragments = (
-            "context.user_goal",
-            "request.user_goal",
-            "user_goal.casefold",
-            "校车",
-            "班车",
-            "通知",
-            "公告",
-            "哪里",
-            "在哪里",
-            "_infer",
-            "infer_",
-        )
-        for fragment in forbidden_fragments:
-            with self.subTest(fragment=fragment):
-                self.assertNotIn(fragment, validation_source)
-
     def test_python_routing_does_not_reintroduce_structured_payload_planner(self) -> None:
         routing_path = SUPERVISOR_CORE / "routing.py"
         self.assertFalse(routing_path.exists())
@@ -70,21 +50,6 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
 
     def test_supervisor_framing_helper_is_deleted_from_production_core(self) -> None:
         self.assertFalse((SUPERVISOR_CORE / "framing.py").exists())
-
-    def test_python_tool_policy_does_not_reintroduce_target_tool_matrix(self) -> None:
-        tool_policy_source = (SUPERVISOR_CORE / "tool_policy.py").read_text(encoding="utf-8")
-
-        forbidden_fragments = (
-            "_ALLOWED_TOOLS_BY_TARGET",
-            "allowed_tools_for_target",
-            "rag-agent",
-            "navigation-agent",
-            "campus-services-agent",
-            "notice-agent",
-        )
-        for fragment in forbidden_fragments:
-            with self.subTest(fragment=fragment):
-                self.assertNotIn(fragment, tool_policy_source)
 
     def test_bridge_parser_is_v4_only_and_requires_go_runtime_handoff(
         self,
@@ -137,3 +102,31 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         for path in forbidden_paths:
             with self.subTest(path=str(path)):
                 self.assertFalse(path.exists())
+
+    def test_supervisor_core_legacy_policy_helpers_are_deleted(self) -> None:
+        forbidden_paths = (
+            SUPERVISOR_CORE / "intent.py",
+            SUPERVISOR_CORE / "scope_policy.py",
+            SUPERVISOR_CORE / "query_policy.py",
+            SUPERVISOR_CORE / "validation.py",
+            SUPERVISOR_CORE / "context.py",
+            SUPERVISOR_CORE / "tool_policy.py",
+        )
+        for path in forbidden_paths:
+            with self.subTest(path=str(path)):
+                self.assertFalse(path.exists())
+
+    def test_supervisor_response_has_no_legacy_intent_observability_helper(self) -> None:
+        response_source = (SUPERVISOR_CORE / "response.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("attach_intent_observability", response_source)
+        self.assertNotIn("intent_frame", response_source)
+
+    def test_python_bridge_does_not_publish_cancel_runtime_counters(self) -> None:
+        api_source = Path(
+            "apps/supervisor-core-worker/src/campus_supervisor_core_worker/api.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("active_executions", api_source)
+        self.assertNotIn("cancel_requested_count", api_source)
+        self.assertNotIn("def status(", api_source)

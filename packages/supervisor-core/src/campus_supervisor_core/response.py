@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 from campus_contracts import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetResult,
@@ -36,41 +34,6 @@ def assemble_response(response: SupervisorResponse) -> SupervisorResponse:
         error=response.error,
         observability=response.observability,
     )
-
-
-def attach_intent_observability(
-    response: SupervisorResponse,
-    decision: object,
-) -> SupervisorResponse:
-    observability = response.observability or SupervisorObservability()
-    intent_frame = getattr(decision, "intent_frame", None)
-    if intent_frame is None:
-        return response
-    updated_observability = replace(
-        observability,
-        intent_capability=getattr(intent_frame, "capability", "") or "",
-        intent_task_kind=getattr(intent_frame, "task_kind", "") or "",
-        intent_launch_state=getattr(intent_frame, "launch_state", "") or "",
-        intent_next_action=getattr(intent_frame, "suggested_next_action", "") or "",
-        intent_scope_class=getattr(intent_frame, "scope_class", "") or "",
-        intent_scope_reason=getattr(intent_frame, "scope_reason", "") or "",
-        intent_policy_reason=getattr(intent_frame, "policy_reason", "") or "",
-        intent_classifier_version=getattr(intent_frame, "classifier_version", "") or "",
-        intent_schema_version=getattr(intent_frame, "schema_version", "") or "",
-        intent_routing_confidence=getattr(intent_frame, "routing_confidence", "") or "",
-        intent_ambiguity_signal=getattr(intent_frame, "ambiguity_signal", "") or "",
-        intent_context_resolution_state=getattr(
-            intent_frame,
-            "context_resolution_state",
-            "",
-        )
-        or "",
-        intent_context_reference_type=getattr(intent_frame, "context_reference_type", "") or "",
-        intent_resolved_slots=getattr(intent_frame, "resolved_slots", {}) or {},
-        intent_missing_slots=getattr(intent_frame, "missing_slots", ()) or (),
-        intent_ambiguity_reason=getattr(intent_frame, "ambiguity_reason", "") or "",
-    )
-    return replace(response, observability=updated_observability)
 
 
 def source_doc_ids_from_response(

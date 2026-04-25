@@ -10,7 +10,7 @@ updated: 2026-04-25
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 48 closeout`
+- current phase: `Phase 54 closeout`
 - current slice: Go `supervisor-api` runtime kernel hardening、bridge v4
   canonical projection、deterministic capability/scope/version 裁决、structured
   runtime payload planner、prompt config admission summary、readiness runtime
@@ -24,7 +24,10 @@ updated: 2026-04-25
   semantic worker，`packages/supervisor-core` production path 不再依赖
   `RoutingDecision` / terminal envelope / runtime audit sink；legacy Python
   `routing.py`、supervisor-core `audit.py` 与 worker stale audit helper 已删除，intent
-  eval 只通过 Go `supervisor-api` runtime-policy runner 执行；产品主路由 gate 仍默认关闭
+  eval 只通过 Go `supervisor-api` runtime-policy runner 执行；Python supervisor-core
+  residual `intent.py`、`scope_policy.py`、`query_policy.py`、`validation.py`、
+  `context.py` 与 `tool_policy.py` 已删除，Python worker cancel registry 仅保留
+  cancel flag store，不再发布 execution lifecycle counters；产品主路由 gate 仍默认关闭
 - owner: unassigned
 - active implementation: yes, Go `apps/supervisor-api` plus Python
   `apps/supervisor-core-worker`
@@ -82,6 +85,10 @@ updated: 2026-04-25
   `audit.py` helper 与 worker stale audit seam 已删除；intent eval hardcut 到 Go
   `supervisor-api` runner，guard 覆盖 `python-legacy` runner、`route_request()`、
   `RoutingDecision` 与 runtime audit helper 回流。
+- 2026-04-25 补充：Python supervisor-core residual intent/scope/query/validation/
+  context/tool policy helpers 已删除；Go runtime policy / execution tests 承接 residual
+  裁决覆盖，Python core 不再维护 target/tool matrix；Python bridge cancel registry
+  只保留 request-scoped cancel flag store，execution lifecycle counters 继续由 Go 发布。
 - 更宽的 Go/Rust/Python split 保留在
   `supervisor-docker-runtime-language-split` backlog。
 
@@ -100,7 +107,7 @@ updated: 2026-04-25
 
 ## Blockers
 
-- repo-local Phase 8-48 implementation 当前无 blocker。
+- repo-local Phase 8-54 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
@@ -110,11 +117,49 @@ updated: 2026-04-25
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
-- `Phase 16-48` 已完成 repo-local implementation；剩余 opening gate 不在
+- `Phase 16-54` 已完成 repo-local implementation；剩余 opening gate 不在
   `go-shell` execution runtime control-plane 范围内。
 
 ## Verification
 
+- Phase 49-54 focused verification passed on 2026-04-25:
+  - `uv run --all-packages python -m unittest`
+    `tests.supervisor.test_supervisor_runtime_guardrails`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.supervisor_api_audit_suite`
+    `tests.api.test_supervisor_api_prompt_stack`
+    `tests.api.test_supervisor_api_prompt_executor`
+    `tests.shared.test_prompt_runtime`
+    `tests.supervisor.supervisor_core_routing_suite`
+    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_prompt_execution_suite`
+    `tests.supervisor.supervisor_core_observability_context_suite`
+    `tests.supervisor.test_supervisor_policy`
+    `tests.supervisor.test_supervisor_structured_runtime_observability`
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `uv run --all-packages ruff check`
+    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `packages/supervisor-core/src/campus_supervisor_core`
+    `tests/api/supervisor_api_bridge_suite.py`
+    `tests/api/supervisor_api_audit_suite.py`
+    `tests/api/test_supervisor_api_prompt_stack.py`
+    `tests/api/test_supervisor_api_prompt_executor.py`
+    `tests/shared/test_prompt_runtime.py`
+    `tests/supervisor/supervisor_core_routing_suite.py`
+    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_prompt_execution_suite.py`
+    `tests/supervisor/supervisor_core_observability_context_suite.py`
+    `tests/supervisor/test_supervisor_runtime_guardrails.py`
+    `tests/supervisor/test_supervisor_policy.py`
+    `tests/supervisor/test_supervisor_structured_runtime_observability.py`
+  - `uv run --all-packages ruff format` for the same Python paths with
+    `--check`
+  - `pnpm docs:lint`
+  - `git diff --check`
+  - active drift scan returned only guard-test forbidden fragments, descriptive
+    go-shell closure records and Go lifecycle metric names in a runbook; no active
+    Python code imports legacy helper modules or publishes cancel runtime counters
 - Phase 46-48 focused verification passed on 2026-04-25:
   - `uv run --all-packages python -m unittest`
     `tests.supervisor.test_supervisor_runtime_guardrails`

@@ -22,7 +22,6 @@ from campus_supervisor_core.errors import (
 )
 from campus_supervisor_core.policy import finalize_specialist_response
 from campus_supervisor_core.response import assemble_response
-from campus_supervisor_core.tool_policy import assert_tool_policy_is_supported
 
 SpecialistDelegate = Callable[[SpecialistRequest], SpecialistResponse]
 CancellationChecker = Callable[[], bool]
@@ -69,7 +68,6 @@ class SupervisorAgent:
             raise MissingSpecialistDelegateError(
                 f"missing delegate for specialist target: {specialist_request.target}"
             )
-        assert_tool_policy_is_supported(specialist_request)
         self._raise_if_cancelled()
         specialist_response = delegate(specialist_request)
         self._raise_if_cancelled()
@@ -78,7 +76,6 @@ class SupervisorAgent:
         return assemble_response(finalized_response)
 
     def handle_specialist_request(self, request: SpecialistRequest) -> SpecialistResponse:
-        assert_tool_policy_is_supported(request)
         delegate = self.specialist_delegates.get(request.target)
         if delegate is None:
             raise MissingSpecialistDelegateError(

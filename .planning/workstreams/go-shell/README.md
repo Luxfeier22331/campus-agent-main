@@ -30,7 +30,7 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 48 closeout`
+- current phase: `Phase 54 closeout`
 - current slice: Go `supervisor-api` 已承接 bridge v4 canonical request
   projection、deterministic capability/scope/version 裁决、structured runtime
   payload planner、prompt config admission summary、runtime readiness truth 与
@@ -42,7 +42,10 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   capability 的 non-stream / lifecycle SSE direct answer path、runtime decision
   observability summary 与 full `SpecialistRequest` handoff projection；Python bridge /
   `packages/supervisor-core` production path 已收口为 delegate `SpecialistRequest`
-  handoff only，legacy Python `routing.py` 与 `audit.py` helper 已删除
+  handoff only，legacy Python `routing.py`、`audit.py`、`intent.py`、`scope_policy.py`、
+  `query_policy.py`、`validation.py`、`context.py` 与 `tool_policy.py` helper 已删除；
+  Python worker cancel registry 仅保留最小 cancel flag store，不再发布 execution
+  lifecycle counters
 - origin: 从 `supervisor-docker-runtime-language-split` backlog 中拆出的第一刀执行线
 
 ## Completed So Far
@@ -174,7 +177,8 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   - `packages/supervisor-core` 不再调用 prompt executor 生成 terminal response
 - `Phase 29`
   - Go runtime policy 成为 structured tool policy 单一发布口径
-  - Python `tool_policy.py` 只按 payload kind 验证 Go 给出的 `allowed_tools`
+  - Python `tool_policy.py` 当时只按 payload kind 验证 Go 给出的 `allowed_tools`；
+    后续 Phase 52 已删除该 helper
   - guard test 防止 target -> tool matrix 回流到 Python
 - `Phase 30`
   - bridge envelope hardcut 为 current private nested runtime decision envelope
@@ -222,10 +226,20 @@ Go，同时保留现有 Python `supervisor-core` / specialist agents orchestrati
   - intent eval 默认且唯一使用 Go `supervisor-api` runtime-policy runner
   - 删除 legacy `packages/supervisor-core/routing.py` 与对应 Python routing tests
   - 增加 guard，防止 `python-legacy` runner、`route_request()`、runtime audit helper 回流
+- `Phase 49-54`
+  - 删除 Python supervisor-core legacy intent / scope / query / validation /
+    context / tool policy helpers
+  - Go runtime policy / execution tests 覆盖 residual scope、query-serving scope、
+    capability/scope/version guard 与 target/tool policy ownership
+  - `packages/supervisor-core` 只信任 Go bridge v4 full `SpecialistRequest` handoff，
+    不再执行 Python target/tool matrix
+  - Python worker cancel registry 瘦身为 request-scoped cancel flag store，readyz 不再
+    暴露 active execution / cancel count runtime truth
+  - 更新 docs / guard，防止 legacy helper 与 direct runtime truth 回流
 
 ## Remaining Work
 
-- repo 内当前没有 Phase 8-48 的剩余必做实现项
+- repo 内当前没有 Phase 8-54 的剩余必做实现项
 - `transport_schedule_lookup` 的 runtime kernel 已实现；opening gate 仍需 eval /
   regression evidence 与产品路由 admission 决策
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；opening

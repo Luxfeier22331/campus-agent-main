@@ -3,24 +3,12 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import (
-    CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
-    CURRICULUM_PROGRAM_SLOT_NAME,
-    CURRICULUM_SEMESTER_SLOT_NAME,
-    ActorContext,
-    ContextProjection,
-    CurriculumFollowUpSlots,
     EvidenceBundle,
     EvidenceSource,
-    KnowledgeScope,
     RagResultDiagnostics,
     RagResultPayload,
-    SessionSlot,
-    SessionSummary,
     SpecialistResponse,
-    SupervisorRequest,
-    TraceContext,
 )
-from campus_supervisor_core.context import SupervisorRequestContext
 from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
 
 
@@ -223,69 +211,3 @@ class SupervisorCoreObservabilityContextTest(unittest.TestCase):
         self.assertEqual(observability.candidate_count, 0)
         self.assertEqual(observability.retrieved_source_count, 0)
         self.assertEqual(observability.retrieved_sources, ())
-
-    def test_request_context_projects_minimum_supervisor_fields(self) -> None:
-        request = SupervisorRequest(
-            user_goal="library hours",
-            conversation_id="conv-001",
-            request_id="req-001",
-            trace=TraceContext(trace_id="trace-001"),
-            actor=ActorContext(user_id="student-001"),
-            requested_scope=KnowledgeScope(
-                corpus="regulations",
-                collection="student_rules",
-            ),
-        )
-
-        context = SupervisorRequestContext.from_request(request)
-
-        self.assertIs(context.request, request)
-        self.assertEqual(context.request_id, "req-001")
-        self.assertEqual(context.trace_id, "trace-001")
-        self.assertEqual(context.user_id, "student-001")
-        self.assertEqual(context.conversation_id, "conv-001")
-        self.assertEqual(context.primary_corpus, "regulations")
-        self.assertEqual(context.primary_collection, "student_rules")
-        self.assertEqual(context.user_goal, "library hours")
-        self.assertEqual(context.context.actor.user_id, "student-001")
-
-    def test_request_context_personalization_hint_exposes_curriculum_follow_up_slots(self) -> None:
-        request = SupervisorRequest(
-            user_goal="法学",
-            conversation_id="conv-001",
-            request_id="req-001",
-            trace=TraceContext(trace_id="trace-001"),
-            context=ContextProjection(
-                actor=ActorContext(user_id="student-001", principal_id="principal-001"),
-                session=SessionSummary(
-                    confirmed_slots=(
-                        SessionSlot(
-                            name=CURRICULUM_PROGRAM_FAMILY_SLOT_NAME,
-                            value="民族实验班",
-                            confirmed=True,
-                        ),
-                        SessionSlot(
-                            name=CURRICULUM_PROGRAM_SLOT_NAME,
-                            value="法学民族实验班",
-                            confirmed=True,
-                        ),
-                        SessionSlot(
-                            name=CURRICULUM_SEMESTER_SLOT_NAME, value="第四学期", confirmed=True
-                        ),
-                    ),
-                    turn_count=4,
-                ),
-            ),
-            requested_scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
-        )
-
-        context = SupervisorRequestContext.from_request(request)
-
-        self.assertEqual(
-            context.personalization_hint.curriculum_follow_up,
-            CurriculumFollowUpSlots(
-                program_family="民族实验班",
-                program="法学民族实验班",
-                semester="第四学期",
-            ),
-        )

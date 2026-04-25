@@ -29,10 +29,6 @@ class MissingRoutingInputError(InvalidSupervisorRequestError):
     error_code = "missing_routing_input"
 
 
-class UnsupportedCapabilityError(InvalidSupervisorRequestError):
-    error_code = "unsupported_capability"
-
-
 class ExecutionCancelledError(SupervisorError):
     error_code = "execution_cancelled"
     http_status_code = 499
@@ -46,7 +42,3 @@ class DisallowedKnowledgeScopeError(SupervisorError):
 class MissingSpecialistDelegateError(SupervisorError):
     error_code = "missing_specialist_delegate"
     http_status_code = 500
-
-
-class InvalidSpecialistToolPolicyError(InvalidSupervisorRequestError):
-    error_code = "invalid_specialist_tool_policy"

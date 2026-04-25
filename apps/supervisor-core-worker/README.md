@@ -72,9 +72,9 @@ Python bridge。`supervisor_bridge_v4` 之前的 shape、flat preplanned fields 
 handoff payload fragment 不是 active compatibility path。
 
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
-Python semantic orchestration 会在 deterministic checkpoints 停止并返回
-`499 execution_cancelled`；如果 provider / prompt executor 已进入阻塞 HTTP 调用，当前仍不承诺
-hard-abort 该 mid-flight provider request。
+Python semantic orchestration 会在 delegate 调用、prompt execution 与 finalization
+前后的 checkpoints 停止并返回 `499 execution_cancelled`；如果 provider / prompt executor
+已进入阻塞 HTTP 调用，当前仍不承诺 hard-abort 该 mid-flight provider request。
 
 ## Runtime Entry
 

@@ -9,7 +9,7 @@ updated: 2026-04-25
 
 ## Current Progress
 
-- `Phase 0-48` repo-local implementation 已完成。
+- `Phase 0-54` repo-local implementation 已完成。
 - 当前 `Phase 8-9` 已补齐 Go -> Python cooperative cancel signal 与 Go
   structured query runtime foundation。
 - `Phase 10` 已补齐 `transport_schedule_lookup` projection-backed runtime
@@ -59,6 +59,11 @@ updated: 2026-04-25
   与 legacy `routing.py`，intent eval 默认且唯一使用 Go `supervisor-api`
   runtime-policy runner；guard 防止 `python-legacy` runner、`route_request()` 与
   runtime audit helper 回流。
+- `Phase 49-54` 已删除 Python supervisor-core residual `intent.py`、
+  `scope_policy.py`、`query_policy.py`、`validation.py`、`context.py` 与
+  `tool_policy.py`，Go runtime policy / execution 覆盖 residual 裁决 case，
+  `packages/supervisor-core` 不再执行 Python target/tool matrix；Python worker cancel
+  registry 仅保留 cancel flag store，不再发布 execution lifecycle counters。
 - 下方 phase 定义保留为 closure record，便于后续 reopen 时判断边界与恢复点。
 
 ## Phase 0: Boundary And Baseline Freeze
@@ -1177,6 +1182,134 @@ planner 回流到 Python core。
 - guard tests prove `routing.py` does not exist
 - focused intent, supervisor, Go, ruff, docs and diff checks pass
 - active drift scan only reports intentionally allowed guard / closure-record strings
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 49: Delete Legacy Intent And Scope Helpers
+
+**Goal:** 删除 Python `intent.py` / `scope_policy.py`，让 runtime intent frame 与 scope gate
+truth 只由 Go runtime policy 发布。
+
+**Scope:**
+
+- delete Python intent and scope helper modules
+- rehome residual scope cases to Go runtime policy tests
+- remove Python tests that directly call legacy scope helpers
+
+**Exit Criteria:**
+
+- no production Python import references legacy intent / scope helpers
+- Go runtime policy tests cover residual scope gate cases
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 50: Delete Legacy Query And Validation Helpers
+
+**Goal:** 删除 Python `query_policy.py` / `validation.py`，让 query-serving scope 与
+capability/scope/version guard 只由 Go execution admission 覆盖。
+
+**Scope:**
+
+- delete Python query and validation helper modules
+- rehome query-serving scope profile tests to Go runtime policy tests
+- add Go execution guard coverage for residual version/scope invalid combinations
+
+**Exit Criteria:**
+
+- Python core no longer imports query / validation helpers
+- Go execution tests cover residual admission guard behavior
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 51: Delete Legacy Context Projection Helper
+
+**Goal:** 删除 Python `context.py` request projection helper，避免 Python core 继续维护
+runtime request context truth。
+
+**Scope:**
+
+- delete Python context helper module
+- remove context-helper-only tests from supervisor-core suites
+- keep bridge parser DTO validation in Python worker boundary
+
+**Exit Criteria:**
+
+- Python supervisor-core no longer exposes `SupervisorRequestContext`
+- remaining context projection coverage lives in Go bridge / execution tests or
+  worker parser tests
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 52: Delete Legacy Tool Policy Helper
+
+**Goal:** 删除 Python `tool_policy.py`，让 structured target/tool policy 保持 Go-owned
+runtime policy truth。
+
+**Scope:**
+
+- delete Python target/tool policy helper module
+- remove Python `InvalidSpecialistToolPolicyError`
+- update supervisor-core specialist policy tests to assert Go preplanned handoff is
+  delegated without Python target/tool matrix
+
+**Exit Criteria:**
+
+- Python core no longer imports target/tool policy helper
+- Go runtime policy tests own allowed-tool matrix coverage
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 53: Python Cancel Runtime Counter Slimming
+
+**Goal:** Python worker cancel registry 只保留 request-scoped cancel flag store，不再发布
+execution lifecycle runtime truth。
+
+**Scope:**
+
+- remove active execution and cancel requested counters from Python registry status
+- keep register / cancel / is-cancel-requested / complete behavior
+- ensure bridge readyz only reports prompt runtime, prompt HTTP pool and minimal worker runtime
+
+**Exit Criteria:**
+
+- guard tests prove Python bridge API does not publish cancel counters
+- Go readiness / metrics remain runtime truth owner
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 54: Docs And Drift Guard Closeout
+
+**Goal:** 更新 docs / workstream state，并增加 guard 防止 Python residual 回流。
+
+**Scope:**
+
+- update supervisor-core / worker docs and go-shell workstream state
+- add guard coverage for deleted helper modules and legacy intent observability helper
+- run focused Go, Python, ruff, docs and drift checks
+
+**Exit Criteria:**
+
+- docs reflect Python semantic-worker-only boundary
+- focused verification passes or records blockers
+- active drift scan reports only guard-test strings and descriptive closure records
 
 **Closeout Note:**
 

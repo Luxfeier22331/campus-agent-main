@@ -56,7 +56,6 @@ class ExecutionCancelRegistry:
     def __init__(self) -> None:
         self._lock = Lock()
         self._active: dict[str, CancelRecord] = {}
-        self._cancel_requested_count = 0
 
     def register(self, request: SupervisorRequest) -> None:
         if not request.request_id:
@@ -80,7 +79,6 @@ class ExecutionCancelRegistry:
                 return None
             record.cancel_requested = True
             record.reason = reason
-            self._cancel_requested_count += 1
             return CancelRecord(
                 request_id=record.request_id,
                 trace_id=record.trace_id,
@@ -94,13 +92,6 @@ class ExecutionCancelRegistry:
         with self._lock:
             record = self._active.get(request_id)
             return bool(record and record.cancel_requested)
-
-    def status(self) -> dict[str, object]:
-        with self._lock:
-            return {
-                "active_executions": len(self._active),
-                "cancel_requested_count": self._cancel_requested_count,
-            }
 
 
 def build_bridge_routes(
@@ -148,7 +139,6 @@ def build_bridge_routes(
                 settings,
                 prompt_runtime=prompt_runtime,
                 runtime_status_provider=runtime_status_provider,
-                cancel_registry=runtime_cancel_registry,
             ),
         ),
     )
@@ -281,9 +271,7 @@ def readyz(
     *,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
-    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
-    _ = cancel_registry
     runtime_prompt = prompt_runtime or _resolve_prompt_runtime_settings(settings)
     runtime_status = dict(runtime_status_provider() if runtime_status_provider else {})
     prompt_http_pool = dict(
@@ -322,7 +310,6 @@ def handle_bridge_readyz(
     *,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
-    cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
     bridge_auth_error = _require_bridge_auth(headers, settings)
     if bridge_auth_error is not None:
@@ -331,7 +318,6 @@ def handle_bridge_readyz(
         settings,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=runtime_status_provider,
-        cancel_registry=cancel_registry,
     )
 
 

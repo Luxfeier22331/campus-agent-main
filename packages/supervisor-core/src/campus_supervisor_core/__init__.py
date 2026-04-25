@@ -15,12 +15,10 @@ from campus_supervisor_core.agent import SpecialistDelegate, SupervisorAgent
 from campus_supervisor_core.errors import (
     DisallowedKnowledgeScopeError,
     ExecutionCancelledError,
-    InvalidSpecialistToolPolicyError,
     InvalidSupervisorRequestError,
     MissingRoutingInputError,
     MissingSpecialistDelegateError,
     SupervisorError,
-    UnsupportedCapabilityError,
 )
 
 CancellationChecker = Callable[[], bool]
@@ -59,13 +57,11 @@ def handle_specialist_request(
 __all__ = [
     "DisallowedKnowledgeScopeError",
     "ExecutionCancelledError",
-    "InvalidSpecialistToolPolicyError",
     "InvalidSupervisorRequestError",
     "MissingRoutingInputError",
     "MissingSpecialistDelegateError",
     "SupervisorAgent",
     "SupervisorError",
-    "UnsupportedCapabilityError",
     "handle_request",
     "handle_specialist_request",
 ]

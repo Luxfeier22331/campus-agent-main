@@ -15,9 +15,6 @@ from campus_contracts import (
     TemporalQuery,
 )
 from campus_supervisor_core import handle_request, handle_specialist_request
-from campus_supervisor_core.errors import (
-    InvalidSpecialistToolPolicyError,
-)
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -145,7 +142,7 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "open")
 
-    def test_handle_specialist_request_rejects_tool_outside_notice_agent_policy(self) -> None:
+    def test_handle_specialist_request_delegates_go_preplanned_tool_policy(self) -> None:
         request = SpecialistRequest(
             target="notice-agent",
             user_goal="帮我找校历通知",
@@ -155,17 +152,20 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
             ),
             allowed_tools=("service_status_lookup",),
         )
+        captured_requests: list[SpecialistRequest] = []
 
-        with self.assertRaisesRegex(
-            InvalidSpecialistToolPolicyError,
-            "payload requires code-owned allowed_tool: campus_notice_discover",
-        ):
-            handle_specialist_request(
-                request,
-                specialist_delegates={
-                    "notice-agent": lambda inner_request: SpecialistResponse(
+        response = handle_specialist_request(
+            request,
+            specialist_delegates={
+                "notice-agent": lambda inner_request: (
+                    captured_requests.append(inner_request)
+                    or SpecialistResponse(
                         target="notice-agent",
                         status="completed",
                     )
-                },
-            )
+                )
+            },
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(captured_requests, [request])

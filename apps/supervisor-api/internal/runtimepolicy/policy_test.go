@@ -108,6 +108,16 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 			wantRisk:   "low",
 		},
 		{
+			name: "domestic external institution out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "北京大学有哪些专业",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
 			name: "campus knowledge delegates",
 			request: Request{
 				EffectiveCapability: "knowledge",
@@ -118,10 +128,60 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 			wantRisk:   "low",
 		},
 		{
+			name: "campus political course delegates",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "习近平新时代中国特色社会主义思想概论有哪些专业要上",
+			},
+			wantAction: "delegate",
+			wantReason: "campus_scope_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "open domain political fact out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "中国国家主席是谁",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
+			name: "general world query out of scope",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "解释一下AI",
+			},
+			wantAction: "out_of_scope",
+			wantReason: "product_scope_boundary",
+			wantRisk:   "low",
+		},
+		{
 			name: "structured knowledge candidate stays candidate only",
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "校车什么时候发车",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured service status candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "食堂营业到几点",
+			},
+			wantAction: "delegate",
+			wantReason: "structured_runtime_candidate_signal",
+			wantRisk:   "low",
+		},
+		{
+			name: "structured notice candidate stays candidate only",
+			request: Request{
+				EffectiveCapability: "knowledge",
+				UserGoal:            "找一下春假通知",
 			},
 			wantAction: "delegate",
 			wantReason: "structured_runtime_candidate_signal",
@@ -162,6 +222,27 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 				t.Fatalf("risk = %q, want %q", decision.RoutingFrame.RiskLevel, tt.wantRisk)
 			}
 		})
+	}
+}
+
+func TestEvaluateRuntimePolicyClarifiesContextFollowUpWithoutContext(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "knowledge",
+		UserGoal:            "这个流程怎么办",
+	})
+
+	if decision.ContextPreflight.State != "missing_context" {
+		t.Fatalf("context state = %q, want missing_context", decision.ContextPreflight.State)
+	}
+	if decision.ContextPreflight.ReferenceType != "previous_goal" {
+		t.Fatalf("reference type = %q, want previous_goal", decision.ContextPreflight.ReferenceType)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if len(decision.RoutingFrame.MissingSlots) != 1 ||
+		decision.RoutingFrame.MissingSlots[0] != "previous_goal" {
+		t.Fatalf("missing slots = %#v, want previous_goal", decision.RoutingFrame.MissingSlots)
 	}
 }
 
@@ -274,6 +355,64 @@ func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	}
 	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
 		t.Fatal("notice-agent must not allow service_status_lookup")
+	}
+}
+
+func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
+	tests := []struct {
+		name       string
+		corpus     string
+		collection string
+		want       bool
+	}{
+		{
+			name:       "student rules allowed",
+			corpus:     "regulations",
+			collection: "student_rules",
+			want:       true,
+		},
+		{
+			name:       "curriculum plan allowed",
+			corpus:     "curriculum",
+			collection: "curriculum_plan",
+			want:       true,
+		},
+		{
+			name:       "official web stable reference allowed",
+			corpus:     "official_web",
+			collection: "stable_reference",
+			want:       true,
+		},
+		{
+			name:       "official web fresh news rejected",
+			corpus:     "official_web",
+			collection: "fresh_news",
+			want:       false,
+		},
+		{
+			name:       "official web news archive rejected",
+			corpus:     "official_web",
+			collection: "news_archive",
+			want:       false,
+		},
+		{
+			name:       "campus service catalog rejected",
+			corpus:     "campus_services",
+			collection: "service_catalog",
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			allowed, err := QueryScopeAllowed(tt.corpus, tt.collection, "")
+			if err != nil {
+				t.Fatalf("query scope allowed: %v", err)
+			}
+			if allowed != tt.want {
+				t.Fatalf("allowed = %v, want %v", allowed, tt.want)
+			}
+		})
 	}
 }
 

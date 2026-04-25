@@ -848,6 +848,32 @@ func TestParseAnswerRequestRejectsVersionQueryForForwardCapabilities(t *testing.
 	}
 }
 
+func TestParseAnswerRequestRejectsVersionQueryForPlaceLookup(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"图书馆在哪里",
+			"request_id":"req-version-on-place-lookup",
+			"requested_capability":"place_lookup",
+			"version_query":{"mode":"historical","version_id":"v1:library-location"}
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected version_query to fail for place_lookup")
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	}
+}
+
 func decodeExecutionPayload(t *testing.T, payload json.RawMessage) map[string]any {
 	t.Helper()
 

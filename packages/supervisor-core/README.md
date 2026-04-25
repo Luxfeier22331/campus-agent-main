@@ -3,8 +3,8 @@
 `packages/supervisor-core` 是 `campus-agent` 当前已经接受的 supervisor coordination 边界。
 
 它不再被定义成“未来再补的 bootstrap 壳”，而是当前查询主链路中负责消费 Go
-preplanned specialist handoff、agent delegation、response finalization 和 semantic
-audit projection 的稳定 package。
+preplanned specialist handoff、agent delegation、response finalization 和 response
+observability projection 的稳定 package。
 
 ## Package Contract
 
@@ -15,8 +15,8 @@ audit projection 的稳定 package。
   `SpecialistRequest`
 - 将 Go preplanned `SpecialistRequest` 委派给对应 agent
 - 对 agent 返回结果执行 finalization policy
-- 组装统一的 `SpecialistResponse`
-- 投影最小审计字段
+- 组装统一的 `SupervisorResponse`
+- 从 agent response 投影 response-level observability
 
 这个 package 不拥有：
 
@@ -33,11 +33,6 @@ structured payload planning 的 runtime truth。
 
 当前接受的模块拆分如下：
 
-- `context.py` 保留为 validation / scope policy / legacy intent helper 所需的最小
-  request context projection；production handler 不再依赖它做 runtime routing。
-- `validation.py` 对 Go 已投影的 capability 做 trust-but-verify，缺失时 fail-closed。
-- `query_policy.py` 仅保留非 bridge fallback / 测试辅助；Go
-  `apps/supervisor-api` 的 `runtimepolicy` 是 query-enabled scope admission owner。
 - `routing.py` 已删除；intent eval 默认且唯一使用 Go `supervisor-api`
   runtime-policy runner，bridge 主路径只要求 Go runtime 注入完整 `SpecialistRequest`，
   缺失时 fail-closed。
@@ -48,11 +43,14 @@ structured payload planning 的 runtime truth。
   terminal routing 由 Go `supervisor-api` 直接返回，不再进入 production core；
   supervisor terminal prompt assets 已从 production core 移除。
 - `response.py` 承担 response shaping 与 source projection，输出统一的
-  `SpecialistResponse`。
+  `SupervisorResponse`。
 - `audit.py` 已删除；execution audit 由 Go `apps/supervisor-api` 的 allowlisted
   runtime audit writer 负责，Python core 不再维护 runtime audit projection helper。
 - `agent.py` 串起 `preplanned SpecialistRequest -> agent delegation -> policy ->
   response assembly` 的主流程。
+- `context.py`、`validation.py`、`scope_policy.py`、`query_policy.py`、`intent.py` 与
+  `tool_policy.py` 已删除；相关 capability/scope/version、query-serving scope、
+  runtime intent frame 与 target/tool policy 均由 Go `apps/supervisor-api` 覆盖。
 
 ## Current Query Scope
 
@@ -90,15 +88,16 @@ structured payload planning 的 runtime truth。
 与本 package 当前边界直接相关的验证包括：
 
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_core -q`
+  tests.supervisor.supervisor_core_routing_suite -q`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_routing -q`
+  tests.supervisor.supervisor_core_specialist_policy_suite -q`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_validation -q`
+  tests.supervisor.supervisor_core_prompt_execution_suite -q`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_query_policy -q`
+  tests.supervisor.supervisor_core_observability_context_suite -q`
 - `uv run --all-packages python -m unittest
   tests.supervisor.test_supervisor_runtime_guardrails -q`
 - `uv run --all-packages python -m unittest
   tests.supervisor.test_supervisor_policy -q`
-- `uv run --all-packages python -m unittest tests.api.test_supervisor_api -q`
+- `uv run --all-packages python -m unittest
+  tests.api.supervisor_api_bridge_suite -q`
