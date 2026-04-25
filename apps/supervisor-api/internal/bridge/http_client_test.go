@@ -30,7 +30,7 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 		if string(body) != `{"user_goal":"hello"}` {
 			t.Fatalf("body = %s, want projected payload", string(body))
 		}
-		writer.Header().Set("x-supervisor-bridge-kind", "supervisor_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "specialist_response")
 		writer.Header().Set("content-type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed"}`))
@@ -44,8 +44,8 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute returned error: %v", err)
 	}
-	if response.Kind != "supervisor_response" {
-		t.Fatalf("kind = %q, want supervisor_response", response.Kind)
+	if response.Kind != "specialist_response" {
+		t.Fatalf("kind = %q, want specialist_response", response.Kind)
 	}
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", response.StatusCode)
@@ -179,7 +179,7 @@ func TestHTTPClientExecuteHonorsContextCancellation(t *testing.T) {
 
 func TestHTTPClientRejectsOversizedBridgeResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("x-supervisor-bridge-kind", "supervisor_response")
+		writer.Header().Set("x-supervisor-bridge-kind", "specialist_response")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte(`{"status":"completed","padding":"too-large"}`))
 	}))

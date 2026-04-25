@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 )
@@ -74,7 +76,7 @@ func auditEventTypeForBridgeFailure(state lifecycle.State) string {
 func (s *Server) writeBridgeResponse(
 	response http.ResponseWriter,
 	bridgeResponse bridge.ExecuteResponse,
-	traceID string,
+	executionRequest execution.AnswerExecutionRequest,
 ) bridgeWriteOutcome {
 	if !validBridgeResponseEnvelope(bridgeResponse) {
 		return s.writeInvalidBridgeResponse(
@@ -83,17 +85,35 @@ func (s *Server) writeBridgeResponse(
 		)
 	}
 	switch bridgeResponse.Kind {
-	case "supervisor_response":
+	case "specialist_response":
 		setOutcome(response, "supervisor_response")
-		body, err := injectTraceID(bridgeResponse.Body, traceID)
+		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.writeInvalidBridgeResponse(
 				response,
 				"Supervisor Python bridge returned an invalid response body.",
 			)
 		}
+		supervisorResponse, err := finalizeSpecialistBridgeResponse(
+			body,
+			executionRequest.TraceID,
+			executionRequest.RuntimeDecisions.SelectedTool,
+		)
+		if err != nil {
+			return s.writeInvalidBridgeResponse(
+				response,
+				"Supervisor Python bridge returned an invalid specialist response.",
+			)
+		}
+		rawSupervisorResponse, err := json.Marshal(supervisorResponse)
+		if err != nil {
+			return s.writeInvalidBridgeResponse(
+				response,
+				"Supervisor Python bridge response could not be finalized.",
+			)
+		}
 		s.metrics.RecordBridgeSuccess()
-		writeRawJSON(response, bridgeResponse.StatusCode, body)
+		writeRawJSON(response, bridgeResponse.StatusCode, rawSupervisorResponse)
 		return bridgeWriteOutcome{
 			State:          lifecycle.StateCompleted,
 			Outcome:        "supervisor_response",
@@ -164,7 +184,7 @@ func (s *Server) writeBridgeResponse(
 
 func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
 	switch bridgeResponse.Kind {
-	case "supervisor_response":
+	case "specialist_response":
 		return bridgeResponse.StatusCode >= 200 && bridgeResponse.StatusCode < 300
 	case "supervisor_error":
 		return bridgeResponse.StatusCode >= 400 && bridgeResponse.StatusCode < 600

@@ -8,6 +8,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
 )
 
@@ -100,20 +101,24 @@ func admissionErrorForStream(decision admission.Decision, executionCanceled bool
 
 func (s *Server) streamBridgePayload(
 	bridgeResponse bridge.ExecuteResponse,
-	traceID string,
+	executionRequest execution.AnswerExecutionRequest,
 ) (streamPayload, bridgeWriteOutcome) {
 	if !validBridgeResponseEnvelope(bridgeResponse) {
 		return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response envelope.")
 	}
 	switch bridgeResponse.Kind {
-	case "supervisor_response":
-		body, err := injectTraceID(bridgeResponse.Body, traceID)
+	case "specialist_response":
+		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response body.")
 		}
-		responseBody, err := decodeJSONObject(body)
+		responseBody, err := finalizeSpecialistBridgeResponse(
+			body,
+			executionRequest.TraceID,
+			executionRequest.RuntimeDecisions.SelectedTool,
+		)
 		if err != nil {
-			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response body.")
+			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid specialist response.")
 		}
 		statusCode := bridgeResponse.StatusCode
 		if statusCode <= 0 {
@@ -121,7 +126,7 @@ func (s *Server) streamBridgePayload(
 		}
 		s.metrics.RecordBridgeSuccess()
 		return streamPayload{
-				TraceID:    traceID,
+				TraceID:    executionRequest.TraceID,
 				EventType:  "execution.completed",
 				Status:     "completed",
 				Outcome:    "supervisor_response",
@@ -145,7 +150,7 @@ func (s *Server) streamBridgePayload(
 				statusCode = statusClientClosedRequest
 			}
 			return streamPayload{
-					TraceID:    traceID,
+					TraceID:    executionRequest.TraceID,
 					EventType:  "execution.cancelled",
 					Status:     "cancelled",
 					Outcome:    "execution_cancelled",
@@ -163,7 +168,7 @@ func (s *Server) streamBridgePayload(
 			statusCode = http.StatusBadGateway
 		}
 		return streamPayload{
-				TraceID:    traceID,
+				TraceID:    executionRequest.TraceID,
 				EventType:  "execution.failed",
 				Status:     "failed",
 				Outcome:    "supervisor_error",
@@ -179,7 +184,7 @@ func (s *Server) streamBridgePayload(
 			}
 	case "bridge_invalid_request":
 		return streamPayload{
-				TraceID:    traceID,
+				TraceID:    executionRequest.TraceID,
 				EventType:  "execution.failed",
 				Status:     "failed",
 				Outcome:    "supervisor_bridge_invalid_request",

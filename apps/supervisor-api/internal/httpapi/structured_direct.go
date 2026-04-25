@@ -500,35 +500,32 @@ func shapeStructuredSupervisorResponse(
 	outcome := stringValue(result["outcome"])
 	status := supervisorStatusForStructuredOutcome(outcome)
 	answerText := structuredAnswerText(payloadKind, result, status)
-	failCloseReason := stringValue(result["fail_close_reason"])
-	return map[string]any{
-		"selected_target":    target,
-		"status":             status,
-		"answer_text":        answerText,
-		"follow_up_question": "",
-		"confidence":         confidenceForStructuredOutcome(outcome),
-		"result":             result,
-		"error":              nil,
-		"observability": map[string]any{
-			"retrieval_attempted":              false,
-			"candidate_count":                  0,
-			"retrieved_source_count":           0,
-			"citation_expected":                false,
-			"citation_count":                   0,
-			"citation_missing":                 false,
-			"semantic_outcome":                 status,
-			"scope_class":                      "structured_runtime",
-			"acl_decision":                     "allowed",
-			"fail_closed":                      failCloseReason != "",
-			"selected_tool":                    payloadKind,
-			"tool_business_outcome":            outcome,
-			"tool_fail_close_reason":           failCloseReason,
-			"tool_historical_downgrade_reason": stringValue(result["historical_downgrade_reason"]),
-			"service_guide_focus":              stringValue(result["guide_focus"]),
-			"matched_service_category":         stringValue(result["matched_service_category"]),
+	supervisorResponse, err := finalizeSpecialistBridgeResponse(
+		map[string]any{
+			"target":             target,
+			"status":             status,
+			"answer_text":        answerText,
+			"follow_up_question": "",
+			"confidence":         confidenceForStructuredOutcome(outcome),
+			"result":             result,
+			"error":              nil,
 		},
-		"trace_id": traceID,
+		traceID,
+		payloadKind,
+	)
+	if err != nil {
+		return map[string]any{
+			"selected_target":    target,
+			"status":             "no_answer",
+			"answer_text":        "当前还不能稳定完成该结构化查询。",
+			"follow_up_question": "",
+			"confidence":         "low",
+			"result":             result,
+			"error":              nil,
+			"trace_id":           traceID,
+		}
 	}
+	return supervisorResponse
 }
 
 func supervisorStatusForStructuredOutcome(outcome string) string {

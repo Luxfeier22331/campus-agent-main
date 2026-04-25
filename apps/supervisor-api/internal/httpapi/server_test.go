@@ -540,7 +540,7 @@ func TestAnswerRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
 			bridgeCalls++
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"ok"}`),
 			}, nil
 		},
@@ -676,7 +676,7 @@ func TestAnswerAllowsOpenedStructuredRuntimeWithoutPythonBridge(t *testing.T) {
 			bridgeCalls++
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
 			}, nil
 		},
@@ -767,7 +767,7 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 			bridgeCalls++
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
 			}, nil
 		},
@@ -862,7 +862,7 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 			bridgeCalls++
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
 			}, nil
 		},
@@ -1071,7 +1071,7 @@ func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
 		configured: true,
 		response: bridge.ExecuteResponse{
 			StatusCode: http.StatusOK,
-			Kind:       "supervisor_response",
+			Kind:       "specialist_response",
 			Body: json.RawMessage(`{
 				"selected_target":"rag-agent",
 				"status":"completed",
@@ -1157,6 +1157,92 @@ func TestAnswerPassesSupervisorErrorsThrough(t *testing.T) {
 	assertError(t, response, http.StatusForbidden, "disallowed_knowledge_scope")
 }
 
+func TestAnswerFinalizesSpecialistBridgeResponseInGo(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "specialist_response",
+			Body: json.RawMessage(`{
+				"target":"rag-agent",
+				"status":"completed",
+				"answer_text":"Go finalized this specialist response.",
+				"confidence":"high",
+				"result":{
+					"evidence":{
+						"sources":[{"doc_id":"handbook:test-001"}]
+					},
+					"diagnostics":{
+						"retrieved_sources":[{"doc_id":"handbook:test-001"}]
+					}
+				}
+			}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-specialist-response"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-specialist-response")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	payload := decodeBody(t, response)
+	if payload["selected_target"] != "rag-agent" {
+		t.Fatalf("selected_target = %v, want rag-agent", payload["selected_target"])
+	}
+	if payload["answer_text"] != "Go finalized this specialist response." {
+		t.Fatalf("answer_text = %v", payload["answer_text"])
+	}
+	if payload["trace_id"] != "trace-specialist-response" {
+		t.Fatalf("trace_id = %v, want trace-specialist-response", payload["trace_id"])
+	}
+	observability := expectRecord(t, payload["observability"], "observability")
+	if observability["semantic_outcome"] != "grounded_answer" {
+		t.Fatalf("semantic_outcome = %v, want grounded_answer", observability["semantic_outcome"])
+	}
+}
+
+func TestAnswerRejectsLegacySupervisorBridgeResponseKind(t *testing.T) {
+	server := NewServer(config.Config{
+		AuthMode:              "bearer",
+		BearerToken:           "secret-token",
+		DefaultActorID:        "runtime-bearer-user",
+		RequestBodyLimitBytes: 1_048_576,
+		MaxConcurrentAnswers:  8,
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "supervisor_response",
+			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed"}`),
+		},
+	})
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-legacy-supervisor-response"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusBadGateway, "supervisor_bridge_invalid_response")
+}
+
 func TestAnswerRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",
@@ -1168,7 +1254,7 @@ func TestAnswerRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
 		configured: true,
 		response: bridge.ExecuteResponse{
 			StatusCode: http.StatusInternalServerError,
-			Kind:       "supervisor_response",
+			Kind:       "specialist_response",
 			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 		},
 	})
@@ -1550,7 +1636,7 @@ func TestAnswerRejectsDuplicateInFlightRequestID(t *testing.T) {
 			case <-releaseBridge:
 				return bridge.ExecuteResponse{
 					StatusCode: http.StatusOK,
-					Kind:       "supervisor_response",
+					Kind:       "specialist_response",
 					Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 				}, nil
 			}
@@ -2130,7 +2216,7 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 				if callCount == 1 {
 					return bridge.ExecuteResponse{
 						StatusCode: http.StatusOK,
-						Kind:       "supervisor_response",
+						Kind:       "specialist_response",
 						Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 					}, nil
 				}
@@ -2402,7 +2488,7 @@ func TestReadyzIncludesBridgeAnswerHistoryFingerprint(t *testing.T) {
 				}
 				return bridge.ExecuteResponse{
 					StatusCode: http.StatusOK,
-					Kind:       "supervisor_response",
+					Kind:       "specialist_response",
 					Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 				}, nil
 			},
@@ -2480,7 +2566,7 @@ func TestAnswerLogsTraceAndOutcomeWithoutUserGoal(t *testing.T) {
 			configured: true,
 			response: bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 			},
 		},
@@ -2525,7 +2611,7 @@ func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
 		configured: true,
 		response: bridge.ExecuteResponse{
 			StatusCode: http.StatusOK,
-			Kind:       "supervisor_response",
+			Kind:       "specialist_response",
 			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 		},
 	})
@@ -2572,7 +2658,7 @@ func TestAnswerStreamRejectsSupervisorResponseWithNon2xxStatus(t *testing.T) {
 		configured: true,
 		response: bridge.ExecuteResponse{
 			StatusCode: http.StatusInternalServerError,
-			Kind:       "supervisor_response",
+			Kind:       "specialist_response",
 			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
 		},
 	})
@@ -2647,7 +2733,7 @@ func TestAnswerStreamRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {
 			bridgeCalls++
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
-				Kind:       "supervisor_response",
+				Kind:       "specialist_response",
 				Body:       json.RawMessage(`{"selected_target":"notice-agent","status":"completed","answer_text":"ok"}`),
 			}, nil
 		},

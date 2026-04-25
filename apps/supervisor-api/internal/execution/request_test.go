@@ -387,7 +387,7 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 	}
 }
 
-func TestParseAnswerRequestProjectsBridgeV4SpecialistRequestForTransportSchedule(t *testing.T) {
+func TestParseAnswerRequestProjectsBridgeV5SpecialistRequestForTransportSchedule(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -407,8 +407,11 @@ func TestParseAnswerRequestProjectsBridgeV4SpecialistRequestForTransportSchedule
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["bridge_version"] != "supervisor_bridge_v4" {
-		t.Fatalf("bridge_version = %v, want supervisor_bridge_v4", payload["bridge_version"])
+	if payload["bridge_version"] != "supervisor_bridge_v5" {
+		t.Fatalf("bridge_version = %v, want supervisor_bridge_v5", payload["bridge_version"])
+	}
+	if payload["response_contract"] != "specialist_response" {
+		t.Fatalf("response_contract = %v, want specialist_response", payload["response_contract"])
 	}
 	if payload["effective_capability"] != "campus_services" {
 		t.Fatalf("effective_capability = %v, want campus_services", payload["effective_capability"])
