@@ -3,6 +3,14 @@
 	text-wrap: balance;
 }
 
+main.rp-doc-layout__doc-container {
+	box-sizing: border-box;
+}
+
+.rspress-doc {
+	min-width: 0;
+}
+
 .rspress-doc.docs-reader-normal {
 	max-width: 52rem;
 }
@@ -392,8 +400,21 @@
 }
 
 @media (max-width: 720px) {
+	.rp-doc-layout__doc,
 	main.rp-doc-layout__doc-container {
+		width: 100%;
+		min-width: 0;
 		padding-top: 2rem;
+	}
+
+	main.rp-doc-layout__doc-container {
+		padding-right: 1.25rem;
+		padding-left: 1.25rem;
+	}
+
+	.rspress-doc p,
+	.rspress-doc li {
+		overflow-wrap: anywhere;
 	}
 
 	.rspress-doc > h1:first-child {
