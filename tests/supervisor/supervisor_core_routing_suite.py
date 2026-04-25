@@ -32,7 +32,9 @@ from campus_supervisor_core.errors import (
     MissingRoutingInputError,
     MissingSpecialistDelegateError,
 )
+from campus_supervisor_core.intent import IntentFrame
 from campus_supervisor_core.prompts.registry import get_supervisor_prompt_spec
+from campus_supervisor_core.routing import RoutingDecision
 
 
 def _supervisor_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -112,6 +114,91 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
     )
 
 
+def _knowledge_decision(
+    *,
+    scope: KnowledgeScope | None = None,
+    version_query: VersionQuery | None = None,
+    scope_reason: str = "scope_undetermined_delegate",
+) -> RoutingDecision:
+    return RoutingDecision(
+        target="rag-agent",
+        primary_corpus=scope.corpus if scope is not None else None,
+        primary_collection=scope.collection if scope is not None else None,
+        intent_frame=_intent_frame(
+            capability="knowledge",
+            task_kind="knowledge_lookup",
+            domain_candidates=(
+                f"{scope.corpus}/{scope.collection}" if scope is not None else "knowledge",
+            ),
+            suggested_next_action="delegate",
+            scope_class="in_scope",
+            scope_reason=scope_reason,
+            launch_state="open",
+        ),
+        specialist_payload=RagRequestPayload(
+            scope=scope,
+            version_query=version_query or VersionQuery(),
+        ),
+    )
+
+
+def _terminal_decision(
+    *,
+    capability: str,
+    task_kind: str,
+    suggested_next_action: str,
+    scope_class: str,
+    policy_reason: str,
+    scope_reason: str,
+    domain_candidates: tuple[str, ...],
+    risk_level: str = "low",
+) -> RoutingDecision:
+    return RoutingDecision(
+        target=None,
+        primary_corpus=None,
+        primary_collection=None,
+        intent_frame=_intent_frame(
+            capability=capability,
+            task_kind=task_kind,
+            domain_candidates=domain_candidates,
+            suggested_next_action=suggested_next_action,
+            scope_class=scope_class,
+            policy_reason=policy_reason,
+            scope_reason=scope_reason,
+            launch_state="closed",
+            risk_level=risk_level,
+        ),
+    )
+
+
+def _intent_frame(
+    *,
+    capability: str,
+    task_kind: str,
+    domain_candidates: tuple[str, ...],
+    suggested_next_action: str,
+    scope_class: str,
+    scope_reason: str,
+    launch_state: str,
+    policy_reason: str = "",
+    risk_level: str = "low",
+) -> IntentFrame:
+    return IntentFrame(
+        capability=capability,
+        task_kind=task_kind,
+        domain_candidates=domain_candidates,
+        missing_slots=(),
+        risk_level=risk_level,
+        needs_clarification=False,
+        suggested_next_action=suggested_next_action,
+        scope_class=scope_class,
+        policy_reason=policy_reason,
+        launch_state=launch_state,
+        scope_reason=scope_reason,
+        classifier_version="go-runtime-policy-v1",
+    )
+
+
 class SupervisorCoreRoutingTest(unittest.TestCase):
     def test_handle_request_requires_go_preplanned_routing_decision(self) -> None:
         with self.assertRaisesRegex(
@@ -186,6 +273,13 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             request,
             specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=audit_records.append,
+            preplanned_routing_decision=_knowledge_decision(
+                scope=KnowledgeScope(
+                    corpus="regulations",
+                    collection="student_rules",
+                ),
+                scope_reason="explicit_requested_scope",
+            ),
         )
 
         self.assertEqual(response.selected_target, "rag-agent")
@@ -198,9 +292,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
         self.assertEqual(response.observability.intent_next_action, "delegate")
         self.assertEqual(response.observability.intent_scope_class, "in_scope")
         self.assertEqual(response.observability.intent_scope_reason, "explicit_requested_scope")
-        self.assertEqual(
-            response.observability.intent_classifier_version, "deterministic-intent-v1"
-        )
+        self.assertEqual(response.observability.intent_classifier_version, "go-runtime-policy-v1")
         self.assertEqual(response.observability.intent_schema_version, "intent-schema-1.0.0")
         self.assertEqual(response.observability.intent_context_resolution_state, "not_follow_up")
         self.assertEqual(response.observability.intent_routing_confidence, "high")
@@ -244,7 +336,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 "intent_scope_class": "in_scope",
                 "intent_scope_reason": "explicit_requested_scope",
                 "intent_policy_reason": "",
-                "intent_classifier_version": "deterministic-intent-v1",
+                "intent_classifier_version": "go-runtime-policy-v1",
             },
         )
 
@@ -270,6 +362,10 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 ),
             ),
             specialist_delegates={"rag-agent": fake_rag_specialist},
+            preplanned_routing_decision=_knowledge_decision(
+                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+                scope_reason="explicit_requested_scope",
+            ),
         )
 
         self.assertEqual(len(captured_requests), 1)
@@ -332,6 +428,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             ),
             specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=lambda _record: None,
+            preplanned_routing_decision=_knowledge_decision(),
         )
 
         self.assertEqual(response.selected_target, "rag-agent")
@@ -365,6 +462,15 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             ),
             specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=lambda _record: None,
+            preplanned_routing_decision=_knowledge_decision(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(
+                    mode="compare",
+                    version_id="v1:student-handbook",
+                    compare_to_version_id="v2:student-handbook",
+                ),
+                scope_reason="explicit_requested_scope",
+            ),
         )
 
         self.assertEqual(response.selected_target, "rag-agent")
@@ -404,6 +510,10 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     follow_up_question="Which campus are you asking about?",
                 )
             },
+            preplanned_routing_decision=_knowledge_decision(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                scope_reason="explicit_requested_scope",
+            ),
         )
 
         self.assertEqual(response.selected_target, "rag-agent")
@@ -433,6 +543,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     ),
                 ),
                 specialist_delegates={},
+                preplanned_routing_decision=_knowledge_decision(),
             )
 
     def test_handle_request_preserves_specialist_clarification_when_scope_is_missing(self) -> None:
@@ -476,6 +587,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                 context=request_context,
             ),
             specialist_delegates={"rag-agent": fake_rag_specialist},
+            preplanned_routing_decision=_knowledge_decision(),
         )
 
         self.assertEqual(response.selected_target, "rag-agent")
@@ -517,6 +629,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     ),
                 ),
                 specialist_delegates={},
+                preplanned_routing_decision=_knowledge_decision(),
             )
 
     def test_handle_request_returns_approval_required_without_delegate_for_high_risk_request(
@@ -543,6 +656,16 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             ),
             specialist_delegates={},
             audit_sink=audit_records.append,
+            preplanned_routing_decision=_terminal_decision(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                suggested_next_action="approval_required",
+                scope_class="in_scope",
+                policy_reason="approval_required",
+                scope_reason="transaction_guardrail",
+                domain_candidates=("regulations/student_rules",),
+                risk_level="high",
+            ),
         )
 
         self.assertEqual(
@@ -568,7 +691,7 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
                     intent_next_action="approval_required",
                     intent_scope_class="in_scope",
                     intent_scope_reason="transaction_guardrail",
-                    intent_classifier_version="deterministic-intent-v1",
+                    intent_classifier_version="go-runtime-policy-v1",
                     intent_schema_version="intent-schema-1.0.0",
                     intent_routing_confidence="high",
                     intent_context_resolution_state="not_follow_up",
