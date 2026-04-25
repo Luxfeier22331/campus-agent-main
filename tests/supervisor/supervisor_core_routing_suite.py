@@ -723,6 +723,15 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             ),
             specialist_delegates={"rag-agent": fake_rag_specialist},
             audit_sink=audit_records.append,
+            preplanned_routing_decision=_terminal_decision(
+                capability="knowledge",
+                task_kind="knowledge_lookup",
+                suggested_next_action="out_of_scope",
+                scope_class="out_of_scope",
+                policy_reason="product_scope_boundary",
+                scope_reason="product_scope_boundary",
+                domain_candidates=("out_of_scope",),
+            ),
         )
 
         self.assertFalse(delegate_called)
@@ -758,6 +767,15 @@ class SupervisorCoreRoutingTest(unittest.TestCase):
             ),
             specialist_delegates={"navigation-agent": fake_navigation_specialist},
             audit_sink=audit_records.append,
+            preplanned_routing_decision=_terminal_decision(
+                capability="place_lookup",
+                task_kind="place_lookup",
+                suggested_next_action="out_of_scope",
+                scope_class="out_of_scope",
+                policy_reason="navigation_temporarily_unsupported",
+                scope_reason="navigation_temporarily_unsupported",
+                domain_candidates=("out_of_scope",),
+            ),
         )
 
         self.assertFalse(delegate_called)
