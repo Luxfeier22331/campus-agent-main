@@ -107,18 +107,18 @@ func (s *Server) streamBridgePayload(
 		return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response envelope.")
 	}
 	switch bridgeResponse.Kind {
-	case "specialist_response":
+	case "agent_response":
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
 			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid response body.")
 		}
-		responseBody, err := finalizeSpecialistBridgeResponse(
+		responseBody, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
 			executionRequest.RuntimeDecisions.SelectedTool,
 		)
 		if err != nil {
-			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid specialist response.")
+			return s.invalidBridgeStreamPayload("Supervisor Python bridge returned an invalid agent response.")
 		}
 		statusCode := bridgeResponse.StatusCode
 		if statusCode <= 0 {

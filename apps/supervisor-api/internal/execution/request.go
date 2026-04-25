@@ -292,8 +292,8 @@ func ParseAnswerRequest(
 	)
 
 	bridgePayload := map[string]any{
-		"bridge_version":       "supervisor_bridge_v5",
-		"response_contract":    "specialist_response",
+		"bridge_version":       "supervisor_bridge_v6",
+		"response_contract":    "agent_response",
 		"user_goal":            userGoal,
 		"conversation_id":      conversationID,
 		"request_id":           requestID,

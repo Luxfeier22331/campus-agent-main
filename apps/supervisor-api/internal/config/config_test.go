@@ -6,8 +6,8 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
-	t.Setenv("SUPERVISOR_CORE_WORKER_BASE_URL", "")
-	t.Setenv("SUPERVISOR_CORE_WORKER_SHARED_SECRET", "")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "")
 	t.Setenv("CAMPUS_AGENT_HTTP_HOST", "")
@@ -17,10 +17,10 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES", "")
-	t.Setenv("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES", "")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "")
 	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
-	t.Setenv("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", "")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
@@ -41,7 +41,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "")
-	t.Setenv("SPECIALIST_PROMPT_MODEL", "")
+	t.Setenv("AGENT_PROMPT_MODEL", "")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "")
@@ -156,7 +156,7 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.PromptRuntimeProvider != "" ||
 		cfg.SupervisorPromptModel != "" ||
-		cfg.SpecialistPromptModel != "" ||
+		cfg.AgentPromptModel != "" ||
 		cfg.PromptRuntimeAPIKey != "" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
@@ -199,8 +199,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_QUEUE_CAPACITY", "12")
 	t.Setenv("SUPERVISOR_API_QUEUE_TIMEOUT_MS", "2500")
 	t.Setenv("SUPERVISOR_API_REQUEST_TIMEOUT_MS", "30000")
-	t.Setenv("SUPERVISOR_CORE_WORKER_TIMEOUT_MS", "25000")
-	t.Setenv("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES", "2048")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000")
+	t.Setenv("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3")
 	t.Setenv("SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", "7500")
 	t.Setenv("SUPERVISOR_API_SHUTDOWN_GRACE_MS", "20000")
@@ -230,7 +230,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
 	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
-	t.Setenv("SPECIALIST_PROMPT_MODEL", "gpt-specialist")
+	t.Setenv("AGENT_PROMPT_MODEL", "gpt-agent")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
 	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
@@ -278,7 +278,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.OpenCapabilities[1] != "notice" ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.SupervisorPromptModel != "gpt-supervisor" ||
-		cfg.SpecialistPromptModel != "gpt-specialist" ||
+		cfg.AgentPromptModel != "gpt-agent" ||
 		cfg.PromptRuntimeAPIKey != "prompt-key" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||

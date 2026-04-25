@@ -5,30 +5,30 @@ import (
 	"strings"
 )
 
-var errInvalidSpecialistResponse = errors.New("invalid specialist response")
+var errInvalidAgentResponse = errors.New("invalid agent response")
 
-func finalizeSpecialistBridgeResponse(
-	specialistResponse map[string]any,
+func finalizeAgentBridgeResponse(
+	agentResponse map[string]any,
 	traceID string,
 	selectedTool string,
 ) (map[string]any, error) {
-	target := stringValue(specialistResponse["target"])
+	target := stringValue(agentResponse["target"])
 	if target == "" {
-		target = stringValue(specialistResponse["selected_target"])
+		target = stringValue(agentResponse["selected_target"])
 	}
-	status := stringValue(specialistResponse["status"])
+	status := stringValue(agentResponse["status"])
 	if target == "" || !allowedDelegateStatus(status) {
-		return nil, errInvalidSpecialistResponse
+		return nil, errInvalidAgentResponse
 	}
-	result, _ := specialistResponse["result"].(map[string]any)
+	result, _ := agentResponse["result"].(map[string]any)
 	response := map[string]any{
 		"selected_target":    target,
 		"status":             status,
-		"answer_text":        stringValue(specialistResponse["answer_text"]),
-		"follow_up_question": stringValue(specialistResponse["follow_up_question"]),
-		"confidence":         defaultString(stringValue(specialistResponse["confidence"]), "low"),
-		"result":             specialistResponse["result"],
-		"error":              specialistResponse["error"],
+		"answer_text":        stringValue(agentResponse["answer_text"]),
+		"follow_up_question": stringValue(agentResponse["follow_up_question"]),
+		"confidence":         defaultString(stringValue(agentResponse["confidence"]), "low"),
+		"result":             agentResponse["result"],
+		"error":              agentResponse["error"],
 		"observability":      buildSupervisorObservability(target, status, result, selectedTool),
 		"trace_id":           traceID,
 	}
@@ -86,7 +86,7 @@ func buildRagSupervisorObservability(status string, result map[string]any) map[s
 		"citation_expected":      citationExpected,
 		"citation_count":         citationCount,
 		"citation_missing":       citationExpected && citationCount == 0,
-		"refusal_class":          refusalClassForSpecialistStatus(status),
+		"refusal_class":          refusalClassForAgentStatus(status),
 		"semantic_outcome":       ragSemanticOutcome(status, diagnostics),
 		"scope_class":            "in_scope",
 		"acl_decision":           aclDecision(denied),
@@ -118,7 +118,7 @@ func buildStructuredSupervisorObservability(
 		"citation_expected":                false,
 		"citation_count":                   0,
 		"citation_missing":                 false,
-		"refusal_class":                    refusalClassForSpecialistStatus(status),
+		"refusal_class":                    refusalClassForAgentStatus(status),
 		"semantic_outcome":                 structuredSemanticOutcome(status, outcome),
 		"scope_class":                      scopeClassForTarget(target),
 		"acl_decision":                     "allowed",
@@ -166,7 +166,7 @@ func structuredSemanticOutcome(status string, outcome string) string {
 	return ""
 }
 
-func refusalClassForSpecialistStatus(status string) string {
+func refusalClassForAgentStatus(status string) string {
 	if status == "needs_clarification" || status == "no_answer" {
 		return status
 	}

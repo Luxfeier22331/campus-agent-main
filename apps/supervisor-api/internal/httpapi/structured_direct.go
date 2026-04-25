@@ -500,7 +500,7 @@ func shapeStructuredSupervisorResponse(
 	outcome := stringValue(result["outcome"])
 	status := supervisorStatusForStructuredOutcome(outcome)
 	answerText := structuredAnswerText(payloadKind, result, status)
-	supervisorResponse, err := finalizeSpecialistBridgeResponse(
+	supervisorResponse, err := finalizeAgentBridgeResponse(
 		map[string]any{
 			"target":             target,
 			"status":             status,

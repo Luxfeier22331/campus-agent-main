@@ -85,7 +85,7 @@ func (s *Server) writeBridgeResponse(
 		)
 	}
 	switch bridgeResponse.Kind {
-	case "specialist_response":
+	case "agent_response":
 		setOutcome(response, "supervisor_response")
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
@@ -94,7 +94,7 @@ func (s *Server) writeBridgeResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 			)
 		}
-		supervisorResponse, err := finalizeSpecialistBridgeResponse(
+		supervisorResponse, err := finalizeAgentBridgeResponse(
 			body,
 			executionRequest.TraceID,
 			executionRequest.RuntimeDecisions.SelectedTool,
@@ -102,7 +102,7 @@ func (s *Server) writeBridgeResponse(
 		if err != nil {
 			return s.writeInvalidBridgeResponse(
 				response,
-				"Supervisor Python bridge returned an invalid specialist response.",
+				"Supervisor Python bridge returned an invalid agent response.",
 			)
 		}
 		rawSupervisorResponse, err := json.Marshal(supervisorResponse)
@@ -184,7 +184,7 @@ func (s *Server) writeBridgeResponse(
 
 func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
 	switch bridgeResponse.Kind {
-	case "specialist_response":
+	case "agent_response":
 		return bridgeResponse.StatusCode >= 200 && bridgeResponse.StatusCode < 300
 	case "supervisor_error":
 		return bridgeResponse.StatusCode >= 400 && bridgeResponse.StatusCode < 600

@@ -18,7 +18,7 @@ type promptConfigGate struct {
 	Provider                string `json:"provider"`
 	Transport               string `json:"transport"`
 	SupervisorModel         string `json:"supervisor_model"`
-	SpecialistModel         string `json:"specialist_model"`
+	AgentModel              string `json:"agent_model"`
 	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
 }
 
@@ -122,7 +122,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	for _, key := range []string{
 		"runtime_provider",
 		"supervisor_model",
-		"specialist_model",
+		"agent_model",
 		"prompt_runtime",
 		"prompt_http_pool",
 	} {
@@ -139,13 +139,13 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
 	supervisorModel := strings.TrimSpace(cfg.SupervisorPromptModel)
-	specialistModel := strings.TrimSpace(cfg.SpecialistPromptModel)
+	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
 	switch {
 	case provider == "":
 		reason = "prompt_provider_not_configured"
-	case specialistModel == "":
+	case agentModel == "":
 		reason = "prompt_models_not_configured"
 	case !cfg.PromptStrictStructuredOutputs:
 		reason = "strict_structured_outputs_disabled"
@@ -162,7 +162,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		Provider:                provider,
 		Transport:               transport,
 		SupervisorModel:         supervisorModel,
-		SpecialistModel:         specialistModel,
+		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
 }

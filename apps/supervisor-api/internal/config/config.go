@@ -59,7 +59,7 @@ type Config struct {
 	StructuredQueryTimeoutMS          int
 	PromptRuntimeProvider             string
 	SupervisorPromptModel             string
-	SpecialistPromptModel             string
+	AgentPromptModel                  string
 	PromptRuntimeAPIKey               string
 	PromptRuntimeTransport            string
 	PromptRuntimeBaseURL              string
@@ -88,9 +88,9 @@ type envValues struct {
 	BearerToken                       string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                string  `env:"API_WORKER_SHARED_SECRET"`
 	DefaultActorID                    string  `env:"API_DEFAULT_ACTOR_ID"`
-	BridgeBaseURL                     string  `env:"SUPERVISOR_CORE_WORKER_BASE_URL"`
-	BridgeSharedSecret                string  `env:"SUPERVISOR_CORE_WORKER_SHARED_SECRET"`
-	BridgeResponseLimitBytes          int64   `env:"SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
+	BridgeBaseURL                     string  `env:"SUPERVISOR_AGENT_WORKER_BASE_URL"`
+	BridgeSharedSecret                string  `env:"SUPERVISOR_AGENT_WORKER_SHARED_SECRET"`
+	BridgeResponseLimitBytes          int64   `env:"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES" envDefault:"1048576"`
 	BridgeBreakerFailureThreshold     int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD" envDefault:"5"`
 	BridgeBreakerOpenMS               int     `env:"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS" envDefault:"10000"`
 	MaxConcurrentAnswers              int     `env:"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS" envDefault:"8"`
@@ -98,8 +98,8 @@ type envValues struct {
 	QueueTimeoutMS                    int     `env:"SUPERVISOR_API_QUEUE_TIMEOUT_MS" envDefault:"3000"`
 	RequestTimeoutMS                  int     `env:"SUPERVISOR_API_REQUEST_TIMEOUT_MS" envDefault:"45000"`
 	RequestBodyLimitBytes             int64   `env:"SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES" envDefault:"1048576"`
-	BridgeTimeoutMS                   int     `env:"SUPERVISOR_CORE_WORKER_TIMEOUT_MS" envDefault:"35000"`
-	BridgeCancelTimeoutMS             int     `env:"SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
+	BridgeTimeoutMS                   int     `env:"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS" envDefault:"35000"`
+	BridgeCancelTimeoutMS             int     `env:"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS" envDefault:"500"`
 	ShutdownGraceMS                   int     `env:"SUPERVISOR_API_SHUTDOWN_GRACE_MS" envDefault:"45000"`
 	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
 	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
@@ -215,7 +215,7 @@ func LoadFromEnv() (Config, error) {
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
-		SpecialistPromptModel:             readPromptModel("SPECIALIST_PROMPT_MODEL"),
+		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
 		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
 		PromptRuntimeTransport:            defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
 		PromptRuntimeBaseURL:              promptRuntimeBaseURL(values),
@@ -248,8 +248,8 @@ func validateEnvValues(values envValues) error {
 		{"SUPERVISOR_API_MAX_CONCURRENT_ANSWERS", values.MaxConcurrentAnswers},
 		{"SUPERVISOR_API_QUEUE_TIMEOUT_MS", values.QueueTimeoutMS},
 		{"SUPERVISOR_API_REQUEST_TIMEOUT_MS", values.RequestTimeoutMS},
-		{"SUPERVISOR_CORE_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
-		{"SUPERVISOR_CORE_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
+		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", values.BridgeTimeoutMS},
+		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", values.BridgeCancelTimeoutMS},
 		{"SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD", values.BridgeBreakerFailureThreshold},
 		{"SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS", values.BridgeBreakerOpenMS},
 		{"SUPERVISOR_API_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
@@ -275,7 +275,7 @@ func validateEnvValues(values envValues) error {
 		return fmt.Errorf("SUPERVISOR_API_REQUEST_BODY_LIMIT_BYTES must be a positive integer")
 	}
 	if values.BridgeResponseLimitBytes <= 0 {
-		return fmt.Errorf("SUPERVISOR_CORE_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
+		return fmt.Errorf("SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES must be a positive integer")
 	}
 	if values.NoticeObjectStoreBodyLimitBytes <= 0 {
 		return fmt.Errorf("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES must be a positive integer")

@@ -87,7 +87,7 @@ func runtimeDecisions(
 			"planning_outcome": "preplanned",
 			"target":           handoff.Target,
 			"allowed_tools":    handoff.AllowedTools,
-			"specialist_request": specialistRequestProjection(
+			"agent_request": agentRequestProjection(
 				handoff,
 				userGoal,
 				conversationID,
@@ -114,7 +114,7 @@ func runtimeDecisions(
 	return decisions, summary, nil, terminal
 }
 
-func specialistRequestProjection(
+func agentRequestProjection(
 	handoff *structuredplanning.Handoff,
 	userGoal string,
 	conversationID string,

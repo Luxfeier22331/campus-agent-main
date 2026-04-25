@@ -2,8 +2,8 @@ package httpapi
 
 import "testing"
 
-func TestFinalizeSpecialistBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
-	response, err := finalizeSpecialistBridgeResponse(
+func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
+	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
 			"target":      "rag-agent",
 			"status":      "completed",
