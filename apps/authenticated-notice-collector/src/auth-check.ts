@@ -1,6 +1,7 @@
 import { fetchFileReleasePage, fetchNoticePage } from "./api";
 import { loadCollectorEnv, resolveCollectorConfig } from "./config";
 import { createApiContextFromStorageState } from "./portal";
+import { formatSafeErrorMessage } from "./safe-error";
 import type {
 	ApiRequestContextLike,
 	DisposableApiContextLike,
@@ -116,7 +117,7 @@ export async function main(): Promise<void> {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {
-		console.error(error instanceof Error ? error.message : String(error));
+		console.error(formatSafeErrorMessage(error));
 		process.exitCode = 1;
 	});
 }

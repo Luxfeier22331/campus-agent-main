@@ -3,6 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
+import { formatSafeErrorMessage } from "./safe-error";
 
 interface LoggerLike {
 	log(message: string): void;
@@ -125,7 +126,7 @@ export async function main(): Promise<void> {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {
-		console.error(error instanceof Error ? error.message : String(error));
+		console.error(formatSafeErrorMessage(error));
 		process.exitCode = 1;
 	});
 }
