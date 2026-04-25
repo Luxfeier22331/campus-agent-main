@@ -518,8 +518,14 @@ def _sample_from_bundle_record(
         )
     )
     attachment_counts = _resolve_attachment_counts(record, inventory_entry)
+    suggested_consumption_route = _resolve_suggested_consumption_route(
+        classification.family,
+        classification.admission_policy,
+        title=notice_title,
+    )
     machine_processing_policy = _resolve_machine_processing_policy(
         family=classification.family,
+        suggested_consumption_route=suggested_consumption_route,
         title=notice_title,
         body=str(notice.get("notice_content") or ""),
         multimodal_processing_required_count=attachment_counts[
@@ -533,10 +539,7 @@ def _sample_from_bundle_record(
         notice_family=classification.family,
         admission_policy=classification.admission_policy,
         priority=classification.priority,
-        suggested_consumption_route=_resolve_suggested_consumption_route(
-            classification.family,
-            classification.admission_policy,
-        ),
+        suggested_consumption_route=suggested_consumption_route,
         machine_processing_policy=machine_processing_policy,
         matched_title_patterns=classification.matched_title_patterns,
         matched_body_patterns=classification.matched_body_patterns,
@@ -602,7 +605,12 @@ def _resolve_attachment_counts(
     }
 
 
-def _resolve_suggested_consumption_route(family: str, admission_policy: str) -> str:
+def _resolve_suggested_consumption_route(
+    family: str,
+    admission_policy: str,
+    *,
+    title: str = "",
+) -> str:
     if family == "policy_regulation":
         return "regulation_candidate"
     if family == "procurement_notice":
@@ -613,19 +621,33 @@ def _resolve_suggested_consumption_route(family: str, admission_policy: str) -> 
         return "no_adoption"
     if family in _NOTICE_LEVEL_QUERY_FAMILIES:
         return "notice_level_query"
+    if family == "other" and admission_policy == "review_later":
+        return _resolve_other_review_later_consumption_route(title)
     if admission_policy in {"defer", "review_later"}:
         return admission_policy
     return "notice_level_query"
 
 
+def _resolve_other_review_later_consumption_route(title: str) -> str:
+    normalized = _compact_review_later_title(title)
+    if normalized in {"讣告", "通知", "公告", "通告"}:
+        return "no_adoption"
+    return "review_later"
+
+
+def _compact_review_later_title(title: str) -> str:
+    return re.sub(r"[\s《》“”\"'：:，,、（）()【】/\\—-]+", "", str(title or ""))
+
+
 def _resolve_machine_processing_policy(
     *,
     family: str,
+    suggested_consumption_route: str,
     title: str,
     body: str,
     multimodal_processing_required_count: int,
 ) -> str:
-    if family == "other":
+    if suggested_consumption_route in {"defer", "review_later", "no_adoption"}:
         return "skip"
     text = "".join(f"{title}\n{body}".split())
     has_value_signal = any(term in text for term in _MACHINE_PROCESSING_VALUE_TERMS)

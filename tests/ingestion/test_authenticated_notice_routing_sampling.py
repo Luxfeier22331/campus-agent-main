@@ -226,6 +226,44 @@ class AuthenticatedNoticeRoutingSamplingTest(unittest.TestCase):
         self.assertEqual(cluster.publicity_signals, ())
         self.assertTrue(cluster.title_signature)
 
+    def test_review_later_fallback_converges_closed_low_value_routes(self) -> None:
+        report = build_authenticated_notice_routing_sample_report_from_bundle_records(
+            bundle_records=(
+                _bundle_record(
+                    notice_id="obituary",
+                    title="讣告",
+                ),
+                _bundle_record(
+                    notice_id="placeholder",
+                    title="通    知",
+                ),
+                _bundle_record(
+                    notice_id="gift-pickup",
+                    title="关于领取校庆纪念品的温馨提醒",
+                ),
+            ),
+            config=self.config,
+            sample_limit_per_group=4,
+            boundary_sample_limit=4,
+        )
+
+        route_by_notice = {sample.notice_id: sample for sample in report.samples}
+        self.assertEqual(route_by_notice["obituary"].notice_family, "other")
+        self.assertEqual(route_by_notice["obituary"].suggested_consumption_route, "no_adoption")
+        self.assertEqual(route_by_notice["obituary"].machine_processing_policy, "skip")
+        self.assertEqual(route_by_notice["placeholder"].notice_family, "other")
+        self.assertEqual(
+            route_by_notice["placeholder"].suggested_consumption_route,
+            "no_adoption",
+        )
+        self.assertEqual(route_by_notice["placeholder"].machine_processing_policy, "skip")
+        self.assertEqual(route_by_notice["gift-pickup"].notice_family, "other")
+        self.assertEqual(
+            route_by_notice["gift-pickup"].suggested_consumption_route,
+            "review_later",
+        )
+        self.assertEqual(route_by_notice["gift-pickup"].machine_processing_policy, "skip")
+
     def test_new_notice_level_and_service_status_families_route_explicitly(self) -> None:
         report = build_authenticated_notice_routing_sample_report_from_bundle_records(
             bundle_records=(

@@ -111,8 +111,10 @@ Current routing taxonomy groups include:
   governance/party life, internal governance events, general cultural publicity,
   cultural publicity activities, and campus news/publicity
 - fallback `other/review_later` remains a bounded low-confidence bucket and uses
-  `machine_processing_policy=skip`; it is not a VLM backlog or automatic
-  consumer-admission source
+  `machine_processing_policy=skip`; deterministic high-confidence clusters are
+  promoted into explicit routes, while clearly unconsumable placeholders such
+  as obituaries or bare "通知/公告" titles close as `no_adoption`. The residual
+  bucket is not a VLM backlog or automatic consumer-admission source
 - current source-truth inventory replay can be audited without bundle input;
   historical bundle replay remains supported for wider taxonomy regression
 - `uv run --package campus-ingestion-worker python -m
