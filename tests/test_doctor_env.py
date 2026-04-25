@@ -114,8 +114,8 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_CORE_WORKER_BASE_URL=http://127.0.0.1:18081",
-                        "SUPERVISOR_CORE_WORKER_SHARED_SECRET=bridge-secret",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_QUEUE_CAPACITY=24",
                         "SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000",
                         "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
@@ -138,8 +138,8 @@ class DoctorEnvTest(unittest.TestCase):
             optional = status["settings"]["optional"]
             self.assertNotIn("transport_worker_threads", optional)
             self.assertEqual(
-                optional["core_worker_base_url"]["resolved_key"],
-                "SUPERVISOR_CORE_WORKER_BASE_URL",
+                optional["agent_worker_base_url"]["resolved_key"],
+                "SUPERVISOR_AGENT_WORKER_BASE_URL",
             )
             self.assertEqual(
                 optional["transport_queue_capacity"]["resolved_key"],

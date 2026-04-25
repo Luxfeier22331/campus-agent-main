@@ -19,17 +19,17 @@ from campus_contracts.models_retrieval import (
 )
 from campus_contracts.models_shared import (
     _SHA256_HEX_RE,
+    ALLOWED_AGENT_TARGETS,
+    ALLOWED_AGENT_TOOL_NAMES,
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_DELEGATE_STATUSES,
     ALLOWED_REQUESTED_CAPABILITIES,
-    ALLOWED_SPECIALIST_TARGETS,
-    ALLOWED_SPECIALIST_TOOL_NAMES,
     ALLOWED_SUPERVISOR_STATUSES,
+    AgentTarget,
+    AgentToolName,
     ConfidenceLevel,
     DelegateStatus,
     RequestedCapability,
-    SpecialistTarget,
-    SpecialistToolName,
     SupervisorStatus,
 )
 from campus_contracts.models_tools import (
@@ -118,7 +118,7 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     return normalized
 
 
-def _coerce_context_projection(request: SupervisorRequest | SpecialistRequest) -> None:
+def _coerce_context_projection(request: SupervisorRequest | AgentRequest) -> None:
     default_actor = ActorContext()
     default_context = ContextProjection()
     if request.actor == default_actor and request.context == default_context:
@@ -165,8 +165,8 @@ class SupervisorRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class SpecialistRequest:
-    target: SpecialistTarget
+class AgentRequest:
+    target: AgentTarget
     user_goal: str
     payload: (
         RagRequestPayload
@@ -177,7 +177,7 @@ class SpecialistRequest:
         | CampusNoticeDiscoverPayload
         | CampusNoticeGetPayload
     )
-    allowed_tools: tuple[SpecialistToolName, ...] = field(default_factory=tuple)
+    allowed_tools: tuple[AgentToolName, ...] = field(default_factory=tuple)
     conversation_id: str = ""
     request_id: str = ""
     safety_identifier: str | None = None
@@ -186,10 +186,10 @@ class SpecialistRequest:
     context: ContextProjection = field(default_factory=ContextProjection)
 
     def __post_init__(self) -> None:
-        if self.target not in ALLOWED_SPECIALIST_TARGETS:
-            raise ValueError(f"unsupported specialist target: {self.target}")
+        if self.target not in ALLOWED_AGENT_TARGETS:
+            raise ValueError(f"unsupported agent target: {self.target}")
         for allowed_tool in self.allowed_tools:
-            if allowed_tool not in ALLOWED_SPECIALIST_TOOL_NAMES:
+            if allowed_tool not in ALLOWED_AGENT_TOOL_NAMES:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -200,8 +200,8 @@ class SpecialistRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class SpecialistResponse:
-    target: SpecialistTarget
+class AgentResponse:
+    target: AgentTarget
     status: DelegateStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -219,8 +219,8 @@ class SpecialistResponse:
     error: ErrorInfo | None = None
 
     def __post_init__(self) -> None:
-        if self.target not in ALLOWED_SPECIALIST_TARGETS:
-            raise ValueError(f"unsupported specialist target: {self.target}")
+        if self.target not in ALLOWED_AGENT_TARGETS:
+            raise ValueError(f"unsupported agent target: {self.target}")
         if self.status not in ALLOWED_DELEGATE_STATUSES:
             raise ValueError(f"unsupported delegate status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
@@ -229,7 +229,7 @@ class SpecialistResponse:
 
 @dataclass(frozen=True, slots=True)
 class SupervisorResponse:
-    selected_target: SpecialistTarget | None
+    selected_target: AgentTarget | None
     status: SupervisorStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -248,10 +248,7 @@ class SupervisorResponse:
     observability: SupervisorObservability | None = None
 
     def __post_init__(self) -> None:
-        if (
-            self.selected_target is not None
-            and self.selected_target not in ALLOWED_SPECIALIST_TARGETS
-        ):
+        if self.selected_target is not None and self.selected_target not in ALLOWED_AGENT_TARGETS:
             raise ValueError(f"unsupported selected_target: {self.selected_target}")
         if self.status not in ALLOWED_SUPERVISOR_STATUSES:
             raise ValueError(f"unsupported supervisor status: {self.status}")

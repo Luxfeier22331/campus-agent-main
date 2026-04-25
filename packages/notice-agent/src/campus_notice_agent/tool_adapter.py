@@ -6,8 +6,8 @@ from campus_contracts import (
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
     ErrorInfo,
-    SpecialistRequest,
-    SpecialistResponse,
+    AgentRequest,
+    AgentResponse,
 )
 
 from campus_notice_agent.query_service import (
@@ -19,15 +19,15 @@ from campus_notice_agent.query_service import (
 
 
 def dispatch_tool_request(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: NoticeQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     if isinstance(request.payload, CampusNoticeDiscoverPayload):
         return _handle_notice_discover(request, query_service=query_service)
     if isinstance(request.payload, CampusNoticeGetPayload):
         return _handle_notice_get(request, query_service=query_service)
-    return SpecialistResponse(
+    return AgentResponse(
         target="notice-agent",
         status="error",
         confidence="low",
@@ -39,10 +39,10 @@ def dispatch_tool_request(
 
 
 def _handle_notice_discover(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: NoticeQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     tool_name = "campus_notice_discover"
     if tool_name not in request.allowed_tools:
         return _tool_not_allowed(tool_name)
@@ -59,10 +59,10 @@ def _handle_notice_discover(
 
 
 def _handle_notice_get(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: NoticeQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     tool_name = "campus_notice_get"
     if tool_name not in request.allowed_tools:
         return _tool_not_allowed(tool_name)
@@ -78,11 +78,11 @@ def _handle_notice_get(
     return _get_response(result)
 
 
-def _discover_response(result: CampusNoticeDiscoverResult) -> SpecialistResponse:
+def _discover_response(result: CampusNoticeDiscoverResult) -> AgentResponse:
     if result.outcome in {"resolved_current", "resolved_historical_reference"}:
         titles = "；".join(card.title for card in result.notice_cards)
         confidence = "high" if result.outcome == "resolved_current" else "medium"
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="completed",
             answer_text=f"找到以下通知：{titles}。",
@@ -91,7 +91,7 @@ def _discover_response(result: CampusNoticeDiscoverResult) -> SpecialistResponse
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要找的通知主题或年份。"
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="needs_clarification",
             answer_text=follow_up,
@@ -100,14 +100,14 @@ def _discover_response(result: CampusNoticeDiscoverResult) -> SpecialistResponse
             result=result,
         )
     if result.outcome == "temporarily_unverifiable":
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="no_answer",
             answer_text="当前还不能稳定确认这类通知。",
             confidence="low",
             result=result,
         )
-    return SpecialistResponse(
+    return AgentResponse(
         target="notice-agent",
         status="no_answer",
         answer_text="当前没有找到对应通知。",
@@ -116,10 +116,10 @@ def _discover_response(result: CampusNoticeDiscoverResult) -> SpecialistResponse
     )
 
 
-def _get_response(result: CampusNoticeGetResult) -> SpecialistResponse:
+def _get_response(result: CampusNoticeGetResult) -> AgentResponse:
     if result.outcome in {"resolved_current", "resolved_historical_reference"}:
         confidence = "high" if result.outcome == "resolved_current" else "medium"
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="completed",
             answer_text=f"{result.title}\n\n{result.normalized_body}",
@@ -128,7 +128,7 @@ def _get_response(result: CampusNoticeGetResult) -> SpecialistResponse:
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要读取的通知。"
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="needs_clarification",
             answer_text=follow_up,
@@ -137,14 +137,14 @@ def _get_response(result: CampusNoticeGetResult) -> SpecialistResponse:
             result=result,
         )
     if result.outcome == "temporarily_unverifiable":
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="no_answer",
             answer_text="当前还不能稳定读取这条通知。",
             confidence="low",
             result=result,
         )
-    return SpecialistResponse(
+    return AgentResponse(
         target="notice-agent",
         status="no_answer",
         answer_text="当前没有找到对应通知。",
@@ -153,15 +153,15 @@ def _get_response(result: CampusNoticeGetResult) -> SpecialistResponse:
     )
 
 
-def _access_context_from_request(request: SpecialistRequest) -> NoticeAccessContext:
+def _access_context_from_request(request: AgentRequest) -> NoticeAccessContext:
     return NoticeAccessContext(
         actor=request.actor,
         authorization=request.context.authorization,
     )
 
 
-def _tool_not_allowed(tool_name: str) -> SpecialistResponse:
-    return SpecialistResponse(
+def _tool_not_allowed(tool_name: str) -> AgentResponse:
+    return AgentResponse(
         target="notice-agent",
         status="error",
         confidence="low",
@@ -172,8 +172,8 @@ def _tool_not_allowed(tool_name: str) -> SpecialistResponse:
     )
 
 
-def _query_service_failed(message: str) -> SpecialistResponse:
-    return SpecialistResponse(
+def _query_service_failed(message: str) -> AgentResponse:
+    return AgentResponse(
         target="notice-agent",
         status="error",
         confidence="low",

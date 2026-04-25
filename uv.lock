@@ -33,8 +33,7 @@ members = [
     "campus-retrieval-core",
     "campus-services-agent",
     "campus-shared",
-    "campus-supervisor-core",
-    "campus-supervisor-core-worker",
+    "campus-supervisor-agent-worker",
 ]
 
 [[package]]
@@ -496,36 +495,12 @@ requires-dist = [
 ]
 
 [[package]]
-name = "campus-supervisor-core"
+name = "campus-supervisor-agent-worker"
 version = "0.1.0"
-source = { editable = "packages/supervisor-core" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "campus-navigation-agent" },
-    { name = "campus-notice-agent" },
-    { name = "campus-rag-agent" },
-    { name = "campus-services-agent" },
-    { name = "campus-shared" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-navigation-agent", editable = "packages/navigation-agent" },
-    { name = "campus-notice-agent", editable = "packages/notice-agent" },
-    { name = "campus-rag-agent", editable = "packages/rag-agent" },
-    { name = "campus-services-agent", editable = "packages/campus-services-agent" },
-    { name = "campus-shared", editable = "packages/shared" },
-]
-
-[[package]]
-name = "campus-supervisor-core-worker"
-version = "0.1.0"
-source = { editable = "apps/supervisor-core-worker" }
+source = { editable = "apps/supervisor-agent-worker" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-shared" },
-    { name = "campus-supervisor-core" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "uvicorn" },
@@ -535,7 +510,6 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-shared", editable = "packages/shared" },
-    { name = "campus-supervisor-core", editable = "packages/supervisor-core" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "uvicorn", specifier = ">=0.30.0" },

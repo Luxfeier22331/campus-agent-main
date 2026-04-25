@@ -4,10 +4,10 @@
 
 它负责：
 
-- 接收来自 `packages/supervisor-core` 的稳定 agent handoff
+- 接收来自 `apps/supervisor-agent-worker` 的稳定 agent handoff
 - 调用 `packages/retrieval-core` 获取 evidence
 - 组装基于 evidence 的回答
-- 返回 `SpecialistResponse` 与 confidence
+- 返回 `AgentResponse` 与 confidence
 
 它不负责：
 

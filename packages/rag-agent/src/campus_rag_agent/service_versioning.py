@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
-    SpecialistRequest,
-    SpecialistResponse,
 )
 from campus_ingestion_core import (
     load_runtime_profile,
@@ -53,7 +53,7 @@ class _VersionAnswerContext:
 
 def _resolve_version_answer_context(
     *,
-    request: SpecialistRequest,
+    request: AgentRequest,
     resolved_scope: KnowledgeScope,
     retrieval_collection: str,
     target_document_ids: tuple[str, ...],
@@ -99,16 +99,16 @@ def _build_version_filter_unresolved_response(
     *,
     build_rag_result_payload,
     build_empty_evidence,
-    request: SpecialistRequest,
+    request: AgentRequest,
     resolved_scope: KnowledgeScope,
     user_goal: str,
     handbook_plan: HandbookQueryPlan | None,
     curriculum_plan: CurriculumQueryPlan | None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
-) -> SpecialistResponse:
+) -> AgentResponse:
     empty_evidence = build_empty_evidence(resolved_scope, user_goal)
-    return SpecialistResponse(
+    return AgentResponse(
         target="rag-agent",
         status="no_answer",
         answer_text=_build_version_filter_unresolved_answer(
@@ -220,8 +220,8 @@ def _build_compare_support_incomplete_response(
     curriculum_plan: CurriculumQueryPlan | None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status="no_answer",
         answer_text="当前还不能稳定比较该制度的旧版与新版，因为双侧证据不完整。",
@@ -256,13 +256,13 @@ def _build_version_aware_completed_response(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
     confidence: str,
     version_answer_context: _VersionAnswerContext,
-) -> SpecialistResponse:
+) -> AgentResponse:
     answer_text = _build_version_aware_answer_text(
         evidence=evidence,
         version_answer_context=version_answer_context,
     )
     semantic_outcome = _version_answer_semantic_outcome(version_answer_context.mode)
-    return SpecialistResponse(
+    return AgentResponse(
         target="rag-agent",
         status="completed",
         answer_text=answer_text,

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from campus_contracts import PersonalizationHint, SpecialistRequest
+from campus_contracts import AgentRequest, PersonalizationHint
 
 RagQuestionKind = Literal[
     "fact", "policy_basis", "eligibility", "procedure", "materials", "deadline", "comparison"
@@ -57,7 +57,7 @@ class RagIntentFrame:
     response_mode: RagResponseMode
 
 
-def frame_rag_intent(request: SpecialistRequest) -> RagIntentFrame:
+def frame_rag_intent(request: AgentRequest) -> RagIntentFrame:
     normalized_goal = _normalize_text(request.user_goal).lower()
     personalization_hint = build_personalization_hint(request)
     personalization_mode: RagPersonalizationMode
@@ -92,7 +92,7 @@ def frame_rag_intent(request: SpecialistRequest) -> RagIntentFrame:
     )
 
 
-def build_personalization_hint(request: SpecialistRequest) -> PersonalizationHint:
+def build_personalization_hint(request: AgentRequest) -> PersonalizationHint:
     actor_terms: list[str] = []
     actor = request.context.actor
     visibility_scope = request.context.authorization.visibility_scope

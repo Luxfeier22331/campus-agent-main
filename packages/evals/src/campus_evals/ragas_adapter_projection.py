@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from campus_contracts import (
     EvidenceBundle,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     SupervisorResponse,
 )
 
@@ -173,10 +173,10 @@ def _is_metric_applicable(case: GoldenCase, metric_name: str) -> bool:
 
 def _require_supported_response(
     execution: ExecutionResult,
-) -> SpecialistResponse | SupervisorResponse:
+) -> AgentResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
+    if not isinstance(response, (AgentResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be AgentResponse or SupervisorResponse")
     return response
 
 

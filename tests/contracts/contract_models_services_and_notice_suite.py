@@ -20,8 +20,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             "notice:muc-spring-break-2026",
         )
 
-    def test_specialist_request_serializes_forward_agent_allowed_tools(self) -> None:
-        request = SpecialistRequest(
+    def test_agent_request_serializes_forward_agent_allowed_tools(self) -> None:
+        request = AgentRequest(
             target="campus-services-agent",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
@@ -36,11 +36,11 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         self.assertEqual(payload["target"], "campus-services-agent")
         self.assertEqual(tuple(payload["allowed_tools"]), ("service_status_lookup",))
 
-    def test_specialist_request_rejects_unknown_allowed_tool(self) -> None:
+    def test_agent_request_rejects_unknown_allowed_tool(self) -> None:
         with self.assertRaisesRegex(
             ValueError, "unsupported allowed_tool: transport_notice_latest"
         ):
-            SpecialistRequest(
+            AgentRequest(
                 target="campus-services-agent",
                 user_goal="校车现在开吗",
                 payload=TransportScheduleLookupPayload(
@@ -305,8 +305,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 source_url="https://www.muc.edu.cn/info/2026-spring-break.htm",
             )
 
-    def test_specialist_request_accepts_service_status_payload(self) -> None:
-        request = SpecialistRequest(
+    def test_agent_request_accepts_service_status_payload(self) -> None:
+        request = AgentRequest(
             target="campus-services-agent",
             user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
@@ -328,8 +328,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             },
         )
 
-    def test_specialist_request_accepts_service_guide_payload(self) -> None:
-        request = SpecialistRequest(
+    def test_agent_request_accepts_service_guide_payload(self) -> None:
+        request = AgentRequest(
             target="campus-services-agent",
             user_goal="宿舍入住怎么办理",
             payload=ServiceGuideLookupPayload(
@@ -342,8 +342,8 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         self.assertEqual(asdict(request)["payload"]["guide_focus"], "procedure")
         self.assertEqual(tuple(asdict(request)["allowed_tools"]), ("service_guide_lookup",))
 
-    def test_specialist_response_serializes_notice_get_result_shape(self) -> None:
-        response = SpecialistResponse(
+    def test_agent_response_serializes_notice_get_result_shape(self) -> None:
+        response = AgentResponse(
             target="rag-agent",
             status="completed",
             answer_text="这是当前可确认的春假通知正文。",
@@ -376,9 +376,9 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ("projection:official_web_notice_projection_v1",),
         )
 
-    def test_specialist_request_rejects_missing_payload(self) -> None:
+    def test_agent_request_rejects_missing_payload(self) -> None:
         with self.assertRaises(TypeError):
-            SpecialistRequest(  # type: ignore[call-arg]
+            AgentRequest(  # type: ignore[call-arg]
                 target="rag-agent",
                 user_goal="library hours",
             )

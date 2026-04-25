@@ -12,7 +12,7 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -147,7 +147,7 @@ class OfficialWebLiveExecutorTest(unittest.TestCase):
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="completed",
                 answer_text="根据官网页面内容，《学校简介》明确：中央民族大学是一所特色鲜明的高等院校。",

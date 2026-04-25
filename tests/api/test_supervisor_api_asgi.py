@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from campus_supervisor_core_worker.app import create_bridge_app
-from campus_supervisor_core_worker.asgi import SupervisorBridgeAsgiApp, dispatch_http_request
-from campus_supervisor_core_worker.settings import ApiSettings
+from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.asgi import SupervisorBridgeAsgiApp, dispatch_http_request
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 class SupervisorApiAsgiTest(unittest.TestCase):

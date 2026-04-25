@@ -15,7 +15,7 @@ from campus_contracts import (
     RagResultPayload,
     RemoteContentSuspicionSummary,
     SourceTrustSummary,
-    SpecialistResponse,
+    AgentResponse,
     VersionQuery,
 )
 from campus_evals import (
@@ -193,7 +193,7 @@ __all__ = (
     "RagResultPayload",
     "RemoteContentSuspicionSummary",
     "SourceTrustSummary",
-    "SpecialistResponse",
+    "AgentResponse",
     "TraceExpectation",
     "VersionQuery",
     "_completed_case",

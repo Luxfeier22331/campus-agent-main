@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import SpecialistRequest, SpecialistResponse
+from campus_contracts import AgentRequest, AgentResponse
 
 from campus_rag_agent.intent import RagIntentFrame
 from campus_rag_agent.prompt_execution import RagPromptExecutor
@@ -26,7 +26,7 @@ from .service_scope import _has_resolved_query_plan
 
 def _maybe_return_pre_retrieval_response(
     *,
-    request: SpecialistRequest,
+    request: AgentRequest,
     effective_scope,
     user_goal: str,
     personalization_hint,
@@ -36,7 +36,7 @@ def _maybe_return_pre_retrieval_response(
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
-) -> SpecialistResponse | None:
+) -> AgentResponse | None:
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
@@ -61,7 +61,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -108,7 +108,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -155,7 +155,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -203,7 +203,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -241,7 +241,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=answer_text,

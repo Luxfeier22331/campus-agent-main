@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import EvidenceBundle, SpecialistRequest
+from campus_contracts import AgentRequest, EvidenceBundle
 from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.corpus_profiles import (
     is_official_web_stable_reference_like_profile,
@@ -78,7 +78,7 @@ def _build_curriculum_unsupported_response(plan: CurriculumQueryPlan) -> str:
 
 
 def _build_restricted_access_denied_response(
-    request: SpecialistRequest,
+    request: AgentRequest,
     evidence: EvidenceBundle,
 ) -> str:
     principal_type = (

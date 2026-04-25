@@ -12,7 +12,7 @@ from tests.evals.golden_cases_test_support import (
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     SupervisorObservability,
     SupervisorResponse,
     TraceExpectation,
@@ -76,7 +76,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         def executor(case: GoldenCase) -> ExecutionResult:
             if case.case_id == "case-clarification-instead-of-guess":
                 return ExecutionResult(
-                    response=SpecialistResponse(
+                    response=AgentResponse(
                         target="rag-agent",
                         status="needs_clarification",
                         answer_text="你想问的是哪一类奖学金评审办法？",
@@ -104,7 +104,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     ),
                 )
             return ExecutionResult(
-                response=SpecialistResponse(
+                response=AgentResponse(
                     target="rag-agent",
                     status="no_answer",
                     answer_text="当前检索结果不足以支持开课单位和适用专业，请以原文为准。",
@@ -141,7 +141,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         self.assertTrue(report.results[1].metric_results["retrieval_adequacy_accuracy"].passed)
         self.assertTrue(report.results[1].metric_results["grounding_claim_accuracy"].passed)
 
-    def test_policy_risk_and_grounding_release_gate_cases_grade_supervisor_stop_and_specialist_paths(
+    def test_policy_risk_and_grounding_release_gate_cases_grade_supervisor_stop_and_agent_paths(
         self,
     ) -> None:
         cases = policy_risk_and_grounding_release_gate_cases()
@@ -434,7 +434,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         report = run_cases(
             (case,),
             executor=lambda _: ExecutionResult(
-                response=SpecialistResponse(
+                response=AgentResponse(
                     target="rag-agent",
                     status="needs_clarification",
                     follow_up_question="请具体说明你想咨询学生手册中的哪一项制度、流程或表格。",
@@ -674,7 +674,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "clarify-accuracy":
                 return ExecutionResult(
-                    response=SpecialistResponse(
+                    response=AgentResponse(
                         target="rag-agent",
                         status="needs_clarification",
                         result=RagResultPayload(
@@ -695,7 +695,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                 )
             if case.case_id == "no-answer-fail-close":
                 return ExecutionResult(
-                    response=SpecialistResponse(
+                    response=AgentResponse(
                         target="rag-agent",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答该问题，请确认它是否属于学生手册范围，或补充更具体的制度名称。",
@@ -716,7 +716,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
                     ),
                 )
             return ExecutionResult(
-                response=SpecialistResponse(
+                response=AgentResponse(
                     target="rag-agent",
                     status="error",
                     confidence="low",

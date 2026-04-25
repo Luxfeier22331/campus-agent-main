@@ -6,18 +6,18 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from campus_contracts import (
+    AgentResponse,
     KnowledgeScope,
     RagRequestPayload,
-    SpecialistResponse,
     VersionQuery,
 )
-from campus_supervisor_core import MissingAgentDelegateError
-from campus_supervisor_core_worker.api_request_parsing import _parse_bridge_supervisor_envelope
-from campus_supervisor_core_worker.app import create_bridge_app
-from campus_supervisor_core_worker.settings import ApiSettings
+from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
+from campus_supervisor_agent_worker.api_request_parsing import _parse_bridge_supervisor_envelope
+from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
-def _bridge_v5_payload(
+def _bridge_v6_payload(
     *,
     user_goal: str = "test",
     conversation_id: str = "",
@@ -45,8 +45,8 @@ def _bridge_v5_payload(
     if version_query is None:
         version_query = {"mode": "current"}
     body: dict[str, object] = {
-        "bridge_version": "supervisor_bridge_v5",
-        "response_contract": "specialist_response",
+        "bridge_version": "supervisor_bridge_v6",
+        "response_contract": "agent_response",
         "user_goal": user_goal,
         "conversation_id": conversation_id,
         "request_id": request_id,
@@ -154,7 +154,7 @@ def _handoff_fields_for_capability(
                 "planning_outcome": "preplanned",
                 "target": "campus-services-agent",
                 "allowed_tools": ["transport_schedule_lookup"],
-                "specialist_request": _specialist_request_payload(
+                "agent_request": _agent_request_payload(
                     target="campus-services-agent",
                     user_goal=user_goal,
                     request_id=request_id,
@@ -184,7 +184,7 @@ def _handoff_fields_for_capability(
                 "planning_outcome": "preplanned",
                 "target": "notice-agent",
                 "allowed_tools": ["campus_notice_discover"],
-                "specialist_request": _specialist_request_payload(
+                "agent_request": _agent_request_payload(
                     target="notice-agent",
                     user_goal=user_goal,
                     request_id=request_id,
@@ -212,7 +212,7 @@ def _handoff_fields_for_capability(
             "planning_outcome": "preplanned",
             "target": "rag-agent",
             "allowed_tools": [],
-            "specialist_request": _specialist_request_payload(
+            "agent_request": _agent_request_payload(
                 target="rag-agent",
                 user_goal=user_goal,
                 request_id=request_id,
@@ -230,7 +230,7 @@ def _handoff_fields_for_capability(
     }
 
 
-def _specialist_request_payload(
+def _agent_request_payload(
     *,
     target: str,
     user_goal: str,
@@ -270,7 +270,7 @@ def _specialist_request_payload(
     }
 
 
-def _bridge_v5_payload_with_handoff(
+def _bridge_v6_payload_with_handoff(
     *,
     user_goal: str,
     request_id: str,
@@ -283,7 +283,7 @@ def _bridge_v5_payload_with_handoff(
     allowed_tools: list[str],
     context: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    body = _bridge_v5_payload(
+    body = _bridge_v6_payload(
         user_goal=user_goal,
         request_id=request_id,
         trace_id=trace_id,
@@ -357,7 +357,7 @@ def _bridge_v5_payload_with_handoff(
             "planning_outcome": "preplanned",
             "target": handoff_target,
             "allowed_tools": allowed_tools,
-            "specialist_request": _specialist_request_payload(
+            "agent_request": _agent_request_payload(
                 target=handoff_target,
                 user_goal=user_goal,
                 request_id=request_id,
@@ -373,25 +373,25 @@ def _bridge_v5_payload_with_handoff(
 
 
 class SupervisorApiBridgeTest(unittest.TestCase):
-    def test_bridge_answer_route_accepts_v5_specialist_response_contract(self) -> None:
+    def test_bridge_answer_route_accepts_v6_agent_response_contract(self) -> None:
         captured_requests = []
 
         def fake_agent(request):
             captured_requests.append(request)
-            return SpecialistResponse(
+            return AgentResponse(
                 target=request.target,
                 status="completed",
-                answer_text="Specialist response returned to Go finalizer.",
+                answer_text="Agent response returned to Go finalizer.",
                 confidence="high",
             )
 
-        body = _bridge_v5_payload(
+        body = _bridge_v6_payload(
             user_goal="保研政策怎么准备？",
-            request_id="req-v5-specialist-response",
-            trace_id="trace-v5-specialist-response",
+            request_id="req-v6-agent-response",
+            trace_id="trace-v6-agent-response",
         )
-        body["bridge_version"] = "supervisor_bridge_v5"
-        body["response_contract"] = "specialist_response"
+        body["bridge_version"] = "supervisor_bridge_v6"
+        body["response_contract"] = "agent_response"
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -407,13 +407,13 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "specialist_response")
+        self.assertEqual(response.headers["x-supervisor-bridge-kind"], "agent_response")
         self.assertEqual(response.json_body["target"], "rag-agent")
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(len(captured_requests), 1)
         self.assertEqual(captured_requests[0].target, "rag-agent")
 
-    def test_bridge_answer_route_rejects_bridge_v4_after_specialist_response_hardcut(
+    def test_bridge_answer_route_rejects_bridge_v4_after_agent_response_hardcut(
         self,
     ) -> None:
         app = create_bridge_app(
@@ -427,21 +427,21 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
             json_body={
-                **_bridge_v5_payload(request_id="req-v4-rejected"),
+                **_bridge_v6_payload(request_id="req-v4-rejected"),
                 "bridge_version": "supervisor_bridge_v4",
             },
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
-        self.assertIn("supervisor_bridge_v5", response.json_body["error"]["message"])
+        self.assertIn("supervisor_bridge_v6", response.json_body["error"]["message"])
 
     def test_bridge_answer_route_accepts_supervisor_request_payload(self) -> None:
         captured_requests = []
 
         def fake_agent(request):
             captured_requests.append(request)
-            return SpecialistResponse(
+            return AgentResponse(
                 target=request.target,
                 status="completed",
                 answer_text="Projected context reached supervisor.",
@@ -456,7 +456,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             agent_handler=fake_agent,
         )
 
-        body = _bridge_v5_payload(
+        body = _bridge_v6_payload(
             user_goal="保研政策怎么准备？",
             conversation_id="conv-001",
             request_id="req-001",
@@ -495,7 +495,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.headers["x-supervisor-bridge-kind"],
-            "specialist_response",
+            "agent_response",
         )
         self.assertEqual(response.json_body["status"], "completed")
         self.assertEqual(response.json_body["target"], "rag-agent")
@@ -503,7 +503,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertEqual(captured_requests[0].trace.trace_id, "trace-001")
         self.assertEqual(captured_requests[0].context.actor.user_id, "student@example.edu")
 
-    def test_bridge_answer_route_rejects_legacy_payload_without_bridge_v5_marker(self) -> None:
+    def test_bridge_answer_route_rejects_legacy_payload_without_bridge_v6_marker(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
                 bridge_shared_secret="bridge-secret",
@@ -545,7 +545,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
 
         def fake_agent(request):
             captured_requests.append(request)
-            return SpecialistResponse(
+            return AgentResponse(
                 target=request.target,
                 status="completed",
                 answer_text="ok",
@@ -563,7 +563,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v5_payload(
+            json_body=_bridge_v6_payload(
                 user_goal="校车时刻表",
                 request_id="req-v2-effective",
                 trace_id="trace-v2-effective",
@@ -584,7 +584,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
             )
         )
-        body = _bridge_v5_payload(
+        body = _bridge_v6_payload(
             user_goal="MIT的校长是谁",
             request_id="req-go-policy-out-of-scope",
             trace_id="trace-go-policy-out-of-scope",
@@ -687,7 +687,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
             )
         )
-        body = _bridge_v5_payload(
+        body = _bridge_v6_payload(
             user_goal="保研政策怎么准备？",
             request_id="req-missing-runtime-frame",
         )
@@ -718,7 +718,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v5_payload(
+            json_body=_bridge_v6_payload(
                 user_goal="学生手册请假制度怎么规定？",
                 request_id="req-missing-handoff",
                 trace_id="trace-missing-handoff",
@@ -736,7 +736,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
             )
         )
-        body = _bridge_v5_payload(
+        body = _bridge_v6_payload(
             user_goal="MIT的校长是谁",
             request_id="req-missing-terminal-envelope",
             trace_id="trace-missing-terminal-envelope",
@@ -765,7 +765,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         self.assertIn("handoff", response.json_body["error"]["message"])
 
     def test_bridge_parser_parses_go_preplanned_knowledge_handoff(self) -> None:
-        body = _bridge_v5_payload_with_handoff(
+        body = _bridge_v6_payload_with_handoff(
             user_goal="学生手册请假制度怎么规定？",
             request_id="req-go-preplanned-knowledge",
             trace_id="trace-go-preplanned-knowledge",
@@ -868,7 +868,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
             "POST",
             "/internal/bridge/supervisor/answer",
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
-            json_body=_bridge_v5_payload(request_id="req-supervisor-error"),
+            json_body=_bridge_v6_payload(request_id="req-supervisor-error"),
         )
 
         self.assertEqual(response.status_code, 500)
@@ -898,7 +898,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
         def fake_agent(request):
             started.set()
             release.wait(timeout=1.0)
-            return SpecialistResponse(
+            return AgentResponse(
                 target=request.target,
                 status="completed",
                 answer_text="completed after cancel signal",
@@ -918,7 +918,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                     "POST",
                     "/internal/bridge/supervisor/answer",
                     headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                    json_body=_bridge_v5_payload(
+                    json_body=_bridge_v6_payload(
                         user_goal="图书馆开门吗",
                         request_id="req-active-cancel",
                         trace_id="trace-active-cancel",
@@ -1001,7 +1001,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v5_payload_with_handoff(
+                json_body=_bridge_v6_payload_with_handoff(
                     user_goal="最近一版校车时刻表是什么时候发布的",
                     request_id="req-campus-services-query",
                     trace_id="trace-campus-services-query",
@@ -1087,7 +1087,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v5_payload_with_handoff(
+                json_body=_bridge_v6_payload_with_handoff(
                     user_goal="最早的班车几点",
                     request_id="req-go-preplanned-transport",
                     trace_id="trace-go-preplanned-transport",
@@ -1175,7 +1175,7 @@ class SupervisorApiBridgeTest(unittest.TestCase):
                 "POST",
                 "/internal/bridge/supervisor/answer",
                 headers={"x-supervisor-bridge-auth": "bridge-secret"},
-                json_body=_bridge_v5_payload_with_handoff(
+                json_body=_bridge_v6_payload_with_handoff(
                     user_goal="找一下家具采购通知",
                     request_id="req-notice-query",
                     trace_id="trace-notice-query",

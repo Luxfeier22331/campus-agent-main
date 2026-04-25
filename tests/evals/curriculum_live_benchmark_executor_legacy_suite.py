@@ -5,7 +5,7 @@ from tests.evals.curriculum_live_benchmark_test_support import (
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     VersionQuery,
     _completed_case,
     _error_case,
@@ -47,7 +47,7 @@ class CurriculumLiveExecutorLegacyTest(unittest.TestCase):
 
         def fake_delegate(request, *, retriever):
             seen_requests.append(request)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="completed",
                 answer_text="旧版课程安排如下。",

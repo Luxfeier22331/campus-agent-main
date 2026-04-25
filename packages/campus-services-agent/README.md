@@ -8,7 +8,7 @@ service capability 的 owner package。
 - 接收 `campus-services-agent` 的 typed agent handoff
 - 在 package 内维护 thin tool adapter
 - 将 tool payload 映射为 internal query service packet
-- 调用 execution-side internal query service，并返回 typed `SpecialistResponse`
+- 调用 execution-side internal query service，并返回 typed `AgentResponse`
 
 它不负责：
 

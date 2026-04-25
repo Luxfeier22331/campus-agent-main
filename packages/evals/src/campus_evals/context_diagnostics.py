@@ -9,7 +9,7 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
 )
 from campus_shared import load_repo_env
 
@@ -201,7 +201,7 @@ def _build_projection_diagnostic(
         return None
 
     execution = ExecutionResult(
-        response=SpecialistResponse(
+        response=AgentResponse(
             target="rag-agent",
             status="completed",
             answer_text="artifact replay answer",

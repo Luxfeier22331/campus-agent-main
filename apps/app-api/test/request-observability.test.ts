@@ -400,7 +400,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("derives specialist grounding downgrade semantics from diagnostics when observability is absent", () => {
+	it("derives agent grounding downgrade semantics from diagnostics when observability is absent", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-11T09:00:01.000Z",
 			conversationId: "conv_01HQ",

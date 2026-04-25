@@ -11,7 +11,7 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     SupervisorResponse,
 )
 from campus_evals import (
@@ -59,8 +59,8 @@ def _response(
     corpus: str = "regulations",
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status=status,
         answer_text=answer_text,

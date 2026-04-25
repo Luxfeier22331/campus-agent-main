@@ -16,13 +16,13 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-SpecialistTarget = Literal[
+AgentTarget = Literal[
     "rag-agent",
     "navigation-agent",
     "campus-services-agent",
     "notice-agent",
 ]
-SpecialistToolName = Literal[
+AgentToolName = Literal[
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",
@@ -132,13 +132,13 @@ DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_SPECIALIST_TARGETS = (
+ALLOWED_AGENT_TARGETS = (
     "rag-agent",
     "navigation-agent",
     "campus-services-agent",
     "notice-agent",
 )
-ALLOWED_SPECIALIST_TOOL_NAMES = (
+ALLOWED_AGENT_TOOL_NAMES = (
     "service_status_lookup",
     "service_guide_lookup",
     "transport_schedule_lookup",

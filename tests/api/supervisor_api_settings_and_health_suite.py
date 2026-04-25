@@ -4,8 +4,8 @@ import os
 import unittest
 from unittest.mock import patch
 
-from campus_supervisor_core_worker.app import create_bridge_app
-from campus_supervisor_core_worker.settings import ApiSettings
+from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
@@ -16,7 +16,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
                 runtime_provider="mock-runtime",
                 supervisor_prompt_model="gpt-supervisor",
-                specialist_prompt_model="gpt-specialist",
+                agent_prompt_model="gpt-agent",
             )
         )
 
@@ -31,7 +31,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(ready.json_body["runtime_provider"], "mock-runtime")
         self.assertEqual(ready.json_body["prompt_runtime"]["provider"], "mock-runtime")
         self.assertEqual(ready.json_body["prompt_runtime"]["supervisor_model"], "gpt-supervisor")
-        self.assertEqual(ready.json_body["prompt_runtime"]["specialist_model"], "gpt-specialist")
+        self.assertEqual(ready.json_body["prompt_runtime"]["agent_model"], "gpt-agent")
         self.assertEqual(
             ready.json_body["prompt_runtime"]["admission_reason"],
             "api_key_not_configured",
@@ -55,7 +55,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 bridge_shared_secret="bridge-secret",
                 runtime_provider="openai-responses",
                 supervisor_prompt_model="gpt-supervisor",
-                specialist_prompt_model="gpt-specialist",
+                agent_prompt_model="gpt-agent",
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
@@ -83,7 +83,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "AGENT_RUNTIME_PROVIDER": "agent-os",
             "PROMPT_RUNTIME_MODEL": "gpt-shared",
             "SUPERVISOR_PROMPT_MODEL": "gpt-supervisor",
-            "SPECIALIST_PROMPT_MODEL": "gpt-specialist",
+            "AGENT_PROMPT_MODEL": "gpt-agent",
             "PROMPT_RUNTIME_PROVIDER": "openai-responses",
             "PROMPT_STRICT_STRUCTURED_OUTPUTS": "false",
             "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS": "1.5",
@@ -93,8 +93,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "PROMPT_RUNTIME_MAX_CONNECTIONS": "17",
             "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS": "9",
             "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "19",
-            "SUPERVISOR_CORE_WORKER_SHARED_SECRET": "bridge-secret",
-            "SUPERVISOR_CORE_WORKER_THREADS": "7",
+            "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": "bridge-secret",
+            "SUPERVISOR_AGENT_WORKER_THREADS": "7",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -104,7 +104,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.runtime_provider, "agent-os")
         self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
         self.assertEqual(settings.supervisor_prompt_model, "gpt-supervisor")
-        self.assertEqual(settings.specialist_prompt_model, "gpt-specialist")
+        self.assertEqual(settings.agent_prompt_model, "gpt-agent")
         self.assertEqual(settings.prompt_runtime_provider, "openai-responses")
         self.assertFalse(settings.prompt_strict_structured_outputs)
         self.assertEqual(settings.prompt_runtime_connect_timeout_seconds, 1.5)
@@ -130,7 +130,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
 
         self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
         self.assertEqual(settings.supervisor_prompt_model, "gpt-shared")
-        self.assertEqual(settings.specialist_prompt_model, "gpt-shared")
+        self.assertEqual(settings.agent_prompt_model, "gpt-shared")
 
 
 if __name__ == "__main__":

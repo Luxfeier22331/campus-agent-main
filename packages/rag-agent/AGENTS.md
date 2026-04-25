@@ -9,7 +9,7 @@
 - 接收来自 `supervisor-core` 的稳定 handoff，而不是继续暴露旧 `campusRAG` tool 风格接口
 - 负责 retrieval 导向的 `query rewriting`、`retrieval strategy selection`、`evidence
   collection`、`evidence normalization`、`confidence` 返回
-- 返回 `SpecialistResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
+- 返回 `AgentResponse` 的 rag 分支，而不是把底层 retrieval 结果原样泄漏出去
 - 当前默认 query-serving retrieval agent 仍是 `rag-agent`
 
 当前 bootstrap 入口是 `src/campus_rag_agent/service.py` 中的
@@ -89,6 +89,6 @@
 优先使用这些命令验证本目录相关变更：
 
 ```bash
-uv run --all-packages python -m pytest tests/specialist/test_rag_specialist.py -q
+uv run --all-packages python -m pytest tests/agent/test_rag_agent.py -q
 uv run --all-packages python -m unittest discover -s tests -t .
 ```

@@ -9,7 +9,7 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
 )
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, TraceExpectation
 from campus_evals.judge_adapters import (
@@ -53,8 +53,8 @@ def _response(
     answer_text: str = "",
     follow_up_question: str = "",
     sources: tuple[EvidenceSource, ...] = (),
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status=status,
         answer_text=answer_text,

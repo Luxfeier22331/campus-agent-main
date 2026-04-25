@@ -70,5 +70,5 @@ else
 fi
 echo "logs:"
 echo "  ${supervisor_api_staging_supervisor_api_log_file}"
-echo "  ${supervisor_api_staging_supervisor_core_worker_log_file}"
+echo "  ${supervisor_api_staging_supervisor_agent_worker_log_file}"
 echo "  ${supervisor_api_staging_cloudflared_log_file}"

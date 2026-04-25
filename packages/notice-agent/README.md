@@ -8,7 +8,7 @@ capability 的 owner package。
 - 接收 `notice-agent` 的 typed agent handoff
 - 在 package 内维护 notice discovery / get 的 thin tool adapter
 - 将 tool payload 映射为 execution-side internal query service packet
-- 调用 notice query service，并返回 typed `SpecialistResponse`
+- 调用 notice query service，并返回 typed `AgentResponse`
 
 它不负责：
 
@@ -25,7 +25,7 @@ seam；internal notice 的 projected read-model 查询 runtime 已迁到 `apps/s
   `/internal/query/notices/discover` 与 `/internal/query/notices/get`
 - `delegate_to_notice_agent(...)`：必须显式注入 query service；默认不再从 Python
   env 构造 PG/S3 read-model runtime
-- `tool_adapter`：负责 notice discover/get result 到 `SpecialistResponse` 的薄映射
+- `tool_adapter`：负责 notice discover/get result 到 `AgentResponse` 的薄映射
 
 Go `apps/supervisor-api` 现在负责：
 

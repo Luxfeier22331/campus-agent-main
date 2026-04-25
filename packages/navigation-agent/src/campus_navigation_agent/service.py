@@ -4,8 +4,8 @@ from campus_contracts import (
     ErrorInfo,
     PlaceLookupPayload,
     PlaceLookupResult,
-    SpecialistRequest,
-    SpecialistResponse,
+    AgentRequest,
+    AgentResponse,
 )
 
 from campus_navigation_agent.catalog import (
@@ -14,19 +14,19 @@ from campus_navigation_agent.catalog import (
 )
 
 
-def delegate_to_navigation_agent(request: SpecialistRequest) -> SpecialistResponse:
+def delegate_to_navigation_agent(request: AgentRequest) -> AgentResponse:
     if request.target != "navigation-agent":
-        return SpecialistResponse(
+        return AgentResponse(
             target="navigation-agent",
             status="error",
             confidence="low",
             error=ErrorInfo(
-                code="invalid_specialist_target",
+                code="invalid_agent_target",
                 message="navigation-agent requires target='navigation-agent'",
             ),
         )
     if not isinstance(request.payload, PlaceLookupPayload):
-        return SpecialistResponse(
+        return AgentResponse(
             target="navigation-agent",
             status="error",
             confidence="low",
@@ -38,7 +38,7 @@ def delegate_to_navigation_agent(request: SpecialistRequest) -> SpecialistRespon
 
     normalized_alias, candidates = resolve_place_candidates(request.payload.query_text)
     if not candidates:
-        return SpecialistResponse(
+        return AgentResponse(
             target="navigation-agent",
             status="no_answer",
             answer_text="当前 place catalog 里还没有这个地点，请换个更具体的校内地点名称再试一次。",
@@ -52,7 +52,7 @@ def delegate_to_navigation_agent(request: SpecialistRequest) -> SpecialistRespon
     if len(candidates) > 1:
         candidate_places = build_candidate_list(candidates)
         options = "；".join(_format_candidate_option(candidate) for candidate in candidate_places)
-        return SpecialistResponse(
+        return AgentResponse(
             target="navigation-agent",
             status="needs_clarification",
             follow_up_question=f"你要找的是：{options}？请说更具体一点。",
@@ -65,7 +65,7 @@ def delegate_to_navigation_agent(request: SpecialistRequest) -> SpecialistRespon
         )
 
     matched_entry = candidates[0]
-    return SpecialistResponse(
+    return AgentResponse(
         target="navigation-agent",
         status="completed",
         answer_text=_format_place_answer(matched_entry),

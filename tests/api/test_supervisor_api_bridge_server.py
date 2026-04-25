@@ -4,15 +4,15 @@ import os
 import unittest
 from unittest.mock import patch
 
-from campus_supervisor_core_worker.bridge_server import BridgeServerSettings
-from campus_supervisor_core_worker.bridge_server import main as bridge_server_main
+from campus_supervisor_agent_worker.bridge_server import BridgeServerSettings
+from campus_supervisor_agent_worker.bridge_server import main as bridge_server_main
 
 
 class SupervisorApiBridgeServerTest(unittest.TestCase):
     def test_bridge_server_settings_read_host_and_port_from_env(self) -> None:
         env = os.environ | {
-            "SUPERVISOR_CORE_WORKER_HOST": "0.0.0.0",
-            "SUPERVISOR_CORE_WORKER_PORT": "18091",
+            "SUPERVISOR_AGENT_WORKER_HOST": "0.0.0.0",
+            "SUPERVISOR_AGENT_WORKER_PORT": "18091",
         }
         with patch.dict(os.environ, env, clear=True):
             settings = BridgeServerSettings.from_env()
@@ -22,8 +22,8 @@ class SupervisorApiBridgeServerTest(unittest.TestCase):
 
     def test_main_loads_repo_env_before_serving(self) -> None:
         with (
-            patch("campus_supervisor_core_worker.bridge_server.load_repo_env") as load_repo_env,
-            patch("campus_supervisor_core_worker.bridge_server.serve") as serve,
+            patch("campus_supervisor_agent_worker.bridge_server.load_repo_env") as load_repo_env,
+            patch("campus_supervisor_agent_worker.bridge_server.serve") as serve,
         ):
             bridge_server_main()
 

@@ -1,28 +1,28 @@
 from __future__ import annotations
 
-from campus_contracts import ErrorInfo, SpecialistRequest, SpecialistResponse
+from campus_contracts import ErrorInfo, AgentRequest, AgentResponse
 
 from campus_notice_agent.query_service import NoticeQueryService
 from campus_notice_agent.tool_adapter import dispatch_tool_request
 
 
 def delegate_to_notice_agent(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: NoticeQueryService | None = None,
-) -> SpecialistResponse:
+) -> AgentResponse:
     if request.target != "notice-agent":
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="error",
             confidence="low",
             error=ErrorInfo(
-                code="invalid_specialist_target",
+                code="invalid_agent_target",
                 message="notice-agent requires target='notice-agent'",
             ),
         )
     if query_service is None:
-        return SpecialistResponse(
+        return AgentResponse(
             target="notice-agent",
             status="error",
             confidence="low",

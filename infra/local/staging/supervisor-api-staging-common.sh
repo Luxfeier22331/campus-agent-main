@@ -9,7 +9,7 @@ supervisor_api_staging_lock_file="${supervisor_api_staging_runtime_dir}/lifecycl
 supervisor_api_staging_cloudflared_pid_file="${supervisor_api_staging_runtime_dir}/cloudflared.pid"
 supervisor_api_staging_cloudflared_log_file="${supervisor_api_staging_log_dir}/cloudflared.log"
 supervisor_api_staging_supervisor_api_log_file="${supervisor_api_staging_log_dir}/supervisor-api.log"
-supervisor_api_staging_supervisor_core_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-core-worker.log"
+supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-agent-worker.log"
 
 supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
 supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27010}"
@@ -47,7 +47,7 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_cloudflared_pid_file}" \
     "${supervisor_api_staging_cloudflared_log_file}" \
     "${supervisor_api_staging_supervisor_api_log_file}" \
-    "${supervisor_api_staging_supervisor_core_worker_log_file}" \
+    "${supervisor_api_staging_supervisor_agent_worker_log_file}" \
     "${supervisor_api_staging_host}" \
     "${supervisor_api_staging_port}" \
     "${supervisor_api_staging_compose_file}" \
@@ -128,7 +128,7 @@ const keys = [
   "PROMPT_RUNTIME_TRANSPORT",
   "PROMPT_RUNTIME_MODEL",
   "SUPERVISOR_PROMPT_MODEL",
-  "SPECIALIST_PROMPT_MODEL",
+  "AGENT_PROMPT_MODEL",
   "PROMPT_RUNTIME_API_KEY",
   "PROMPT_RUNTIME_BASE_URL",
   "PROMPT_RUNTIME_REASONING_EFFORT",
@@ -157,9 +157,9 @@ const keys = [
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
   "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
   "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
-  "SUPERVISOR_CORE_WORKER_THREADS",
+  "SUPERVISOR_AGENT_WORKER_THREADS",
   "SUPERVISOR_API_SHARED_SECRET",
-  "SUPERVISOR_CORE_WORKER_TIMEOUT_MS",
+  "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
   "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
   "SUPERVISOR_STRUCTURED_QUERY_PROJECTION_PATH",
   "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
@@ -215,11 +215,11 @@ for (const key of keys) {
 }
 
 const bridgeSharedSecret =
-  process.env.SUPERVISOR_CORE_WORKER_STAGING_SHARED_SECRET?.trim() ||
-  process.env.SUPERVISOR_CORE_WORKER_SHARED_SECRET?.trim() ||
+  process.env.SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET?.trim() ||
+  process.env.SUPERVISOR_AGENT_WORKER_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
   "";
-resolved.set("SUPERVISOR_CORE_WORKER_SHARED_SECRET", bridgeSharedSecret);
+resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 
 for (const [key, value] of resolved.entries()) {
   if (
@@ -237,7 +237,7 @@ NODE
   )"
   eval "${export_script}"
 
-  supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_CORE_WORKER_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}}"
+  supervisor_api_staging_bridge_shared_secret="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-${SUPERVISOR_API_SHARED_SECRET:-}}"
   if [[ -z "${SUPERVISOR_API_EXECUTION_AUDIT_URL:-}" && -n "${supervisor_api_staging_app_api_base_url}" ]]; then
     export SUPERVISOR_API_EXECUTION_AUDIT_URL="${supervisor_api_staging_app_api_base_url%/}/api/internal/execution/audit-events"
   fi
@@ -372,7 +372,7 @@ supervisor_api_staging_rotate_log_file_if_needed() {
 supervisor_api_staging_rotate_logs_if_needed() {
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_cloudflared_log_file}"
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_api_log_file}"
-  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_core_worker_log_file}"
+  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_agent_worker_log_file}"
 }
 
 supervisor_api_staging_kill_managed_process() {
@@ -406,7 +406,7 @@ supervisor_api_staging_compose() {
   local bridge_shared_secret
   docker_bin="$(supervisor_api_staging_require_command docker)"
   worker_shared_secret="${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}"
-  bridge_shared_secret="${supervisor_api_staging_bridge_shared_secret:-${SUPERVISOR_API_SHARED_SECRET:-supervisor-core-worker-staging-placeholder}}"
+  bridge_shared_secret="${supervisor_api_staging_bridge_shared_secret:-${SUPERVISOR_API_SHARED_SECRET:-supervisor-agent-worker-staging-placeholder}}"
 
   (
     cd "${supervisor_api_staging_repo_root}" || exit
@@ -414,14 +414,14 @@ supervisor_api_staging_compose() {
     SUPERVISOR_API_HOST_PORT="${supervisor_api_staging_port}" \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
-    SUPERVISOR_CORE_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
+    SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
     "${docker_bin}" compose -f "${supervisor_api_staging_compose_file}" "$@"
   )
 }
 
 supervisor_api_staging_capture_compose_logs() {
   supervisor_api_staging_compose logs --no-color supervisor-api >"${supervisor_api_staging_supervisor_api_log_file}" 2>&1 || true
-  supervisor_api_staging_compose logs --no-color supervisor-core-worker >"${supervisor_api_staging_supervisor_core_worker_log_file}" 2>&1 || true
+  supervisor_api_staging_compose logs --no-color supervisor-agent-worker >"${supervisor_api_staging_supervisor_agent_worker_log_file}" 2>&1 || true
 }
 
 supervisor_api_staging_compose_running_services() {
@@ -431,7 +431,7 @@ supervisor_api_staging_compose_running_services() {
 supervisor_api_staging_compose_project_running() {
   local services
   services="$(supervisor_api_staging_compose_running_services 2>/dev/null || true)"
-  [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-core-worker"* ]]
+  [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
 }
 
 supervisor_api_staging_require_runtime_env() {
@@ -441,7 +441,7 @@ supervisor_api_staging_require_runtime_env() {
   fi
 
   if [[ -z "${supervisor_api_staging_bridge_shared_secret}" ]]; then
-    echo "SUPERVISOR_CORE_WORKER_SHARED_SECRET is missing. Set SUPERVISOR_CORE_WORKER_STAGING_SHARED_SECRET or export SUPERVISOR_CORE_WORKER_SHARED_SECRET." >&2
+    echo "SUPERVISOR_AGENT_WORKER_SHARED_SECRET is missing. Set SUPERVISOR_AGENT_WORKER_STAGING_SHARED_SECRET or export SUPERVISOR_AGENT_WORKER_SHARED_SECRET." >&2
     return 1
   fi
 

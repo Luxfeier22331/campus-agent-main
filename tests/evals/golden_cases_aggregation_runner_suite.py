@@ -12,7 +12,7 @@ from tests.evals.golden_cases_test_support import (
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     SupervisorResponse,
     TraceExpectation,
     _response,
@@ -372,7 +372,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
-                response=SpecialistResponse(
+                response=AgentResponse(
                     target="rag-agent",
                     status="error",
                     confidence="low",

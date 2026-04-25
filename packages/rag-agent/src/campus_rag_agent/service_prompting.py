@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 
 from campus_contracts import (
+    AgentRequest,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultDiagnostics,
     RagResultPayload,
-    SpecialistRequest,
 )
 from campus_retrieval_core.curriculum_query_resolution import (
     interpret_curriculum_query,
@@ -58,7 +58,7 @@ _HANDBOOK_TIME_QUERY_TERMS = (
 
 def _compose_clarification_response(
     *,
-    request: SpecialistRequest,
+    request: AgentRequest,
     resolved_scope: KnowledgeScope,
     evidence: EvidenceBundle,
     fallback_question: str,
@@ -83,7 +83,7 @@ def _compose_clarification_response(
 
 def _compose_no_answer_response(
     *,
-    request: SpecialistRequest,
+    request: AgentRequest,
     resolved_scope: KnowledgeScope,
     evidence: EvidenceBundle,
     no_answer_reason: str,
@@ -208,7 +208,9 @@ def _is_ambiguous_title_fragment_goal(user_goal: str, sources: tuple[EvidenceSou
     query_key = _match_key(user_goal)
     if not _is_short_title_fragment(query_key):
         return False
-    return not any(_source_title_matches_exact_query(query_key, source) for source in distinct_sources)
+    return not any(
+        _source_title_matches_exact_query(query_key, source) for source in distinct_sources
+    )
 
 
 def _build_clarification_question(

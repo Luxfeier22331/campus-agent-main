@@ -115,7 +115,7 @@ select = [
 "tests/ingestion/*_support.py" = ["F401", "F403", "F405", "I001"]
 "tests/ingestion/*_test_support.py" = ["E402", "F401", "F403", "F405", "I001"]
 "tests/retrieval/*_suite.py" = ["F403"]
-"tests/specialist/*_suite.py" = ["F403"]
+"tests/agent/*_suite.py" = ["F403"]
 
 [tool.uv]
 package = false
@@ -129,7 +129,7 @@ members = [
   "apps/official-web-collector",
   "apps/protected-panel-web",
   "apps/public-chat-web",
-  "apps/supervisor-core-worker",
+  "apps/supervisor-agent-worker",
   "packages/*",
 ]
 

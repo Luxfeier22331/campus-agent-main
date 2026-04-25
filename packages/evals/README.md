@@ -68,7 +68,7 @@ Evaluation helpers for campus-agent v2.
   字段
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case
   inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
-- deterministic runner 现在接受 `SpecialistResponse` 与 `SupervisorResponse`
+- deterministic runner 现在接受 `AgentResponse` 与 `SupervisorResponse`
   两种执行结果；supervisor-only 终态额外覆盖 `approval_required_accuracy` /
   `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental
@@ -101,7 +101,7 @@ Evaluation helpers for campus-agent v2.
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases
   tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_core tests.specialist.test_rag_specialist
+  tests.supervisor.test_supervisor_core tests.agent.test_rag_agent
   tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
   `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`

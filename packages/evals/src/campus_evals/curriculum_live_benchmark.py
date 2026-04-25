@@ -10,8 +10,8 @@ from campus_contracts import (
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    SpecialistRequest,
-    SpecialistResponse,
+    AgentRequest,
+    AgentResponse,
 )
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import RetrievalBackendError, retrieve_sources
@@ -41,7 +41,7 @@ CURRICULUM_PLAN_LIVE_GATE_POLICY_PATH = (
 )
 
 Retriever = Callable[..., EvidenceBundle]
-Delegate = Callable[..., SpecialistResponse]
+Delegate = Callable[..., AgentResponse]
 _DETERMINISTIC_ERROR_RESPONSES = {
     "evidence_shaping_failure": (
         "evidence_shaping_failed",
@@ -90,7 +90,7 @@ def build_legacy_curriculum_live_executor(
             retrieved_evidence = retriever(*args, **kwargs)
             return retrieved_evidence
 
-        request = SpecialistRequest(
+        request = AgentRequest(
             target="rag-agent",
             user_goal=case.user_goal,
             payload=RagRequestPayload(scope=case.scope, version_query=case.version_query),
@@ -156,12 +156,12 @@ def build_app_api_curriculum_live_executor(
 
 
 def _build_deterministic_error_response(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     code: str,
     message: str,
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status="error",
         confidence="low",
@@ -170,7 +170,7 @@ def _build_deterministic_error_response(
     )
 
 
-def _build_empty_evidence(request: SpecialistRequest) -> EvidenceBundle:
+def _build_empty_evidence(request: AgentRequest) -> EvidenceBundle:
     return EvidenceBundle(
         query_text=request.user_goal,
         corpus=request.payload.scope.corpus,

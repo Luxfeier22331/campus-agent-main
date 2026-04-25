@@ -2,8 +2,8 @@
 !README.md
 !apps/supervisor-api/
 !apps/supervisor-api/**
-!apps/supervisor-core-worker/
-!apps/supervisor-core-worker/**
+!apps/supervisor-agent-worker/
+!apps/supervisor-agent-worker/**
 !apps/legacy-office-conversion-service/
 !apps/legacy-office-conversion-service/**
 !configs/ingestion/
@@ -26,5 +26,3 @@
 !packages/retrieval-core/**
 !packages/shared/
 !packages/shared/**
-!packages/supervisor-core/
-!packages/supervisor-core/**

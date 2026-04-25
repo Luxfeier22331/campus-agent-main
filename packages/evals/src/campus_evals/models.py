@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
-    ALLOWED_SPECIALIST_TARGETS,
+    ALLOWED_AGENT_TARGETS,
     ActorContext,
     EvidenceSource,
     KnowledgeScope,
-    SpecialistResponse,
-    SpecialistTarget,
+    AgentResponse,
+    AgentTarget,
     SupervisorResponse,
     SupervisorStatus,
     VersionQuery,
@@ -30,11 +30,11 @@ ALLOWED_SOURCE_TYPES = (
     "incident_backfill",
     "synthetic_expansion",
 )
-ExpectedRuntimeTarget = SpecialistTarget | Literal["none"]
+ExpectedRuntimeTarget = AgentTarget | Literal["none"]
 CapabilityFamilyLabel = Literal[
     "none", "rag-agent", "navigation-agent", "campus-services-agent", "notice-agent"
 ]
-ALLOWED_EXPECTED_RUNTIME_TARGETS = ("none", *ALLOWED_SPECIALIST_TARGETS)
+ALLOWED_EXPECTED_RUNTIME_TARGETS = ("none", *ALLOWED_AGENT_TARGETS)
 ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "none",
     "rag-agent",
@@ -42,7 +42,7 @@ ALLOWED_CAPABILITY_FAMILY_LABELS = (
     "campus-services-agent",
     "notice-agent",
 )
-_RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[SpecialistTarget, CapabilityFamilyLabel] = {
+_RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[AgentTarget, CapabilityFamilyLabel] = {
     "rag-agent": "rag-agent",
     "navigation-agent": "navigation-agent",
     "campus-services-agent": "campus-services-agent",
@@ -50,7 +50,7 @@ _RUNTIME_TARGET_TO_CAPABILITY_FAMILY: dict[SpecialistTarget, CapabilityFamilyLab
 }
 
 
-def capability_family_for_runtime_target(target: SpecialistTarget | None) -> CapabilityFamilyLabel:
+def capability_family_for_runtime_target(target: AgentTarget | None) -> CapabilityFamilyLabel:
     if target is None:
         return "none"
     return _RUNTIME_TARGET_TO_CAPABILITY_FAMILY[target]
@@ -205,7 +205,7 @@ class ObservedTrace:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: SpecialistResponse | SupervisorResponse
+    response: AgentResponse | SupervisorResponse
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
 

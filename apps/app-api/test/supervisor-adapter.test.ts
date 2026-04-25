@@ -293,7 +293,7 @@ describe("supervisor execution adapter", () => {
 		});
 	});
 
-	it("preserves approval_required without forcing a specialist target", async () => {
+	it("preserves approval_required without forcing an agent target", async () => {
 		const client = createSupervisorExecutionClient(
 			{
 				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",

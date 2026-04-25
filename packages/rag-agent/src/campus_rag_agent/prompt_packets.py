@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from campus_contracts import EvidenceBundle, EvidenceSource, KnowledgeScope, SpecialistRequest
+from campus_contracts import AgentRequest, EvidenceBundle, EvidenceSource, KnowledgeScope
 
 from campus_rag_agent.intent import RagIntentFrame, frame_rag_intent
 from campus_rag_agent.remote_content_hardening import (
@@ -55,7 +55,7 @@ class RagPromptPacket:
 
 
 def build_rag_clarify_prompt_packet(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     intent_frame: RagIntentFrame | None = None,
     resolved_scope: KnowledgeScope,
@@ -93,7 +93,7 @@ def build_rag_clarify_prompt_packet(
 
 
 def build_rag_no_answer_prompt_packet(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     resolved_scope: KnowledgeScope,
     evidence: EvidenceBundle,
@@ -135,7 +135,7 @@ def build_rag_no_answer_prompt_packet(
 
 
 def build_rag_answer_prompt_packet(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     resolved_scope: KnowledgeScope,
     evidence: EvidenceBundle,

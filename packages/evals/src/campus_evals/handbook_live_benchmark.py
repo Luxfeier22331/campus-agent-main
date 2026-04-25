@@ -9,8 +9,8 @@ from campus_contracts import (
     EvidenceBundle,
     RagRequestPayload,
     RagResultPayload,
-    SpecialistRequest,
-    SpecialistResponse,
+    AgentRequest,
+    AgentResponse,
 )
 from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import retrieve_sources
@@ -40,7 +40,7 @@ STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = (
 )
 
 Retriever = Callable[..., EvidenceBundle]
-Delegate = Callable[..., SpecialistResponse]
+Delegate = Callable[..., AgentResponse]
 
 
 def build_default_output_dir(*, prefix: str, timestamp: str | None = None) -> Path:
@@ -79,7 +79,7 @@ def build_legacy_handbook_live_executor(
             retrieved_evidence = retriever(*args, **kwargs)
             return retrieved_evidence
 
-        request = SpecialistRequest(
+        request = AgentRequest(
             target="rag-agent",
             user_goal=case.user_goal,
             payload=RagRequestPayload(scope=case.scope, version_query=case.version_query),

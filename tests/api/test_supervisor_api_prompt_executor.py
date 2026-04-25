@@ -6,12 +6,12 @@ import unittest
 import httpx
 from campus_contracts import (
     ActorContext,
+    AgentRequest,
     ContextProjection,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagRequestPayload,
-    SpecialistRequest,
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
@@ -20,7 +20,7 @@ from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
 )
-from campus_supervisor_core_worker.prompt_executor import (
+from campus_supervisor_agent_worker.prompt_executor import (
     ProviderBackedRagPromptExecutor,
 )
 
@@ -36,7 +36,7 @@ def _provider_config() -> PromptRuntimeProviderConfig:
 
 
 def _build_rag_packet():
-    request = SpecialistRequest(
+    request = AgentRequest(
         target="rag-agent",
         user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
         request_id="req-rag-provider-exec",

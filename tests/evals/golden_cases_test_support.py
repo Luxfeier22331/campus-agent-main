@@ -11,7 +11,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagResultDiagnostics,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     SupervisorObservability,
     SupervisorResponse,
     VersionQuery,
@@ -94,8 +94,8 @@ def _response(
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
     diagnostics: RagResultDiagnostics | None = None,
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status=status,
         answer_text=answer_text,
@@ -125,7 +125,7 @@ __all__ = (
     "ObservedTrace",
     "RagResultDiagnostics",
     "RagResultPayload",
-    "SpecialistResponse",
+    "AgentResponse",
     "SupervisorObservability",
     "SupervisorResponse",
     "TraceExpectation",

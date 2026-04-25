@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import CurriculumFollowUpSlots, KnowledgeScope, SpecialistRequest
+from campus_contracts import AgentRequest, CurriculumFollowUpSlots, KnowledgeScope
 from campus_ingestion_core.curriculum_program_semester_facts_projection import (
     build_curriculum_program_semester_fact_document_id,
 )
@@ -52,7 +52,7 @@ _CURRICULUM_FOLLOW_UP_PROGRAM_BLOCKERS = frozenset(
 
 
 def _resolve_request_scope(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     user_goal: str,
 ) -> KnowledgeScope | None:
@@ -223,7 +223,7 @@ def _plan_handbook_query(
 
 
 def _plan_curriculum_query(
-    request: SpecialistRequest,
+    request: AgentRequest,
     scope: KnowledgeScope,
     user_goal: str,
 ) -> CurriculumQueryPlan | None:

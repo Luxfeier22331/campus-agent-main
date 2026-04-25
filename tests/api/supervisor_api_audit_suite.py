@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from campus_contracts import EvidenceBundle, RagResultPayload, SpecialistResponse
-from campus_supervisor_core import MissingAgentDelegateError
-from campus_supervisor_core_worker.app import create_bridge_app
-from campus_supervisor_core_worker.settings import ApiSettings
+from campus_contracts import AgentResponse, EvidenceBundle, RagResultPayload
+from campus_supervisor_agent_worker.agent_dispatch import MissingAgentDelegateError
+from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 def _bridge_request_payload(
@@ -17,8 +17,8 @@ def _bridge_request_payload(
     trace_id: str = "trace-audit-001",
 ) -> dict[str, object]:
     return {
-        "bridge_version": "supervisor_bridge_v5",
-        "response_contract": "specialist_response",
+        "bridge_version": "supervisor_bridge_v6",
+        "response_contract": "agent_response",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
@@ -134,7 +134,7 @@ def _bridge_request_payload(
                 "planning_outcome": "preplanned",
                 "target": "rag-agent",
                 "allowed_tools": [],
-                "specialist_request": {
+                "agent_request": {
                     "target": "rag-agent",
                     "user_goal": user_goal,
                     "conversation_id": "conv-audit-001",
@@ -223,7 +223,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
                 ),
-                agent_handler=lambda request: SpecialistResponse(
+                agent_handler=lambda request: AgentResponse(
                     target=request.target,
                     status="completed",
                     answer_text="按当前投影处理完成。",
@@ -287,9 +287,9 @@ class SupervisorApiAuditTest(unittest.TestCase):
                     prompt_runtime_provider="openai-responses",
                     prompt_runtime_api_key="test-key",
                     supervisor_prompt_model="gpt-supervisor",
-                    specialist_prompt_model="gpt-specialist",
+                    agent_prompt_model="gpt-agent",
                 ),
-                agent_handler=lambda request: SpecialistResponse(
+                agent_handler=lambda request: AgentResponse(
                     target=request.target,
                     status="completed",
                     answer_text="The library is open from 08:00 to 22:00.",

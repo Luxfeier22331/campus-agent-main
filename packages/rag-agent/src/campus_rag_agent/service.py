@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
     ErrorInfo,
     EvidenceBundle,
     RagRequestPayload,
-    SpecialistRequest,
-    SpecialistResponse,
 )
 from campus_ingestion_core import (
     build_document_registry_from_env,
@@ -101,11 +101,11 @@ _COURSE_FAMILY_SCHEDULE_TOP_K = 8
 
 
 def delegate_to_rag_agent(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     retriever: Retriever = retrieve_sources,
     prompt_executor: RagPromptExecutor | None = None,
-) -> SpecialistResponse:
+) -> AgentResponse:
     if request.target != "rag-agent":
         raise ValueError("delegate_to_rag_agent only accepts target='rag-agent'")
     if not isinstance(request.payload, RagRequestPayload):
@@ -117,7 +117,7 @@ def delegate_to_rag_agent(
     personalization_hint = build_personalization_hint(request)
     effective_scope = _resolve_request_scope(request, user_goal=user_goal)
     if effective_scope is None:
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -288,7 +288,7 @@ def delegate_to_rag_agent(
         )
         apply_remote_content_suspicion_labels(evidence)
     except CorpusQueryDisabledError as exc:
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="error",
             confidence="low",
@@ -306,7 +306,7 @@ def delegate_to_rag_agent(
         )
     except RestrictedDocumentAccessDeniedError:
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=_build_restricted_access_denied_response(request, empty_evidence),
@@ -323,7 +323,7 @@ def delegate_to_rag_agent(
             ),
         )
     except RetrievalBackendError as exc:
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="error",
             confidence="low",
@@ -361,7 +361,7 @@ def delegate_to_rag_agent(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=answer_text,
@@ -407,7 +407,7 @@ def delegate_to_rag_agent(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
@@ -455,7 +455,7 @@ def delegate_to_rag_agent(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=answer_text,
@@ -516,7 +516,7 @@ def delegate_to_rag_agent(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=answer_text,
@@ -545,7 +545,7 @@ def delegate_to_rag_agent(
         evidence=supporting_evidence,
         handbook_plan=handbook_plan,
     ):
-        return SpecialistResponse(
+        return AgentResponse(
             target="rag-agent",
             status="no_answer",
             answer_text=_build_no_answer_response(
@@ -638,7 +638,7 @@ def delegate_to_rag_agent(
                 prompt_executor=prompt_executor,
                 intent_frame=intent_frame,
             )
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="no_answer",
                 answer_text=blocked_answer_text,
@@ -713,7 +713,7 @@ def delegate_to_rag_agent(
                         prompt_executor=prompt_executor,
                         intent_frame=intent_frame,
                     )
-                    return SpecialistResponse(
+                    return AgentResponse(
                         target="rag-agent",
                         status="no_answer",
                         answer_text=downgraded_answer_text,
@@ -743,7 +743,7 @@ def delegate_to_rag_agent(
                             downgraded_prompt_trace,
                         ),
                     )
-    return SpecialistResponse(
+    return AgentResponse(
         target="rag-agent",
         status="completed",
         answer_text=answer_text,

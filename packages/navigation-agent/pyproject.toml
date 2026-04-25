@@ -1,7 +1,7 @@
 [project]
 name = "campus-navigation-agent"
 version = "0.1.0"
-description = "Navigation specialist for campus-agent v2."
+description = "Navigation agent for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

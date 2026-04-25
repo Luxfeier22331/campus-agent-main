@@ -131,8 +131,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             },
         )
 
-    def test_specialist_request_requires_explicit_payload(self) -> None:
-        request = SpecialistRequest(
+    def test_agent_request_requires_explicit_payload(self) -> None:
+        request = AgentRequest(
             target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
@@ -194,7 +194,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             VersionQuery(mode="compare", compare_to_version_id="v2:student-handbook")
 
     def test_contract_request_shape_no_longer_owns_scope_catalog_validation(self) -> None:
-        request = SpecialistRequest(
+        request = AgentRequest(
             target="rag-agent",
             user_goal="library hours",
             payload=RagRequestPayload(
@@ -209,7 +209,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "curriculum_plan")
 
     def test_request_accepts_offline_campus_services_scope(self) -> None:
-        request = SpecialistRequest(
+        request = AgentRequest(
             target="rag-agent",
             user_goal="校园110电话是多少？",
             payload=RagRequestPayload(
@@ -224,7 +224,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         self.assertEqual(request.payload.scope.collection, "contact_directory")
 
     def test_response_serializes_rag_result_shape(self) -> None:
-        response = SpecialistResponse(
+        response = AgentResponse(
             target="rag-agent",
             status="completed",
             answer_text="The library is open.",
@@ -334,7 +334,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 score=0.98,
             )
         self.assertEqual(
-            tuple(field.name for field in fields(SpecialistResponse)),
+            tuple(field.name for field in fields(AgentResponse)),
             (
                 "target",
                 "status",
@@ -347,7 +347,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_result_shape(self) -> None:
-        response = SpecialistResponse(
+        response = AgentResponse(
             target="navigation-agent",
             status="completed",
             answer_text="图书馆在海淀校区主教学区西侧，靠近校医院。",
@@ -401,7 +401,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_clarification_candidates(self) -> None:
-        response = SpecialistResponse(
+        response = AgentResponse(
             target="navigation-agent",
             status="needs_clarification",
             follow_up_question="你要找海淀校区图书馆，还是丰台校区图书馆？",
@@ -444,7 +444,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
 
     def test_response_serializes_place_lookup_result_without_point_geometry(self) -> None:
-        response = SpecialistResponse(
+        response = AgentResponse(
             target="navigation-agent",
             status="completed",
             answer_text="民族博物馆在海淀校区西侧，靠近图书馆。",
@@ -486,7 +486,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             PlaceLookupPayload(query_text=" ")
 
     def test_response_serializes_rag_result_diagnostics_shape(self) -> None:
-        response = SpecialistResponse(
+        response = AgentResponse(
             target="rag-agent",
             status="no_answer",
             confidence="low",

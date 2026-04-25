@@ -6,7 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import httpx
-from campus_contracts import RagResultPayload, SpecialistResponse, SupervisorResponse
+from campus_contracts import RagResultPayload, AgentResponse, SupervisorResponse
 from langchain_core.prompt_values import StringPromptValue
 
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
@@ -60,7 +60,7 @@ class RubricJudgeAdapter:
     def evaluate(
         self, case: GoldenCase, execution: ExecutionResult
     ) -> tuple[SupplementalResult, ...]:
-        response = _require_specialist_response(execution)
+        response = _require_agent_response(execution)
         if case.expected_status not in self._applicable_statuses:
             return (
                 _build_not_applicable_result(
@@ -306,7 +306,7 @@ def _build_rubric_prompt(
     *,
     rubric: dict[str, object],
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
 ) -> str:
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     sources = tuple(evidence.sources) if evidence is not None else ()
@@ -349,7 +349,7 @@ def _coerce_judge_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     judged: dict[str, object],
 ) -> SupplementalResult:
     if not isinstance(judged, dict):
@@ -384,7 +384,7 @@ def _build_not_applicable_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     rationale: str,
 ) -> SupplementalResult:
     return SupplementalResult(
@@ -405,7 +405,7 @@ def _build_failed_result(
     adapter_id: str,
     metric_name: str,
     case: GoldenCase,
-    response: SpecialistResponse | SupervisorResponse,
+    response: AgentResponse | SupervisorResponse,
     rationale: str,
     score: float | None,
     metadata: dict[str, object] | None = None,
@@ -438,12 +438,12 @@ def _runtime_failure_metadata(exc: Exception) -> dict[str, object]:
     return metadata
 
 
-def _require_specialist_response(
+def _require_agent_response(
     execution: ExecutionResult,
-) -> SpecialistResponse | SupervisorResponse:
+) -> AgentResponse | SupervisorResponse:
     response = execution.response
-    if not isinstance(response, (SpecialistResponse, SupervisorResponse)):
-        raise TypeError("execution.response must be SpecialistResponse or SupervisorResponse")
+    if not isinstance(response, (AgentResponse, SupervisorResponse)):
+        raise TypeError("execution.response must be AgentResponse or SupervisorResponse")
     return response
 
 

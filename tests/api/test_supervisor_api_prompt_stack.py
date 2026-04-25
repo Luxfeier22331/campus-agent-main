@@ -4,20 +4,20 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
+    AgentRequest,
     ContextProjection,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagRequestPayload,
-    SpecialistRequest,
     TraceContext,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_supervisor_core_worker.app import create_bridge_app
-from campus_supervisor_core_worker.prompt_stack import (
+from campus_supervisor_agent_worker.app import create_bridge_app
+from campus_supervisor_agent_worker.prompt_stack import (
     build_rag_prompt_stack,
 )
-from campus_supervisor_core_worker.settings import ApiSettings
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 class SupervisorApiPromptStackTest(unittest.TestCase):
@@ -26,13 +26,13 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
             settings=ApiSettings(
                 runtime_provider="openai-responses",
                 supervisor_prompt_model="gpt-5.2",
-                specialist_prompt_model="gpt-5.2-mini",
+                agent_prompt_model="gpt-5.2-mini",
             )
         )
 
         self.assertEqual(app.runtime.prompt_runtime.provider, "openai-responses")
         self.assertEqual(app.runtime.prompt_runtime.supervisor_prompt_model, "gpt-5.2")
-        self.assertEqual(app.runtime.prompt_runtime.specialist_prompt_model, "gpt-5.2-mini")
+        self.assertEqual(app.runtime.prompt_runtime.agent_prompt_model, "gpt-5.2-mini")
         self.assertEqual(
             app.runtime.prompt_runtime.developer_invariants_id,
             "repo_global_developer_invariants_v1",
@@ -47,17 +47,17 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
             settings=ApiSettings(
                 runtime_provider="openai-responses",
                 supervisor_prompt_model="",
-                specialist_prompt_model="gpt-5.2-mini",
+                agent_prompt_model="gpt-5.2-mini",
                 prompt_runtime_api_key="test-key",
             )
         )
 
         self.assertTrue(app.runtime.prompt_runtime.admitted)
         self.assertEqual(app.runtime.prompt_runtime.admission_reason, "")
-        self.assertEqual(app.runtime.prompt_runtime.specialist_prompt_model, "gpt-5.2-mini")
+        self.assertEqual(app.runtime.prompt_runtime.agent_prompt_model, "gpt-5.2-mini")
 
     def test_build_rag_prompt_stack_keeps_evidence_out_of_developer_zone(self) -> None:
-        request = SpecialistRequest(
+        request = AgentRequest(
             target="rag-agent",
             user_goal="习近平新时代中国特色社会主义思想概论有哪些专业要上",
             request_id="req-rag-prompt-stack",

@@ -6,8 +6,8 @@ from campus_contracts import (
     ServiceGuideLookupResult,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
-    SpecialistRequest,
-    SpecialistResponse,
+    AgentRequest,
+    AgentResponse,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
 )
@@ -22,17 +22,17 @@ from campus_services_agent.query_service import (
 
 
 def dispatch_tool_request(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: CampusServicesQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     if isinstance(request.payload, ServiceStatusLookupPayload):
         return _handle_service_status_lookup(request, query_service=query_service)
     if isinstance(request.payload, ServiceGuideLookupPayload):
         return _handle_service_guide_lookup(request, query_service=query_service)
     if isinstance(request.payload, TransportScheduleLookupPayload):
         return _handle_transport_schedule_lookup(request, query_service=query_service)
-    return SpecialistResponse(
+    return AgentResponse(
         target="campus-services-agent",
         status="error",
         confidence="low",
@@ -47,10 +47,10 @@ def dispatch_tool_request(
 
 
 def _handle_service_status_lookup(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: CampusServicesQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     tool_name = "service_status_lookup"
     if tool_name not in request.allowed_tools:
         return _tool_not_allowed(tool_name)
@@ -67,10 +67,10 @@ def _handle_service_status_lookup(
 
 
 def _handle_service_guide_lookup(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: CampusServicesQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     tool_name = "service_guide_lookup"
     if tool_name not in request.allowed_tools:
         return _tool_not_allowed(tool_name)
@@ -87,10 +87,10 @@ def _handle_service_guide_lookup(
 
 
 def _handle_transport_schedule_lookup(
-    request: SpecialistRequest,
+    request: AgentRequest,
     *,
     query_service: CampusServicesQueryService,
-) -> SpecialistResponse:
+) -> AgentResponse:
     tool_name = "transport_schedule_lookup"
     if tool_name not in request.allowed_tools:
         return _tool_not_allowed(tool_name)
@@ -106,7 +106,7 @@ def _handle_transport_schedule_lookup(
     return _transport_schedule_response(result)
 
 
-def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistResponse:
+def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
     if result.outcome == "resolved_current":
         service_name = (
             result.resolved_service.display_name
@@ -114,7 +114,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistRespo
             else result.service_query
         )
         guide_text = _service_guide_text(result)
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="completed",
             answer_text=f"{service_name}：\n{guide_text}" if guide_text else service_name,
@@ -123,7 +123,7 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistRespo
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的具体服务。"
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="needs_clarification",
             answer_text=follow_up,
@@ -132,14 +132,14 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistRespo
             result=result,
         )
     if result.outcome == "temporarily_unverifiable":
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="no_answer",
             answer_text="当前还不能稳定确认这项办理指南。",
             confidence="low",
             result=result,
         )
-    return SpecialistResponse(
+    return AgentResponse(
         target="campus-services-agent",
         status="no_answer",
         answer_text="当前没有找到对应的办理指南。",
@@ -148,9 +148,9 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistRespo
     )
 
 
-def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistResponse:
+def _service_status_response(result: ServiceStatusLookupResult) -> AgentResponse:
     if result.outcome == "resolved_current":
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="completed",
             answer_text=f"{result.resolved_subject}当前状态：{result.observed_status}。",
@@ -159,7 +159,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistRes
         )
     if result.outcome == "resolved_historical_reference":
         subject = result.resolved_subject or result.subject_query
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="completed",
             answer_text=f"当前年份没有命中，找到历史参考：{subject}。",
@@ -168,7 +168,7 @@ def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistRes
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的校园服务对象。"
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="needs_clarification",
             answer_text=follow_up,
@@ -177,14 +177,14 @@ def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistRes
             result=result,
         )
     if result.outcome == "temporarily_unverifiable":
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="no_answer",
             answer_text="当前还不能稳定确认这项校园服务的状态。",
             confidence="low",
             result=result,
         )
-    return SpecialistResponse(
+    return AgentResponse(
         target="campus-services-agent",
         status="no_answer",
         answer_text="当前没有找到对应的校园服务状态。",
@@ -193,11 +193,11 @@ def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistRes
     )
 
 
-def _transport_schedule_response(result: TransportScheduleLookupResult) -> SpecialistResponse:
+def _transport_schedule_response(result: TransportScheduleLookupResult) -> AgentResponse:
     if result.outcome == "resolved_current":
         route_name = result.resolved_route.display_name if result.resolved_route is not None else ""
         if result.selected_departure is not None:
-            return SpecialistResponse(
+            return AgentResponse(
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
@@ -209,7 +209,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
                 result=result,
             )
         if result.schedule_snapshot is not None and result.intent == "schedule_snapshot_metadata":
-            return SpecialistResponse(
+            return AgentResponse(
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
@@ -221,7 +221,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
             )
         if result.departure_options:
             departures = "、".join(departure.departure_at for departure in result.departure_options)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
@@ -233,7 +233,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
                 result=result,
             )
         if result.service_window is not None:
-            return SpecialistResponse(
+            return AgentResponse(
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
@@ -250,7 +250,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
             )
         if result.timetable_entries:
             entries = "、".join(departure.departure_at for departure in result.timetable_entries)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="campus-services-agent",
                 status="completed",
                 answer_text=(
@@ -259,7 +259,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
                 confidence="high",
                 result=result,
             )
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="completed",
             answer_text=f"{route_name}当前状态：{result.service_status}。"
@@ -274,7 +274,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
             if result.resolved_route is not None
             else result.query_text
         )
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="completed",
             answer_text=f"当前年份没有命中，找到历史班次参考：{route_name}。",
@@ -283,7 +283,7 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
         )
     if result.outcome == "clarification_required":
         follow_up = "请明确你要查询的班车类型、方向或线路。"
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="needs_clarification",
             answer_text=follow_up,
@@ -292,14 +292,14 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
             result=result,
         )
     if result.outcome == "temporarily_unverifiable":
-        return SpecialistResponse(
+        return AgentResponse(
             target="campus-services-agent",
             status="no_answer",
             answer_text="当前还不能稳定确认这条班车线路的运行状态。",
             confidence="low",
             result=result,
         )
-    return SpecialistResponse(
+    return AgentResponse(
         target="campus-services-agent",
         status="no_answer",
         answer_text="当前没有找到对应的班车线路信息。",
@@ -335,15 +335,15 @@ def _service_guide_contact_text(contact) -> str:
     return " ".join(parts)
 
 
-def _access_context_from_request(request: SpecialistRequest) -> CampusServicesAccessContext:
+def _access_context_from_request(request: AgentRequest) -> CampusServicesAccessContext:
     return CampusServicesAccessContext(
         actor=request.actor,
         authorization=request.context.authorization,
     )
 
 
-def _tool_not_allowed(tool_name: str) -> SpecialistResponse:
-    return SpecialistResponse(
+def _tool_not_allowed(tool_name: str) -> AgentResponse:
+    return AgentResponse(
         target="campus-services-agent",
         status="error",
         confidence="low",
@@ -354,8 +354,8 @@ def _tool_not_allowed(tool_name: str) -> SpecialistResponse:
     )
 
 
-def _query_service_failed(message: str) -> SpecialistResponse:
-    return SpecialistResponse(
+def _query_service_failed(message: str) -> AgentResponse:
+    return AgentResponse(
         target="campus-services-agent",
         status="error",
         confidence="low",

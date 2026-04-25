@@ -11,7 +11,7 @@ from campus_contracts import (
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -88,8 +88,8 @@ def _response(
     answer_text: str = "",
     sources: tuple[EvidenceSource, ...] = (),
     follow_up_question: str = "",
-) -> SpecialistResponse:
-    return SpecialistResponse(
+) -> AgentResponse:
+    return AgentResponse(
         target="rag-agent",
         status=status,
         answer_text=answer_text,
@@ -118,7 +118,7 @@ __all__ = (
     "OperatorRequestCorrelation",
     "Path",
     "RagResultPayload",
-    "SpecialistResponse",
+    "AgentResponse",
     "SupplementalResult",
     "TemporaryDirectory",
     "TraceExpectation",

@@ -13,7 +13,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagRequestPayload,
     RagResultPayload,
-    SpecialistResponse,
+    AgentResponse,
     VersionQuery,
 )
 from campus_evals import ExecutionResult, GoldenCase, TraceExpectation
@@ -100,7 +100,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="completed",
                 answer_text="学生证遗失后应补办学生证。",
@@ -137,7 +137,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
 
         def fake_delegate(request, *, retriever):
             seen_requests.append(request)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="no_answer",
                 answer_text="当前依据不足。",
@@ -447,7 +447,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
     def test_build_handbook_live_executor_marks_pre_retrieval_clarification(self) -> None:
         def fake_delegate(request, *, retriever):
             del retriever
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="needs_clarification",
                 follow_up_question="请说明你想咨询哪一类奖学金。",
@@ -504,7 +504,7 @@ class HandbookLiveExecutorTest(unittest.TestCase):
                 personalization_hint=None,
             )
             self.assertEqual(bundle, retrieved_bundle)
-            return SpecialistResponse(
+            return AgentResponse(
                 target="rag-agent",
                 status="no_answer",
                 answer_text="在《中央民族大学本科学生国家奖学金评审办法》中，当前未检索到足够依据支持回答这个问题；请确认是否有更具体的条款表述。",
