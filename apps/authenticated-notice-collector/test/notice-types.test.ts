@@ -6,6 +6,22 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { getEnabledNoticeTypes, loadNoticeTypes } from "../src/notice-types";
 
+const REPO_NOTICE_TYPES_PATH = path.join(process.cwd(), "config", "notice-types.json");
+const OBSERVED_PORTAL_NOTICE_TYPES = [
+	["5", "办公通知"],
+	["6", "教学通知"],
+	["8", "科研通知"],
+	["10", "就业信息"],
+	["11", "公示公告"],
+	["32", "学工通知"],
+	["36", "活动报道"],
+	["9978", "会议纪要"],
+	["9979", "民大要情"],
+	["9980", "学术信息"],
+	["9982", "常用下载"],
+];
+const DEFAULT_INCREMENTAL_NOTICE_TYPES = ["5", "6", "8", "11", "32", "9980", "9982"];
+
 describe("authenticated notice collector notice types", () => {
 	const tempDirs: string[] = [];
 
@@ -82,5 +98,23 @@ describe("authenticated notice collector notice types", () => {
 		);
 
 		expect(() => loadNoticeTypes(noticeTypesPath)).toThrow("duplicated notice type");
+	});
+
+	it("keeps the repo-local policy aligned with the observed portal notice selectors", () => {
+		const noticeTypes = loadNoticeTypes(REPO_NOTICE_TYPES_PATH);
+		const byType = new Map(noticeTypes.map((item) => [item.type, item]));
+
+		for (const [type, name] of OBSERVED_PORTAL_NOTICE_TYPES) {
+			expect(byType.get(type)?.name).toBe(name);
+		}
+		expect([...byType.keys()]).toEqual(OBSERVED_PORTAL_NOTICE_TYPES.map(([type]) => type));
+	});
+
+	it("enables the bounded recurring incremental notice-type set by default", () => {
+		const noticeTypes = loadNoticeTypes(REPO_NOTICE_TYPES_PATH);
+
+		expect(getEnabledNoticeTypes(noticeTypes).map((item) => item.type)).toEqual(
+			DEFAULT_INCREMENTAL_NOTICE_TYPES,
+		);
 	});
 });

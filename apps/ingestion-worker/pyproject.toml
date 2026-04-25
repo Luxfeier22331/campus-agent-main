@@ -31,6 +31,7 @@ campus-ingestion-audit-collection-runtime-state = "campus_ingestion_worker.audit
 campus-ingestion-collection-rename-registry-backfill = "campus_ingestion_worker.collection_rename_registry_backfill:main"
 campus-ingestion-normalize-authenticated-notice-legacy-office-attachment = "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment:main"
 campus-ingestion-check-authenticated-notice-attachment-fetch-status = "campus_ingestion_worker.check_authenticated_notice_attachment_fetch_status:main"
+campus-ingestion-check-authenticated-notice-reference-only-attachments = "campus_ingestion_worker.check_authenticated_notice_reference_only_attachments:main"
 campus-ingestion-record-authenticated-notice-attachment-fetch-status = "campus_ingestion_worker.record_authenticated_notice_attachment_fetch_status:main"
 campus-ingestion-show-authenticated-notice-attachment-fetch-status = "campus_ingestion_worker.show_authenticated_notice_attachment_fetch_status:main"
 campus-ingestion-official-web-handoff-dev = "campus_ingestion_worker.official_web_handoff_receiver:main"

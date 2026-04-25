@@ -84,7 +84,7 @@ export function buildExportManifest(input: {
 			max_notices: input.maxNotices,
 			notice_types: input.selectedNoticeTypes?.length
 				? input.selectedNoticeTypes
-				: input.noticeTypes.map((item) => item.type),
+				: input.noticeTypes.filter((item) => item.enabled).map((item) => item.type),
 			...(input.selectedNoticeIds?.length
 				? { selected_notice_ids: input.selectedNoticeIds }
 				: {}),

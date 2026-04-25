@@ -1,10 +1,6 @@
 import { Pool } from "pg";
 
-import type {
-	BootstrapExportManifest,
-	BundleNoticeRecord,
-	NoticeCollectionMode,
-} from "./types";
+import type { BootstrapExportManifest, BundleNoticeRecord, NoticeCollectionMode } from "./types";
 
 export interface CollectorRunLedgerRecord {
 	runId: string;
@@ -42,8 +38,12 @@ export interface DisposableCollectorRunLedgerStore extends CollectorRunLedgerSto
 	dispose(): Promise<void>;
 }
 
-const DEFAULT_RUN_LEDGER_TABLE_NAME =
-	"ingestion_projection.authenticated_notice_collector_run";
+export interface CollectorRunLedgerTableReference {
+	schemaSql?: string;
+	tableSql: string;
+}
+
+const DEFAULT_RUN_LEDGER_TABLE_NAME = "ingestion_projection.authenticated_notice_collector_run";
 
 export function buildCollectorRunLedgerRecord(input: {
 	bundleObjectKey?: string | null;
@@ -139,14 +139,16 @@ export function createPostgresCollectorRunLedgerStore(input: {
 	databaseUrl: string;
 	tableName?: string;
 }): DisposableCollectorRunLedgerStore {
-	const tableName = toQualifiedTableSql(input.tableName ?? DEFAULT_RUN_LEDGER_TABLE_NAME);
+	const tableReference = resolveCollectorRunLedgerTableReference(
+		input.tableName ?? DEFAULT_RUN_LEDGER_TABLE_NAME,
+	);
 	const pool = new Pool({ connectionString: input.databaseUrl });
 	return {
 		async upsertRun(record) {
-			await ensureCollectorRunLedgerSchema(pool, tableName);
+			await ensureCollectorRunLedgerSchema(pool, tableReference);
 			await pool.query(
 				`
-				insert into ${tableName} (
+				insert into ${tableReference.tableSql} (
 					run_id,
 					site_id,
 					source_surface,
@@ -280,10 +282,15 @@ function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
 	};
 }
 
-async function ensureCollectorRunLedgerSchema(pool: Pool, tableName: string): Promise<void> {
-	await pool.query(`create schema if not exists ${tableName.split(".")[0]}`);
+async function ensureCollectorRunLedgerSchema(
+	pool: Pool,
+	tableReference: CollectorRunLedgerTableReference,
+): Promise<void> {
+	if (tableReference.schemaSql) {
+		await pool.query(`create schema if not exists ${tableReference.schemaSql}`);
+	}
 	await pool.query(`
-		create table if not exists ${tableName} (
+		create table if not exists ${tableReference.tableSql} (
 			run_id text primary key,
 			site_id text not null,
 			source_surface text not null,
@@ -317,12 +324,21 @@ function buildRunId(exportedAt: string, siteId: string): string {
 	return `${siteId}:${exportedAt.replace(/[^0-9A-Za-z]/g, "")}`;
 }
 
-function toQualifiedTableSql(tableName: string): string {
+export function resolveCollectorRunLedgerTableReference(
+	tableName: string,
+): CollectorRunLedgerTableReference {
 	const parts = tableName.split(".");
 	if (parts.length === 0 || parts.length > 2) {
 		throw new Error(`invalid collector run ledger table name: ${tableName}`);
 	}
-	return parts.map(quoteIdentifier).join(".");
+	const quotedParts = parts.map(quoteIdentifier);
+	if (quotedParts.length === 1) {
+		return { tableSql: quotedParts[0] };
+	}
+	return {
+		schemaSql: quotedParts[0],
+		tableSql: quotedParts.join("."),
+	};
 }
 
 function quoteIdentifier(identifier: string): string {

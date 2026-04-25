@@ -406,6 +406,127 @@ export function registerBootstrapExportCollectionSuite() {
 		expect(result.exportManifest.run.mode).toBe("backfill");
 	});
 
+	it("scans only enabled notice types while snapshotting the full configured policy", async () => {
+		const pageCalls: string[] = [];
+		const result = await collectBootstrapBundle({
+			createApiContext: async () => ({
+				dispose: async () => undefined,
+				get: async () => ({
+					body: async () => Buffer.from(""),
+					json: async () => ({}),
+					ok: () => true,
+					status: () => 200,
+					statusText: () => "OK",
+				}),
+				post: async () => {
+					throw new Error("unexpected post");
+				},
+			}),
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			fetchNoticeDetail: async ({ noticeId }) => ({
+				datas: {
+					notice_info: {
+						notice_content: `<p>${noticeId}</p>`,
+						notice_id: noticeId,
+						notice_release_time: "2026-04-02 18:49",
+						notice_title: `通知 ${noticeId}`,
+					},
+				},
+				state: true,
+			}),
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [
+						{
+							notice_type_id: 5,
+							notice_type_name: "办公通知",
+						},
+						{
+							notice_type_id: 10,
+							notice_type_name: "就业信息",
+						},
+					],
+				},
+				state: true,
+			}),
+			fetchNoticePage: async ({ noticeType }) => {
+				pageCalls.push(noticeType);
+				return {
+					datas: {
+						page: {
+							totalCounts: 1,
+						},
+						tables: [
+							{
+								notice_id: 355119,
+								notice_title: "通知 A",
+								notice_type: noticeType,
+								notice_type_name: noticeType === "5" ? "办公通知" : "就业信息",
+							},
+						],
+					},
+					state: true,
+				};
+			},
+			noticeTypes: [
+				{
+					type: "5",
+					name: "办公通知",
+					enabled: true,
+					incrementalPages: 1,
+					incrementalPageSize: 20,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+				{
+					type: "10",
+					name: "就业信息",
+					enabled: false,
+					incrementalPages: 1,
+					incrementalPageSize: 20,
+					backfillPages: 1,
+					backfillPageSize: 20,
+				},
+			],
+			requestBackoffBaseMs: 1,
+			requestMaxRetries: 1,
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+		});
+
+		expect(pageCalls).toEqual(["5"]);
+		expect(result.exportManifest.filters.notice_types).toEqual(["5"]);
+		expect(result.exportManifest.notice_type_policy).toEqual([
+			{
+				backfill: {
+					page_size: 20,
+					pages: 1,
+				},
+				enabled: true,
+				incremental: {
+					page_size: 20,
+					pages: 1,
+				},
+				name: "办公通知",
+				type: "5",
+			},
+			{
+				backfill: {
+					page_size: 20,
+					pages: 1,
+				},
+				enabled: false,
+				incremental: {
+					page_size: 20,
+					pages: 1,
+				},
+				name: "就业信息",
+				type: "10",
+			},
+		]);
+	});
+
 	it("materializes internal attachments into object-backed bundle rows when an artifact store is configured", async () => {
 		const storedObjects: Array<{
 			key: string;

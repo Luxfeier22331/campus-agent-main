@@ -871,6 +871,31 @@ Behavior:
   and `normalization-summary.json` under the target output dir.
 - Does not write object store, Postgres, embedding, or Qdrant state.
 
+### `campus-ingestion-check-authenticated-notice-reference-only-attachments`
+
+Checks source-truth inventory rows whose attachment refs did not produce child
+attachment documents and explains why each ref is still `reference_only`.
+
+Required readable state:
+
+- authenticated notice source-truth inventory PG table
+- authenticated notice attachment fetch-status PG table
+- source object bucket containing `source-truth/attachment-refs.jsonl`
+
+Useful local command:
+
+```bash
+CHECKER=campus_ingestion_worker.check_authenticated_notice_reference_only_attachments
+uv run --all-packages python -m "$CHECKER" \
+  --site-id muc_internal_portal \
+  --corpus campus_notices \
+  --collection internal_notice
+```
+
+The JSON report separates terminal portal misses, object-backed inline images
+that intentionally stay non-document, and action-required gaps such as missing
+object keys or transient fetch failures.
+
 ### `campus-ingestion-normalize-authenticated-notice-legacy-office-attachment`
 
 Thin worker shell for service-backed authenticated notice legacy Office

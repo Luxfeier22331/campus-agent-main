@@ -113,6 +113,11 @@ export interface WriteBootstrapArtifactsResult {
 	manifestPath: string;
 }
 
+export interface BootstrapArtifactObjectRefs {
+	bundleObjectKey: string;
+	manifestObjectKey: string;
+}
+
 export function buildBundleRecord(input: {
 	detailInfo: NoticeDetailInfo | null | undefined;
 	notice: NoticeItem;
@@ -232,6 +237,7 @@ export async function collectBootstrapBundle(
 	if (collectionMode === "selected" && selectedNotices.length === 0) {
 		throw new Error("selected collection mode requires selected notice ids");
 	}
+	const enabledNoticeTypes = getEnabledNoticeTypes(input.noticeTypes);
 
 	try {
 		const noticeSelects = await fetchSelects({
@@ -269,7 +275,7 @@ export async function collectBootstrapBundle(
 				bundleMap.set(selectedNotice.noticeId, record);
 			}
 		} else {
-			for (const noticeType of input.noticeTypes) {
+			for (const noticeType of enabledNoticeTypes) {
 				const pageBudget =
 					collectionMode === "backfill" ? noticeType.backfillPages : noticeType.incrementalPages;
 				const pageSize =
@@ -476,11 +482,52 @@ export function writeBootstrapArtifacts(
 	};
 }
 
+export async function uploadBootstrapArtifacts(input: {
+	artifactStore: AuthenticatedNoticeArtifactStore;
+	bundlePath: string;
+	exportedAt: string;
+	manifestPath: string;
+	siteId: string;
+}): Promise<BootstrapArtifactObjectRefs> {
+	const prefix = [
+		"authenticated_notice_portal",
+		"runs",
+		sanitizeObjectKeySegment(input.siteId),
+		toTimestampLabel(input.exportedAt),
+	].join("/");
+	const bundleObjectKey = `${prefix}/notices-bundle.json`;
+	const manifestObjectKey = `${prefix}/export-manifest.json`;
+	await input.artifactStore.putObject({
+		objectKey: bundleObjectKey,
+		data: fs.readFileSync(input.bundlePath),
+		contentType: "application/json",
+		metadata: {
+			artifact_kind: "notices_bundle",
+			site_id: input.siteId,
+			source_channel: "authenticated_notice_portal",
+		},
+	});
+	await input.artifactStore.putObject({
+		objectKey: manifestObjectKey,
+		data: fs.readFileSync(input.manifestPath),
+		contentType: "application/json",
+		metadata: {
+			artifact_kind: "export_manifest",
+			site_id: input.siteId,
+			source_channel: "authenticated_notice_portal",
+		},
+	});
+	return {
+		bundleObjectKey,
+		manifestObjectKey,
+	};
+}
+
 export async function main(): Promise<void> {
 	loadCollectorEnv();
 	const config = resolveCollectorConfig(process.env);
 	ensureRuntimeDirs(config);
-	const noticeTypes = getEnabledNoticeTypes(loadNoticeTypes(config.noticeTypesPath));
+	const noticeTypes = loadNoticeTypes(config.noticeTypesPath);
 	const exportedAt = new Date().toISOString();
 	const attachmentArtifactStore = createAuthenticatedNoticeArtifactStoreFromEnv(process.env);
 	const attachmentFetchStatusStore = buildAttachmentFetchStatusStoreForMain(config);
@@ -506,13 +553,24 @@ export async function main(): Promise<void> {
 			exportManifest: result.exportManifest,
 			outputDir: config.exportsDir,
 		});
+		const uploadedArtifactRefs = attachmentArtifactStore
+			? await uploadBootstrapArtifacts({
+					artifactStore: attachmentArtifactStore,
+					bundlePath: written.bundlePath,
+					exportedAt,
+					manifestPath: written.manifestPath,
+					siteId: config.siteId,
+				})
+			: undefined;
 		await collectorRunLedgerStore?.upsertRun(
 			buildCollectorRunLedgerRecord({
+				bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey,
 				bundlePath: written.bundlePath,
 				bundleRecords: result.bundleRecords,
 				collectionMode: result.exportManifest.run.mode,
 				exportedAt,
 				manifest: result.exportManifest,
+				manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey,
 				manifestPath: written.manifestPath,
 				siteId: config.siteId,
 				sourceHomeUrl: config.sourceHomeUrl,
@@ -523,7 +581,9 @@ export async function main(): Promise<void> {
 				{
 					...result.stats,
 					bundlePath: written.bundlePath,
+					bundleObjectKey: uploadedArtifactRefs?.bundleObjectKey ?? null,
 					manifestPath: written.manifestPath,
+					manifestObjectKey: uploadedArtifactRefs?.manifestObjectKey ?? null,
 				},
 				null,
 				2,
@@ -533,6 +593,11 @@ export async function main(): Promise<void> {
 		await attachmentFetchStatusStore?.dispose();
 		await collectorRunLedgerStore?.dispose();
 	}
+}
+
+function sanitizeObjectKeySegment(value: string): string {
+	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
+	return normalized || "unknown";
 }
 
 function buildAttachmentFetchStatusStoreForMain(

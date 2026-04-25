@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import {
 	buildCollectorRunLedgerRecord,
 	createInMemoryCollectorRunLedgerStore,
+	resolveCollectorRunLedgerTableReference,
 } from "../src/collector-run-ledger";
 import type { BootstrapExportManifest, BundleNoticeRecord } from "../src/types";
 
@@ -42,6 +43,17 @@ export function registerCollectorRunLedgerSuite() {
 		await store.upsertRun(record);
 
 		expect(store.records()).toEqual([record]);
+	});
+
+	it("keeps raw schema and quoted table SQL separate for postgres ledger DDL", () => {
+		expect(
+			resolveCollectorRunLedgerTableReference(
+				"ingestion_projection.authenticated_notice_collector_run",
+			),
+		).toEqual({
+			schemaSql: '"ingestion_projection"',
+			tableSql: '"ingestion_projection"."authenticated_notice_collector_run"',
+		});
 	});
 }
 

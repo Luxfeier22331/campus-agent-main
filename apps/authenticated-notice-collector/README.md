@@ -97,10 +97,22 @@ Notice export note:
 
 - `bootstrap:export` now snapshots the portal-wide `notice` selector truth from
   `/comsys-portal-notice-web/getNoticeSlects`
+- `AUTHENTICATED_NOTICE_COLLECTION_MODE` controls the default list scan budget:
+  - `incremental` uses each enabled notice type's incremental page budget
+  - `backfill` uses each enabled notice type's backfill page budget
+  - `selected` requires `AUTHENTICATED_NOTICE_SELECTED_NOTICES`
 - `bootstrap:export` can also run a bounded historical notice refresh with
   `AUTHENTICATED_NOTICE_SELECTED_NOTICES`, using comma-separated
   `notice_id:notice_type[:notice_type_name]` entries. In this mode it fetches
   only those details and does not scan current list pages.
+- when `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL` is configured
+  and `AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DISABLE` is not true, each
+  successful export upserts a source-channel run ledger row with collection mode,
+  selected notices, attachment outcome counts, local artifact paths, and source
+  object artifact refs
+- when source-bucket object-store credentials are configured, `bootstrap:export`
+  uploads the exported bundle and manifest under
+  `authenticated_notice_portal/runs/<site_id>/<timestamp>/`
 - bootstrap manifest therefore includes:
   - `observed_notice_types`
   - `observed_organizations`

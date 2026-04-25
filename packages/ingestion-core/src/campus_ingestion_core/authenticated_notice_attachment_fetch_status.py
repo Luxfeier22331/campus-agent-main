@@ -122,6 +122,35 @@ class AttachmentFetchStatusCoverageReport:
     terminal_reason_counts: dict[str, int]
 
 
+@dataclass(frozen=True, slots=True)
+class ReferenceOnlyAttachmentExplanationRow:
+    site_id: str
+    notice_id: str
+    attachment_ref_id: str
+    reason: str
+    action_required: bool
+    resource_role: str | None = None
+    content_kind: str | None = None
+    mime_type: str | None = None
+    object_key: str | None = None
+    content_sha256: str | None = None
+    source_url: str | None = None
+    final_url: str | None = None
+    fetch_status: str | None = None
+    terminal_reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceOnlyAttachmentExplanationReport:
+    source_notice_count: int
+    source_attachment_ref_count: int
+    reference_only_inventory_count: int
+    reference_only_attachment_count: int
+    action_required_count: int
+    reason_counts: dict[str, int]
+    rows: tuple[ReferenceOnlyAttachmentExplanationRow, ...]
+
+
 class AuthenticatedNoticeAttachmentFetchStatusStore(Protocol):
     def upsert_many(
         self,
@@ -493,6 +522,75 @@ def build_attachment_fetch_status_coverage_report(
     )
 
 
+def build_reference_only_attachment_explanation_report(
+    *,
+    inventory_entries: Sequence[Any],
+    attachment_refs_by_key: dict[str, Sequence[dict[str, Any]]],
+    fetch_status_records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
+) -> ReferenceOnlyAttachmentExplanationReport:
+    entries = tuple(inventory_entries)
+    fetch_status_by_ref = {
+        _fetch_status_ref_key(record.site_id, record.notice_id, record.attachment_ref_id): record
+        for record in fetch_status_records
+    }
+    rows: list[ReferenceOnlyAttachmentExplanationRow] = []
+    for entry in entries:
+        if int(getattr(entry, "reference_only_count", 0) or 0) <= 0:
+            continue
+        site_id = str(getattr(entry, "site_id", "") or "").strip()
+        notice_id = str(getattr(entry, "notice_id", "") or "").strip()
+        if not site_id or not notice_id:
+            continue
+        attachment_refs_key = str(getattr(entry, "attachment_refs_key", "") or "").strip()
+        attachment_refs = tuple(attachment_refs_by_key.get(attachment_refs_key, ()))
+        projected_attachment_ref_ids = _projected_attachment_ref_ids(entry)
+        if not attachment_refs:
+            rows.extend(
+                _missing_attachment_ref_artifact_rows(
+                    entry=entry,
+                    site_id=site_id,
+                    notice_id=notice_id,
+                    projected_attachment_ref_ids=projected_attachment_ref_ids,
+                    fetch_status_by_ref=fetch_status_by_ref,
+                )
+            )
+            continue
+        for attachment_ref in attachment_refs:
+            attachment_ref_id = _normalize_optional_text(attachment_ref.get("attachment_ref_id"))
+            if attachment_ref_id is None or attachment_ref_id in projected_attachment_ref_ids:
+                continue
+            rows.append(
+                _explain_reference_only_attachment_ref(
+                    site_id=site_id,
+                    notice_id=notice_id,
+                    attachment_ref_id=attachment_ref_id,
+                    attachment_ref=attachment_ref,
+                    fetch_status=fetch_status_by_ref.get(
+                        _fetch_status_ref_key(site_id, notice_id, attachment_ref_id)
+                    ),
+                )
+            )
+    reason_counts = Counter(row.reason for row in rows)
+    return ReferenceOnlyAttachmentExplanationReport(
+        source_notice_count=len(entries),
+        source_attachment_ref_count=sum(
+            int(getattr(entry, "attachment_ref_count", 0) or 0) for entry in entries
+        ),
+        reference_only_inventory_count=sum(
+            int(getattr(entry, "reference_only_count", 0) or 0) for entry in entries
+        ),
+        reference_only_attachment_count=len(rows),
+        action_required_count=sum(1 for row in rows if row.action_required),
+        reason_counts=dict(sorted(reason_counts.items())),
+        rows=tuple(
+            sorted(
+                rows,
+                key=lambda item: (item.notice_id, item.attachment_ref_id, item.reason),
+            )
+        ),
+    )
+
+
 def jsonb_recordset(
     records: Sequence[AuthenticatedNoticeAttachmentFetchStatusRecord],
 ) -> str:
@@ -633,6 +731,108 @@ def _fetch_status_ref_key(site_id: str, notice_id: str, attachment_ref_id: str) 
     return f"{site_id}:{notice_id}:{attachment_ref_id}"
 
 
+def _projected_attachment_ref_ids(entry: Any) -> set[str]:
+    parent_snapshot = getattr(entry, "parent_snapshot", None)
+    if not isinstance(parent_snapshot, dict):
+        return set()
+    rows = parent_snapshot.get("attachment_projection_plans") or ()
+    projected: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        attachment_ref_id = _normalize_optional_text(row.get("attachment_ref_id"))
+        if attachment_ref_id is not None:
+            projected.add(attachment_ref_id)
+    return projected
+
+
+def _missing_attachment_ref_artifact_rows(
+    *,
+    entry: Any,
+    site_id: str,
+    notice_id: str,
+    projected_attachment_ref_ids: set[str],
+    fetch_status_by_ref: dict[str, AuthenticatedNoticeAttachmentFetchStatusRecord],
+) -> tuple[ReferenceOnlyAttachmentExplanationRow, ...]:
+    attachment_ref_count = int(getattr(entry, "attachment_ref_count", 0) or 0)
+    rows: list[ReferenceOnlyAttachmentExplanationRow] = []
+    for index in range(1, attachment_ref_count + 1):
+        attachment_ref_id = f"attachment-{index:04d}"
+        if attachment_ref_id in projected_attachment_ref_ids:
+            continue
+        fetch_status = fetch_status_by_ref.get(
+            _fetch_status_ref_key(site_id, notice_id, attachment_ref_id)
+        )
+        rows.append(
+            _explain_reference_only_attachment_ref(
+                site_id=site_id,
+                notice_id=notice_id,
+                attachment_ref_id=attachment_ref_id,
+                attachment_ref={},
+                fetch_status=fetch_status,
+                missing_artifact=True,
+            )
+        )
+    return tuple(rows)
+
+
+def _explain_reference_only_attachment_ref(
+    *,
+    site_id: str,
+    notice_id: str,
+    attachment_ref_id: str,
+    attachment_ref: dict[str, Any],
+    fetch_status: AuthenticatedNoticeAttachmentFetchStatusRecord | None,
+    missing_artifact: bool = False,
+) -> ReferenceOnlyAttachmentExplanationRow:
+    reason, action_required = _reference_only_explanation_reason(
+        attachment_ref=attachment_ref,
+        fetch_status=fetch_status,
+        missing_artifact=missing_artifact,
+    )
+    return ReferenceOnlyAttachmentExplanationRow(
+        site_id=site_id,
+        notice_id=notice_id,
+        attachment_ref_id=attachment_ref_id,
+        reason=reason,
+        action_required=action_required,
+        resource_role=_normalize_optional_text(attachment_ref.get("resource_role")),
+        content_kind=_normalize_optional_text(attachment_ref.get("content_kind")),
+        mime_type=_normalize_optional_text(attachment_ref.get("mime_type")),
+        object_key=_normalize_optional_text(attachment_ref.get("object_key")),
+        content_sha256=_normalize_optional_text(attachment_ref.get("content_sha256")),
+        source_url=_normalize_optional_text(attachment_ref.get("source_url")),
+        final_url=_normalize_optional_text(attachment_ref.get("final_url")),
+        fetch_status=fetch_status.fetch_status if fetch_status is not None else None,
+        terminal_reason=fetch_status.terminal_reason if fetch_status is not None else None,
+    )
+
+
+def _reference_only_explanation_reason(
+    *,
+    attachment_ref: dict[str, Any],
+    fetch_status: AuthenticatedNoticeAttachmentFetchStatusRecord | None,
+    missing_artifact: bool,
+) -> tuple[str, bool]:
+    if fetch_status is not None:
+        if fetch_status.fetch_status == FETCH_STATUS_TERMINAL_UNAVAILABLE:
+            return "terminal_unavailable", False
+        if fetch_status.fetch_status == FETCH_STATUS_TRANSIENT_FAILED:
+            return "transient_fetch_failed", True
+    if missing_artifact:
+        return "missing_attachment_refs_artifact", True
+    object_key = _normalize_optional_text(attachment_ref.get("object_key"))
+    content_sha256 = _normalize_optional_text(attachment_ref.get("content_sha256"))
+    resource_role = _normalize_optional_text(attachment_ref.get("resource_role"))
+    if object_key is not None and content_sha256 is not None:
+        if resource_role == "inline_image":
+            return "object_backed_inline_image_reference_only", False
+        return "object_backed_non_document_reference_only", False
+    if object_key is not None:
+        return "object_backed_missing_checksum", True
+    return "missing_object_key", True
+
+
 def _inventory_facade():
     return import_module("campus_ingestion_core.authenticated_notice_attachment_fetch_status")
 
@@ -653,13 +853,16 @@ __all__ = [
     "TERMINAL_REASON_HTTP_404",
     "TERMINAL_REASON_HTTP_410",
     "TERMINAL_REASON_PORTAL_FILE_MISSING",
+    "AttachmentFetchStatusCoverageReport",
     "AuthenticatedNoticeAttachmentFetchStatusRecord",
     "AuthenticatedNoticeAttachmentFetchStatusStore",
-    "AttachmentFetchStatusCoverageReport",
     "InMemoryAuthenticatedNoticeAttachmentFetchStatusStore",
     "PostgresAuthenticatedNoticeAttachmentFetchStatusStore",
-    "build_attachment_fetch_status_records_from_bundle_records",
+    "ReferenceOnlyAttachmentExplanationReport",
+    "ReferenceOnlyAttachmentExplanationRow",
     "build_attachment_fetch_status_coverage_report",
+    "build_attachment_fetch_status_records_from_bundle_records",
     "build_attachment_source_url_hash",
     "build_authenticated_notice_attachment_fetch_status_store_from_env",
+    "build_reference_only_attachment_explanation_report",
 ]

@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { expect, it } from "vitest";
 
-import { buildBundleRecord, writeBootstrapArtifacts } from "../src/bootstrap-export";
+import {
+	buildBundleRecord,
+	uploadBootstrapArtifacts,
+	writeBootstrapArtifacts,
+} from "../src/bootstrap-export";
 
 export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 	it("writes notices bundle and export manifest under the configured exports directory", () => {
@@ -96,5 +100,51 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 		expect(JSON.parse(fs.readFileSync(written.manifestPath, "utf-8")).site_id).toBe(
 			"muc_internal_portal",
 		);
+	});
+
+	it("uploads exported bundle and manifest as source-channel artifact refs", async () => {
+		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-bootstrap-export-"));
+		tempDirs.push(tempDir);
+		const bundlePath = path.join(tempDir, "notices-bundle-20260404T012345Z.json");
+		const manifestPath = path.join(tempDir, "export-manifest-20260404T012345Z.json");
+		fs.writeFileSync(bundlePath, '[{"notice_id":355119}]\n', "utf-8");
+		fs.writeFileSync(manifestPath, '{"exported_at":"2026-04-04T01:23:45.000Z"}\n', "utf-8");
+		const uploaded: Array<{ objectKey: string; contentType: string; metadata?: unknown }> = [];
+
+		const refs = await uploadBootstrapArtifacts({
+			artifactStore: {
+				storageProvider: "object_store",
+				async putObject({ objectKey, data, contentType, metadata }) {
+					uploaded.push({ objectKey, contentType, metadata });
+					return {
+						bucket: "campus-rag-source",
+						byteSize: data.byteLength,
+						contentSha256: "a".repeat(64),
+						etag: '"etag"',
+						objectKey,
+						versionId: null,
+					};
+				},
+			},
+			bundlePath,
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			manifestPath,
+			siteId: "muc_internal_portal",
+		});
+
+		expect(refs).toEqual({
+			bundleObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+			manifestObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+		});
+		expect(uploaded.map((item) => item.contentType)).toEqual([
+			"application/json",
+			"application/json",
+		]);
+		expect(uploaded[0].metadata).toMatchObject({
+			artifact_kind: "notices_bundle",
+			site_id: "muc_internal_portal",
+		});
 	});
 }
