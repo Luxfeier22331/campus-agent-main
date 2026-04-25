@@ -99,6 +99,7 @@
 	--course-map-border-strong: #b8d1c3;
 	--course-map-muted: #597367;
 	--course-map-surface: #ffffff;
+	container-type: inline-size;
 	margin: 1.5rem 0 2rem;
 	border: 1px solid var(--course-map-border);
 	border-radius: 28px;
@@ -272,7 +273,7 @@
 	display: grid;
 	align-items: start;
 	gap: 1rem;
-	grid-template-columns: minmax(0, 1fr);
+	grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
 	margin-top: 1rem;
 }
 
@@ -471,12 +472,13 @@
 	color: var(--course-map-muted);
 }
 
-.course-map-inspector {
-	order: -1;
-}
-
 .course-map-inspector-card {
 	padding: 1rem;
+}
+
+.course-map-inspector {
+	position: sticky;
+	top: 1rem;
 }
 
 .course-map-inspector-eyebrow {
@@ -716,6 +718,16 @@
 
 	.course-map-stat-grid {
 		max-width: 24rem;
+	}
+}
+
+@container (max-width: 58rem) {
+	.course-map-explorer {
+		grid-template-columns: 1fr;
+	}
+
+	.course-map-inspector {
+		position: static;
 	}
 }
 

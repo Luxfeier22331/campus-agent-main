@@ -58,10 +58,18 @@ def _build_course_map_region_content(
                 "Image 1 is the full PDF page.\n"
                 "Image 2 is the bounded region crop for one map.\n"
                 "Images 3+ are tiles of Image 2.\n"
-                "Use the visible Chinese course names as node_label values.\n"
+                "Use the visible Chinese course names as node_label values. "
+                "Every node must have a stable node_id that is unique inside this map, "
+                "for example n01, n02, n03 in visual reading order. "
+                "If the same node_label appears in multiple stages or positions, keep them as separate nodes "
+                "with different node_id values.\n"
                 "If stage labels are visible, keep them in stage_labels and node.stage_label; "
-                "otherwise use an empty string.\n"
+                "otherwise use an empty string. Every node should also include stage_id; use a stable value "
+                "such as s01, s02 for visible stages, or stage_unknown when no stage is visible.\n"
                 "If category labels are unclear, use an empty string.\n"
+                "Edges must reference source_node_id and target_node_id, not only repeated labels. "
+                "If an arrow endpoint cannot be matched to exactly one visible node_id, do not output that edge; "
+                "add a short Chinese manual_review_notes item instead.\n"
                 "Only output the visible course-map structure for this single region. "
                 "If a title is not clearly visible inside this region, return map_title as null."
             ),
@@ -145,9 +153,17 @@ def _curriculum_course_map_region_schema() -> dict[str, object]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["node_label", "stage_label", "category_label"],
+                    "required": [
+                        "node_id",
+                        "node_label",
+                        "stage_id",
+                        "stage_label",
+                        "category_label",
+                    ],
                     "properties": {
+                        "node_id": {"type": "string"},
                         "node_label": {"type": "string"},
+                        "stage_id": {"type": "string"},
                         "stage_label": {"type": "string"},
                         "category_label": {"type": "string"},
                     },
@@ -158,9 +174,18 @@ def _curriculum_course_map_region_schema() -> dict[str, object]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["source_label", "target_label"],
+                    "required": [
+                        "edge_id",
+                        "source_node_id",
+                        "source_label",
+                        "target_node_id",
+                        "target_label",
+                    ],
                     "properties": {
+                        "edge_id": {"type": "string"},
+                        "source_node_id": {"type": "string"},
                         "source_label": {"type": "string"},
+                        "target_node_id": {"type": "string"},
                         "target_label": {"type": "string"},
                     },
                 },

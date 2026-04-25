@@ -213,6 +213,8 @@ class CourseMapNode:
     node_label: str
     stage_label: str = ""
     category_label: str = ""
+    node_id: str = ""
+    stage_id: str = ""
 
     def __post_init__(self) -> None:
         if not self.node_label.strip():
@@ -223,12 +225,15 @@ class CourseMapNode:
 class CourseMapEdge:
     source_label: str
     target_label: str
+    source_node_id: str = ""
+    target_node_id: str = ""
+    edge_id: str = ""
 
     def __post_init__(self) -> None:
-        if not self.source_label.strip():
-            raise ValueError("source_label is required")
-        if not self.target_label.strip():
-            raise ValueError("target_label is required")
+        if not self.source_node_id.strip() and not self.source_label.strip():
+            raise ValueError("source_node_id or source_label is required")
+        if not self.target_node_id.strip() and not self.target_label.strip():
+            raise ValueError("target_node_id or target_label is required")
 
 
 @dataclass(frozen=True, slots=True)

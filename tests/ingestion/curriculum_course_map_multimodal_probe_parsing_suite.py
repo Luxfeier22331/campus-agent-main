@@ -194,11 +194,9 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
         )
 
         self.assertEqual([node.node_label for node in finding.nodes], ["有效节点"])
-        self.assertEqual(
-            [(edge.source_label, edge.target_label) for edge in finding.edges],
-            [("有效节点", "目标节点")],
-        )
+        self.assertEqual(finding.edges, ())
         self.assertIn("empty node_label", " ".join(finding.manual_review_notes))
+        self.assertIn("without a matching node", " ".join(finding.manual_review_notes))
 
     def test_coerce_course_map_finding_accepts_gateway_alias_node_and_edge_keys(self) -> None:
         finding = _coerce_course_map_finding(
@@ -221,5 +219,65 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
             [(edge.source_label, edge.target_label) for edge in finding.edges],
             [("民法（一）", "民法（二）")],
         )
+        self.assertTrue(finding.nodes[0].node_id.startswith("node-"))
+        self.assertTrue(finding.nodes[0].stage_id.startswith("stage-"))
+        self.assertEqual(finding.edges[0].source_node_id, finding.nodes[0].node_id)
+        self.assertEqual(finding.edges[0].target_node_id, finding.nodes[1].node_id)
+        self.assertTrue(finding.edges[0].edge_id.startswith("edge-"))
         self.assertEqual(finding.stage_labels, ("本科一年级", "本科二年级"))
         self.assertIn("gateway ignored strict schema", finding.manual_review_notes)
+
+    def test_coerce_course_map_finding_prefers_node_id_edges_for_duplicate_labels(self) -> None:
+        finding = _coerce_course_map_finding(
+            {
+                "map_index": 1,
+                "map_title": "课程地图",
+                "stage_labels": ["一年级", "二年级"],
+                "nodes": [
+                    {
+                        "node_id": "node-programming",
+                        "node_label": "程序设计基础",
+                        "stage_id": "stage-1",
+                        "stage_label": "一年级",
+                    },
+                    {
+                        "node_id": "node-elective-1",
+                        "node_label": "选修模块",
+                        "stage_id": "stage-1",
+                        "stage_label": "一年级",
+                    },
+                    {
+                        "node_id": "node-elective-2",
+                        "node_label": "选修模块",
+                        "stage_id": "stage-2",
+                        "stage_label": "二年级",
+                    },
+                    {
+                        "node_id": "node-thesis",
+                        "node_label": "毕业论文",
+                        "stage_id": "stage-2",
+                        "stage_label": "二年级",
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge-programming-elective",
+                        "source_node_id": "node-programming",
+                        "source_label": "程序设计基础",
+                        "target_node_id": "node-elective-2",
+                        "target_label": "选修模块",
+                    },
+                    {"source_label": "选修模块", "target_label": "毕业论文"},
+                ],
+                "manual_review_notes": [],
+            }
+        )
+
+        self.assertEqual(len(finding.edges), 1)
+        self.assertEqual(finding.edges[0].edge_id, "edge-programming-elective")
+        self.assertEqual(finding.edges[0].source_node_id, "node-programming")
+        self.assertEqual(finding.edges[0].target_node_id, "node-elective-2")
+        self.assertIn(
+            "ambiguous duplicate-label edge source endpoint",
+            " ".join(finding.manual_review_notes),
+        )

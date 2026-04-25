@@ -1,7 +1,9 @@
 export type CourseMapRouteGroup = "foundation" | "core" | "extension" | "practice";
 
 export interface CourseMapNode {
+	node_id: string;
 	node_label: string;
+	stage_id: string;
 	stage_label: string;
 	category_label: string;
 	route_group?: CourseMapRouteGroup;
@@ -10,7 +12,10 @@ export interface CourseMapNode {
 }
 
 export interface CourseMapEdge {
+	edge_id: string;
+	source_node_id: string;
 	source_label: string;
+	target_node_id: string;
 	target_label: string;
 }
 
@@ -40,15 +45,4 @@ export interface CourseMapDocumentData {
 	rawAssetId: string;
 	rawVersionId: string;
 	blocks: CourseMapBlock[];
-}
-
-export function buildNodeKey(node: Pick<CourseMapNode, "stage_label" | "node_label">): string {
-	return `${node.stage_label}::${node.node_label}`;
-}
-
-export function buildNodeOccurrenceKey(
-	node: Pick<CourseMapNode, "stage_label" | "node_label">,
-	index: number,
-): string {
-	return `${buildNodeKey(node)}#${index}`;
 }

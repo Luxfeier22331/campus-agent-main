@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import {
@@ -17,13 +18,18 @@ import {
 import type { ObjectStoreClient } from "./storage";
 
 interface CourseMapNode {
+	node_id?: string;
 	node_label: string;
+	stage_id?: string;
 	stage_label?: string;
 	category_label?: string;
 }
 
 interface CourseMapEdge {
+	edge_id?: string;
+	source_node_id?: string;
 	source_label: string;
+	target_node_id?: string;
 	target_label: string;
 }
 
@@ -50,6 +56,41 @@ interface CourseMapSurface {
 	rawAssetId: string;
 	rawVersionId: string;
 	blocks: CourseMapBlock[];
+}
+
+interface NormalizedCourseMapNode {
+	node_id: string;
+	node_label: string;
+	stage_id: string;
+	stage_label: string;
+	category_label: string;
+	route_group: string;
+	incoming_count: number;
+	outgoing_count: number;
+}
+
+interface NormalizedCourseMapEdge {
+	edge_id: string;
+	source_node_id: string;
+	source_label: string;
+	target_node_id: string;
+	target_label: string;
+}
+
+interface NormalizedCourseMapBlockPayload {
+	blockId: string;
+	title: string;
+	status: string;
+	titleConfidence: string;
+	pageNumber: number;
+	rowId: string;
+	mapIndex: number;
+	parentHeadingHint: string;
+	displayStageLabels: string[];
+	extractionNotes: string[];
+	imageSrc: string;
+	nodes: NormalizedCourseMapNode[];
+	edges: NormalizedCourseMapEdge[];
 }
 
 export async function syncCurriculumCourseMapArtifacts(input: {
@@ -208,47 +249,173 @@ export function normalizeCourseMapNodeLabel(nodeLabel: string): string {
 function buildCourseMapBlockPayload(input: {
 	block: CourseMapBlock;
 	publicSlug: string;
-}): Record<string, unknown> {
-	const nodes = input.block.nodes.map((node) => ({
-		...node,
-		node_label: normalizeCourseMapNodeLabel(node.node_label),
-	}));
-	const edges = input.block.edges.map((edge) => ({
-		source_label: normalizeCourseMapNodeLabel(edge.source_label),
-		target_label: normalizeCourseMapNodeLabel(edge.target_label),
-	}));
+}): NormalizedCourseMapBlockPayload {
+	const normalizedNodes = buildNormalizedCourseMapNodes(input.block.nodes);
+	const normalizedEdges = buildNormalizedCourseMapEdges({
+		edges: input.block.edges,
+		nodes: normalizedNodes,
+	});
 	const incomingCounts = new Map<string, number>();
 	const outgoingCounts = new Map<string, number>();
-	for (const edge of edges) {
-		const sourceLabel = String(edge.source_label ?? "").trim();
-		const targetLabel = String(edge.target_label ?? "").trim();
-		if (sourceLabel) {
-			outgoingCounts.set(sourceLabel, (outgoingCounts.get(sourceLabel) ?? 0) + 1);
-		}
-		if (targetLabel) {
-			incomingCounts.set(targetLabel, (incomingCounts.get(targetLabel) ?? 0) + 1);
-		}
+	for (const edge of normalizedEdges.edges) {
+		outgoingCounts.set(edge.source_node_id, (outgoingCounts.get(edge.source_node_id) ?? 0) + 1);
+		incomingCounts.set(edge.target_node_id, (incomingCounts.get(edge.target_node_id) ?? 0) + 1);
 	}
+	const displayStageLabels = resolvePublishableStageLabels({
+		displayStageLabels: input.block.displayStageLabels,
+		nodes: normalizedNodes,
+	});
+	const structurePublishable = normalizedNodes.length > 0 && displayStageLabels.length > 0;
+	const extractionNotes = [
+		...input.block.extractionNotes,
+		...normalizedEdges.notes,
+		...(structurePublishable
+			? []
+			: normalizedNodes.length > 0
+				? ["未识别到可用于阅读分组的阶段信息，当前仅发布原始区域图。"]
+				: []),
+	];
 	return {
 		blockId: input.block.blockId,
 		title: input.block.title,
-		status: input.block.status,
+		status: structurePublishable ? input.block.status : "failed",
 		titleConfidence: input.block.titleConfidence,
 		pageNumber: input.block.pageNumber,
 		rowId: input.block.rowId,
 		mapIndex: input.block.mapIndex,
 		parentHeadingHint: input.block.parentHeadingHint,
-		displayStageLabels: input.block.displayStageLabels,
-		extractionNotes: input.block.extractionNotes,
+		displayStageLabels,
+		extractionNotes: Array.from(new Set(extractionNotes.filter(Boolean))),
 		imageSrc: `/course-maps/${input.publicSlug}/${basename(input.block.imageObjectKey)}`,
-		nodes: nodes.map((node) => ({
+		nodes: normalizedNodes.map((node) => ({
 			...node,
-			route_group: inferCourseMapRouteGroup(node.node_label),
-			incoming_count: incomingCounts.get(node.node_label) ?? 0,
-			outgoing_count: outgoingCounts.get(node.node_label) ?? 0,
+			incoming_count: incomingCounts.get(node.node_id) ?? 0,
+			outgoing_count: outgoingCounts.get(node.node_id) ?? 0,
 		})),
-		edges,
+		edges: normalizedEdges.edges,
 	};
+}
+
+function buildNormalizedCourseMapNodes(nodes: CourseMapNode[]): NormalizedCourseMapNode[] {
+	return nodes.map((node, index) => {
+		const nodeLabel = normalizeCourseMapNodeLabel(node.node_label);
+		const stageLabel = String(node.stage_label ?? "").trim();
+		const stageId = normalizeCourseMapIdentifier(
+			String(node.stage_id ?? "").trim() || buildHashedCourseMapId("stage", stageLabel || "unknown"),
+		);
+		return {
+			node_id: normalizeCourseMapIdentifier(
+				String(node.node_id ?? "").trim() ||
+					buildHashedCourseMapId("node", `${stageId}|${stageLabel}|${nodeLabel}|${index}`),
+			),
+			node_label: nodeLabel,
+			stage_id: stageId,
+			stage_label: stageLabel,
+			category_label: String(node.category_label ?? "").trim(),
+			route_group: inferCourseMapRouteGroup(nodeLabel),
+			incoming_count: 0,
+			outgoing_count: 0,
+		};
+	});
+}
+
+function buildNormalizedCourseMapEdges(input: {
+	edges: CourseMapEdge[];
+	nodes: NormalizedCourseMapNode[];
+}): { edges: NormalizedCourseMapEdge[]; notes: string[] } {
+	const notes: string[] = [];
+	const nodeById = new Map(input.nodes.map((node) => [node.node_id, node]));
+	const nodeIdsByLabel = new Map<string, string[]>();
+	for (const node of input.nodes) {
+		const existing = nodeIdsByLabel.get(node.node_label) ?? [];
+		existing.push(node.node_id);
+		nodeIdsByLabel.set(node.node_label, existing);
+	}
+	const edges: NormalizedCourseMapEdge[] = [];
+	for (const [index, edge] of input.edges.entries()) {
+		const sourceLabel = normalizeCourseMapNodeLabel(edge.source_label);
+		const targetLabel = normalizeCourseMapNodeLabel(edge.target_label);
+		const sourceNodeId =
+			normalizeCourseMapIdentifier(String(edge.source_node_id ?? "").trim()) ||
+			resolveUniqueNodeIdForLabel({
+				label: sourceLabel,
+				nodeIdsByLabel,
+				notes,
+				endpointName: "source",
+			});
+		const targetNodeId =
+			normalizeCourseMapIdentifier(String(edge.target_node_id ?? "").trim()) ||
+			resolveUniqueNodeIdForLabel({
+				label: targetLabel,
+				nodeIdsByLabel,
+				notes,
+				endpointName: "target",
+			});
+		const sourceNode = nodeById.get(sourceNodeId);
+		const targetNode = nodeById.get(targetNodeId);
+		if (!sourceNode || !targetNode) {
+			notes.push("存在无法定位到唯一课程节点的关系，已从结构化关系中移除。");
+			continue;
+		}
+		edges.push({
+			edge_id:
+				normalizeCourseMapIdentifier(String(edge.edge_id ?? "").trim()) ||
+				buildHashedCourseMapId("edge", `${sourceNodeId}->${targetNodeId}#${index}`),
+			source_node_id: sourceNodeId,
+			source_label: sourceLabel || sourceNode.node_label,
+			target_node_id: targetNodeId,
+			target_label: targetLabel || targetNode.node_label,
+		});
+	}
+	return { edges, notes: Array.from(new Set(notes)) };
+}
+
+function resolveUniqueNodeIdForLabel(input: {
+	label: string;
+	nodeIdsByLabel: Map<string, string[]>;
+	notes: string[];
+	endpointName: "source" | "target";
+}): string {
+	if (!input.label) {
+		input.notes.push("存在端点为空的课程关系，已从结构化关系中移除。");
+		return "";
+	}
+	const nodeIds = input.nodeIdsByLabel.get(input.label) ?? [];
+	if (nodeIds.length === 1) {
+		return nodeIds[0] ?? "";
+	}
+	if (nodeIds.length === 0) {
+		input.notes.push(`存在引用未发布课程节点的关系，已从结构化关系中移除：${input.label}。`);
+		return "";
+	}
+	input.notes.push(
+		`存在同名课程节点导致无法唯一定位的关系端点，已从结构化关系中移除：${input.label}（${input.endpointName}）。`,
+	);
+	return "";
+}
+
+function resolvePublishableStageLabels(input: {
+	displayStageLabels: string[];
+	nodes: NormalizedCourseMapNode[];
+}): string[] {
+	const declared = input.displayStageLabels.map((label) => label.trim()).filter(Boolean);
+	if (declared.length > 0) {
+		return Array.from(new Set(declared));
+	}
+	return Array.from(new Set(input.nodes.map((node) => node.stage_label).filter(Boolean)));
+}
+
+function normalizeCourseMapIdentifier(value: string): string {
+	const normalized = value
+		.trim()
+		.replace(/[^0-9A-Za-z_.:-]+/g, "-")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "");
+	return normalized || (value.trim() ? buildHashedCourseMapId("id", value.trim()) : "");
+}
+
+function buildHashedCourseMapId(prefix: string, value: string): string {
+	return `${prefix}-${createHash("sha1").update(value).digest("hex").slice(0, 12)}`;
 }
 
 function buildCurriculumCourseMapDocsSurfaceObjectKey(documentUnitsKey: string): string {

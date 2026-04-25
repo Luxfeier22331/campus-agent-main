@@ -35,7 +35,6 @@ import { buildHomePage } from "../scripts/sync-real-docs/pages";
 import { buildPublicRegulationMarkdown } from "../scripts/sync-real-docs/regulations";
 import { formatJsonContent } from "../scripts/sync-real-docs/shared";
 import type { ObjectStoreClient } from "../scripts/sync-real-docs/storage";
-import { buildNodeKey, buildNodeOccurrenceKey } from "../src/components/course-map-types";
 import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
 
 class FakeObjectStore implements ObjectStoreClient {
@@ -80,17 +79,92 @@ afterEach(() => {
 });
 
 describe("course-map rendering keys", () => {
-	it("keeps duplicate course labels renderable with occurrence keys", () => {
-		const node = {
-			node_label: "产业经济学",
-			stage_label: "本科三年级",
-			category_label: "专业选修",
-		};
+	it("publishes course-map relations by node ids instead of duplicate labels", () => {
+		const payload = buildCourseMapDataPayload({
+			publicSlug: "computer",
+			surface: {
+				blocks: [
+					{
+						blockId: "map-1",
+						displayStageLabels: ["一年级", "二年级"],
+						edges: [
+							{
+								edge_id: "edge-foundation-elective",
+								source_label: "程序设计基础",
+								source_node_id: "node-programming",
+								target_label: "选修模块",
+								target_node_id: "node-elective-2",
+							},
+							{ source_label: "选修模块", target_label: "毕业论文" },
+						],
+						extractionNotes: [],
+						imageObjectKey: "course-maps/computer/map.png",
+						mapIndex: 1,
+						nodes: [
+							{
+								node_id: "node-programming",
+								node_label: "程序设计基础",
+								stage_id: "stage-1",
+								stage_label: "一年级",
+							},
+							{
+								node_id: "node-elective-1",
+								node_label: "选修模块",
+								stage_id: "stage-1",
+								stage_label: "一年级",
+							},
+							{
+								node_id: "node-elective-2",
+								node_label: "选修模块",
+								stage_id: "stage-2",
+								stage_label: "二年级",
+							},
+							{
+								node_id: "node-thesis",
+								node_label: "毕业论文",
+								stage_id: "stage-2",
+								stage_label: "二年级",
+							},
+						],
+						pageNumber: 1,
+						parentHeadingHint: "",
+						rowId: "row-1",
+						status: "ready",
+						title: "测试课程地图",
+						titleConfidence: "visible",
+					},
+				],
+				documentId: "doc",
+				documentTitle: "测试",
+				generatedAt: "2026-04-25T00:00:00.000Z",
+				rawAssetId: "asset",
+				rawVersionId: "version",
+			},
+		});
+		const block = (
+			payload.blocks as Array<{
+				edges: Array<{ edge_id: string; source_node_id: string; target_node_id: string }>;
+				extractionNotes: string[];
+				nodes: Array<{ node_id: string; incoming_count: number; outgoing_count: number }>;
+			}>
+		)[0];
 
-		expect(buildNodeKey(node)).toBe("本科三年级::产业经济学");
-		expect(buildNodeOccurrenceKey(node, 0)).toBe("本科三年级::产业经济学#0");
-		expect(buildNodeOccurrenceKey(node, 1)).toBe("本科三年级::产业经济学#1");
-		expect(buildNodeOccurrenceKey(node, 0)).not.toBe(buildNodeOccurrenceKey(node, 1));
+		expect(block.edges).toEqual([
+			expect.objectContaining({
+				edge_id: "edge-foundation-elective",
+				source_node_id: "node-programming",
+				target_node_id: "node-elective-2",
+			}),
+		]);
+		expect(block.nodes.find((node) => node.node_id === "node-programming")).toMatchObject({
+			outgoing_count: 1,
+		});
+		expect(block.nodes.find((node) => node.node_id === "node-elective-2")).toMatchObject({
+			incoming_count: 1,
+		});
+		expect(block.extractionNotes).toContain(
+			"存在同名课程节点导致无法唯一定位的关系端点，已从结构化关系中移除：选修模块（source）。",
+		);
 	});
 
 	it("classifies public foundation courses outside professional core groups", () => {
@@ -162,9 +236,62 @@ describe("course-map rendering keys", () => {
 			}),
 		);
 		expect(block.edges).toContainEqual({
+			edge_id: expect.stringMatching(/^edge-[0-9a-f]{12}$/),
 			source_label: "中国近现代史纲要",
+			source_node_id: expect.stringMatching(/^node-[0-9a-f]{12}$/),
 			target_label: "离散结构",
+			target_node_id: expect.stringMatching(/^node-[0-9a-f]{12}$/),
 		});
+	});
+
+	it("downgrades course-map blocks without stage buckets to image-only publishing", () => {
+		const payload = buildCourseMapDataPayload({
+			publicSlug: "public-management",
+			surface: {
+				blocks: [
+					{
+						blockId: "map-1",
+						displayStageLabels: [],
+						edges: [],
+						extractionNotes: [],
+						imageObjectKey: "course-maps/public-management/map.png",
+						mapIndex: 1,
+						nodes: [
+							{
+								node_id: "node-1",
+								node_label: "管理学原理",
+								stage_id: "stage-unknown",
+								stage_label: "",
+							},
+						],
+						pageNumber: 1,
+						parentHeadingHint: "六、课程地图",
+						rowId: "row-1",
+						status: "ready",
+						title: "测试课程地图",
+						titleConfidence: "visible",
+					},
+				],
+				documentId: "doc",
+				documentTitle: "测试",
+				generatedAt: "2026-04-25T00:00:00.000Z",
+				rawAssetId: "asset",
+				rawVersionId: "version",
+			},
+		});
+		const block = (
+			payload.blocks as Array<{
+				displayStageLabels: string[];
+				extractionNotes: string[];
+				status: string;
+			}>
+		)[0];
+
+		expect(block.status).toBe("failed");
+		expect(block.displayStageLabels).toEqual([]);
+		expect(block.extractionNotes).toContain(
+			"未识别到可用于阅读分组的阶段信息，当前仅发布原始区域图。",
+		);
 	});
 });
 
@@ -543,6 +670,32 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
+	});
+
+	it("keeps course-map routes before the inspector in a two-column desktop layout", () => {
+		const css = readFileSync(
+			join(process.cwd(), "src/components/course-map-section.css"),
+			"utf8",
+		);
+
+		expect(css).toContain(
+			"grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);",
+		);
+		expect(css).toContain("container-type: inline-size;");
+		expect(css).toContain("@container (max-width: 58rem)");
+		expect(css).toContain(".course-map-inspector {\n\tposition: sticky;");
+		expect(css).not.toContain(".course-map-inspector {\n\torder: -1;");
+	});
+
+	it("renders document technical metadata as a fixed low-distraction popover", () => {
+		const css = readFileSync(join(process.cwd(), "theme/docs-ui.css"), "utf8");
+
+		expect(css).toContain(".rspress-doc .document-meta-technical dl");
+		expect(css).toContain("position: fixed;");
+		expect(css).toContain("bottom: 2rem;");
+		expect(css).toContain("bottom: max(1rem, env(safe-area-inset-bottom));");
+		expect(css).toContain("box-shadow: 0 18px 40px rgba(28, 45, 37, 0.14);");
+		expect(css).not.toContain("flex-basis: 100%;");
 	});
 
 	it("builds fallback local search suggestions from the generated search index shape", () => {

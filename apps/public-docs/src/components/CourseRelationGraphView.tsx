@@ -14,17 +14,12 @@ import {
 import dagre from "dagre";
 import { memo, useEffect, useMemo, useRef } from "react";
 import "@xyflow/react/dist/style.css";
-import {
-	buildNodeKey,
-	buildNodeOccurrenceKey,
-	type CourseMapBlock,
-	type CourseMapNode,
-} from "./course-map-types";
+import type { CourseMapBlock, CourseMapNode } from "./course-map-types";
 
 interface Props {
 	data: CourseMapBlock;
-	activeNodeKey: string | null;
-	onSelectNode: (nodeKey: string) => void;
+	activeNodeId: string | null;
+	onSelectNode: (nodeId: string) => void;
 }
 
 interface GraphNodeData extends Record<string, unknown> {
@@ -36,7 +31,7 @@ interface GraphNodeData extends Record<string, unknown> {
 
 interface IndexedCourseMapNode {
 	node: CourseMapNode;
-	nodeKey: string;
+	nodeId: string;
 	index: number;
 }
 
@@ -71,42 +66,38 @@ function routeGroupSortValue(node: CourseMapNode): number {
 	return index === -1 ? ROUTE_GROUP_ORDER.indexOf("core") : index;
 }
 
-function buildRelatedLabelSet(data: CourseMapBlock, activeLabel: string | null): Set<string> {
-	if (!activeLabel) {
+function buildRelatedNodeIdSet(data: CourseMapBlock, activeNodeId: string | null): Set<string> {
+	if (!activeNodeId) {
 		return new Set();
 	}
-	const labels = new Set<string>();
+	const nodeIds = new Set<string>();
 	for (const edge of data.edges) {
-		if (edge.source_label === activeLabel) {
-			labels.add(edge.target_label);
+		if (edge.source_node_id === activeNodeId) {
+			nodeIds.add(edge.target_node_id);
 		}
-		if (edge.target_label === activeLabel) {
-			labels.add(edge.source_label);
+		if (edge.target_node_id === activeNodeId) {
+			nodeIds.add(edge.source_node_id);
 		}
 	}
-	return labels;
+	return nodeIds;
 }
 
 function buildIndexedNodes(data: CourseMapBlock): IndexedCourseMapNode[] {
 	return data.nodes.map((node, index) => ({
 		node,
-		nodeKey: buildNodeOccurrenceKey(node, index),
+		nodeId: node.node_id,
 		index,
 	}));
 }
 
 function findIndexedNodeByActiveKey(
 	nodes: IndexedCourseMapNode[],
-	activeNodeKey: string | null,
+	activeNodeId: string | null,
 ): IndexedCourseMapNode | null {
-	if (!activeNodeKey) {
+	if (!activeNodeId) {
 		return null;
 	}
-	return (
-		nodes.find(
-			({ node, nodeKey }) => nodeKey === activeNodeKey || buildNodeKey(node) === activeNodeKey,
-		) ?? null
-	);
+	return nodes.find(({ nodeId }) => nodeId === activeNodeId) ?? null;
 }
 
 const GraphNodeCard = memo(function GraphNodeCard({
@@ -136,10 +127,10 @@ const nodeTypes: NodeTypes = {
 
 function buildRelationGraph({
 	data,
-	activeNodeKey,
+	activeNodeId,
 }: {
 	data: CourseMapBlock;
-	activeNodeKey: string | null;
+	activeNodeId: string | null;
 }): { nodes: Node<GraphNodeData>[]; edges: Edge[] } {
 	const graph = new dagre.graphlib.Graph();
 	graph.setDefaultEdgeLabel(() => ({}));
@@ -167,29 +158,30 @@ function buildRelationGraph({
 		return labelDiff === 0 ? left.index - right.index : labelDiff;
 	});
 
-	for (const { nodeKey } of sortedNodes) {
-		graph.setNode(nodeKey, {
+	for (const { nodeId } of sortedNodes) {
+		graph.setNode(nodeId, {
 			width: NODE_WIDTH,
 			height: NODE_HEIGHT,
 		});
 	}
 
 	const edges: Edge[] = [];
-	const activeNode = findIndexedNodeByActiveKey(indexedNodes, activeNodeKey);
-	const activeLabel = activeNode?.node.node_label ?? null;
-	const relatedLabels = buildRelatedLabelSet(data, activeLabel);
-	for (const [index, edge] of data.edges.entries()) {
-		const sourceNode = indexedNodes.find(({ node }) => node.node_label === edge.source_label);
-		const targetNode = indexedNodes.find(({ node }) => node.node_label === edge.target_label);
+	const activeNode = findIndexedNodeByActiveKey(indexedNodes, activeNodeId);
+	const activeResolvedNodeId = activeNode?.nodeId ?? null;
+	const relatedNodeIds = buildRelatedNodeIdSet(data, activeResolvedNodeId);
+	for (const edge of data.edges) {
+		const sourceNode = indexedNodes.find(({ nodeId }) => nodeId === edge.source_node_id);
+		const targetNode = indexedNodes.find(({ nodeId }) => nodeId === edge.target_node_id);
 		if (!(sourceNode && targetNode)) {
 			continue;
 		}
-		const source = sourceNode.nodeKey;
-		const target = targetNode.nodeKey;
+		const source = sourceNode.nodeId;
+		const target = targetNode.nodeId;
 		graph.setEdge(source, target);
-		const highlighted = activeLabel === edge.source_label || activeLabel === edge.target_label;
+		const highlighted =
+			activeResolvedNodeId === edge.source_node_id || activeResolvedNodeId === edge.target_node_id;
 		edges.push({
-			id: `course-map-edge-${index}-${source}-${target}`,
+			id: edge.edge_id,
 			source,
 			target,
 			type: "smoothstep",
@@ -200,8 +192,7 @@ function buildRelationGraph({
 
 	dagre.layout(graph);
 
-	const nodes: Node<GraphNodeData>[] = sortedNodes.map(({ node, nodeKey }) => {
-		const nodeId = nodeKey;
+	const nodes: Node<GraphNodeData>[] = sortedNodes.map(({ node, nodeId }) => {
 		const layoutNode = graph.node(nodeId);
 		return {
 			id: nodeId,
@@ -213,7 +204,7 @@ function buildRelationGraph({
 				label: node.node_label,
 				stage: node.stage_label,
 				groupLabel: ROUTE_GROUP_LABELS[node.route_group ?? "core"],
-				related: relatedLabels.has(node.node_label),
+				related: relatedNodeIds.has(nodeId),
 			},
 			draggable: false,
 			selectable: true,
@@ -225,9 +216,9 @@ function buildRelationGraph({
 				width: NODE_WIDTH,
 			},
 			className:
-				nodeId === activeNodeKey
+				nodeId === activeResolvedNodeId
 					? "course-map-graph-node selected"
-					: relatedLabels.has(node.node_label)
+					: relatedNodeIds.has(nodeId)
 						? "course-map-graph-node related"
 						: "course-map-graph-node",
 		};
@@ -236,8 +227,8 @@ function buildRelationGraph({
 	return { nodes, edges };
 }
 
-function GraphContent({ data, activeNodeKey, onSelectNode }: Props) {
-	const graph = useMemo(() => buildRelationGraph({ data, activeNodeKey }), [activeNodeKey, data]);
+function GraphContent({ data, activeNodeId, onSelectNode }: Props) {
+	const graph = useMemo(() => buildRelationGraph({ data, activeNodeId }), [activeNodeId, data]);
 	const canvasRef = useRef<HTMLDivElement>(null);
 	const reactFlow = useReactFlow<Node<GraphNodeData>, Edge>();
 

@@ -12,6 +12,7 @@ _docs_surface_module = load_curriculum_course_map_docs_surface_module()
 _probe_module = load_curriculum_course_map_probe_module()
 
 CourseMapFinding = _probe_module.CourseMapFinding
+CourseMapEdge = _probe_module.CourseMapEdge
 CourseMapNode = _probe_module.CourseMapNode
 CurriculumCourseMapPageProbe = _probe_module.CurriculumCourseMapPageProbe
 CurriculumCourseMapRenderedSample = _probe_module.CurriculumCourseMapRenderedSample
@@ -170,6 +171,7 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
             )
 
         blocks = artifact.surface.blocks
+        self.assertEqual(artifact.surface.schema_version, "curriculum_course_map_docs_surface_v2")
         self.assertEqual([block.status for block in blocks], ["partial", "partial", "failed"])
         self.assertEqual(blocks[0].title, "主图")
         self.assertEqual(blocks[1].title, "六、课程地图")
@@ -201,6 +203,198 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
         )
         self.assertEqual(roundtrip.document_id, "curriculum:test")
         self.assertEqual(len(roundtrip.blocks), 3)
+        self.assertTrue(roundtrip.blocks[0].nodes[0].node_id.startswith("node-"))
+        self.assertTrue(roundtrip.blocks[0].nodes[0].stage_id.startswith("stage-"))
+
+    def test_build_surface_artifact_keeps_id_edges_and_drops_ambiguous_label_edges(
+        self,
+    ) -> None:
+        rendered_sample = CurriculumCourseMapRenderedSample(
+            sample_id="course-map-p0513-row-1",
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            row_id="page-0513-block-2-0003",
+            parent_heading_hint="六、课程地图",
+            provider_bbox=(100.0, 200.0, 900.0, 1000.0),
+            provider_canvas=(1200.0, 1600.0),
+            pdf_bbox=(50.0, 80.0, 450.0, 480.0),
+            full_page_png=b"full-page-png",
+            crop_png=b"crop-png",
+        )
+        page_probe = CurriculumCourseMapPageProbe(
+            sample_id=rendered_sample.sample_id,
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            parent_heading_hint="六、课程地图",
+            detected_maps=(
+                DetectedCourseMapRegion(
+                    map_index=1,
+                    map_title="主图",
+                    title_confidence="visible",
+                    region_bbox_normalized=(0.0, 0.0, 1.0, 1.0),
+                    region_bbox_pdf=(1.0, 2.0, 3.0, 4.0),
+                    region_bbox_provider=(10.0, 20.0, 30.0, 40.0),
+                    manual_review_notes=(),
+                ),
+            ),
+            course_maps=(
+                CourseMapFinding(
+                    map_index=1,
+                    map_title="主图",
+                    stage_labels=("一年级", "二年级"),
+                    nodes=(
+                        CourseMapNode(
+                            node_id="node-programming",
+                            node_label="程序设计基础",
+                            stage_id="stage-1",
+                            stage_label="一年级",
+                        ),
+                        CourseMapNode(
+                            node_id="node-elective-1",
+                            node_label="选修模块",
+                            stage_id="stage-1",
+                            stage_label="一年级",
+                        ),
+                        CourseMapNode(
+                            node_id="node-elective-2",
+                            node_label="选修模块",
+                            stage_id="stage-2",
+                            stage_label="二年级",
+                        ),
+                        CourseMapNode(
+                            node_id="node-thesis",
+                            node_label="毕业论文",
+                            stage_id="stage-2",
+                            stage_label="二年级",
+                        ),
+                    ),
+                    edges=(
+                        CourseMapEdge(
+                            edge_id="edge-programming-elective",
+                            source_node_id="node-programming",
+                            source_label="程序设计基础",
+                            target_node_id="node-elective-2",
+                            target_label="选修模块",
+                        ),
+                        CourseMapEdge(source_label="选修模块", target_label="毕业论文"),
+                    ),
+                    manual_review_notes=(),
+                ),
+            ),
+            manual_review_required=False,
+            global_manual_review_notes=(),
+        )
+        surface_key = build_curriculum_course_map_docs_surface_object_key(
+            "curriculum/documents/curriculum_plan/example/current-effective/2022/document-units.jsonl"
+        )
+
+        with patch.object(
+            _docs_surface_module,
+            "_build_rendered_region",
+            return_value=_probe_module.CurriculumCourseMapRenderedRegion(
+                detected_region=page_probe.detected_maps[0],
+                crop_png=b"map-01",
+                tile_pngs=(),
+            ),
+        ):
+            artifact = build_curriculum_course_map_docs_surface_artifact(
+                document_id="curriculum:test",
+                document_title="示例培养方案",
+                raw_asset_id="asset:test",
+                raw_version_id="sha256:test",
+                page_probes=(page_probe,),
+                rendered_samples={rendered_sample.sample_id: rendered_sample},
+                surface_object_key=surface_key,
+                generated_at="2026-04-22T12:00:00+00:00",
+            )
+
+        block = artifact.surface.blocks[0]
+        self.assertEqual(len(block.edges), 1)
+        self.assertEqual(block.edges[0].edge_id, "edge-programming-elective")
+        self.assertEqual(block.edges[0].source_node_id, "node-programming")
+        self.assertEqual(block.edges[0].target_node_id, "node-elective-2")
+        self.assertIn(
+            "存在同名课程节点导致无法唯一定位的关系端点，已从结构化关系中移除：选修模块（source）。",
+            block.extraction_notes,
+        )
+
+    def test_build_surface_artifact_marks_nodes_without_stage_buckets_failed(self) -> None:
+        rendered_sample = CurriculumCourseMapRenderedSample(
+            sample_id="course-map-p0513-row-1",
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            row_id="page-0513-block-2-0003",
+            parent_heading_hint="六、课程地图",
+            provider_bbox=(100.0, 200.0, 900.0, 1000.0),
+            provider_canvas=(1200.0, 1600.0),
+            pdf_bbox=(50.0, 80.0, 450.0, 480.0),
+            full_page_png=b"full-page-png",
+            crop_png=b"crop-png",
+        )
+        page_probe = CurriculumCourseMapPageProbe(
+            sample_id=rendered_sample.sample_id,
+            page_number=513,
+            document_id="curriculum:test",
+            document_title="示例培养方案",
+            parent_heading_hint="六、课程地图",
+            detected_maps=(
+                DetectedCourseMapRegion(
+                    map_index=1,
+                    map_title="主图",
+                    title_confidence="visible",
+                    region_bbox_normalized=(0.0, 0.0, 1.0, 1.0),
+                    region_bbox_pdf=(1.0, 2.0, 3.0, 4.0),
+                    region_bbox_provider=(10.0, 20.0, 30.0, 40.0),
+                    manual_review_notes=(),
+                ),
+            ),
+            course_maps=(
+                CourseMapFinding(
+                    map_index=1,
+                    map_title="主图",
+                    stage_labels=(),
+                    nodes=(CourseMapNode(node_label="管理学原理"),),
+                    edges=(),
+                    manual_review_notes=(),
+                ),
+            ),
+            manual_review_required=False,
+            global_manual_review_notes=(),
+        )
+        surface_key = build_curriculum_course_map_docs_surface_object_key(
+            "curriculum/documents/curriculum_plan/example/current-effective/2022/document-units.jsonl"
+        )
+
+        with patch.object(
+            _docs_surface_module,
+            "_build_rendered_region",
+            return_value=_probe_module.CurriculumCourseMapRenderedRegion(
+                detected_region=page_probe.detected_maps[0],
+                crop_png=b"map-01",
+                tile_pngs=(),
+            ),
+        ):
+            artifact = build_curriculum_course_map_docs_surface_artifact(
+                document_id="curriculum:test",
+                document_title="示例培养方案",
+                raw_asset_id="asset:test",
+                raw_version_id="sha256:test",
+                page_probes=(page_probe,),
+                rendered_samples={rendered_sample.sample_id: rendered_sample},
+                surface_object_key=surface_key,
+                generated_at="2026-04-22T12:00:00+00:00",
+            )
+
+        block = artifact.surface.blocks[0]
+        self.assertEqual(block.status, "failed")
+        self.assertEqual(block.display_stage_labels, ())
+        self.assertIn(
+            "未识别到可用于阅读分组的阶段信息，当前仅发布原始区域图。",
+            block.extraction_notes,
+        )
 
     def test_purge_scope_keeps_other_reader_assets(self) -> None:
         surface_key = (
@@ -229,8 +423,7 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
         self.assertNotIn(
             (
                 "campus-rag-derived",
-                "curriculum/documents/curriculum_plan/example/current-effective/2022/"
-                "reader-assets",
+                "curriculum/documents/curriculum_plan/example/current-effective/2022/reader-assets",
             ),
             store.deleted_prefixes,
         )

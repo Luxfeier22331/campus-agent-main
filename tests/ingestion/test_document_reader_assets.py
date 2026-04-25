@@ -115,7 +115,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
         ).encode()
         course_maps_bytes = (
             "{\n"
-            '  "schemaVersion": "curriculum_course_map_docs_surface_v1",\n'
+            '  "schemaVersion": "curriculum_course_map_docs_surface_v2",\n'
             '  "generatedAt": "2026-04-23T08:00:00+00:00",\n'
             '  "documentId": "curriculum:law-ethnic-class-program",\n'
             '  "documentTitle": "法学（民族班）培养方案",\n'
@@ -132,8 +132,11 @@ class DocumentReaderAssetsTest(unittest.TestCase):
             '      "titleConfidence": "visible",\n'
             '      "parentHeadingHint": "六、课程地图",\n'
             '      "displayStageLabels": ["第一学期"],\n'
-            '      "nodes": [{"node_label": "法理学", "stage_label": "第一学期", "category_label": ""}],\n'
-            '      "edges": [{"source_label": "法理学", "target_label": "宪法学"}],\n'
+            '      "nodes": [\n'
+            '        {"node_id": "node-legal-theory", "node_label": "法理学", "stage_id": "stage-1", "stage_label": "第一学期", "category_label": ""},\n'
+            '        {"node_id": "node-constitution", "node_label": "宪法学", "stage_id": "stage-1", "stage_label": "第一学期", "category_label": ""}\n'
+            "      ],\n"
+            '      "edges": [{"edge_id": "edge-legal-constitution", "source_node_id": "node-legal-theory", "source_label": "法理学", "target_node_id": "node-constitution", "target_label": "宪法学"}],\n'
             '      "extractionNotes": ["自动抽取通过"],\n'
             '      "imageObjectKey": "curriculum/documents/curriculum_plan/law-ethnic-class-program--law-ethnic/current-effective/2026/reader-assets/course-maps/page-0349-row-01-map-01.png",\n'
             '      "regionBBoxProvider": [10, 20, 30, 40]\n'
@@ -188,6 +191,20 @@ class DocumentReaderAssetsTest(unittest.TestCase):
         self.assertEqual(course_map_payload["versionId"], "ver_2026_01")
         self.assertEqual(
             course_map_payload["blocks"][0]["imagePath"], "course-maps/page-0349-row-01-map-01.png"
+        )
+        self.assertEqual(course_map_payload["blocks"][0]["nodes"][0]["nodeId"], "node-legal-theory")
+        self.assertEqual(course_map_payload["blocks"][0]["nodes"][0]["stageId"], "stage-1")
+        self.assertEqual(
+            course_map_payload["blocks"][0]["edges"][0]["edgeId"],
+            "edge-legal-constitution",
+        )
+        self.assertEqual(
+            course_map_payload["blocks"][0]["edges"][0]["sourceNodeId"],
+            "node-legal-theory",
+        )
+        self.assertEqual(
+            course_map_payload["blocks"][0]["edges"][0]["targetNodeId"],
+            "node-constitution",
         )
         self.assertNotIn("imageObjectKey", course_map_payload["blocks"][0])
         self.assertEqual(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
@@ -94,47 +95,78 @@ def _extract_detected_maps_payload(payload: dict[str, object]) -> tuple[object, 
 
 def _normalize_course_map_finding_payload(payload: dict[str, object]) -> dict[str, object]:
     normalized_nodes: list[dict[str, str]] = []
-    for node in payload.get("nodes") or payload.get("courses") or ():
+    for index, node in enumerate(payload.get("nodes") or payload.get("courses") or ()):
         if not isinstance(node, dict):
             normalized_nodes.append({})
             continue
+        node_label = _first_non_empty_string(
+            node.get("node_label"),
+            node.get("label"),
+            node.get("name"),
+            node.get("course_name"),
+            node.get("text"),
+            node.get("id"),
+        )
+        stage_label = _first_non_empty_string(
+            node.get("stage_label"),
+            node.get("stage"),
+            node.get("year_group"),
+            node.get("semester_stage"),
+        )
         normalized_nodes.append(
             {
-                "node_label": _first_non_empty_string(
-                    node.get("node_label"),
-                    node.get("label"),
-                    node.get("name"),
-                    node.get("course_name"),
-                    node.get("text"),
+                "node_id": _first_non_empty_string(
+                    node.get("node_id"),
+                    node.get("nodeId"),
                     node.get("id"),
                 ),
-                "stage_label": _first_non_empty_string(
-                    node.get("stage_label"),
-                    node.get("stage"),
-                    node.get("year_group"),
-                    node.get("semester_stage"),
+                "node_label": node_label,
+                "stage_id": _first_non_empty_string(
+                    node.get("stage_id"),
+                    node.get("stageId"),
                 ),
+                "stage_label": stage_label,
                 "category_label": _first_non_empty_string(
                     node.get("category_label"),
                     node.get("category"),
                     node.get("type"),
                     node.get("group"),
                 ),
+                "_occurrence_index": str(index),
             }
         )
 
     normalized_edges: list[dict[str, str]] = []
-    for edge in payload.get("edges") or payload.get("links") or payload.get("connections") or ():
+    for index, edge in enumerate(
+        payload.get("edges") or payload.get("links") or payload.get("connections") or ()
+    ):
         if not isinstance(edge, dict):
             normalized_edges.append({})
             continue
         normalized_edges.append(
             {
+                "edge_id": _first_non_empty_string(
+                    edge.get("edge_id"),
+                    edge.get("edgeId"),
+                    edge.get("id"),
+                ),
+                "source_node_id": _first_non_empty_string(
+                    edge.get("source_node_id"),
+                    edge.get("sourceNodeId"),
+                    edge.get("from_node_id"),
+                    edge.get("fromNodeId"),
+                ),
                 "source_label": _first_non_empty_string(
                     edge.get("source_label"),
                     edge.get("source"),
                     edge.get("from"),
                     edge.get("prerequisite"),
+                ),
+                "target_node_id": _first_non_empty_string(
+                    edge.get("target_node_id"),
+                    edge.get("targetNodeId"),
+                    edge.get("to_node_id"),
+                    edge.get("toNodeId"),
                 ),
                 "target_label": _first_non_empty_string(
                     edge.get("target_label"),
@@ -142,6 +174,7 @@ def _normalize_course_map_finding_payload(payload: dict[str, object]) -> dict[st
                     edge.get("to"),
                     edge.get("next"),
                 ),
+                "_occurrence_index": str(index),
             }
         )
 
@@ -219,7 +252,7 @@ def _coerce_course_map_finding(payload: object) -> CourseMapFinding:
         if str(value).strip()
     ]
     nodes: list[CourseMapNode] = []
-    for node in payload.get("nodes") or ():
+    for index, node in enumerate(payload.get("nodes") or ()):
         if not isinstance(node, dict):
             manual_review_notes.append("extractor returned a non-object node and it was dropped")
             continue
@@ -227,26 +260,78 @@ def _coerce_course_map_finding(payload: object) -> CourseMapFinding:
         if not node_label:
             manual_review_notes.append("extractor returned an empty node_label and it was dropped")
             continue
+        stage_label = str(node.get("stage_label") or "").strip()
+        stage_id = _resolve_stage_id(
+            stage_id=str(node.get("stage_id") or "").strip(),
+            stage_label=stage_label,
+        )
+        node_id = _resolve_node_id(
+            node_id=str(node.get("node_id") or "").strip(),
+            stage_id=stage_id,
+            stage_label=stage_label,
+            node_label=node_label,
+            occurrence_index=index,
+        )
         nodes.append(
             CourseMapNode(
+                node_id=node_id,
                 node_label=node_label,
-                stage_label=str(node.get("stage_label") or "").strip(),
+                stage_id=stage_id,
+                stage_label=stage_label,
                 category_label=str(node.get("category_label") or "").strip(),
             )
         )
+    node_by_id = {node.node_id: node for node in nodes if node.node_id}
+    node_ids_by_label: dict[str, list[str]] = {}
+    for node in nodes:
+        node_ids_by_label.setdefault(node.node_label, []).append(node.node_id)
     edges: list[CourseMapEdge] = []
-    for edge in payload.get("edges") or ():
+    for index, edge in enumerate(payload.get("edges") or ()):
         if not isinstance(edge, dict):
             manual_review_notes.append("extractor returned a non-object edge and it was dropped")
             continue
+        source_node_id = str(edge.get("source_node_id") or "").strip()
+        target_node_id = str(edge.get("target_node_id") or "").strip()
         source_label = str(edge.get("source_label") or "").strip()
         target_label = str(edge.get("target_label") or "").strip()
-        if not source_label or not target_label:
+        if not source_node_id:
+            source_node_id = _resolve_unique_node_id_for_label(
+                label=source_label,
+                node_ids_by_label=node_ids_by_label,
+                manual_review_notes=manual_review_notes,
+                endpoint_name="source",
+            )
+        if not target_node_id:
+            target_node_id = _resolve_unique_node_id_for_label(
+                label=target_label,
+                node_ids_by_label=node_ids_by_label,
+                manual_review_notes=manual_review_notes,
+                endpoint_name="target",
+            )
+        source_node = node_by_id.get(source_node_id)
+        target_node = node_by_id.get(target_node_id)
+        if source_node is None or target_node is None:
             manual_review_notes.append(
-                "extractor returned an empty edge endpoint and it was dropped"
+                "extractor returned an unresolved edge endpoint and it was dropped"
             )
             continue
-        edges.append(CourseMapEdge(source_label=source_label, target_label=target_label))
+        resolved_source_label = source_label or source_node.node_label
+        resolved_target_label = target_label or target_node.node_label
+        edge_id = _resolve_edge_id(
+            edge_id=str(edge.get("edge_id") or "").strip(),
+            source_node_id=source_node_id,
+            target_node_id=target_node_id,
+            occurrence_index=index,
+        )
+        edges.append(
+            CourseMapEdge(
+                edge_id=edge_id,
+                source_node_id=source_node_id,
+                target_node_id=target_node_id,
+                source_label=resolved_source_label,
+                target_label=resolved_target_label,
+            )
+        )
     return CourseMapFinding(
         map_index=int(payload.get("map_index") or 0),
         map_title=(
@@ -259,6 +344,80 @@ def _coerce_course_map_finding(payload: object) -> CourseMapFinding:
         edges=tuple(edges),
         manual_review_notes=tuple(dict.fromkeys(manual_review_notes)),
     )
+
+
+def _resolve_stage_id(*, stage_id: str, stage_label: str) -> str:
+    if stage_id:
+        return _normalize_identifier(stage_id)
+    if stage_label:
+        return f"stage-{_hash_identifier(stage_label)[:10]}"
+    return "stage-unknown"
+
+
+def _resolve_node_id(
+    *,
+    node_id: str,
+    stage_id: str,
+    stage_label: str,
+    node_label: str,
+    occurrence_index: int,
+) -> str:
+    if node_id:
+        return _normalize_identifier(node_id)
+    identity = f"{stage_id}|{stage_label}|{node_label}|{occurrence_index}"
+    return f"node-{_hash_identifier(identity)[:12]}"
+
+
+def _resolve_edge_id(
+    *,
+    edge_id: str,
+    source_node_id: str,
+    target_node_id: str,
+    occurrence_index: int,
+) -> str:
+    if edge_id:
+        return _normalize_identifier(edge_id)
+    return f"edge-{_hash_identifier(f'{source_node_id}->{target_node_id}#{occurrence_index}')[:12]}"
+
+
+def _resolve_unique_node_id_for_label(
+    *,
+    label: str,
+    node_ids_by_label: dict[str, list[str]],
+    manual_review_notes: list[str],
+    endpoint_name: str,
+) -> str:
+    if not label:
+        manual_review_notes.append(
+            f"extractor returned an empty {endpoint_name} edge endpoint and it was dropped"
+        )
+        return ""
+    candidate_ids = node_ids_by_label.get(label) or []
+    if len(candidate_ids) == 1:
+        return candidate_ids[0]
+    if not candidate_ids:
+        manual_review_notes.append(
+            f"extractor returned an edge {endpoint_name} label without a matching node and it was dropped: {label}"
+        )
+        return ""
+    manual_review_notes.append(
+        f"extractor returned an ambiguous duplicate-label edge {endpoint_name} endpoint and it was dropped: {label}"
+    )
+    return ""
+
+
+def _normalize_identifier(value: str) -> str:
+    text = value.strip()
+    if not text:
+        return ""
+    normalized = re.sub(r"[^0-9A-Za-z_.:-]+", "-", text).strip("-")
+    if normalized:
+        return normalized
+    return f"id-{_hash_identifier(text)[:12]}"
+
+
+def _hash_identifier(value: str) -> str:
+    return hashlib.sha1(value.encode("utf-8")).hexdigest()
 
 
 def _coerce_detected_regions_payload(

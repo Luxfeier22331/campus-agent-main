@@ -260,9 +260,7 @@ def _build_asset_manifest(
             "highlightRootUnitIds": [],
             "versionId": record.version_id,
         },
-        "supplementFiles": [
-            name for name in assets if name not in _CORE_READER_ASSET_FILENAMES
-        ],
+        "supplementFiles": [name for name in assets if name not in _CORE_READER_ASSET_FILENAMES],
         "versionId": record.version_id,
     }
 
@@ -291,7 +289,10 @@ def _build_course_map_assets(
                 "displayStageLabels": list(block.display_stage_labels),
                 "edges": [
                     {
+                        "edgeId": edge.edge_id,
+                        "sourceNodeId": edge.source_node_id,
                         "sourceLabel": edge.source_label,
+                        "targetNodeId": edge.target_node_id,
                         "targetLabel": edge.target_label,
                     }
                     for edge in block.edges
@@ -302,7 +303,9 @@ def _build_course_map_assets(
                 "nodes": [
                     {
                         "categoryLabel": node.category_label,
+                        "nodeId": node.node_id,
                         "nodeLabel": node.node_label,
+                        "stageId": node.stage_id,
                         "stageLabel": node.stage_label,
                     }
                     for node in block.nodes

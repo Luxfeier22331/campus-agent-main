@@ -155,16 +155,33 @@
 .rspress-doc .document-meta-technical {
 	display: inline-block;
 	margin: 0;
+	position: relative;
+	z-index: 20;
 }
 
 .rspress-doc .document-meta-technical summary {
 	width: fit-content;
 	min-height: 1.5rem;
+	padding: 0 0.45rem;
+	border: 1px solid transparent;
+	border-radius: 999px;
 	color: var(--rp-c-text-3);
 	cursor: pointer;
 	font-size: 0.78rem;
 	font-weight: 600;
 	line-height: 1.5rem;
+	list-style-position: inside;
+	transition:
+		background-color 0.16s ease,
+		border-color 0.16s ease,
+		color 0.16s ease;
+}
+
+.rspress-doc .document-meta-technical summary:hover,
+.rspress-doc .document-meta-technical[open] summary {
+	border-color: color-mix(in srgb, var(--rp-c-brand, #1f7a4d) 18%, transparent);
+	background: color-mix(in srgb, var(--rp-c-brand, #1f7a4d) 8%, transparent);
+	color: var(--rp-c-text-2);
 }
 
 .rspress-doc .document-meta-technical summary:focus-visible {
@@ -174,18 +191,26 @@
 }
 
 .rspress-doc .document-meta-technical[open] {
-	flex-basis: 100%;
-	margin-top: 0.35rem;
-	padding-top: 0.65rem;
+	z-index: 30;
 }
 
 .rspress-doc .document-meta-technical dl {
+	position: fixed;
+	top: auto;
+	right: 2rem;
+	bottom: 2rem;
+	left: auto;
+	transform: none;
 	display: grid;
+	width: min(28rem, calc(100vw - 2rem));
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.5rem 1rem;
 	margin: 0;
-	padding: 0.65rem 0 0;
-	border-top: 1px solid color-mix(in srgb, var(--rp-c-divider, #d8e1dc) 70%, transparent);
+	padding: 0.75rem;
+	border: 1px solid var(--rp-c-divider, #d8e1dc);
+	border-radius: 0.8rem;
+	background: var(--rp-c-bg, #fff);
+	box-shadow: 0 18px 40px rgba(28, 45, 37, 0.14);
 }
 
 .rspress-doc .document-meta-technical dd {
@@ -367,6 +392,12 @@
 	}
 
 	.rspress-doc .document-meta-technical dl {
+		top: auto;
+		right: 1rem;
+		bottom: max(1rem, env(safe-area-inset-bottom));
+		left: 1rem;
+		transform: none;
+		width: auto;
 		grid-template-columns: 1fr;
 	}
 

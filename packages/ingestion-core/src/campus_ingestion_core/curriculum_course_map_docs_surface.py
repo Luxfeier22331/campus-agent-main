@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
@@ -31,7 +32,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
     render_curriculum_course_map_sample,
 )
 
-CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION = "curriculum_course_map_docs_surface_v1"
+CURRICULUM_COURSE_MAP_DOCS_SURFACE_SCHEMA_VERSION = "curriculum_course_map_docs_surface_v2"
 CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME = "course-maps.json"
 CURRICULUM_COURSE_MAP_DOCS_IMAGE_DIRECTORY = "course-maps"
 
@@ -59,15 +60,38 @@ class ObjectStoreAdmin(ObjectStoreByteReader, Protocol):
 
 @dataclass(frozen=True, slots=True)
 class PublishedCourseMapNode:
+    node_id: str
     node_label: str
+    stage_id: str = ""
     stage_label: str = ""
     category_label: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.node_id.strip():
+            raise ValueError("node_id is required")
+        if not self.node_label.strip():
+            raise ValueError("node_label is required")
 
 
 @dataclass(frozen=True, slots=True)
 class PublishedCourseMapEdge:
+    edge_id: str
+    source_node_id: str
     source_label: str
+    target_node_id: str
     target_label: str
+
+    def __post_init__(self) -> None:
+        if not self.edge_id.strip():
+            raise ValueError("edge_id is required")
+        if not self.source_node_id.strip():
+            raise ValueError("source_node_id is required")
+        if not self.target_node_id.strip():
+            raise ValueError("target_node_id is required")
+        if not self.source_label.strip():
+            raise ValueError("source_label is required")
+        if not self.target_label.strip():
+            raise ValueError("target_label is required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +165,14 @@ class CurriculumCourseMapDocsImageObject:
             raise ValueError("key is required")
         if not self.image_bytes:
             raise ValueError("image_bytes is required")
+
+
+@dataclass(frozen=True, slots=True)
+class _PublishedCourseMapPayload:
+    nodes: tuple[PublishedCourseMapNode, ...]
+    edges: tuple[PublishedCourseMapEdge, ...]
+    notes: tuple[str, ...]
+    has_stage_buckets: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -463,10 +495,13 @@ def _build_page_probe_blocks(
             finding=finding,
             global_notes=global_notes,
         )
+        published_payload = _build_published_course_map_payload(finding=finding)
+        extraction_notes = tuple(dict.fromkeys([*extraction_notes, *published_payload.notes]))
         status = _resolve_block_status(
             detected_region=detected_region,
             finding=finding,
             extraction_notes=extraction_notes,
+            has_stage_buckets=published_payload.has_stage_buckets,
         )
         blocks.append(
             (
@@ -485,21 +520,8 @@ def _build_page_probe_blocks(
                     title_confidence=detected_region.title_confidence,
                     parent_heading_hint=page_probe.parent_heading_hint,
                     display_stage_labels=_resolve_stage_labels(finding=finding),
-                    nodes=tuple(
-                        PublishedCourseMapNode(
-                            node_label=node.node_label,
-                            stage_label=node.stage_label,
-                            category_label=node.category_label,
-                        )
-                        for node in (finding.nodes if finding is not None else ())
-                    ),
-                    edges=tuple(
-                        PublishedCourseMapEdge(
-                            source_label=edge.source_label,
-                            target_label=edge.target_label,
-                        )
-                        for edge in (finding.edges if finding is not None else ())
-                    ),
+                    nodes=published_payload.nodes,
+                    edges=published_payload.edges,
                     extraction_notes=extraction_notes,
                     image_object_key=image_object_key,
                     region_bbox_provider=detected_region.region_bbox_provider,
@@ -511,6 +533,84 @@ def _build_page_probe_blocks(
             )
         )
     return tuple(blocks)
+
+
+def _build_published_course_map_payload(
+    *, finding: CourseMapFinding | None
+) -> _PublishedCourseMapPayload:
+    if finding is None or not finding.nodes:
+        return _PublishedCourseMapPayload(nodes=(), edges=(), notes=(), has_stage_buckets=False)
+    notes: list[str] = []
+    nodes: list[PublishedCourseMapNode] = []
+    for index, node in enumerate(finding.nodes):
+        stage_id = _resolve_stage_id(stage_id=node.stage_id, stage_label=node.stage_label)
+        node_id = _resolve_node_id(
+            node_id=node.node_id,
+            stage_id=stage_id,
+            stage_label=node.stage_label,
+            node_label=node.node_label,
+            occurrence_index=index,
+        )
+        nodes.append(
+            PublishedCourseMapNode(
+                node_id=node_id,
+                node_label=node.node_label,
+                stage_id=stage_id,
+                stage_label=node.stage_label,
+                category_label=node.category_label,
+            )
+        )
+    node_by_id = {node.node_id: node for node in nodes}
+    node_ids_by_label: dict[str, list[str]] = {}
+    for node in nodes:
+        node_ids_by_label.setdefault(node.node_label, []).append(node.node_id)
+
+    edges: list[PublishedCourseMapEdge] = []
+    for index, edge in enumerate(finding.edges):
+        source_node_id = edge.source_node_id.strip()
+        target_node_id = edge.target_node_id.strip()
+        if not source_node_id:
+            source_node_id = _resolve_unique_node_id_for_label(
+                label=edge.source_label,
+                node_ids_by_label=node_ids_by_label,
+                notes=notes,
+                endpoint_name="source",
+            )
+        if not target_node_id:
+            target_node_id = _resolve_unique_node_id_for_label(
+                label=edge.target_label,
+                node_ids_by_label=node_ids_by_label,
+                notes=notes,
+                endpoint_name="target",
+            )
+        source_node = node_by_id.get(source_node_id)
+        target_node = node_by_id.get(target_node_id)
+        if source_node is None or target_node is None:
+            notes.append("存在无法定位到唯一课程节点的关系，已从结构化关系中移除。")
+            continue
+        edges.append(
+            PublishedCourseMapEdge(
+                edge_id=_resolve_edge_id(
+                    edge_id=edge.edge_id,
+                    source_node_id=source_node_id,
+                    target_node_id=target_node_id,
+                    occurrence_index=index,
+                ),
+                source_node_id=source_node_id,
+                source_label=edge.source_label or source_node.node_label,
+                target_node_id=target_node_id,
+                target_label=edge.target_label or target_node.node_label,
+            )
+        )
+    has_stage_buckets = any(node.stage_label.strip() for node in nodes)
+    if not has_stage_buckets:
+        notes.append("未识别到可用于阅读分组的阶段信息，当前仅发布原始区域图。")
+    return _PublishedCourseMapPayload(
+        nodes=tuple(nodes),
+        edges=tuple(edges),
+        notes=tuple(dict.fromkeys(notes)),
+        has_stage_buckets=has_stage_buckets,
+    )
 
 
 def _purge_course_map_docs_surface_assets(
@@ -607,12 +707,94 @@ def _resolve_block_status(
     detected_region: DetectedCourseMapRegion,
     finding: CourseMapFinding | None,
     extraction_notes: Sequence[str],
+    has_stage_buckets: bool,
 ) -> str:
     if finding is None or not finding.nodes:
+        return "failed"
+    if not has_stage_buckets:
         return "failed"
     if detected_region.title_confidence != "visible" or extraction_notes:
         return "partial"
     return "ready"
+
+
+def _resolve_stage_id(*, stage_id: str, stage_label: str) -> str:
+    text = stage_id.strip()
+    if text:
+        return _normalize_identifier(text)
+    stage_text = stage_label.strip()
+    if stage_text:
+        return f"stage-{_hash_identifier(stage_text)[:10]}"
+    return "stage-unknown"
+
+
+def _resolve_node_id(
+    *,
+    node_id: str,
+    stage_id: str,
+    stage_label: str,
+    node_label: str,
+    occurrence_index: int,
+) -> str:
+    text = node_id.strip()
+    if text:
+        return _normalize_identifier(text)
+    identity = f"{stage_id}|{stage_label.strip()}|{node_label.strip()}|{occurrence_index}"
+    return f"node-{_hash_identifier(identity)[:12]}"
+
+
+def _resolve_edge_id(
+    *,
+    edge_id: str,
+    source_node_id: str,
+    target_node_id: str,
+    occurrence_index: int,
+) -> str:
+    text = edge_id.strip()
+    if text:
+        return _normalize_identifier(text)
+    identity = f"{source_node_id}->{target_node_id}#{occurrence_index}"
+    return f"edge-{_hash_identifier(identity)[:12]}"
+
+
+def _resolve_unique_node_id_for_label(
+    *,
+    label: str,
+    node_ids_by_label: Mapping[str, Sequence[str]],
+    notes: list[str],
+    endpoint_name: str,
+) -> str:
+    text = label.strip()
+    if not text:
+        notes.append("存在端点为空的课程关系，已从结构化关系中移除。")
+        return ""
+    node_ids = tuple(node_ids_by_label.get(text) or ())
+    if len(node_ids) == 1:
+        return node_ids[0]
+    if not node_ids:
+        notes.append(f"存在引用未发布课程节点的关系，已从结构化关系中移除：{text}。")
+        return ""
+    notes.append(
+        f"存在同名课程节点导致无法唯一定位的关系端点，已从结构化关系中移除：{text}（{endpoint_name}）。"
+    )
+    return ""
+
+
+def _normalize_identifier(value: str) -> str:
+    text = value.strip()
+    if not text:
+        return ""
+    normalized = "".join(
+        ch if ch.isascii() and (ch.isalnum() or ch in "_.:-") else "-" for ch in text
+    )
+    normalized = "-".join(part for part in normalized.split("-") if part)
+    if normalized:
+        return normalized
+    return f"id-{_hash_identifier(text)[:12]}"
+
+
+def _hash_identifier(value: str) -> str:
+    return hashlib.sha1(value.encode("utf-8")).hexdigest()
 
 
 def _coerce_docs_block(payload: object) -> CurriculumCourseMapDocsBlock:
@@ -632,7 +814,9 @@ def _coerce_docs_block(payload: object) -> CurriculumCourseMapDocsBlock:
         ),
         nodes=tuple(
             PublishedCourseMapNode(
+                node_id=str(item.get("node_id") or item.get("nodeId") or "").strip(),
                 node_label=str(item.get("node_label") or "").strip(),
+                stage_id=str(item.get("stage_id") or item.get("stageId") or "").strip(),
                 stage_label=str(item.get("stage_label") or "").strip(),
                 category_label=str(item.get("category_label") or "").strip(),
             )
@@ -641,7 +825,14 @@ def _coerce_docs_block(payload: object) -> CurriculumCourseMapDocsBlock:
         ),
         edges=tuple(
             PublishedCourseMapEdge(
+                edge_id=str(item.get("edge_id") or item.get("edgeId") or "").strip(),
+                source_node_id=str(
+                    item.get("source_node_id") or item.get("sourceNodeId") or ""
+                ).strip(),
                 source_label=str(item.get("source_label") or "").strip(),
+                target_node_id=str(
+                    item.get("target_node_id") or item.get("targetNodeId") or ""
+                ).strip(),
                 target_label=str(item.get("target_label") or "").strip(),
             )
             for item in payload.get("edges") or ()
