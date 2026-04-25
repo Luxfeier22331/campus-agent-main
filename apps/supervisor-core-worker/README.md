@@ -13,20 +13,23 @@ caller auth、request body limit、transport admission、queue、metrics 或 pub
 Python worker 只负责：
 
 - 接收 Go `supervisor-api` 已投影好的 private `SupervisorRequest`
-- 调用 `packages/supervisor-core`
+- 装配默认 agent delegate map，并调用 `packages/supervisor-core` 的 private
+  agent dispatcher
 - 绑定 RAG prompt runtime / provider-backed executor
-- 消费 Go bridge v4 中的 deterministic delegate handoff plan，并把完整
+- 消费 Go bridge v5 中的 deterministic delegate handoff plan，并把完整
   `SpecialistRequest` 注入 supervisor-core；不在 Python routing / framing 中重新构造
   RAG、navigation 或 structured payload
-- 消费 Go bridge v4 中的 `routing_frame` / `scope_gate` / `policy_gate` /
+- 消费 Go bridge v5 中的 `routing_frame` / `scope_gate` / `policy_gate` /
   `context_preflight` / `handoff`；缺失 Go-owned routing frame 或 delegate handoff
   时 fail-closed
+- 返回 agent 的 `SpecialistResponse`；Go `supervisor-api` 负责 public
+  `SupervisorResponse` finalization 与 response observability projection
 - 在配置 structured query internal seam 时，为 `campus-services-agent`
   注入 Go `supervisor-api` query service client
 - 暴露 private bridge health / readiness
 - 接收 Go `supervisor-api` 的 cooperative cancel signal，并在 Python bridge registry
-  中保留最小 cancel flag；默认 supervisor orchestration 会在路由、prompt
-  execution、specialist delegation 和 finalization 前后检查取消状态
+  中保留最小 cancel flag；默认 agent dispatch path 会在 prompt execution 和 agent
+  delegation 前后检查取消状态
 
 Python worker 不负责：
 
@@ -38,6 +41,9 @@ Python worker 不负责：
   的 deterministic runtime truth
 - terminal envelope、structured tool policy 或 deterministic structured runtime
   planner truth
+- public `SupervisorResponse` finalization / response assembly / response
+  observability truth
+- deterministic runtime policy 或 public supervisor orchestration truth
 - retrieval / ingestion data-plane ownership
 
 ## Private Bridge Surface
@@ -64,16 +70,22 @@ Go `supervisor-api` `/readyz` 会聚合 Python worker readiness，并发布唯�
 execution `transport_runtime`、lifecycle/cancel runtime truth 与
 `prompt_config_gate`。
 
-bridge answer route 只接受 `supervisor_bridge_v4` delegate handoff。请求必须携带
+bridge answer route 只接受 `supervisor_bridge_v5` delegate handoff，并要求
+`response_contract=specialist_response`。请求必须携带
 `runtime_decisions.handoff.specialist_request`，且 routing frame 的
 `suggested_next_action` 必须是 `delegate`。Non-delegate terminal routing 由 Go
 `supervisor-api` 的 non-stream / lifecycle SSE direct terminal path 处理，不再发送给
-Python bridge。`supervisor_bridge_v4` 之前的 shape、flat preplanned fields 与 legacy
+Python bridge。`supervisor_bridge_v5` 之前的 shape、flat preplanned fields 与 legacy
 handoff payload fragment 不是 active compatibility path。
 
+这里的 `SpecialistRequest` / `SpecialistResponse` / `specialist_response` /
+`runtime_decisions.handoff.specialist_request` 是 bridge v5 仍保留的 legacy wire
+contract 名称；worker 内部 active naming 使用 agent handoff、agent request 和
+agent dispatch。
+
 `/internal/bridge/execution/cancel` 记录 cooperative cancellation state。默认
-Python semantic orchestration 会在 delegate 调用、prompt execution 与 finalization
-前后的 checkpoints 停止并返回 `499 execution_cancelled`；如果 provider / prompt executor
+Python agent dispatch 会在 delegate 调用与 prompt execution 前后的
+checkpoints 停止并返回 `499 execution_cancelled`；如果 provider / prompt executor
 已进入阻塞 HTTP 调用，当前仍不承诺 hard-abort 该 mid-flight provider request。
 
 ## Runtime Entry

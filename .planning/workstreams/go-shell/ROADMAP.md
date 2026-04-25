@@ -1315,3 +1315,134 @@ execution lifecycle runtime truth。
 
 - Repo-local implementation is complete when fresh verification is recorded in
   `STATE.md`.
+
+## Phase 55: Go Supervisor Response Finalizer
+
+**Goal:** 让 Go `supervisor-api` 成为 public `SupervisorResponse` finalization 与
+response observability owner，Python bridge / `packages/supervisor-core` 只返回
+private `SpecialistResponse`。
+
+**Scope:**
+
+- upgrade private bridge envelope to `supervisor_bridge_v5`
+- require `response_contract=specialist_response` on Python bridge requests
+- make Python bridge return `x-supervisor-bridge-kind: specialist_response`
+- finalize bridge `SpecialistResponse` into public `SupervisorResponse` in Go
+- delete Python `policy.py` / `response.py` and legacy `handle_request`
+- update docs / guard coverage for the slimmed Python core boundary
+
+**Exit Criteria:**
+
+- Go tests prove bridge `specialist_response` is finalized into the public envelope
+- Python bridge tests reject v4 / missing specialist response contract
+- active Python supervisor-core no longer imports finalization / response helper modules
+- focused Go, Python, ruff, docs and diff checks pass or record blockers
+
+**Closeout Note:**
+
+- Repo-local implementation is complete when fresh verification is recorded in
+  `STATE.md`.
+
+## Phase 56: Python Agent Dispatch Naming Closeout
+
+**Goal:** 退役 active Python core 中误导性的 supervisor/specialist runtime naming，保留
+shared wire contract 的 `SpecialistRequest` / `SpecialistResponse` 名称不变。
+
+**Scope:**
+
+- rename `SupervisorAgent` to `AgentDispatcher`
+- rename `handle_specialist_request` to `dispatch_agent_request`
+- rename `SpecialistDelegate` to `AgentDelegate`
+- rename worker `specialist_handler` parameters to `agent_handler`
+
+**Exit Criteria:**
+
+- active Python code no longer exposes `SupervisorAgent` or `handle_specialist_request`
+- focused tests use `AgentDispatcher` / `dispatch_agent_request`
+
+## Phase 57: Move Default Agent Registry To Worker
+
+**Goal:** `packages/supervisor-core` 不再 import concrete agent packages；default delegate map
+属于 Python worker runtime assembly。
+
+**Scope:**
+
+- move rag / navigation / campus-services / notice delegate registry to
+  `apps/supervisor-core-worker`
+- keep `packages/supervisor-core` limited to injected delegate dispatch
+- keep RAG prompt executor and structured query service injection in worker
+
+**Exit Criteria:**
+
+- `packages/supervisor-core` imports no concrete agent package
+- worker tests cover default registry through bridge behavior
+
+## Phase 58: Dispatcher Package Boundary
+
+**Goal:** 把 `packages/supervisor-core` 收敛为 thin private dispatcher helper。
+
+**Scope:**
+
+- replace `agent.py` with `dispatcher.py`
+- keep only `dispatcher.py`, `errors.py`, and package export surface
+- remove legacy supervisor-core public handler naming
+
+**Exit Criteria:**
+
+- `agent.py` is deleted
+- public Python core API exposes only dispatcher-oriented names
+
+## Phase 59: Agent Dispatch Error Slimming
+
+**Goal:** 删除旧 supervisor validation error model，只保留真实会从 dispatch path 抛出的错误。
+
+**Scope:**
+
+- rename `MissingSpecialistDelegateError` to `MissingAgentDelegateError`
+- replace `SupervisorError` with private `AgentDispatchError`
+- remove unused `InvalidSupervisorRequestError` and `DisallowedKnowledgeScopeError`
+
+**Exit Criteria:**
+
+- active Python code imports only real dispatch errors
+- bridge error tests use dispatch error semantics
+
+## Phase 60: Docs And Drift Guard Closeout
+
+**Goal:** 更新 docs / planning，并防止旧 Python supervisor core 命名和默认 agent registry 回流。
+
+**Scope:**
+
+- update supervisor-core / worker / architecture docs
+- update go-shell workstream state
+- add guard coverage for deleted naming and concrete agent imports
+- run focused Go, Python, ruff, docs and drift checks
+
+**Exit Criteria:**
+
+- docs reflect agent-dispatch-only Python core boundary
+- active drift scan reports only allowed wire-contract `Specialist*` names and
+  historical closure records
+
+## Phase 61: Internal Agent Handoff Naming Closeout
+
+**Goal:** 把 worker / tests / docs 的 active implementation 命名从 specialist residual
+收口到 agent handoff，同时不修改 bridge v5 / shared contracts 的 legacy wire 名称。
+
+**Scope:**
+
+- rename worker-local `preplanned_specialist_request` /
+  `runtime_specialist_request` variables to agent request naming
+- rename bridge parser helper functions from specialist parser names to agent
+  handoff parser names while preserving `runtime_decisions.handoff.specialist_request`
+  wire path
+- rename supervisor focused test suite from specialist policy to agent handoff
+- update docs / guard coverage so `SpecialistRequest` / `SpecialistResponse` remain
+  explicitly documented as legacy wire contract names only
+
+**Exit Criteria:**
+
+- focused guard proves worker internals no longer use specialist aliases for agent
+  handoff implementation names
+- bridge/API behavior remains unchanged
+- focused Python, ruff, docs and diff checks pass or record blockers

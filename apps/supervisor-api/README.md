@@ -15,11 +15,12 @@ Current status:
 - Infers deterministic effective `requested_capability` and execution lane for
   common navigation, campus-services, notice, and knowledge requests when the
   caller omits an explicit capability.
-- Projects the external execution request into private bridge v4
-  `SupervisorRequest -> SpecialistRequest -> SupervisorResponse` JSON for
-  semantic delegate requests. Non-delegate terminal decisions and opened
-  deterministic structured requests complete in Go without calling the Python
-  orchestration bridge.
+- Projects the external execution request into private bridge v5
+  `SupervisorRequest -> SpecialistRequest -> SpecialistResponse` JSON for
+  semantic delegate requests, then finalizes the bridge `SpecialistResponse`
+  into the public `SupervisorResponse` envelope in Go. Non-delegate terminal
+  decisions and opened deterministic structured requests complete in Go without
+  calling the Python orchestration bridge.
 - Aggregates Python worker readiness into Go-owned `/readyz`, while keeping Go
   transport admission as the published `transport_runtime`.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
@@ -33,8 +34,8 @@ Current status:
 - Propagates explicit cancel to the Python private bridge through
   `/internal/bridge/execution/cancel`; Python records the cooperative cancel
   signal and the semantic orchestration path checks it around routing, RAG
-  prompt execution, specialist delegation, and response finalization. Provider /
-  prompt calls that are already in-flight still are not hard-aborted.
+  prompt execution and specialist delegation. Provider / prompt calls that are
+  already in-flight still are not hard-aborted.
 - Owns the bridge circuit breaker for Python bridge transport / protocol
   failures; open circuits short-circuit answer execution with
   `503 supervisor_bridge_circuit_open` and degrade `/readyz`.
@@ -43,14 +44,14 @@ Current status:
 - Owns deterministic delegate handoff planning in `internal/structuredplanning`,
   including `rag-agent` `rag_request` payload projection and structured
   campus-services / notice payload projection; `internal/execution` only adapts
-  planner output into bridge v4 `runtime_decisions`.
-- Bridge v4 handoff carries the full `SpecialistRequest` envelope under
+  planner output into bridge v5 `runtime_decisions`.
+- Bridge v5 handoff carries the full `SpecialistRequest` envelope under
   `runtime_decisions.handoff.specialist_request`; the older handoff-only payload
   fragment is not an active compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
-  Runtime policy decisions are projected into bridge v4 and summarized in
+  Runtime policy decisions are projected into bridge v5 and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
 - Owns non-delegate terminal envelopes for clarify, approval-required,

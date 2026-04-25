@@ -2,7 +2,7 @@
 doc_type: state
 status: active
 created: 2026-04-23
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # State: go-shell
@@ -10,24 +10,36 @@ updated: 2026-04-25
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 54 closeout`
-- current slice: Go `supervisor-api` runtime kernel hardening、bridge v4
+- current phase: `Phase 61 internal naming closeout`
+- current slice: Go `supervisor-api` runtime kernel hardening、bridge v5
   canonical projection、deterministic capability/scope/version 裁决、structured
   runtime payload planner、prompt config admission summary、readiness runtime
   truth、execution audit batching/retry/spool、OTel sample accounting 与
   lifecycle SSE endpoint 已落地；Go handoff planner 已从 structured-only 扩展为
-  all-delegate preplanned handoff，knowledge `rag_request` 也由 Go bridge v4 投影；
+  all-delegate preplanned handoff，knowledge `rag_request` 也由 Go bridge v5 投影；
   Go 同时拥有 terminal envelope、non-delegate terminal direct answer path、
-  structured tool policy summary、opened structured capability non-stream /
+  `place_lookup` Go direct runtime、structured tool policy summary、opened structured capability non-stream /
   lifecycle SSE direct answer path、runtime decision observability summary 与 full
-  `SpecialistRequest` handoff projection；Python bridge 已收窄为 delegate-only
+  `SpecialistRequest` handoff projection，以及
+  `SpecialistResponse -> SupervisorResponse` finalization；Python bridge 已收窄为
+  delegate-only
   semantic worker，`packages/supervisor-core` production path 不再依赖
   `RoutingDecision` / terminal envelope / runtime audit sink；legacy Python
-  `routing.py`、supervisor-core `audit.py` 与 worker stale audit helper 已删除，intent
-  eval 只通过 Go `supervisor-api` runtime-policy runner 执行；Python supervisor-core
-  residual `intent.py`、`scope_policy.py`、`query_policy.py`、`validation.py`、
-  `context.py` 与 `tool_policy.py` 已删除，Python worker cancel registry 仅保留
-  cancel flag store，不再发布 execution lifecycle counters；产品主路由 gate 仍默认关闭
+  `routing.py`、supervisor-core `audit.py`、`policy.py`、`response.py` 与 worker
+  stale audit helper 已删除，intent eval 只通过 Go `supervisor-api`
+  runtime-policy runner 执行；Python supervisor-core residual `intent.py`、
+  `scope_policy.py`、`query_policy.py`、`validation.py`、`context.py` 与
+  `tool_policy.py` 已删除，Python worker cancel registry 仅保留
+  cancel flag store，不再发布 execution lifecycle counters；`packages/supervisor-core`
+  已退役 `SupervisorAgent` / `agent.py` / `handle_specialist_request` /
+  `SpecialistDelegate` / `MissingSpecialistDelegateError`，只保留
+  `dispatcher.py`、`AgentDispatcher`、`AgentDelegate`、`dispatch_agent_request` 与
+  dispatch error；默认 agent delegate map 已迁到 `apps/supervisor-core-worker`，
+  Python core 不再 import concrete agent packages；worker/test/docs active naming
+  已收口到 agent handoff / agent request，`SpecialistRequest` /
+  `SpecialistResponse` 与 `specialist_response` 只作为 bridge v5 legacy wire
+  contract seam 保留；`campus_services` /
+  `notice` 产品主路由 gate 仍默认关闭
 - owner: unassigned
 - active implementation: yes, Go `apps/supervisor-api` plus Python
   `apps/supervisor-core-worker`
@@ -89,6 +101,20 @@ updated: 2026-04-25
   context/tool policy helpers 已删除；Go runtime policy / execution tests 承接 residual
   裁决覆盖，Python core 不再维护 target/tool matrix；Python bridge cancel registry
   只保留 request-scoped cancel flag store，execution lifecycle counters 继续由 Go 发布。
+- 2026-04-26 补充：bridge envelope 升级为 `supervisor_bridge_v5`，并要求
+  `response_contract=specialist_response`；Python bridge 只返回 private
+  `SpecialistResponse`，Go `supervisor-api` 统一 finalizes public
+  `SupervisorResponse` 与 response observability。`packages/supervisor-core`
+  已删除 `policy.py` / `response.py` 与 legacy `handle_request` public handler。
+- 2026-04-26 补充：Python active core 进一步退役为 private agent dispatch helper；
+  `SupervisorAgent` / `agent.py` / `handle_specialist_request` / `SpecialistDelegate`
+  / `MissingSpecialistDelegateError` 已移除，默认 agent delegate map 迁到
+  `apps/supervisor-core-worker`，`packages/supervisor-core` 不再 import concrete agent
+  packages。
+- 2026-04-26 补充：完成内部命名 closeout；worker 内部变量/函数、supervisor focused
+  tests 与 docs/planning active 叙述统一为 agent handoff / agent request。bridge v5
+  wire 字段 `runtime_decisions.handoff.specialist_request`、`response_contract=specialist_response`
+  与 shared contract `SpecialistRequest` / `SpecialistResponse` 暂时保留。
 - 更宽的 Go/Rust/Python split 保留在
   `supervisor-docker-runtime-language-split` backlog。
 
@@ -107,7 +133,7 @@ updated: 2026-04-25
 
 ## Blockers
 
-- repo-local Phase 8-54 implementation 当前无 blocker。
+- repo-local Phase 8-60 implementation 当前无 blocker。
 - repo-owned environment-side hard-cut automation 当前无 blocker。
 - `chat-capacity-and-cancellation-hardening` 若后续恢复，会影响 product-layer
   stop/cancel UX、request lifecycle projection 与 browser duplicate-submit guard；
@@ -117,11 +143,84 @@ updated: 2026-04-25
   regression evidence、产品路由 admission 与真实 projection 数据接入决策。
 - `campus_notice_discover` / `campus_notice_get` 的 runtime kernel 已实现；
   opening gate 仍需要 eval / regression evidence 与产品路由 admission 决策。
-- `Phase 16-54` 已完成 repo-local implementation；剩余 opening gate 不在
+- `place_lookup` 的 Go direct runtime 已实现；地图 UI、route planning 与
+  `place_card` product consumption 仍属于 navigation rollout backlog，不在本线继续扩展。
+- `Phase 16-60` 已完成 repo-local implementation；剩余 opening gate 不在
   `go-shell` execution runtime control-plane 范围内。
 
 ## Verification
 
+- Phase 56-60 focused verification passed on 2026-04-26:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.supervisor_api_audit_suite`
+    `tests.api.test_supervisor_api_bridge_server`
+    `tests.api.test_supervisor_api_asgi`
+    `tests.api.test_supervisor_api_prompt_stack`
+    `tests.api.test_supervisor_api_prompt_executor`
+    `tests.api.supervisor_api_settings_and_health_suite`
+    `tests.supervisor.supervisor_core_routing_suite`
+    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_prompt_execution_suite`
+    `tests.supervisor.test_supervisor_runtime_guardrails`
+    `tests.specialist.rag_specialist_answer_grounding_suite`
+  - `uv run --all-packages ruff check`
+    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `packages/supervisor-core/src/campus_supervisor_core`
+    `tests/api/supervisor_api_bridge_suite.py`
+    `tests/api/supervisor_api_audit_suite.py`
+    `tests/api/test_supervisor_api_bridge_server.py`
+    `tests/api/test_supervisor_api_asgi.py`
+    `tests/api/test_supervisor_api_prompt_stack.py`
+    `tests/api/test_supervisor_api_prompt_executor.py`
+    `tests/api/supervisor_api_settings_and_health_suite.py`
+    `tests/supervisor/supervisor_core_routing_suite.py`
+    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_prompt_execution_suite.py`
+    `tests/supervisor/test_supervisor_runtime_guardrails.py`
+    `tests/specialist/rag_specialist_answer_grounding_suite.py`
+    `tests/specialist/rag_specialist_test_support.py`
+  - `uv run --all-packages ruff format` for the same Python paths with
+    `--check`
+  - `pnpm docs:lint`
+  - `git diff --check`
+  - active drift scan found no concrete agent package imports inside
+    `packages/supervisor-core`; legacy `SupervisorAgent` /
+    `handle_specialist_request` / `SpecialistDelegate` /
+    `MissingSpecialistDelegateError` hits are limited to guard assertions and
+    descriptive planning / architecture closeout records
+- Phase 55 focused verification passed on 2026-04-26:
+  - `PATH="$PWD/.tmp/go-tools/bin:$PWD/.tmp/go-toolchain/go/bin:$PATH"`
+    `pnpm go:check`
+  - `uv run --all-packages python -m unittest`
+    `tests.api.supervisor_api_bridge_suite`
+    `tests.api.supervisor_api_audit_suite`
+    `tests.supervisor.supervisor_core_routing_suite`
+    `tests.supervisor.supervisor_core_specialist_policy_suite`
+    `tests.supervisor.supervisor_core_prompt_execution_suite`
+    `tests.supervisor.test_supervisor_runtime_guardrails`
+    `tests.specialist.rag_specialist_answer_grounding_suite`
+  - `uv run --all-packages ruff check`
+    `apps/supervisor-core-worker/src/campus_supervisor_core_worker`
+    `packages/supervisor-core/src/campus_supervisor_core`
+    `tests/api/supervisor_api_bridge_suite.py`
+    `tests/api/supervisor_api_audit_suite.py`
+    `tests/supervisor/supervisor_core_routing_suite.py`
+    `tests/supervisor/supervisor_core_specialist_policy_suite.py`
+    `tests/supervisor/supervisor_core_prompt_execution_suite.py`
+    `tests/supervisor/test_supervisor_runtime_guardrails.py`
+    `tests/specialist/rag_specialist_answer_grounding_suite.py`
+    `tests/specialist/rag_specialist_test_support.py`
+  - `uv run --all-packages ruff format` for the same Python paths with
+    `--check`
+  - `pnpm docs:lint`
+  - `git diff --check`
+  - active drift scan returned only guard-test forbidden fragments and the explicit
+    v4 rejection fixture; no active Python core / bridge code imports
+    `campus_supervisor_core.policy` / `campus_supervisor_core.response`, calls
+    `handle_request`, or emits legacy supervisor finalization helpers
 - Phase 49-54 focused verification passed on 2026-04-25:
   - `uv run --all-packages python -m unittest`
     `tests.supervisor.test_supervisor_runtime_guardrails`
