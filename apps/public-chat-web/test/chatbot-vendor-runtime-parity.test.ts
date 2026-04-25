@@ -93,6 +93,11 @@ describe("chatbot vendor runtime parity", () => {
 		expect(liveSmokeWranglerConfig).toContain("required = []");
 		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
 		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:5173"');
+		expect(liveSmokeWranglerConfig).toContain(
+			'AUTH_TURNSTILE_SITE_KEY = "1x00000000000000000000AA"',
+		);
+		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_APPEARANCE = "interaction-only"');
+		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_EXECUTION = "render"');
 		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 

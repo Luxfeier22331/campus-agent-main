@@ -97,7 +97,7 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - `outline.json`
   - outline / section tree
 - `meta.json`
-  - 文档标题、版本标签、更新时间、canonical URL 语义
+  - 文档标题、来源摘要、页码范围、版本标签、更新时间、canonical URL 语义
 - `asset-manifest.json`
   - package 内文件清单、hash、content type、size、reader target 元数据
 
@@ -114,6 +114,9 @@ reader asset package 固定落在现有 document prefix 之下，不新增一套
 - browser URL 不直接暴露 object key
 - browser-facing `contentUrl` / `outlineUrl` 来自 deploy sync 后的 Worker static
   path，而不是对象存储路径
+- browser-facing `meta.json` 不得暴露 raw source-truth locator、provider artifact path、
+  object storage bucket/key 或 chunk id
+- `docId` / `versionId` 可以作为 canonical 技术身份进入 metadata，但默认用户界面只能折叠显示
 
 ## Deploy-Time Sync Contract
 

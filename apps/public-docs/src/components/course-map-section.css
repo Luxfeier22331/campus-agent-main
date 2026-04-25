@@ -4,6 +4,93 @@
 	gap: 1.5rem;
 }
 
+.course-map-document-nav {
+	--course-map-accent: #1f6b49;
+	--course-map-accent-soft: #e9f7ef;
+	--course-map-border: #d7e5dd;
+	--course-map-muted: #597367;
+	margin: 1.25rem 0 0.25rem;
+	border: 1px solid var(--course-map-border);
+	border-radius: 24px;
+	background: #fbfefd;
+	padding: 1rem;
+}
+
+.course-map-document-nav-header {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.course-map-document-nav-header h3 {
+	margin: 0.15rem 0 0;
+	color: #153126;
+	font-size: 1.25rem;
+	line-height: 1.35;
+}
+
+.course-map-document-nav-header > span {
+	flex: none;
+	color: var(--course-map-muted);
+	font-size: 0.88rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.course-map-document-nav-list {
+	display: grid;
+	gap: 0.7rem;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	margin-top: 0.85rem;
+}
+
+.course-map-document-nav-card {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-height: 6.4rem;
+	border: 1px solid #d8e6de;
+	border-radius: 18px;
+	background: #ffffff;
+	color: #183327;
+	cursor: pointer;
+	font: inherit;
+	padding: 0.85rem;
+	text-align: left;
+	transition:
+		border-color 0.16s ease,
+		background-color 0.16s ease,
+		box-shadow 0.16s ease;
+}
+
+.course-map-document-nav-card:hover,
+.course-map-document-nav-card.selected {
+	border-color: var(--course-map-accent);
+	background: var(--course-map-accent-soft);
+	box-shadow: 0 10px 22px rgba(44, 128, 89, 0.1);
+}
+
+.course-map-document-nav-card-main {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 0.45rem;
+}
+
+.course-map-document-nav-card strong {
+	color: #153126;
+	font-size: 0.98rem;
+	line-height: 1.45;
+	text-wrap: pretty;
+}
+
+.course-map-document-nav-card small {
+	color: var(--course-map-muted);
+	font-size: 0.8rem;
+	line-height: 1.5;
+}
+
 .course-map-shell {
 	--course-map-accent: #1f6b49;
 	--course-map-accent-strong: #15533a;
@@ -165,6 +252,7 @@
 }
 
 .course-map-search-control input:focus-visible,
+.course-map-document-nav-card:focus-visible,
 .course-map-route-card:focus-visible,
 .course-map-relation-group button:focus-visible,
 .course-map-overview-panel summary:focus-visible,
@@ -632,6 +720,23 @@
 }
 
 @media (max-width: 760px) {
+	.course-map-document-nav {
+		border-radius: 20px;
+		padding: 0.85rem;
+	}
+
+	.course-map-document-nav-header {
+		align-items: flex-start;
+	}
+
+	.course-map-document-nav-list {
+		grid-template-columns: 1fr;
+	}
+
+	.course-map-document-nav-card {
+		min-height: auto;
+	}
+
 	.course-map-shell {
 		border-radius: 22px;
 		padding: 1rem;

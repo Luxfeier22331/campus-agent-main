@@ -77,8 +77,8 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 		}
 		const dataModuleName = `${doc.slug}.data.ts`;
 		const imageDir = resolve(publicRoot, doc.slug);
-		mkdirSync(imageDir, { recursive: true });
 		const dataPayload = buildCourseMapDataPayload({ surface, publicSlug: doc.slug });
+		const imagePayloads: Array<{ fileName: string; imageBytes: Uint8Array }> = [];
 		for (const block of surface.blocks) {
 			const imageBytes = await input.client.readOptionalBytesObject({ key: block.imageObjectKey });
 			if (!imageBytes) {
@@ -86,7 +86,15 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 					`missing published course-map image object for ${doc.slug}: ${block.imageObjectKey}`,
 				);
 			}
-			writeFileSync(resolve(imageDir, basename(block.imageObjectKey)), imageBytes);
+			imagePayloads.push({
+				fileName: basename(block.imageObjectKey),
+				imageBytes,
+			});
+		}
+		rmSync(imageDir, { force: true, recursive: true });
+		mkdirSync(imageDir, { recursive: true });
+		for (const imagePayload of imagePayloads) {
+			writeFileSync(resolve(imageDir, imagePayload.fileName), imagePayload.imageBytes);
 		}
 		writeText(
 			resolve(generatedDir, dataModuleName),
@@ -188,13 +196,30 @@ export function inferCourseMapRouteGroup(nodeLabel: string): string {
 	return "core";
 }
 
+export function normalizeCourseMapNodeLabel(nodeLabel: string): string {
+	const normalized = nodeLabel.trim();
+	const replacements = new Map<string, string>([
+		["中近现代史纲要", "中国近现代史纲要"],
+		["高散结构", "离散结构"],
+	]);
+	return replacements.get(normalized) ?? normalized;
+}
+
 function buildCourseMapBlockPayload(input: {
 	block: CourseMapBlock;
 	publicSlug: string;
 }): Record<string, unknown> {
+	const nodes = input.block.nodes.map((node) => ({
+		...node,
+		node_label: normalizeCourseMapNodeLabel(node.node_label),
+	}));
+	const edges = input.block.edges.map((edge) => ({
+		source_label: normalizeCourseMapNodeLabel(edge.source_label),
+		target_label: normalizeCourseMapNodeLabel(edge.target_label),
+	}));
 	const incomingCounts = new Map<string, number>();
 	const outgoingCounts = new Map<string, number>();
-	for (const edge of input.block.edges) {
+	for (const edge of edges) {
 		const sourceLabel = String(edge.source_label ?? "").trim();
 		const targetLabel = String(edge.target_label ?? "").trim();
 		if (sourceLabel) {
@@ -216,13 +241,13 @@ function buildCourseMapBlockPayload(input: {
 		displayStageLabels: input.block.displayStageLabels,
 		extractionNotes: input.block.extractionNotes,
 		imageSrc: `/course-maps/${input.publicSlug}/${basename(input.block.imageObjectKey)}`,
-		nodes: input.block.nodes.map((node) => ({
+		nodes: nodes.map((node) => ({
 			...node,
 			route_group: inferCourseMapRouteGroup(node.node_label),
 			incoming_count: incomingCounts.get(node.node_label) ?? 0,
 			outgoing_count: outgoingCounts.get(node.node_label) ?? 0,
 		})),
-		edges: input.block.edges,
+		edges,
 	};
 }
 

@@ -45,8 +45,9 @@ export function publicDocsGeneratedFiles(input: { root?: string } = {}): string[
 
 export function validatePublicDocsGeneratedFile(
 	path: string,
-	_input: { root?: string } = {},
+	input: { root?: string } = {},
 ): PublicDocsGeneratedIssue[] {
+	const root = input.root ?? REPO_ROOT;
 	const issues: PublicDocsGeneratedIssue[] = [];
 	const text = readFileSync(path, "utf-8");
 	if (!text.trim()) {
@@ -70,6 +71,21 @@ export function validatePublicDocsGeneratedFile(
 	}
 	if (!split.body.trim() && pageType !== "home") {
 		issues.push({ path, message: "missing generated document body" });
+	}
+	if (
+		isGeneratedDocumentDetailPath(relative(root, path).replaceAll("\\", "/")) &&
+		!hasDocumentMetaPanel(split.body)
+	) {
+		issues.push({
+			path,
+			message: "generated detail document must include visible source metadata",
+		});
+	}
+	if (hasRawDocumentMetaPanelComponent(split.body)) {
+		issues.push({
+			path,
+			message: "generated source metadata must use static HTML, not a raw React component tag",
+		});
 	}
 	return issues;
 }
@@ -155,6 +171,28 @@ function isPublicDocsGeneratedCandidate(path: string): boolean {
 		!path.startsWith(`${PUBLIC_DOCS_ROOT}/public/`) &&
 		/\.(md|mdx)$/.test(path)
 	);
+}
+
+function isGeneratedDocumentDetailPath(path: string): boolean {
+	if (!(path.startsWith(`${PUBLIC_DOCS_ROOT}/`) && /\.(md|mdx)$/.test(path))) {
+		return false;
+	}
+	if (path.endsWith("/index.md") || path.endsWith("/index.mdx")) {
+		return false;
+	}
+	return (
+		path.startsWith(`${PUBLIC_DOCS_ROOT}/student-handbook/`) ||
+		path.startsWith(`${PUBLIC_DOCS_ROOT}/curriculum-plan/`) ||
+		path.startsWith(`${PUBLIC_DOCS_ROOT}/campus-regulations/`)
+	);
+}
+
+function hasDocumentMetaPanel(body: string): boolean {
+	return /<section\s+(?:class|className)="document-meta-panel"/.test(body);
+}
+
+function hasRawDocumentMetaPanelComponent(body: string): boolean {
+	return /<DocumentMetaPanel(?:\s|>)/.test(body);
 }
 
 function isCollectionGroupIndexPath(path: string): boolean {

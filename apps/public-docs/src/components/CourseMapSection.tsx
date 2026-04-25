@@ -183,6 +183,13 @@ function shouldShowGraph(data: CourseMapBlock): boolean {
 	return data.nodes.length >= 2 && data.edges.length > 0;
 }
 
+function buildCourseMapSummary(block: CourseMapBlock): string {
+	const stageCount = resolveStageLabels(block).length;
+	return block.status === "failed"
+		? `来源页 ${block.pageNumber} · 待整理`
+		: `来源页 ${block.pageNumber} · ${stageCount} 个阶段 · ${block.nodes.length} 门课程 · ${block.edges.length} 条关系`;
+}
+
 function CourseMapSearch({
 	query,
 	onChange,
@@ -455,11 +462,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 	const visibleNodeCount = indexedNodes.filter(({ node }) =>
 		matchesCourseQuery(node, deferredCourseQuery),
 	).length;
-	const summary = useMemo(
-		() =>
-			`${stageLabels.length} 个阶段 · ${block.nodes.length} 门课程 · ${block.edges.length} 条关系`,
-		[block.edges.length, block.nodes.length, stageLabels.length],
-	);
+	const summary = buildCourseMapSummary(block);
 
 	return (
 		<section className={`course-map-shell status-${block.status}`}>
@@ -474,8 +477,7 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 					<div>
 						<h3>{block.title}</h3>
 						<p className="course-map-meta">
-							来源页 {block.pageNumber}
-							{block.status === "failed" ? "" : ` · ${summary}`}
+							{summary}
 						</p>
 					</div>
 					{block.status === "failed" ? null : (
@@ -576,16 +578,69 @@ function CourseMapBlockSection({ block }: { block: CourseMapBlock }) {
 	);
 }
 
+function CourseMapDocumentNav({
+	blocks,
+	activeBlockId,
+	onSelectBlock,
+}: {
+	blocks: CourseMapBlock[];
+	activeBlockId: string | null;
+	onSelectBlock: (blockId: string) => void;
+}) {
+	return (
+		<nav className="course-map-document-nav" aria-label="课程地图列表">
+			<div className="course-map-document-nav-header">
+				<div>
+					<p className="course-map-eyebrow">课程地图</p>
+					<h3>本页课程地图</h3>
+				</div>
+				<span>{blocks.length} 张</span>
+			</div>
+			<div className="course-map-document-nav-list">
+				{blocks.map((block) => {
+					const selected = block.blockId === activeBlockId;
+					return (
+						<button
+							key={block.blockId}
+							type="button"
+							aria-pressed={selected}
+							className={
+								selected ? "course-map-document-nav-card selected" : "course-map-document-nav-card"
+							}
+							onClick={() => onSelectBlock(block.blockId)}
+						>
+							<span className="course-map-document-nav-card-main">
+								<strong>{block.title}</strong>
+								<small>{buildCourseMapSummary(block)}</small>
+							</span>
+							<span className={`course-map-status-badge status-${block.status}`}>
+								{STATUS_LABELS[block.status]}
+							</span>
+						</button>
+					);
+				})}
+			</div>
+		</nav>
+	);
+}
+
 export default function CourseMapSection({ data }: Props) {
+	const [activeBlockId, setActiveBlockId] = useState<string | null>(data.blocks[0]?.blockId ?? null);
 	if (data.blocks.length === 0) {
 		return null;
 	}
+	const activeBlock = data.blocks.find((block) => block.blockId === activeBlockId) ?? data.blocks[0];
 
 	return (
 		<section className="course-map-collection">
-			{data.blocks.map((block) => (
-				<CourseMapBlockSection key={block.blockId} block={block} />
-			))}
+			{data.blocks.length > 1 ? (
+				<CourseMapDocumentNav
+					blocks={data.blocks}
+					activeBlockId={activeBlock.blockId}
+					onSelectBlock={setActiveBlockId}
+				/>
+			) : null}
+			<CourseMapBlockSection key={activeBlock.blockId} block={activeBlock} />
 		</section>
 	);
 }

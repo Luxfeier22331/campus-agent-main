@@ -222,6 +222,7 @@ async function syncCurriculumDocs(
 						})
 					: undefined,
 				jsonlText,
+				objectKey: doc.key,
 				slug: doc.slug,
 				title: doc.title,
 			});

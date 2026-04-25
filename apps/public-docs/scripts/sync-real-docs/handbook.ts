@@ -7,6 +7,8 @@ import {
 import {
 	asArray,
 	asRecord,
+	buildDocumentMetaPanelBlock,
+	buildDocumentReaderMetadataFromFrontmatter,
 	escapeHtmlText,
 	HANDBOOK_ARTICLE_HEADING_RE,
 	HANDBOOK_CHAPTER_HEADING_RE,
@@ -163,7 +165,22 @@ export function cleanHandbookMarkdown(markdown: string): string {
 		previousBlank = false;
 		cleanedBody.push(line.trimEnd());
 	}
-	return `${[...prefix, ...normalizeHandbookBody(cleanedBody, title)].join("\n").trimEnd()}\n`;
+	const metadataBlock =
+		prefix.length > 0
+			? [
+					buildDocumentMetaPanelBlock(
+						buildDocumentReaderMetadataFromFrontmatter({
+							collectionLabel: "学生手册",
+							frontmatterLines: prefix,
+							versionYear: HANDBOOK_YEAR,
+						}),
+					),
+					"",
+				]
+			: [];
+	return `${[...prefix, ...metadataBlock, ...normalizeHandbookBody(cleanedBody, title)]
+		.join("\n")
+		.trimEnd()}\n`;
 }
 
 export function convertHandbookTableHtmlToMarkdownBlocks(html: string): [string, string][] {

@@ -138,6 +138,21 @@ document-units -> chunks -> index`
 - reader 也不直接读取 source-truth/page manifest/provider artifact
 - 用户可见定位固定依赖 canonical `anchor` 与 `root_unit_id`，而不是 `chunk_id`
 
+## Reader Source And Version Metadata
+
+来源与版本展示是 canonical reader shell 的正式能力。
+
+固定规则：
+
+- 每篇 reader detail page 必须在标题下、正文前展示用户可读的文档信息
+- 用户可见字段只表达文档集合、来源文件或来源标题、原文页码、版本标签与当前展示状态
+- `doc_id` / `version_id` 等技术身份只允许放入折叠技术详情或 operator trace
+- browser-facing reader 不暴露对象存储 bucket/key、provider artifact path、raw
+  source-truth locator 或 chunk id
+- 课程地图、流程图等 reader supplement 继承同一文档级来源与版本语义，只补充局部页码来源
+- 当前 Rspress 静态站可以在 deploy-time sync 阶段把 metadata 注入页面；长期同一语义应来自
+  `reader-assets/meta.json`
+
 ## Static Asset Delivery Model
 
 canonical doc 的正文交付长期采用：

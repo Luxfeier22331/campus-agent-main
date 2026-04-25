@@ -5,6 +5,9 @@ import {
 	asArray,
 	asRecord,
 	buildAppSrcImportPath,
+	buildDocumentMetaPanelBlock,
+	type DocumentReaderMetadata,
+	formatSourcePageRange,
 	HANDBOOK_SOURCE_PROJECTIONS_PATH,
 	HANDBOOK_YEAR,
 	type HandbookFlowGraphDoc,
@@ -69,6 +72,7 @@ export async function syncHandbookFlowGraphArtifacts(input: {
 				}),
 				dataImportName,
 				dataImportPath,
+				metadata: buildHandbookFlowGraphMetadata(projection),
 				title,
 			}),
 		);
@@ -228,6 +232,7 @@ function buildHandbookFlowGraphMarkdown(input: {
 	title: string;
 	dataImportName: string;
 	dataImportPath: string;
+	metadata: DocumentReaderMetadata;
 }): string {
 	return [
 		"---",
@@ -239,9 +244,29 @@ function buildHandbookFlowGraphMarkdown(input: {
 		`import HandbookFlowGraphSection from "${input.componentImportPath}";`,
 		`import ${input.dataImportName} from "${input.dataImportPath}";`,
 		"",
+		buildDocumentMetaPanelBlock(input.metadata, { mdx: true }),
+		"",
 		`<HandbookFlowGraphSection data={${input.dataImportName}} />`,
 		"",
 	].join("\n");
+}
+
+function buildHandbookFlowGraphMetadata(
+	projection: Record<string, unknown>,
+): DocumentReaderMetadata {
+	return {
+		collectionLabel: "学生手册",
+		pageLabel: formatSourcePageRange(
+			requireInt(projection, "source_page_start"),
+			requireInt(projection, "source_page_end"),
+		),
+		sourceLabel: requireText(projection, "source_title"),
+		statusLabel: "当前展示版",
+		versionLabel: `${HANDBOOK_YEAR} 版`,
+		technicalDetails: [
+			{ label: "projection_name", value: requireText(projection, "projection_name") },
+		],
+	};
 }
 
 function iterBodyBearingFlowSteps(flowGraph: Record<string, unknown>): Record<string, unknown>[] {

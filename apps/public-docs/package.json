@@ -4,7 +4,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"build": "pnpm run ensure:docs-scaffold && rspress build",
+		"build": "pnpm run ensure:docs-scaffold && rspress build && pnpm run build:clean-routes",
+		"build:clean-routes": "tsx scripts/create-clean-route-aliases.ts",
 		"build:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run build",
 		"dev": "pnpm run ensure:docs-scaffold && rspress dev --host 127.0.0.1 --port 5177",
 		"dev:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run dev",

@@ -12,6 +12,8 @@ import {
 	groupCurriculumDocsByIa,
 } from "./ia";
 import {
+	buildDocumentMetaPanelBlock,
+	buildDocumentReaderMetadataFromJsonl,
 	type CourseMapDocEmbed,
 	CURRICULUM_DOC_SLUG_OVERRIDES,
 	type CurriculumDoc,
@@ -154,6 +156,7 @@ export function buildCurriculumMarkdown(input: {
 	jsonlText: string;
 	slug?: string;
 	courseMapEmbed?: CourseMapDocEmbed;
+	objectKey?: string;
 }): string {
 	const lines = ["---", `title: ${jsonString(input.title)}`, "footer: false", "---", ""];
 	if (input.courseMapEmbed) {
@@ -163,6 +166,17 @@ export function buildCurriculumMarkdown(input: {
 			"",
 		);
 	}
+	lines.push(
+		buildDocumentMetaPanelBlock(
+			buildDocumentReaderMetadataFromJsonl({
+				collectionLabel: "培养方案",
+				jsonlText: input.jsonlText,
+				objectKey: input.objectKey,
+			}),
+			{ mdx: true },
+		),
+		"",
+	);
 
 	const blocks: MarkdownBlock[] = [];
 	let inCourseMapSection = false;

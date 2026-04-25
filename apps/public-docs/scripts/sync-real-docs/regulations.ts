@@ -1,6 +1,8 @@
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+	buildDocumentMetaPanelBlock,
+	buildDocumentReaderMetadataFromJsonl,
 	formatJsonContent,
 	jsonString,
 	normalizeText,
@@ -75,9 +77,16 @@ export function buildPublicRegulationMarkdown(input: {
 		"---",
 		`title: ${jsonString(input.doc.title)}`,
 		"corpus: regulations",
-		`collection: ${input.doc.collection}`,
 		`collectionLabel: ${jsonString(input.doc.collectionLabel)}`,
 		"---",
+		"",
+		buildDocumentMetaPanelBlock(
+			buildDocumentReaderMetadataFromJsonl({
+				collectionLabel: input.doc.collectionLabel,
+				jsonlText: input.jsonlText,
+				objectKey: input.doc.key,
+			}),
+		),
 		"",
 	];
 	let wroteBody = false;
