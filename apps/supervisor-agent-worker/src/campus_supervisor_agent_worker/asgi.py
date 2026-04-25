@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from http import HTTPStatus
 from urllib.parse import urlsplit
 
-from campus_supervisor_agent_worker.api import HttpResponse
 from campus_supervisor_agent_worker.app import SupervisorAgentWorkerApp
+from campus_supervisor_agent_worker.http_types import HttpResponse
 
 
 class SupervisorBridgeAsgiApp:

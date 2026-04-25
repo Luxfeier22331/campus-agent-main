@@ -12,6 +12,10 @@ BRIDGE_V6_PARSER = WORKER_CORE / "bridge_v6_parser.py"
 AGENT_DISPATCH = WORKER_CORE / "agent_dispatch.py"
 WORKER_APP = WORKER_CORE / "app.py"
 WORKER_API = WORKER_CORE / "api.py"
+WORKER_AGENT_DELEGATES = WORKER_CORE / "agent_delegates.py"
+WORKER_AGENT_RUNTIME = WORKER_CORE / "agent_runtime.py"
+WORKER_BRIDGE_READINESS = WORKER_CORE / "bridge_readiness.py"
+WORKER_CANCEL_FLAGS = WORKER_CORE / "cancel_flags.py"
 
 
 class SupervisorRuntimeGuardrailTest(unittest.TestCase):
@@ -264,22 +268,24 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
 
     def test_worker_runtime_names_are_agent_worker_specific(self) -> None:
         app_source = WORKER_APP.read_text(encoding="utf-8")
+        runtime_source = WORKER_AGENT_RUNTIME.read_text(encoding="utf-8")
 
         self.assertIn("class SupervisorAgentWorkerApp", app_source)
-        self.assertIn("class AgentWorkerRuntime", app_source)
+        self.assertIn("class AgentWorkerRuntime", runtime_source)
         self.assertNotIn("class SupervisorApiApp", app_source)
         self.assertNotIn("class AgentOSRuntime", app_source)
+        self.assertNotIn("class AgentOSRuntime", runtime_source)
         self.assertNotIn("flush_audit", app_source)
 
     def test_worker_cancel_state_is_named_as_flag_store_not_runtime_registry(self) -> None:
-        api_source = WORKER_API.read_text(encoding="utf-8")
+        cancel_source = WORKER_CANCEL_FLAGS.read_text(encoding="utf-8")
         app_source = WORKER_APP.read_text(encoding="utf-8")
 
-        self.assertIn("class CancelFlagStore", api_source)
+        self.assertIn("class CancelFlagStore", cancel_source)
         self.assertIn("CancelFlagStore", app_source)
-        self.assertNotIn("ExecutionCancelRegistry", api_source)
+        self.assertNotIn("ExecutionCancelRegistry", cancel_source)
         self.assertNotIn("ExecutionCancelRegistry", app_source)
-        self.assertNotIn("CancelRecord", api_source)
+        self.assertNotIn("CancelRecord", cancel_source)
         self.assertNotIn("CancelRecord", app_source)
 
     def test_bridge_v6_parser_is_split_from_api_request_facade(self) -> None:
@@ -292,3 +298,29 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         self.assertNotIn("def _parse_bridge_supervisor_request", parser_source)
         self.assertNotIn("def _task_kind_for_capability", parser_source)
         self.assertNotIn("def _domain_candidates_for_target", parser_source)
+
+    def test_worker_app_runtime_assembly_is_split_from_bridge_app_factory(self) -> None:
+        app_source = WORKER_APP.read_text(encoding="utf-8")
+
+        self.assertTrue(WORKER_AGENT_DELEGATES.exists())
+        self.assertTrue(WORKER_AGENT_RUNTIME.exists())
+        self.assertNotIn("campus_rag_agent", app_source)
+        self.assertNotIn("campus_navigation_agent", app_source)
+        self.assertNotIn("campus_services_agent", app_source)
+        self.assertNotIn("campus_notice_agent", app_source)
+        self.assertNotIn("PromptRuntimeProviderConfig", app_source)
+        self.assertNotIn("build_prompt_runtime_http_client", app_source)
+        self.assertNotIn("def _build_agent_delegates", app_source)
+        self.assertNotIn("def _build_prompt_runtime_assets", app_source)
+
+    def test_bridge_api_surface_is_split_from_readiness_and_cancel_store(self) -> None:
+        api_source = WORKER_API.read_text(encoding="utf-8")
+
+        self.assertTrue(WORKER_CANCEL_FLAGS.exists())
+        self.assertTrue(WORKER_BRIDGE_READINESS.exists())
+        self.assertNotIn("class CancelFlag", api_source)
+        self.assertNotIn("class CancelFlagStore", api_source)
+        self.assertNotIn("def readyz(", api_source)
+        self.assertNotIn("def healthz(", api_source)
+        self.assertNotIn("def _resolve_prompt_runtime_settings", api_source)
+        self.assertNotIn("def _default_prompt_http_pool_status", api_source)
