@@ -238,10 +238,13 @@ def validate_service_guide_projection_bundle(
         _validate_effective_window_fields(record, path, issues)
 
         source_refs = _string_list(record.get("source_refs"))
-        if extraction_status == "ready" and not source_refs:
+        if not source_refs:
             issues.append(_issue(f"{path}.source_refs", "source_refs is required"))
 
-        for section_index, section in enumerate(_list_of_dicts(record.get("guide_sections"))):
+        guide_sections = _list_of_dicts(record.get("guide_sections"))
+        if extraction_status == "ready" and not guide_sections:
+            issues.append(_issue(f"{path}.guide_sections", "guide_sections is required"))
+        for section_index, section in enumerate(guide_sections):
             section_path = f"{path}.guide_sections[{section_index}]"
             _validate_required_text(section, "section_id", section_path, issues)
             if _required_text(section.get("section_type")) not in {
