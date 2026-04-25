@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-04-25
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 # Campus Services Service Guide Source-Truth Schema
 
@@ -70,10 +70,30 @@ workflow owner。
 
 当前 tracked curated service guide source truth：
 
+- canonical source-truth manifest:
+  `configs/ingestion/campus_services/service_guide/source-truth.v1.json`
+  - 由 `regulations/student_rules` handbook raw ingestion / provider-response replay
+    在成功后消费，发布
+    `campus_services/releases/service_guide/current/service-guide-projection.json`
+  - 独立 worker CLI 只作为 debug/recovery 路径，不作为唯一 canonical build path
+- `configs/ingestion/regulations/student_rules/curated-flow-graphs/central-minzu-student-dormitory-management-workflow.v1.json`
+  - 来源：`中央民族大学学生公寓管理工作流程`，学生手册第 252-255 页
+  - 覆盖：入住、毕业离校、本科生不住宿、研究生不住宿、本科生退宿、研究生退宿流程
 - `configs/ingestion/regulations/student_rules/curated-service-guides/central-minzu-student-public-medical.v1.json`
   - 来源：`中央民族大学学生公费医疗管理办法`，学生手册第 259-260 页
   - 覆盖：公费医疗资格与就医规则、公费医疗报销办理指南、公费医疗不予报销范围
   - 不覆盖：联系电话、办公时间；这类 focus 查询必须保持 fail-close / unavailable
+- `configs/ingestion/regulations/student_rules/curated-service-guides/central-minzu-student-affairs-services.v1.json`
+  - 来源：`中央民族大学学生申诉管理办法`，学生手册第 133-137 页；`中央民族大学本科(预科)学生证管理办法`，学生手册第 163-165 页
+  - 覆盖：学生证补办办理指南、学生申诉办理指南
+- `configs/ingestion/regulations/student_rules/curated-service-guides/central-minzu-student-financial-aid-services.v1.json`
+  - 来源：`中央民族大学家庭经济困难学生临时困难补助管理办法`，学生手册第 217-219
+    页；`中央民族大学本(预)科学生勤工助学管理办法`，学生手册第 220-225
+    页；`中央民族大学助学贷款管理暂行办法`，学生手册第 240-246 页
+  - 覆盖：临时困难补助申请指南、国家助学贷款申请指南、勤工助学岗位聘用指南
+
+当前 source-truth manifest 的 release gate 固定期望 14 条 ready record：
+宿舍流程 6 条、公费医疗 3 条、学生日常事务 2 条、资助事务 3 条。
 
 ## Projection Bundle
 

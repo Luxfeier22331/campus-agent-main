@@ -483,6 +483,12 @@ document-level cleaning 之后生成。
   collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定
   lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`
   source_title`、`source_handbook_section`、`source_page_start`、`source_page_end`)
+- `attachment_projection_families` 只表示可治理的 wildcard family；真正 materialize 的附件、
+  附录、表单和 navigation leaf 必须写入 `attachment_projection_selectors`，由 replay 从
+  source truth selector 生成 derived document，不得在 query time 回扫 PDF 或文档站 HTML
+- `source-projections.v1.json` 必须维护 `selector_coverage` gate：已声明 wildcard family
+  要么有 concrete selector，要么显式 deferred；电话页 selector 必须指向
+  `campus_services/contact_directory`，不能被 `service_guide` 或 `service_catalog` 直接消费
 
 ## Representation 规则
 

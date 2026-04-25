@@ -14,6 +14,7 @@ from campus_ingestion_core.service_guide_projection import (
     build_service_guide_projection_bundle_from_handbook_flow_graph_document_data,
     validate_service_guide_projection_bundle,
     write_service_guide_projection_release,
+    write_service_guide_projection_release_from_source_truth_manifest,
 )
 
 
@@ -33,6 +34,48 @@ class _FakeObjectStore:
 
 
 class ServiceGuideProjectionTest(unittest.TestCase):
+    def test_source_truth_manifest_combines_expanded_handbook_service_guides(self) -> None:
+        manifest_path = Path("configs/ingestion/campus_services/service_guide/source-truth.v1.json")
+
+        with TemporaryDirectory() as temp_dir:
+            object_store = _FakeObjectStore()
+            report = write_service_guide_projection_release_from_source_truth_manifest(
+                source_truth_manifest_path=manifest_path,
+                output_dir=Path(temp_dir),
+                generated_at="2026-04-25T10:00:00+08:00",
+                object_store=object_store,
+                bucket="campus-rag-derived",
+                release_id="service-guide-handbook-expanded-test",
+            )
+
+        projection = json.loads(
+            object_store.objects[("campus-rag-derived", report.current_object_key)].decode("utf-8")
+        )
+        self.assertEqual(len(projection["service_guide_records"]), 14)
+        by_name = {record["display_name"]: record for record in projection["service_guide_records"]}
+        self.assertIn("学生证补办办理指南", by_name)
+        self.assertIn("学生申诉办理指南", by_name)
+        self.assertIn("临时困难补助申请指南", by_name)
+        self.assertIn("国家助学贷款申请指南", by_name)
+        self.assertIn("勤工助学岗位聘用指南", by_name)
+        self.assertEqual(
+            {material["name"] for material in by_name["学生证补办办理指南"]["materials"]},
+            {"书面申请", "《中央民族大学补办学生证申请表》", "本人照片"},
+        )
+        self.assertEqual(
+            by_name["学生证补办办理指南"]["office_hours"][0]["time_range"],
+            "每周四下午",
+        )
+        self.assertEqual(
+            {material["name"] for material in by_name["国家助学贷款申请指南"]["materials"]},
+            {
+                "国家助学贷款申请书",
+                "国家助学贷款申请审批表",
+                "相关材料",
+                "院系申请国家助学贷款学生审核信息表",
+            },
+        )
+
     def test_builds_public_medical_service_guide_from_curated_source_truth(self) -> None:
         curated_path = Path(
             "configs/ingestion/regulations/student_rules/curated-service-guides/"

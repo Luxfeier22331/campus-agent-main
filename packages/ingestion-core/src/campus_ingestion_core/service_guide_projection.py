@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,6 +21,10 @@ SERVICE_GUIDE_PROJECTION_FILENAME = "service-guide-projection.json"
 SERVICE_GUIDE_VALIDATION_FILENAME = "validation-summary.json"
 SERVICE_GUIDE_RELEASE_MANIFEST_FILENAME = "release-manifest.json"
 SERVICE_GUIDE_MANUAL_REVIEW_FILENAME = "manual-review-report.json"
+SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_SCHEMA_VERSION = (
+    "campus_services_service_guide_source_truth_manifest.v1"
+)
+SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV = "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_PATH"
 HANDBOOK_SERVICE_NAVIGATION_SOURCE_FAMILY = "handbook_service_navigation_projection_v1"
 HANDBOOK_CURATED_SERVICE_FLOW_GRAPH_SCHEMA_VERSION = "handbook_curated_service_flow_graph.v1"
 HANDBOOK_CURATED_SERVICE_GUIDE_SCHEMA_VERSION = "handbook_curated_service_guide.v1"
@@ -82,6 +87,21 @@ class ServiceGuideProjectionReleaseReport:
     validation_summary_path: str
     release_manifest_path: str
     manual_review_report_path: str
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideSourceTruthManifest:
+    path: Path
+    target_corpus: str
+    target_collection: str
+    upstream_corpus: str
+    upstream_collection: str
+    release_id_prefix: str
+    effective_from: str
+    effective_until: str
+    expected_ready_records: int | None
+    curated_flow_graph_paths: tuple[Path, ...]
+    curated_service_guide_paths: tuple[Path, ...]
 
 
 def build_service_guide_projection_bundle_from_handbook_flow_graph(
@@ -208,6 +228,164 @@ def build_service_guide_projection_bundle_from_curated_service_guide(
         bundle=bundle,
         validation_report=validation_report,
         manual_review_sources=manual_review_sources,
+    )
+
+
+def load_service_guide_source_truth_manifest(
+    path: Path | str,
+) -> ServiceGuideSourceTruthManifest:
+    manifest_path = Path(path).resolve()
+    payload = _require_mapping(
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+        "service_guide_source_truth_manifest",
+    )
+    schema_version = _required_text(payload.get("schema_version"))
+    if schema_version != SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported service guide source truth manifest schema_version: {schema_version!r}"
+        )
+    target_corpus = _required_text(payload.get("target_corpus"))
+    target_collection = _required_text(payload.get("target_collection"))
+    if target_corpus != SERVICE_GUIDE_CORPUS or target_collection != SERVICE_GUIDE_COLLECTION:
+        raise ValueError(
+            "service guide source truth manifest target must be campus_services/service_guide"
+        )
+    upstream_corpus = _required_text(payload.get("upstream_corpus"))
+    upstream_collection = _required_text(payload.get("upstream_collection"))
+    if upstream_corpus is None or upstream_collection is None:
+        raise ValueError("service guide source truth manifest upstream scope is required")
+    effective_from = _required_text(payload.get("effective_from"))
+    effective_until = _required_text(payload.get("effective_until"))
+    if effective_from is None or effective_until is None:
+        raise ValueError("service guide source truth manifest effective window is required")
+    _validate_effective_window(effective_from, effective_until, "source_truth_manifest")
+    release_id_prefix = _required_text(payload.get("release_id_prefix")) or "service-guide-handbook"
+    expected_ready_records = _optional_positive_int(payload.get("expected_ready_records"))
+    curated_flow_graph_paths = _manifest_source_paths(
+        payload.get("curated_flow_graphs"),
+        manifest_dir=manifest_path.parent,
+        field_name="curated_flow_graphs",
+    )
+    curated_service_guide_paths = _manifest_source_paths(
+        payload.get("curated_service_guides"),
+        manifest_dir=manifest_path.parent,
+        field_name="curated_service_guides",
+    )
+    if not curated_flow_graph_paths and not curated_service_guide_paths:
+        raise ValueError("service guide source truth manifest must declare at least one source")
+    return ServiceGuideSourceTruthManifest(
+        path=manifest_path,
+        target_corpus=target_corpus,
+        target_collection=target_collection,
+        upstream_corpus=upstream_corpus,
+        upstream_collection=upstream_collection,
+        release_id_prefix=release_id_prefix,
+        effective_from=effective_from,
+        effective_until=effective_until,
+        expected_ready_records=expected_ready_records,
+        curated_flow_graph_paths=curated_flow_graph_paths,
+        curated_service_guide_paths=curated_service_guide_paths,
+    )
+
+
+def resolve_service_guide_source_truth_manifest_path(
+    source: Mapping[str, str] | None = None,
+) -> Path | None:
+    resolved_source = source or {}
+    configured = (resolved_source.get(SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV) or "").strip()
+    if configured:
+        return Path(configured).resolve()
+    default_path = _default_service_guide_source_truth_manifest_path()
+    if default_path.exists():
+        return default_path
+    return None
+
+
+def write_service_guide_projection_release_from_source_truth_manifest(
+    *,
+    source_truth_manifest_path: Path | str,
+    output_dir: Path,
+    generated_at: str,
+    object_store: ServiceGuideProjectionObjectStore,
+    bucket: str,
+    release_id: str | None = None,
+) -> ServiceGuideProjectionReleaseReport:
+    manifest = load_service_guide_source_truth_manifest(source_truth_manifest_path)
+    _parse_rfc3339(generated_at, "generated_at")
+    build_results: list[ServiceGuideProjectionBuildResult] = []
+    for curated_flow_graph_path in manifest.curated_flow_graph_paths:
+        build_results.append(
+            build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
+                curated_flow_graph_artifact=_read_json_object(curated_flow_graph_path),
+                generated_at=generated_at,
+                effective_from=manifest.effective_from,
+                effective_until=manifest.effective_until,
+            )
+        )
+    for curated_service_guide_path in manifest.curated_service_guide_paths:
+        build_results.append(
+            build_service_guide_projection_bundle_from_curated_service_guide(
+                curated_service_guide_artifact=_read_json_object(curated_service_guide_path),
+                generated_at=generated_at,
+                effective_from=manifest.effective_from,
+                effective_until=manifest.effective_until,
+            )
+        )
+    build_result = (
+        build_results[0]
+        if len(build_results) == 1
+        else merge_service_guide_projection_build_results(
+            build_results=build_results,
+            generated_at=generated_at,
+        )
+    )
+    assert_service_guide_projection_release_ready(
+        build_result.bundle,
+        expected_ready_records=manifest.expected_ready_records,
+    )
+    return write_service_guide_projection_release(
+        bundle=build_result.bundle,
+        output_dir=output_dir,
+        release_id=release_id
+        or _service_guide_release_id(manifest.release_id_prefix, generated_at),
+        generated_at=generated_at,
+        manual_review_sources=build_result.manual_review_sources,
+        object_store=object_store,
+        bucket=bucket,
+    )
+
+
+def write_service_guide_projection_release_from_manifest_if_available(
+    *,
+    source: Mapping[str, str],
+    upstream_corpus: str,
+    upstream_collection: str,
+    output_dir: Path,
+    generated_at: str,
+    object_store: ServiceGuideProjectionObjectStore,
+    bucket: str,
+) -> ServiceGuideProjectionReleaseReport | None:
+    configured = (source.get(SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV) or "").strip()
+    if not configured and (upstream_corpus.strip(), upstream_collection.strip()) != (
+        "regulations",
+        "student_rules",
+    ):
+        return None
+    manifest_path = resolve_service_guide_source_truth_manifest_path(source)
+    if manifest_path is None:
+        return None
+    manifest = load_service_guide_source_truth_manifest(manifest_path)
+    if (
+        manifest.upstream_corpus != upstream_corpus.strip()
+        or manifest.upstream_collection != upstream_collection.strip()
+    ):
+        return None
+    return write_service_guide_projection_release_from_source_truth_manifest(
+        source_truth_manifest_path=manifest_path,
+        output_dir=output_dir,
+        generated_at=generated_at,
+        object_store=object_store,
+        bucket=bucket,
     )
 
 
@@ -1148,6 +1326,48 @@ def _parse_rfc3339(value: str, field_name: str) -> datetime:
     return parsed
 
 
+def _service_guide_release_id(prefix: str, generated_at: str) -> str:
+    normalized_prefix = _path_segment(prefix, "release_id_prefix")
+    timestamp = _parse_rfc3339(generated_at, "generated_at").strftime("%Y%m%dT%H%M%S")
+    return f"{normalized_prefix}-{timestamp}"
+
+
+def _manifest_source_paths(
+    value: object,
+    *,
+    manifest_dir: Path,
+    field_name: str,
+) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for index, item in enumerate(_list_of_dicts(value)):
+        raw_path = _required_text(item.get("path"))
+        if raw_path is None:
+            raise ValueError(f"{field_name}[{index}].path is required")
+        resolved_path = Path(raw_path)
+        if not resolved_path.is_absolute():
+            resolved_path = manifest_dir / resolved_path
+        resolved_path = resolved_path.resolve()
+        if not resolved_path.exists():
+            raise ValueError(f"{field_name}[{index}].path does not exist: {resolved_path}")
+        paths.append(resolved_path)
+    return tuple(paths)
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    return _require_mapping(json.loads(path.read_text(encoding="utf-8")), str(path))
+
+
+def _default_service_guide_source_truth_manifest_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / SERVICE_GUIDE_CORPUS
+        / SERVICE_GUIDE_COLLECTION
+        / "source-truth.v1.json"
+    )
+
+
 def _default_target_document_id(target_title: str) -> str:
     digest = hashlib.sha1(target_title.encode("utf-8")).hexdigest()[:12]
     return f"campus_services:service_catalog:{quote(target_title, safe='')[:48]}:{digest}"
@@ -1237,15 +1457,22 @@ __all__ = [
     "SERVICE_GUIDE_CORPUS",
     "SERVICE_GUIDE_PROJECTION_FILENAME",
     "SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION",
+    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_ENV",
+    "SERVICE_GUIDE_SOURCE_TRUTH_MANIFEST_SCHEMA_VERSION",
     "ServiceGuideProjectionBuildResult",
     "ServiceGuideProjectionReleaseReport",
     "ServiceGuideProjectionValidationReport",
+    "ServiceGuideSourceTruthManifest",
     "assert_service_guide_projection_release_ready",
     "build_service_guide_projection_bundle_from_curated_handbook_flow_graph",
     "build_service_guide_projection_bundle_from_curated_service_guide",
     "build_service_guide_projection_bundle_from_handbook_flow_graph",
     "build_service_guide_projection_bundle_from_handbook_flow_graph_document_data",
+    "load_service_guide_source_truth_manifest",
     "merge_service_guide_projection_build_results",
+    "resolve_service_guide_source_truth_manifest_path",
     "validate_service_guide_projection_bundle",
     "write_service_guide_projection_release",
+    "write_service_guide_projection_release_from_manifest_if_available",
+    "write_service_guide_projection_release_from_source_truth_manifest",
 ]

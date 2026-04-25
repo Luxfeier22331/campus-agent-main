@@ -80,59 +80,165 @@ def load_handbook_source_projections_config(path: Path) -> HandbookSourceProject
             f"unsupported handbook source projections schema_version: {payload.get('schema_version')!r}"
         )
     projections = tuple(
-        HandbookSourceProjection(
-            projection_name=str(item.get("projection_name") or ""),
-            target_corpus=str(item.get("target_corpus") or ""),
-            target_collection=str(item.get("target_collection") or ""),
-            projection_family=str(item.get("projection_family") or ""),
-            replay_from_source_truth=bool(item.get("replay_from_source_truth", False)),
-            derived_from=str(item.get("derived_from") or ""),
-            derived_from_document_id=(
-                str(item["derived_from_document_id"])
-                if item.get("derived_from_document_id") is not None
-                else None
-            ),
-            parent_document_id=(
-                str(item["parent_document_id"])
-                if item.get("parent_document_id") is not None
-                else None
-            ),
-            attachment_kind=str(item["attachment_kind"])
-            if item.get("attachment_kind") is not None
-            else None,
-            attachment_role=str(item["attachment_role"])
-            if item.get("attachment_role") is not None
-            else None,
-            target_title=str(item["target_title"])
-            if item.get("target_title") is not None
-            else None,
-            migration_reason=str(item["migration_reason"])
-            if item.get("migration_reason") is not None
-            else None,
-            source_title=str(item["source_title"])
-            if item.get("source_title") is not None
-            else None,
-            source_handbook_section=(
-                str(item["source_handbook_section"])
-                if item.get("source_handbook_section") is not None
-                else None
-            ),
-            source_page_start=(
-                int(item["source_page_start"])
-                if item.get("source_page_start") is not None
-                else None
-            ),
-            source_page_end=(
-                int(item["source_page_end"]) if item.get("source_page_end") is not None else None
-            ),
-        )
-        for item in list(payload.get("projections") or [])
+        _projection_from_payload(item) for item in _declared_projection_items(payload)
     )
     return HandbookSourceProjectionsConfig(
         source_corpus=str(payload.get("source_corpus") or ""),
         source_collection=str(payload.get("source_collection") or ""),
         raw_asset_id=str(payload.get("raw_asset_id") or ""),
         projections=projections,
+    )
+
+
+def validate_handbook_source_projection_coverage(path: Path) -> dict[str, object]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if str(payload.get("schema_version") or "") != HANDBOOK_SOURCE_PROJECTIONS_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported handbook source projections schema_version: {payload.get('schema_version')!r}"
+        )
+    projection_items = _declared_projection_items(payload)
+    concrete_by_name = {
+        str(item.get("projection_name") or ""): item
+        for item in projection_items
+        if str(item.get("projection_family") or "") != "primary_documents"
+        and str(item.get("projection_name") or "")
+    }
+    coverage_payload = dict(payload.get("selector_coverage") or {})
+    required_projection_names = _string_tuple(coverage_payload.get("required_projection_names"))
+    if not required_projection_names:
+        required_projection_names = tuple(sorted(concrete_by_name))
+    deferred_projection_names = tuple(
+        sorted(
+            str(item.get("projection_name") or "")
+            for item in _dict_items(coverage_payload.get("deferred_projection_families"))
+            if str(item.get("projection_name") or "")
+        )
+    )
+    deferred_name_set = set(deferred_projection_names)
+
+    issues: list[dict[str, str]] = []
+    for projection_name in required_projection_names:
+        if projection_name not in concrete_by_name:
+            issues.append(
+                {
+                    "projection_name": projection_name,
+                    "reason": "required_projection_missing",
+                }
+            )
+    for family in _dict_items(payload.get("attachment_projection_families")):
+        projection_name = str(family.get("projection_name") or "")
+        if (
+            projection_name
+            and projection_name not in concrete_by_name
+            and projection_name not in deferred_name_set
+        ):
+            issues.append(
+                {
+                    "projection_name": projection_name,
+                    "reason": "wildcard_family_without_selector_or_deferred_status",
+                }
+            )
+    for projection_name, item in concrete_by_name.items():
+        if not _raw_projection_has_bounded_source_selector(item):
+            issues.append(
+                {
+                    "projection_name": projection_name,
+                    "reason": "concrete_projection_without_bounded_source_selector",
+                }
+            )
+    phone_projection = concrete_by_name.get("handbook_phone_directory")
+    if phone_projection is not None and (
+        phone_projection.get("target_corpus") != "campus_services"
+        or phone_projection.get("target_collection") != "contact_directory"
+        or phone_projection.get("attachment_role") != "service_contact_directory"
+    ):
+        issues.append(
+            {
+                "projection_name": "handbook_phone_directory",
+                "reason": "phone_directory_must_target_contact_directory",
+            }
+        )
+    return {
+        "schema_version": "handbook_source_projection_coverage_report.v1",
+        "valid": not issues,
+        "issues": issues,
+        "covered_projection_names": list(sorted(concrete_by_name)),
+        "deferred_projection_names": list(deferred_projection_names),
+    }
+
+
+def _declared_projection_items(payload: dict[str, object]) -> tuple[dict[str, object], ...]:
+    items: list[dict[str, object]] = []
+    for raw_item in list(payload.get("projections") or []):
+        if isinstance(raw_item, dict):
+            items.append(raw_item)
+    for raw_item in list(payload.get("attachment_projection_selectors") or []):
+        if isinstance(raw_item, dict):
+            items.append(raw_item)
+    return tuple(items)
+
+
+def _dict_items(value: object) -> tuple[dict[str, object], ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(dict(item) for item in value if isinstance(item, dict))
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
+
+
+def _raw_projection_has_bounded_source_selector(item: dict[str, object]) -> bool:
+    return (
+        isinstance(item.get("source_title"), str)
+        and bool(str(item.get("source_title") or "").strip())
+        and isinstance(item.get("source_handbook_section"), str)
+        and bool(str(item.get("source_handbook_section") or "").strip())
+        and item.get("source_page_start") is not None
+        and item.get("source_page_end") is not None
+    )
+
+
+def _projection_from_payload(item: dict[str, object]) -> HandbookSourceProjection:
+    return HandbookSourceProjection(
+        projection_name=str(item.get("projection_name") or ""),
+        target_corpus=str(item.get("target_corpus") or ""),
+        target_collection=str(item.get("target_collection") or ""),
+        projection_family=str(item.get("projection_family") or ""),
+        replay_from_source_truth=bool(item.get("replay_from_source_truth", False)),
+        derived_from=str(item.get("derived_from") or ""),
+        derived_from_document_id=(
+            str(item["derived_from_document_id"])
+            if item.get("derived_from_document_id") is not None
+            else None
+        ),
+        parent_document_id=(
+            str(item["parent_document_id"]) if item.get("parent_document_id") is not None else None
+        ),
+        attachment_kind=str(item["attachment_kind"])
+        if item.get("attachment_kind") is not None
+        else None,
+        attachment_role=str(item["attachment_role"])
+        if item.get("attachment_role") is not None
+        else None,
+        target_title=str(item["target_title"]) if item.get("target_title") is not None else None,
+        migration_reason=str(item["migration_reason"])
+        if item.get("migration_reason") is not None
+        else None,
+        source_title=str(item["source_title"]) if item.get("source_title") is not None else None,
+        source_handbook_section=(
+            str(item["source_handbook_section"])
+            if item.get("source_handbook_section") is not None
+            else None
+        ),
+        source_page_start=(
+            int(item["source_page_start"]) if item.get("source_page_start") is not None else None
+        ),
+        source_page_end=(
+            int(item["source_page_end"]) if item.get("source_page_end") is not None else None
+        ),
     )
 
 
@@ -159,10 +265,7 @@ def build_handbook_projection_import_documents(
     source_pdf = raw_asset_record.source_filename
     documents: list[DocumentImportInput] = []
     for projection in config.projections:
-        if (
-            projection.target_corpus == config.source_corpus
-            and projection.target_collection == config.source_collection
-        ):
+        if _is_primary_source_projection(projection):
             continue
         manifest_document = _resolve_projection_source_document(
             projection=projection,
@@ -266,6 +369,12 @@ def build_handbook_projection_import_documents(
                 )
             metadata = load_metadata_from_bytes(document.document_units_bytes)
             metadata["title"] = target_title
+            _apply_projection_lineage_metadata(
+                metadata=metadata,
+                projection=projection,
+                source_document_id=manifest_document.document_id,
+                raw_asset_record=resolved_hybrid_raw_asset_record,
+            )
             apply_authorization_projection_metadata(
                 metadata,
                 entitlement_groups=manifest_document.resolved_entitlement_groups(),
@@ -350,6 +459,12 @@ def build_handbook_projection_import_documents(
         )
         metadata = load_metadata_from_bytes(document_units_bytes)
         metadata["title"] = target_title
+        _apply_projection_lineage_metadata(
+            metadata=metadata,
+            projection=projection,
+            source_document_id=manifest_document.document_id,
+            raw_asset_record=raw_asset_record,
+        )
         apply_authorization_projection_metadata(
             metadata,
             entitlement_groups=manifest_document.resolved_entitlement_groups(),
@@ -393,10 +508,7 @@ def build_declared_projection_processed_keys(
     keys: list[str] = []
     year = _infer_year(source_pdf)
     for projection in config.projections:
-        if (
-            projection.target_corpus == config.source_corpus
-            and projection.target_collection == config.source_collection
-        ):
+        if _is_primary_source_projection(projection):
             continue
         document_id = build_projection_target_document_id(projection=projection)
         title = projection.target_title or projection.source_title
@@ -429,17 +541,42 @@ def build_declared_projection_processed_keys(
     return tuple(dict.fromkeys(keys))
 
 
+def _is_primary_source_projection(projection: HandbookSourceProjection) -> bool:
+    return projection.projection_family == "primary_documents"
+
+
 def build_projection_target_document_id(*, projection: HandbookSourceProjection) -> str:
     if projection.source_title is not None:
         legacy_document_id = build_handbook_projection_source_document_id(projection=projection)
-        return _build_campus_services_document_id(projection.target_collection, legacy_document_id)
+        return _build_projection_document_id(
+            projection.target_corpus,
+            projection.target_collection,
+            legacy_document_id,
+        )
     source_document_id = projection.derived_from_document_id or projection.parent_document_id
     if source_document_id:
-        return _build_campus_services_document_id(projection.target_collection, source_document_id)
+        return _build_projection_document_id(
+            projection.target_corpus,
+            projection.target_collection,
+            source_document_id,
+        )
     if projection.source_title is None:
         raise ValueError("projection source_title is required when source document id is absent")
     legacy_document_id = build_handbook_projection_source_document_id(projection=projection)
-    return _build_campus_services_document_id(projection.target_collection, legacy_document_id)
+    return _build_projection_document_id(
+        projection.target_corpus,
+        projection.target_collection,
+        legacy_document_id,
+    )
+
+
+def _has_source_selector(projection: HandbookSourceProjection) -> bool:
+    return (
+        projection.source_title is not None
+        or projection.source_handbook_section is not None
+        or projection.source_page_start is not None
+        or projection.source_page_end is not None
+    )
 
 
 def build_handbook_projection_source_document_id(*, projection: HandbookSourceProjection) -> str:
@@ -459,6 +596,11 @@ def _resolve_projection_source_document(
     manifest_by_document_id: dict[str, SplitManifestDocument],
     split_manifest_documents: tuple[SplitManifestDocument, ...],
 ) -> SplitManifestDocument | None:
+    if _has_source_selector(projection):
+        return _match_projection_source_document_from_selector(
+            projection=projection,
+            split_manifest_documents=split_manifest_documents,
+        )
     source_document_id = projection.derived_from_document_id or projection.parent_document_id
     if source_document_id:
         manifest_document = manifest_by_document_id.get(source_document_id)
@@ -583,6 +725,27 @@ def _build_handbook_derived_document_units_bytes(
     return ("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n").encode("utf-8")
 
 
+def _apply_projection_lineage_metadata(
+    *,
+    metadata: dict[str, object],
+    projection: HandbookSourceProjection,
+    source_document_id: str,
+    raw_asset_record: RawAssetRecord,
+) -> None:
+    metadata["projection_name"] = projection.projection_name
+    metadata["derived_from"] = projection.derived_from
+    metadata["derived_from_document_id"] = source_document_id
+    metadata["derived_from_raw_asset_id"] = raw_asset_record.raw_asset_id
+    metadata["derived_from_raw_version_id"] = raw_asset_record.raw_version_id
+    metadata["parent_document_id"] = projection.parent_document_id or source_document_id
+    if projection.attachment_kind is not None:
+        metadata["attachment_kind"] = projection.attachment_kind
+    if projection.attachment_role is not None:
+        metadata["attachment_role"] = projection.attachment_role
+    if projection.migration_reason is not None:
+        metadata["migration_reason"] = projection.migration_reason
+
+
 def _retitle_markdown_heading(body: str, old_title: str, new_title: str) -> str:
     content = body
     if content.startswith("---\n"):
@@ -629,11 +792,11 @@ def _format_front_matter_value(value: object) -> str:
     return text
 
 
-def _build_campus_services_document_id(collection: str, legacy_document_id: str) -> str:
+def _build_projection_document_id(corpus: str, collection: str, legacy_document_id: str) -> str:
     suffix = legacy_document_id.split(":")[-1].strip()
     if not suffix:
         raise ValueError("legacy_document_id suffix is required")
-    return f"campus_services:{collection}:{suffix}"
+    return f"{corpus}:{collection}:{suffix}"
 
 
 def _infer_year(value: str) -> str:

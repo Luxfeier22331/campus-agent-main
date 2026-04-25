@@ -1,0 +1,228 @@
+{
+	"schemaVersion": "handbook_curated_service_guide.v1",
+	"projectionName": "handbook_student_affairs_service_guide",
+	"targetDocumentId": "campus_services:service_catalog:student-affairs-services",
+	"sourceDocumentId": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+	"documentData": {
+		"title": "中央民族大学学生日常事务办理指南",
+		"sourceHandbookSection": "中央民族大学学生日常管理规定",
+		"sourcePageStart": 133,
+		"sourcePageEnd": 165,
+		"manualReviewRequired": false,
+		"extractionStatus": "ready",
+		"services": [
+			{
+				"serviceId": "service:handbook:student-card-replacement",
+				"displayName": "学生证补办办理指南",
+				"aliases": [
+					"学生证补办",
+					"学生证丢失",
+					"补办学生证",
+					"学生证损坏",
+					"补办学生证申请表",
+					"学生证集中补办"
+				],
+				"category": "student_affairs",
+				"campusScope": "all",
+				"audience": ["student"],
+				"sourceRefs": [
+					"handbook:student_rules:pages:163-165#page=164",
+					"handbook:student_rules:pages:163-165#page=165"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:handbook:student-card-replacement:section:overview",
+						"sectionType": "overview",
+						"title": "补办适用情形",
+						"content": "学生如将学生证遗失或损坏，应及时到学院（系）挂失，写明遗失或损坏的原因、时间、地点等，并报学生处备案。学生遗失学生证应及时申请补办；遗失或损坏的学生证原则上可以申请补办一次。",
+						"order": 1,
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					},
+					{
+						"sectionId": "service:handbook:student-card-replacement:section:procedure",
+						"sectionType": "procedure",
+						"title": "补办流程",
+						"content": "1. 到学院（系）挂失，写明遗失或损坏的原因、时间、地点等，并报学生处备案。\n2. 提出书面申请，并填写《中央民族大学补办学生证申请表》。\n3. 申请表经学院（系）领导审批，并在学生本人照片背面加盖骑缝章后，到学生处办理补办手续。\n4. 丢失的学生证在补办后又找到的，应交回学生处销毁。",
+						"order": 2,
+						"sourceRefs": [
+							"handbook:student_rules:pages:163-165#page=164",
+							"handbook:student_rules:pages:163-165#page=165"
+						]
+					},
+					{
+						"sectionId": "service:handbook:student-card-replacement:section:required-materials",
+						"sectionType": "required_materials",
+						"title": "补办材料",
+						"content": "补办学生证必须提出书面申请，填写《中央民族大学补办学生证申请表》，并按申请表要求在本人照片背面加盖骑缝章。",
+						"order": 3,
+						"sourceRefs": [
+							"handbook:student_rules:pages:163-165#page=164",
+							"handbook:student_rules:pages:163-165#page=165"
+						]
+					},
+					{
+						"sectionId": "service:handbook:student-card-replacement:section:office-hours",
+						"sectionType": "office_hours",
+						"title": "集中办理时间",
+						"content": "学生证集中补办时间为每周四下午。",
+						"order": 4,
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					},
+					{
+						"sectionId": "service:handbook:student-card-replacement:section:entry",
+						"sectionType": "entry",
+						"title": "办理入口",
+						"content": "学生证补办由学生处办理，学院（系）负责挂失、审批申请表并在照片背面加盖骑缝章。",
+						"order": 5,
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					}
+				],
+				"materials": [
+					{
+						"materialId": "service:handbook:student-card-replacement:material:written-application",
+						"name": "书面申请",
+						"required": true,
+						"note": "学生补办学生证必须提出书面申请。",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					},
+					{
+						"materialId": "service:handbook:student-card-replacement:material:replacement-form",
+						"name": "《中央民族大学补办学生证申请表》",
+						"required": true,
+						"note": "申请表须经学院（系）领导审批。",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					},
+					{
+						"materialId": "service:handbook:student-card-replacement:material:photo",
+						"name": "本人照片",
+						"required": true,
+						"note": "按申请表要求在照片背面加盖骑缝章。",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=165"]
+					}
+				],
+				"entryRefs": [
+					{
+						"entryId": "service:handbook:student-card-replacement:entry:college",
+						"label": "学院（系）",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					},
+					{
+						"entryId": "service:handbook:student-card-replacement:entry:student-affairs-office",
+						"label": "学生处",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					}
+				],
+				"officeHours": [
+					{
+						"hoursId": "service:handbook:student-card-replacement:hours:weekly-thursday-afternoon",
+						"label": "学生证集中补办时间",
+						"dayPattern": "每周四",
+						"timeRange": "每周四下午",
+						"effectiveNote": "学生证集中补办时间为每周四下午。",
+						"sourceRefs": ["handbook:student_rules:pages:163-165#page=164"]
+					}
+				],
+				"contactRefs": [],
+				"eligibilityNotes": ["遗失或损坏的学生证原则上可以申请补办一次。"],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			},
+			{
+				"serviceId": "service:handbook:student-appeal",
+				"displayName": "学生申诉办理指南",
+				"aliases": [
+					"学生申诉",
+					"处分申诉",
+					"处理决定申诉",
+					"书面申诉",
+					"申诉复查",
+					"学生申诉处理委员会"
+				],
+				"category": "student_appeal",
+				"campusScope": "all",
+				"audience": ["student"],
+				"sourceRefs": [
+					"handbook:student_rules:pages:133-137#page=134",
+					"handbook:student_rules:pages:133-137#page=135"
+				],
+				"guideSections": [
+					{
+						"sectionId": "service:handbook:student-appeal:section:overview",
+						"sectionType": "overview",
+						"title": "申诉范围与期限",
+						"content": "学生对学校作出涉及本人权益的相关处理或者处分决定有异议时，可以提请学校重新处理。学生对学校的同一处理或者处分决定只能提出一次申诉；对处理或者处分决定有异议的，可以在接到决定书之日起10日内提出书面申诉。",
+						"order": 1,
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					},
+					{
+						"sectionId": "service:handbook:student-appeal:section:procedure",
+						"sectionType": "procedure",
+						"title": "申诉受理流程",
+						"content": "1. 在接到学校处理或者处分决定书之日起10日内，向学校学生申诉处理委员会提出书面申诉。\n2. 向学校学生申诉处理委员会办公室递交书面申诉申请书，并附学校作出的相关处理或者处分决定通知书复印件。\n3. 学生申诉处理委员会办公室接到申请书后，应在5日内作出予以受理、退回重新提交申请或不予受理的处理。\n4. 予以受理后5日内，申诉材料提交学生申诉处理委员会复查；学生申诉处理委员会在接到书面申诉之日起15日内作出复查决定并告知申诉人，情况复杂时经批准可延长15日。",
+						"order": 2,
+						"sourceRefs": [
+							"handbook:student_rules:pages:133-137#page=134",
+							"handbook:student_rules:pages:133-137#page=135"
+						]
+					},
+					{
+						"sectionId": "service:handbook:student-appeal:section:required-materials",
+						"sectionType": "required_materials",
+						"title": "申诉材料",
+						"content": "申诉须递交书面申诉申请书，并附学校作出的相关处理或者处分决定通知书复印件。申诉申请书应写明申诉人的基本情况、申诉事项、理由及请求、申诉人本人签名和递交申诉申请的日期。",
+						"order": 3,
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					},
+					{
+						"sectionId": "service:handbook:student-appeal:section:entry",
+						"sectionType": "entry",
+						"title": "受理入口",
+						"content": "学生申诉由中央民族大学学生申诉处理委员会负责受理，学生申诉处理委员会办公室设在学生处。",
+						"order": 4,
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					}
+				],
+				"materials": [
+					{
+						"materialId": "service:handbook:student-appeal:material:appeal-application",
+						"name": "书面申诉申请书",
+						"required": true,
+						"note": "申请书应写明基本情况、申诉事项、理由及请求、本人签名和递交日期。",
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					},
+					{
+						"materialId": "service:handbook:student-appeal:material:decision-copy",
+						"name": "相关处理或者处分决定通知书复印件",
+						"required": true,
+						"note": "递交书面申诉申请书时需附学校作出的相关处理或者处分决定通知书复印件。",
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					}
+				],
+				"entryRefs": [
+					{
+						"entryId": "service:handbook:student-appeal:entry:appeal-committee-office",
+						"label": "学生申诉处理委员会办公室",
+						"entryType": "offline_location",
+						"url": "",
+						"locationRef": "",
+						"sourceRefs": ["handbook:student_rules:pages:133-137#page=134"]
+					}
+				],
+				"officeHours": [],
+				"contactRefs": [],
+				"eligibilityNotes": [
+					"学生对学校作出涉及本人权益的相关处理或者处分决定有异议时，可以提起申诉。",
+					"学生对学校的同一处理或者处分决定只能提出一次申诉。"
+				],
+				"extractionStatus": "ready",
+				"manualReviewNotes": []
+			}
+		]
+	}
+}

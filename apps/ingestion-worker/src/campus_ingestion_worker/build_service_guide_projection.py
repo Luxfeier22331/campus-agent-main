@@ -19,6 +19,7 @@ from campus_ingestion_core.service_guide_projection import (
     build_service_guide_projection_bundle_from_curated_service_guide,
     merge_service_guide_projection_build_results,
     write_service_guide_projection_release,
+    write_service_guide_projection_release_from_source_truth_manifest,
 )
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
@@ -41,11 +42,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--curated-flow-graph", action="append", default=[])
     parser.add_argument("--curated-service-guide", action="append", default=[])
+    parser.add_argument("--source-truth-manifest")
     parser.add_argument("--work-dir", required=True)
-    parser.add_argument("--release-id", required=True)
+    parser.add_argument("--release-id")
     parser.add_argument("--generated-at")
-    parser.add_argument("--effective-from", required=True)
-    parser.add_argument("--effective-until", required=True)
+    parser.add_argument("--effective-from")
+    parser.add_argument("--effective-until")
     parser.add_argument("--expected-ready-records", type=int)
     parser.add_argument("--derived-bucket")
     return parser
@@ -75,6 +77,35 @@ def build_service_guide_projection_release_from_curated_handbook_flow_graph(
         derived_bucket=derived_bucket,
         expected_ready_records=expected_ready_records,
     )
+
+
+def build_service_guide_projection_release_from_source_truth_manifest(
+    *,
+    source_truth_manifest_path: Path,
+    work_dir: Path,
+    generated_at: str,
+    object_store: _DerivedObjectStore,
+    derived_bucket: str,
+    release_id: str | None = None,
+):
+    work_dir.mkdir(parents=True, exist_ok=True)
+    report = write_service_guide_projection_release_from_source_truth_manifest(
+        source_truth_manifest_path=source_truth_manifest_path,
+        output_dir=work_dir,
+        generated_at=generated_at,
+        object_store=object_store,
+        bucket=derived_bucket,
+        release_id=release_id,
+    )
+    _write_json(
+        work_dir / "build-report.json",
+        {
+            **asdict(report),
+            "corpus": SERVICE_GUIDE_CORPUS,
+            "collection": SERVICE_GUIDE_COLLECTION,
+        },
+    )
+    return report
 
 
 def build_service_guide_projection_release_from_curated_sources(
@@ -153,18 +184,38 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
-    report = build_service_guide_projection_release_from_curated_sources(
-        curated_flow_graph_paths=[Path(path).resolve() for path in args.curated_flow_graph],
-        curated_service_guide_paths=[Path(path).resolve() for path in args.curated_service_guide],
-        work_dir=Path(args.work_dir).resolve(),
-        release_id=args.release_id,
-        generated_at=args.generated_at or _default_generated_at(),
-        effective_from=args.effective_from,
-        effective_until=args.effective_until,
-        object_store=object_store,
-        derived_bucket=args.derived_bucket or settings.bucket_derived,
-        expected_ready_records=args.expected_ready_records,
-    )
+    generated_at = args.generated_at or _default_generated_at()
+    if args.source_truth_manifest:
+        report = build_service_guide_projection_release_from_source_truth_manifest(
+            source_truth_manifest_path=Path(args.source_truth_manifest).resolve(),
+            work_dir=Path(args.work_dir).resolve(),
+            release_id=args.release_id,
+            generated_at=generated_at,
+            object_store=object_store,
+            derived_bucket=args.derived_bucket or settings.bucket_derived,
+        )
+    else:
+        if not args.release_id:
+            raise ValueError("--release-id is required when not using --source-truth-manifest")
+        if not args.effective_from or not args.effective_until:
+            raise ValueError(
+                "--effective-from and --effective-until are required when not using "
+                "--source-truth-manifest"
+            )
+        report = build_service_guide_projection_release_from_curated_sources(
+            curated_flow_graph_paths=[Path(path).resolve() for path in args.curated_flow_graph],
+            curated_service_guide_paths=[
+                Path(path).resolve() for path in args.curated_service_guide
+            ],
+            work_dir=Path(args.work_dir).resolve(),
+            release_id=args.release_id,
+            generated_at=generated_at,
+            effective_from=args.effective_from,
+            effective_until=args.effective_until,
+            object_store=object_store,
+            derived_bucket=args.derived_bucket or settings.bucket_derived,
+            expected_ready_records=args.expected_ready_records,
+        )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 
 
@@ -188,6 +239,7 @@ __all__ = [
     "build_parser",
     "build_service_guide_projection_release_from_curated_handbook_flow_graph",
     "build_service_guide_projection_release_from_curated_sources",
+    "build_service_guide_projection_release_from_source_truth_manifest",
     "main",
 ]
 

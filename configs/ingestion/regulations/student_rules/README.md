@@ -48,9 +48,35 @@ Non-regulation service/navigation pages are derived into the offline-only
 
 - `中央民族大学校内常用电话` -> `campus_services/contact_directory`
 - `中央民族大学学生公寓管理工作流程` -> `campus_services/service_catalog`
+- `中央民族大学补办学生证申请表` -> `regulations/student_rules` derived
+  form-template document
+- `中央民族大学国家助学金申请表` -> `regulations/student_rules` derived
+  tabular appendix document
+- `勤工助学岗位聘用流程` -> `campus_services/service_catalog` derived
+  navigation-leaf document
 - `中央民族大学学生公费医疗管理办法` -> curated
   `campus_services/service_guide` records under
   `curated-service-guides/central-minzu-student-public-medical.v1.json`
+- `中央民族大学学生申诉管理办法`、`中央民族大学本科(预科)学生证管理办法`、
+  `中央民族大学家庭经济困难学生临时困难补助管理办法`、
+  `中央民族大学本(预)科学生勤工助学管理办法` 与
+  `中央民族大学助学贷款管理暂行办法` -> curated
+  `campus_services/service_guide` records under the student affairs and
+  financial aid curated guide files
+
+The `campus_services/service_guide` structured current release is built from
+`configs/ingestion/campus_services/service_guide/source-truth.v1.json` after a
+successful handbook raw ingestion or provider-response replay. The manifest
+currently combines the curated student dormitory flow graph, public medical
+service guide, student affairs service guide, and financial aid service guide into
+  `campus_services/releases/service_guide/current/service-guide-projection.json`.
+
+`source-projections.v1.json` includes a `selector_coverage` release gate:
+concrete handbook-derived projections must use bounded source selectors, and
+wildcard families must either have a concrete selector or be explicitly marked
+deferred. The phone directory selector is locked to
+`campus_services/contact_directory`; service guide and service catalog may link
+to the resulting contact records but must not consume the phone page directly.
 
 The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with
 real document ranges before `process_raw_ingestion_job` runs with
