@@ -5,11 +5,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from threading import Lock
 
-from campus_contracts import ErrorInfo, SpecialistRequest, SupervisorRequest, SupervisorResponse
+from campus_contracts import ErrorInfo, SpecialistRequest, SpecialistResponse, SupervisorRequest
 from campus_supervisor_core import (
+    AgentDispatchError,
     ExecutionCancelledError,
-    SupervisorError,
-    handle_request,
+    dispatch_agent_request,
 )
 
 from campus_supervisor_core_worker.api_request_parsing import (
@@ -33,13 +33,13 @@ class HttpRoute:
     handler: Callable[[Mapping[str, str], dict[str, object] | None], HttpResponse]
 
 
-SupervisorHandler = Callable[
-    [SupervisorRequest],
-    SupervisorResponse,
+AgentHandler = Callable[
+    [SpecialistRequest],
+    SpecialistResponse,
 ]
-SupervisorEnvelopeHandler = Callable[
+AgentEnvelopeHandler = Callable[
     [SupervisorRequest, SpecialistRequest],
-    SupervisorResponse,
+    SpecialistResponse,
 ]
 RuntimeStatusProvider = Callable[[], Mapping[str, Mapping[str, object]]]
 
@@ -97,13 +97,13 @@ class ExecutionCancelRegistry:
 def build_bridge_routes(
     settings: ApiSettings,
     *,
-    supervisor_handler: SupervisorEnvelopeHandler | None = None,
+    agent_handler: AgentEnvelopeHandler | None = None,
     prompt_runtime: PromptRuntimeSettings | None = None,
     runtime_status_provider: RuntimeStatusProvider | None = None,
     cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> tuple[HttpRoute, ...]:
     runtime_cancel_registry = cancel_registry or ExecutionCancelRegistry()
-    runtime_supervisor_handler = supervisor_handler or _default_supervisor_envelope_handler
+    runtime_agent_handler = agent_handler or _default_agent_envelope_handler
     return (
         HttpRoute(
             "POST",
@@ -112,7 +112,7 @@ def build_bridge_routes(
                 headers,
                 body,
                 settings,
-                runtime_supervisor_handler,
+                runtime_agent_handler,
                 cancel_registry=runtime_cancel_registry,
             ),
         ),
@@ -144,21 +144,19 @@ def build_bridge_routes(
     )
 
 
-def _default_supervisor_envelope_handler(
+def _default_agent_envelope_handler(
     request: SupervisorRequest,
-    preplanned_specialist_request: SpecialistRequest,
-) -> SupervisorResponse:
-    return handle_request(
-        request,
-        preplanned_specialist_request=preplanned_specialist_request,
-    )
+    preplanned_agent_request: SpecialistRequest,
+) -> SpecialistResponse:
+    _ = request
+    return dispatch_agent_request(preplanned_agent_request)
 
 
 def handle_bridge_answer(
     headers: Mapping[str, str],
     body: dict[str, object] | None,
     settings: ApiSettings,
-    supervisor_handler: SupervisorEnvelopeHandler,
+    agent_handler: AgentEnvelopeHandler,
     *,
     cancel_registry: ExecutionCancelRegistry | None = None,
 ) -> HttpResponse:
@@ -176,8 +174,8 @@ def handle_bridge_answer(
             kind="bridge_invalid_request",
         )
     request = envelope.request
-    runtime_specialist_request = envelope.specialist_request
-    if runtime_specialist_request is None:
+    runtime_agent_request = envelope.agent_request
+    if runtime_agent_request is None:
         return _bridge_response(
             400,
             {
@@ -195,20 +193,20 @@ def handle_bridge_answer(
     runtime_cancel_registry.register(request)
     try:
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
-            raise ExecutionCancelledError("Supervisor execution was cancelled.")
-        response = supervisor_handler(
+            raise ExecutionCancelledError("Execution was cancelled.")
+        response = agent_handler(
             request,
-            runtime_specialist_request,
+            runtime_agent_request,
         )
         if runtime_cancel_registry.is_cancel_requested(request.request_id):
-            raise ExecutionCancelledError("Supervisor execution was cancelled.")
+            raise ExecutionCancelledError("Execution was cancelled.")
     except ExecutionCancelledError as exc:
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
             kind="supervisor_error",
         )
-    except SupervisorError as exc:
+    except AgentDispatchError as exc:
         return _bridge_response(
             exc.http_status_code,
             {"error": asdict(exc.to_error_info())},
@@ -217,7 +215,7 @@ def handle_bridge_answer(
     finally:
         runtime_cancel_registry.complete(request.request_id)
 
-    return _bridge_response(200, asdict(response), kind="supervisor_response")
+    return _bridge_response(200, asdict(response), kind="specialist_response")
 
 
 def handle_bridge_cancel(

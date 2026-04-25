@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from campus_contracts import EvidenceBundle, RagResultPayload, SupervisorResponse
-from campus_supervisor_core import DisallowedKnowledgeScopeError
+from campus_contracts import EvidenceBundle, RagResultPayload, SpecialistResponse
+from campus_supervisor_core import MissingAgentDelegateError
 from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.settings import ApiSettings
 
@@ -17,7 +17,8 @@ def _bridge_request_payload(
     trace_id: str = "trace-audit-001",
 ) -> dict[str, object]:
     return {
-        "bridge_version": "supervisor_bridge_v4",
+        "bridge_version": "supervisor_bridge_v5",
+        "response_contract": "specialist_response",
         "user_goal": user_goal,
         "conversation_id": "conv-audit-001",
         "request_id": request_id,
@@ -222,8 +223,8 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
                 ),
-                supervisor_handler=lambda request: SupervisorResponse(
-                    selected_target="rag-agent",
+                agent_handler=lambda request: SpecialistResponse(
+                    target=request.target,
                     status="completed",
                     answer_text="按当前投影处理完成。",
                     confidence="high",
@@ -256,10 +257,8 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
                 ),
-                supervisor_handler=lambda request: (_ for _ in ()).throw(
-                    DisallowedKnowledgeScopeError(
-                        "knowledge scope curriculum/curriculum_plan is not query-enabled"
-                    )
+                agent_handler=lambda request: (_ for _ in ()).throw(
+                    MissingAgentDelegateError("missing delegate for agent target: rag-agent")
                 ),
             )
 
@@ -274,7 +273,7 @@ class SupervisorApiAuditTest(unittest.TestCase):
                 ),
             )
 
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 500)
             self.assertTrue(app.flush_audit(timeout_seconds=1.0))
             self.assertFalse(audit_path.exists())
             app.close()
@@ -290,8 +289,8 @@ class SupervisorApiAuditTest(unittest.TestCase):
                     supervisor_prompt_model="gpt-supervisor",
                     specialist_prompt_model="gpt-specialist",
                 ),
-                supervisor_handler=lambda request: SupervisorResponse(
-                    selected_target="rag-agent",
+                agent_handler=lambda request: SpecialistResponse(
+                    target=request.target,
                     status="completed",
                     answer_text="The library is open from 08:00 to 22:00.",
                     confidence="high",

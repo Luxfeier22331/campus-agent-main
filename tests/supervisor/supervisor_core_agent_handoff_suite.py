@@ -11,10 +11,9 @@ from campus_contracts import (
     ServiceStatusLookupResult,
     SpecialistRequest,
     SpecialistResponse,
-    SupervisorRequest,
     TemporalQuery,
 )
-from campus_supervisor_core import handle_request, handle_specialist_request
+from campus_supervisor_core import dispatch_agent_request
 
 
 def _make_rag_completed_response() -> SpecialistResponse:
@@ -81,8 +80,10 @@ def _make_curriculum_course_facts_response() -> SpecialistResponse:
     )
 
 
-class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
-    def test_handle_request_preserves_structured_runtime_handoff_allowed_tools(self) -> None:
+class SupervisorCoreAgentHandoffTest(unittest.TestCase):
+    def test_dispatch_agent_request_preserves_structured_runtime_handoff_allowed_tools(
+        self,
+    ) -> None:
         captured_requests: list[SpecialistRequest] = []
 
         def fake_campus_services_agent(request: SpecialistRequest) -> SpecialistResponse:
@@ -103,16 +104,9 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
                 ),
             )
 
-        supervisor_request = SupervisorRequest(
-            user_goal="图书馆今天开门吗",
-            requested_capability="campus_services",
-        )
-        specialist_request = SpecialistRequest(
+        agent_request = SpecialistRequest(
             target="campus-services-agent",
-            user_goal=supervisor_request.user_goal,
-            trace=supervisor_request.trace,
-            actor=supervisor_request.actor,
-            context=supervisor_request.context,
+            user_goal="图书馆今天开门吗",
             payload=ServiceStatusLookupPayload(
                 subject_query="图书馆今天开门吗",
                 temporal_query=TemporalQuery(mode="current"),
@@ -121,10 +115,9 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
             allowed_tools=("service_status_lookup",),
         )
 
-        response = handle_request(
-            supervisor_request,
-            specialist_delegates={"campus-services-agent": fake_campus_services_agent},
-            preplanned_specialist_request=specialist_request,
+        response = dispatch_agent_request(
+            agent_request,
+            agent_delegates={"campus-services-agent": fake_campus_services_agent},
         )
 
         self.assertEqual(len(captured_requests), 1)
@@ -138,11 +131,11 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
                 campus_scope="haidian",
             ),
         )
-        self.assertEqual(response.selected_target, "campus-services-agent")
+        self.assertEqual(response.target, "campus-services-agent")
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "open")
 
-    def test_handle_specialist_request_delegates_go_preplanned_tool_policy(self) -> None:
+    def test_dispatch_agent_request_delegates_go_preplanned_tool_policy(self) -> None:
         request = SpecialistRequest(
             target="notice-agent",
             user_goal="帮我找校历通知",
@@ -154,9 +147,9 @@ class SupervisorCoreSpecialistPolicyTest(unittest.TestCase):
         )
         captured_requests: list[SpecialistRequest] = []
 
-        response = handle_specialist_request(
+        response = dispatch_agent_request(
             request,
-            specialist_delegates={
+            agent_delegates={
                 "notice-agent": lambda inner_request: (
                     captured_requests.append(inner_request)
                     or SpecialistResponse(

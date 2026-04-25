@@ -4,14 +4,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 import httpx
+from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
+from campus_rag_agent.service import delegate_to_rag_agent
 from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
 from campus_shared import (
     PromptRuntimeHTTPSettings,
     PromptRuntimeProviderConfig,
     build_prompt_runtime_http_client,
 )
-from campus_supervisor_core import ExecutionCancelledError, SupervisorAgent, handle_request
+from campus_supervisor_core import (
+    AgentDelegate,
+    ExecutionCancelledError,
+    dispatch_agent_request,
+)
 
 from campus_supervisor_core_worker.api import (
     ExecutionCancelRegistry,
@@ -100,18 +106,18 @@ class SupervisorApiApp:
 def create_bridge_app(
     *,
     settings: ApiSettings | None = None,
-    supervisor_handler=handle_request,
+    agent_handler=dispatch_agent_request,
 ) -> SupervisorApiApp:
     return _create_runtime_app(
         settings=settings,
-        supervisor_handler=supervisor_handler,
+        agent_handler=agent_handler,
     )
 
 
 def _create_runtime_app(
     *,
     settings: ApiSettings | None = None,
-    supervisor_handler=handle_request,
+    agent_handler=dispatch_agent_request,
 ) -> SupervisorApiApp:
     runtime_settings = settings or ApiSettings.from_env()
     (
@@ -120,15 +126,15 @@ def _create_runtime_app(
         rag_prompt_executor,
     ) = _build_prompt_runtime_assets(runtime_settings)
     cancel_registry = ExecutionCancelRegistry()
-    bound_supervisor_handler = _bind_supervisor_handler(
+    bound_agent_handler = _bind_agent_handler(
         runtime_settings,
-        supervisor_handler=supervisor_handler,
+        agent_handler=agent_handler,
         rag_prompt_executor=rag_prompt_executor,
         cancel_registry=cancel_registry,
     )
     routes = build_bridge_routes(
         runtime_settings,
-        supervisor_handler=bound_supervisor_handler,
+        agent_handler=bound_agent_handler,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
@@ -150,76 +156,73 @@ def _create_runtime_app(
     )
 
 
-def _bind_supervisor_handler(
+def _bind_agent_handler(
     settings: ApiSettings,
     *,
-    supervisor_handler,
+    agent_handler,
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
     cancel_registry: ExecutionCancelRegistry,
 ):
-    if supervisor_handler is not handle_request:
-        return _wrap_with_cancel_checks(supervisor_handler, cancel_registry)
+    if agent_handler is not dispatch_agent_request:
+        return _wrap_with_cancel_checks(agent_handler, cancel_registry)
     campus_services_query_service = _build_campus_services_query_service(settings)
     notice_query_service = _build_notice_query_service(settings)
-    if campus_services_query_service is not None or notice_query_service is not None:
+    agent_delegates = _build_agent_delegates(
+        rag_prompt_executor=rag_prompt_executor,
+        campus_services_query_service=campus_services_query_service,
+        notice_query_service=notice_query_service,
+    )
 
-        def handle_with_structured_query_services(
-            request,
-            preplanned_specialist_request,
-        ):
-            agent = SupervisorAgent(
-                rag_prompt_executor=rag_prompt_executor,
-                cancellation_checker=lambda: cancel_registry.is_cancel_requested(
-                    request.request_id
-                ),
-                preplanned_specialist_request=preplanned_specialist_request,
-            )
-            assert agent.specialist_delegates is not None
-            if campus_services_query_service is not None:
-                agent.specialist_delegates["campus-services-agent"] = lambda specialist_request: (
-                    delegate_to_campus_services_agent(
-                        specialist_request,
-                        query_service=campus_services_query_service,
-                    )
-                )
-            if notice_query_service is not None:
-                agent.specialist_delegates["notice-agent"] = lambda specialist_request: (
-                    delegate_to_notice_agent(
-                        specialist_request,
-                        query_service=notice_query_service,
-                    )
-                )
-            return agent.handle(request)
-
-        return handle_with_structured_query_services
-    if rag_prompt_executor is not None:
-        return lambda request, preplanned_specialist_request: handle_request(
-            request,
-            rag_prompt_executor=rag_prompt_executor,
-            cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
-            preplanned_specialist_request=preplanned_specialist_request,
-        )
-    return lambda request, preplanned_specialist_request: handle_request(
-        request,
+    return lambda request, preplanned_agent_request: dispatch_agent_request(
+        preplanned_agent_request,
+        agent_delegates=agent_delegates,
         cancellation_checker=lambda: cancel_registry.is_cancel_requested(request.request_id),
-        preplanned_specialist_request=preplanned_specialist_request,
     )
 
 
-def _wrap_with_cancel_checks(supervisor_handler, cancel_registry: ExecutionCancelRegistry):
-    def guarded_supervisor_handler(
+def _build_agent_delegates(
+    *,
+    rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
+    campus_services_query_service: CampusServicesHTTPQueryService | None,
+    notice_query_service: NoticeHTTPQueryService | None,
+) -> dict[str, AgentDelegate]:
+    agent_delegates: dict[str, AgentDelegate] = {
+        "rag-agent": lambda agent_request: delegate_to_rag_agent(
+            agent_request,
+            prompt_executor=rag_prompt_executor,
+        ),
+        "navigation-agent": delegate_to_navigation_agent,
+        "campus-services-agent": delegate_to_campus_services_agent,
+        "notice-agent": delegate_to_notice_agent,
+    }
+    if campus_services_query_service is not None:
+        agent_delegates["campus-services-agent"] = lambda agent_request: (
+            delegate_to_campus_services_agent(
+                agent_request,
+                query_service=campus_services_query_service,
+            )
+        )
+    if notice_query_service is not None:
+        agent_delegates["notice-agent"] = lambda agent_request: delegate_to_notice_agent(
+            agent_request,
+            query_service=notice_query_service,
+        )
+    return agent_delegates
+
+
+def _wrap_with_cancel_checks(agent_handler, cancel_registry: ExecutionCancelRegistry):
+    def guarded_agent_handler(
         request,
-        preplanned_specialist_request,
+        preplanned_agent_request,
     ):
-        _ = preplanned_specialist_request
         if cancel_registry.is_cancel_requested(request.request_id):
-            raise ExecutionCancelledError("Supervisor execution was cancelled.")
-        response = supervisor_handler(request)
+            raise ExecutionCancelledError("Execution was cancelled.")
+        response = agent_handler(preplanned_agent_request)
         if cancel_registry.is_cancel_requested(request.request_id):
-            raise ExecutionCancelledError("Supervisor execution was cancelled.")
+            raise ExecutionCancelledError("Execution was cancelled.")
         return response
 
-    return guarded_supervisor_handler
+    return guarded_agent_handler
 
 
 def _build_campus_services_query_service(

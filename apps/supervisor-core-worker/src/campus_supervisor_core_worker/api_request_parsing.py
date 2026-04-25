@@ -31,7 +31,7 @@ from campus_contracts import (
 @dataclass(frozen=True, slots=True)
 class BridgeSupervisorEnvelope:
     request: SupervisorRequest
-    specialist_request: SpecialistRequest | None = None
+    agent_request: SpecialistRequest | None = None
 
 
 def _parse_bridge_supervisor_request(payload: dict[str, object]) -> SupervisorRequest:
@@ -40,6 +40,7 @@ def _parse_bridge_supervisor_request(payload: dict[str, object]) -> SupervisorRe
 
 def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSupervisorEnvelope:
     _require_bridge_version(payload.get("bridge_version"))
+    _require_response_contract(payload.get("response_contract"))
     effective_capability = _parse_effective_capability(payload)
     lane = _require_string(payload.get("lane"), field_name="lane")
     request = SupervisorRequest(
@@ -56,7 +57,7 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
             _require_object(payload.get("version_query"), field_name="version_query")
         ),
     )
-    runtime_specialist_request = _parse_runtime_decisions(
+    runtime_agent_request = _parse_runtime_decisions(
         payload.get("runtime_decisions"),
         effective_capability=effective_capability,
         lane=lane,
@@ -64,14 +65,20 @@ def _parse_bridge_supervisor_envelope(payload: dict[str, object]) -> BridgeSuper
     )
     return BridgeSupervisorEnvelope(
         request=request,
-        specialist_request=runtime_specialist_request,
+        agent_request=runtime_agent_request,
     )
 
 
 def _require_bridge_version(raw_version: object) -> None:
     bridge_version = _require_string(raw_version, field_name="bridge_version")
-    if bridge_version != "supervisor_bridge_v4":
-        raise ValueError("bridge_version must be supervisor_bridge_v4")
+    if bridge_version != "supervisor_bridge_v5":
+        raise ValueError("bridge_version must be supervisor_bridge_v5")
+
+
+def _require_response_contract(raw_contract: object) -> None:
+    response_contract = _require_string(raw_contract, field_name="response_contract")
+    if response_contract != "specialist_response":
+        raise ValueError("response_contract must be specialist_response")
 
 
 def _parse_effective_capability(payload: dict[str, object]) -> str:
@@ -127,13 +134,13 @@ def _parse_runtime_decisions(
         handoff.get("allowed_tools"),
         field_name="runtime_decisions.handoff.allowed_tools",
     )
-    specialist_request = _parse_specialist_request(
+    agent_request = _parse_agent_handoff_request(
         handoff.get("specialist_request"),
         expected_target=target,
         expected_allowed_tools=allowed_tools,
     )
-    _assert_specialist_request_matches_supervisor_request(specialist_request, request)
-    return specialist_request
+    _assert_agent_request_matches_supervisor_request(agent_request, request)
+    return agent_request
 
 
 def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> str:
@@ -177,7 +184,7 @@ def _parse_routing_frame(raw_frame: object, *, effective_capability: str) -> str
     return suggested_next_action
 
 
-def _parse_specialist_request(
+def _parse_agent_handoff_request(
     raw_request: object,
     *,
     expected_target: str,
@@ -236,31 +243,31 @@ def _parse_specialist_request(
     )
 
 
-def _assert_specialist_request_matches_supervisor_request(
-    specialist_request: SpecialistRequest,
+def _assert_agent_request_matches_supervisor_request(
+    agent_request: SpecialistRequest,
     request: SupervisorRequest,
 ) -> None:
-    if specialist_request.user_goal != request.user_goal:
+    if agent_request.user_goal != request.user_goal:
         raise ValueError(
             "runtime_decisions.handoff.specialist_request.user_goal must match user_goal"
         )
-    if specialist_request.conversation_id != request.conversation_id:
+    if agent_request.conversation_id != request.conversation_id:
         raise ValueError(
             "runtime_decisions.handoff.specialist_request.conversation_id must match conversation_id"
         )
-    if specialist_request.request_id != request.request_id:
+    if agent_request.request_id != request.request_id:
         raise ValueError(
             "runtime_decisions.handoff.specialist_request.request_id must match request_id"
         )
-    if specialist_request.safety_identifier != request.safety_identifier:
+    if agent_request.safety_identifier != request.safety_identifier:
         raise ValueError(
             "runtime_decisions.handoff.specialist_request.safety_identifier must match safety_identifier"
         )
-    if specialist_request.trace.trace_id != request.trace.trace_id:
+    if agent_request.trace.trace_id != request.trace.trace_id:
         raise ValueError(
             "runtime_decisions.handoff.specialist_request.trace.trace_id must match trace.trace_id"
         )
-    if specialist_request.context != request.context:
+    if agent_request.context != request.context:
         raise ValueError("runtime_decisions.handoff.specialist_request.context must match context")
 
 

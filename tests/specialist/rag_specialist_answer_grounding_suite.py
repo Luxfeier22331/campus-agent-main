@@ -19,7 +19,6 @@ from tests.specialist.rag_specialist_test_support import (
     _make_evidence,
     _make_handbook_source,
     _resolved_scope_diagnostics,
-    build_supervisor_observability_from_specialist_response,
     delegate_to_rag_agent,
     unittest,
 )
@@ -400,10 +399,8 @@ class RagSpecialistAnswerGroundingTest(unittest.TestCase):
             tuple(source.chunk_id for source in response.result.diagnostics.retrieved_sources),
             ("handbook:student-card:source-faithful:v1:student-card-reissue",),
         )
-        observability = build_supervisor_observability_from_specialist_response(response)
-        self.assertEqual(observability.candidate_count, 1)
-        self.assertEqual(observability.retrieved_source_count, 1)
-        self.assertEqual(observability.citation_count, 1)
+        self.assertEqual(len(response.result.diagnostics.retrieved_sources), 1)
+        self.assertEqual(len(response.result.evidence.sources), 1)
         self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
         self.assertEqual(
             response.result.diagnostics.retrieval_plan_summary.plan_id,

@@ -8,24 +8,22 @@ from campus_contracts import (
     RagRequestPayload,
     SpecialistRequest,
     SpecialistResponse,
-    SupervisorRequest,
 )
-from campus_supervisor_core import handle_request
+from campus_supervisor_core import dispatch_agent_request
 
 
 class SupervisorCorePromptExecutionTest(unittest.TestCase):
-    def test_handle_request_preserves_error_response_fields(self) -> None:
-        request = SupervisorRequest(
+    def test_dispatch_agent_request_preserves_error_response_fields(self) -> None:
+        request = SpecialistRequest(
+            target="rag-agent",
             user_goal="library map",
-            requested_capability="knowledge",
-            requested_scope=KnowledgeScope(
-                corpus="regulations",
-                collection="student_rules",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
             ),
         )
-        response = handle_request(
+        response = dispatch_agent_request(
             request,
-            specialist_delegates={
+            agent_delegates={
                 "rag-agent": lambda _request: SpecialistResponse(
                     target="rag-agent",
                     status="error",
@@ -39,19 +37,9 @@ class SupervisorCorePromptExecutionTest(unittest.TestCase):
                     ),
                 )
             },
-            preplanned_specialist_request=SpecialistRequest(
-                target="rag-agent",
-                user_goal=request.user_goal,
-                trace=request.trace,
-                actor=request.actor,
-                context=request.context,
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
-                ),
-            ),
         )
 
-        self.assertEqual(response.selected_target, "rag-agent")
+        self.assertEqual(response.target, "rag-agent")
         self.assertEqual(response.status, "error")
         self.assertEqual(response.answer_text, "retrieval failed while checking the handbook.")
         self.assertEqual(response.follow_up_question, "Try again later?")

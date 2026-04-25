@@ -3,8 +3,8 @@ from __future__ import annotations
 from campus_contracts import ErrorInfo
 
 
-class SupervisorError(ValueError):
-    error_code = "supervisor_error"
+class AgentDispatchError(ValueError):
+    error_code = "agent_dispatch_error"
     http_status_code = 500
     retryable = False
 
@@ -20,25 +20,11 @@ class SupervisorError(ValueError):
         )
 
 
-class InvalidSupervisorRequestError(SupervisorError):
-    error_code = "invalid_supervisor_request"
-    http_status_code = 400
-
-
-class MissingRoutingInputError(InvalidSupervisorRequestError):
-    error_code = "missing_routing_input"
-
-
-class ExecutionCancelledError(SupervisorError):
+class ExecutionCancelledError(AgentDispatchError):
     error_code = "execution_cancelled"
     http_status_code = 499
 
 
-class DisallowedKnowledgeScopeError(SupervisorError):
-    error_code = "disallowed_knowledge_scope"
-    http_status_code = 403
-
-
-class MissingSpecialistDelegateError(SupervisorError):
-    error_code = "missing_specialist_delegate"
+class MissingAgentDelegateError(AgentDispatchError):
+    error_code = "missing_agent_delegate"
     http_status_code = 500

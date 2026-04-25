@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 
 from campus_shared import load_repo_env
-from campus_supervisor_core import handle_request
+from campus_supervisor_core import dispatch_agent_request
 
 from campus_supervisor_core_worker.app import create_bridge_app
 from campus_supervisor_core_worker.asgi import SupervisorBridgeAsgiApp
@@ -29,7 +29,7 @@ def serve(
     host: str | None = None,
     port: int | None = None,
     settings: ApiSettings | None = None,
-    supervisor_handler=handle_request,
+    agent_handler=dispatch_agent_request,
 ) -> None:
     import uvicorn
 
@@ -37,7 +37,7 @@ def serve(
     server_settings = BridgeServerSettings.from_env()
     resolved_host = host or server_settings.host
     resolved_port = port or server_settings.port
-    app = create_bridge_app(settings=runtime_settings, supervisor_handler=supervisor_handler)
+    app = create_bridge_app(settings=runtime_settings, agent_handler=agent_handler)
     asgi_app = SupervisorBridgeAsgiApp(
         app,
         max_workers=runtime_settings.bridge_worker_threads,

@@ -61,9 +61,6 @@ from campus_shared import (
     NormalizedProviderGroundingSupport,
     PromptRuntimeValidationError,
 )
-from campus_supervisor_core.response import (
-    build_supervisor_observability_from_specialist_response,
-)
 
 
 def _rag_prompt_trace(prompt_id: str) -> PromptTrace:
@@ -438,7 +435,6 @@ __all__ = (
     "_resolved_scope_diagnostics",
     "_select_answer_support_rows",
     "build_curriculum_program_semester_fact_document_id",
-    "build_supervisor_observability_from_specialist_response",
     "delegate_to_rag_agent",
     "derive_confidence",
     "frame_rag_intent",

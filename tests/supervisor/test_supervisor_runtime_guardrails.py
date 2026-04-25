@@ -38,25 +38,44 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertNotIn("routing_frame", source)
                 self.assertNotIn("supervisor_bridge_v2", source)
 
-    def test_supervisor_agent_does_not_fallback_to_python_routing(self) -> None:
-        agent_source = (SUPERVISOR_CORE / "agent.py").read_text(encoding="utf-8")
+    def test_agent_dispatcher_does_not_fallback_to_python_routing(self) -> None:
+        dispatcher_source = (SUPERVISOR_CORE / "dispatcher.py").read_text(encoding="utf-8")
 
-        self.assertNotIn("route_request", agent_source)
-        self.assertNotIn("frame_specialist_request", agent_source)
-        self.assertNotIn("RoutingDecision", agent_source)
-        self.assertNotIn("preplanned_routing_decision", agent_source)
-        self.assertNotIn("finalize_routing_decision", agent_source)
-        self.assertIn("preplanned specialist request is required", agent_source)
+        self.assertNotIn("route_request", dispatcher_source)
+        self.assertNotIn("frame_specialist_request", dispatcher_source)
+        self.assertNotIn("RoutingDecision", dispatcher_source)
+        self.assertNotIn("preplanned_routing_decision", dispatcher_source)
+        self.assertNotIn("finalize_routing_decision", dispatcher_source)
+        self.assertIn("class AgentDispatcher", dispatcher_source)
+        self.assertNotIn("def handle(", dispatcher_source)
+
+    def test_supervisor_core_no_longer_imports_agent_packages(self) -> None:
+        forbidden_fragments = (
+            "campus_rag_agent",
+            "campus_navigation_agent",
+            "campus_services_agent",
+            "campus_notice_agent",
+        )
+        for path in SUPERVISOR_CORE.rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                for fragment in forbidden_fragments:
+                    self.assertNotIn(fragment, source)
+
+    def test_supervisor_core_legacy_agent_entrypoint_is_deleted(self) -> None:
+        self.assertFalse((SUPERVISOR_CORE / "agent.py").exists())
 
     def test_supervisor_framing_helper_is_deleted_from_production_core(self) -> None:
         self.assertFalse((SUPERVISOR_CORE / "framing.py").exists())
 
-    def test_bridge_parser_is_v4_only_and_requires_go_runtime_handoff(
+    def test_bridge_parser_is_v5_only_and_requires_go_runtime_handoff(
         self,
     ) -> None:
         parser_source = BRIDGE_PARSER.read_text(encoding="utf-8")
 
-        self.assertIn('"supervisor_bridge_v4"', parser_source)
+        self.assertIn('"supervisor_bridge_v5"', parser_source)
+        self.assertIn('"specialist_response"', parser_source)
+        self.assertNotIn('"supervisor_bridge_v4"', parser_source)
         self.assertNotIn('"supervisor_bridge_v3"', parser_source)
         self.assertNotIn('"supervisor_bridge_v2"', parser_source)
         self.assertIn("runtime_decisions.routing_frame", parser_source)
@@ -66,6 +85,35 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
         self.assertNotIn("RoutingDecision", parser_source)
         self.assertNotIn("runtime_decisions.handoff.specialist_payload", parser_source)
         self.assertNotIn("legacy", parser_source.casefold())
+
+    def test_worker_internal_agent_handoff_names_do_not_use_specialist_aliases(self) -> None:
+        forbidden_fragments_by_path = {
+            WORKER_CORE / "api.py": (
+                "preplanned_specialist_request",
+                "runtime_specialist_request",
+            ),
+            WORKER_CORE / "api_request_parsing.py": (
+                "runtime_specialist_request",
+                "def _parse_specialist_request",
+                "def _assert_specialist_request_matches_supervisor_request",
+            ),
+            WORKER_CORE / "app.py": (
+                "preplanned_specialist_request",
+                "specialist_request:",
+                "lambda specialist_request",
+            ),
+        }
+        for path, forbidden_fragments in forbidden_fragments_by_path.items():
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                for fragment in forbidden_fragments:
+                    self.assertNotIn(fragment, source)
+
+    def test_supervisor_agent_handoff_suite_replaces_specialist_policy_suite(self) -> None:
+        self.assertFalse(
+            Path("tests/supervisor/supervisor_core_specialist_policy_suite.py").exists()
+        )
+        self.assertTrue(Path("tests/supervisor/supervisor_core_agent_handoff_suite.py").exists())
 
     def test_supervisor_core_public_api_has_no_runtime_routing_or_audit_sink(self) -> None:
         init_source = (SUPERVISOR_CORE / "__init__.py").read_text(encoding="utf-8")
@@ -117,10 +165,26 @@ class SupervisorRuntimeGuardrailTest(unittest.TestCase):
                 self.assertFalse(path.exists())
 
     def test_supervisor_response_has_no_legacy_intent_observability_helper(self) -> None:
-        response_source = (SUPERVISOR_CORE / "response.py").read_text(encoding="utf-8")
+        self.assertFalse((SUPERVISOR_CORE / "response.py").exists())
 
-        self.assertNotIn("attach_intent_observability", response_source)
-        self.assertNotIn("intent_frame", response_source)
+    def test_supervisor_core_finalization_helpers_are_deleted(self) -> None:
+        self.assertFalse((SUPERVISOR_CORE / "policy.py").exists())
+        for path in SUPERVISOR_CORE.rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(path=str(path)):
+                self.assertNotIn("SupervisorResponse", source)
+                self.assertNotIn("finalize_specialist_response", source)
+                self.assertNotIn("assemble_response", source)
+                self.assertNotIn("build_supervisor_observability", source)
+                self.assertNotIn("def handle_request", source)
+                self.assertNotIn(" handle_request(", source)
+                self.assertNotIn("SupervisorAgent", source)
+                self.assertNotIn("handle_specialist_request", source)
+                self.assertNotIn("SpecialistDelegate", source)
+                self.assertNotIn("MissingSpecialistDelegateError", source)
+                self.assertNotIn("InvalidSupervisorRequestError", source)
+                self.assertNotIn("DisallowedKnowledgeScopeError", source)
+                self.assertNotIn("SupervisorError", source)
 
     def test_python_bridge_does_not_publish_cancel_runtime_counters(self) -> None:
         api_source = Path(
