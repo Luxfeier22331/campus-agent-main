@@ -11,7 +11,7 @@
 		"family_report_path": ".tmp/reports/run14-notice-family-report-tightened.json",
 		"attachment_analysis_path": ".tmp/historical-intake/run14-attachment-routing-probe/donor-attachment-routing-analysis.json",
 		"selection_notes": [
-			"covers stable text_extractable and reference_only routes, plus operational schedule/guide images that now route to manual_review_required after context-aware inline-image classification",
+			"covers stable text_extractable and reference_only routes, plus operational schedule/guide images that now route to multimodal_processing_required after context-aware inline-image classification",
 			"keeps the second intake batch small enough for local-only normalization and bootstrap smoke acceptance",
 			"does not claim stable ocr_required coverage because the current donor snapshot's candidate images in this batch are low-value operational guide images and should stay out of OCR"
 		]
@@ -21,7 +21,7 @@
 		"text_extractable": 1,
 		"ocr_required": 0,
 		"reference_only": 1,
-		"manual_review_required": 5
+		"multimodal_processing_required": 5
 	},
 	"selected_notice_ids": ["355119", "354862", "354192", "351118"],
 	"notices": [
@@ -51,9 +51,9 @@
 			"family": "operational_procedure",
 			"decision": "include",
 			"expected_attachment_routes": {
-				"manual_review_required": 2
+				"multimodal_processing_required": 2
 			},
-			"reason": "two inline schedule/process guide images are low-value operational guide images and should remain manual_review_required instead of consuming OCR budget"
+			"reason": "two inline schedule/process guide images are low-value operational guide images and should remain multimodal_processing_required instead of consuming OCR budget"
 		},
 		{
 			"notice_id": "351118",
@@ -61,9 +61,9 @@
 			"family": "operational_procedure",
 			"decision": "include",
 			"expected_attachment_routes": {
-				"manual_review_required": 3
+				"multimodal_processing_required": 3
 			},
-			"reason": "three inline schedule/operation guide images should stay in manual_review_required rather than being treated as OCR candidates"
+			"reason": "three inline schedule/operation guide images should stay in multimodal_processing_required rather than being treated as OCR candidates"
 		}
 	],
 	"excluded_examples": [

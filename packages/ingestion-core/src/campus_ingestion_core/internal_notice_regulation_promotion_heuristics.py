@@ -254,7 +254,11 @@ def _is_wrapper_leading_line(
         keyword in normalized for keyword in ("印发", "发布", "修订")
     ):
         return True
-    return bool(regulation_title_normalized and regulation_title_normalized in normalized and any(keyword in normalized for keyword in ("印发", "发布", "修订", "通知如下")))
+    return bool(
+        regulation_title_normalized
+        and regulation_title_normalized in normalized
+        and any(keyword in normalized for keyword in ("印发", "发布", "修订", "通知如下"))
+    )
 
 
 def _is_wrapper_trailing_line(line: str) -> bool:
@@ -267,7 +271,13 @@ def _is_wrapper_trailing_line(line: str) -> bool:
         return True
     if shared._DATE_RE.fullmatch(normalized) is not None:
         return True
-    return bool(len(normalized) <= 24 and any(keyword in normalized for keyword in ("中央民族大学", "处", "部", "学院", "中心", "办公室")))
+    return bool(
+        len(normalized) <= 24
+        and any(
+            keyword in normalized
+            for keyword in ("中央民族大学", "处", "部", "学院", "中心", "办公室")
+        )
+    )
 
 
 def _is_document_number_line(line: str) -> bool:
@@ -526,12 +536,18 @@ def _classify_document(
         )
         if _looks_like_draft_document(combined_text):
             reasons.append("draft_signal_detected")
-            return ("manual_promotion_review", "manual_review_required")
+            return (
+                shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+                shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+            )
         if _looks_like_annual_cycle_or_program_rule(combined_text):
             reasons.append("annual_cycle_or_program_rule_detected")
         if _looks_like_operational_scheme(combined_text):
             reasons.append("operational_scheme_signal_detected")
-            return ("manual_promotion_review", "manual_review_required")
+            return (
+                shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+                shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+            )
         if _looks_like_time_bound_operational_rule(combined_text):
             reasons.append("time_bound_operational_rule_detected")
         has_promotable_attachment = (
@@ -564,20 +580,32 @@ def _classify_document(
             title_signal_text
         ):
             reasons.append("regulation_like_parent_body_needs_review")
-            return ("manual_promotion_review", "manual_review_required")
+            return (
+                shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+                shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+            )
         return ("wrapper_notice_only", routing.default_action)
 
     if input_lane not in set(routing.accepted_input_lanes):
         reasons.append("input_lane_not_admitted")
-        return ("manual_promotion_review", "manual_review_required")
+        return (
+            shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+            shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+        )
     if _looks_like_draft_document(combined_text):
         reasons.append("draft_signal_detected")
-        return ("manual_promotion_review", "manual_review_required")
+        return (
+            shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+            shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+        )
     if _looks_like_annual_cycle_or_program_rule(combined_text):
         reasons.append("annual_cycle_or_program_rule_detected")
     if _looks_like_operational_scheme(combined_text):
         reasons.append("operational_scheme_signal_detected")
-        return ("manual_promotion_review", "manual_review_required")
+        return (
+            shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+            shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+        )
     if _looks_like_time_bound_operational_rule(combined_text):
         reasons.append("time_bound_operational_rule_detected")
     if _looks_like_formal_regulation(combined_text):
@@ -587,4 +615,7 @@ def _classify_document(
     reasons.append("promotion_class_ambiguous")
     if record.revision_track not in {"source-faithful", "current-effective"}:
         reasons.append("unsupported_revision_track")
-    return ("manual_promotion_review", "manual_review_required")
+    return (
+        shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+        shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+    )

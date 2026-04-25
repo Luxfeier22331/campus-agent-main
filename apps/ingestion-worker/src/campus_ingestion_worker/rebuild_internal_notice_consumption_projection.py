@@ -8,9 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from campus_ingestion_core.authenticated_notice_legacy_export import (
-    load_authenticated_notice_selection_notice_ids,
-)
+from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
 from campus_ingestion_core.internal_notice_consumption_admission import (
     build_internal_notice_consumption_admission_store_from_env,
     record_internal_notice_consumption_admission,
@@ -23,7 +21,6 @@ from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
 from campus_ingestion_core.notice_consumption_projection import (
-    NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
@@ -31,6 +28,10 @@ from campus_ingestion_core.notice_consumption_projection import (
 )
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.internal_notice_selection import (
+    InternalNoticeSelectionProvenance,
+    build_internal_notice_selection_provenance,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,8 +51,19 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    notice_ids = _merge_notice_ids(args.notice_ids, args.selection_path)
-    if not notice_ids and not args.document_ids:
+    document_ids = tuple(str(item).strip() for item in args.document_ids if str(item).strip())
+    selection = build_internal_notice_selection_provenance(
+        explicit_notice_ids=args.notice_ids,
+        selection_path=args.selection_path,
+        extra_command_args={
+            "document_ids": list(document_ids),
+            "promotion_routing_path": args.promotion_routing_path or "",
+        },
+    )
+    selection_source = _projection_selection_source(selection, document_ids)
+    command_args = dict(selection.command_args)
+    command_args["selection_source"] = selection_source
+    if not selection.notice_ids and not document_ids:
         parser.error(
             "refusing implicit full-scope rebuild; pass --notice-id or --document-id "
             "or --selection-path for notices selected by the consumer layer"
@@ -62,21 +74,65 @@ def main(argv: Sequence[str] | None = None) -> None:
         promotion_routing_path=(
             Path(args.promotion_routing_path) if args.promotion_routing_path else None
         ),
-        notice_ids=notice_ids,
-        document_ids=tuple(args.document_ids),
+        notice_ids=selection.notice_ids,
+        document_ids=document_ids,
     )
-    entries = rebuild_internal_notice_consumption_projection(request=request)
-    report = _build_report(entries)
     admission_store = build_internal_notice_consumption_admission_store_from_env()
+    admission_created_at = utc_now()
+    batch_id = record_internal_notice_consumption_admission(
+        source_corpus=args.corpus,
+        source_collection=args.collection,
+        command="projection_rebuild",
+        notice_ids=selection.notice_ids,
+        status="started",
+        created_at=admission_created_at,
+        selection_source=selection_source,
+        selection_path=selection.selection_path,
+        selection_sha256=selection.selection_sha256,
+        command_args=command_args,
+        store=admission_store,
+    )
+    try:
+        entries = rebuild_internal_notice_consumption_projection(
+            request=request,
+            admission_batch_id=batch_id,
+            admission_command="projection_rebuild",
+            admission_created_at=admission_created_at,
+        )
+    except Exception as exc:
+        record_internal_notice_consumption_admission(
+            source_corpus=args.corpus,
+            source_collection=args.collection,
+            command="projection_rebuild",
+            notice_ids=selection.notice_ids,
+            status="failed",
+            batch_id=batch_id,
+            created_at=admission_created_at,
+            error=str(exc),
+            selection_source=selection_source,
+            selection_path=selection.selection_path,
+            selection_sha256=selection.selection_sha256,
+            command_args=command_args,
+            store=admission_store,
+        )
+        raise
+    report = _build_report(entries)
     report["batch_id"] = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="projection_rebuild",
-        notice_ids=notice_ids,
+        notice_ids=selection.notice_ids,
+        status="completed",
+        batch_id=batch_id,
+        created_at=admission_created_at,
         result_counts={
             "projection_entry_count": int(report["projection_entry_count"]),
             "notice_count": int(report["notice_count"]),
         },
+        selection_source=selection_source,
+        selection_path=selection.selection_path,
+        selection_sha256=selection.selection_sha256,
+        command_args=command_args,
         store=admission_store,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
@@ -99,10 +155,6 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
         ),
         "retained_for_notice_query_count": retained_for_notice_query_count,
         "held_in_notice_runtime_count": retained_for_notice_query_count,
-        "manual_review_required_count": consumption_status_counts.get(
-            NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
-            0,
-        ),
         "pending_multimodal_processing_count": consumption_status_counts.get(
             NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
             0,
@@ -116,25 +168,14 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
     }
 
 
-def _merge_notice_ids(
-    explicit_notice_ids: Sequence[str],
-    selection_path: str | None,
-) -> tuple[str, ...]:
-    selected_notice_ids = (
-        load_authenticated_notice_selection_notice_ids(Path(selection_path))
-        if selection_path
-        else ()
-    )
-    return tuple(
-        dict.fromkeys(
-            notice_id
-            for notice_id in (
-                *(str(item).strip() for item in explicit_notice_ids),
-                *selected_notice_ids,
-            )
-            if notice_id
-        )
-    )
+def _projection_selection_source(
+    selection: InternalNoticeSelectionProvenance,
+    document_ids: Sequence[str],
+) -> str:
+    parts = [selection.selection_source] if selection.selection_source else []
+    if document_ids:
+        parts.append("explicit_document_ids")
+    return "+".join(parts)
 
 
 __all__ = [

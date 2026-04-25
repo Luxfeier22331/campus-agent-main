@@ -26,7 +26,6 @@ from campus_ingestion_core.internal_notice_consumption_projection import (
     NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
     NOTICE_PRIMARY_ROLE_TIME_BOUND_OPERATIONAL_RULE,
     NOTICE_TARGET_SURFACE_SCOPED_RULES,
-    InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
@@ -112,12 +111,9 @@ def materialize_scoped_rules_from_internal_notice_scope(
     if consumption_projection_store is not None:
         runtime_consumption_projection_store = consumption_projection_store
     else:
-        try:
-            runtime_consumption_projection_store = (
-                build_notice_consumption_projection_store_from_env(source)
-            )
-        except ValueError:
-            runtime_consumption_projection_store = InMemoryNoticeConsumptionProjectionStore()
+        runtime_consumption_projection_store = build_notice_consumption_projection_store_from_env(
+            source
+        )
     object_store_settings = ObjectStoreSettings.from_env(source)
     projection_entries = list_existing_internal_notice_consumption_projection_entries(
         runtime_consumption_projection_store,

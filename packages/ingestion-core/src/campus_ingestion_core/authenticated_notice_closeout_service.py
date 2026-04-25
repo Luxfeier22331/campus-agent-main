@@ -446,10 +446,10 @@ class AuthenticatedNoticeCloseoutService:
                 for plan in attachment_projection_plans
                 if str(plan.get("materialization_policy") or "") == "conditional_on_extracted_text"
             )
-            manual_review_required_count = sum(
+            multimodal_processing_required_count = sum(
                 1
                 for plan in attachment_projection_plans
-                if str(plan.get("materialization_policy") or "") == "manual_review"
+                if str(plan.get("materialization_policy") or "") == "multimodal_processing"
             )
             required_attachment_document_count += len(required_documents)
             ocr_candidate_count += parent_ocr_candidate_count
@@ -459,19 +459,21 @@ class AuthenticatedNoticeCloseoutService:
             parent_payload["attachment_document_count"] = len(required_documents)
             parent_payload["text_extractable_count"] = text_extractable_count
             parent_payload["ocr_required_count"] = parent_ocr_candidate_count
-            parent_payload["manual_review_required_count"] = manual_review_required_count
+            parent_payload["multimodal_processing_required_count"] = (
+                multimodal_processing_required_count
+            )
             parent_payload["reference_only_count"] = max(
                 len(parent_source_truth.attachment_refs)
                 - text_extractable_count
                 - parent_ocr_candidate_count
-                - manual_review_required_count,
+                - multimodal_processing_required_count,
                 0,
             )
             parent_payload["attachment_ref_count"] = len(parent_source_truth.attachment_refs)
             parent_payload["has_text_table_attachment"] = (
                 text_extractable_count > 0 or parent_ocr_candidate_count > 0
             )
-            parent_payload["has_spatial_attachment"] = manual_review_required_count > 0
+            parent_payload["has_spatial_attachment"] = multimodal_processing_required_count > 0
             parent_payload["has_reference_only_attachment"] = (
                 parent_payload["reference_only_count"] > 0
             )
@@ -480,7 +482,7 @@ class AuthenticatedNoticeCloseoutService:
                 for count in (
                     text_extractable_count,
                     parent_ocr_candidate_count,
-                    manual_review_required_count,
+                    multimodal_processing_required_count,
                     int(parent_payload["reference_only_count"]),
                 )
                 if count > 0

@@ -4,7 +4,7 @@ import hashlib
 import os
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -21,6 +21,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion_artifacts import
     _extract_candidate_promotion_body,
 )
 from campus_ingestion_core.internal_notice_regulation_promotion_shared import (
+    INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
     InternalNoticeRegulationPromotionDocumentReport,
 )
 from campus_ingestion_core.internal_notice_scoped_rule_materialization_shared import (
@@ -37,10 +38,8 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING,
     NOTICE_COMPLETENESS_COMPLETE,
-    NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
-    NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
@@ -110,7 +109,6 @@ class NoticeConsumptionProjectionStatus:
     unit_count: int
     ready_unit_count: int
     held_unit_count: int
-    manual_review_unit_count: int
     pending_multimodal_unit_count: int
     no_adoption_unit_count: int
     has_target_ready_units: bool
@@ -126,6 +124,7 @@ class InternalNoticeProcessingGapUnit:
     target_surface: str
     consumption_status: str
     reasons: tuple[str, ...]
+    consumer_admission_batch_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +139,6 @@ class InternalNoticeProcessingGapsReport:
     no_adoption_count: int
     ready_for_target_count: int
     retained_for_notice_query_count: int
-    legacy_manual_review_required_count: int
     consumption_status_counts: dict[str, int]
     target_surface_counts: dict[str, int]
     gap_units: tuple[InternalNoticeProcessingGapUnit, ...]
@@ -207,6 +205,9 @@ def rebuild_internal_notice_consumption_projection(
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     object_store: InternalNoticeConsumptionProjectionObjectStore | None = None,
     projection_store: NoticeConsumptionProjectionStore | None = None,
+    admission_batch_id: str = "",
+    admission_command: str = "",
+    admission_created_at: str = "",
 ) -> tuple[NoticeConsumptionProjectionEntry, ...]:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
@@ -226,6 +227,12 @@ def rebuild_internal_notice_consumption_projection(
         registry=registry,
         source_truth_inventory_store=source_truth_inventory_store,
         object_store=object_store,
+    )
+    entries = _stamp_consumer_admission_provenance(
+        entries,
+        admission_batch_id=admission_batch_id,
+        admission_command=admission_command,
+        admission_created_at=admission_created_at,
     )
     if runtime_request.notice_ids or runtime_request.document_ids:
         selected_notice_ids = runtime_request.notice_ids or tuple(
@@ -319,11 +326,6 @@ def read_notice_consumption_projection_status(
         for entry in entries
         if is_notice_query_retained_consumption_status(entry.consumption_status)
     )
-    manual_count = sum(
-        1
-        for entry in entries
-        if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED
-    )
     pending_multimodal_count = sum(
         1
         for entry in entries
@@ -339,7 +341,6 @@ def read_notice_consumption_projection_status(
         unit_count=len(entries),
         ready_unit_count=ready_count,
         held_unit_count=held_count,
-        manual_review_unit_count=manual_count,
         pending_multimodal_unit_count=pending_multimodal_count,
         no_adoption_unit_count=no_adoption_count,
         has_target_ready_units=ready_count > 0,
@@ -385,10 +386,6 @@ def check_internal_notice_processing_gaps(
         for entry in entries
         if is_notice_query_retained_consumption_status(entry.consumption_status)
     )
-    legacy_manual_review_count = consumption_status_counts.get(
-        NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
-        0,
-    )
     return InternalNoticeProcessingGapsReport(
         source_corpus=source_corpus,
         source_collection=source_collection,
@@ -400,7 +397,6 @@ def check_internal_notice_processing_gaps(
         no_adoption_count=no_adoption_count,
         ready_for_target_count=ready_for_target_count,
         retained_for_notice_query_count=retained_for_notice_query_count,
-        legacy_manual_review_required_count=legacy_manual_review_count,
         consumption_status_counts=dict(sorted(consumption_status_counts.items())),
         target_surface_counts=dict(sorted(target_surface_counts.items())),
         gap_units=tuple(_build_processing_gap_units(entries)),
@@ -448,7 +444,6 @@ def _is_processing_gap_entry(entry: NoticeConsumptionProjectionEntry) -> bool:
         in {
             NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
             NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
-            NOTICE_CONSUMPTION_STATUS_MANUAL_REVIEW_REQUIRED,
         }
         or entry.semantic_owner == NOTICE_SEMANTIC_OWNER_AUTHORITY_PENDING
         or entry.target_surface == NOTICE_TARGET_SURFACE_UNSUPPORTED
@@ -467,7 +462,32 @@ def _build_processing_gap_unit(
         target_surface=entry.target_surface,
         consumption_status=entry.consumption_status,
         reasons=unit_status.reasons,
+        consumer_admission_batch_id=str(
+            entry.role_metadata.get("consumer_admission_batch_id") or ""
+        ),
     )
+
+
+def _stamp_consumer_admission_provenance(
+    entries: Sequence[NoticeConsumptionProjectionEntry],
+    *,
+    admission_batch_id: str,
+    admission_command: str,
+    admission_created_at: str,
+) -> tuple[NoticeConsumptionProjectionEntry, ...]:
+    if not admission_batch_id and not admission_command and not admission_created_at:
+        return tuple(entries)
+    stamped: list[NoticeConsumptionProjectionEntry] = []
+    for entry in entries:
+        metadata = dict(entry.role_metadata or {})
+        if admission_batch_id:
+            metadata["consumer_admission_batch_id"] = admission_batch_id
+        if admission_command:
+            metadata["consumer_admission_command"] = admission_command
+        if admission_created_at:
+            metadata["consumer_admission_created_at"] = admission_created_at
+        stamped.append(replace(entry, role_metadata=metadata))
+    return tuple(stamped)
 
 
 def _build_notice_level_entries(
@@ -518,7 +538,9 @@ def _build_notice_window_entry(
             "text_extractable_count": inventory_entry.text_extractable_count,
             "ocr_required_count": inventory_entry.ocr_required_count,
             "reference_only_count": inventory_entry.reference_only_count,
-            "manual_review_required_count": inventory_entry.manual_review_required_count,
+            "pending_multimodal_attachment_count": (
+                inventory_entry.multimodal_processing_required_count
+            ),
             "owner_expectation_count": int(parent_snapshot.get("owner_expectation_count") or 0),
         },
     )
@@ -739,7 +761,7 @@ def _build_document_consumption_entry(
     target_surface = _resolve_target_surface(primary_role)
     if _requires_multimodal_processing(report):
         target_surface = NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE
-    elif _is_unsupported_manual_review_reason(report):
+    elif _is_unsupported_machine_processing_reason(report):
         target_surface = NOTICE_TARGET_SURFACE_UNSUPPORTED
     default_agent = _resolve_default_agent(
         target_surface=target_surface,
@@ -854,8 +876,8 @@ def _resolve_completeness_status(report: InternalNoticeRegulationPromotionDocume
         "input_incomplete_missing_attachment_docs" in set(report.reasons)
     ):
         return NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING
-    if report.action == "manual_review_required":
-        if _is_unsupported_manual_review_reason(report):
+    if report.action == INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING:
+        if _is_unsupported_machine_processing_reason(report):
             return NOTICE_COMPLETENESS_REFERENCE_ONLY
         return NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING
     return NOTICE_COMPLETENESS_REFERENCE_ONLY
@@ -866,10 +888,7 @@ def _resolve_answerability(*, completeness_status: str) -> str:
         return NOTICE_ANSWERABILITY_ANSWERABLE
     if completeness_status == NOTICE_COMPLETENESS_AUTHORITATIVE_ATTACHMENT_MISSING:
         return NOTICE_ANSWERABILITY_NOT_ANSWERABLE
-    if completeness_status in {
-        NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
-        NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
-    }:
+    if completeness_status == NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING:
         return NOTICE_ANSWERABILITY_NOT_ANSWERABLE
     return NOTICE_ANSWERABILITY_REFERENCE_ONLY
 
@@ -913,10 +932,7 @@ def _resolve_consumption_status(
         return NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET
     if target_surface == NOTICE_TARGET_SURFACE_UNSUPPORTED:
         return NOTICE_CONSUMPTION_STATUS_NO_ADOPTION
-    if completeness_status in {
-        NOTICE_COMPLETENESS_MANUAL_REVIEW_REQUIRED,
-        NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
-    }:
+    if completeness_status == NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING:
         return NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING
     return NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY
 
@@ -925,16 +941,16 @@ def _requires_multimodal_processing(
     report: InternalNoticeRegulationPromotionDocumentReport,
 ) -> bool:
     return (
-        report.action == "manual_review_required"
+        report.action == INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING
         and report.owner_source_missing_reason is None
-        and not _is_unsupported_manual_review_reason(report)
+        and not _is_unsupported_machine_processing_reason(report)
     )
 
 
-def _is_unsupported_manual_review_reason(
+def _is_unsupported_machine_processing_reason(
     report: InternalNoticeRegulationPromotionDocumentReport,
 ) -> bool:
-    if report.action != "manual_review_required":
+    if report.action != INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING:
         return False
     reasons = set(report.reasons)
     return bool(
@@ -953,12 +969,10 @@ def _build_processing_gap_metadata(
     if _requires_multimodal_processing(report):
         return {
             "processing_gap_reason": "multimodal_processing_required",
-            "legacy_promotion_action": "manual_review_required",
         }
-    if _is_unsupported_manual_review_reason(report):
+    if _is_unsupported_machine_processing_reason(report):
         return {
-            "no_adoption_reason": "unsupported_manual_review_legacy_reason",
-            "legacy_promotion_action": "manual_review_required",
+            "no_adoption_reason": "unsupported_machine_processing_reason",
         }
     return {}
 

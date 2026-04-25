@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 import {
 	type APIRequestContext,
@@ -13,6 +14,7 @@ import type { ApiRequestContextLike, DisposableApiContextLike } from "./types";
 
 type PortalStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const PORTAL_BOOTSTRAP_TIMEOUT_MS = 12_000;
+const SSO_TGC_COOKIE_NAME = "SSO_TGC";
 
 export interface BrowserLike {
 	close(): Promise<void>;
@@ -60,6 +62,7 @@ export async function createApiContextFromStorageState(
 	dependencies: CreateApiContextFromStorageStateDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
 	ensureRuntimeDirs(config);
+	seedStoredAuthFromSsoTgc(config);
 	let launchedContext: Awaited<ReturnType<typeof launchContextWithStoredAuth>> | null = null;
 	try {
 		launchedContext = await launchContextWithStoredAuth(config, dependencies.launchBrowser);
@@ -131,6 +134,78 @@ function readStoredAuthStorageState(storageStatePath: string): PortalStorageStat
 		throw new Error(`invalid storage state: ${storageStatePath}`);
 	}
 	return parsed;
+}
+
+function seedStoredAuthFromSsoTgc(config: CollectorConfig): void {
+	const token = extractSsoTgcToken(config.authSsoTgcToken);
+	if (!token) {
+		return;
+	}
+
+	let storageState: PortalStorageState = { cookies: [], origins: [] };
+	if (fs.existsSync(config.authStorageStatePath)) {
+		storageState = readStoredAuthStorageState(config.authStorageStatePath);
+	}
+
+	storageState = {
+		cookies: [
+			...storageState.cookies.filter((cookie) => cookie.name !== SSO_TGC_COOKIE_NAME),
+			{
+				domain: ".muc.edu.cn",
+				expires: -1,
+				httpOnly: true,
+				name: SSO_TGC_COOKIE_NAME,
+				path: "/",
+				sameSite: "Lax",
+				secure: true,
+				value: token,
+			},
+		],
+		origins: storageState.origins,
+	};
+
+	fs.mkdirSync(path.dirname(config.authStorageStatePath), { recursive: true });
+	fs.writeFileSync(config.authStorageStatePath, JSON.stringify(storageState, null, 2), "utf-8");
+}
+
+function extractSsoTgcToken(raw: string | null): string | null {
+	const normalized = raw?.trim();
+	if (!normalized) {
+		return null;
+	}
+
+	for (const part of normalized.split(";")) {
+		const candidate = part.trim();
+		if (!candidate.toLowerCase().startsWith(`${SSO_TGC_COOKIE_NAME.toLowerCase()}=`)) {
+			continue;
+		}
+		const value = candidate.slice(SSO_TGC_COOKIE_NAME.length + 1).trim();
+		return validateSsoTgcToken(value);
+	}
+
+	return validateSsoTgcToken(normalized);
+}
+
+function validateSsoTgcToken(value: string): string | null {
+	if (!value) {
+		return null;
+	}
+	for (let index = 0; index < value.length; index += 1) {
+		const code = value.charCodeAt(index);
+		if (
+			code < 0x21 ||
+			code > 0x7e ||
+			code === 0x22 ||
+			code === 0x2c ||
+			code === 0x3b ||
+			code === 0x5c
+		) {
+			throw new Error(
+				"invalid AUTHENTICATED_NOTICE_SSO_TGC: expected a raw cookie value or SSO_TGC cookie fragment",
+			);
+		}
+	}
+	return value;
 }
 
 function buildPortalApiHeaders(config: CollectorConfig): Record<string, string> {

@@ -13,7 +13,7 @@ from campus_ingestion_core.authenticated_notice_defaults import (
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
     AuthenticatedNoticeProjectedNotice,
     _AuthenticatedNoticeParentSourceTruth,
@@ -297,7 +297,7 @@ def build_authenticated_notice_source_truth_replay_expected_scope(
     parent_document_ids_by_notice: dict[str, str] = {}
     attachment_document_count = 0
     ocr_candidate_count = 0
-    manual_review_required_count = 0
+    multimodal_processing_required_count = 0
     attachment_projection_plans: dict[tuple[str, str], dict[str, Any]] = {}
     for parent in parents:
         notice_id = str(parent["notice_id"])
@@ -320,8 +320,11 @@ def build_authenticated_notice_source_truth_replay_expected_scope(
                 == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
             ):
                 ocr_candidate_count += 1
-            elif materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
-                manual_review_required_count += 1
+            elif (
+                materialization_policy
+                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+            ):
+                multimodal_processing_required_count += 1
     return {
         "notice_ids": expected_notice_ids,
         "document_ids": expected_document_ids,
@@ -329,7 +332,7 @@ def build_authenticated_notice_source_truth_replay_expected_scope(
         "parent_document_ids_by_notice": parent_document_ids_by_notice,
         "attachment_document_count": attachment_document_count,
         "ocr_candidate_count": ocr_candidate_count,
-        "manual_review_required_count": manual_review_required_count,
+        "multimodal_processing_required_count": multimodal_processing_required_count,
         "attachment_projection_plans": attachment_projection_plans,
     }
 
@@ -393,8 +396,10 @@ def _attachment_projection_plans_from_parent(
                 materialization_policy = (
                     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
                 )
-            elif classification == "manual_review_required":
-                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW
+            elif classification == "multimodal_processing_required":
+                materialization_policy = (
+                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+                )
             else:
                 materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
         plan = {

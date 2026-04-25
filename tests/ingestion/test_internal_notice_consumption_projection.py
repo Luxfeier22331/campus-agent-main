@@ -81,6 +81,11 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             },
             {NOTICE_PRIMARY_ROLE_NOTICE_WINDOW},
         )
+        notice_window = next(
+            entry for entry in entries if entry.primary_role == NOTICE_PRIMARY_ROLE_NOTICE_WINDOW
+        )
+        self.assertNotIn("manual_review_required_count", notice_window.role_metadata)
+        self.assertIn("pending_multimodal_attachment_count", notice_window.role_metadata)
         ready_institutional = next(
             entry
             for entry in entries
@@ -245,6 +250,35 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
                 primary_roles=(NOTICE_PRIMARY_ROLE_ATTACHMENT_RULE_BODY,),
             ),
             ("notice:muc_internal_portal:187233",),
+        )
+
+    def test_rebuild_projection_stamps_consumer_admission_provenance(self) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+        projection_store = InMemoryNoticeConsumptionProjectionStore()
+
+        stored_entries = rebuild_internal_notice_consumption_projection(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+            projection_store=projection_store,
+            admission_batch_id="batch-projection-001",
+            admission_command="projection_rebuild",
+            admission_created_at="2026-04-25T00:00:00Z",
+        )
+
+        self.assertTrue(stored_entries)
+        self.assertEqual(
+            stored_entries[0].role_metadata["consumer_admission_batch_id"],
+            "batch-projection-001",
+        )
+        self.assertEqual(
+            stored_entries[0].role_metadata["consumer_admission_command"],
+            "projection_rebuild",
+        )
+        self.assertEqual(
+            stored_entries[0].role_metadata["consumer_admission_created_at"],
+            "2026-04-25T00:00:00Z",
         )
 
     def test_rebuild_projection_refuses_persistent_full_scope_without_selected_notice_ids(
@@ -513,11 +547,11 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             "attachment_form_template_query_hint_only",
         )
 
-    def test_manual_review_promotion_action_becomes_pending_multimodal_processing(
+    def test_machine_processing_promotion_action_becomes_pending_multimodal_processing(
         self,
     ) -> None:
         registry, inventory_store, object_store = _build_runtime()
-        manual_review_report = _manual_review_report(
+        machine_processing_report = _machine_processing_report(
             document_id="notice:muc_internal_portal:351907",
             notice_id="351907",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
@@ -526,7 +560,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
-            return_value=_manifest_report((manual_review_report,)),
+            return_value=_manifest_report((machine_processing_report,)),
         ):
             entries = build_internal_notice_consumption_projection_entries(
                 env=_env(),
@@ -559,11 +593,11 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
             "multimodal_processing_required",
         )
 
-    def test_hard_manual_review_reasons_become_unsupported_no_adoption(
+    def test_hard_machine_processing_reasons_become_unsupported_no_adoption(
         self,
     ) -> None:
         registry, inventory_store, object_store = _build_runtime()
-        manual_review_report = _manual_review_report(
+        machine_processing_report = _machine_processing_report(
             document_id="notice:muc_internal_portal:351907",
             notice_id="351907",
             document_nature=NOTICE_PRIMARY_ROLE_ANNUAL_CYCLE_RULE,
@@ -572,7 +606,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
 
         with patch(
             "campus_ingestion_core.internal_notice_consumption_projection.build_internal_notice_regulation_promotion_manifest",
-            return_value=_manifest_report((manual_review_report,)),
+            return_value=_manifest_report((machine_processing_report,)),
         ):
             entries = build_internal_notice_consumption_projection_entries(
                 env=_env(),
@@ -591,7 +625,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         self.assertEqual(unsupported_unit.consumption_status, NOTICE_CONSUMPTION_STATUS_NO_ADOPTION)
         self.assertEqual(
             unsupported_unit.role_metadata["no_adoption_reason"],
-            "unsupported_manual_review_legacy_reason",
+            "unsupported_machine_processing_reason",
         )
 
     def test_partial_rebuild_replaces_existing_units_for_selected_notice_ids(self) -> None:
@@ -724,7 +758,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         )
 
         self.assertEqual(status.pending_multimodal_unit_count, 1)
-        self.assertEqual(status.manual_review_unit_count, 0)
+        self.assertFalse(hasattr(status, "manual_review_unit_count"))
 
     def test_check_internal_notice_processing_gaps_groups_machine_processing_states(
         self,
@@ -776,7 +810,7 @@ class InternalNoticeConsumptionProjectionTest(unittest.TestCase):
         self.assertEqual(report.no_adoption_count, 1)
         self.assertEqual(report.ready_for_target_count, 1)
         self.assertEqual(report.retained_for_notice_query_count, 1)
-        self.assertEqual(report.legacy_manual_review_required_count, 0)
+        self.assertFalse(hasattr(report, "legacy_manual_review_required_count"))
         self.assertEqual(
             {unit.unit_id for unit in report.gap_units},
             {
@@ -994,7 +1028,7 @@ def _projection_entry(notice_id: str):
     )
 
 
-def _manual_review_report(
+def _machine_processing_report(
     *,
     document_id: str,
     notice_id: str,
@@ -1010,7 +1044,7 @@ def _manual_review_report(
         input_lane="notice_body",
         revision_track="source-faithful",
         version_id=f"sha256:{notice_id}:source-faithful",
-        action="manual_review_required",
+        action="requires_multimodal_processing",
         promotion_class="scoped_rule",
         document_nature=document_nature,
         semantic_owner_kind="notice_body",
@@ -1049,9 +1083,9 @@ def _manifest_report(
         scanned_document_count=len(documents),
         candidate_count=0,
         hold_count=0,
-        manual_review_count=len(documents),
+        machine_processing_required_count=len(documents),
         promotion_class_counts={},
-        action_counts={"manual_review_required": len(documents)},
+        action_counts={"requires_multimodal_processing": len(documents)},
         lane_counts={},
         documents=documents,
     )

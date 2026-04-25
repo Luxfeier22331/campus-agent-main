@@ -36,7 +36,7 @@ class BuildInternalNoticeRegulationPromotionManifestWorkerCliTest(unittest.TestC
             build_manifest.return_value = {
                 "candidate_count": 2,
                 "hold_count": 3,
-                "manual_review_count": 1,
+                "machine_processing_required_count": 1,
                 "documents": [],
             }
             export_manifest.return_value = (
@@ -131,7 +131,7 @@ class BuildInternalNoticeRegulationPromotionManifestWorkerCliTest(unittest.TestC
                 text_extractable_count=0,
                 ocr_required_count=0,
                 reference_only_count=0,
-                manual_review_required_count=0,
+                multimodal_processing_required_count=0,
                 notice_risk_label="body_only",
                 attachment_mix_score=0,
                 has_text_table_attachment=False,
@@ -186,7 +186,7 @@ class BuildInternalNoticeRegulationPromotionManifestWorkerCliTest(unittest.TestC
                 build_manifest.return_value = {
                     "candidate_count": 0,
                     "hold_count": 0,
-                    "manual_review_count": 0,
+                    "machine_processing_required_count": 0,
                     "documents": [],
                 }
                 worker.main(

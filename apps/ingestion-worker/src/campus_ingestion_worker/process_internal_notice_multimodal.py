@@ -4,21 +4,22 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
-from pathlib import Path
 
-from campus_ingestion_core.authenticated_notice_legacy_export import (
-    load_authenticated_notice_selection_notice_ids,
-)
+from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
 from campus_ingestion_core.internal_notice_consumption_admission import (
     build_internal_notice_consumption_admission_store_from_env,
     record_internal_notice_consumption_admission,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing import (
+    build_internal_notice_multimodal_attempt_store_from_env,
     process_internal_notice_pending_multimodal_entries,
 )
 from campus_ingestion_core.internal_notice_read_model import rebuild_internal_notice_read_model
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.internal_notice_selection import (
+    build_internal_notice_selection_provenance,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,63 +39,94 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    notice_ids = _merge_notice_ids(args.notice_ids, args.selection_path)
-    if not notice_ids:
+    selection = build_internal_notice_selection_provenance(
+        explicit_notice_ids=args.notice_ids,
+        selection_path=args.selection_path,
+        extra_command_args={
+            "skip_read_model_rebuild": bool(args.skip_read_model_rebuild),
+            "max_attempts": int(args.max_attempts),
+        },
+    )
+    if not selection.notice_ids:
         parser.error(
             "refusing implicit full-scope multimodal processing; pass --notice-id "
             "or --selection-path for notices selected by the consumer layer"
         )
-    report = process_internal_notice_pending_multimodal_entries(
+    admission_store = build_internal_notice_consumption_admission_store_from_env()
+    admission_created_at = utc_now()
+    batch_id = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
         source_collection=args.collection,
-        notice_ids=notice_ids,
-        max_attempts=args.max_attempts,
+        command="multimodal_process",
+        notice_ids=selection.notice_ids,
+        status="started",
+        created_at=admission_created_at,
+        selection_source=selection.selection_source,
+        selection_path=selection.selection_path,
+        selection_sha256=selection.selection_sha256,
+        command_args=selection.command_args,
+        store=admission_store,
     )
-    payload = asdict(report)
-    admission_store = build_internal_notice_consumption_admission_store_from_env()
+    attempt_store = build_internal_notice_multimodal_attempt_store_from_env(prefer_operator=True)
+    try:
+        report = process_internal_notice_pending_multimodal_entries(
+            source_corpus=args.corpus,
+            source_collection=args.collection,
+            notice_ids=selection.notice_ids,
+            max_attempts=args.max_attempts,
+            attempt_store=attempt_store,
+            admission_batch_id=batch_id,
+            admission_command="multimodal_process",
+            admission_created_at=admission_created_at,
+        )
+        payload = asdict(report)
+        if args.skip_read_model_rebuild:
+            payload["read_model_rebuilt_count"] = 0
+        else:
+            rows = rebuild_internal_notice_read_model(
+                source_corpus=args.corpus,
+                source_collection=args.collection,
+                notice_ids=selection.notice_ids,
+            )
+            payload["read_model_rebuilt_count"] = len(rows)
+    except Exception as exc:
+        record_internal_notice_consumption_admission(
+            source_corpus=args.corpus,
+            source_collection=args.collection,
+            command="multimodal_process",
+            notice_ids=selection.notice_ids,
+            status="failed",
+            batch_id=batch_id,
+            created_at=admission_created_at,
+            error=str(exc),
+            selection_source=selection.selection_source,
+            selection_path=selection.selection_path,
+            selection_sha256=selection.selection_sha256,
+            command_args=selection.command_args,
+            store=admission_store,
+        )
+        raise
     payload["batch_id"] = record_internal_notice_consumption_admission(
         source_corpus=args.corpus,
         source_collection=args.collection,
         command="multimodal_process",
-        notice_ids=notice_ids,
+        notice_ids=selection.notice_ids,
+        status="completed",
+        batch_id=batch_id,
+        created_at=admission_created_at,
         result_counts={
             "pending_entry_count": report.pending_entry_count,
             "processed_count": report.processed_count,
             "failed_count": report.failed_count,
+            "read_model_rebuilt_count": int(payload["read_model_rebuilt_count"]),
         },
+        selection_source=selection.selection_source,
+        selection_path=selection.selection_path,
+        selection_sha256=selection.selection_sha256,
+        command_args=selection.command_args,
         store=admission_store,
     )
-    if args.skip_read_model_rebuild:
-        payload["read_model_rebuilt_count"] = 0
-    else:
-        rows = rebuild_internal_notice_read_model(
-            source_corpus=args.corpus,
-            source_collection=args.collection,
-            notice_ids=notice_ids,
-        )
-        payload["read_model_rebuilt_count"] = len(rows)
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-
-
-def _merge_notice_ids(
-    explicit_notice_ids: Sequence[str],
-    selection_path: str | None,
-) -> tuple[str, ...]:
-    selected_notice_ids = (
-        load_authenticated_notice_selection_notice_ids(Path(selection_path))
-        if selection_path
-        else ()
-    )
-    return tuple(
-        dict.fromkeys(
-            notice_id
-            for notice_id in (
-                *(str(item).strip() for item in explicit_notice_ids),
-                *selected_notice_ids,
-            )
-            if notice_id
-        )
-    )
 
 
 __all__ = [

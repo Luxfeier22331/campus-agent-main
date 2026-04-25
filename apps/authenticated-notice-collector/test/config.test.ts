@@ -33,12 +33,14 @@ describe("authenticated notice collector config", () => {
 			AUTHENTICATED_NOTICE_PAGE_URL: "https://portal.example.edu/page/99#/",
 			AUTHENTICATED_NOTICE_REQUEST_MAX_RETRIES: "5",
 			AUTHENTICATED_NOTICE_RUNTIME_DIR: "/tmp/collector-runtime",
+			AUTHENTICATED_NOTICE_SSO_TGC: "sso-token",
 		});
 
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
 		expect(config.requestMaxRetries).toBe(5);
 		expect(config.authCheckNoticeType).toBe("6");
+		expect(config.authSsoTgcToken).toBe("sso-token");
 		expect(config.authStorageStatePath).toBe("/tmp/collector-runtime/auth/storageState.json");
 	});
 

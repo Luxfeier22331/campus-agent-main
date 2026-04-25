@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -60,7 +60,7 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
     text_extractable_count: int
     ocr_required_count: int
     reference_only_count: int
-    manual_review_required_count: int
+    multimodal_processing_required_count: int
     notice_risk_label: str
     attachment_mix_score: int
     has_text_table_attachment: bool
@@ -75,7 +75,9 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
         raw = dict(payload)
         raw["parent_snapshot"] = dict(raw.get("parent_snapshot") or {})
         raw["attachment_ref_count"] = int(raw.get("attachment_ref_count") or 0)
-        raw["manual_review_required_count"] = int(raw.get("manual_review_required_count") or 0)
+        raw["multimodal_processing_required_count"] = int(
+            raw.get("multimodal_processing_required_count") or 0
+        )
         raw["notice_risk_label"] = str(raw.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY)
         raw["attachment_mix_score"] = int(raw.get("attachment_mix_score") or 0)
         raw["has_text_table_attachment"] = _coerce_bool(raw.get("has_text_table_attachment"))
@@ -83,6 +85,8 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
         raw["has_reference_only_attachment"] = _coerce_bool(
             raw.get("has_reference_only_attachment")
         )
+        allowed_field_names = {item.name for item in fields(cls)}
+        raw = {key: value for key, value in raw.items() if key in allowed_field_names}
         return cls(**raw)
 
 

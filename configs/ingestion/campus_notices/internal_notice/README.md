@@ -34,6 +34,16 @@ It does not carry:
 - `promotion-routing.v1.json`
   - downstream routing scaffold for `regulations/institutional_rules` and
     `regulations/scoped_rules`
+- `consumption-layer-schema.sql`
+  - repo-owned PG schema artifact / operator runbook for consumption projection,
+    read model, admission current/event log, and multimodal attempt stores
+- `multimodal-decision-eval.v1.jsonl`
+  - fixed multimodal action/classification fixture consumed by the worker eval
+    gate
+- `multimodal-visual-eval.v1.jsonl`
+  - fixed multimodal visual-understanding fixture for groundedness checks:
+    required text spans, forbidden claims, required reason codes, and minimum
+    confidence
 
 ## Active runtime posture
 
@@ -61,13 +71,20 @@ Current interpretation is:
   campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
   ...`
   - read-only promotion manifest builder for `candidate / hold /
-    manual_review_required`
+    requires_multimodal_processing`
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
   - target-collection materializer for `regulations/institutional_rules`
 - `uv run --package campus-ingestion-worker python -m
   campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
   - target-collection materializer for `regulations/scoped_rules`
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions`
+  - deterministic action gate for repo-tracked multimodal decision fixtures
+- `uv run --package campus-ingestion-worker python -m
+  campus_ingestion_worker.evaluate_internal_notice_multimodal_visual`
+  - deterministic visual fixture gate for grounded retain/no-adoption decisions;
+    it uses synthetic/desensitized fixture outputs and is not a hosted eval upload
 
 These entrypoints support repo-local snapshot mode via:
 

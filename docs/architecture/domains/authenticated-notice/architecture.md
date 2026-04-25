@@ -203,7 +203,7 @@ collector runtime 的第一 owner 固定为 repo 内独立 `apps/*` runtime shel
 - attachment relation truth 不因为 shared loader 接入而离开 `notice` source-truth
 - `doc/xls -> docx/xlsx` 的 conversion service、OOXML deterministic
   parse、PDF/image parsing lane 都不属于 collector 私有 contract
-- 如果 attachment 最终只落到 `reference_only`、`manual_review_required` 或
+- 如果 attachment 最终只落到 `reference_only`、`multimodal_processing_required` 或
   `unsupported_binary`，collector 仍只持有 source relation truth，不伪造 child document
 
 ## Bootstrap Import Ownership
@@ -290,8 +290,8 @@ shared Postgres metadata truth`
 对 `internal_notice -> regulations/*` 的后续 opening，至少需要同时满足：
 
 - source-truth current scope 已稳定，不再处于大规模 owner recovery / relation recovery 波动期
-- promotion boundary 已能稳定区分 `wrapper_notice_only`、`manual_review_required`
-  与可独立消费正文
+- promotion boundary 已能稳定区分 `wrapper_notice_only`、
+  `requires_multimodal_processing` 与可独立消费正文
 - target collection 的 owner semantics、materialization contract 与 release posture
   已冻结
 - retrieval-prep 不会反向改写 source-triage truth，也不会把未稳定 source current scope
@@ -318,8 +318,9 @@ shared Postgres metadata truth`
 
 因此固定规则为：
 
-- wrapper notice、relation truth、`manual_review_required`、`reference_only`
-  等结果继续留在 `campus_notices/internal_notice`
+- wrapper notice、relation truth、source-truth attachment
+  `multimodal_processing_required`、`reference_only` 等结果继续留在
+  `campus_notices/internal_notice`
 - 如果 notice 正文或 attachment 正文已经具备独立制度消费语义，必须经过显式 promotion boundary 再进入独立
   `regulations/*` collection
 - 这条 promotion boundary 不改写 source-truth unit；原始 notice 仍继续作为 canonical upstream
@@ -439,11 +440,12 @@ owner` 解析。
 
 - 如果 parent notice 正文明确出现 `附件：`、`参见《…》附件`、`信息门户-文件发布`、`自行下载参照执行` 一类 owner 指向信号
 - 但 source-truth / child document 还没有恢复出对应 attachment owner 或 file-release owner
-- 则 promotion/source diagnostic 可以保留 legacy `manual_review_required`，
-  但 consumption projection 不再把它写成 terminal status
+- 则 source diagnostic 可以保留 `multimodal_processing_required` attachment classification；
+  promotion action 不直接产出 attachment classification，而是使用
+  `requires_multimodal_processing` 或 fail-closed no-adoption reason
 - 不得把这类 parent notice body 直接 promote 成 regulation 正文
 
-消费层固定下线 `consumption_status=manual_review_required`：
+消费层固定不使用 `multimodal_processing_required` 作为 consumption status：
 
 - 可由机器继续处理的视觉/非线性内容写入
   `target_surface=multimodal_processing_candidate` 与
@@ -451,13 +453,37 @@ owner` 解析。
 - selected multimodal worker 可通过 env chat endpoint 处理这类 unit；结果只能回写为
   notice-level query/read-model truth 或 `no_adoption`，不得把视觉模型摘要直接冒充
   `regulations/*` ready target
+- 视觉模型结果写回 projection 前必须经过 deterministic guard：
+  `retain_for_notice_query` 需要非空 summary / extracted text 且不能是 low
+  confidence；带可消费 extracted text 的 `no_adoption` 不能直接关闭，必须继续保持
+  pending multimodal 以避免丢失潜在正文
+- selected consumption worker 必须记录 consumer admission batch lifecycle，并把
+  `consumer_admission_batch_id` 写入 projection/readable gap provenance；多模态处理尝试必须持久化为
+  attempt truth，不依赖 worker 进程内计数
+- consumer admission record 必须保存 selection source、selection path、selection
+  sha256 与 command args；projection rebuild、multimodal processing、read-model
+  rebuild / repair 都必须进入 started / completed / failed lifecycle
+- consumer admission current batch 之外必须保留 append-only event log，用来追踪
+  started / completed / failed 历史，不只依赖 current-state upsert
+- pending multimodal drain 只能扫描 consumption projection 的 pending units，可按
+  selected notices / selection path 限定；不得回扫 source-truth inventory 来扩张处理范围
+- consumption projection、read model、admission current/event 与 multimodal attempt
+  stores 必须有 repo-owned schema artifact / operator runbook；multimodal eval gate
+  必须有 repo-tracked fixed JSONL fixture；默认 gate 包括 action fixture 与
+  visual-understanding fixture，后者只使用 synthetic/desensitized fixture 输出做
+  required span / forbidden claim / confidence / reason-code 检查，不把 restricted
+  notice 原图上传到 hosted eval 平台
+- downstream `regulations/institutional_rules` 与 `regulations/scoped_rules`
+  materializer 只读 configured projection truth；未配置 projection store 时 fail
+  closed，不得回退到 source-truth inventory 或空内存 projection
 - owner/source relation 不完整的条目写入 `semantic_owner=authority_pending`，由
   processing gap audit 暴露，不伪装成 ready target
-- 不属于当前 admitted lane 的硬性 manual-review legacy reason 写入
+- 不属于当前 admitted lane 的硬性 no-adoption reason 写入
   `target_surface=unsupported` 与 `consumption_status=no_adoption`
-- `manual_review_required` 只允许作为 source-truth attachment classification、
-  promotion diagnostic 或历史兼容字段出现，不允许作为新生成的 consumption
-  projection status
+- `multimodal_processing_required` 只允许作为 source-truth attachment classification
+  出现，不允许作为新生成的 consumption projection status 或 promotion action
+- legacy manual-review consumption migration path 不存在；历史未消费
+  projection data 不迁移、不补写
 
 这层解析结果必须作为显式 metadata 落盘，而不是在后置阶段重新猜测。当前第一版固定字段为：
 
@@ -497,7 +523,7 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 - `reference_only`：只保留 source-truth relation，不生成 child document
 - `text_extractable`：走确定性的 native text extraction；当前 `internal_notice` 默认把
   `docx`、`xls`、`xlsx` 这类可稳定原生解析的 Office 文本附件放进这条 lane
-- `manual_review_required`：空间导览图、位置图和其他不以线性文本为主的 visual asset 不进入当前正文 OCR
+- `multimodal_processing_required`：空间导览图、位置图和其他不以线性文本为主的 visual asset 不进入当前正文 OCR
   主链路；只保留 relation truth，并显式记录 `review_reason`
 - `ocr_required`：走 shared OCR lane，并始终先归一化成 repo-owned canonical provider
   payload；对 `internal_notice`，规章制度 / 手册类 `pdf` 默认也进入这条 lane。provider 选择以 shared
@@ -540,15 +566,15 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
 - OCR provider 返回的 raw html table / markup 可以保留在 `layout-elements.jsonl` 供 lane
   内结构修复使用，但不得直接泄漏进 canonical markdown 或最终 document units
 
-`manual_review_required` 的固定语义补充：
+`multimodal_processing_required` 的固定语义补充：
 
 - 这类 attachment 不是 `reference_only decorative asset`；它们仍然是 notice 的信息组成部分
 - 当前 repo 只承认“保留 relation truth + 显式 source diagnostic”这一条 canonical
   source-truth 形态，不把它们伪装成 OCR candidate；进入 consumption
   projection 后，可机器处理的 gap 必须转为 `pending_multimodal_processing`
-- `manual_review_required` 的典型样本包括校园导览总图、位置示意图、楼宇分区图等空间关系主导的内联图片
+- `multimodal_processing_required` 的典型样本包括校园导览总图、位置示意图、楼宇分区图等空间关系主导的内联图片
 - frozen inventory / staged truth 必须保留
-  `classification=manual_review_required`、`materialization_policy=manual_review`
+  `classification=multimodal_processing_required`、`materialization_policy=multimodal_processing`
   与 `review_reason`
 - 这条 source lane 当前不生成 child document，也不进入 chunk preparation；如果后续需要空间问答或地图理解，应接入
   multimodal processing lane，而不是回退到 generic OCR 或人工终态
@@ -606,7 +632,7 @@ pipeline，后续吞吐升级为 planning/worker split + batch-leased executor�
   view
 - planner 冻结的是 attachment projection plan，而不是假设所有候选 attachment 都最终 materialize 为
   child document；对于 attachment frozen truth 至少要区分
-  `required_document`、`conditional_on_extracted_text` 与 `manual_review`
+  `required_document`、`conditional_on_extracted_text` 与 `multimodal_processing`
 - source-truth replay repair 必须只消费 run-owned frozen inventory 与 frozen
   source-truth objects，但允许用当前 projection rules 重新计算
   `attachment_projection_plans`；不得回退到 live registry rescan，也不得盲目沿用已知错误的旧 plan

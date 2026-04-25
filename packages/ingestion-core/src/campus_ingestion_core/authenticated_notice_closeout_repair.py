@@ -25,11 +25,11 @@ from campus_ingestion_core.authenticated_notice_import import (
     AuthenticatedNoticeImportRequest,
 )
 from campus_ingestion_core.authenticated_notice_source_projections import (
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_replay import (
@@ -304,10 +304,13 @@ class CloseoutRepairCoordinator:
                     ):
                         return True
                     continue
-                if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
+                if (
+                    materialization_policy
+                    == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+                ):
                     if (
                         outcome_name
-                        != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED
+                        != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED
                     ):
                         return True
                     if document_id in staged_document_ids:

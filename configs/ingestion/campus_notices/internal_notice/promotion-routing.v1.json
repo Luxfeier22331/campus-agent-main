@@ -13,7 +13,7 @@
 	"accepted_input_lanes": ["notice_body", "attachment_text_extractable", "attachment_ocr_required"],
 	"terminal_outcomes_excluded_from_promotion": [
 		"reference_only",
-		"manual_review_required",
+		"multimodal_processing_required",
 		"no_extractable_text",
 		"unsupported_binary"
 	],
@@ -42,9 +42,9 @@
 			"default_action": "retain_in_internal_notice",
 			"reason": "The notice itself is only the publication wrapper and must not become a regulation document."
 		},
-		"manual_promotion_review": {
-			"default_action": "manual_review_required",
-			"reason": "Use when the document may be regulation-like but title/body/provenance/version signals are still ambiguous."
+		"machine_processing_required": {
+			"default_action": "requires_multimodal_processing",
+			"reason": "Use when the document may be regulation-like but title/body/provenance/version signals need another machine processing lane."
 		}
 	},
 	"document_nature_taxonomy": {
@@ -103,7 +103,7 @@
 		"source_notice_release_time is notice-issued provenance metadata and must not be silently rewritten into effective_date.",
 		"Current execution identity now uses regulation_work_title; current projected/materialized title uses regulation_display_title when present, while regulation_title_normalized and source_title_literal remain source-facing title metadata.",
 		"Document age is not a standalone exclusion or downgrade signal for campus regulations.",
-		"暂行 or 试行 is not by itself a draft, expired, or manual-review signal.",
+		"暂行 or 试行 is not by itself a draft, expired, or machine-processing signal.",
 		"Exclude from institutional_rules only when the body remains wrapper-only, draft/consultation, operational-scheme-like, or otherwise lacks promotable canonical regulation text.",
 		"Per-document target_collection is authoritative for downstream consumers; annual-cycle and time-bound operational documents now route to regulations/scoped_rules instead of institutional_rules."
 	]

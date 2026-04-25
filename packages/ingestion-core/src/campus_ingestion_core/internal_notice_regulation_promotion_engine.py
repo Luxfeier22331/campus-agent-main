@@ -108,15 +108,17 @@ def build_internal_notice_regulation_promotion_manifest(
     lane_counts: Counter[str] = Counter()
     candidate_count = 0
     hold_count = 0
-    manual_review_count = 0
+    machine_processing_required_count = 0
     for report in reports:
         promotion_class_counts[report.promotion_class] += 1
         action_counts[report.action] += 1
         lane_counts[report.input_lane] += 1
         if report.action == "promote_candidate":
             candidate_count += 1
-        elif report.action == "manual_review_required":
-            manual_review_count += 1
+        elif (
+            report.action == shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING
+        ):
+            machine_processing_required_count += 1
         else:
             hold_count += 1
 
@@ -133,7 +135,7 @@ def build_internal_notice_regulation_promotion_manifest(
         scanned_document_count=len(reports),
         candidate_count=candidate_count,
         hold_count=hold_count,
-        manual_review_count=manual_review_count,
+        machine_processing_required_count=machine_processing_required_count,
         promotion_class_counts=dict(sorted(promotion_class_counts.items())),
         action_counts=dict(sorted(action_counts.items())),
         lane_counts=dict(sorted(lane_counts.items())),

@@ -304,7 +304,9 @@ class AuthenticatedNoticeCloseoutAsyncWorkerStageTest(unittest.TestCase):
                     )
                 )
 
-    def test_source_truth_replay_workers_keep_spatial_inline_images_in_manual_review(self) -> None:
+    def test_source_truth_replay_workers_keep_spatial_inline_images_in_multimodal_processing(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             service, object_store = _build_service(
@@ -372,17 +374,19 @@ class AuthenticatedNoticeCloseoutAsyncWorkerStageTest(unittest.TestCase):
             )
             self.assertEqual(verified["high_risk_notice_count"], 1)
             self.assertEqual(verified["staged_document_count"], 2)
-            self.assertEqual(verified["verification"]["manual_review_required_attachment_count"], 1)
+            self.assertEqual(
+                verified["verification"]["multimodal_processing_required_attachment_count"], 1
+            )
             self.assertEqual(verified["verification"]["missing_attachment_outcome_count"], 0)
             self.assertTrue(verified["verification"]["ok"])
 
             staged_notice = service.closeout_store.get_staged_notices("source-truth-run-1")[0]
             self.assertEqual(len(staged_notice["attachment_outcomes"]), 2)
-            manual_outcome = staged_notice["attachment_outcomes"][1]
-            self.assertEqual(manual_outcome["classification"], "manual_review_required")
-            self.assertEqual(manual_outcome["materialization_policy"], "manual_review")
-            self.assertEqual(manual_outcome["outcome"], "manual_review_required")
-            self.assertEqual(manual_outcome["review_reason"], "spatial_visual_asset")
+            multimodal_outcome = staged_notice["attachment_outcomes"][1]
+            self.assertEqual(multimodal_outcome["classification"], "multimodal_processing_required")
+            self.assertEqual(multimodal_outcome["materialization_policy"], "multimodal_processing")
+            self.assertEqual(multimodal_outcome["outcome"], "multimodal_processing_required")
+            self.assertEqual(multimodal_outcome["review_reason"], "spatial_visual_asset")
 
             promotion = service.promote_run("source-truth-run-1")
             self.assertEqual(promotion["state"], "done")

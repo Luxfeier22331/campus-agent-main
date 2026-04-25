@@ -173,7 +173,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
 
         self.assertEqual(report.candidate_count, 2)
         self.assertEqual(report.hold_count, 3)
-        self.assertEqual(report.manual_review_count, 0)
+        self.assertEqual(report.machine_processing_required_count, 0)
         self.assertEqual(report.promotion_class_counts["formal_regulation"], 3)
         self.assertEqual(report.promotion_class_counts["wrapper_notice_only"], 2)
 
@@ -462,7 +462,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
 
         self.assertEqual(report.candidate_count, 1)
         self.assertEqual(report.hold_count, 1)
-        self.assertEqual(report.manual_review_count, 0)
+        self.assertEqual(report.machine_processing_required_count, 0)
         reports_by_id = {item.document_id: item for item in report.documents}
 
         primary_report = reports_by_id[parent_1.document_id]
@@ -536,11 +536,11 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
 
         self.assertEqual(report.candidate_count, 0)
         self.assertEqual(report.hold_count, 0)
-        self.assertEqual(report.manual_review_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 1)
         document_report = report.documents[0]
         self.assertEqual(document_report.document_id, parent.document_id)
-        self.assertEqual(document_report.action, "manual_review_required")
-        self.assertEqual(document_report.promotion_class, "manual_promotion_review")
+        self.assertEqual(document_report.action, "requires_multimodal_processing")
+        self.assertEqual(document_report.promotion_class, "machine_processing_required")
         self.assertIn("input_incomplete_missing_attachment_docs", document_report.reasons)
 
     def test_build_manifest_keeps_wrapper_notice_summary_in_internal_notice_without_body_structure(
@@ -593,7 +593,7 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
 
         self.assertEqual(report.candidate_count, 0)
         self.assertEqual(report.hold_count, 1)
-        self.assertEqual(report.manual_review_count, 0)
+        self.assertEqual(report.machine_processing_required_count, 0)
         document_report = report.documents[0]
         self.assertEqual(document_report.action, "hold_in_internal_notice")
         self.assertEqual(document_report.promotion_class, "wrapper_notice_only")
@@ -653,10 +653,10 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         )
 
         self.assertEqual(report.candidate_count, 0)
-        self.assertEqual(report.manual_review_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 1)
         document_report = report.documents[0]
-        self.assertEqual(document_report.action, "manual_review_required")
-        self.assertEqual(document_report.promotion_class, "manual_promotion_review")
+        self.assertEqual(document_report.action, "requires_multimodal_processing")
+        self.assertEqual(document_report.promotion_class, "machine_processing_required")
         self.assertIn("attachment_backed_regulation_body_missing", document_report.reasons)
         self.assertEqual(document_report.semantic_owner_kind, "attachment_document")
         self.assertEqual(
@@ -725,9 +725,9 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         )
 
         self.assertEqual(report.candidate_count, 0)
-        self.assertEqual(report.manual_review_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 1)
         document_report = report.documents[0]
-        self.assertEqual(document_report.action, "manual_review_required")
+        self.assertEqual(document_report.action, "requires_multimodal_processing")
         self.assertIn("attachment_backed_regulation_body_missing", document_report.reasons)
         self.assertEqual(document_report.semantic_owner_kind, "attachment_document")
 
@@ -785,10 +785,10 @@ class InternalNoticeRegulationPromotionManifestTest(unittest.TestCase):
         )
 
         self.assertEqual(report.candidate_count, 0)
-        self.assertEqual(report.manual_review_count, 1)
+        self.assertEqual(report.machine_processing_required_count, 1)
         document_report = report.documents[0]
-        self.assertEqual(document_report.action, "manual_review_required")
-        self.assertEqual(document_report.promotion_class, "manual_promotion_review")
+        self.assertEqual(document_report.action, "requires_multimodal_processing")
+        self.assertEqual(document_report.promotion_class, "machine_processing_required")
         self.assertIn("file_release_backed_regulation_body_missing", document_report.reasons)
         self.assertEqual(document_report.semantic_owner_kind, "file_release_document")
         self.assertEqual(

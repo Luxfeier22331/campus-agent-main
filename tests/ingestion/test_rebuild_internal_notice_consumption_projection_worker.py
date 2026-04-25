@@ -5,6 +5,7 @@ import io
 import json
 import tempfile
 import unittest
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
@@ -71,7 +72,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             ) as rebuild,
             patch(
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
-                return_value="batch-projection-001",
+                side_effect=("batch-projection-001", "batch-projection-001"),
             ) as record_admission,
             patch(
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.build_internal_notice_consumption_admission_store_from_env",
@@ -92,9 +93,30 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
         build_admission_store.assert_called_once()
         self.assertEqual(request.notice_ids, ("351907",))
         self.assertEqual(str(request.promotion_routing_path), "/tmp/promotion-routing.v1.json")
-        self.assertEqual(record_admission.call_args.kwargs["command"], "projection_rebuild")
-        self.assertEqual(record_admission.call_args.kwargs["notice_ids"], ("351907",))
-        self.assertIs(record_admission.call_args.kwargs["store"], admission_store)
+        self.assertEqual(
+            rebuild.call_args.kwargs["admission_batch_id"],
+            "batch-projection-001",
+        )
+        self.assertEqual(
+            rebuild.call_args.kwargs["admission_command"],
+            "projection_rebuild",
+        )
+        self.assertEqual(record_admission.call_count, 2)
+        started_kwargs = record_admission.call_args_list[0].kwargs
+        completed_kwargs = record_admission.call_args_list[1].kwargs
+        self.assertEqual(started_kwargs["command"], "projection_rebuild")
+        self.assertEqual(started_kwargs["notice_ids"], ("351907",))
+        self.assertEqual(started_kwargs["status"], "started")
+        self.assertEqual(started_kwargs["selection_source"], "explicit_notice_ids")
+        self.assertEqual(
+            started_kwargs["command_args"]["promotion_routing_path"],
+            "/tmp/promotion-routing.v1.json",
+        )
+        self.assertIs(started_kwargs["store"], admission_store)
+        self.assertEqual(completed_kwargs["status"], "completed")
+        self.assertEqual(completed_kwargs["batch_id"], "batch-projection-001")
+        self.assertEqual(completed_kwargs["selection_source"], "explicit_notice_ids")
+        self.assertIs(completed_kwargs["store"], admission_store)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["batch_id"], "batch-projection-001")
         self.assertEqual(payload["projection_entry_count"], 2)
@@ -133,7 +155,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
             ),
             patch(
                 "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
-                return_value="batch-projection-001",
+                side_effect=("batch-projection-001", "batch-projection-001"),
             ),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
@@ -141,7 +163,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
 
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["pending_multimodal_processing_count"], 1)
-        self.assertEqual(payload["manual_review_required_count"], 0)
+        self.assertNotIn("manual_review_required_count", payload)
 
     def test_main_merges_notice_ids_from_selection_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -158,6 +180,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 ),
                 encoding="utf-8",
             )
+            expected_sha256 = sha256(selection_path.read_bytes()).hexdigest()
 
             with (
                 patch(
@@ -172,8 +195,8 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
                 ),
                 patch(
                     "campus_ingestion_worker.rebuild_internal_notice_consumption_projection.record_internal_notice_consumption_admission",
-                    return_value="batch-projection-001",
-                ),
+                    side_effect=("batch-projection-001", "batch-projection-001"),
+                ) as record_admission,
                 patch("sys.stdout", new_callable=io.StringIO),
             ):
                 worker.main(
@@ -187,6 +210,17 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
 
         request = rebuild.call_args.kwargs["request"]
         self.assertEqual(request.notice_ids, ("351907", "355222"))
+        started_kwargs = record_admission.call_args_list[0].kwargs
+        self.assertEqual(
+            started_kwargs["selection_source"],
+            "explicit_notice_ids+selection_path",
+        )
+        self.assertEqual(started_kwargs["selection_path"], str(selection_path))
+        self.assertEqual(started_kwargs["selection_sha256"], expected_sha256)
+        self.assertEqual(
+            started_kwargs["command_args"]["selection_source"],
+            "explicit_notice_ids+selection_path",
+        )
 
 
 def _entry(

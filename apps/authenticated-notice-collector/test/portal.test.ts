@@ -236,6 +236,69 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		await apiContext.dispose();
 	});
+
+	it("seeds stored auth from an explicit SSO_TGC token before bootstrap fallback", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-sso-token-"));
+		tempDirs.push(runtimeDir);
+		const calls: string[] = [];
+
+		const config = {
+			...buildConfig(runtimeDir),
+			authSsoTgcToken: "SSO_TGC=seeded-token; Path=/; Domain=.muc.edu.cn",
+		};
+		const apiContext = await createApiContextFromStorageState(config, {
+			createRequestContext: async (input) => {
+				const ssoCookie = input.storageState.cookies.find((cookie) => cookie.name === "SSO_TGC");
+				calls.push(`request.newContext:${ssoCookie?.value ?? "missing"}`);
+				expect(ssoCookie).toMatchObject({
+					domain: ".muc.edu.cn",
+					httpOnly: true,
+					name: "SSO_TGC",
+					path: "/",
+					secure: true,
+					value: "seeded-token",
+				});
+				return {
+					dispose: async () => undefined,
+					get: async () => {
+						throw new Error("unexpected get");
+					},
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				};
+			},
+			launchBrowser: async () => {
+				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+			},
+		});
+
+		expect(calls).toEqual(["request.newContext:seeded-token"]);
+
+		await apiContext.dispose();
+	});
+
+	it("rejects invalid SSO_TGC token material before creating a request context", async () => {
+		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-invalid-sso-"));
+		tempDirs.push(runtimeDir);
+
+		await expect(
+			createApiContextFromStorageState(
+				{
+					...buildConfig(runtimeDir),
+					authSsoTgcToken: "not a cookie token",
+				},
+				{
+					createRequestContext: async () => {
+						throw new Error("unexpected request context");
+					},
+					launchBrowser: async () => {
+						throw new Error("unexpected browser launch");
+					},
+				},
+			),
+		).rejects.toThrow("invalid AUTHENTICATED_NOTICE_SSO_TGC");
+	});
 });
 
 function buildConfig(runtimeDir: string): CollectorConfig {
@@ -243,6 +306,7 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		authCheckNoticeType: "5",
 		authCheckPageSize: 3,
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
+		authSsoTgcToken: null,
 		exportsDir: path.join(runtimeDir, "exports"),
 		noticeTypesPath: path.join(runtimeDir, "notice-types.json"),
 		packageRoot: runtimeDir,

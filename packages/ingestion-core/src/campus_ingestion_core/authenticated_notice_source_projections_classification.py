@@ -14,7 +14,7 @@ from urllib.parse import urlparse, urlunparse
 from campus_ingestion_core.authenticated_notice_source_projections_shared import (
     _NORMALIZED_NOTICE_PROVIDER_SUFFIX,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
     AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE,
     AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_SPATIAL_VISUAL_ASSET,
@@ -122,20 +122,20 @@ def _classify_attachment_ref(
         )
         if inline_image_override is not None:
             return inline_image_override
-        review_reason = _classify_manual_review_reason(
+        review_reason = _classify_multimodal_processing_reason(
             attachment_ref=attachment_ref,
             attachment_bytes=attachment_bytes,
         )
         if review_reason is not None:
             return AuthenticatedNoticeAttachmentClassificationResult(
-                classification="manual_review_required",
+                classification="multimodal_processing_required",
                 review_reason=review_reason,
             )
         return AuthenticatedNoticeAttachmentClassificationResult("ocr_required")
     return AuthenticatedNoticeAttachmentClassificationResult("unsupported_binary")
 
 
-def _classify_manual_review_reason(
+def _classify_multimodal_processing_reason(
     *,
     attachment_ref: dict[str, Any],
     attachment_bytes: bytes | None,
@@ -216,7 +216,7 @@ def _classify_inline_image_context_override(
         )
     ):
         return AuthenticatedNoticeAttachmentClassificationResult(
-            "manual_review_required",
+            "multimodal_processing_required",
             review_reason=AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE,
         )
     return None
@@ -649,8 +649,8 @@ def _materialization_policy_for_classification(classification: str) -> str:
         return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
     if classification == "ocr_required":
         return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
-    if classification == "manual_review_required":
-        return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW
+    if classification == "multimodal_processing_required":
+        return AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
     raise ValueError(f"unsupported materialization policy classification: {classification}")
 
 

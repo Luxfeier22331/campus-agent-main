@@ -107,7 +107,7 @@ operator read model。
 
 - validator / sample export 优先读取 frozen inventory
 - 不允许只根据当前 materialized document 重新猜 risk profile
-- `manual_review_required` 与 `reference_only` attachment 不因“没有 child document”而从
+- `multimodal_processing_required` 与 `reference_only` attachment 不因“没有 child document”而从
   risk profile 中消失
 
 ## Accepted Lane Model
@@ -119,7 +119,7 @@ operator read model。
 - `attachment_ocr_required`
 - terminal outcomes:
   - `reference_only`
-  - `manual_review_required`
+  - `multimodal_processing_required`
   - `no_extractable_text`
   - `unsupported_binary`
 
@@ -154,8 +154,8 @@ operator read model。
 
 - `pdf` 默认按 `ocr_required` 处理，不因 text layer 自动回到 text-extractable lane
 - OCR lane 的 provider routing 由 shared OCR owner 决定，不由本 collection 文档重新定义
-- `manual_review_required` / `reference_only` 继续作为 terminal outcome，而不是 OCR lane
-  失败后的隐式补救
+- `multimodal_processing_required` / `reference_only` 继续作为 terminal
+  outcome，而不是 OCR lane 失败后的隐式补救
 
 ## Preparation / Release Boundary
 

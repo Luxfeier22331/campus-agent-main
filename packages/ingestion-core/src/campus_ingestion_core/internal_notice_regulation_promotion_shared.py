@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Protocol
 
 _INTERNAL_NOTICE_SCOPE = ("campus_notices", "internal_notice")
+INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING = "requires_multimodal_processing"
+INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED = "machine_processing_required"
 _FORMAL_REGULATION_KEYWORDS = (
     "办法",
     "规定",
@@ -203,7 +205,7 @@ class InternalNoticeRegulationPromotionManifestReport:
     scanned_document_count: int
     candidate_count: int
     hold_count: int
-    manual_review_count: int
+    machine_processing_required_count: int
     promotion_class_counts: dict[str, int]
     action_counts: dict[str, int]
     lane_counts: dict[str, int]

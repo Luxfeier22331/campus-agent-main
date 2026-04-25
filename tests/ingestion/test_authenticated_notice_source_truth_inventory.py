@@ -128,7 +128,7 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
         text_extractable_count=0,
         ocr_required_count=0,
         reference_only_count=0,
-        manual_review_required_count=0,
+        multimodal_processing_required_count=0,
         notice_risk_label="body_only",
         attachment_mix_score=0,
         has_text_table_attachment=False,
@@ -294,12 +294,13 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         store.table_name = "ingestion_projection.authenticated_notice_source_truth_inventory"
         legacy_payload = asdict(_inventory_entry("000004"))
         legacy_payload.pop("attachment_ref_count")
-        legacy_payload.pop("manual_review_required_count")
+        legacy_payload.pop("multimodal_processing_required_count")
         legacy_payload.pop("notice_risk_label")
         legacy_payload.pop("attachment_mix_score")
         legacy_payload.pop("has_text_table_attachment")
         legacy_payload.pop("has_spatial_attachment")
         legacy_payload.pop("has_reference_only_attachment")
+        legacy_payload["obsolete_profile_count"] = 3
         cursor = _PagedCursor([[(json.dumps(legacy_payload),)]])
 
         with patch(
@@ -315,7 +316,7 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].notice_id, "000004")
         self.assertEqual(records[0].attachment_ref_count, 0)
-        self.assertEqual(records[0].manual_review_required_count, 0)
+        self.assertEqual(records[0].multimodal_processing_required_count, 0)
         self.assertEqual(records[0].notice_risk_label, "body_only")
         self.assertEqual(records[0].attachment_mix_score, 0)
         self.assertFalse(records[0].has_text_table_attachment)

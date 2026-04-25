@@ -19,8 +19,8 @@ from campus_ingestion_core.authenticated_notice_source_projections_classificatio
     _resolve_attachment_role,
 )
 from campus_ingestion_core.authenticated_notice_source_projections_shared import (
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
     DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_IMPORT_SOURCE,
     DEFAULT_AUTHENTICATED_NOTICE_SOURCE_PROJECTION_PARSER_VERSION,
@@ -142,7 +142,7 @@ def rebuild_authenticated_notice_source_projections_impl(
     ocr_attachment_count = 0
     ocr_no_text_attachment_count = 0
     reference_only_attachment_count = 0
-    manual_review_attachment_count = 0
+    multimodal_processing_attachment_count = 0
     documents: list[DocumentImportInput] = []
     ocr_provider_response_cache: dict[str, bytes] = {}
 
@@ -173,8 +173,8 @@ def rebuild_authenticated_notice_source_projections_impl(
                 ocr_attachment_count += 1
                 if outcome.outcome == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT:
                     ocr_no_text_attachment_count += 1
-            elif outcome.classification == "manual_review_required":
-                manual_review_attachment_count += 1
+            elif outcome.classification == "multimodal_processing_required":
+                multimodal_processing_attachment_count += 1
 
     stats = collect_import_document_stats(
         documents=documents,
@@ -198,7 +198,7 @@ def rebuild_authenticated_notice_source_projections_impl(
         ocr_attachment_count=ocr_attachment_count,
         ocr_no_text_attachment_count=ocr_no_text_attachment_count,
         reference_only_attachment_count=reference_only_attachment_count,
-        manual_review_attachment_count=manual_review_attachment_count,
+        multimodal_processing_attachment_count=multimodal_processing_attachment_count,
         created_document_ids=stats.created_document_ids,
         updated_document_ids=stats.updated_document_ids,
         skipped_document_ids=stats.skipped_document_ids,
@@ -359,14 +359,14 @@ def _build_attachment_projection_result(
         extraction_policy_version=config.extraction_policy_version,
     )
     materialization_policy = _materialization_policy_for_classification(classification)
-    if classification == "manual_review_required":
+    if classification == "multimodal_processing_required":
         return AuthenticatedNoticeAttachmentProjectionResult(
             document=None,
             outcome=AuthenticatedNoticeAttachmentProjectionOutcome(
                 attachment_ref_id=attachment_ref_id,
                 classification=classification,
                 materialization_policy=materialization_policy,
-                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
+                outcome=AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
                 document_id=derived_document_id,
                 attachment_object_key=object_key,
                 attachment_content_sha256=actual_attachment_sha256,

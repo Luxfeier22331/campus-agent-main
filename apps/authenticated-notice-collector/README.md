@@ -50,6 +50,10 @@ Auth note:
 
 - current collector auth bootstrap should treat `SSO_TGC@.muc.edu.cn` as the
   primary reusable login input
+- operator refresh can set `AUTHENTICATED_NOTICE_SSO_TGC` to either the raw
+  token value or a full `SSO_TGC=<value>; Path=/; Domain=.muc.edu.cn` cookie
+  fragment; `auth:check` seeds `runtime/auth/storageState.json` from that value
+  before attempting portal bootstrap
 - collector now appends `muc.edu.cn`, `.muc.edu.cn`, `my.muc.edu.cn`,
   `ca.muc.edu.cn` into `NO_PROXY` / `no_proxy` at runtime so the portal path
   bypasses repo-local shell proxies by default

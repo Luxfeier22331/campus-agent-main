@@ -27,6 +27,38 @@ from .internal_notice_scoped_rule_materialization_test_support import (
 
 
 class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
+    def test_materialize_scoped_rules_requires_configured_projection_store_when_not_injected(
+        self,
+    ) -> None:
+        materialize = getattr(
+            scoped_materialization,
+            "materialize_scoped_rules_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        with (
+            unittest.mock.patch(
+                "campus_ingestion_core.internal_notice_scoped_rule_materialization_engine.build_notice_consumption_projection_store_from_env",
+                side_effect=ValueError("projection store is required"),
+            ),
+            self.assertRaisesRegex(ValueError, "projection store is required"),
+        ):
+            materialize(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                },
+                object_store=_FakeObjectStore(),
+                registry=InMemoryDocumentRegistry(()),
+                raw_asset_registry=InMemoryRawAssetRegistry(()),
+            )
+
     def test_materialize_scoped_rules_from_internal_notice_scope(self) -> None:
         materialize = getattr(
             scoped_materialization,

@@ -38,10 +38,12 @@ AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT = "required_document"
 AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT = (
     "conditional_on_extracted_text"
 )
-AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW = "manual_review"
+AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING = "multimodal_processing"
 AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT = "materialized_document"
 AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT = "no_extractable_text"
-AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED = "manual_review_required"
+AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED = (
+    "multimodal_processing_required"
+)
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_SPATIAL_VISUAL_ASSET = "spatial_visual_asset"
 AUTHENTICATED_NOTICE_ATTACHMENT_REVIEW_REASON_OPERATIONAL_SCHEDULE_GUIDE_IMAGE = (
     "operational_schedule_guide_image"
@@ -116,7 +118,7 @@ class AuthenticatedNoticeSourceProjectionReport:
     ocr_attachment_count: int
     ocr_no_text_attachment_count: int
     reference_only_attachment_count: int
-    manual_review_attachment_count: int
+    multimodal_processing_attachment_count: int
     created_document_ids: tuple[str, ...]
     updated_document_ids: tuple[str, ...]
     skipped_document_ids: tuple[str, ...]

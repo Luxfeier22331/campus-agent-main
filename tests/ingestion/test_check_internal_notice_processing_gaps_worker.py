@@ -29,7 +29,6 @@ class CheckInternalNoticeProcessingGapsWorkerCliTest(unittest.TestCase):
             no_adoption_count=0,
             ready_for_target_count=1,
             retained_for_notice_query_count=0,
-            legacy_manual_review_required_count=0,
             consumption_status_counts={
                 "pending_multimodal_processing": 1,
                 "ready_for_target_materialization": 1,
@@ -47,6 +46,7 @@ class CheckInternalNoticeProcessingGapsWorkerCliTest(unittest.TestCase):
                     target_surface="multimodal_processing_candidate",
                     consumption_status="pending_multimodal_processing",
                     reasons=("multimodal_processing_required",),
+                    consumer_admission_batch_id="batch-projection-001",
                 ),
             ),
         )
@@ -68,10 +68,14 @@ class CheckInternalNoticeProcessingGapsWorkerCliTest(unittest.TestCase):
         self.assertEqual(check.call_args.kwargs["notice_ids"], ("355222",))
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["pending_multimodal_processing_count"], 1)
-        self.assertEqual(payload["legacy_manual_review_required_count"], 0)
+        self.assertNotIn("legacy_manual_review_required_count", payload)
         self.assertEqual(
             payload["gap_units"][0]["target_surface"],
             "multimodal_processing_candidate",
+        )
+        self.assertEqual(
+            payload["gap_units"][0]["consumer_admission_batch_id"],
+            "batch-projection-001",
         )
 
     def test_main_merges_notice_ids_from_selection_path(self) -> None:
@@ -86,7 +90,6 @@ class CheckInternalNoticeProcessingGapsWorkerCliTest(unittest.TestCase):
             no_adoption_count=0,
             ready_for_target_count=0,
             retained_for_notice_query_count=0,
-            legacy_manual_review_required_count=0,
             consumption_status_counts={},
             target_surface_counts={},
             gap_units=(),

@@ -74,7 +74,7 @@ class ShowInternalNoticeConsumptionProjectionStatusWorkerCliTest(unittest.TestCa
         self.assertEqual(payload["ready_unit_count"], 1)
         self.assertEqual(payload["held_unit_count"], 1)
         self.assertEqual(payload["pending_multimodal_unit_count"], 1)
-        self.assertEqual(payload["manual_review_unit_count"], 0)
+        self.assertNotIn("manual_review_unit_count", payload)
         self.assertTrue(payload["has_target_ready_units"])
         self.assertEqual(
             {unit["primary_role"] for unit in payload["units"]},

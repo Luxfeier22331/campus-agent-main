@@ -271,10 +271,10 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
             text_extractable_count += 1
         elif classification == "ocr_required":
             ocr_required_count += 1
-    manual_review_required_count = sum(
+    multimodal_processing_required_count = sum(
         1
         for plan in attachment_projection_plans
-        if str(plan.get("classification") or "") == "manual_review_required"
+        if str(plan.get("classification") or "") == "multimodal_processing_required"
     )
     reference_only_count = max(
         0,
@@ -289,14 +289,14 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         notice_manifest.get("source_home_url")
     ) or _derive_source_home_url(record.source_uri)
     has_text_table_attachment = text_extractable_count > 0 or ocr_required_count > 0
-    has_spatial_attachment = manual_review_required_count > 0
+    has_spatial_attachment = multimodal_processing_required_count > 0
     has_reference_only_attachment = reference_only_count > 0
     attachment_lane_count = sum(
         1
         for count in (
             text_extractable_count,
             ocr_required_count,
-            manual_review_required_count,
+            multimodal_processing_required_count,
             reference_only_count,
         )
         if count > 0
@@ -334,7 +334,7 @@ def build_authenticated_notice_source_truth_parent_snapshot_from_payloads(
         "text_extractable_count": text_extractable_count,
         "ocr_required_count": ocr_required_count,
         "reference_only_count": reference_only_count,
-        "manual_review_required_count": manual_review_required_count,
+        "multimodal_processing_required_count": multimodal_processing_required_count,
         "notice_title": _normalize_non_empty_text(
             notice_manifest.get("notice_title_normalized")
             or notice_manifest.get("notice_title_raw")
@@ -379,7 +379,9 @@ def inventory_entry_from_parent_snapshot(
         text_extractable_count=int(parent_snapshot["text_extractable_count"]),
         ocr_required_count=int(parent_snapshot["ocr_required_count"]),
         reference_only_count=int(parent_snapshot["reference_only_count"]),
-        manual_review_required_count=int(parent_snapshot.get("manual_review_required_count") or 0),
+        multimodal_processing_required_count=int(
+            parent_snapshot.get("multimodal_processing_required_count") or 0
+        ),
         notice_risk_label=str(parent_snapshot.get("notice_risk_label") or "body_only"),
         attachment_mix_score=int(parent_snapshot.get("attachment_mix_score") or 0),
         has_text_table_attachment=bool(parent_snapshot.get("has_text_table_attachment", False)),

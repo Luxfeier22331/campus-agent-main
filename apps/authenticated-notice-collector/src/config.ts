@@ -12,6 +12,7 @@ export interface CollectorConfig {
 	repoRoot: string;
 	runtimeDir: string;
 	authStorageStatePath: string;
+	authSsoTgcToken: string | null;
 	exportsDir: string;
 	noticeTypesPath: string;
 	portalBaseUrl: string;
@@ -47,10 +48,11 @@ export function resolveCollectorConfig(
 	).trim();
 	return {
 		packageRoot,
-		repoRoot,
-		runtimeDir,
-		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-		exportsDir: path.join(runtimeDir, "exports"),
+			repoRoot,
+			runtimeDir,
+			authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
+			authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
+			exportsDir: path.join(runtimeDir, "exports"),
 		noticeTypesPath: path.resolve(
 			String(
 				source.AUTHENTICATED_NOTICE_NOTICE_TYPES_PATH ||
@@ -74,6 +76,11 @@ export function resolveCollectorConfig(
 			String(source.AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE || "5").trim() || "5",
 		authCheckPageSize: parsePositiveInteger(source.AUTHENTICATED_NOTICE_AUTH_CHECK_PAGE_SIZE, 3),
 	};
+}
+
+function normalizeOptionalSecret(raw: string | undefined): string | null {
+	const normalized = String(raw ?? "").trim();
+	return normalized ? normalized : null;
 }
 
 export function ensureRuntimeDirs(config: CollectorConfig): void {

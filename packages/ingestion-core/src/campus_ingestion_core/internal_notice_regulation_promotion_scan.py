@@ -95,8 +95,8 @@ def _scan_document(
             input_lane=input_lane,
             revision_track=record.revision_track,
             version_id=record.version_id,
-            action="manual_review_required",
-            promotion_class="manual_promotion_review",
+            action=shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+            promotion_class=shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
             document_nature="institutional_regulation",
             semantic_owner_kind=_determine_semantic_owner_kind(
                 source_kind=source_kind,
@@ -224,10 +224,16 @@ def _scan_document(
     )
     if source_kind == "parent_notice" and missing_parent_owner_reason is not None:
         reasons.append(missing_parent_owner_reason)
-        promotion_class, action = ("manual_promotion_review", "manual_review_required")
+        promotion_class, action = (
+            shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+            shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+        )
     elif source_kind == "parent_notice" and missing_materialized_attachment_refs:
         reasons.append("input_incomplete_missing_attachment_docs")
-        promotion_class, action = ("manual_promotion_review", "manual_review_required")
+        promotion_class, action = (
+            shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED,
+            shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+        )
     else:
         promotion_class, action = _classify_document(
             source_kind=source_kind,
@@ -249,8 +255,8 @@ def _scan_document(
             action = routing.default_action
         if not regulation_title_normalized:
             reasons.append("missing_regulation_title")
-            action = "manual_review_required"
-            promotion_class = "manual_promotion_review"
+            action = shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING
+            promotion_class = shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED
 
     semantic_owner_kind = _determine_semantic_owner_kind(
         source_kind=source_kind,
@@ -338,7 +344,9 @@ def _apply_duplicate_resolution(
         primary = min(group, key=_candidate_sort_key)
         rewritten[primary.document_id] = _replace_document_report(
             primary,
-            quality_gates_passed=tuple(sorted({*primary.quality_gates_passed, "duplicate_check_passed"})),
+            quality_gates_passed=tuple(
+                sorted({*primary.quality_gates_passed, "duplicate_check_passed"})
+            ),
         )
         for duplicate in group:
             if duplicate.document_id == primary.document_id:
@@ -380,8 +388,10 @@ def _apply_required_quality_gate_enforcement(
         rewritten.append(
             _replace_document_report(
                 report,
-                action="manual_review_required",
-                promotion_class="manual_promotion_review",
+                action=shared.INTERNAL_NOTICE_PROMOTION_ACTION_REQUIRES_MULTIMODAL_PROCESSING,
+                promotion_class=(
+                    shared.INTERNAL_NOTICE_PROMOTION_CLASS_MACHINE_PROCESSING_REQUIRED
+                ),
                 reasons=tuple(
                     dict.fromkeys(
                         (

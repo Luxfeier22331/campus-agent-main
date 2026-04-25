@@ -195,7 +195,7 @@ def _make_inventory_entry(
         "text_extractable_count": 1 if has_text_table_attachment else 0,
         "ocr_required_count": 0,
         "reference_only_count": 1 if has_reference_only_attachment else 0,
-        "manual_review_required_count": 1 if has_spatial_attachment else 0,
+        "multimodal_processing_required_count": 1 if has_spatial_attachment else 0,
         "notice_risk_label": notice_risk_label,
         "attachment_mix_score": attachment_mix_score,
         "has_text_table_attachment": has_text_table_attachment,

@@ -222,7 +222,7 @@ class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):
 
         self.assertEqual(report.candidate_count, 3)
         self.assertEqual(report.hold_count, 0)
-        self.assertEqual(report.manual_review_count, 0)
+        self.assertEqual(report.machine_processing_required_count, 0)
         reports_by_id = {item.document_id: item for item in report.documents}
         temporary_report = reports_by_id[temporary_parent.document_id]
         self.assertEqual(temporary_report.action, "promote_candidate")
@@ -355,8 +355,8 @@ class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):
         )
 
         document_report = report.documents[0]
-        self.assertEqual(document_report.action, "manual_review_required")
-        self.assertEqual(document_report.promotion_class, "manual_promotion_review")
+        self.assertEqual(document_report.action, "requires_multimodal_processing")
+        self.assertEqual(document_report.promotion_class, "machine_processing_required")
         self.assertIn("missing_quality_gate:wrapper_semantics_removed", document_report.reasons)
 
     def test_build_manifest_allows_provisional_regulations_without_explicit_temporary_body_signals(
@@ -415,7 +415,7 @@ class InternalNoticeRegulationPromotionManifestFollowupTest(unittest.TestCase):
         )
 
         self.assertEqual(report.candidate_count, 1)
-        self.assertEqual(report.manual_review_count, 0)
+        self.assertEqual(report.machine_processing_required_count, 0)
         provisional_report = report.documents[0]
         self.assertEqual(provisional_report.action, "promote_candidate")
         self.assertEqual(provisional_report.promotion_class, "formal_regulation")

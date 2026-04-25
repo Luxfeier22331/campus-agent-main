@@ -125,7 +125,7 @@ def _inventory_entry(
             if item.get("classification") == "ocr_required"
         ),
         reference_only_count=0,
-        manual_review_required_count=0,
+        multimodal_processing_required_count=0,
         notice_risk_label="body_with_text_attachments"
         if attachment_projection_plans
         else "body_only",

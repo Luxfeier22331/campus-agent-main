@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import asdict
+from unittest.mock import patch
 
 import httpx
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
@@ -12,9 +14,17 @@ from campus_ingestion_core.internal_notice_multimodal_processing import (
     ChatCompletionsInternalNoticeMultimodalProcessor,
     InMemoryInternalNoticeMultimodalAttemptStore,
     InternalNoticeMultimodalAttachment,
+    InternalNoticeMultimodalAttempt,
     InternalNoticeMultimodalDecision,
     InternalNoticeMultimodalProcessingRequest,
+    PostgresInternalNoticeMultimodalAttemptStore,
+    build_internal_notice_multimodal_attempt_store_from_env,
+    drain_internal_notice_pending_multimodal_entries,
     process_internal_notice_pending_multimodal_entries,
+    select_internal_notice_pending_multimodal_notice_ids,
+)
+from campus_ingestion_core.internal_notice_read_model import (
+    build_internal_notice_read_model_entries,
 )
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
@@ -29,6 +39,13 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_UNSUPPORTED,
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
+)
+
+from tests.support.in_memory_registry import InMemoryDocumentRegistry
+
+from .internal_notice_scoped_rule_materialization_test_support import (
+    _canonical_markdown,
+    _record,
 )
 
 
@@ -79,6 +96,9 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
             object_store=object_store,
             source_bucket="campus-rag-source",
             processor=processor,
+            admission_batch_id="batch-multimodal-001",
+            admission_command="multimodal_process",
+            admission_created_at="2026-04-25T00:00:00Z",
         )
 
         self.assertEqual(report.pending_entry_count, 1)
@@ -113,6 +133,14 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
         self.assertEqual(
             processed.role_metadata["previous_consumption_status"],
             NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(
+            processed.role_metadata["consumer_admission_batch_id"],
+            "batch-multimodal-001",
+        )
+        self.assertEqual(
+            processed.role_metadata["consumer_admission_command"],
+            "multimodal_process",
         )
 
     def test_process_pending_multimodal_can_close_as_no_adoption(self) -> None:
@@ -150,6 +178,99 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
         self.assertEqual(
             processed.role_metadata["no_adoption_reason"],
             "multimodal_no_adoption",
+        )
+
+    def test_low_confidence_retain_decision_stays_pending(self) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="retain_for_notice_query",
+                summary="图片可能包含服务地点。",
+                extracted_text="服务大厅",
+                reasons=("weak_visual_guess",),
+                confidence="low",
+            )
+        )
+
+        report = process_internal_notice_pending_multimodal_entries(
+            notice_ids=("351907",),
+            projection_store=projection_store,
+            source_truth_inventory_store=inventory_store,
+            object_store=_FakeObjectStore({}),
+            source_bucket="campus-rag-source",
+            processor=processor,
+            max_attempts=3,
+        )
+
+        self.assertEqual(report.retained_for_notice_query_count, 0)
+        self.assertEqual(report.still_pending_count, 1)
+        stored = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("351907",),
+        )
+        self.assertEqual(
+            stored[0].consumption_status,
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(
+            stored[0].target_surface,
+            NOTICE_TARGET_SURFACE_MULTIMODAL_PROCESSING_CANDIDATE,
+        )
+        self.assertEqual(
+            stored[0].role_metadata["processing_gap_reason"],
+            "multimodal_retain_guard_failed",
+        )
+        self.assertEqual(
+            stored[0].role_metadata["multimodal_processing_status"],
+            "needs_additional_processing",
+        )
+        self.assertIn("retain_low_confidence", stored[0].role_metadata["multimodal_reasons"])
+
+    def test_no_adoption_with_extracted_text_stays_pending(self) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="no_adoption",
+                summary="图片不是通知。",
+                extracted_text="报名截止：2026年5月10日",
+                reasons=("decorative_visual_asset",),
+                confidence="medium",
+            )
+        )
+
+        report = process_internal_notice_pending_multimodal_entries(
+            notice_ids=("351907",),
+            projection_store=projection_store,
+            source_truth_inventory_store=inventory_store,
+            object_store=_FakeObjectStore({}),
+            source_bucket="campus-rag-source",
+            processor=processor,
+            max_attempts=3,
+        )
+
+        self.assertEqual(report.no_adoption_count, 0)
+        self.assertEqual(report.still_pending_count, 1)
+        stored = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("351907",),
+        )
+        self.assertEqual(
+            stored[0].consumption_status,
+            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        )
+        self.assertEqual(
+            stored[0].role_metadata["processing_gap_reason"],
+            "multimodal_no_adoption_guard_failed",
+        )
+        self.assertIn(
+            "no_adoption_with_extracted_text",
+            stored[0].role_metadata["multimodal_reasons"],
         )
 
     def test_process_pending_multimodal_records_attempts_and_closes_after_max_attempts(
@@ -196,6 +317,122 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
             stored[0].role_metadata["no_adoption_reason"],
             "multimodal_attempts_exhausted",
         )
+        self.assertEqual(
+            attempts[0].admission_batch_id,
+            "",
+        )
+
+    def test_processed_multimodal_summary_enters_read_model_content(self) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="retain_for_notice_query",
+                summary="图中说明丰台校区校园卡业务办理地点。",
+                extracted_text="北区服务大厅办理校园卡业务。",
+                reasons=("visual_text_extracted",),
+                confidence="high",
+            )
+        )
+
+        process_internal_notice_pending_multimodal_entries(
+            notice_ids=("351907",),
+            projection_store=projection_store,
+            source_truth_inventory_store=inventory_store,
+            object_store=_FakeObjectStore({}),
+            source_bucket="campus-rag-source",
+            processor=processor,
+        )
+
+        record = _record(
+            notice_id="351907",
+            title_slug="campus-card-map",
+            content_hash="sha256:campus-card-map",
+            body_key="campus_notices/documents/internal_notice/351907/canonical.md",
+            units_key="campus_notices/documents/internal_notice/351907/document-units.jsonl",
+            is_current=True,
+        )
+        object_store = _FakeObjectStore(
+            {
+                (
+                    "campus-rag-derived",
+                    record.canonical_markdown_object_key,
+                ): _canonical_markdown("# 校园卡业务办理地点通知\n\n见附件示意图。"),
+            }
+        )
+        rows = build_internal_notice_read_model_entries(
+            projection_store.list_by_scope(
+                "campus_notices",
+                "internal_notice",
+                notice_ids=("351907",),
+            ),
+            registry=InMemoryDocumentRegistry((record,)),
+            object_store=object_store,
+            bucket_derived="campus-rag-derived",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0].queryable)
+        self.assertIn("丰台校区校园卡业务办理地点", rows[0].body_excerpt)
+        self.assertIn("北区服务大厅办理校园卡业务", rows[0].search_text)
+
+    def test_postgres_attempt_store_records_and_lists_attempts(self) -> None:
+        store = object.__new__(PostgresInternalNoticeMultimodalAttemptStore)
+        store.database_url = "postgresql://example.test/db"
+        store.table_name = "ingestion_projection.internal_notice_multimodal_attempt"
+        attempt = InternalNoticeMultimodalAttempt(
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            source_notice_id="351907",
+            unit_id="notice_unit:351907:pending_multimodal",
+            attempt_number=2,
+            admission_batch_id="batch-multimodal-001",
+            model="gpt-4.1-mini",
+            decision_action="needs_additional_processing",
+            status="processed",
+            reasons=("low_visual_confidence",),
+            error=None,
+            created_at="2026-04-25T00:00:00Z",
+        )
+        cursor = _PagedCursor([[(json.dumps(asdict(attempt)),)]])
+
+        with patch(
+            "campus_ingestion_core.internal_notice_multimodal_processing._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            store.record(attempt)
+            attempts = store.list_by_unit("notice_unit:351907:pending_multimodal")
+
+        insert_query, insert_params = cursor.execute_calls[0]
+        self.assertIn("insert into", insert_query)
+        self.assertIn(
+            "on conflict (source_corpus, source_collection, unit_id, attempt_number)",
+            insert_query,
+        )
+        self.assertEqual(insert_params[0], "campus_notices")
+        self.assertEqual(insert_params[3], "notice_unit:351907:pending_multimodal")
+        self.assertEqual(insert_params[5], "batch-multimodal-001")
+        self.assertEqual(
+            json.loads(insert_params[-1])["decision_action"], "needs_additional_processing"
+        )
+        select_query, select_params = cursor.execute_calls[1]
+        self.assertIn("where unit_id = %s", select_query)
+        self.assertEqual(select_params, ("notice_unit:351907:pending_multimodal",))
+        self.assertEqual(attempts, (attempt,))
+
+    def test_attempt_store_builder_uses_dedicated_url_before_admission_fallback(self) -> None:
+        with patch(
+            "campus_ingestion_core.internal_notice_multimodal_processing.PostgresInternalNoticeMultimodalAttemptStore"
+        ) as store_cls:
+            build_internal_notice_multimodal_attempt_store_from_env(
+                {
+                    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL": "postgresql://attempt/db",
+                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
+                }
+            )
+
+        store_cls.assert_called_once_with(database_url="postgresql://attempt/db")
 
     def test_process_pending_multimodal_requires_selected_notice_ids(self) -> None:
         with self.assertRaisesRegex(ValueError, "selected notice_ids are required"):
@@ -240,6 +477,86 @@ class InternalNoticeMultimodalProcessingTest(unittest.TestCase):
         self.assertEqual(
             stored[0].consumption_status,
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
+        )
+
+    def test_select_pending_multimodal_notice_ids_reads_projection_only(self) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _pending_entry("351907"),
+                _notice_window_entry("351907"),
+                _pending_entry("355222"),
+            )
+        )
+
+        pending_notice_ids = select_internal_notice_pending_multimodal_notice_ids(
+            projection_store=projection_store,
+            source_corpus="campus_notices",
+            source_collection="internal_notice",
+            limit=1,
+        )
+
+        self.assertEqual(pending_notice_ids, ("351907",))
+
+    def test_drain_pending_multimodal_batches_projection_selected_pending_notices(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _pending_entry("351907"),
+                _pending_entry("355222"),
+                _notice_window_entry("355333"),
+            )
+        )
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many(
+            (
+                _inventory_entry("351907"),
+                _inventory_entry("355222"),
+            )
+        )
+        attempt_store = InMemoryInternalNoticeMultimodalAttemptStore()
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="retain_for_notice_query",
+                summary="图片可用于通知问答。",
+                extracted_text="服务大厅。",
+                reasons=("visual_text_extracted",),
+                confidence="high",
+            )
+        )
+
+        report = drain_internal_notice_pending_multimodal_entries(
+            projection_store=projection_store,
+            source_truth_inventory_store=inventory_store,
+            object_store=_FakeObjectStore({}),
+            source_bucket="campus-rag-source",
+            processor=processor,
+            attempt_store=attempt_store,
+            limit=10,
+            batch_size=1,
+            admission_batch_id="batch-drain-001",
+            admission_command="multimodal_drain",
+            admission_created_at="2026-04-25T00:00:00Z",
+        )
+
+        self.assertEqual(report.pending_notice_ids, ("351907", "355222"))
+        self.assertEqual(report.batch_count, 2)
+        self.assertEqual(report.processed_count, 2)
+        self.assertEqual(len(processor.requests), 2)
+        attempts = attempt_store.list_by_unit("notice_unit:351907:pending_multimodal")
+        self.assertEqual(attempts[0].admission_batch_id, "batch-drain-001")
+        stored = projection_store.list_by_scope(
+            "campus_notices",
+            "internal_notice",
+            notice_ids=("351907", "355222"),
+        )
+        self.assertEqual(
+            {
+                entry.source_notice_id
+                for entry in stored
+                if entry.consumption_status == NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY
+            },
+            {"351907", "355222"},
         )
 
     def test_chat_processor_posts_to_env_chat_endpoint_with_image_url_content(self) -> None:
@@ -328,6 +645,45 @@ class _FakeProcessor:
         return self.decision
 
 
+class _FakeCursorContextManager:
+    def __init__(self, cursor: object) -> None:
+        self._cursor = cursor
+
+    def __enter__(self) -> object:
+        return self._cursor
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+
+class _FakeConnectionContextManager:
+    def __init__(self, cursor: object) -> None:
+        self._cursor = cursor
+
+    def __enter__(self) -> _FakeConnectionContextManager:
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def cursor(self) -> _FakeCursorContextManager:
+        return _FakeCursorContextManager(self._cursor)
+
+
+class _PagedCursor:
+    def __init__(self, pages: list[list[tuple[object, ...]]]) -> None:
+        self._pages = list(pages)
+        self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
+        self.execute_calls.append((query, params))
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        if not self._pages:
+            return []
+        return self._pages.pop(0)
+
+
 def _pending_entry(notice_id: str) -> NoticeConsumptionProjectionEntry:
     return NoticeConsumptionProjectionEntry(
         source_family="internal_notice_restricted",
@@ -393,7 +749,7 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
         text_extractable_count=0,
         ocr_required_count=0,
         reference_only_count=0,
-        manual_review_required_count=1,
+        multimodal_processing_required_count=1,
         notice_risk_label="body_with_spatial_attachments",
         attachment_mix_score=1,
         has_text_table_attachment=False,
@@ -405,8 +761,8 @@ def _inventory_entry(notice_id: str) -> AuthenticatedNoticeSourceTruthInventoryE
             "attachment_projection_plans": [
                 {
                     "attachment_ref_id": "attachment-map",
-                    "classification": "manual_review_required",
-                    "materialization_policy": "manual_review",
+                    "classification": "multimodal_processing_required",
+                    "materialization_policy": "multimodal_processing",
                     "document_id": f"notice_attachment:muc_internal_portal:{notice_id}:attachment-map",
                     "review_reason": "spatial_visual_asset",
                 }

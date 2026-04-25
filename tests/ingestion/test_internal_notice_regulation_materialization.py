@@ -147,7 +147,7 @@ def _inventory_entry(
             if item.get("classification") == "ocr_required"
         ),
         reference_only_count=0,
-        manual_review_required_count=0,
+        multimodal_processing_required_count=0,
         notice_risk_label="body_with_text_attachments"
         if attachment_projection_plans
         else "body_only",
@@ -205,6 +205,38 @@ def _document_rows(upload: dict[str, object]) -> list[dict[str, object]]:
 
 
 class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
+    def test_materialize_requires_configured_projection_store_when_not_injected(
+        self,
+    ) -> None:
+        materialize = getattr(
+            regulation_materialization,
+            "materialize_institutional_regulations_from_internal_notice_scope",
+            None,
+        )
+        self.assertIsNotNone(materialize)
+        if materialize is None:
+            return
+
+        with (
+            unittest.mock.patch(
+                "campus_ingestion_core.internal_notice_regulation_materialization.build_notice_consumption_projection_store_from_env",
+                side_effect=ValueError("projection store is required"),
+            ),
+            self.assertRaisesRegex(ValueError, "projection store is required"),
+        ):
+            materialize(
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                },
+                object_store=_FakeObjectStore(),
+                registry=InMemoryDocumentRegistry(()),
+                raw_asset_registry=InMemoryRawAssetRegistry(()),
+            )
+
     def test_materialize_from_internal_notice_scope_builds_target_documents_and_replaces_scope(
         self,
     ) -> None:
@@ -726,6 +758,7 @@ class InternalNoticeRegulationMaterializationTest(unittest.TestCase):
             registry=registry,
             raw_asset_registry=raw_asset_registry,
             source_truth_inventory_store=inventory_store,
+            consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(),
         )
 
         self.assertEqual(report.promotion_candidate_count, 0)

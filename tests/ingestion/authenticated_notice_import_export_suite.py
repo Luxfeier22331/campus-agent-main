@@ -285,7 +285,7 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         entry = entries[0]
         self.assertEqual(entry.notice_risk_label, "body_with_spatial_attachments")
-        self.assertEqual(entry.manual_review_required_count, 1)
+        self.assertEqual(entry.multimodal_processing_required_count, 1)
         self.assertEqual(entry.ocr_required_count, 0)
         self.assertTrue(entry.has_spatial_attachment)
 

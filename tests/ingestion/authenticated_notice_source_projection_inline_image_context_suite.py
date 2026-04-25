@@ -80,7 +80,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_contextual_small_program_codes_to_reference_only(
@@ -157,7 +157,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_tiny_decorative_inline_images_to_reference_only(
@@ -234,7 +234,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_intro_poster_inline_images_to_reference_only(
@@ -311,7 +311,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_social_practice_hero_images_to_reference_only(
@@ -392,7 +392,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_keeps_scoring_table_inline_images_in_ocr_lane(
@@ -471,10 +471,10 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 1)
         self.assertEqual(report.reference_only_attachment_count, 1)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, ["notice.png"])
 
-    def test_classify_attachment_ref_routes_operational_schedule_inline_images_to_manual_review(
+    def test_classify_attachment_ref_routes_operational_schedule_inline_images_to_multimodal_processing(
         self,
     ) -> None:
         png_bytes = _build_table_like_png_bytes()
@@ -520,7 +520,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageContextTest(unittest.TestCas
             },
         )
 
-        self.assertEqual(result.classification, "manual_review_required")
+        self.assertEqual(result.classification, "multimodal_processing_required")
 
     def test_classify_attachment_ref_keeps_scoring_table_inline_images_in_ocr_lane(
         self,

@@ -8,11 +8,11 @@ from campus_ingestion_core.authenticated_notice_closeout_artifacts import (
 )
 from campus_ingestion_core.authenticated_notice_closeout_store import CloseoutStore
 from campus_ingestion_core.authenticated_notice_source_projections import (
-    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT,
+    AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED,
     AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_NO_EXTRACTABLE_TEXT,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT,
-    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW,
+    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING,
     AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT,
 )
 from campus_ingestion_core.authenticated_notice_source_truth import (
@@ -127,7 +127,7 @@ class CloseoutRunVerifier:
         invalid_attachment_outcomes: list[str] = []
         materialized_conditional_document_ids: set[str] = set()
         no_extractable_text_count = 0
-        manual_review_required_count = 0
+        multimodal_processing_required_count = 0
         for attachment_key, plan in attachment_plans.items():
             outcome = observed_attachment_outcomes.get(attachment_key)
             if outcome is None:
@@ -147,9 +147,15 @@ class CloseoutRunVerifier:
                 if outcome_name != AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MATERIALIZED_DOCUMENT:
                     invalid_attachment_outcomes.append(f"{attachment_key[0]}#{attachment_key[1]}")
                 continue
-            if materialization_policy == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MANUAL_REVIEW:
-                if outcome_name == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MANUAL_REVIEW_REQUIRED:
-                    manual_review_required_count += 1
+            if (
+                materialization_policy
+                == AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
+            ):
+                if (
+                    outcome_name
+                    == AUTHENTICATED_NOTICE_ATTACHMENT_OUTCOME_MULTIMODAL_PROCESSING_REQUIRED
+                ):
+                    multimodal_processing_required_count += 1
                     if str(plan["document_id"]) in observed_document_ids:
                         invalid_attachment_outcomes.append(
                             f"{attachment_key[0]}#{attachment_key[1]}"
@@ -293,7 +299,9 @@ class CloseoutRunVerifier:
                 materialized_conditional_document_ids
             ),
             "no_extractable_text_attachment_count": no_extractable_text_count,
-            "manual_review_required_attachment_count": manual_review_required_count,
+            "multimodal_processing_required_attachment_count": (
+                multimodal_processing_required_count
+            ),
             "missing_attachment_outcome_count": len(missing_attachment_outcomes),
             "missing_attachment_outcomes_sample": missing_attachment_outcomes[:20],
             "unexpected_attachment_outcome_count": len(unexpected_attachment_outcomes),
@@ -434,7 +442,7 @@ class CloseoutRunVerifier:
             "parent_document_ids_by_notice": parent_document_ids_by_notice,
             "attachment_document_count": attachment_document_count,
             "ocr_candidate_count": 0,
-            "manual_review_required_count": 0,
+            "multimodal_processing_required_count": 0,
             "attachment_projection_plans": {},
         }
 

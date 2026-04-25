@@ -135,7 +135,7 @@ def _inventory_entry(
         text_extractable_count=0,
         ocr_required_count=0,
         reference_only_count=0,
-        manual_review_required_count=0,
+        multimodal_processing_required_count=0,
         notice_risk_label="body_only",
         attachment_mix_score=0,
         has_text_table_attachment=False,

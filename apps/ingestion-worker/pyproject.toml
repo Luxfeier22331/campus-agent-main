@@ -36,12 +36,15 @@ campus-ingestion-materialize-curriculum-program-semester-facts = "campus_ingesti
 campus-ingestion-release-registry-scope = "campus_ingestion_worker.release_registry_scope:main"
 campus-ingestion-rebuild-internal-notice-consumption-projection = "campus_ingestion_worker.rebuild_internal_notice_consumption_projection:main"
 campus-ingestion-show-internal-notice-consumption-projection-status = "campus_ingestion_worker.show_internal_notice_consumption_projection_status:main"
+campus-ingestion-list-internal-notice-consumption-admissions = "campus_ingestion_worker.list_internal_notice_consumption_admissions:main"
 campus-ingestion-rebuild-internal-notice-read-model = "campus_ingestion_worker.rebuild_internal_notice_read_model:main"
 campus-ingestion-check-internal-notice-read-model-consistency = "campus_ingestion_worker.check_internal_notice_read_model_consistency:main"
 campus-ingestion-repair-internal-notice-read-model-consistency = "campus_ingestion_worker.repair_internal_notice_read_model_consistency:main"
 campus-ingestion-check-internal-notice-processing-gaps = "campus_ingestion_worker.check_internal_notice_processing_gaps:main"
 campus-ingestion-process-internal-notice-multimodal = "campus_ingestion_worker.process_internal_notice_multimodal:main"
-campus-ingestion-migrate-internal-notice-legacy-manual-projection = "campus_ingestion_worker.migrate_internal_notice_legacy_manual_projection:main"
+campus-ingestion-drain-internal-notice-pending-multimodal = "campus_ingestion_worker.drain_internal_notice_pending_multimodal:main"
+campus-ingestion-smoke-internal-notice-consumption-runtime = "campus_ingestion_worker.smoke_internal_notice_consumption_runtime:main"
+campus-ingestion-evaluate-internal-notice-multimodal-decisions = "campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions:main"
 campus-ingestion-validate-internal-notice-chunking = "campus_ingestion_worker.validate_internal_notice_chunking:main"
 
 [build-system]

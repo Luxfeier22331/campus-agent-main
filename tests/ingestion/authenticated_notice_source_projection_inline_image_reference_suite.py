@@ -88,7 +88,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
             },
         )
 
-    def test_rebuild_authenticated_notice_source_projections_routes_spatial_inline_images_to_manual_review(
+    def test_rebuild_authenticated_notice_source_projections_routes_spatial_inline_images_to_multimodal_processing(
         self,
     ) -> None:
         docx_bytes = _build_minimal_docx_bytes(paragraphs=("报名表正文第一段", "报名表正文第二段"))
@@ -153,7 +153,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 1)
-        self.assertEqual(report.manual_review_attachment_count, 1)
+        self.assertEqual(report.multimodal_processing_attachment_count, 1)
         self.assertEqual(ocr_client.calls, [])
 
         records = document_registry.list_by_scope("campus_notices", "internal_notice")
@@ -230,7 +230,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
         records = document_registry.list_by_scope("campus_notices", "internal_notice")
@@ -307,7 +307,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
         records = document_registry.list_by_scope("campus_notices", "internal_notice")
@@ -393,7 +393,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_promotional_banner_inline_images_to_reference_only(
@@ -470,7 +470,7 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
 
     def test_rebuild_authenticated_notice_source_projections_routes_mobile_ui_screenshots_to_reference_only_when_body_already_carries_the_instruction(
@@ -547,5 +547,5 @@ class AuthenticatedNoticeSourceProjectionInlineImageReferenceTest(unittest.TestC
         self.assertEqual(report.text_extractable_attachment_count, 1)
         self.assertEqual(report.ocr_attachment_count, 0)
         self.assertEqual(report.reference_only_attachment_count, 2)
-        self.assertEqual(report.manual_review_attachment_count, 0)
+        self.assertEqual(report.multimodal_processing_attachment_count, 0)
         self.assertEqual(ocr_client.calls, [])
