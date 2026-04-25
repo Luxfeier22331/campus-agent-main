@@ -30,6 +30,7 @@ import {
 	discoverCurriculumDocs,
 } from "../scripts/sync-real-docs/curriculum";
 import { cleanHandbookMarkdown } from "../scripts/sync-real-docs/handbook";
+import { syncHandbookFlowGraphArtifacts } from "../scripts/sync-real-docs/handbook-flow-graph";
 import { sanitizePreservedHtmlForMdx } from "../scripts/sync-real-docs/html-table";
 import { buildHomePage } from "../scripts/sync-real-docs/pages";
 import { buildPublicRegulationMarkdown } from "../scripts/sync-real-docs/regulations";
@@ -296,6 +297,41 @@ describe("course-map rendering keys", () => {
 });
 
 describe("public-docs sync-real-docs TypeScript generator", () => {
+	it("publishes handbook flow graph docs from canonical curated JSON when object store source is absent", async () => {
+		const root = mkdtempSync(join(tmpdir(), "public-docs-flow-graph-"));
+		temporaryDirectories.push(root);
+		const docsRoot = join(root, "apps/public-docs/docs");
+		const targetDir = join(docsRoot, "student-handbook/workflows");
+		mkdirSync(targetDir, { recursive: true });
+		mkdirSync(join(root, "apps/public-docs/src/generated/handbook-flow-graphs"), {
+			recursive: true,
+		});
+		const client = new FakeObjectStore(new Map());
+
+		const docs = await syncHandbookFlowGraphArtifacts({
+			client,
+			docsRoot,
+			routeDepthFromDocsRoot: 2,
+			targetDir,
+		});
+
+		expect(docs).toEqual([
+			{
+				filename: "central-minzu-student-dormitory-management-workflow.mdx",
+				slug: "central-minzu-student-dormitory-management-workflow",
+				title: "中央民族大学学生公寓管理工作流程",
+			},
+		]);
+		const dataPath = join(
+			root,
+			"apps/public-docs/src/generated/handbook-flow-graphs/central-minzu-student-dormitory-management-workflow.data.ts",
+		);
+		expect(readFileSync(dataPath, "utf-8")).toContain(
+			'flowHeading: "研究生申请办理退宿手续"',
+		);
+		expect(readFileSync(dataPath, "utf-8")).toContain('extractionStatus: "ready"');
+	});
+
 	it("keeps curriculum graduation requirement labels as separate markdown blocks", () => {
 		const jsonlText = [
 			'{"row_type":"heading","clean_text":"计算机类本科人才培养方案","heading_level":1}',
@@ -673,6 +709,9 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain(".rp-doc-layout__sidebar .rp-sidebar-item[data-depth=\"2\"]");
 		expect(css).toContain(".rspress-doc .docs-table-scroll table");
 		expect(css).toContain(".rspress-doc table thead th");
+		expect(css).toContain("main.rp-doc-layout__doc-container {\n\tbox-sizing: border-box;");
+		expect(css).toContain(".rspress-doc {\n\tmin-width: 0;");
+		expect(css).toContain("padding-right: 1.25rem;");
 		expect(css).not.toContain(".rspress-doc table {\n\tdisplay: block;");
 		expect(css).not.toContain(".rspress-doc table {\n\twidth: max-content;");
 		expect(css).not.toContain('content: "横向滚动查看更多列"');

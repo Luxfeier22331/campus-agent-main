@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildCourseMapDataImportName, buildCourseMapDataModule } from "./course-map";
 import {
@@ -20,6 +20,11 @@ import type { ObjectStoreClient } from "./storage";
 
 const FLOW_GRAPH_FILENAME = "flow-graph.json";
 const FLOW_GRAPH_SCHEMA_VERSION = "handbook_service_navigation_projection_v1";
+const CURATED_FLOW_GRAPH_SCHEMA_VERSION = "handbook_curated_service_flow_graph.v1";
+const HANDBOOK_CURATED_FLOW_GRAPHS_DIR = resolve(
+	HANDBOOK_SOURCE_PROJECTIONS_PATH,
+	"../curated-flow-graphs",
+);
 const HANDBOOK_FLOW_GRAPH_DOC_SLUG_OVERRIDES = new Map<string, string>([
 	["handbook_navigation_service_catalog", "central-minzu-student-dormitory-management-workflow"],
 ]);
@@ -35,20 +40,10 @@ export async function syncHandbookFlowGraphArtifacts(input: {
 	const expectedDataFiles = new Set<string>();
 
 	for (const projection of loadHandbookFlowGraphProjectionConfigs()) {
-		const projectionName = requireText(projection, "projection_name");
-		const flowGraphKey = await findHandbookFlowGraphObjectKey(input.client, projectionName);
-		if (!flowGraphKey) {
+		const payload = await loadHandbookFlowGraphDataPayload(input.client, projection);
+		if (!payload) {
 			continue;
 		}
-		const rawBytes = await input.client.readOptionalBytesObject({
-			bucket: SOURCE_BUCKET,
-			key: flowGraphKey,
-		});
-		if (!rawBytes) {
-			continue;
-		}
-		const payload = JSON.parse(new TextDecoder().decode(rawBytes)) as Record<string, unknown>;
-		validateHandbookFlowGraphPayload(payload, projection);
 		const title = requireText(projection, "target_title");
 		const slug = buildHandbookFlowGraphDocSlug(projection);
 		const dataModuleName = `${slug}.data.ts`;
@@ -59,7 +54,7 @@ export async function syncHandbookFlowGraphArtifacts(input: {
 		});
 		writeText(
 			resolve(generatedDir, dataModuleName),
-			buildCourseMapDataModule(buildHandbookFlowGraphDataPayload(payload), {
+			buildCourseMapDataModule(payload, {
 				biomeFilePath: `apps/public-docs/src/generated/handbook-flow-graphs/${dataModuleName}`,
 			}),
 		);
@@ -81,6 +76,44 @@ export async function syncHandbookFlowGraphArtifacts(input: {
 	}
 	removeStaleGeneratedFiles(generatedDir, expectedDataFiles);
 	return generatedDocs;
+}
+
+async function loadHandbookFlowGraphDataPayload(
+	client: ObjectStoreClient,
+	projection: Record<string, unknown>,
+): Promise<Record<string, unknown> | undefined> {
+	const curatedPayload = loadCuratedHandbookFlowGraphDataPayload(projection);
+	if (curatedPayload) {
+		return curatedPayload;
+	}
+	const projectionName = requireText(projection, "projection_name");
+	const flowGraphKey = await findHandbookFlowGraphObjectKey(client, projectionName);
+	if (!flowGraphKey) {
+		return;
+	}
+	const rawBytes = await client.readOptionalBytesObject({
+		bucket: SOURCE_BUCKET,
+		key: flowGraphKey,
+	});
+	if (!rawBytes) {
+		return;
+	}
+	const payload = JSON.parse(new TextDecoder().decode(rawBytes)) as Record<string, unknown>;
+	validateHandbookFlowGraphPayload(payload, projection);
+	return buildHandbookFlowGraphDataPayload(payload);
+}
+
+function loadCuratedHandbookFlowGraphDataPayload(
+	projection: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	const slug = buildHandbookFlowGraphDocSlug(projection);
+	const path = resolve(HANDBOOK_CURATED_FLOW_GRAPHS_DIR, `${slug}.v1.json`);
+	if (!existsSync(path)) {
+		return;
+	}
+	const payload = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+	validateCuratedHandbookFlowGraphPayload(payload, projection);
+	return requireMapping(payload, "documentData");
 }
 
 function loadHandbookFlowGraphProjectionConfigs(): Record<string, unknown>[] {
@@ -149,6 +182,44 @@ function validateHandbookFlowGraphPayload(
 	}
 	if (iterBodyBearingFlowSteps(flowGraph).length === 0) {
 		throw new Error(`${projectionName} flow graph has no body-bearing steps`);
+	}
+}
+
+function validateCuratedHandbookFlowGraphPayload(
+	payload: Record<string, unknown>,
+	projection: Record<string, unknown>,
+): void {
+	const projectionName = requireText(projection, "projection_name");
+	const targetTitle = requireText(projection, "target_title");
+	const sourcePageStart = requireInt(projection, "source_page_start");
+	const sourcePageEnd = requireInt(projection, "source_page_end");
+	if (payload.schemaVersion !== CURATED_FLOW_GRAPH_SCHEMA_VERSION) {
+		throw new Error(
+			`${projectionName} curated flow graph schema mismatch: ${String(payload.schemaVersion)}`,
+		);
+	}
+	if (payload.projectionName !== projectionName) {
+		throw new Error(
+			`${projectionName} curated flow graph projection mismatch: ${String(payload.projectionName)}`,
+		);
+	}
+	const documentData = requireMapping(payload, "documentData");
+	if (documentData.title !== targetTitle) {
+		throw new Error(
+			`${projectionName} curated flow graph title mismatch: ${String(documentData.title)}`,
+		);
+	}
+	if (requireInt(documentData, "sourcePageStart") !== sourcePageStart) {
+		throw new Error(`${projectionName} curated flow graph sourcePageStart mismatch`);
+	}
+	if (requireInt(documentData, "sourcePageEnd") !== sourcePageEnd) {
+		throw new Error(`${projectionName} curated flow graph sourcePageEnd mismatch`);
+	}
+	if (documentData.extractionStatus !== "ready" && documentData.extractionStatus !== "needs_review") {
+		throw new Error(`${projectionName} curated flow graph extractionStatus mismatch`);
+	}
+	if (iterDocumentDataFlowSteps(documentData).length === 0) {
+		throw new Error(`${projectionName} curated flow graph has no body-bearing steps`);
 	}
 }
 
@@ -275,6 +346,20 @@ function iterBodyBearingFlowSteps(flowGraph: Record<string, unknown>): Record<st
 		for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {
 			for (const step of asArray(flow.steps).map(asRecord).filter(isRecord)) {
 				if (String(step.step_text ?? "").trim()) {
+					steps.push(step);
+				}
+			}
+		}
+	}
+	return steps;
+}
+
+function iterDocumentDataFlowSteps(documentData: Record<string, unknown>): Record<string, unknown>[] {
+	const steps: Record<string, unknown>[] = [];
+	for (const page of asArray(documentData.pageFindings).map(asRecord).filter(isRecord)) {
+		for (const flow of asArray(page.flows).map(asRecord).filter(isRecord)) {
+			for (const step of asArray(flow.steps).map(asRecord).filter(isRecord)) {
+				if (String(step.stepText ?? "").trim()) {
 					steps.push(step);
 				}
 			}

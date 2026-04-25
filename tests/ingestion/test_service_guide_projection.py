@@ -7,7 +7,10 @@ from tempfile import TemporaryDirectory
 
 from campus_ingestion_core.service_guide_projection import (
     SERVICE_GUIDE_PROJECTION_FILENAME,
+    assert_service_guide_projection_release_ready,
+    build_service_guide_projection_bundle_from_curated_handbook_flow_graph,
     build_service_guide_projection_bundle_from_handbook_flow_graph,
+    build_service_guide_projection_bundle_from_handbook_flow_graph_document_data,
     validate_service_guide_projection_bundle,
     write_service_guide_projection_release,
 )
@@ -29,6 +32,52 @@ class _FakeObjectStore:
 
 
 class ServiceGuideProjectionTest(unittest.TestCase):
+    def test_builds_ready_projection_from_curated_handbook_flow_graph_artifact(self) -> None:
+        result = build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
+            curated_flow_graph_artifact=_curated_handbook_flow_graph_artifact(),
+            generated_at="2026-04-25T10:00:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        self.assertEqual(len(result.bundle["service_guide_records"]), 6)
+        self.assertEqual(result.manual_review_sources, [])
+        assert_service_guide_projection_release_ready(
+            result.bundle,
+            expected_ready_records=6,
+        )
+
+    def test_builds_ready_projection_from_curated_handbook_flow_graph_document_data(self) -> None:
+        result = build_service_guide_projection_bundle_from_handbook_flow_graph_document_data(
+            document_data=_curated_handbook_flow_graph_document_data(),
+            generated_at="2026-04-25T10:00:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+            target_document_id="campus_services:service_catalog:student-dorm-workflows",
+            source_document_id="handbook:student_rules:2018",
+        )
+
+        self.assertTrue(result.validation_report.valid, result.validation_report.issues)
+        self.assertEqual(result.manual_review_sources, [])
+        records = result.bundle["service_guide_records"]
+        self.assertEqual(len(records), 6)
+        self.assertEqual({record["extraction_status"] for record in records}, {"ready"})
+        by_name = {record["display_name"]: record for record in records}
+        self.assertIn("公寓楼毕业生办理离校手续流程", by_name)
+        self.assertIn(
+            "学生退钥匙，并在《毕业生离校通知单》上签字盖章。",
+            by_name["公寓楼毕业生办理离校手续流程"]["guide_sections"][0]["content"],
+        )
+        self.assertEqual(
+            by_name["研究生申请办理退宿手续"]["source_refs"],
+            ["handbook:student_rules:pages:252-255#page=255"],
+        )
+        self.assertEqual(
+            by_name["本科生申请不住宿流程"]["eligibility_notes"],
+            ["本科生"],
+        )
+
     def test_builds_service_guide_projection_from_handbook_flow_graph(self) -> None:
         result = build_service_guide_projection_bundle_from_handbook_flow_graph(
             flow_graph_artifact=_handbook_flow_graph_artifact(),
@@ -112,6 +161,17 @@ class ServiceGuideProjectionTest(unittest.TestCase):
 
         self.assertFalse(report.valid)
         self.assertIn("source_refs is required", report.issues[0]["message"])
+
+    def test_release_gate_rejects_manual_review_records(self) -> None:
+        result = build_service_guide_projection_bundle_from_handbook_flow_graph(
+            flow_graph_artifact=_handbook_flow_graph_artifact(),
+            generated_at="2026-04-25T10:00:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+        )
+
+        with self.assertRaisesRegex(ValueError, "manual review"):
+            assert_service_guide_projection_release_ready(result.bundle)
 
     def test_write_release_publishes_versioned_and_current_projection(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -230,6 +290,134 @@ def _handbook_flow_graph_artifact() -> dict[str, object]:
                 },
             ],
         },
+    }
+
+
+def _curated_handbook_flow_graph_document_data() -> dict[str, object]:
+    return {
+        "title": "中央民族大学学生公寓管理工作流程",
+        "sourceHandbookSection": "中央民族大学公寓及公费医疗管理规定",
+        "sourcePageStart": 252,
+        "sourcePageEnd": 255,
+        "manualReviewRequired": False,
+        "extractionStatus": "ready",
+        "pageFindings": [
+            {
+                "sourcePage": 253,
+                "pageHeading": "中央民族大学学生公寓管理工作流程",
+                "flows": [
+                    {
+                        "flowHeading": "公寓楼新生办理入住手续流程",
+                        "audienceScope": "新生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p253-f1-s1",
+                                "stepText": "持通知书到院系注册，领取校园一卡通，获知住宿楼号及房间。",
+                                "nextStepIds": ["p253-f1-s2"],
+                            },
+                            {
+                                "stepId": "p253-f1-s2",
+                                "stepText": "到指定公寓楼报到，出示入学通知书。",
+                                "nextStepIds": [],
+                            },
+                        ],
+                    },
+                    {
+                        "flowHeading": "公寓楼毕业生办理离校手续流程",
+                        "audienceScope": "毕业生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p253-f2-s1",
+                                "stepText": "到楼长办公室。",
+                                "nextStepIds": ["p253-f2-s2"],
+                            },
+                            {
+                                "stepId": "p253-f2-s2",
+                                "stepText": "出示《毕业生离校通知单》。",
+                                "nextStepIds": ["p253-f2-s3"],
+                            },
+                            {
+                                "stepId": "p253-f2-s3",
+                                "stepText": "学生退钥匙，并在《毕业生离校通知单》上签字盖章。",
+                                "nextStepIds": [],
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                "sourcePage": 254,
+                "pageHeading": "三、计划内住宿学生申请不住宿流程",
+                "flows": [
+                    {
+                        "flowHeading": "本科生申请不住宿流程",
+                        "audienceScope": "本科生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p254-f1-s1",
+                                "stepText": "写好不住宿申请，写明原因和不住宿的期限。",
+                                "nextStepIds": [],
+                            }
+                        ],
+                    },
+                    {
+                        "flowHeading": "研究生申请不住宿流程",
+                        "audienceScope": "研究生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p254-f2-s1",
+                                "stepText": "写好不住宿申请，注明期限。",
+                                "nextStepIds": [],
+                            }
+                        ],
+                    },
+                ],
+            },
+            {
+                "sourcePage": 255,
+                "pageHeading": "四、住宿中途申请办理退宿流程",
+                "flows": [
+                    {
+                        "flowHeading": "本科生特殊情况申请办理退宿手续",
+                        "audienceScope": "本科生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p255-f1-s1",
+                                "stepText": "写好退宿申请，注明不住宿的期限。",
+                                "nextStepIds": [],
+                            }
+                        ],
+                    },
+                    {
+                        "flowHeading": "研究生申请办理退宿手续",
+                        "audienceScope": "研究生",
+                        "manualReviewNotes": [],
+                        "steps": [
+                            {
+                                "stepId": "p255-f2-s1",
+                                "stepText": "写好退宿申请，写明原因和不住宿的期限。",
+                                "nextStepIds": [],
+                            }
+                        ],
+                    },
+                ],
+            },
+        ],
+    }
+
+
+def _curated_handbook_flow_graph_artifact() -> dict[str, object]:
+    return {
+        "schemaVersion": "handbook_curated_service_flow_graph.v1",
+        "projectionName": "handbook_navigation_service_catalog",
+        "targetDocumentId": "campus_services:service_catalog:student-dorm-workflows",
+        "sourceDocumentId": "handbook:student_rules:2018",
+        "documentData": _curated_handbook_flow_graph_document_data(),
     }
 
 

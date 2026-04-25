@@ -731,6 +731,34 @@ Current known downstream families include:
 - future appendix / form / navigation-like derived documents when they are
   explicitly declared
 
+### `campus-ingestion-build-service-guide-projection`
+
+Builds and publishes the handbook-derived `campus_services/service_guide`
+projection from a repo-owned curated flow graph JSON artifact.
+
+Required CLI args:
+
+- `--curated-flow-graph`
+- `--work-dir`
+- `--release-id`
+- `--effective-from`
+- `--effective-until`
+
+Optional CLI args:
+
+- `--generated-at`
+- `--derived-bucket`
+- `--expected-ready-records`
+
+Behavior:
+
+- Reads `handbook_curated_service_flow_graph.v1` JSON.
+- Builds `campus_services_service_guide_projection.v1` records.
+- Fails before publishing if validation fails or any record still needs manual
+  review.
+- Writes local release artifacts and publishes versioned/current projection
+  artifacts to the derived bucket.
+
 ### `migrate_student_handbook_source_faithful`
 
 Worker shell for the handbook source-faithful migration.

@@ -21,6 +21,7 @@ SERVICE_GUIDE_VALIDATION_FILENAME = "validation-summary.json"
 SERVICE_GUIDE_RELEASE_MANIFEST_FILENAME = "release-manifest.json"
 SERVICE_GUIDE_MANUAL_REVIEW_FILENAME = "manual-review-report.json"
 HANDBOOK_SERVICE_NAVIGATION_SOURCE_FAMILY = "handbook_service_navigation_projection_v1"
+HANDBOOK_CURATED_SERVICE_FLOW_GRAPH_SCHEMA_VERSION = "handbook_curated_service_flow_graph.v1"
 
 _NUMBERING_RE = re.compile(
     r"^\s*(?:[一二三四五六七八九十]+|[0-9]+)[、.．]\s*",
@@ -104,9 +105,110 @@ def build_service_guide_projection_bundle_from_handbook_flow_graph(
         source_page_start=source_page_start,
         source_page_end=source_page_end,
     )
+    return _build_service_guide_projection_bundle_from_handbook_source(
+        source=source,
+        generated_at=generated_at,
+        effective_from=effective_from,
+        effective_until=effective_until,
+    )
 
+
+def build_service_guide_projection_bundle_from_handbook_flow_graph_document_data(
+    *,
+    document_data: dict[str, Any],
+    generated_at: str,
+    effective_from: str,
+    effective_until: str,
+    target_document_id: str | None = None,
+    source_document_id: str | None = None,
+) -> ServiceGuideProjectionBuildResult:
+    _parse_rfc3339(generated_at, "generated_at")
+    _parse_rfc3339(effective_from, "effective_from")
+    _validate_effective_window(effective_from, effective_until, "effective")
+    source = _coerce_handbook_flow_graph_document_data_source(
+        document_data=document_data,
+        target_document_id=target_document_id,
+        source_document_id=source_document_id,
+    )
+    return _build_service_guide_projection_bundle_from_handbook_source(
+        source=source,
+        generated_at=generated_at,
+        effective_from=effective_from,
+        effective_until=effective_until,
+    )
+
+
+def build_service_guide_projection_bundle_from_curated_handbook_flow_graph(
+    *,
+    curated_flow_graph_artifact: dict[str, Any],
+    generated_at: str,
+    effective_from: str,
+    effective_until: str,
+) -> ServiceGuideProjectionBuildResult:
+    artifact = _require_mapping(
+        curated_flow_graph_artifact,
+        "curated_flow_graph_artifact",
+    )
+    schema_version = str(artifact.get("schemaVersion") or "").strip()
+    if schema_version != HANDBOOK_CURATED_SERVICE_FLOW_GRAPH_SCHEMA_VERSION:
+        raise ValueError(
+            f"unsupported curated handbook flow graph schemaVersion: {schema_version!r}"
+        )
+    if _required_text(artifact.get("projectionName")) is None:
+        raise ValueError("curated handbook flow graph projectionName is required")
+    document_data = _require_mapping(artifact.get("documentData"), "documentData")
+    return build_service_guide_projection_bundle_from_handbook_flow_graph_document_data(
+        document_data=document_data,
+        generated_at=generated_at,
+        effective_from=effective_from,
+        effective_until=effective_until,
+        target_document_id=_required_text(artifact.get("targetDocumentId")),
+        source_document_id=_required_text(artifact.get("sourceDocumentId")),
+    )
+
+
+def assert_service_guide_projection_release_ready(
+    bundle: dict[str, Any],
+    *,
+    expected_ready_records: int | None = None,
+) -> None:
+    validation_report = validate_service_guide_projection_bundle(bundle)
+    if not validation_report.valid:
+        messages = ", ".join(
+            str(issue.get("message") or issue) for issue in validation_report.issues
+        )
+        raise ValueError(f"service guide projection validation failed: {messages}")
+    records = _list_of_dicts(bundle.get("service_guide_records"))
+    if not records:
+        raise ValueError("service guide projection produced no ready records")
+    conflicts = _list_of_dicts(bundle.get("conflict_records"))
+    if conflicts:
+        raise ValueError("service guide projection release blocked by unresolved conflicts")
+    non_ready_records = [
+        record for record in records if _required_text(record.get("extraction_status")) != "ready"
+    ]
+    if non_ready_records:
+        raise ValueError("service guide projection release blocked by manual review records")
+    manual_review_sources = _list_of_dicts(bundle.get("manual_review_sources"))
+    if manual_review_sources:
+        raise ValueError("service guide projection release blocked by manual review sources")
+    if expected_ready_records is not None and len(records) != expected_ready_records:
+        raise ValueError(
+            "service guide projection ready record count mismatch: "
+            f"expected {expected_ready_records}, got {len(records)}"
+        )
+
+
+def _build_service_guide_projection_bundle_from_handbook_source(
+    *,
+    source: dict[str, Any],
+    generated_at: str,
+    effective_from: str,
+    effective_until: str,
+) -> ServiceGuideProjectionBuildResult:
     manual_review_sources: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
+    global_manual_review_required = bool(source.get("global_manual_review_required"))
     for page_finding in source["page_findings"]:
         page = int(page_finding["source_page"])
         page_heading = str(page_finding.get("page_heading") or "").strip()
@@ -124,7 +226,9 @@ def build_service_guide_projection_bundle_from_handbook_flow_graph(
             display_name = _normalize_flow_heading(flow_heading)
             procedure_content = _procedure_content(steps)
             notes = _string_list(flow.get("manual_review_notes"))
-            extraction_status = "needs_manual_review" if notes else "ready"
+            extraction_status = (
+                "needs_manual_review" if notes or global_manual_review_required else "ready"
+            )
             service_id = _service_id(
                 target_document_id=source["target_document_id"],
                 page=page,
@@ -169,13 +273,15 @@ def build_service_guide_projection_bundle_from_handbook_flow_graph(
                 "extraction_status": extraction_status,
             }
             records.append(record)
-            if notes:
+            if notes or global_manual_review_required:
                 manual_review_sources.append(
                     {
                         "service_id": service_id,
                         "source_ref": source_ref,
-                        "reason": "handbook_flow_manual_review_notes",
-                        "notes": notes,
+                        "reason": "handbook_flow_manual_review_notes"
+                        if notes
+                        else "handbook_flow_graph_global_manual_review_required",
+                        "notes": notes or ["flow graph source marked manual review required"],
                     }
                 )
 
@@ -467,6 +573,73 @@ def _coerce_handbook_flow_graph_source(
         "source_document_id": resolved_source_document_id,
         "source_page_start": resolved_page_start,
         "source_page_end": resolved_page_end,
+        "global_manual_review_required": bool(flow_graph.get("global_manual_review_required")),
+        "page_findings": page_findings,
+    }
+
+
+def _coerce_handbook_flow_graph_document_data_source(
+    *,
+    document_data: dict[str, Any],
+    target_document_id: str | None,
+    source_document_id: str | None,
+) -> dict[str, Any]:
+    payload = _require_mapping(document_data, "document_data")
+    extraction_status = _required_text(payload.get("extractionStatus")) or ""
+    if extraction_status not in {"ready", "needs_review"}:
+        raise ValueError(
+            "handbook flow graph document data extractionStatus must be ready or needs_review"
+        )
+    title = _required_text(payload.get("title"))
+    if title is None:
+        raise ValueError("handbook flow graph document data title is required")
+    page_start = _positive_int(payload.get("sourcePageStart"), "sourcePageStart")
+    page_end = _positive_int(payload.get("sourcePageEnd"), "sourcePageEnd")
+    page_findings: list[dict[str, Any]] = []
+    for page in _list_of_dicts(payload.get("pageFindings")):
+        flows: list[dict[str, Any]] = []
+        for flow in _list_of_dicts(page.get("flows")):
+            steps: list[dict[str, Any]] = []
+            for step in _list_of_dicts(flow.get("steps")):
+                step_text = _required_text(step.get("stepText"))
+                if step_text is None:
+                    continue
+                steps.append(
+                    {
+                        "step_id": _required_text(step.get("stepId")) or "",
+                        "step_text": step_text,
+                        "next_step_ids": _string_list(step.get("nextStepIds")),
+                    }
+                )
+            if not steps:
+                continue
+            flows.append(
+                {
+                    "flow_heading": _required_text(flow.get("flowHeading")) or "未命名流程",
+                    "audience_scope": _required_text(flow.get("audienceScope")) or "",
+                    "steps": steps,
+                    "manual_review_notes": _string_list(flow.get("manualReviewNotes")),
+                }
+            )
+        if not flows:
+            continue
+        page_findings.append(
+            {
+                "source_page": _positive_int(page.get("sourcePage"), "sourcePage"),
+                "page_heading": _required_text(page.get("pageHeading")) or "",
+                "flows": flows,
+            }
+        )
+    if not page_findings:
+        raise ValueError("handbook flow graph document data pageFindings has no usable flows")
+    return {
+        "target_title": title,
+        "target_document_id": target_document_id or _default_target_document_id(title),
+        "source_document_id": source_document_id or "",
+        "source_page_start": page_start,
+        "source_page_end": page_end,
+        "global_manual_review_required": bool(payload.get("manualReviewRequired"))
+        or extraction_status == "needs_review",
         "page_findings": page_findings,
     }
 
@@ -659,6 +832,18 @@ def _default_target_document_id(target_title: str) -> str:
     return f"campus_services:service_catalog:{quote(target_title, safe='')[:48]}:{digest}"
 
 
+def _positive_int(value: object, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a positive integer")
+    try:
+        parsed = int(str(value))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a positive integer") from exc
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return parsed
+
+
 def _required_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -709,6 +894,7 @@ def _path_segment(value: str, field_name: str) -> str:
 
 
 __all__ = [
+    "HANDBOOK_CURATED_SERVICE_FLOW_GRAPH_SCHEMA_VERSION",
     "HANDBOOK_SERVICE_NAVIGATION_SOURCE_FAMILY",
     "SERVICE_GUIDE_COLLECTION",
     "SERVICE_GUIDE_CORPUS",
@@ -717,7 +903,10 @@ __all__ = [
     "ServiceGuideProjectionBuildResult",
     "ServiceGuideProjectionReleaseReport",
     "ServiceGuideProjectionValidationReport",
+    "assert_service_guide_projection_release_ready",
+    "build_service_guide_projection_bundle_from_curated_handbook_flow_graph",
     "build_service_guide_projection_bundle_from_handbook_flow_graph",
+    "build_service_guide_projection_bundle_from_handbook_flow_graph_document_data",
     "validate_service_guide_projection_bundle",
     "write_service_guide_projection_release",
 ]
