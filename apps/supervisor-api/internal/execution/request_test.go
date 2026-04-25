@@ -580,7 +580,7 @@ func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *test
 func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
-			"user_goal":"校园卡怎么补办",
+			"user_goal":"校园卡余额怎么查",
 			"request_id":"req-campus-services-missing-subtype",
 			"requested_capability":"campus_services"
 		}`),

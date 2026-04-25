@@ -259,13 +259,9 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 
 	switch request.EffectiveCapability {
 	case "place_lookup":
-		frame.DomainCandidates = []string{"out_of_scope"}
-		frame.SuggestedNextAction = "out_of_scope"
-		frame.ScopeClass = "out_of_scope"
-		frame.PolicyReason = "navigation_temporarily_unsupported"
-		frame.LaunchState = "closed"
-		frame.ScopeReason = "navigation_temporarily_unsupported"
-		policyGate = PolicyGate{Decision: "out_of_scope", Reason: frame.PolicyReason, RiskLevel: "low"}
+		frame.DomainCandidates = []string{"navigation"}
+		frame.ScopeClass = "in_scope"
+		frame.ScopeReason = scopeGate.Reason
 	case "campus_services":
 		if !isPlannableCampusServicesSubtype(normalizedGoal, policy) {
 			frame.DomainCandidates = []string{"campus_services"}
@@ -558,9 +554,12 @@ func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyA
 	}
 	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
 	if serviceSubject == "" {
-		return ""
+		return matchStructuredServiceGuideCandidate(normalizedGoal, policy)
 	}
 	if !containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
+		if matchStructuredServiceGuideCandidate(normalizedGoal, policy) != "" {
+			return serviceSubject
+		}
 		return ""
 	}
 	return serviceSubject
@@ -572,9 +571,24 @@ func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicy
 	}
 	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
 	if serviceSubject == "" {
-		return false
+		return matchStructuredServiceGuideCandidate(normalizedGoal, policy) != ""
 	}
-	return containsAny(normalizedGoal, policy.Signals("structured_service_status"))
+	return containsAny(normalizedGoal, policy.Signals("structured_service_status")) ||
+		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
+}
+
+func matchStructuredServiceGuideCandidate(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) string {
+	serviceGuideSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_guide_subject"))
+	if serviceGuideSubject == "" {
+		return ""
+	}
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) {
+		return ""
+	}
+	return serviceGuideSubject
 }
 
 func matchOpenDomainPoliticalFact(normalizedGoal string, policy IntentPolicyArtifact) string {

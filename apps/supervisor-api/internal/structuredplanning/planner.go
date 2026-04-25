@@ -34,6 +34,44 @@ var serviceStatusSignals = []string{
 	"状态",
 }
 
+var serviceGuideActionSignals = []string{
+	"怎么申请",
+	"如何申请",
+	"怎么办理",
+	"如何办理",
+	"流程",
+	"手续",
+	"需要什么材料",
+	"材料",
+	"在哪里办",
+	"在哪办",
+	"入口",
+	"办理时间",
+	"联系方式",
+	"联系谁",
+	"补办",
+	"退宿",
+	"入住",
+	"不住宿",
+	"离校",
+}
+
+var serviceGuideSubjectSignals = []string{
+	"学生公寓",
+	"公寓",
+	"宿舍",
+	"住宿",
+	"入住",
+	"不住宿",
+	"退宿",
+	"离校",
+	"校园卡",
+	"一卡通",
+	"会议室",
+	"校医院",
+	"报修",
+}
+
 var noticeGetSignals = []string{
 	"这条通知",
 	"这则通知",
@@ -99,7 +137,25 @@ func Plan(request Request) *Handoff {
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			}
 		}
+		if isServiceGuideLookup(normalizedGoal) {
+			return &Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_guide_lookup",
+				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
+			}
+		}
 		return nil
+	}
+	if request.EffectiveCapability == "place_lookup" {
+		return &Handoff{
+			Target:      "navigation-agent",
+			PayloadKind: "place_lookup",
+			Payload: map[string]any{
+				"query_text": request.UserGoal,
+			},
+			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("navigation-agent", "place_lookup"),
+		}
 	}
 	if request.EffectiveCapability == "notice" {
 		selectedNoticeRef := request.SelectedNoticeRef
@@ -176,6 +232,23 @@ func serviceStatusPayload(
 	payload := map[string]any{
 		"subject_query":  userGoal,
 		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
+	}
+	if campusScope := campusScopeFromGoal(normalizedGoal); campusScope != "" {
+		payload["campus_scope"] = campusScope
+	}
+	return payload
+}
+
+func serviceGuidePayload(
+	userGoal string,
+	normalizedGoal string,
+	versionQuery VersionQuery,
+) map[string]any {
+	payload := map[string]any{
+		"service_query":  userGoal,
+		"guide_focus":    classifyServiceGuideFocus(normalizedGoal),
+		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal),
+		"audience":       "unknown",
 	}
 	if campusScope := campusScopeFromGoal(normalizedGoal); campusScope != "" {
 		payload["campus_scope"] = campusScope
@@ -317,6 +390,33 @@ func campusScopeFromGoal(normalizedGoal string) string {
 		return "fengtai"
 	}
 	return ""
+}
+
+func isServiceGuideLookup(normalizedGoal string) bool {
+	return containsAny(normalizedGoal, serviceGuideSubjectSignals) &&
+		containsAny(normalizedGoal, serviceGuideActionSignals)
+}
+
+func classifyServiceGuideFocus(normalizedGoal string) string {
+	if containsAny(normalizedGoal, []string{"材料", "需要什么"}) {
+		return "required_materials"
+	}
+	if containsAny(normalizedGoal, []string{"入口", "在哪里办", "在哪办"}) {
+		return "entry"
+	}
+	if containsAny(normalizedGoal, []string{"办理时间", "办公时间", "开放时间"}) {
+		return "office_hours"
+	}
+	if containsAny(normalizedGoal, []string{"联系方式", "联系谁", "电话"}) {
+		return "contact"
+	}
+	if containsAny(normalizedGoal, []string{"条件", "资格", "谁能"}) {
+		return "eligibility"
+	}
+	if containsAny(normalizedGoal, []string{"说明", "全部", "完整"}) {
+		return "full_guide"
+	}
+	return "procedure"
 }
 
 func normalizeGoal(userGoal string) string {

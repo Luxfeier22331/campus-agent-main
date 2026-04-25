@@ -809,6 +809,87 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	}
 }
 
+func TestAnswerExecutesPlaceLookupDirectlyInGo(t *testing.T) {
+	placeCatalogPath := writeStructuredQueryPlaceCatalogFixture(t, `{
+		"version":"v1",
+		"coordinate_reference_system":"EPSG:4326",
+		"places":[
+			{
+				"place_id":"muc.haidian.library",
+				"entity_type":"building",
+				"display_name":"图书馆",
+				"aliases":["海淀图书馆","校图书馆"],
+				"campus_scope":"haidian",
+				"campus_area":"主教学区西侧",
+				"location_description":"海淀校区主教学区西侧，靠近校医院。",
+				"landmark_hint":"从知行广场向西步行约 3 分钟可到达。",
+				"access_note":"校外访客请先完成入校登记。",
+				"opening_note":"以图书馆当日公告为准。",
+				"service_tags":["自习","借阅"],
+				"point_geometry":{"longitude":116.31551,"latitude":39.96162},
+				"coordinate_reference_system":"EPSG:4326",
+				"source_refs":["seed:campus_navigation/place_catalog.v1"],
+				"verification_state":"manual_seed_reviewed"
+			}
+		]
+	}`)
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:                        "bearer",
+		BearerToken:                     "secret-token",
+		DefaultActorID:                  "runtime-bearer-user",
+		RequestBodyLimitBytes:           1_048_576,
+		MaxConcurrentAnswers:            8,
+		StructuredQueryPlaceCatalogPath: placeCatalogPath,
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "supervisor_response",
+				Body:       json.RawMessage(`{"selected_target":"navigation-agent","status":"completed","answer_text":"bridge"}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"海淀图书馆在哪里","requested_capability":"place_lookup","request_id":"req-place-direct"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-place-direct")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 0 {
+		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	}
+	body := decodeBody(t, response)
+	if body["selected_target"] != "navigation-agent" {
+		t.Fatalf("selected_target = %v, want navigation-agent", body["selected_target"])
+	}
+	if body["status"] != "completed" {
+		t.Fatalf("status = %v, want completed", body["status"])
+	}
+	if body["trace_id"] != "trace-place-direct" {
+		t.Fatalf("trace_id = %v, want trace-place-direct", body["trace_id"])
+	}
+	result := expectRecord(t, body["result"], "result")
+	resolvedPlace := expectRecord(t, result["resolved_place"], "result.resolved_place")
+	if resolvedPlace["place_id"] != "muc.haidian.library" {
+		t.Fatalf("resolved_place.place_id = %v", resolvedPlace["place_id"])
+	}
+	observability := expectRecord(t, body["observability"], "observability")
+	if observability["selected_tool"] != "place_lookup" {
+		t.Fatalf("observability.selected_tool = %v, want place_lookup", observability["selected_tool"])
+	}
+}
+
 func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	projectionPath := writeStructuredQueryProjectionFixture(t, `{
 		"schema_version":"campus_services_projection_bundle.v1",
@@ -1922,6 +2003,87 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 	}
 }
 
+func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T) {
+	projectionPath := writeStructuredQueryProjectionFixture(t, `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-25T10:00:00+08:00",
+		"source_families":["handbook_service_navigation_projection_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:handbook:check-in",
+				"display_name":"公寓楼新生办理入住手续流程",
+				"aliases":["入住","住宿","宿舍"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=253"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:check-in:section:procedure",
+						"section_type":"procedure",
+						"title":"公寓楼新生办理入住手续流程",
+						"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["新生"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`)
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers:              8,
+		RequestBodyLimitBytes:             1_048_576,
+		StructuredQuerySharedSecret:       "query-secret",
+		StructuredQueryProjectionPath:     projectionPath,
+		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	}, nil)
+
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/query/campus-services/service-guide",
+		strings.NewReader(`{
+			"service_query":"宿舍入住怎么办理",
+			"guide_focus":"procedure",
+			"temporal_query":{"mode":"current"},
+			"audience":"student"
+		}`),
+	)
+	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["outcome"] != "resolved_current" {
+		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
+	}
+	resolvedService := expectRecord(t, body["resolved_service"], "resolved_service")
+	if resolvedService["display_name"] != "公寓楼新生办理入住手续流程" {
+		t.Fatalf("resolved_service.display_name = %v", resolvedService["display_name"])
+	}
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(
+		metricsResponse.Body.String(),
+		`campus_supervisor_api_structured_query_requests_total{tool="service_guide_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+	) {
+		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
+	}
+}
+
 func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
@@ -2727,6 +2889,15 @@ func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {
 	path := t.TempDir() + "/campus-services-projection.json"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write projection fixture: %v", err)
+	}
+	return path
+}
+
+func writeStructuredQueryPlaceCatalogFixture(t *testing.T, body string) string {
+	t.Helper()
+	path := t.TempDir() + "/place-catalog.json"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write place catalog fixture: %v", err)
 	}
 	return path
 }

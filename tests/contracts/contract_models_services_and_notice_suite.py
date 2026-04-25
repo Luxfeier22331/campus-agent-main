@@ -97,6 +97,60 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ("notice:muc-library-holiday-adjustment-2026",),
         )
 
+    def test_service_guide_payload_and_result_serialize(self) -> None:
+        payload = ServiceGuideLookupPayload(
+            service_query="宿舍入住怎么办理",
+            guide_focus="procedure",
+            temporal_query=TemporalQuery(mode="current"),
+            audience="student",
+        )
+        result = ServiceGuideLookupResult(
+            service_query="宿舍入住怎么办理",
+            guide_focus="procedure",
+            outcome="resolved_current",
+            resolved_service=ServiceGuideServiceRef(
+                service_id="service:handbook:check-in",
+                display_name="公寓楼新生办理入住手续流程",
+                aliases=("入住", "宿舍"),
+                category="student_housing",
+                campus_scope="all",
+                audience=("student",),
+            ),
+            guide_sections=(
+                ServiceGuideSection(
+                    section_type="procedure",
+                    title="公寓楼新生办理入住手续流程",
+                    content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+                    source_refs=("handbook:student_rules:pages:252-255#page=253",),
+                ),
+            ),
+            source_refs=("handbook:student_rules:pages:252-255#page=253",),
+            queried_time_anchor="2026-04-25T10:30:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+            matched_service_category="student_housing",
+        )
+
+        self.assertEqual(asdict(payload)["guide_focus"], "procedure")
+        self.assertEqual(
+            asdict(result)["resolved_service"]["display_name"], "公寓楼新生办理入住手续流程"
+        )
+        self.assertEqual(
+            tuple(asdict(result)["source_refs"]),
+            ("handbook:student_rules:pages:252-255#page=253",),
+        )
+
+    def test_service_guide_result_requires_fail_close_reason(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "fail_close_reason must not be empty for fail-closed service guide results",
+        ):
+            ServiceGuideLookupResult(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
+                outcome="temporarily_unverifiable",
+            )
+
     def test_transport_schedule_payload_requires_non_empty_query_text(self) -> None:
         with self.assertRaisesRegex(ValueError, "query_text must not be empty"):
             TransportScheduleLookupPayload(query_text=" ", intent="next_departure")
@@ -273,6 +327,20 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 "campus_scope": "",
             },
         )
+
+    def test_specialist_request_accepts_service_guide_payload(self) -> None:
+        request = SpecialistRequest(
+            target="campus-services-agent",
+            user_goal="宿舍入住怎么办理",
+            payload=ServiceGuideLookupPayload(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
+            ),
+            allowed_tools=("service_guide_lookup",),
+        )
+
+        self.assertEqual(asdict(request)["payload"]["guide_focus"], "procedure")
+        self.assertEqual(tuple(asdict(request)["allowed_tools"]), ("service_guide_lookup",))
 
     def test_specialist_response_serializes_notice_get_result_shape(self) -> None:
         response = SpecialistResponse(

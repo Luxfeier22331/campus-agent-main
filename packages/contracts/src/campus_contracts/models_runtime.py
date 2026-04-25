@@ -39,6 +39,8 @@ from campus_contracts.models_tools import (
     CampusNoticeGetResult,
     PlaceLookupPayload,
     PlaceLookupResult,
+    ServiceGuideLookupPayload,
+    ServiceGuideLookupResult,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
     TransportScheduleLookupPayload,
@@ -88,6 +90,8 @@ class SupervisorObservability:
     tool_business_outcome: str = ""
     tool_fail_close_reason: str = ""
     tool_historical_downgrade_reason: str = ""
+    service_guide_focus: str = ""
+    matched_service_category: str = ""
     notice_source_family_summary: str = ""
     temporal_posture: str = ""
     model_provider: str = ""
@@ -167,6 +171,7 @@ class SpecialistRequest:
     payload: (
         RagRequestPayload
         | PlaceLookupPayload
+        | ServiceGuideLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
         | CampusNoticeDiscoverPayload
@@ -204,6 +209,7 @@ class SpecialistResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | CampusNoticeDiscoverResult
@@ -231,6 +237,7 @@ class SupervisorResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | CampusNoticeDiscoverResult

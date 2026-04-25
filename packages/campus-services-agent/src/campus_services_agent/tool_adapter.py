@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from campus_contracts import (
     ErrorInfo,
+    ServiceGuideLookupPayload,
+    ServiceGuideLookupResult,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
     SpecialistRequest,
@@ -13,6 +15,7 @@ from campus_contracts import (
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
     CampusServicesQueryService,
+    ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
@@ -25,6 +28,8 @@ def dispatch_tool_request(
 ) -> SpecialistResponse:
     if isinstance(request.payload, ServiceStatusLookupPayload):
         return _handle_service_status_lookup(request, query_service=query_service)
+    if isinstance(request.payload, ServiceGuideLookupPayload):
+        return _handle_service_guide_lookup(request, query_service=query_service)
     if isinstance(request.payload, TransportScheduleLookupPayload):
         return _handle_transport_schedule_lookup(request, query_service=query_service)
     return SpecialistResponse(
@@ -33,7 +38,10 @@ def dispatch_tool_request(
         confidence="low",
         error=ErrorInfo(
             code="invalid_payload",
-            message="campus-services-agent requires service status or transport schedule payload",
+            message=(
+                "campus-services-agent requires service status, service guide, "
+                "or transport schedule payload"
+            ),
         ),
     )
 
@@ -58,6 +66,26 @@ def _handle_service_status_lookup(
     return _service_status_response(result)
 
 
+def _handle_service_guide_lookup(
+    request: SpecialistRequest,
+    *,
+    query_service: CampusServicesQueryService,
+) -> SpecialistResponse:
+    tool_name = "service_guide_lookup"
+    if tool_name not in request.allowed_tools:
+        return _tool_not_allowed(tool_name)
+    try:
+        result = query_service.lookup_service_guide(
+            ServiceGuideQuery(
+                payload=request.payload,
+                access_context=_access_context_from_request(request),
+            )
+        )
+    except Exception as exc:
+        return _query_service_failed(str(exc))
+    return _service_guide_response(result)
+
+
 def _handle_transport_schedule_lookup(
     request: SpecialistRequest,
     *,
@@ -76,6 +104,48 @@ def _handle_transport_schedule_lookup(
     except Exception as exc:
         return _query_service_failed(str(exc))
     return _transport_schedule_response(result)
+
+
+def _service_guide_response(result: ServiceGuideLookupResult) -> SpecialistResponse:
+    if result.outcome == "resolved_current":
+        service_name = (
+            result.resolved_service.display_name
+            if result.resolved_service is not None
+            else result.service_query
+        )
+        guide_text = _service_guide_text(result)
+        return SpecialistResponse(
+            target="campus-services-agent",
+            status="completed",
+            answer_text=f"{service_name}：\n{guide_text}" if guide_text else service_name,
+            confidence="high",
+            result=result,
+        )
+    if result.outcome == "clarification_required":
+        follow_up = "请明确你要查询的具体服务。"
+        return SpecialistResponse(
+            target="campus-services-agent",
+            status="needs_clarification",
+            answer_text=follow_up,
+            follow_up_question=follow_up,
+            confidence="medium",
+            result=result,
+        )
+    if result.outcome == "temporarily_unverifiable":
+        return SpecialistResponse(
+            target="campus-services-agent",
+            status="no_answer",
+            answer_text="当前还不能稳定确认这项办理指南。",
+            confidence="low",
+            result=result,
+        )
+    return SpecialistResponse(
+        target="campus-services-agent",
+        status="no_answer",
+        answer_text="当前没有找到对应的办理指南。",
+        confidence="low",
+        result=result,
+    )
 
 
 def _service_status_response(result: ServiceStatusLookupResult) -> SpecialistResponse:
@@ -236,6 +306,22 @@ def _transport_schedule_response(result: TransportScheduleLookupResult) -> Speci
         confidence="low",
         result=result,
     )
+
+
+def _service_guide_text(result: ServiceGuideLookupResult) -> str:
+    if result.guide_sections:
+        return "\n".join(section.content for section in result.guide_sections if section.content)
+    if result.required_materials:
+        return "、".join(material.name for material in result.required_materials)
+    if result.entry_refs:
+        return "、".join(entry.label for entry in result.entry_refs)
+    if result.office_hours:
+        return "、".join(hours.time_range or hours.effective_note for hours in result.office_hours)
+    if result.contact_refs:
+        return "、".join(contact.label for contact in result.contact_refs)
+    if result.eligibility_notes:
+        return "、".join(result.eligibility_notes)
+    return ""
 
 
 def _access_context_from_request(request: SpecialistRequest) -> CampusServicesAccessContext:

@@ -32,8 +32,12 @@ func (s *Server) handleStructuredQuery(
 
 	var result structuredquery.Response
 	switch tool {
+	case structuredquery.ToolPlaceLookup:
+		result = s.structuredQuery.LookupPlace(ctx, body)
 	case structuredquery.ToolServiceStatusLookup:
 		result = s.structuredQuery.LookupServiceStatus(ctx, body)
+	case structuredquery.ToolServiceGuideLookup:
+		result = s.structuredQuery.LookupServiceGuide(ctx, body)
 	case structuredquery.ToolTransportScheduleLookup:
 		result = s.structuredQuery.LookupTransportSchedule(ctx, body)
 	case structuredquery.ToolCampusNoticeDiscover:

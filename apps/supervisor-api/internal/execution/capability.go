@@ -71,6 +71,43 @@ var serviceStatusSignals = []string{
 	"状态",
 }
 var serviceSubjectSignals = []string{"图书馆", "食堂", "会议室", "校医院", "校园卡", "一卡通", "宿舍", "报修"}
+var serviceGuideActionSignals = []string{
+	"怎么申请",
+	"如何申请",
+	"怎么办理",
+	"如何办理",
+	"怎么办",
+	"流程",
+	"手续",
+	"需要什么材料",
+	"材料",
+	"在哪里办",
+	"在哪办",
+	"入口",
+	"办理时间",
+	"联系方式",
+	"联系谁",
+	"补办",
+	"退宿",
+	"入住",
+	"不住宿",
+	"离校",
+}
+var serviceGuideSubjectSignals = []string{
+	"学生公寓",
+	"公寓",
+	"宿舍",
+	"住宿",
+	"入住",
+	"不住宿",
+	"退宿",
+	"离校",
+	"校园卡",
+	"一卡通",
+	"会议室",
+	"校医院",
+	"报修",
+}
 var noticeSignals = []string{"通知", "公告", "公示"}
 
 func effectiveCapability(
@@ -125,6 +162,9 @@ func inferCapabilityFromGoal(userGoal string) string {
 	normalized := normalizeGoal(userGoal)
 	if normalized == "" {
 		return "knowledge"
+	}
+	if containsAny(normalized, serviceGuideSubjectSignals) && containsAny(normalized, serviceGuideActionSignals) {
+		return "campus_services"
 	}
 	if looksLikeNonSpatialWhereAction(normalized) {
 		return "knowledge"

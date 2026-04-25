@@ -8,6 +8,14 @@ from urllib.request import Request, urlopen
 
 from campus_contracts import (
     ScheduledDeparture,
+    ServiceGuideCandidate,
+    ServiceGuideContactRef,
+    ServiceGuideEntryRef,
+    ServiceGuideLookupResult,
+    ServiceGuideMaterial,
+    ServiceGuideOfficeHours,
+    ServiceGuideSection,
+    ServiceGuideServiceRef,
     ServiceStatusLookupResult,
     TransportRouteCandidate,
     TransportRouteRef,
@@ -18,6 +26,7 @@ from campus_contracts import (
 )
 
 from campus_services_agent.query_service import (
+    ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
@@ -60,6 +69,17 @@ class CampusServicesHTTPQueryService:
         return _service_status_result_from_dict(
             body,
             fallback_subject_query=query.payload.subject_query,
+        )
+
+    def lookup_service_guide(self, query: ServiceGuideQuery) -> ServiceGuideLookupResult:
+        body = self._post(
+            "/internal/query/campus-services/service-guide",
+            asdict(query.payload),
+        )
+        return _service_guide_result_from_dict(
+            body,
+            fallback_service_query=query.payload.service_query,
+            fallback_guide_focus=str(query.payload.guide_focus),
         )
 
     def lookup_transport_schedule(
@@ -145,6 +165,58 @@ def _service_status_result_from_dict(
     )
 
 
+def _service_guide_result_from_dict(
+    body: dict[str, object],
+    *,
+    fallback_service_query: str,
+    fallback_guide_focus: str,
+) -> ServiceGuideLookupResult:
+    return ServiceGuideLookupResult(
+        service_query=_string(body.get("service_query")) or fallback_service_query,
+        guide_focus=_string(body.get("guide_focus")) or fallback_guide_focus,
+        outcome=_string(body.get("outcome")),
+        resolved_service=_service_guide_service_ref(body.get("resolved_service")),
+        guide_sections=tuple(
+            section
+            for item in _list(body.get("guide_sections"))
+            if (section := _service_guide_section(item)) is not None
+        ),
+        required_materials=tuple(
+            material
+            for item in _list(body.get("required_materials"))
+            if (material := _service_guide_material(item)) is not None
+        ),
+        entry_refs=tuple(
+            entry
+            for item in _list(body.get("entry_refs"))
+            if (entry := _service_guide_entry(item)) is not None
+        ),
+        office_hours=tuple(
+            hours
+            for item in _list(body.get("office_hours"))
+            if (hours := _service_guide_hours(item)) is not None
+        ),
+        contact_refs=tuple(
+            contact
+            for item in _list(body.get("contact_refs"))
+            if (contact := _service_guide_contact(item)) is not None
+        ),
+        eligibility_notes=_string_tuple(body.get("eligibility_notes")),
+        source_refs=_string_tuple(body.get("source_refs")),
+        candidate_services=tuple(
+            candidate
+            for item in _list(body.get("candidate_services"))
+            if (candidate := _service_guide_candidate(item)) is not None
+        ),
+        queried_time_anchor=_string(body.get("queried_time_anchor")),
+        effective_from=_string(body.get("effective_from")),
+        effective_until=_string(body.get("effective_until")),
+        clarification_reason=_string(body.get("clarification_reason")),
+        fail_close_reason=_string(body.get("fail_close_reason")),
+        matched_service_category=_string(body.get("matched_service_category")),
+    )
+
+
 def _transport_schedule_result_from_dict(
     body: dict[str, object],
     *,
@@ -184,6 +256,97 @@ def _transport_schedule_result_from_dict(
         related_notice_refs=_string_tuple(body.get("related_notice_refs")),
         historical_downgrade_reason=_string(body.get("historical_downgrade_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
+    )
+
+
+def _service_guide_service_ref(value: object) -> ServiceGuideServiceRef | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideServiceRef(
+        service_id=_string(item.get("service_id")),
+        display_name=_string(item.get("display_name")),
+        aliases=_string_tuple(item.get("aliases")),
+        category=_string(item.get("category")),
+        campus_scope=_string(item.get("campus_scope")),
+        audience=_string_tuple(item.get("audience")),
+    )
+
+
+def _service_guide_section(value: object) -> ServiceGuideSection | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideSection(
+        section_type=_string(item.get("section_type")),
+        title=_string(item.get("title")),
+        content=_string(item.get("content")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_material(value: object) -> ServiceGuideMaterial | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideMaterial(
+        name=_string(item.get("name")),
+        required=bool(item.get("required")),
+        note=_string(item.get("note")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_entry(value: object) -> ServiceGuideEntryRef | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideEntryRef(
+        label=_string(item.get("label")),
+        entry_type=_string(item.get("entry_type")),
+        url=_string(item.get("url")),
+        location_ref=_string(item.get("location_ref")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_hours(value: object) -> ServiceGuideOfficeHours | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideOfficeHours(
+        label=_string(item.get("label")),
+        day_pattern=_string(item.get("day_pattern")),
+        time_range=_string(item.get("time_range")),
+        effective_note=_string(item.get("effective_note")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_contact(value: object) -> ServiceGuideContactRef | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideContactRef(
+        label=_string(item.get("label")),
+        department=_string(item.get("department")),
+        phone=_string(item.get("phone")),
+        email=_string(item.get("email")),
+        location_ref=_string(item.get("location_ref")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_candidate(value: object) -> ServiceGuideCandidate | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    service = _service_guide_service_ref(item.get("service"))
+    if service is None:
+        return None
+    return ServiceGuideCandidate(
+        service=service,
+        clarification_hint=_string(item.get("clarification_hint")),
     )
 
 

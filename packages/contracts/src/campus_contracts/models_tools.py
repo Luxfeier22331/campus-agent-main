@@ -8,6 +8,9 @@ from campus_contracts.models_shared import (
     NoticeSourceFamily,
     NoticeTargetSurface,
     PlaceEntityType,
+    ServiceGuideAudience,
+    ServiceGuideClarificationReason,
+    ServiceGuideFocus,
     ServiceStatusValue,
     TemporalQueryMode,
     ToolBusinessOutcome,
@@ -20,6 +23,9 @@ from campus_contracts.models_shared import (
     _validate_historical_downgrade_reason,
     _validate_notice_source_family,
     _validate_notice_target_surface,
+    _validate_service_guide_audience,
+    _validate_service_guide_clarification_reason,
+    _validate_service_guide_focus,
     _validate_service_status_value,
     _validate_temporal_query_mode,
     _validate_tool_business_outcome,
@@ -201,6 +207,182 @@ class ServiceStatusLookupResult:
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed service status results"
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideServiceRef:
+    service_id: str
+    display_name: str
+    aliases: tuple[str, ...] = field(default_factory=tuple)
+    category: str = ""
+    campus_scope: str = ""
+    audience: tuple[ServiceGuideAudience | str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.service_id.strip():
+            raise ValueError("service_id must not be empty")
+        if not self.display_name.strip():
+            raise ValueError("display_name must not be empty")
+        for item in self.audience:
+            _validate_service_guide_audience(item)
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideSection:
+    section_type: ServiceGuideFocus | str
+    title: str
+    content: str
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.section_type == "full_guide":
+            raise ValueError("section_type must be a concrete service guide section")
+        _validate_service_guide_focus(self.section_type)
+        if not self.title.strip():
+            raise ValueError("title must not be empty")
+        if not self.content.strip():
+            raise ValueError("content must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideMaterial:
+    name: str
+    required: bool
+    note: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("name must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideEntryRef:
+    label: str
+    entry_type: str
+    url: str = ""
+    location_ref: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if self.entry_type not in {
+            "online_url",
+            "offline_location",
+            "phone",
+            "email",
+            "instructions_only",
+        }:
+            raise ValueError(f"unsupported service guide entry_type: {self.entry_type}")
+        if self.entry_type == "online_url" and not self.url.strip():
+            raise ValueError("url must not be empty for online_url entry")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideOfficeHours:
+    label: str
+    day_pattern: str = ""
+    time_range: str = ""
+    effective_note: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideContactRef:
+    label: str
+    department: str = ""
+    phone: str = ""
+    email: str = ""
+    location_ref: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.label.strip():
+            raise ValueError("label must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideCandidate:
+    service: ServiceGuideServiceRef
+    clarification_hint: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideLookupPayload:
+    service_query: str
+    guide_focus: ServiceGuideFocus | str
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    campus_scope: str = ""
+    audience: ServiceGuideAudience | str = "unknown"
+    result_limit: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.service_query.strip():
+            raise ValueError("service_query must not be empty")
+        _validate_service_guide_focus(self.guide_focus)
+        _validate_service_guide_audience(self.audience)
+        if self.result_limit is not None and self.result_limit <= 0:
+            raise ValueError("result_limit must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideLookupResult:
+    service_query: str
+    guide_focus: ServiceGuideFocus | str
+    outcome: ToolBusinessOutcome
+    resolved_service: ServiceGuideServiceRef | None = None
+    guide_sections: tuple[ServiceGuideSection, ...] = field(default_factory=tuple)
+    required_materials: tuple[ServiceGuideMaterial, ...] = field(default_factory=tuple)
+    entry_refs: tuple[ServiceGuideEntryRef, ...] = field(default_factory=tuple)
+    office_hours: tuple[ServiceGuideOfficeHours, ...] = field(default_factory=tuple)
+    contact_refs: tuple[ServiceGuideContactRef, ...] = field(default_factory=tuple)
+    eligibility_notes: tuple[str, ...] = field(default_factory=tuple)
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+    candidate_services: tuple[ServiceGuideCandidate, ...] = field(default_factory=tuple)
+    queried_time_anchor: str = ""
+    effective_from: str = ""
+    effective_until: str = ""
+    clarification_reason: ServiceGuideClarificationReason | str = field(default="", compare=False)
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+    matched_service_category: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.service_query.strip():
+            raise ValueError("service_query must not be empty")
+        _validate_service_guide_focus(self.guide_focus)
+        _validate_tool_business_outcome(self.outcome)
+        if self.clarification_reason:
+            _validate_service_guide_clarification_reason(self.clarification_reason)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome == "resolved_current":
+            if self.resolved_service is None:
+                raise ValueError("resolved_service must not be empty for resolved service guide")
+            if not self.source_refs:
+                raise ValueError("source_refs must not be empty for resolved service guide")
+        if self.outcome == "clarification_required" and not self.clarification_reason:
+            raise ValueError(
+                "clarification_reason must not be empty for clarification-required service guide results"
+            )
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed service guide results"
             )
 
 

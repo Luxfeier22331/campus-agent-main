@@ -53,7 +53,9 @@ specialist-owned execution -> supervisor finalization`
 当前 repo 仍保持以下 merged truth：
 
 - `public-chat-web -> app-api` 的公开 chat 请求当前只开放 `knowledge`
-- `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close
+- `place_lookup` 在 `supervisor-api` internal execution path 中已由 Go direct
+  structured runtime 承接；地图 UI、route planning 与 `place_card` product
+  consumption 仍不属于当前默认公开 surface
 - `notice-agent`、`campus-services-agent` 是已冻结的前向 capability family；internal
   execution wire 已接受显式 `notice` / `campus_services` capability label 并映射到对应
   lane，但它们还不是当前默认公开主路径

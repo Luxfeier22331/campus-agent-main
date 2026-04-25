@@ -7,6 +7,9 @@ from campus_contracts import (
     EvidenceSource,
     RagResultDiagnostics,
     RagResultPayload,
+    ServiceGuideLookupResult,
+    ServiceGuideSection,
+    ServiceGuideServiceRef,
     SpecialistResponse,
 )
 from campus_supervisor_core.response import build_supervisor_observability_from_specialist_response
@@ -211,3 +214,36 @@ class SupervisorCoreObservabilityContextTest(unittest.TestCase):
         self.assertEqual(observability.candidate_count, 0)
         self.assertEqual(observability.retrieved_source_count, 0)
         self.assertEqual(observability.retrieved_sources, ())
+
+    def test_build_supervisor_observability_marks_service_guide_tool(self) -> None:
+        response = SpecialistResponse(
+            target="campus-services-agent",
+            status="completed",
+            answer_text="公寓楼新生办理入住手续流程：到指定公寓楼报到。",
+            confidence="high",
+            result=ServiceGuideLookupResult(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:handbook:check-in",
+                    display_name="公寓楼新生办理入住手续流程",
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_type="procedure",
+                        title="公寓楼新生办理入住手续流程",
+                        content="1. 到指定公寓楼报到。",
+                        source_refs=("handbook:student_rules:pages:252-255#page=253",),
+                    ),
+                ),
+                source_refs=("handbook:student_rules:pages:252-255#page=253",),
+                matched_service_category="student_housing",
+            ),
+        )
+
+        observability = build_supervisor_observability_from_specialist_response(response)
+
+        self.assertEqual(observability.selected_tool, "service_guide_lookup")
+        self.assertEqual(observability.tool_business_outcome, "resolved_current")
+        self.assertFalse(observability.retrieval_attempted)

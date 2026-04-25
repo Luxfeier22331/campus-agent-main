@@ -52,6 +52,8 @@ func TestEvaluateRuntimePolicyUsesExplicitIntentPolicyArtifact(t *testing.T) {
 				"political_office":[],
 				"structured_transport":[],
 				"structured_service_subject":[],
+				"structured_service_guide_action":[],
+				"structured_service_guide_subject":[],
 				"structured_service_status":[],
 				"structured_notice":[],
 				"contextual_follow_up":[],
@@ -333,7 +335,7 @@ func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.
 func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "campus_services",
-		UserGoal:            "校园卡怎么补办",
+		UserGoal:            "校园卡余额怎么查",
 	})
 
 	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
@@ -348,6 +350,41 @@ func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testi
 	}
 }
 
+func TestEvaluateRuntimePolicyDelegatesCampusServiceGuideSubtype(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "宿舍入住怎么办理",
+	})
+
+	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
+		t.Fatalf("next action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeReason != "explicit_requested_capability" {
+		t.Fatalf("scope reason = %q, want explicit_requested_capability", decision.RoutingFrame.ScopeReason)
+	}
+}
+
+func TestEvaluateRuntimePolicyDelegatesPlaceLookup(t *testing.T) {
+	decision := Evaluate(Request{
+		EffectiveCapability: "place_lookup",
+		UserGoal:            "海淀图书馆在哪里",
+	})
+
+	if decision.PolicyGate.Decision != "delegate" {
+		t.Fatalf("policy decision = %q, want delegate", decision.PolicyGate.Decision)
+	}
+	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
+		t.Fatalf("next action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	}
+	if decision.RoutingFrame.ScopeClass != "in_scope" {
+		t.Fatalf("scope class = %q, want in_scope", decision.RoutingFrame.ScopeClass)
+	}
+	if len(decision.RoutingFrame.DomainCandidates) != 1 ||
+		decision.RoutingFrame.DomainCandidates[0] != "navigation" {
+		t.Fatalf("domain candidates = %#v, want navigation", decision.RoutingFrame.DomainCandidates)
+	}
+}
+
 func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	allowed := AllowedToolsForPayloadKind("notice-agent", "campus_notice_get")
 	if len(allowed) != 1 || allowed[0] != "campus_notice_get" {
@@ -355,6 +392,14 @@ func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
 	}
 	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
 		t.Fatal("notice-agent must not allow service_status_lookup")
+	}
+	serviceGuideAllowed := AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup")
+	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
+		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
+	}
+	placeLookupAllowed := AllowedToolsForPayloadKind("navigation-agent", "place_lookup")
+	if len(placeLookupAllowed) != 1 || placeLookupAllowed[0] != "place_lookup" {
+		t.Fatalf("place lookup allowed = %#v, want place_lookup", placeLookupAllowed)
 	}
 }
 

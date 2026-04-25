@@ -235,9 +235,6 @@ func clarificationQuestion(frame runtimepolicy.RoutingFrame) string {
 }
 
 func outOfScopeAnswerText(policyReason string) string {
-	if policyReason == "navigation_temporarily_unsupported" {
-		return "当前暂不支持校内导航或地点查询，待地图能力正式上线后再开放。"
-	}
 	return "当前仅支持中央民族大学校园范围内且已开放能力面的问答，这个问题不在当前支持范围内。"
 }
 

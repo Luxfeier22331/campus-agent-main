@@ -79,8 +79,9 @@ Docker-side Go runtime control plane 长期负责：
 - execution request envelope validation、trace / actor / context projection 的结构校验
 - deterministic capability routing gate、scope opening gate 与 query-enabled collection
   gate 中不依赖 LLM 的部分
-- structured runtime dispatch，例如 projection-backed `transport_schedule_lookup`、
-  `service_status_lookup`、later-wave `service_guide_lookup`、
+- structured runtime dispatch，例如 place-catalog-backed `place_lookup`、
+  projection-backed `transport_schedule_lookup`、`service_status_lookup`、
+  later-wave `service_guide_lookup`、
   `campus_notice_discover`、`campus_notice_get`
 - runtime metrics、structured logs、audit writer、cost / token / latency accounting
   与 failure fingerprint
@@ -131,7 +132,7 @@ Docker-side Go runtime control plane 长期负责：
   context-follow-up 或 terminal 裁决；non-delegate terminal routing 由 Go direct
   terminal path 返回
 - Go `supervisor-api` 已拥有 non-stream 与 lifecycle SSE direct structured answer path：
-  `campus_services` / `notice` opening gate 放行后，bridge v4 handoff 中的
+  `place_lookup` 与 `campus_services` / `notice` opening gate 放行后的
   deterministic structured payload 可直接调用 Go structured runtime，并由 Go shape
   supervisor-style response；Python bridge 不再是这些 opened structured payload 的必经
   runtime hop
@@ -156,6 +157,7 @@ Docker-side Go runtime control plane 长期负责：
   runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
   scope 在进入 Python bridge 前返回 `403 disallowed_knowledge_scope`
 - Go `supervisor-api` 已拥有 structured runtime opening gate：
+  `place_lookup` 始终由 repo-owned place catalog direct runtime 承接；
   `campus_services` / `notice` 默认关闭，只有通过
   `SUPERVISOR_API_OPEN_CAPABILITIES` 显式开放后才允许进入 structured runtime；该变量只接受
   `campus_services`、`notice` 或 `campus_services,notice`，不接受 `*` / `all`

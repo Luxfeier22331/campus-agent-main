@@ -124,7 +124,8 @@ knowledge/RAG 问题。
 当前 merged truth 继续允许：
 
 - public chat 只开放 `knowledge`
-- `place_lookup` 在产品路径上继续 fail-close
+- `place_lookup` 可由 Go direct structured runtime 回答地点目录查询；更完整的
+  route planning、地图 UI 与 `place_card` product consumption 继续独立 admission
 
 但这只表示 current rollout posture，不表示：
 

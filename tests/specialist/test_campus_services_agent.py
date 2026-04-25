@@ -7,6 +7,10 @@ from campus_contracts import (
     AuthorizationProjection,
     ContextProjection,
     ScheduledDeparture,
+    ServiceGuideLookupPayload,
+    ServiceGuideLookupResult,
+    ServiceGuideSection,
+    ServiceGuideServiceRef,
     ServiceStatusLookupPayload,
     ServiceStatusLookupResult,
     SpecialistRequest,
@@ -21,6 +25,7 @@ from campus_services_agent import tool_adapter as campus_services_tool_adapter
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
+    ServiceGuideQuery,
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
@@ -30,6 +35,7 @@ from campus_services_agent.service import delegate_to_campus_services_agent
 class _FakeCampusServicesQueryService:
     def __init__(self) -> None:
         self.last_service_status_query: ServiceStatusQuery | None = None
+        self.last_service_guide_query: ServiceGuideQuery | None = None
         self.last_transport_schedule_query: TransportScheduleQuery | None = None
 
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult:
@@ -43,6 +49,35 @@ class _FakeCampusServicesQueryService:
             effective_from="2026-04-21T08:00:00+08:00",
             effective_until="2026-04-21T22:00:00+08:00",
             related_notice_refs=("notice:library-hours",),
+        )
+
+    def lookup_service_guide(self, query: ServiceGuideQuery) -> ServiceGuideLookupResult:
+        self.last_service_guide_query = query
+        return ServiceGuideLookupResult(
+            service_query=query.payload.service_query,
+            guide_focus=query.payload.guide_focus,
+            outcome="resolved_current",
+            resolved_service=ServiceGuideServiceRef(
+                service_id="service:handbook:check-in",
+                display_name="公寓楼新生办理入住手续流程",
+                aliases=("入住", "宿舍"),
+                category="student_housing",
+                campus_scope="all",
+                audience=("student",),
+            ),
+            guide_sections=(
+                ServiceGuideSection(
+                    section_type="procedure",
+                    title="公寓楼新生办理入住手续流程",
+                    content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+                    source_refs=("handbook:student_rules:pages:252-255#page=253",),
+                ),
+            ),
+            source_refs=("handbook:student_rules:pages:252-255#page=253",),
+            queried_time_anchor="2026-04-25T10:30:00+08:00",
+            effective_from="2018-09-01T00:00:00+08:00",
+            effective_until="2099-12-31T23:59:59+08:00",
+            matched_service_category="student_housing",
         )
 
     def lookup_transport_schedule(
@@ -154,6 +189,32 @@ class CampusServicesAgentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "disallowed_tool")
+
+    def test_service_guide_payload_routes_through_internal_query_service(self) -> None:
+        query_service = _FakeCampusServicesQueryService()
+        request = SpecialistRequest(
+            target="campus-services-agent",
+            user_goal="宿舍入住怎么办理",
+            payload=ServiceGuideLookupPayload(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
+            ),
+            allowed_tools=("service_guide_lookup",),
+            actor=ActorContext(user_id="student-001"),
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001"),
+                authorization=AuthorizationProjection(principal_id="principal-001"),
+            ),
+        )
+
+        response = delegate_to_campus_services_agent(request, query_service=query_service)
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("公寓楼新生办理入住手续流程", response.answer_text)
+        self.assertEqual(
+            query_service.last_service_guide_query.payload.service_query,
+            "宿舍入住怎么办理",
+        )
 
     def test_missing_query_service_returns_error_response(self) -> None:
         response = delegate_to_campus_services_agent(
@@ -337,6 +398,59 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_route.display_name, "海淀到丰台通勤车")
         self.assertEqual(result.selected_departure.departure_at, "2026-04-25T06:50:00+08:00")
+
+    def test_http_query_service_posts_service_guide_payload_and_decodes_result(self) -> None:
+        transport = _RecordingQueryHTTPTransport(
+            {
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "outcome": "resolved_current",
+                "resolved_service": {
+                    "service_id": "service:handbook:check-in",
+                    "display_name": "公寓楼新生办理入住手续流程",
+                    "aliases": ["入住", "宿舍"],
+                    "category": "student_housing",
+                    "campus_scope": "all",
+                    "audience": ["student"],
+                },
+                "guide_sections": [
+                    {
+                        "section_type": "procedure",
+                        "title": "公寓楼新生办理入住手续流程",
+                        "content": "1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+                        "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                    }
+                ],
+                "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                "queried_time_anchor": "2026-04-25T10:30:00+08:00",
+                "effective_from": "2018-09-01T00:00:00+08:00",
+                "effective_until": "2099-12-31T23:59:59+08:00",
+                "matched_service_category": "student_housing",
+            }
+        )
+        query_service = CampusServicesHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.lookup_service_guide(
+            ServiceGuideQuery(
+                payload=ServiceGuideLookupPayload(
+                    service_query="宿舍入住怎么办理",
+                    guide_focus="procedure",
+                )
+            )
+        )
+
+        self.assertEqual(
+            transport.calls[0][0],
+            "http://supervisor-api.internal/internal/query/campus-services/service-guide",
+        )
+        self.assertEqual(transport.calls[0][2]["guide_focus"], "procedure")
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertEqual(result.resolved_service.display_name, "公寓楼新生办理入住手续流程")
 
 
 if __name__ == "__main__":

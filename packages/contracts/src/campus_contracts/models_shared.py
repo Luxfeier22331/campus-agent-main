@@ -24,6 +24,7 @@ SpecialistTarget = Literal[
 ]
 SpecialistToolName = Literal[
     "service_status_lookup",
+    "service_guide_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
     "campus_notice_get",
@@ -57,6 +58,25 @@ ToolFailCloseReason = Literal[
     "source_truth_unavailable",
     "temporal_scope_ambiguous",
     "source_family_unavailable",
+    "source_conflict",
+    "manual_review_required",
+]
+ServiceGuideFocus = Literal[
+    "overview",
+    "procedure",
+    "required_materials",
+    "entry",
+    "office_hours",
+    "contact",
+    "eligibility",
+    "full_guide",
+]
+ServiceGuideAudience = Literal["student", "faculty", "visitor", "unknown"]
+ServiceGuideClarificationReason = Literal[
+    "service_ambiguous",
+    "campus_scope_required",
+    "audience_required",
+    "guide_focus_required",
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
 NoticeSourceFamily = Literal["official_web_public_notice", "internal_notice_restricted"]
@@ -120,6 +140,7 @@ ALLOWED_SPECIALIST_TARGETS = (
 )
 ALLOWED_SPECIALIST_TOOL_NAMES = (
     "service_status_lookup",
+    "service_guide_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
     "campus_notice_get",
@@ -155,6 +176,25 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "source_truth_unavailable",
     "temporal_scope_ambiguous",
     "source_family_unavailable",
+    "source_conflict",
+    "manual_review_required",
+)
+ALLOWED_SERVICE_GUIDE_FOCUSES = (
+    "overview",
+    "procedure",
+    "required_materials",
+    "entry",
+    "office_hours",
+    "contact",
+    "eligibility",
+    "full_guide",
+)
+ALLOWED_SERVICE_GUIDE_AUDIENCES = ("student", "faculty", "visitor", "unknown")
+ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS = (
+    "service_ambiguous",
+    "campus_scope_required",
+    "audience_required",
+    "guide_focus_required",
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = ("official_web_public_notice", "internal_notice_restricted")
@@ -253,6 +293,21 @@ def _validate_tool_business_outcome(outcome: str) -> None:
 def _validate_tool_fail_close_reason(reason: str) -> None:
     if reason not in ALLOWED_TOOL_FAIL_CLOSE_REASONS:
         raise ValueError(f"unsupported tool fail-close reason: {reason}")
+
+
+def _validate_service_guide_focus(focus: str) -> None:
+    if focus not in ALLOWED_SERVICE_GUIDE_FOCUSES:
+        raise ValueError(f"unsupported service guide focus: {focus}")
+
+
+def _validate_service_guide_audience(audience: str) -> None:
+    if audience not in ALLOWED_SERVICE_GUIDE_AUDIENCES:
+        raise ValueError(f"unsupported service guide audience: {audience}")
+
+
+def _validate_service_guide_clarification_reason(reason: str) -> None:
+    if reason not in ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS:
+        raise ValueError(f"unsupported service guide clarification reason: {reason}")
 
 
 def _validate_historical_downgrade_reason(reason: str) -> None:

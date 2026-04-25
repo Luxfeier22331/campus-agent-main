@@ -424,7 +424,9 @@ func emitStructuredRuntimeStreamFailure(
 
 func isStructuredPayloadKind(payloadKind string) bool {
 	switch payloadKind {
-	case structuredquery.ToolServiceStatusLookup,
+	case structuredquery.ToolPlaceLookup,
+		structuredquery.ToolServiceStatusLookup,
+		structuredquery.ToolServiceGuideLookup,
 		structuredquery.ToolTransportScheduleLookup,
 		structuredquery.ToolCampusNoticeDiscover,
 		structuredquery.ToolCampusNoticeGet:
@@ -454,8 +456,12 @@ func (s *Server) executeStructuredRuntime(
 	rawPayload []byte,
 ) structuredquery.Response {
 	switch payloadKind {
+	case structuredquery.ToolPlaceLookup:
+		return s.structuredQuery.LookupPlace(ctx, rawPayload)
 	case structuredquery.ToolServiceStatusLookup:
 		return s.structuredQuery.LookupServiceStatus(ctx, rawPayload)
+	case structuredquery.ToolServiceGuideLookup:
+		return s.structuredQuery.LookupServiceGuide(ctx, rawPayload)
 	case structuredquery.ToolTransportScheduleLookup:
 		return s.structuredQuery.LookupTransportSchedule(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeDiscover:
@@ -521,6 +527,8 @@ func shapeStructuredSupervisorResponse(
 			"tool_business_outcome":            outcome,
 			"tool_fail_close_reason":           failCloseReason,
 			"tool_historical_downgrade_reason": stringValue(result["historical_downgrade_reason"]),
+			"service_guide_focus":              stringValue(result["guide_focus"]),
+			"matched_service_category":         stringValue(result["matched_service_category"]),
 		},
 		"trace_id": traceID,
 	}
@@ -547,11 +555,33 @@ func confidenceForStructuredOutcome(outcome string) string {
 func structuredAnswerText(payloadKind string, result map[string]any, status string) string {
 	if status == "completed" {
 		switch payloadKind {
+		case structuredquery.ToolPlaceLookup:
+			place := stringValue(nestedMap(result, "resolved_place")["display_name"])
+			card := nestedMap(result, "place_card")
+			location := stringValue(card["location_description"])
+			landmark := stringValue(card["landmark_hint"])
+			accessNote := stringValue(card["access_note"])
+			if place != "" && location != "" {
+				segments := []string{place + "在" + location}
+				if landmark != "" {
+					segments = append(segments, landmark)
+				}
+				if accessNote != "" {
+					segments = append(segments, "提示："+accessNote)
+				}
+				return strings.Join(segments, " ")
+			}
 		case structuredquery.ToolServiceStatusLookup:
 			subject := stringValue(result["resolved_subject"])
 			statusValue := stringValue(result["observed_status"])
 			if subject != "" && statusValue != "" {
 				return subject + "当前状态：" + statusValue + "。"
+			}
+		case structuredquery.ToolServiceGuideLookup:
+			service := stringValue(nestedMap(result, "resolved_service")["display_name"])
+			sections := serviceGuideSectionContents(result["guide_sections"])
+			if service != "" && sections != "" {
+				return service + "：\n" + sections
 			}
 		case structuredquery.ToolTransportScheduleLookup:
 			route := stringValue(nestedMap(result, "resolved_route")["display_name"])
@@ -579,11 +609,27 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 		}
 	}
 	switch payloadKind {
+	case structuredquery.ToolPlaceLookup:
+		if stringValue(result["outcome"]) == "not_found" {
+			return "当前地点目录里还没有这个地点，请换个更具体的校内地点名称再试一次。"
+		}
+		if stringValue(result["outcome"]) == "clarification_required" {
+			return "请明确你要找的具体地点。"
+		}
+		return "当前还不能稳定确认这个地点。"
 	case structuredquery.ToolServiceStatusLookup:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应的校园服务状态。"
 		}
 		return "当前还不能稳定确认这项校园服务的状态。"
+	case structuredquery.ToolServiceGuideLookup:
+		if stringValue(result["outcome"]) == "not_found" {
+			return "当前没有找到对应的办理指南。"
+		}
+		if stringValue(result["outcome"]) == "clarification_required" {
+			return "请明确你要查询的具体服务。"
+		}
+		return "当前还不能稳定确认这项办理指南。"
 	case structuredquery.ToolTransportScheduleLookup:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应的校车线路或班次。"
@@ -629,6 +675,25 @@ func noticeTitles(raw any) string {
 		}
 	}
 	return strings.Join(titles, "、")
+}
+
+func serviceGuideSectionContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	contents := make([]string, 0, len(items))
+	for _, item := range items {
+		section, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		content := stringValue(section["content"])
+		if content != "" {
+			contents = append(contents, content)
+		}
+	}
+	return strings.Join(contents, "\n")
 }
 
 func stringValue(value any) string {

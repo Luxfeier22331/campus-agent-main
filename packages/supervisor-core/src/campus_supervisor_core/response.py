@@ -5,6 +5,7 @@ from campus_contracts import (
     CampusNoticeGetResult,
     RagResultDiagnostics,
     RagResultPayload,
+    ServiceGuideLookupResult,
     ServiceStatusLookupResult,
     SpecialistResponse,
     SupervisorObservability,
@@ -174,6 +175,8 @@ def _build_structured_runtime_observability(
         tool_business_outcome=tool_business_outcome,
         tool_fail_close_reason=tool_fail_close_reason,
         tool_historical_downgrade_reason=tool_historical_downgrade_reason,
+        service_guide_focus=_service_guide_focus(result),
+        matched_service_category=_matched_service_category(result),
         notice_source_family_summary=_notice_source_family_summary(result),
         temporal_posture=_temporal_posture_from_tool_result(result),
     )
@@ -186,6 +189,8 @@ def _candidate_count_from_tool_result(
         return len(result.notice_cards)
     if isinstance(result, TransportScheduleLookupResult):
         return len(result.candidate_routes)
+    if isinstance(result, ServiceGuideLookupResult):
+        return len(result.candidate_services)
     return 0
 
 
@@ -202,6 +207,8 @@ def _structured_runtime_semantic_outcome(response: SpecialistResponse) -> str:
 def _selected_tool_from_result(result: object) -> str:
     if isinstance(result, ServiceStatusLookupResult):
         return "service_status_lookup"
+    if isinstance(result, ServiceGuideLookupResult):
+        return "service_guide_lookup"
     if isinstance(result, TransportScheduleLookupResult):
         return "transport_schedule_lookup"
     if isinstance(result, CampusNoticeDiscoverResult):
@@ -226,6 +233,18 @@ def _notice_source_family_summary(result: object) -> str:
             )
         )
         return ",".join(source_families)
+    return ""
+
+
+def _service_guide_focus(result: object) -> str:
+    if isinstance(result, ServiceGuideLookupResult):
+        return result.guide_focus
+    return ""
+
+
+def _matched_service_category(result: object) -> str:
+    if isinstance(result, ServiceGuideLookupResult):
+        return result.matched_service_category
     return ""
 
 

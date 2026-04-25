@@ -168,7 +168,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 }
 
 func (s *Server) structuredRuntimeGateApplies(capability string) bool {
-	return capability == "campus_services" || capability == "notice"
+	return capability == "place_lookup" || capability == "campus_services" || capability == "notice"
 }
 
 func (s *Server) capabilityGateStatus() map[string]any {
@@ -178,8 +178,8 @@ func (s *Server) capabilityGateStatus() map[string]any {
 			"gate": "always_open",
 		},
 		"place_lookup": map[string]any{
-			"open": true,
-			"gate": "semantic_policy",
+			"open": s.config.CapabilityOpen("place_lookup"),
+			"gate": "structured_runtime",
 		},
 		"campus_services": map[string]any{
 			"open": s.config.CapabilityOpen("campus_services"),
@@ -193,6 +193,9 @@ func (s *Server) capabilityGateStatus() map[string]any {
 }
 
 func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) bool {
+	if s.config.CapabilityOpen("place_lookup") && !status.PlaceCatalogReady {
+		return false
+	}
 	if s.config.CapabilityOpen("campus_services") &&
 		(!status.Configured ||
 			!status.ServiceStatusProjectionReady ||

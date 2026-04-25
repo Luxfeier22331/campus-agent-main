@@ -35,16 +35,17 @@ class IntentEvalRunnerTest(unittest.TestCase):
                     expected_target="rag-agent",
                 ),
                 IntentCase(
-                    case_id="intent-place-closed",
+                    case_id="intent-place-open",
                     user_goal="图书馆在哪里",
                     requested_capability="place_lookup",
                     expected_capability="place_lookup",
                     expected_task_kind="place_lookup",
-                    expected_launch_state="closed",
-                    expected_next_action="out_of_scope",
-                    expected_scope_class="out_of_scope",
-                    expected_policy_reason="navigation_temporarily_unsupported",
-                    expected_target="none",
+                    expected_launch_state="open",
+                    expected_next_action="delegate",
+                    expected_scope_class="in_scope",
+                    expected_target="navigation-agent",
+                    expected_allowed_tools=("place_lookup",),
+                    critical=True,
                 ),
             )
         )
@@ -65,15 +66,15 @@ class IntentEvalRunnerTest(unittest.TestCase):
         report = run_intent_cases(
             (
                 IntentCase(
-                    case_id="intent-place-closed-mismatch",
+                    case_id="intent-place-open-mismatch",
                     user_goal="图书馆在哪里",
                     requested_capability="place_lookup",
                     expected_capability="place_lookup",
                     expected_task_kind="place_lookup",
-                    expected_launch_state="open",
-                    expected_next_action="delegate",
-                    expected_scope_class="in_scope",
-                    expected_target="navigation-agent",
+                    expected_launch_state="closed",
+                    expected_next_action="out_of_scope",
+                    expected_scope_class="out_of_scope",
+                    expected_target="none",
                     critical=True,
                 ),
             )
@@ -82,7 +83,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
         self.assertEqual(report.total, 1)
         self.assertEqual(report.passed, 0)
         self.assertEqual(report.critical_gate_pass_rate, 0.0)
-        self.assertEqual(report.results[0].mismatches["launch_state"], "closed != open")
+        self.assertEqual(report.results[0].mismatches["launch_state"], "open != closed")
 
     def test_intent_case_accepts_requested_scope(self) -> None:
         case = IntentCase(

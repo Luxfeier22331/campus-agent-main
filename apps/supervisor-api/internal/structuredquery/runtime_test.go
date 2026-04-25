@@ -244,6 +244,165 @@ func TestLookupServiceStatusFailsClosedWhenMatchedRecordIsIncomplete(t *testing.
 	}
 }
 
+func TestLookupPlaceResolvesReadyPlace(t *testing.T) {
+	runtime := NewRuntime(Options{
+		PlaceCatalogPath: writePlaceCatalogFixture(t, placeCatalogFixture()),
+	})
+
+	response := runtime.LookupPlace(context.Background(), []byte(`{
+		"query_text":"海淀图书馆在哪里"
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(placeLookupResult)
+	if !ok {
+		t.Fatalf("body = %T, want placeLookupResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedPlace == nil || result.ResolvedPlace.PlaceID != "muc.haidian.library" {
+		t.Fatalf("resolved_place = %#v", result.ResolvedPlace)
+	}
+	if result.PlaceCard == nil || result.PlaceCard.LocationDescription != "海淀校区主教学区西侧，靠近校医院。" {
+		t.Fatalf("place_card = %#v", result.PlaceCard)
+	}
+	if len(result.PlaceCard.SourceRefs) != 1 || result.PlaceCard.SourceRefs[0] != "seed:campus_navigation/place_catalog.v1" {
+		t.Fatalf("source_refs = %#v", result.PlaceCard.SourceRefs)
+	}
+}
+
+func TestLookupPlaceClarifiesAmbiguousAlias(t *testing.T) {
+	runtime := NewRuntime(Options{
+		PlaceCatalogPath: writePlaceCatalogFixture(t, placeCatalogFixture()),
+	})
+
+	response := runtime.LookupPlace(context.Background(), []byte(`{
+		"query_text":"南门在哪里"
+	}`))
+
+	result, ok := response.Body.(placeLookupResult)
+	if !ok {
+		t.Fatalf("body = %T, want placeLookupResult", response.Body)
+	}
+	if result.Outcome != "clarification_required" {
+		t.Fatalf("outcome = %q, want clarification_required", result.Outcome)
+	}
+	if len(result.CandidatePlaces) != 2 {
+		t.Fatalf("candidate_places length = %d, want 2", len(result.CandidatePlaces))
+	}
+	if result.CandidatePlaces[0].Place.DisplayName != "海淀校区南门" {
+		t.Fatalf("first candidate = %#v", result.CandidatePlaces[0])
+	}
+}
+
+func TestLookupPlaceReturnsNotFound(t *testing.T) {
+	runtime := NewRuntime(Options{
+		PlaceCatalogPath: writePlaceCatalogFixture(t, placeCatalogFixture()),
+	})
+
+	response := runtime.LookupPlace(context.Background(), []byte(`{
+		"query_text":"量子楼在哪里"
+	}`))
+
+	result, ok := response.Body.(placeLookupResult)
+	if !ok {
+		t.Fatalf("body = %T, want placeLookupResult", response.Body)
+	}
+	if result.Outcome != "not_found" {
+		t.Fatalf("outcome = %q, want not_found", result.Outcome)
+	}
+	if result.MatchedAlias != "量子楼" {
+		t.Fatalf("matched_alias = %q, want 量子楼", result.MatchedAlias)
+	}
+	if result.ResolvedPlace != nil {
+		t.Fatalf("resolved_place = %#v, want nil", result.ResolvedPlace)
+	}
+}
+
+func TestLookupServiceGuideResolvesReadyProcedure(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(serviceGuideResult)
+	if !ok {
+		t.Fatalf("body = %T, want serviceGuideResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.DisplayName != "公寓楼新生办理入住手续流程" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "到指定公寓楼报到") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+	if len(result.SourceRefs) != 1 || result.SourceRefs[0] != "handbook:student_rules:pages:252-255#page=253" {
+		t.Fatalf("source_refs = %#v", result.SourceRefs)
+	}
+}
+
+func TestLookupServiceGuideClarifiesAmbiguousService(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideProjectionFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"退宿怎么办",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "clarification_required" {
+		t.Fatalf("outcome = %q, want clarification_required", result.Outcome)
+	}
+	if result.ClarificationReason != "service_ambiguous" {
+		t.Fatalf("clarification_reason = %q", result.ClarificationReason)
+	}
+	if len(result.CandidateServices) != 2 {
+		t.Fatalf("candidate_services length = %d, want 2", len(result.CandidateServices))
+	}
+}
+
+func TestLookupServiceGuideFailsClosedForManualReviewRecord(t *testing.T) {
+	runtime := NewRuntime(Options{
+		ProjectionPath:     writeTransportProjectionFixture(t, serviceGuideManualReviewFixture()),
+		TrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "manual_review_required" {
+		t.Fatalf("fail_close_reason = %q, want manual_review_required", result.FailCloseReason)
+	}
+}
+
 func writeTransportProjectionFixture(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "campus-services-projection.json")
@@ -251,6 +410,75 @@ func writeTransportProjectionFixture(t *testing.T, body string) string {
 		t.Fatalf("write projection fixture: %v", err)
 	}
 	return path
+}
+
+func writePlaceCatalogFixture(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "place-catalog.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write place catalog fixture: %v", err)
+	}
+	return path
+}
+
+func placeCatalogFixture() string {
+	return `{
+		"version":"v1",
+		"coordinate_reference_system":"EPSG:4326",
+		"places":[
+			{
+				"place_id":"muc.haidian.library",
+				"entity_type":"building",
+				"display_name":"图书馆",
+				"aliases":["海淀图书馆","校图书馆","逸夫图书馆"],
+				"campus_scope":"haidian",
+				"campus_area":"主教学区西侧",
+				"location_description":"海淀校区主教学区西侧，靠近校医院。",
+				"landmark_hint":"从知行广场向西步行约 3 分钟可到达。",
+				"access_note":"校外访客请先完成入校登记。",
+				"opening_note":"以图书馆当日公告为准。",
+				"service_tags":["自习","借阅","打印"],
+				"point_geometry":{"longitude":116.31551,"latitude":39.96162},
+				"coordinate_reference_system":"EPSG:4326",
+				"source_refs":["seed:campus_navigation/place_catalog.v1"],
+				"verification_state":"manual_seed_reviewed"
+			},
+			{
+				"place_id":"muc.haidian.south_gate",
+				"entity_type":"gate",
+				"display_name":"海淀校区南门",
+				"aliases":["南门","海淀南门"],
+				"campus_scope":"haidian",
+				"campus_area":"海淀校区南侧主出入口",
+				"location_description":"海淀校区南侧主出入口，靠近中关村南大街。",
+				"landmark_hint":"校门外就是中关村南大街辅路。",
+				"access_note":"高峰时段可能实行人车分流。",
+				"opening_note":"",
+				"service_tags":["校门","出入口"],
+				"point_geometry":{"longitude":116.31474,"latitude":39.95936},
+				"coordinate_reference_system":"EPSG:4326",
+				"source_refs":["seed:campus_navigation/place_catalog.v1"],
+				"verification_state":"manual_seed_reviewed"
+			},
+			{
+				"place_id":"muc.fengtai.south_gate",
+				"entity_type":"gate",
+				"display_name":"丰台校区南门",
+				"aliases":["南门","丰台南门"],
+				"campus_scope":"fengtai",
+				"campus_area":"丰台校区南侧主出入口",
+				"location_description":"丰台校区南侧主出入口，靠近校园主干道南端。",
+				"landmark_hint":"从校园生活区向南直行可到达。",
+				"access_note":"校内摆渡车在高峰期会停靠附近。",
+				"opening_note":"",
+				"service_tags":["校门","出入口"],
+				"point_geometry":{"longitude":116.28764,"latitude":39.86487},
+				"coordinate_reference_system":"EPSG:4326",
+				"source_refs":["seed:campus_navigation/place_catalog.v1"],
+				"verification_state":"manual_seed_pending_field_check"
+			}
+		]
+	}`
 }
 
 func transportProjectionFixture() string {
@@ -398,4 +626,106 @@ func incompleteServiceStatusProjectionFixture() string {
 			}
 		]
 	}`
+}
+
+func serviceGuideProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-25T10:00:00+08:00",
+		"source_families":["handbook_service_navigation_projection_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:handbook:check-in",
+				"display_name":"公寓楼新生办理入住手续流程",
+				"aliases":["公寓楼新生办理入住手续流程","入住","住宿","宿舍"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=253"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:check-in:section:procedure",
+						"section_type":"procedure",
+						"title":"公寓楼新生办理入住手续流程",
+						"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["新生"],
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:handbook:undergrad-check-out",
+				"display_name":"本科生特殊情况申请办理退宿手续",
+				"aliases":["本科生特殊情况申请办理退宿手续","本科生退宿","退宿"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=255"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:undergrad-check-out:section:procedure",
+						"section_type":"procedure",
+						"title":"本科生特殊情况申请办理退宿手续",
+						"content":"1. 写好退宿申请。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["本科生"],
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:handbook:grad-check-out",
+				"display_name":"研究生申请办理退宿手续",
+				"aliases":["研究生申请办理退宿手续","研究生退宿","退宿"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=255"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:grad-check-out:section:procedure",
+						"section_type":"procedure",
+						"title":"研究生申请办理退宿手续",
+						"content":"1. 写好退宿申请。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["研究生"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
+func serviceGuideManualReviewFixture() string {
+	return strings.Replace(
+		serviceGuideProjectionFixture(),
+		`"extraction_status":"ready"`,
+		`"extraction_status":"needs_manual_review"`,
+		1,
+	)
 }

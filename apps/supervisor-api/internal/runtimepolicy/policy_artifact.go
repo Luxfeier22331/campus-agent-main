@@ -27,6 +27,8 @@ var requiredIntentSignalGroups = []string{
 	"political_target_audience",
 	"political_topic",
 	"structured_notice",
+	"structured_service_guide_action",
+	"structured_service_guide_subject",
 	"structured_service_status",
 	"structured_service_subject",
 	"structured_transport",

@@ -145,7 +145,7 @@ model`
 - 拥有 non-delegate terminal envelope 与 runtime decision summary；non-stream /
   lifecycle SSE answer path 会直接在 Go 中返回 terminal supervisor-style response；
   metrics、OTel 与 execution audit 使用同一组低基数 runtime policy labels
-- 对已打开的 `campus_services` / `notice` deterministic structured payload，
+- 对已打开的 `place_lookup` / `campus_services` / `notice` deterministic structured payload，
   non-stream `/api/v1/answer` 与 lifecycle SSE `/api/v1/answer/stream` 可以直接执行
   Go structured runtime 并返回 supervisor-style response
 - 通过 private bridge 调用 Python `apps/supervisor-core-worker`
@@ -177,8 +177,9 @@ model`
   delegation、response finalization
 - `packages/rag-agent` 当前默认 knowledge agent，负责 retrieval-specific
   planning、clarification、grounded answer synthesis
-- `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /
-  contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close
+- `packages/navigation-agent` 已接受的 navigation capability boundary；当前 `place_lookup`
+  deterministic 地点目录查询由 Go structured runtime 直接执行，`route_planning`、
+  `place_card` / map consumption 等导航后续能力仍保持 deferred
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic
