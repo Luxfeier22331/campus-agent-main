@@ -708,9 +708,9 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain(".rspress-doc .docs-table-scroll");
 		expect(css).toContain(".rspress-doc .rp-table-scroll-container");
 		expect(css).toContain(".rspress-doc.docs-reader-normal");
-		expect(css).toContain("max-width: min(100%, 64rem);");
+		expect(css).toContain("max-width: min(100%, 76rem);");
 		expect(css).toContain(".rspress-doc.docs-reader-wide");
-		expect(css).toContain("max-width: min(100%, 66rem);");
+		expect(css).toContain("max-width: min(100%, 76rem);");
 		expect(css).toContain(".rspress-doc.docs-reader-map");
 		expect(css).toContain(".rspress-doc.docs-reader-home");
 		expect(css).toContain("grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);");
@@ -743,7 +743,9 @@ describe("public-docs sync-real-docs TypeScript generator", () => {
 		expect(css).toContain('.docs-table-scroll[data-docs-scrollable="false"]::before');
 		expect(css).toContain(".rspress-doc table thead th");
 		expect(css).toContain("main.rp-doc-layout__doc-container {\n\tbox-sizing: border-box;");
-		expect(css).toContain(".rp-doc-layout__doc {\n\t\tmax-width: none;");
+		expect(css).toContain(".rp-doc-layout__doc {\n\t\tflex: 1 1 auto;");
+		expect(css).toContain("max-width: none;");
+		expect(css).toContain("width: 100%;\n\t\tmin-width: 0;");
 		expect(css).toContain("padding-left: var(--docs-reader-padding);");
 		expect(css).toContain(".rspress-doc {\n\tmin-width: 0;");
 		expect(css).toContain("padding-right: 1.25rem;");

@@ -34,7 +34,7 @@ main.rp-doc-layout__doc-container {
 }
 
 .rspress-doc.docs-reader-normal {
-	max-width: min(100%, 64rem);
+	max-width: min(100%, 76rem);
 }
 
 .rspress-doc.docs-reader-home {
@@ -42,7 +42,7 @@ main.rp-doc-layout__doc-container {
 }
 
 .rspress-doc.docs-reader-wide {
-	max-width: min(100%, 66rem);
+	max-width: min(100%, 76rem);
 }
 
 .rspress-doc.docs-reader-map {
@@ -204,10 +204,14 @@ main.rp-doc-layout__doc-container {
 
 @media (min-width: 900px) {
 	.rp-doc-layout__doc {
+		flex: 1 1 auto;
+		min-width: 0;
 		max-width: none;
 	}
 
 	main.rp-doc-layout__doc-container {
+		width: 100%;
+		min-width: 0;
 		padding-right: var(--docs-reader-padding);
 		padding-left: var(--docs-reader-padding);
 	}
