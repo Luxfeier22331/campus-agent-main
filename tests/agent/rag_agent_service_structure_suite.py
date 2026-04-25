@@ -30,7 +30,22 @@ RAG_AGENT_SELECTION_STATEMENTS = RAG_AGENT_PACKAGE / "agent_selection_statements
 RAG_OFFICIAL_WEB = RAG_AGENT_PACKAGE / "agent_official_web.py"
 RAG_OFFICIAL_WEB_ANSWERING = RAG_AGENT_PACKAGE / "agent_official_web_answering.py"
 RAG_OFFICIAL_WEB_REFERENCE = RAG_AGENT_PACKAGE / "agent_official_web_reference.py"
+RAG_OFFICIAL_WEB_REFERENCE_NEWS = RAG_AGENT_PACKAGE / "agent_official_web_reference_news.py"
+RAG_OFFICIAL_WEB_REFERENCE_PEOPLE = RAG_AGENT_PACKAGE / "agent_official_web_reference_people.py"
+RAG_OFFICIAL_WEB_REFERENCE_SCHOOL = RAG_AGENT_PACKAGE / "agent_official_web_reference_school.py"
+RAG_OFFICIAL_WEB_REFERENCE_SENTENCES = (
+    RAG_AGENT_PACKAGE / "agent_official_web_reference_sentences.py"
+)
 RAG_OFFICIAL_WEB_TERMS = RAG_AGENT_PACKAGE / "agent_official_web_terms.py"
+RAG_GROUNDING_CLAIMS = RAG_AGENT_PACKAGE / "grounding_validation_claims.py"
+RAG_GROUNDING_CLAIM_BASIC = RAG_AGENT_PACKAGE / "grounding_validation_claim_basic.py"
+RAG_GROUNDING_CLAIM_MODELS = RAG_AGENT_PACKAGE / "grounding_validation_claim_models.py"
+RAG_GROUNDING_CLAIM_NORMALIZATION = (
+    RAG_AGENT_PACKAGE / "grounding_validation_claim_normalization.py"
+)
+RAG_GROUNDING_CLAIM_PATTERNS = RAG_AGENT_PACKAGE / "grounding_validation_claim_patterns.py"
+RAG_GROUNDING_CLAIM_REQUIREMENTS = RAG_AGENT_PACKAGE / "grounding_validation_claim_requirements.py"
+RAG_GROUNDING_CLAIM_SENSITIVE = RAG_AGENT_PACKAGE / "grounding_validation_claim_sensitive.py"
 RAG_CURRICULUM_QUERY_PLANNING = RAG_AGENT_PACKAGE / "curriculum_query_planning.py"
 RAG_CURRICULUM_QUERY_CONFIG = RAG_AGENT_PACKAGE / "curriculum_query_config.py"
 RAG_CURRICULUM_QUERY_COURSES = RAG_AGENT_PACKAGE / "curriculum_query_courses.py"
@@ -76,6 +91,34 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("def _score_official_web_statement", facade_source)
         self.assertNotIn("def _build_official_web_school_reference_fragments", facade_source)
         self.assertNotIn("def _compose_official_web_reference_answer", facade_source)
+        self.assertLessEqual(len(facade_source.splitlines()), 120)
+
+    def test_official_web_reference_is_split_from_facade(self) -> None:
+        facade_source = RAG_OFFICIAL_WEB_REFERENCE.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_OFFICIAL_WEB_REFERENCE_SENTENCES.exists())
+        self.assertTrue(RAG_OFFICIAL_WEB_REFERENCE_SCHOOL.exists())
+        self.assertTrue(RAG_OFFICIAL_WEB_REFERENCE_PEOPLE.exists())
+        self.assertTrue(RAG_OFFICIAL_WEB_REFERENCE_NEWS.exists())
+        self.assertNotIn("def _split_official_web_sentences", facade_source)
+        self.assertNotIn("def _build_official_web_school_reference_fragments", facade_source)
+        self.assertNotIn("def _extract_official_web_scholar_name", facade_source)
+        self.assertNotIn("def _build_official_web_news_fragments", facade_source)
+        self.assertLessEqual(len(facade_source.splitlines()), 120)
+
+    def test_grounding_claim_extraction_is_split_from_facade(self) -> None:
+        facade_source = RAG_GROUNDING_CLAIMS.read_text(encoding="utf-8")
+
+        self.assertTrue(RAG_GROUNDING_CLAIM_MODELS.exists())
+        self.assertTrue(RAG_GROUNDING_CLAIM_PATTERNS.exists())
+        self.assertTrue(RAG_GROUNDING_CLAIM_BASIC.exists())
+        self.assertTrue(RAG_GROUNDING_CLAIM_REQUIREMENTS.exists())
+        self.assertTrue(RAG_GROUNDING_CLAIM_SENSITIVE.exists())
+        self.assertTrue(RAG_GROUNDING_CLAIM_NORMALIZATION.exists())
+        self.assertNotIn("class ExtractedClaim", facade_source)
+        self.assertNotIn("def _extract_title_claims", facade_source)
+        self.assertNotIn("def _extract_requirement_claims", facade_source)
+        self.assertNotIn("def _expand_audience_claim", facade_source)
         self.assertLessEqual(len(facade_source.splitlines()), 120)
 
     def test_curriculum_answering_is_split_from_facade(self) -> None:
@@ -132,6 +175,8 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         facade_modules = (
             "agent_curriculum",
             "agent_selection",
+            "agent_official_web_reference",
+            "grounding_validation_claims",
             "service_diagnostics",
             "service_versioning",
         )

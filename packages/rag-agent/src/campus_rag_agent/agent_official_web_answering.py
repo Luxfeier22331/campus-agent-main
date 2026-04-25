@@ -4,18 +4,24 @@ import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 
-from .agent_official_web_reference import (
-    _build_official_web_alumni_reference_fragments,
-    _build_official_web_foundation_reference_fragments,
+from .agent_official_web_reference_news import (
     _build_official_web_generic_fragments,
-    _build_official_web_graduate_reference_fragments,
     _build_official_web_news_fragments,
-    _build_official_web_postdoctoral_reference_fragments,
+)
+from .agent_official_web_reference_people import (
     _build_official_web_roster_fragments,
     _build_official_web_scholar_reference_fragments,
+)
+from .agent_official_web_reference_school import (
+    _build_official_web_alumni_reference_fragments,
+    _build_official_web_foundation_reference_fragments,
+    _build_official_web_graduate_reference_fragments,
+    _build_official_web_postdoctoral_reference_fragments,
     _build_official_web_school_overview_fragments,
     _build_official_web_school_reference_fragments,
     _build_official_web_undergraduate_reference_fragments,
+)
+from .agent_official_web_reference_sentences import (
     _flatten_official_web_sentences,
 )
 from .agent_official_web_terms import (

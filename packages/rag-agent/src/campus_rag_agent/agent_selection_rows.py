@@ -7,11 +7,13 @@ from .agent_curriculum_terms import (
     _is_curriculum_course_list_query,
     _is_curriculum_lookup_query,
 )
-from .agent_official_web import (
-    _OFFICIAL_WEB_IGNORED_CONTENT_ROLES,
+from .agent_official_web_reference_people import (
     _extract_official_web_scholar_domains,
     _extract_official_web_scholar_name,
-    _flatten_official_web_sentences,
+)
+from .agent_official_web_reference_sentences import _flatten_official_web_sentences
+from .agent_official_web_terms import (
+    _OFFICIAL_WEB_IGNORED_CONTENT_ROLES,
     _is_official_web_reference_query,
     _is_official_web_source,
 )

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from .agent_official_web_answering import _compose_official_web_answer
-from .agent_official_web_reference import (
+from .agent_official_web_reference_people import (
     _extract_official_web_scholar_domains,
     _extract_official_web_scholar_name,
+)
+from .agent_official_web_reference_sentences import (
     _flatten_official_web_sentences,
 )
 from .agent_official_web_terms import (

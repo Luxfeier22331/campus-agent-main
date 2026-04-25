@@ -5,10 +5,8 @@ from dataclasses import dataclass
 from campus_contracts import ClaimSupport, EvidenceBundle, SourceTrustSummary
 from campus_shared import NormalizedProviderGroundingSupport
 
-from campus_rag_agent.grounding_validation_claims import (
-    ExtractedClaim,
-    _extract_claims,
-)
+from campus_rag_agent.grounding_validation_claim_basic import _extract_claims
+from campus_rag_agent.grounding_validation_claim_models import ExtractedClaim
 from campus_rag_agent.grounding_validation_support import (
     SupportCandidate,
     _build_support_candidates,
