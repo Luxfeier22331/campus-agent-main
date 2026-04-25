@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: deferred
+status: completed
 created: 2026-04-19
-updated: 2026-04-23
+updated: 2026-04-26
 ---
 
 # Requirements: Authenticated Notice Live Portal Control Plane

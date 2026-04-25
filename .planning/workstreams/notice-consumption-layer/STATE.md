@@ -1,7 +1,7 @@
 ---
 workstream: notice-consumption-layer
 created: 2026-04-21
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # Project State
@@ -15,15 +15,23 @@ updated: 2026-04-25
 **Total Phases:** 8
 **Total Plans in Phase:** 1
 **Progress:** 8/8 phases complete
-**Last Activity:** 2026-04-25
-**Last Activity Description:** Completed non-smoke closeout for the
-internal_notice consumption layer: legacy manual-review migration paths are
-removed, new projection rows no longer treat attachment classification as
-consumption status, promotion no longer emits attachment classification actions,
-selected rebuild/process/repair/drain commands
-record admission lifecycle with selection provenance and append-only events,
-downstream materializers read projection truth fail-closed, and fixed eval/schema
-artifacts now cover the non-real-smoke gates.
+**Last Activity:** 2026-04-26
+**Last Activity Description:** Added consumption-layer multimodal token-spend
+policy: source-truth `multimodal_processing_required` remains capture truth, but
+projection now splits action-required multimodal work from low-value ephemeral
+event poster skips. Skipped lecture/activity/workshop inline-image posters stay
+queryable as notice-level truth and do not enter pending multimodal drain;
+high-value procurement, roster/publication, procedure/manual/material/form and
+QR/registration-style gaps still remain action-required.
+Follow-up routing sampler now supports stratified notice-family review from
+historical bundles or source-truth inventory before future taxonomy changes are
+promoted into consumption behavior. Routing taxonomy changes now also have a
+repo-tracked deterministic JSONL gate that validates notice family, suggested
+route, and machine-processing policy. The latest taxonomy expansion splits
+academic affairs lifecycle, finance/payment, health/medical, form/template,
+survey/feedback, facility/IT/library/transport service status, library resource,
+internal governance, and general cultural publicity out of generic
+`other/review_later`.
 
 ## Current Slice
 
@@ -205,6 +213,55 @@ artifacts now cover the non-real-smoke gates.
     - 多模态 projection 写回前增加 retain/no-adoption guard：low-confidence 或
       空内容 retain、带 extracted text 的 no-adoption 均保持
       `pending_multimodal_processing`，不进入 queryable read model
+  - 2026-04-26 multimodal token-spend policy：
+    - projection metadata 保留 source-truth
+      `source_multimodal_processing_required_count`，同时拆出
+      `pending_multimodal_attachment_count` 与 `multimodal_consumption_policy`
+    - 低价值、短生命周期讲座/活动/宣讲/工作坊 inline-image 海报写入
+      `multimodal_consumption_policy=skip` 与
+      `multimodal_skip_reason=low_value_ephemeral_event_poster`，继续留在
+      `notice_level_query` / `retained_for_notice_query`
+    - 采购、公示名单、流程手册、材料表格、附件指向、二维码/扫码/报名方式等高价值缺口仍写入
+      `multimodal_consumption_policy=process` 与
+      `pending_multimodal_processing`
+    - processing gap audit 输出 source-required、skipped-low-value 与
+      action-required multimodal counts，避免把 skipped source classification 当成
+      VLM backlog
+  - 2026-04-26 routing taxonomy sampling：
+    - 新增 `sample_authenticated_notice_routing_candidates` worker，可从
+      historical bundle 或 source-truth inventory 生成分层抽样报告
+    - 初版 notice-family taxonomy 补齐
+      `course_teaching_arrangement`、`student_affairs_application`、
+      `document_collection_deadline`、`exchange_visit_project`、
+      `research_project_application`、`safety_compliance_notice`、
+      `meeting_training`、`competition_event` 与 `job_recruitment`
+    - sampler 输出 `suggested_consumption_route` 与
+      `machine_processing_policy`，但不写 projection/read model，也不代表
+      consumer admission
+  - 2026-04-26 routing taxonomy eval：
+    - 新增 `routing-taxonomy-eval.v1.jsonl` repo fixture，覆盖 regulation、
+      course/student/document/exchange/research/safety/service/procurement、
+      no-adoption、defer 与 fallback review-later routing cases
+    - 新增 `evaluate_authenticated_notice_routing_taxonomy` worker CLI，支持
+      `--fixture-path`、`--config-path`、`--min-accuracy` 与 `--fail-on-error`
+    - eval report 输出 expected/predicted family、route 与
+      machine-processing-policy counts，并在 mismatch 时列出 case-level
+      expected/actual
+    - 收窄 `research_project_application` 的 `专项` 命中为专项项目/计划/课题/申报/资金/基金，
+      避免 `专项检查` 抢占 `safety_compliance_notice`
+  - 2026-04-26 routing taxonomy expansion：
+    - 新增高价值 query families：
+      `academic_affairs_lifecycle`、`finance_payment_action`、
+      `health_medical_action`、`form_template_download`、
+      `survey_feedback_collection` 与 `library_resource_notice`
+    - 新增 service-status candidate families：
+      `facility_service_status`、`it_platform_service_status`、
+      `library_service_status` 与 `transport_commute_status`
+    - 新增低价值 defer / machine-skip families：
+      `internal_governance_party_admin` 与 `general_publicity_culture`
+    - routing taxonomy fixture 扩到 31 cases；历史 3000 条 bundle 回放结果：
+      `other/review_later=900`、`notice_level_query=1016`、
+      `service_status_candidate=96`、`defer=867`
 - Semantic split closeout：
   - `notice_runtime` 不再作为新写入 projection target/status 语义
   - notice-level query 候选写入 `target_surface=notice_level_query`
@@ -247,6 +304,11 @@ artifacts now cover the non-real-smoke gates.
   - read-model rebuild/repair admission lifecycle 测试
   - downstream projection-store fail-closed 测试
   - legacy manual-review consumption migration/action removal guard 测试
+  - multimodal token-spend policy 测试：低价值活动海报不进入 pending
+    multimodal，高价值手册/附件指向仍保持 action-required，processing gap audit
+    拆分 source-required、skipped-low-value 与 action-required counts
+  - routing sampler / taxonomy 测试：细化 family 分类、bundle sampling 与
+    source-truth inventory sampling worker CLI
 - planning verification:
   - `git diff --check -- ...notice-consumption-layer...`
 

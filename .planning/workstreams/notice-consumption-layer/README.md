@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-22
-updated: 2026-04-25
+updated: 2026-04-26
 ---
 
 # Workstream: Notice Consumption Layer
@@ -78,6 +78,31 @@ consumption projection / query read model / query runtime 语义拆开。
     spans、forbidden claims、reason codes 与 confidence；多模态写回前新增
     retain/no-adoption guard，低置信或空内容 retain、带 extracted text 的
     no-adoption 均保持 pending，不进入 read model
+  - 2026-04-26 multimodal token-spend policy：source-truth
+    `multimodal_processing_required` 不再直接等同 action backlog；projection
+    metadata 明确 `source_multimodal_processing_required_count` /
+    `pending_multimodal_attachment_count` / `multimodal_consumption_policy`。低价值、
+    短生命周期活动/讲座/宣讲/工作坊 inline-image 海报保留 notice-level query
+    truth，并以 `low_value_ephemeral_event_poster` 跳过 VLM drain；采购、公示名单、
+    流程手册、材料表格、附件指向、二维码/扫码/报名方式等高价值缺口继续进入
+    pending multimodal processing。
+  - 2026-04-26 routing taxonomy sampling：新增 authenticated notice routing
+    sampler，可从 historical bundle 或 source-truth inventory 生成分层抽样报告；初版
+    taxonomy 补齐 course teaching、student application、document collection、
+    exchange visit、research project、safety compliance、meeting/training、
+    competition 与 recruitment family，作为后续 reviewer 回放和规则收口入口。
+  - 2026-04-26 routing taxonomy eval：新增 repo-tracked
+    `routing-taxonomy-eval.v1.jsonl` 与
+    `evaluate_authenticated_notice_routing_taxonomy` gate，确定性校验
+    `notice_family`、`suggested_consumption_route` 与
+    `machine_processing_policy`；同时收窄 research project 的 `专项` 规则，避免抢占
+    safety/compliance 的 `专项检查` 样本。
+  - 2026-04-26 routing taxonomy expansion：补齐
+    academic affairs lifecycle、finance/payment、health/medical、form/template、
+    survey/feedback、facility/IT/library/transport service status、library
+    resource、internal governance 与 general cultural publicity 分流；历史 3000
+    条 bundle 回放中 `other/review_later` 从 1278 降到 900，`notice_level_query`
+    为 1016，`service_status_candidate` 为 96。
 
 ## Native Planning Truth
 

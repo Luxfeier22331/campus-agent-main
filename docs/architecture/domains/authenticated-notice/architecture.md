@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-22
+updated: 2026-04-26
 ---
 # Authenticated Notice Source Architecture
 
@@ -57,12 +57,37 @@ bootstrap artifacts -> ingestion-worker -> document/chunk/index`
 ## Live Notice-Type Policy
 
 - collector runtime 可以按执行安全性只启用 portal notice types 的一个子集
-- 当前 repo-tracked live 默认 config 只启用 `5 / 办公通知`
+- 当前 repo-tracked live 默认 config 启用：
+  - `5 / 办公通知`
+  - `6 / 教学通知`
+  - `8 / 科研通知`
+  - `11 / 公示公告`
+  - `32 / 学工通知`
+  - `9980 / 学术信息`
+  - `9982 / 常用下载`
+- 当前 repo-tracked policy 还显式保留但默认禁用：
+  - `10 / 就业信息`
+  - `36 / 活动报道`
+  - `9978 / 会议纪要`
+  - `9979 / 民大要情`
 - 这个 live config 只表达 bounded runtime policy，不表达 source-channel scope，也不表达
   notice-family truth
-- 更宽的 portal taxonomy 与 live 样本事实已经用于冻结当前 source-channel scope；live config
-  当前较窄不改写 source-truth 范围
+- 完整 portal taxonomy 与 live 样本事实用于冻结当前 source-channel scope；live config 的启用 /
+  禁用状态不改写 source-truth 范围
 - historical donor absorption 不得因为 live config 当前较窄，就反向改写 source-truth 范围
+
+## Collector Run Admission
+
+notice live run 必须先经过 collector-owned admission，再创建 portal API context：
+
+- `incremental` / `backfill` run 必须至少有一个 enabled notice type
+- `selected` run 必须显式给出 selected notice ids
+- selected run 不扫描 notice-type list pages，只按 selected notice id / notice type 抓详情
+- export manifest 必须记录 admitted collection mode、notice type ids、selected notice
+  ids、expected page count、page budget 与 rejection reason shape
+
+这个 admission report 是 live scheduler / operator 复核的 source-channel control truth。
+它不代表 downstream consumption admission，也不打开 query-serving surface。
 
 ## Source Unit
 
@@ -153,6 +178,20 @@ projection、查询 read model 与 notice tool runtime 是四个不同语义：
 - notice query runtime：执行 `campus_notice_discover` / `campus_notice_get`，只读取
   projection/read-model 与 canonical body，不承担留档；当前 repo 仅落成 package-level
   backing query service，不等于打开 panel/chatbot serving
+
+notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工作：
+
+- 它可以从 historical bundle 或 source-truth inventory 生成 stratified sample report
+- 它产出 reviewer 可复核的 `notice_family`、`suggested_consumption_route` 与
+  `machine_processing_policy`
+- taxonomy rule 变更必须可通过 repo-tracked deterministic JSONL gate 回放，至少
+  校验 `notice_family`、`suggested_consumption_route` 与
+  `machine_processing_policy`
+- 当前 taxonomy 已把教务生命周期、财务缴费/补贴、健康医疗、表格模板、问卷反馈、
+  图书馆资源等高价值通知归入 `notice_level_query`；把设施、IT 平台、图书馆开放、
+  班车通勤等可用性/开放时间变化归入 `service_status_candidate`；把内部治理活动和一般文化宣传归入
+  `defer`，且默认跳过低价值视觉处理
+- 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
 
 新写入的 consumption projection 不再使用 `notice_runtime` 同时表示 holding、
 read-model 与 runtime execution。notice-level 查询候选使用
@@ -447,6 +486,19 @@ owner` 解析。
 
 消费层固定不使用 `multimodal_processing_required` 作为 consumption status：
 
+- source-truth attachment classification 的 `multimodal_processing_required` 只说明
+  “采集层发现了非线性视觉素材”，不等于 VLM action backlog；是否花 token
+  处理由 consumption projection 决定
+- projection metadata 必须显式记录 `source_multimodal_processing_required_count`、
+  `pending_multimodal_attachment_count`、`multimodal_consumption_policy` 与
+  `multimodal_action_required`
+- 低价值、短生命周期的讲座 / 活动 / 宣讲 / 工作坊类 inline-image 海报使用
+  `multimodal_consumption_policy=skip` 与
+  `multimodal_skip_reason=low_value_ephemeral_event_poster`，保留
+  `target_surface=notice_level_query` / `retained_for_notice_query`，不进入
+  pending multimodal drain
+- 采购、名单/公示、流程/手册/材料/表格、附件指向、二维码/扫码/报名方式等可能改变用户行动或恢复正文的视觉缺口继续使用
+  `multimodal_consumption_policy=process`
 - 可由机器继续处理的视觉/非线性内容写入
   `target_surface=multimodal_processing_candidate` 与
   `consumption_status=pending_multimodal_processing`
@@ -468,11 +520,12 @@ owner` 解析。
 - pending multimodal drain 只能扫描 consumption projection 的 pending units，可按
   selected notices / selection path 限定；不得回扫 source-truth inventory 来扩张处理范围
 - consumption projection、read model、admission current/event 与 multimodal attempt
-  stores 必须有 repo-owned schema artifact / operator runbook；multimodal eval gate
-  必须有 repo-tracked fixed JSONL fixture；默认 gate 包括 action fixture 与
-  visual-understanding fixture，后者只使用 synthetic/desensitized fixture 输出做
-  required span / forbidden claim / confidence / reason-code 检查，不把 restricted
-  notice 原图上传到 hosted eval 平台
+  stores 必须有 repo-owned schema artifact / operator runbook；routing taxonomy 与
+  multimodal eval gate 必须有 repo-tracked fixed JSONL fixture；routing gate 校验
+  family / route / machine-processing policy，multimodal 默认 gate 包括 action
+  fixture 与 visual-understanding fixture，后者只使用 synthetic/desensitized
+  fixture 输出做 required span / forbidden claim / confidence / reason-code 检查，
+  不把 restricted notice 原图上传到 hosted eval 平台
 - downstream `regulations/institutional_rules` 与 `regulations/scoped_rules`
   materializer 只读 configured projection truth；未配置 projection store 时 fail
   closed，不得回退到 source-truth inventory 或空内存 projection
@@ -532,9 +585,11 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
   diagnostics / probe，不是 canonical 主链路。对 `state=done` 但 provider result
   持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为
   provider contract breach
-- `unsupported_binary`：直接 fast-fail，不静默降级为可检索文档；当前 `.doc` 继续属于这条
-  lane，后续如果补齐，也只能通过 worker-owned normalization lane 回到现有 `text_extractable`
-  路径，而不是在 `ingestion-core` 内手写 legacy Word binary parser
+- `unsupported_binary`：作为显式 terminal source-truth outcome 记录，不生成 child
+  document，不计入 `reference_only`，也不静默降级为可检索文档；如果后续补齐该格式，只能通过
+  worker-owned extractor / normalization lane 回到既有 `text_extractable` 或 OCR 路径，而不是在
+  `ingestion-core` 内手写一次性 parser。当前 `.doc` 已经通过 shared legacy Office
+  normalization lane 进入 `text_extractable`，`zip` 等压缩包仍属于 `unsupported_binary`
 
 `reference_only` 的固定补充：
 
@@ -601,15 +656,33 @@ query-serving。
 `docs/reference/internal-notice-offline-preparation-strategy.md` 承担。本文只冻结 parent
 / child 分层与 attachment lane 的 repo-level 边界，不负责决定某个 lane 的具体 chunk budget。
 
-## Future Control Plane
+## Bounded Source-Channel Control Plane
 
-如果后续需要 run admission、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：
+当前 repo-owned bounded control plane 只覆盖 authenticated source-channel 排障与复核：
+
+- collector run ledger 保存 collection mode、selected notice ids、artifact refs、attachment
+  outcome counts 与完整 export manifest
+- attachment fetch-status coverage report 对齐 current source-truth inventory 与 fetch-status
+  rows，显式暴露 missing refs 与 extra historical refs
+- live-historical reconcile report 在 coverage 基础上额外暴露 body-declared
+  attachment owner-expectation mismatch，避免把“正文写了附件但 payload 未返回附件实体/ref”
+  静默写成“无附件”
+- reference-only explanation report 区分 terminal portal misses、object-backed inline
+  images 与真正 action-required gaps
+- bounded operator status 只聚合 source-truth inventory、fetch-status coverage、reference-only
+  explanation、unsupported binary count、multimodal count 与 latest collector run ledger
+
+这些 worker CLI 属于 source-channel operations truth，不是对象存储浏览器、审批系统或产品
+panel。
+
+如果后续需要 product/API scheduler、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：
 
 - 必须新增 dedicated authenticated notice control-plane domain
 - 不复用现有 `official_web` command/query surfaces
-- 不把 collector control plane 混回 `apps/ingestion-worker`
+- 不把产品级 collector control plane 混回 `apps/ingestion-worker`
 
-这是一条前向约束，不表示当前 merged truth 已经实现该 control plane。
+这是一条前向约束；当前 repo-owned closeout 只落成 bounded worker CLI 与 manifest /
+ledger truth。
 
 ## Async Staged Closeout
 
@@ -678,10 +751,11 @@ pipeline，后续吞吐升级为 planning/worker split + batch-leased executor�
 
 当前文档冻结的是前向 accepted direction。
 
-它不表示：
+它不单独表示：
 
-- `authenticated_notice_portal` 已经进入当前 merged truth
-- 当前 repo 已经存在对应 collector app、collection config 或 operator surface
+- 某个分支是否已经合入 `develop`
+- `authenticated_notice_portal` 已经打开 query-serving
+- bounded worker CLI 已经升级成 product/API control plane
 
 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。
 
